@@ -88,6 +88,35 @@ export interface TraegerSchoolsToday {
   readonly total: TraegerSchoolFigures;
 }
 
+/** The kinds of a hint on the dashboard (#4675), in the backend's order. */
+export type TraegerAlertKind =
+  "staff_shortage" | "sick_children" | "open_enrollments";
+
+/** The Träger's thresholds of the dashboard hints; 0 switches one off. */
+export interface TraegerAlertThresholds {
+  /** More present children per present staff member marks too little staff. */
+  readonly childrenPerStaff: number;
+  /** At least this share of the children sick today, in percent. */
+  readonly sickPercent: number;
+  /** At least this many children of the online enrollment waiting. */
+  readonly openEnrollments: number;
+}
+
+/** One school with the figures behind its hints and the hints that apply. */
+export interface TraegerSchoolAlerts extends TraegerSchool {
+  readonly figures: TraegerSchoolFigures;
+  /** Children of the online enrollment waiting for a decision. */
+  readonly openEnrollments: number;
+  readonly alerts: readonly TraegerAlertKind[];
+}
+
+/** The hints of every school of the Träger (#4675), ordered by name. */
+export interface TraegerSchoolsAlerts {
+  readonly thresholds: TraegerAlertThresholds;
+  readonly schools: readonly TraegerSchoolAlerts[];
+  readonly asOf: string;
+}
+
 /**
  * One captured Stichtagszahl of a school (#4673): the actively managed
  * children and the active terminals on the key date of a month, the same row
@@ -168,6 +197,22 @@ interface BackendSchoolView extends BackendSchool {
 interface BackendSchoolsToday {
   schools: (BackendSchool & { figures: BackendSchoolFigures })[] | null;
   total: BackendSchoolFigures;
+}
+
+interface BackendSchoolsAlerts {
+  thresholds: {
+    children_per_staff: number;
+    sick_percent: number;
+    open_enrollments: number;
+  };
+  schools:
+    | (BackendSchool & {
+        figures: BackendSchoolFigures;
+        open_enrollments: number;
+        alerts: TraegerAlertKind[] | null;
+      })[]
+    | null;
+  as_of: string;
 }
 
 interface BackendSchool {
@@ -317,6 +362,40 @@ export async function fetchTraegerSchoolsToday(): Promise<TraegerSchoolsToday> {
       figures: toSchoolFigures(school.figures),
     })),
     total: toSchoolFigures(today.total),
+  };
+}
+
+/**
+ * The hints of every school of the Träger against the Träger's thresholds
+ * (#4675): numbers only, no names.
+ */
+export async function fetchTraegerSchoolsAlerts(): Promise<TraegerSchoolsAlerts> {
+  const response = await transportFetch("/api/traeger/schools/alerts", {
+    credentials: "include",
+    cache: "no-store",
+  });
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  const alerts = (data as { data: BackendSchoolsAlerts }).data;
+  return {
+    thresholds: {
+      childrenPerStaff: alerts.thresholds.children_per_staff,
+      sickPercent: alerts.thresholds.sick_percent,
+      openEnrollments: alerts.thresholds.open_enrollments,
+    },
+    schools: (alerts.schools ?? []).map((school) => ({
+      ...toTraegerSchool(school),
+      figures: toSchoolFigures(school.figures),
+      openEnrollments: school.open_enrollments,
+      alerts: school.alerts ?? [],
+    })),
+    asOf: alerts.as_of,
   };
 }
 

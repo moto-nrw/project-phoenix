@@ -4,10 +4,13 @@
 // des Trägers auf einer Seite, oben die Summe, darunter je Schule eine Zeile.
 // Nur Zahlen, keine Namen. Eine Zeile führt in die Ansicht der Schule (#5686);
 // wer das Recht „In OGS wechseln" hat, öffnet von hier auch die Schul-App.
+// Zwischen Summe und Tabelle stehen die Auffälligkeiten (#4675); in der
+// Tabelle ist jede Zahl hervorgehoben, die eine Grenze des Trägers erreicht.
 
-import { type MouseEvent, useMemo, useState } from "react";
+import { type MouseEvent, type ReactNode, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, School } from "lucide-react";
+import { ExternalLink, School, TriangleAlert } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -21,6 +24,9 @@ import {
   useOpenTraegerSchool,
 } from "~/components/traeger/use-open-traeger-school";
 import { useTraegerSchoolsToday } from "~/components/traeger/use-traeger-schools-today";
+import { useTraegerSchoolsAlerts } from "~/components/traeger/use-traeger-schools-alerts";
+import { TraegerSchoolAlertsCard } from "~/components/traeger/traeger-school-alerts";
+import { hasPermission } from "~/lib/auth-utils";
 import { childrenConcept } from "~/lib/concepts/children";
 import { presentConcept } from "~/lib/concepts/present";
 import { sickConcept } from "~/lib/concepts/sick";
@@ -28,6 +34,8 @@ import { staffConcept } from "~/lib/concepts/staff";
 import { supervisionConcept } from "~/lib/concepts/supervision";
 import { formatBerlinTime } from "~/lib/date-helpers";
 import type {
+  TraegerAlertKind,
+  TraegerSchoolAlerts,
   TraegerSchoolFigures,
   TraegerSchoolToday,
 } from "~/lib/traeger-api";
@@ -36,6 +44,38 @@ import { traegerPath } from "~/lib/traeger-url";
 import { foldForSearch } from "~/lib/search-fold";
 
 const EMPTY_VALUE = "–";
+
+/** The Träger right that changes the thresholds of the hints. */
+const SETTINGS_RIGHT = "traeger_settings:manage";
+
+/** The hints of one school by its ID; missing while they load. */
+type AlertsBySchool = ReadonlyMap<string, TraegerSchoolAlerts>;
+
+function hasAlert(
+  alerts: AlertsBySchool,
+  school: TraegerSchoolToday,
+  kind: TraegerAlertKind,
+): boolean {
+  return alerts.get(school.id)?.alerts.includes(kind) ?? false;
+}
+
+/**
+ * A figure that reaches a threshold of the Träger: orange, with the warning
+ * symbol and a spoken hint, so the colour is never the only sign.
+ */
+function Flagged({
+  flagged,
+  children,
+}: Readonly<{ flagged: boolean; children: ReactNode }>) {
+  if (!flagged) return <>{children}</>;
+  return (
+    <span className="text-moto-orange-strong inline-flex items-center gap-1">
+      <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
+      {children}
+      <span className="sr-only">, erreicht Ihre Grenze</span>
+    </span>
+  );
+}
 
 const ratioFormat = new Intl.NumberFormat("de-DE", {
   maximumFractionDigits: 1,
@@ -156,104 +196,143 @@ function TotalFigures({
   );
 }
 
-const COLUMNS: DataTableColumn<TraegerSchoolToday>[] = [
-  {
-    key: "name",
-    header: "Schule",
-    // Der Link ist der Weg per Tastatur und Vorlesehilfe; die Zeile hat eigene
-    // Bedienelemente und wird deshalb selbst kein Knopf.
-    render: (school) => (
-      <div className="min-w-0">
-        <NavigationLink
-          href={schoolPath(school)}
-          className="font-medium text-gray-900 hover:underline"
-          onClick={(event: MouseEvent<HTMLAnchorElement>) =>
-            event.stopPropagation()
-          }
-        >
-          {school.name}
-        </NavigationLink>
-        {school.city ? (
-          <span className="block text-xs text-gray-500 max-md:hidden">
-            {school.city}
+function figureColumns(
+  alerts: AlertsBySchool,
+  alertsLoaded: boolean,
+): DataTableColumn<TraegerSchoolToday>[] {
+  return [
+    {
+      key: "name",
+      header: "Schule",
+      // Der Link ist der Weg per Tastatur und Vorlesehilfe; die Zeile hat eigene
+      // Bedienelemente und wird deshalb selbst kein Knopf.
+      render: (school) => (
+        <div className="min-w-0">
+          <NavigationLink
+            href={schoolPath(school)}
+            className="font-medium text-gray-900 hover:underline"
+            onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+              event.stopPropagation()
+            }
+          >
+            {school.name}
+          </NavigationLink>
+          {school.city ? (
+            <span className="block text-xs text-gray-500 max-md:hidden">
+              {school.city}
+            </span>
+          ) : null}
+        </div>
+      ),
+      sortValue: (school) => school.name,
+      stacked: "title",
+    },
+    {
+      key: "present",
+      header: "Jetzt anwesend",
+      render: (school) => (
+        <div className="w-36 max-md:w-full">
+          <span className="text-sm text-gray-900 tabular-nums">
+            <span className="font-semibold">
+              {school.figures.childrenPresent}
+            </span>
+            <span className="text-gray-500">
+              {" "}
+              von {school.figures.childrenTotal}
+            </span>
           </span>
-        ) : null}
-      </div>
-    ),
-    sortValue: (school) => school.name,
-    stacked: "title",
-  },
-  {
-    key: "present",
-    header: "Jetzt anwesend",
-    render: (school) => (
-      <div className="w-36 max-md:w-full">
+          <ProgressBar
+            value={school.figures.childrenPresent}
+            max={school.figures.childrenTotal}
+            label={`${school.figures.childrenPresent} von ${school.figures.childrenTotal} Kindern anwesend`}
+            className="mt-1.5"
+          />
+        </div>
+      ),
+      sortValue: (school) => school.figures.childrenPresent,
+    },
+    {
+      key: "sick",
+      header: "Heute krank",
+      align: "right",
+      render: (school) => (
         <span className="text-sm text-gray-900 tabular-nums">
-          <span className="font-semibold">
-            {school.figures.childrenPresent}
-          </span>
-          <span className="text-gray-500">
-            {" "}
-            von {school.figures.childrenTotal}
-          </span>
-        </span>
-        <ProgressBar
-          value={school.figures.childrenPresent}
-          max={school.figures.childrenTotal}
-          label={`${school.figures.childrenPresent} von ${school.figures.childrenTotal} Kindern anwesend`}
-          className="mt-1.5"
-        />
-      </div>
-    ),
-    sortValue: (school) => school.figures.childrenPresent,
-  },
-  {
-    key: "sick",
-    header: "Heute krank",
-    align: "right",
-    render: (school) => (
-      <span className="text-sm text-gray-900 tabular-nums">
-        {school.figures.childrenSick}
-      </span>
-    ),
-    sortValue: (school) => school.figures.childrenSick,
-  },
-  {
-    key: "staff",
-    header: "Betreuungskräfte",
-    align: "right",
-    render: (school) => (
-      <span className="text-sm text-gray-900 tabular-nums">
-        <span className="font-semibold">{school.figures.staffPresent}</span>
-        <span className="text-gray-500"> von {school.figures.staffTotal}</span>
-      </span>
-    ),
-    sortValue: (school) => school.figures.staffPresent,
-  },
-  {
-    key: "ratio",
-    header: "Schlüssel",
-    align: "right",
-    render: (school) =>
-      school.figures.careRatio === null ? (
-        <span className="text-sm text-gray-500">
-          {EMPTY_VALUE}
-          <span className="sr-only">
-            , keine Betreuungskraft in der Zeiterfassung angemeldet
-          </span>
-        </span>
-      ) : (
-        <span className="text-sm font-semibold text-gray-900 tabular-nums">
-          {formatRatio(school.figures.careRatio)}
+          <Flagged flagged={hasAlert(alerts, school, "sick_children")}>
+            {school.figures.childrenSick}
+          </Flagged>
         </span>
       ),
-    // Ohne Betreuungskraft fehlt der Wert und sortiert nach allen anderen.
-    sortValue: (school) => school.figures.careRatio,
-  },
-];
+      sortValue: (school) => school.figures.childrenSick,
+    },
+    {
+      key: "staff",
+      header: "Betreuungskräfte",
+      align: "right",
+      render: (school) => (
+        <span className="text-sm text-gray-900 tabular-nums">
+          <Flagged flagged={hasAlert(alerts, school, "staff_shortage")}>
+            <span className="font-semibold">{school.figures.staffPresent}</span>
+          </Flagged>
+          <span className="text-gray-500">
+            {" "}
+            von {school.figures.staffTotal}
+          </span>
+        </span>
+      ),
+      sortValue: (school) => school.figures.staffPresent,
+    },
+    {
+      key: "ratio",
+      header: "Schlüssel",
+      align: "right",
+      render: (school) =>
+        school.figures.careRatio === null ? (
+          <span className="text-sm text-gray-500">
+            {EMPTY_VALUE}
+            <span className="sr-only">
+              , keine Betreuungskraft in der Zeiterfassung angemeldet
+            </span>
+          </span>
+        ) : (
+          <span className="text-sm font-semibold text-gray-900 tabular-nums">
+            <Flagged flagged={hasAlert(alerts, school, "staff_shortage")}>
+              {formatRatio(school.figures.careRatio)}
+            </Flagged>
+          </span>
+        ),
+      // Ohne Betreuungskraft fehlt der Wert und sortiert nach allen anderen.
+      sortValue: (school) => school.figures.careRatio,
+    },
+    {
+      key: "enrollments",
+      header: "Offene Anmeldungen",
+      align: "right",
+      render: (school) => {
+        const open = alerts.get(school.id)?.openEnrollments;
+        return open === undefined ? (
+          <span className="text-sm text-gray-500">
+            {EMPTY_VALUE}
+            <span className="sr-only">
+              {alertsLoaded ? ", keine Angabe" : ", wird geladen"}
+            </span>
+          </span>
+        ) : (
+          <span className="text-sm text-gray-900 tabular-nums">
+            <Flagged flagged={hasAlert(alerts, school, "open_enrollments")}>
+              {open}
+            </Flagged>
+          </span>
+        );
+      },
+      sortValue: (school) => alerts.get(school.id)?.openEnrollments ?? null,
+    },
+  ];
+}
 
 export default function TraegerDashboardPage() {
   const { today, error } = useTraegerSchoolsToday();
+  const { alerts, error: alertsError } = useTraegerSchoolsAlerts();
+  const { data: session } = useSession();
   const router = useRouter();
   const { canOpen, opening, open } = useOpenTraegerSchool();
   const [search, setSearch] = useState("");
@@ -265,46 +344,50 @@ export default function TraegerDashboardPage() {
     [today, search],
   );
 
-  const columns = useMemo<DataTableColumn<TraegerSchoolToday>[]>(
-    () =>
-      canOpen
-        ? [
-            ...COLUMNS,
-            {
-              key: "actions",
-              header: "",
-              align: "right",
-              stacked: "meta",
-              stackedLabel: false,
-              render: (school) => (
-                <Button
-                  type="button"
-                  variant="surface"
-                  size="compact"
-                  aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
-                  title="Öffnet in einem neuen Tab"
-                  disabled={opening !== null}
-                  onClick={(event) => {
-                    // Die Aktion öffnet die Schul-App, nicht die Schulansicht.
-                    event.stopPropagation();
-                    void open(school);
-                  }}
-                >
-                  {opening === school.id ? (
-                    "Wird geöffnet …"
-                  ) : (
-                    <>
-                      {TRAEGER_HANDOFF_OPEN}
-                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                    </>
-                  )}
-                </Button>
-              ),
-            },
-          ]
-        : COLUMNS,
-    [canOpen, open, opening],
+  const alertsBySchool = useMemo<AlertsBySchool>(
+    () => new Map((alerts?.schools ?? []).map((school) => [school.id, school])),
+    [alerts],
   );
+
+  const columns = useMemo<DataTableColumn<TraegerSchoolToday>[]>(() => {
+    const figures = figureColumns(alertsBySchool, alerts !== null);
+    return canOpen
+      ? [
+          ...figures,
+          {
+            key: "actions",
+            header: "",
+            align: "right",
+            stacked: "meta",
+            stackedLabel: false,
+            render: (school) => (
+              <Button
+                type="button"
+                variant="surface"
+                size="compact"
+                aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
+                title="Öffnet in einem neuen Tab"
+                disabled={opening !== null}
+                onClick={(event) => {
+                  // Die Aktion öffnet die Schul-App, nicht die Schulansicht.
+                  event.stopPropagation();
+                  void open(school);
+                }}
+              >
+                {opening === school.id ? (
+                  "Wird geöffnet …"
+                ) : (
+                  <>
+                    {TRAEGER_HANDOFF_OPEN}
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  </>
+                )}
+              </Button>
+            ),
+          },
+        ]
+      : figures;
+  }, [alerts, alertsBySchool, canOpen, open, opening]);
 
   return (
     <TenantPage
@@ -312,9 +395,9 @@ export default function TraegerDashboardPage() {
       info={
         <>
           Die Zahlen von jetzt für alle Schulen Ihres Trägers. Oben steht die
-          Summe, darunter jede Schule. moto zeigt hier keine Namen. Die Zahlen
-          aktualisieren sich jede Minute. Ein Klick auf eine Schule zeigt ihre
-          Zahlen und Stammdaten.
+          Summe, darunter die Auffälligkeiten und jede Schule. moto zeigt hier
+          keine Namen. Die Zahlen aktualisieren sich jede Minute. Ein Klick auf
+          eine Schule zeigt ihre Zahlen und Stammdaten.
           {canOpen
             ? " „Schul-App öffnen“ zeigt die Schule in einem neuen Tab."
             : ` ${SCHOOL_SWITCH_MISSING_HINT}`}
@@ -345,6 +428,11 @@ export default function TraegerDashboardPage() {
       }
     >
       <TotalFigures total={today?.total ?? null} schoolCount={schools.length} />
+      <TraegerSchoolAlertsCard
+        alerts={alerts}
+        error={alertsError}
+        canChangeThresholds={hasPermission(session, SETTINGS_RIGHT)}
+      />
       <DataTable
         heading={{ title: "Zahlen je Schule", count: rows.length }}
         columns={columns}

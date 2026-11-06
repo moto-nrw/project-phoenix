@@ -5,15 +5,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { TEST_CLOCK_INSTANT } from "~/test/clock";
-import type { TraegerSchoolsToday } from "~/lib/traeger-api";
+import type {
+  TraegerSchoolsAlerts,
+  TraegerSchoolsToday,
+} from "~/lib/traeger-api";
 
-const { mockFetchToday, mockStartSession, mockUseSession, mockPush } =
-  vi.hoisted(() => ({
-    mockFetchToday: vi.fn(),
-    mockStartSession: vi.fn(),
-    mockUseSession: vi.fn(),
-    mockPush: vi.fn(),
-  }));
+const {
+  mockFetchToday,
+  mockFetchAlerts,
+  mockStartSession,
+  mockUseSession,
+  mockPush,
+} = vi.hoisted(() => ({
+  mockFetchToday: vi.fn(),
+  mockFetchAlerts: vi.fn(),
+  mockStartSession: vi.fn(),
+  mockUseSession: vi.fn(),
+  mockPush: vi.fn(),
+}));
 
 vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path,
@@ -27,6 +36,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/traeger-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/traeger-api")>()),
   fetchTraegerSchoolsToday: mockFetchToday,
+  fetchTraegerSchoolsAlerts: mockFetchAlerts,
   startTraegerSchoolSession: mockStartSession,
 }));
 vi.mock("~/env.client", () => ({
@@ -80,6 +90,20 @@ const TODAY: TraegerSchoolsToday = {
   total: figures(200, 80, 5, 17, 6),
 };
 
+/** Am Bach is quiet; Lindenweg has children without staff and waiting ones. */
+const ALERTS: TraegerSchoolsAlerts = {
+  thresholds: { childrenPerStaff: 20, sickPercent: 10, openEnrollments: 1 },
+  schools: [
+    { ...TODAY.schools[0]!, openEnrollments: 0, alerts: [] },
+    {
+      ...TODAY.schools[1]!,
+      openEnrollments: 4,
+      alerts: ["staff_shortage", "open_enrollments"],
+    },
+  ],
+  asOf: AS_OF,
+};
+
 function sessionWith(permissions: string[]) {
   return {
     data: { user: { id: "A", scope: "org", orgId: 7, permissions } },
@@ -100,6 +124,8 @@ function renderPage() {
 describe("TraegerDashboardPage", () => {
   beforeEach(() => {
     mockFetchToday.mockReset();
+    mockFetchAlerts.mockReset();
+    mockFetchAlerts.mockResolvedValue(ALERTS);
     mockStartSession.mockReset();
     mockPush.mockReset();
     mockUseSession.mockReturnValue(sessionWith(["traeger_overview:read"]));
@@ -225,5 +251,50 @@ describe("TraegerDashboardPage", () => {
     expect(
       screen.queryByText("Kinder gesamt", { selector: "p" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the hints of every school and marks the figures in the table", async () => {
+    mockFetchToday.mockResolvedValue(TODAY);
+    renderPage();
+
+    const card = await screen.findByTestId("traeger-school-alerts");
+    expect(within(card).getByText("1 Schule")).toBeInTheDocument();
+    expect(
+      await within(card).findByRole("link", {
+        name: "Zur Schule: OGS Lindenweg",
+      }),
+    ).toHaveAttribute("href", "/traeger/schulen/3");
+    expect(
+      within(card).queryByRole("link", { name: "Zur Schule: OGS Am Bach" }),
+    ).not.toBeInTheDocument();
+
+    const table = screen.getByRole("table");
+    const lindenweg = within(table)
+      .getByRole("link", { name: "OGS Lindenweg" })
+      .closest("tr") as HTMLElement;
+    const amBach = within(table)
+      .getByRole("link", { name: "OGS Am Bach" })
+      .closest("tr") as HTMLElement;
+    // Wenig Personal und wartende Kinder: zwei markierte Zahlen.
+    expect(
+      within(lindenweg).getAllByText(", erreicht Ihre Grenze"),
+    ).toHaveLength(2);
+    expect(within(lindenweg).getByText("4")).toBeInTheDocument();
+    expect(within(amBach).getByText("1 : 8,5")).toBeInTheDocument();
+    expect(
+      within(amBach).queryByText(", erreicht Ihre Grenze"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the figures when the hints fail", async () => {
+    mockFetchToday.mockResolvedValue(TODAY);
+    mockFetchAlerts.mockRejectedValue(
+      new ApiError("boom", 500, { code: "general.internal" }),
+    );
+    renderPage();
+
+    expect(await screen.findByText("1 : 13,3")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
   });
 });
