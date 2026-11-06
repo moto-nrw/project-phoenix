@@ -2451,9 +2451,15 @@ export interface ParentDocument {
   readonly id: string;
   readonly organization_id: string;
   readonly traeger_name: string;
-  /** The confirmation letter, or the letter of its Storno or Gutschrift (#4690). */
+  /**
+   * The confirmation letter, the letter of its Storno or Gutschrift (#4690),
+   * or a care contract (#4678).
+   */
   readonly kind:
-    "confirmation_letter" | "cancellation_letter" | "credit_letter";
+    | "confirmation_letter"
+    | "cancellation_letter"
+    | "credit_letter"
+    | "care_contract";
   readonly number: string;
   readonly period_name: string;
   readonly service_from: string;
@@ -2465,11 +2471,47 @@ export interface ParentDocument {
 }
 
 /**
- * The documents the Träger of the account's schools sent to the family,
- * newest first. 403 when no relationship of the account grants them.
+ * The documents the Träger of the account's schools sent to the family:
+ * the letters and the care contracts (#4678), newest first. 403 when no
+ * relationship of the account grants them.
  */
-export async function listMyDocuments(): Promise<ParentDocument[]> {
-  return getJson<ParentDocument[]>("/api/parent/me/documents");
+export interface ParentDocumentInbox {
+  readonly documents: ParentDocument[];
+  readonly failedSource: "letters" | "contracts" | null;
+  readonly error: unknown;
+}
+
+export async function listMyDocuments(): Promise<ParentDocumentInbox> {
+  const [letters, contracts] = await Promise.allSettled([
+    getJson<ParentDocument[]>("/api/parent/me/documents"),
+    getJson<ParentDocument[]>("/api/parent/me/documents/contracts"),
+  ]);
+  if (letters.status === "rejected" && contracts.status === "rejected") {
+    throw letters.reason;
+  }
+  const documents = [
+    ...(letters.status === "fulfilled" ? letters.value : []),
+    ...(contracts.status === "fulfilled" ? contracts.value : []),
+  ].sort(
+    (a, b) =>
+      Date.parse(b.sent_at) - Date.parse(a.sent_at) ||
+      Number(b.id) - Number(a.id),
+  );
+  return {
+    documents,
+    failedSource:
+      letters.status === "rejected"
+        ? "letters"
+        : contracts.status === "rejected"
+          ? "contracts"
+          : null,
+    error:
+      letters.status === "rejected"
+        ? letters.reason
+        : contracts.status === "rejected"
+          ? contracts.reason
+          : null,
+  };
 }
 
 /**
@@ -2478,9 +2520,14 @@ export async function listMyDocuments(): Promise<ParentDocument[]> {
  * the page as a message; a 401 still leads to the login.
  */
 export async function downloadMyDocument(
-  document: Pick<ParentDocument, "id" | "organization_id" | "number">,
+  document: Pick<ParentDocument, "id" | "organization_id" | "number" | "kind">,
 ): Promise<void> {
-  const url = `/api/parent/me/documents/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}/pdf`;
+  const organization = encodeURIComponent(document.organization_id);
+  const id = encodeURIComponent(document.id);
+  const url =
+    document.kind === "care_contract"
+      ? `/api/parent/me/documents/${organization}/contracts/${id}/pdf`
+      : `/api/parent/me/documents/${organization}/${id}/pdf`;
   const response = await transportFetch(url, { method: "GET" });
   if (!response.ok) await throwResponseError(url, response);
   const blob = await response.blob();

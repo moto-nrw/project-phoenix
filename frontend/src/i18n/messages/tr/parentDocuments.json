@@ -1,6 +1,6 @@
 {
   "title": "Belgeler",
-  "description": "Kurumun size gönderdiği yazıları burada bulursunuz. Örneğin tatil bakımı onayı.",
+  "description": "Kurumun size gönderdiği yazıları ve sözleşmeleri burada bulursunuz. Örneğin tatil bakımı onayı.",
   "emptyTitle": "Henüz belge yok",
   "emptyDescription": "Kurum size bir yazı gönderdiğinde onu burada bulursunuz. Ayrıca e-posta ile de alırsınız.",
   "confirmationLetter": "Onay yazısı: {period}",
@@ -14,5 +14,10 @@
   "download": "PDF indir",
   "downloading": "İndiriliyor …",
   "errorObject": "Belgeler",
-  "downloadErrorObject": "Belge"
+  "downloadErrorObject": "Belge",
+  "careContract": "Bakım sözleşmesi",
+  "bookedCare": "Rezerve edilen bakım",
+  "startsOn": "Başlangıç",
+  "lettersErrorObject": "yazılar",
+  "contractsErrorObject": "bakım sözleşmeleri"
 }

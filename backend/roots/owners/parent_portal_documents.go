@@ -5,7 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
@@ -48,7 +52,7 @@ func NewParentBillingDocuments() parentportal.BillingDocumentsPort {
 }
 
 func (d parentBillingDocuments) ListBillingDocuments(ctx context.Context, organizationID int64, reader parentportal.BillingDocumentReader) ([]parentportal.BillingDocument, error) {
-	found, err := d.documents.ListParentDocuments(ctx, organizationID, parentbilling.ParentDocumentReader(reader))
+	found, err := d.documents.ListParentDocuments(ctx, organizationID, parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email})
 	if errors.Is(err, parentbilling.ErrParentDocumentNotFound) {
 		return nil, nil
 	}
@@ -67,8 +71,51 @@ func (d parentBillingDocuments) ListBillingDocuments(ctx context.Context, organi
 }
 
 func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {
-	file, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentbilling.ParentDocumentReader(reader))
+	file, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email})
 	if errors.Is(err, parentbilling.ErrParentDocumentNotFound) {
+		return parentportal.BillingDocumentFile{}, fmt.Errorf("%w: %w", parentportal.ErrBillingDocumentNotFound, err)
+	}
+	if err != nil {
+		return parentportal.BillingDocumentFile{}, err
+	}
+	return parentportal.BillingDocumentFile(file), nil
+}
+
+// parentContractDocuments binds the contracts of the inbox to the
+// Betreuungsvertrag (#4678, ADR 0153), which reads in the caller's Träger
+// transaction and records every read.
+type parentContractDocuments struct {
+	inbox carecontract.Inbox
+}
+
+// NewParentContractDocuments binds the inbox's contracts to the
+// Betreuungsvertrag.
+func NewParentContractDocuments() parentportal.ContractDocumentsPort {
+	return parentContractDocuments{inbox: careContractCompose.NewInbox()}
+}
+
+func (d parentContractDocuments) ListContractDocuments(ctx context.Context, organizationID int64, reader parentportal.BillingDocumentReader) ([]parentportal.BillingDocument, error) {
+	found, err := d.inbox.InboxContracts(ctx, organizationID, carecontract.InboxReader(reader))
+	if errors.Is(err, carecontract.ErrInboxDocumentNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	documents := make([]parentportal.BillingDocument, len(found))
+	for i, contract := range found {
+		documents[i] = parentportal.BillingDocument{
+			ID: contract.ID, OrganizationID: organizationID, Kind: parentportal.DocumentKindContract,
+			Number: "Nr. " + strconv.FormatInt(contract.ID, 10), PeriodName: strings.Join(contract.ModuleNames, ", ") + " · " + contract.SchoolName,
+			ServiceFrom: contract.EffectiveOn, ChildNames: contract.ChildNames, SentAt: contract.SentAt,
+		}
+	}
+	return documents, nil
+}
+
+func (d parentContractDocuments) ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {
+	file, err := d.inbox.InboxContractDocument(ctx, organizationID, contractID, carecontract.InboxReader(reader))
+	if errors.Is(err, carecontract.ErrInboxDocumentNotFound) {
 		return parentportal.BillingDocumentFile{}, fmt.Errorf("%w: %w", parentportal.ErrBillingDocumentNotFound, err)
 	}
 	if err != nil {

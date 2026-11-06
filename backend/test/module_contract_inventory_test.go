@@ -64,7 +64,7 @@ func TestModuleContractInventoryRatchet(t *testing.T) {
 			expected[owner.ID] = true
 		}
 	}
-	require.Equal(t, 19, domains) // ADR 0088: the Elternabrechnung is the nineteenth domain
+	require.Equal(t, 20, domains) // ADR 0088, ADR 0153: the Betreuungsvertrag is the twentieth domain
 	require.Equal(t, 10, platforms)
 	packages := map[string]string{}
 	for _, pkg := range policy.Packages {

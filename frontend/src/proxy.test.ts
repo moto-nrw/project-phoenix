@@ -1288,6 +1288,23 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites the care contracts to /traeger/vertraege (#4678)", () => {
+      for (const path of [
+        "/vertraege",
+        "/vertraege/7",
+        "/vertraege/bedingungen",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),
+        );
+
+        expect(res.headers.get("location")).toBeNull();
+        expect(res.headers.get("x-middleware-rewrite")).toContain(
+          `/traeger${path}`,
+        );
+      }
+    });
+
     it("rewrites the Stichtagszahlen to /traeger/stichtagszahlen (#4673)", () => {
       const res = proxy(
         makeRequest(

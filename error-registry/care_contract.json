@@ -1,0 +1,52 @@
+{
+  "codes": [
+    {
+      "code": "care_contract.application_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.application_not_found"
+    },
+    {
+      "code": "care_contract.contract_input_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_contract.contract_input_invalid"
+    },
+    {
+      "code": "care_contract.contract_not_draft",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.contract_not_draft"
+    },
+    {
+      "code": "care_contract.contract_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.contract_not_found"
+    },
+    {
+      "code": "care_contract.letterhead_too_long",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.letterhead_too_long"
+    },
+    {
+      "code": "care_contract.offering_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.offering_not_found"
+    },
+    {
+      "code": "care_contract.school_outside_traeger",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "care_contract.school_outside_traeger"
+    },
+    {
+      "code": "care_contract.template_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_contract.template_invalid"
+    }
+  ]
+}
