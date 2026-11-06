@@ -48,3 +48,16 @@ func NewInbox() carecontract.Inbox { return application.NewInbox(postgres.NewSto
 func NewContractMailRenderer() carecontract.ContractMailRenderer {
 	return application.RenderContractMail
 }
+
+// NewAmendments builds the run that gives an active contract a new version
+// when its booked care changed (#4681) over the ports of the intake; it
+// opens its own units.
+func NewAmendments(intake IntakePorts) carecontract.Amendments {
+	return application.NewAmendments(application.NewIntake(postgres.NewStore(), intake, calendar.TodayDate))
+}
+
+// NewContractVersions builds the read of the versions in force for the
+// parents' billing (#4684), in the Träger transaction the caller holds.
+func NewContractVersions() carecontract.ContractVersions {
+	return application.NewVersions(postgres.NewStore())
+}

@@ -1,0 +1,227 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// The versions of a contract over time (#4681). The effective versions
+// (wirksam, abgeloest) form one timeline; the migration 1.15.775 keeps them
+// apart. A version holds from its effective date to the day before the next
+// effective version starts, or to its own end.
+
+// effectiveStatusSQL names the statuses of the timeline.
+const effectiveStatusSQL = `('` + carecontract.VersionEffective + `', '` + carecontract.VersionSuperseded + `')`
+
+// validUntilSQL is the last day version v holds; NULL when it holds open
+// ended or is no effective version.
+const validUntilSQL = `CASE WHEN v.status IN ` + effectiveStatusSQL + ` THEN LEAST(
+		(SELECT MIN(n.effective_from) FROM care_contract.contract_versions AS n
+			WHERE n.organization_id = v.organization_id AND n.contract_id = v.contract_id
+				AND n.status IN ` + effectiveStatusSQL + ` AND n.effective_from > v.effective_from) - 1,
+		v.ends_on) END`
+
+// versionsSQL reads every version of a contract with its services, oldest
+// first.
+const versionsSQL = `SELECT ` + versionColumns + `, v.source, ` + servicesSQL + ` AS services, ` + validUntilSQL + ` AS valid_until
+	FROM care_contract.contract_versions AS v
+	WHERE v.organization_id = ? AND v.contract_id = ? ORDER BY v.version_number`
+
+// Versions reads every version of a contract, oldest first.
+func (Store) Versions(ctx context.Context, organizationID, contractID int64) ([]carecontract.Version, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []versionRow
+	if err := db.NewRaw(versionsSQL, organizationID, contractID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("care contract postgres: read versions: %w", err)
+	}
+	return versionsOf(rows)
+}
+
+func versionsOf(rows []versionRow) ([]carecontract.Version, error) {
+	versions := make([]carecontract.Version, len(rows))
+	for i, row := range rows {
+		version, err := row.version()
+		if err != nil {
+			return nil, err
+		}
+		versions[i] = version
+	}
+	return versions, nil
+}
+
+// AmendableContracts reads every active contract with its newest effective
+// version, the start of its first one and its next version number.
+func (Store) AmendableContracts(ctx context.Context, organizationID int64) ([]ports.AmendableContract, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var heads []struct {
+		ContractID     int64         `bun:"contract_id"`
+		SchoolID       int64         `bun:"school_id"`
+		RequestChildID int64         `bun:"request_child_id"`
+		VersionID      int64         `bun:"version_id"`
+		FirstFrom      calendar.Date `bun:"first_from,type:date"`
+		NextNumber     int           `bun:"next_number"`
+	}
+	if err := db.NewRaw(`SELECT c.id AS contract_id, c.school_id, c.request_child_id, v.id AS version_id,
+			(SELECT MIN(f.effective_from) FROM care_contract.contract_versions AS f
+				WHERE f.organization_id = c.organization_id AND f.contract_id = c.id
+					AND f.status IN `+effectiveStatusSQL+`) AS first_from,
+			(SELECT MAX(m.version_number) + 1 FROM care_contract.contract_versions AS m
+				WHERE m.organization_id = c.organization_id AND m.contract_id = c.id) AS next_number
+		FROM care_contract.contracts AS c
+		JOIN care_contract.contract_versions AS v ON v.organization_id = c.organization_id AND v.contract_id = c.id
+			AND v.status = ?
+		WHERE c.organization_id = ? AND c.status = ?
+		ORDER BY c.school_id, c.id`, carecontract.VersionEffective, organizationID, carecontract.StatusActive).Scan(ctx, &heads); err != nil {
+		return nil, fmt.Errorf("care contract postgres: read active contracts: %w", err)
+	}
+	if len(heads) == 0 {
+		return []ports.AmendableContract{}, nil
+	}
+	ids := make([]int64, len(heads))
+	for i, head := range heads {
+		ids[i] = head.VersionID
+	}
+	var rows []versionRow
+	if err := db.NewRaw(`SELECT `+versionColumns+`, v.source, `+servicesSQL+` AS services, `+validUntilSQL+` AS valid_until
+		FROM care_contract.contract_versions AS v WHERE v.organization_id = ? AND v.id = ANY(?)`,
+		organizationID, pgdialect.Array(ids)).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("care contract postgres: read effective versions: %w", err)
+	}
+	byID := make(map[int64]versionRow, len(rows))
+	for _, row := range rows {
+		byID[row.ID] = row
+	}
+	result := make([]ports.AmendableContract, 0, len(heads))
+	for _, head := range heads {
+		latest, err := byID[head.VersionID].version()
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, ports.AmendableContract{
+			ID: head.ContractID, Key: ports.ContractKey{SchoolID: head.SchoolID, RequestChildID: head.RequestChildID},
+			FirstFrom: head.FirstFrom, NextNumber: head.NextNumber, Latest: latest,
+		})
+	}
+	return result, nil
+}
+
+// InsertVersion makes version the newest effective version of the contract:
+// the version previousID it follows becomes abgeloest, and the new one is
+// stored wirksam with its services. A previous version that is no longer
+// wirksam is ErrVersionMoved, so a concurrent run adds nothing twice. The
+// trigger of 1.15.775 refuses a version that starts before an effective one
+// or in the past.
+func (Store) InsertVersion(ctx context.Context, organizationID, contractID, previousID int64, version carecontract.Version) (int64, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return 0, err
+	}
+	result, err := db.ExecContext(ctx, `UPDATE care_contract.contract_versions SET status = ?
+		WHERE organization_id = ? AND contract_id = ? AND id = ? AND status = ?`,
+		carecontract.VersionSuperseded, organizationID, contractID, previousID, carecontract.VersionEffective)
+	if err != nil {
+		return 0, fmt.Errorf("care contract postgres: supersede version: %w", err)
+	}
+	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+		return 0, ports.ErrVersionMoved
+	}
+	return insertVersion(ctx, db, organizationID, contractID, version)
+}
+
+// insertVersion stores one version with its services.
+func insertVersion(ctx context.Context, db bun.IDB, organizationID, contractID int64, version carecontract.Version) (int64, error) {
+	terms := version.Terms
+	source := version.Source
+	if source == "" {
+		source = carecontract.SourceConclusion
+	}
+	var versionID int64
+	if err := db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id, contract_id,
+			version_number, status, effective_from, ends_on, child_first_name, child_last_name, child_birth_date,
+			school_name, phase_name, price_cents, term_kind, term_months, notice_months, notice_to, special_termination,
+			special_termination_note, statute_required, statute_title, statute_url, contract_partner, source)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		organizationID, contractID, version.Number, version.Status, version.EffectiveFrom, version.EndsOn,
+		version.ChildFirstName, version.ChildLastName, version.ChildBirthDate, version.SchoolName, version.PhaseName,
+		version.PriceCents,
+		terms.TermKind, terms.TermMonths, terms.NoticeMonths, terms.NoticeTo, terms.SpecialTermination,
+		terms.SpecialTerminationNote, terms.StatuteRequired, terms.StatuteTitle, terms.StatuteURL,
+		terms.ContractPartner, source).Scan(ctx, &versionID); err != nil {
+		return 0, fmt.Errorf("care contract postgres: insert version: %w", err)
+	}
+	if err := insertServices(ctx, db, organizationID, versionID, version.Services); err != nil {
+		return 0, err
+	}
+	return versionID, nil
+}
+
+// periodRow is one version in force with its contract.
+type periodRow struct {
+	versionRow
+	ContractID int64  `bun:"contract_id"`
+	SchoolID   int64  `bun:"school_id"`
+	StudentID  *int64 `bun:"student_id"`
+}
+
+// VersionsInForce reads the effective versions of the active and ended
+// contracts that hold on a day between from and to, by contract and start.
+func (Store) VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date) ([]carecontract.VersionPeriod, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []periodRow
+	if err := db.NewRaw(`SELECT * FROM (
+			SELECT c.id AS contract_id, c.school_id, c.student_id, `+versionColumns+`, v.source, `+servicesSQL+` AS services,
+				`+validUntilSQL+` AS valid_until
+			FROM care_contract.contracts AS c
+			JOIN care_contract.contract_versions AS v ON v.organization_id = c.organization_id AND v.contract_id = c.id
+			WHERE c.organization_id = ? AND c.status IN (?, ?) AND v.status IN `+effectiveStatusSQL+`
+				AND v.effective_from <= ?) AS t
+		WHERE t.valid_until IS NULL OR t.valid_until >= ?
+		ORDER BY t.contract_id, t.effective_from`,
+		organizationID, carecontract.StatusActive, carecontract.StatusEnded, to, from).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("care contract postgres: read versions in force: %w", err)
+	}
+	periods := make([]carecontract.VersionPeriod, len(rows))
+	for i, row := range rows {
+		version, err := row.version()
+		if err != nil {
+			return nil, err
+		}
+		periods[i] = carecontract.VersionPeriod{ContractID: row.ContractID, SchoolID: row.SchoolID, StudentID: row.StudentID, Version: version}
+	}
+	return periods, nil
+}
+
+// VersionDocument reads the stored PDF of one version; ok is false when the
+// version was never sent.
+func (Store) VersionDocument(ctx context.Context, organizationID, versionID int64) (carecontract.File, bool, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return carecontract.File{}, false, err
+	}
+	var row documentRow
+	err = db.NewRaw(`SELECT d.filename, d.pdf FROM care_contract.contract_documents AS d
+		WHERE d.organization_id = ? AND d.contract_version_id = ?`, organizationID, versionID).Scan(ctx, &row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return carecontract.File{}, false, nil
+	}
+	file, err := row.file(err, carecontract.ErrVersionNotFound)
+	return file, err == nil, err
+}

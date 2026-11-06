@@ -19,6 +19,9 @@ type (
 	ContractRecord = ports.ContractRecord
 	StoredMailing  = ports.StoredMailing
 	Event          = ports.Event
+	// AmendableContract is an active contract with its newest effective
+	// version (#4681).
+	AmendableContract = ports.AmendableContract
 )
 
 // The actions of the trail.

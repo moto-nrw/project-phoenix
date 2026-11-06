@@ -4,10 +4,27 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
+
+// AmendableContract is an active contract with its newest effective
+// version (#4681): the start of its first effective version, which a fixed
+// term counts from, and the number its next version gets.
+type AmendableContract struct {
+	ID         int64
+	Key        ContractKey
+	FirstFrom  calendar.Date
+	NextNumber int
+	Latest     carecontract.Version
+}
+
+// ErrVersionMoved reports that the version a new version should follow is
+// no longer the newest effective one: another run changed the contract.
+var ErrVersionMoved = errors.New("care contract: the newest version changed")
 
 // TemplateRow is a stored template with the offering it belongs to.
 type TemplateRow struct {
@@ -98,6 +115,22 @@ type Store interface {
 	// any other state is ErrContractNotConcludable.
 	MarkConcluded(ctx context.Context, organizationID, contractID, versionID int64, conclusion carecontract.Concluded) error
 	InsertEvents(ctx context.Context, organizationID int64, events []Event) error
+	// Versions reads every version of a contract, oldest first, with the
+	// last day each effective version holds.
+	Versions(ctx context.Context, organizationID, contractID int64) ([]carecontract.Version, error)
+	// AmendableContracts reads every active contract with its newest
+	// effective version.
+	AmendableContracts(ctx context.Context, organizationID int64) ([]AmendableContract, error)
+	// InsertVersion supersedes the version previousID and stores version as
+	// the newest effective one; ErrVersionMoved when previousID is no longer
+	// wirksam.
+	InsertVersion(ctx context.Context, organizationID, contractID, previousID int64, version carecontract.Version) (int64, error)
+	// VersionsInForce reads the effective versions holding between from and
+	// to; VersionPeriod.From and Until stay for the caller to fill.
+	VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date) ([]carecontract.VersionPeriod, error)
+	// VersionDocument reads the stored PDF of a version; ok is false before
+	// its first send.
+	VersionDocument(ctx context.Context, organizationID, versionID int64) (carecontract.File, bool, error)
 	InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]carecontract.InboxContract, error)
 	InboxDocument(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (carecontract.File, error)
 }

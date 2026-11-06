@@ -42,6 +42,8 @@ type versionRow struct {
 	StatuteURL             string         `bun:"statute_url"`
 	ContractPartner        string         `bun:"contract_partner"`
 	CreatedAt              time.Time      `bun:"created_at"`
+	Source                 string         `bun:"source"`
+	ValidUntil             *calendar.Date `bun:"valid_until,type:date"`
 }
 
 const versionColumns = `v.id, v.version_number, v.status, v.effective_from, v.ends_on, v.child_first_name,
@@ -60,11 +62,22 @@ const servicesSQL = `COALESCE((SELECT json_agg(json_build_object('weekday', s.we
 	FROM care_contract.contract_version_services AS s
 	WHERE s.organization_id = v.organization_id AND s.contract_version_id = v.id), '[]')::text`
 
-// currentVersionSQL reads the newest version of a contract with its
+// currentVersionOrderSQL orders the versions of a contract (alias v) so the
+// current one comes first (#4681): the effective version in force today
+// (Berlin date), else the next effective one, else the newest version. A
+// contract before its conclusion has only its first version.
+const currentVersionOrderSQL = `(v.status IN ` + effectiveStatusSQL + `
+		AND v.effective_from <= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date) DESC,
+	CASE WHEN v.status IN ` + effectiveStatusSQL + `
+		AND v.effective_from <= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date THEN v.effective_from END DESC NULLS LAST,
+	CASE WHEN v.status IN ` + effectiveStatusSQL + ` THEN v.effective_from END ASC NULLS LAST,
+	v.version_number DESC`
+
+// currentVersionSQL reads the current version of a contract with its
 // services.
-const currentVersionSQL = `SELECT ` + versionColumns + `, ` + servicesSQL + ` AS services
+const currentVersionSQL = `SELECT ` + versionColumns + `, v.source, ` + servicesSQL + ` AS services, ` + validUntilSQL + ` AS valid_until
 	FROM care_contract.contract_versions AS v
-	WHERE v.organization_id = ? AND v.contract_id = ? ORDER BY v.version_number DESC LIMIT 1`
+	WHERE v.organization_id = ? AND v.contract_id = ? ORDER BY ` + currentVersionOrderSQL + ` LIMIT 1`
 
 func (r versionRow) version() (carecontract.Version, error) {
 	services := []carecontract.Service{}
@@ -75,7 +88,7 @@ func (r versionRow) version() (carecontract.Version, error) {
 		ID: r.ID, Number: r.VersionNumber, Status: r.Status, EffectiveFrom: r.EffectiveFrom, EndsOn: r.EndsOn,
 		ChildFirstName: r.ChildFirstName, ChildLastName: r.ChildLastName, ChildBirthDate: r.ChildBirthDate,
 		SchoolName: r.SchoolName, PhaseName: r.PhaseName, Services: services, PriceCents: r.PriceCents,
-		CreatedAt: r.CreatedAt,
+		CreatedAt: r.CreatedAt, Source: r.Source, ValidUntil: r.ValidUntil,
 		Terms: carecontract.TemplateInput{
 			TermKind: r.TermKind, TermMonths: r.TermMonths, NoticeMonths: r.NoticeMonths, NoticeTo: r.NoticeTo,
 			SpecialTermination: r.SpecialTermination, SpecialTerminationNote: r.SpecialTerminationNote,
@@ -260,15 +273,18 @@ func (Store) DeleteDraft(ctx context.Context, organizationID, contractID int64) 
 }
 
 // inboxSQL reads the contracts sent to an address, with the first send to
-// it.
+// it. Names, modules and date come from the version whose PDF was sent last
+// to the address, so the list matches the PDF the parents open (#4681).
 const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.school_name,
 	v.effective_from, m.first_sent AS sent_at
 	FROM care_contract.contracts AS c
 	JOIN (SELECT contract_id, MIN(sent_at) AS first_sent FROM care_contract.contract_mailings
 		WHERE organization_id = ? AND lower(recipient_email) = lower(?) GROUP BY contract_id) AS m ON m.contract_id = c.id
-	JOIN LATERAL (SELECT * FROM care_contract.contract_versions AS cv
-		WHERE cv.organization_id = c.organization_id AND cv.contract_id = c.id
-		ORDER BY cv.version_number DESC LIMIT 1) AS v ON true
+	JOIN LATERAL (SELECT cv.* FROM care_contract.contract_mailings AS cm
+		JOIN care_contract.contract_documents AS cd ON cd.organization_id = cm.organization_id AND cd.id = cm.contract_document_id
+		JOIN care_contract.contract_versions AS cv ON cv.organization_id = cd.organization_id AND cv.id = cd.contract_version_id
+		WHERE cm.organization_id = c.organization_id AND cm.contract_id = c.id AND lower(cm.recipient_email) = lower(?)
+		ORDER BY cm.sent_at DESC, cm.id DESC LIMIT 1) AS v ON true
 	WHERE c.organization_id = ? AND ` + inboxChildScopeSQL + `
 	ORDER BY m.first_sent DESC, c.id DESC`
 
@@ -288,7 +304,7 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 		SentAt         time.Time     `bun:"sent_at"`
 	}
 	schools, students := inboxChildScope(reader.Children)
-	if err := db.NewRaw(inboxSQL, organizationID, reader.Email, organizationID, pgdialect.Array(schools), pgdialect.Array(students)).
+	if err := db.NewRaw(inboxSQL, organizationID, reader.Email, reader.Email, organizationID, pgdialect.Array(schools), pgdialect.Array(students)).
 		Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read inbox: %w", err)
 	}

@@ -200,9 +200,13 @@ func (c *Contracts) detail(ctx context.Context, reviewer carecontract.Reviewer, 
 	if err != nil {
 		return carecontract.ContractDetail{}, err
 	}
+	versions, err := c.store.Versions(ctx, reviewer.OrganizationID, record.Summary.ID)
+	if err != nil {
+		return carecontract.ContractDetail{}, err
+	}
 	return carecontract.ContractDetail{
 		ContractSummary: record.Summary, Version: record.Version, Parties: record.Parties,
-		Mailings: mailings, DocumentFrozen: record.DocumentID != nil,
+		Mailings: mailings, DocumentFrozen: record.DocumentID != nil, Versions: versions,
 	}, nil
 }
 
@@ -245,7 +249,7 @@ func (c *Contracts) contractDocument(ctx context.Context, reviewer carecontract.
 	}
 	var file carecontract.File
 	if record.DocumentID != nil {
-		file, err = c.store.Document(ctx, reviewer.OrganizationID, contractID)
+		file, _, err = c.store.VersionDocument(ctx, reviewer.OrganizationID, record.Version.ID)
 	} else {
 		file, _, err = c.render(ctx, reviewer, record)
 	}
