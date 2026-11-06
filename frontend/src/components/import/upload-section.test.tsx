@@ -4,13 +4,8 @@ import { UploadSection } from "./upload-section";
 
 describe("UploadSection", () => {
   const defaultProps = {
-    isDragging: false,
     isLoading: false,
     uploadedFile: null,
-    onDragEnter: vi.fn(),
-    onDragLeave: vi.fn(),
-    onDragOver: vi.fn(),
-    onDrop: vi.fn(),
     onFileSelect: vi.fn(),
   };
 
@@ -28,8 +23,10 @@ describe("UploadSection", () => {
     expect(screen.getByText("Datei auswählen")).toBeInTheDocument();
   });
 
-  it("displays dragging text when isDragging is true", () => {
-    render(<UploadSection {...defaultProps} isDragging={true} />);
+  it("displays dragging text while a file is held over the zone", () => {
+    render(<UploadSection {...defaultProps} />);
+
+    fireEvent.dragEnter(screen.getByRole("group"));
 
     expect(screen.getByText("Datei hier ablegen...")).toBeInTheDocument();
   });
@@ -48,44 +45,16 @@ describe("UploadSection", () => {
     expect(screen.getByText("students.csv")).toBeInTheDocument();
   });
 
-  it("calls onDragEnter when dragging over", () => {
-    const onDragEnter = vi.fn();
-    render(<UploadSection {...defaultProps} onDragEnter={onDragEnter} />);
+  it("calls onFileSelect when a file is dropped", () => {
+    const onFileSelect = vi.fn();
+    render(<UploadSection {...defaultProps} onFileSelect={onFileSelect} />);
+    const file = new File(["content"], "test.csv", { type: "text/csv" });
 
-    const dropZone = screen.getByRole("group");
-    fireEvent.dragEnter(dropZone);
+    fireEvent.drop(screen.getByRole("group"), {
+      dataTransfer: { files: [file] },
+    });
 
-    expect(onDragEnter).toHaveBeenCalled();
-  });
-
-  it("calls onDragLeave when leaving drag zone", () => {
-    const onDragLeave = vi.fn();
-    render(<UploadSection {...defaultProps} onDragLeave={onDragLeave} />);
-
-    const dropZone = screen.getByRole("group");
-    fireEvent.dragLeave(dropZone);
-
-    expect(onDragLeave).toHaveBeenCalled();
-  });
-
-  it("calls onDragOver when dragging over zone", () => {
-    const onDragOver = vi.fn();
-    render(<UploadSection {...defaultProps} onDragOver={onDragOver} />);
-
-    const dropZone = screen.getByRole("group");
-    fireEvent.dragOver(dropZone);
-
-    expect(onDragOver).toHaveBeenCalled();
-  });
-
-  it("calls onDrop when file is dropped", () => {
-    const onDrop = vi.fn();
-    render(<UploadSection {...defaultProps} onDrop={onDrop} />);
-
-    const dropZone = screen.getByRole("group");
-    fireEvent.drop(dropZone);
-
-    expect(onDrop).toHaveBeenCalled();
+    expect(onFileSelect).toHaveBeenCalledWith(file);
   });
 
   it("has accessible file input", () => {
@@ -121,17 +90,15 @@ describe("UploadSection", () => {
     render(<UploadSection {...defaultProps} />);
 
     expect(
-      screen.getByText("Datei-Upload-Bereich für Drag-and-Drop"),
+      screen.getByText("Bereich zum Hochladen einer Datei"),
     ).toBeInTheDocument();
   });
 
-  it("has accessible upload button", () => {
+  it("has a real button that opens the file dialog", () => {
     render(<UploadSection {...defaultProps} />);
 
     expect(
-      screen.getByLabelText(
-        "Datei hochladen - ziehen Sie eine Datei hierher oder klicken Sie zum Auswählen",
-      ),
+      screen.getByRole("button", { name: "Datei auswählen" }),
     ).toBeInTheDocument();
   });
 

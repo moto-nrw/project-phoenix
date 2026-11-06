@@ -90,29 +90,18 @@ vi.mock("~/components/ui/alert", () => ({
 vi.mock("~/components/import/upload-section", () => ({
   UploadSection: ({
     onFileSelect,
-    isDragging,
     isLoading,
-    onDragEnter,
-    onDragLeave,
-    onDragOver,
-    onDrop,
   }: {
     onFileSelect: (file: File) => void;
-    isDragging: boolean;
     isLoading: boolean;
-    onDragEnter: (e: React.DragEvent) => void;
-    onDragLeave: (e: React.DragEvent) => void;
-    onDragOver: (e: React.DragEvent) => void;
-    onDrop: (e: React.DragEvent) => void;
   }) => (
     <div
       data-testid="upload-section"
-      onDragEnter={onDragEnter}
-      onDragLeave={onDragLeave}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
+      onDrop={(e) => {
+        const file = e.dataTransfer.files[0];
+        if (file) onFileSelect(file);
+      }}
     >
-      <span data-testid="is-dragging">{isDragging.toString()}</span>
       <span data-testid="is-loading">{isLoading.toString()}</span>
       <button
         type="button"
@@ -1158,31 +1147,6 @@ describe("StudentImportPage", () => {
     });
     expect(global.fetch).not.toHaveBeenCalled();
     assign.mockRestore();
-  });
-
-  it("sets isDragging on dragEnter and clears on dragLeave", () => {
-    render(<StudentImportPage />);
-
-    const uploadSection = screen.getByTestId("upload-section");
-    expect(screen.getByTestId("is-dragging")).toHaveTextContent("false");
-
-    fireEvent.dragEnter(uploadSection);
-    expect(screen.getByTestId("is-dragging")).toHaveTextContent("true");
-
-    fireEvent.dragLeave(uploadSection);
-    expect(screen.getByTestId("is-dragging")).toHaveTextContent("false");
-  });
-
-  it("handles dragOver without error", () => {
-    render(<StudentImportPage />);
-
-    const uploadSection = screen.getByTestId("upload-section");
-
-    // dragOver should not throw and should not change dragging state
-    fireEvent.dragOver(uploadSection);
-
-    // Component still renders correctly after dragOver
-    expect(screen.getByTestId("upload-section")).toBeInTheDocument();
   });
 
   it("handles valid file drop (csv)", async () => {

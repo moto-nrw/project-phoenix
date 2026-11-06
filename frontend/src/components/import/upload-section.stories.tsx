@@ -10,13 +10,8 @@ const meta: Meta<typeof UploadSection> = {
   title: "components/import/UploadSection",
   component: UploadSection,
   args: {
-    isDragging: false,
     isLoading: false,
     uploadedFile: null,
-    onDragEnter: noop,
-    onDragLeave: noop,
-    onDragOver: noop,
-    onDrop: noop,
     onFileSelect: noop,
   },
 };
@@ -26,12 +21,6 @@ export default meta;
 type Story = StoryObj<typeof UploadSection>;
 
 export const Default: Story = {};
-
-export const Dragging: Story = {
-  args: {
-    isDragging: true,
-  },
-};
 
 export const Loading: Story = {
   args: {
