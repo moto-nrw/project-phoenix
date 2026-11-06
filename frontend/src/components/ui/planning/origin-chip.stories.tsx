@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { OriginChip } from "./origin-chip";
 
 const meta = {
-  title: "components/ui/OriginChip",
+  title: "components/ui/planning/OriginChip",
   component: OriginChip,
   args: {
     label: "Soll aus Arbeitszeitmodell",

@@ -1,5 +1,5 @@
-import { COLOR_BAR_FALLBACK, ColorBar } from "./color-bar";
-import { StatusDot } from "./status-dot";
+import { COLOR_BAR_FALLBACK, ColorBar } from "../color-bar";
+import { StatusDot } from "../status-dot";
 
 /**
  * PlanLegend resolves the categories and block states of a planning grid into a

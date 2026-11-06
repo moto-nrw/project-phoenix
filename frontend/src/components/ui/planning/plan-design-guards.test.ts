@@ -14,8 +14,8 @@ import { describe, expect, it } from "vitest";
  *       exempt — semantic color always routes through LOCATION_COLORS hex
  *       or a color prop, per .claude/rules/frontend-ui-kit.md.
  *
- * Scope: the new planning kit primitives (`ui/plan*.tsx`, `ui/coverage*.tsx`,
- * `ui/resource*.tsx`, `ui/capacity*.tsx`) PLUS every `.tsx` file under
+ * Scope: the new planning kit primitives (`ui/planning/plan*.tsx`, `coverage*.tsx`,
+ * `resource*.tsx`, `capacity*.tsx`) PLUS every `.tsx` file under
  * `components/timetable/`. The new primitive
  * files get a ZERO-tolerance check — no allowlist entries, ever. The
  * pre-existing timetable files may carry violations that existed before
@@ -27,8 +27,8 @@ import { describe, expect, it } from "vitest";
  */
 
 const UI_DIR = path.dirname(fileURLToPath(import.meta.url));
-const TIMETABLE_DIR = path.resolve(UI_DIR, "../timetable");
-const STAFF_DIR = path.resolve(UI_DIR, "../staff");
+const TIMETABLE_DIR = path.resolve(UI_DIR, "../../timetable");
+const STAFF_DIR = path.resolve(UI_DIR, "../../staff");
 
 // Additive zero-tolerance scope (Planung-Redesign Inkrement 3, Dienstplan):
 // these screen files consume PlanBlock/ResourceGrid end-to-end and probed

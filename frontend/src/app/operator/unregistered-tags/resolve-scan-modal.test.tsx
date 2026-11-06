@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 
-import { ModalProvider } from "~/components/dashboard/modal-context";
+import { ModalProvider } from "~/components/ui/modal-context";
 import type { UnregisteredTagScan } from "~/lib/operator/provisioning-helpers";
 import { ResolveScanModal } from "./page";
 

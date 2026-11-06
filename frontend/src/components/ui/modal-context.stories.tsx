@@ -31,7 +31,7 @@ function ModalStatusDemo() {
 }
 
 const meta = {
-  title: "dashboard/ModalContext",
+  title: "components/ui/ModalContext",
   component: ModalStatusDemo,
 } satisfies Meta<typeof ModalStatusDemo>;
 

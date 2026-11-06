@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { Modal, ConfirmationModal } from "./modal";
-import { ModalProvider } from "../dashboard/modal-context";
+import { ModalProvider } from "./modal-context";
 
 // Wrapper component with portal target
 function TestWrapper({ children }: { children: ReactNode }) {

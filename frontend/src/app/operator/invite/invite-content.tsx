@@ -13,7 +13,6 @@ import {
 } from "~/components/ui/form-error-alert";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { operatorPath } from "~/lib/operator-url";
 import {
   establishOperatorInvitationSession,
@@ -50,8 +49,6 @@ export function InviteContent() {
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const {
@@ -304,30 +301,22 @@ export function InviteContent() {
           <FieldLabel htmlFor="accept-password" required>
             Passwort
           </FieldLabel>
-          <div className="relative">
-            <Input
-              id="accept-password"
-              name="password"
-              aria-invalid={
-                formErrors.fieldError("password") ? true : undefined
-              }
-              aria-describedby={
-                formErrors.fieldError("password")
-                  ? "accept-password-error"
-                  : undefined
-              }
-              type={showPassword ? "text" : "password"}
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              controlSize="compact"
-              className="pr-10"
-            />
-            <PasswordToggleButton
-              showPassword={showPassword}
-              onToggle={() => setShowPassword(!showPassword)}
-            />
-          </div>
+          <Input
+            id="accept-password"
+            name="password"
+            aria-invalid={formErrors.fieldError("password") ? true : undefined}
+            aria-describedby={
+              formErrors.fieldError("password")
+                ? "accept-password-error"
+                : undefined
+            }
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            controlSize="compact"
+            revealable
+          />
           <FieldErrorHint
             id="accept-password-error"
             message={formErrors.fieldError("password")}
@@ -369,30 +358,24 @@ export function InviteContent() {
           <FieldLabel htmlFor="accept-confirm-password" required>
             Passwort bestätigen
           </FieldLabel>
-          <div className="relative">
-            <Input
-              id="accept-confirm-password"
-              name="confirm_password"
-              aria-invalid={
-                formErrors.fieldError("confirm_password") ? true : undefined
-              }
-              aria-describedby={
-                formErrors.fieldError("confirm_password")
-                  ? "accept-confirm-password-error"
-                  : undefined
-              }
-              type={showConfirmPassword ? "text" : "password"}
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              controlSize="compact"
-              className="pr-10"
-            />
-            <PasswordToggleButton
-              showPassword={showConfirmPassword}
-              onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
-            />
-          </div>
+          <Input
+            id="accept-confirm-password"
+            name="confirm_password"
+            aria-invalid={
+              formErrors.fieldError("confirm_password") ? true : undefined
+            }
+            aria-describedby={
+              formErrors.fieldError("confirm_password")
+                ? "accept-confirm-password-error"
+                : undefined
+            }
+            type="password"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            controlSize="compact"
+            revealable
+          />
           {formErrors.fieldError("confirm_password") ? (
             <FieldErrorHint
               id="accept-confirm-password-error"

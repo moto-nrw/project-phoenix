@@ -50,15 +50,15 @@ import {
 } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { OriginChip } from "~/components/ui/origin-chip";
+import { OriginChip } from "~/components/ui/planning/origin-chip";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { PlanLegend } from "~/components/ui/plan-legend";
+import { PlanLegend } from "~/components/ui/planning/plan-legend";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   useApiErrorDisplay,

@@ -11,7 +11,6 @@ import {
   credentialError,
   INVITATION_REFUSALS,
 } from "~/components/auth/credential-error";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -75,8 +74,6 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   // Fehler über den gemeinsamen Weg (#2518): Katalogtext je Code im
   // Fehlerkasten, Prüfungen vor dem Senden markieren ihr Feld.
   const formRef = useRef<HTMLFormElement>(null);
@@ -250,27 +247,21 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         >
           {t("passwordLabel")}
         </FieldLabel>
-        <div className="relative">
-          <Input
-            id="password"
-            name="password"
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            disabled={isSubmitting}
-            autoComplete="new-password"
-            aria-invalid={passwordInvalid || undefined}
-            controlSize="compact"
-            className="pr-12"
-            required
-          />
-          <PasswordToggleButton
-            showPassword={showPassword}
-            onToggle={() => setShowPassword(!showPassword)}
-            showLabel={t("showPassword")}
-            hideLabel={t("hidePassword")}
-          />
-        </div>
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          disabled={isSubmitting}
+          autoComplete="new-password"
+          aria-invalid={passwordInvalid || undefined}
+          controlSize="compact"
+          required
+          revealable
+          showPasswordLabel={t("showPassword")}
+          hidePasswordLabel={t("hidePassword")}
+        />
       </div>
 
       <div>
@@ -281,27 +272,21 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         >
           {t("confirmPasswordLabel")}
         </FieldLabel>
-        <div className="relative">
-          <Input
-            id="confirmPassword"
-            name="confirmPassword"
-            type={showConfirmPassword ? "text" : "password"}
-            value={confirmPassword}
-            onChange={(event) => setConfirmPassword(event.target.value)}
-            disabled={isSubmitting}
-            autoComplete="new-password"
-            aria-invalid={confirmInvalid || undefined}
-            controlSize="compact"
-            className="pr-12"
-            required
-          />
-          <PasswordToggleButton
-            showPassword={showConfirmPassword}
-            onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
-            showLabel={t("showPassword")}
-            hideLabel={t("hidePassword")}
-          />
-        </div>
+        <Input
+          id="confirmPassword"
+          name="confirmPassword"
+          type="password"
+          value={confirmPassword}
+          onChange={(event) => setConfirmPassword(event.target.value)}
+          disabled={isSubmitting}
+          autoComplete="new-password"
+          aria-invalid={confirmInvalid || undefined}
+          controlSize="compact"
+          required
+          revealable
+          showPasswordLabel={t("showPassword")}
+          hidePasswordLabel={t("hidePassword")}
+        />
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">

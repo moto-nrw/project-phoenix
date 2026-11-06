@@ -26,7 +26,6 @@ import {
   LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
 import { PasswordRequirements } from "~/components/auth/password-requirements";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import {
   LoadErrorAlert,
   FormErrorAlert,
@@ -176,28 +175,24 @@ function InviteForm({
         >
           {existing ? "Passwort Ihres moto-Kontos" : "Neues Passwort"}
         </FieldLabel>
-        <div className="relative">
-          <Input
-            id="password"
-            name="password"
-            type={showPassword ? "text" : "password"}
-            controlSize="compact"
-            autoComplete={existing ? "current-password" : "new-password"}
-            required
-            disabled={submitting}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            aria-invalid={Boolean(formErrors.fieldError("password"))}
-            aria-describedby={
-              formErrors.fieldError("password") ? "password-error" : undefined
-            }
-            className="pr-10"
-          />
-          <PasswordToggleButton
-            showPassword={showPassword}
-            onToggle={() => setShowPassword(!showPassword)}
-          />
-        </div>
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          controlSize="compact"
+          autoComplete={existing ? "current-password" : "new-password"}
+          required
+          disabled={submitting}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          aria-invalid={Boolean(formErrors.fieldError("password"))}
+          aria-describedby={
+            formErrors.fieldError("password") ? "password-error" : undefined
+          }
+          revealable
+          revealed={showPassword}
+          onRevealedChange={setShowPassword}
+        />
         <AuthFieldError
           id="password-error"
           message={formErrors.fieldError("password")}

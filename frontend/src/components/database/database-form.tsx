@@ -793,6 +793,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
             >
               {field.label}
             </FieldLabel>
+            {/* oxlint-disable-next-line ui-kit/no-raw-input -- DatabaseForm keeps its 38-px field until its visible change is approved (#5586) */}
             <textarea
               id={field.name}
               name={field.name}
@@ -837,6 +838,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
             >
               {field.label}
             </FieldLabel>
+            {/* oxlint-disable-next-line ui-kit/no-raw-input -- DatabaseForm keeps its 38-px field until its visible change is approved (#5586) */}
             <input
               type="number"
               id={field.name}
@@ -876,6 +878,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
             >
               {field.label}
             </FieldLabel>
+            {/* oxlint-disable-next-line ui-kit/no-raw-input -- DatabaseForm keeps its 38-px field until its visible change is approved (#5586) */}
             <input
               type={field.type}
               id={field.name}

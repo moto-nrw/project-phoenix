@@ -34,7 +34,7 @@ function rateLimited(retryAfterSeconds: number): ApiError {
 const modalOnCloseHistory: Array<() => void> = [];
 
 // Mock UI components
-vi.mock("./modal", () => ({
+vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
     children,
@@ -57,7 +57,7 @@ vi.mock("./modal", () => ({
   },
 }));
 
-vi.mock("./input", () => ({
+vi.mock("~/components/ui/input", () => ({
   Input: ({
     id,
     value,
@@ -90,7 +90,7 @@ vi.mock("./input", () => ({
   ),
 }));
 
-vi.mock("./alert", () => ({
+vi.mock("~/components/ui/alert", () => ({
   Alert: ({ type, message }: { type: string; message: string }) => (
     <div data-testid={`alert-${type}`}>{message}</div>
   ),

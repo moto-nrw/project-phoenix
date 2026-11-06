@@ -25,7 +25,7 @@ vi.mock("~/lib/shell-auth-context", () => ({
 }));
 
 // Mock Modal component
-vi.mock("./modal", () => ({
+vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
     onClose,

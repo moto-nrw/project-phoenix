@@ -13,7 +13,7 @@ import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
-import { DatabaseForm } from "~/components/ui/database/database-form";
+import { DatabaseForm } from "~/components/database/database-form";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type { FormErrorInput } from "~/components/ui/form-error";

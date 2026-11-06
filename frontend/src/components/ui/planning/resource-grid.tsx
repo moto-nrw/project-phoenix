@@ -4,7 +4,7 @@
 
 import type { ReactNode } from "react";
 
-import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
+import { PlanAddAffordance } from "~/components/ui/planning/plan-add-affordance";
 
 /**
  * ResourceGrid is the generic rows-by-columns planning grid. It carries no

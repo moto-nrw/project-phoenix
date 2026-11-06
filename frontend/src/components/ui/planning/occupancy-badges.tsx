@@ -9,7 +9,7 @@ import {
   type Occupancy,
 } from "~/lib/activity-occupancy";
 
-import { StatusBadge } from "./status-badge";
+import { StatusBadge } from "../status-badge";
 
 interface OccupancyBadgeProps {
   readonly occupancy: Occupancy;

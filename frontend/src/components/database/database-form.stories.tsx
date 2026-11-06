@@ -69,7 +69,7 @@ const sections: FormSection[] = [
 ];
 
 const meta: Meta<typeof DatabaseForm> = {
-  title: "ui/database/DatabaseForm",
+  title: "components/database/DatabaseForm",
   component: DatabaseForm,
   args: {
     sections,

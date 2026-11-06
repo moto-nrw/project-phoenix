@@ -30,7 +30,7 @@ import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SegmentedControl } from "~/components/ui/segmented-control";
