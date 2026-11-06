@@ -57,7 +57,11 @@ export default function TraegerDocumentPage() {
   const { data: session } = useSession();
   const canManage = hasPermission(session ?? null, MANAGE_RIGHT);
   const { data, isLoading, loadError, mutate } = useTraegerDocuments();
-  const { schools } = useTraegerSchools();
+  // Without the school names two releases to different schools read alike;
+  // the page waits for them and shows their failed load with a retry, so no
+  // release is revoked by mistake.
+  const { schools, error: schoolsError } = useTraegerSchools();
+  const schoolsPending = schools === null && !schoolsError;
   const audiences = useTraegerDocumentAudiences(canManage);
   const { success } = useToast();
   const downloadErrors = useApiErrorDisplay();
@@ -132,8 +136,8 @@ export default function TraegerDocumentPage() {
         ) : null
       }
       statsLoading={isLoading}
-      error={loadError}
-      loading={isLoading && !document}
+      error={loadError ?? schoolsError}
+      loading={(isLoading && !document) || schoolsPending}
       empty={
         missing
           ? {

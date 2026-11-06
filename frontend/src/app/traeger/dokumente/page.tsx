@@ -105,7 +105,9 @@ export default function TraegerDocumentsPage() {
   const { success } = useToast();
   const canManage = hasPermission(session ?? null, MANAGE_RIGHT);
   const { data, isLoading, loadError, mutate } = useTraegerDocuments();
-  const { schools } = useTraegerSchools();
+  // The release column names the schools; without them it would read alike.
+  const { schools, error: schoolsError } = useTraegerSchools();
+  const schoolsPending = schools === null && !schoolsError;
   const [uploading, setUploading] = useState(false);
   const documents = data ?? [];
   const names = useMemo(() => schoolNamesOf(schools ?? []), [schools]);
@@ -131,7 +133,7 @@ export default function TraegerDocumentsPage() {
         ) : null
       }
       statsLoading={isLoading}
-      error={loadError}
+      error={loadError ?? schoolsError}
       actions={
         canManage ? (
           <Button
@@ -163,7 +165,7 @@ export default function TraegerDocumentsPage() {
         columns={tableColumns}
         rows={documents}
         getRowKey={(document) => document.id}
-        isLoading={isLoading}
+        isLoading={isLoading || schoolsPending}
         loadingRowCount={3}
         stackedOnMobile
         stackedLayout="row"
