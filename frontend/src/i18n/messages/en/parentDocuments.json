@@ -29,6 +29,7 @@
   "sharedErrorObject": "the documents of the provider",
   "image": "Image",
   "cancelContract": "Cancel contracts here",
+  "cancelNotPermitted": "Only parents who may enrol the child can cancel. Please ask the school.",
   "terminatedOn": "Cancelled as of {date}",
   "withdrawn": "Withdrawn",
   "showConfirmation": "View confirmation"

@@ -29,6 +29,7 @@
   "sharedErrorObject": "dokumentet e ofruesit",
   "image": "Imazh",
   "cancelContract": "Ndërpritni kontratat këtu",
+  "cancelNotPermitted": "Vetëm prindërit që mund ta regjistrojnë fëmijën mund ta anulojnë. Ju lutemi pyesni shkollën.",
   "terminatedOn": "E ndërprerë më {date}",
   "withdrawn": "E tërhequr",
   "showConfirmation": "Shiko konfirmimin"

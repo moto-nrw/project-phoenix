@@ -29,6 +29,7 @@
   "sharedErrorObject": "die Dokumente des Trägers",
   "image": "Bild",
   "cancelContract": "Verträge hier kündigen",
+  "cancelNotPermitted": "Kündigen dürfen nur Eltern mit dem Recht, das Kind anzumelden. Fragen Sie die Schule.",
   "terminatedOn": "Gekündigt zum {date}",
   "withdrawn": "Widerrufen",
   "showConfirmation": "Bestätigung ansehen"

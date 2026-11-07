@@ -61,6 +61,13 @@ type BillingDocument struct {
 	// last day of a terminated one (#4682); empty for a letter.
 	ContractStatus string
 	EndsOn         *calendar.Date
+	// SchoolID and StudentID name a contract's child; CanEndContract tells
+	// that the account's relationship to that child grants
+	// parent_portal.enrollment.submit, the right a declaration needs
+	// (#4682). The inbox offers „Verträge hier kündigen“ only then.
+	SchoolID       int64
+	StudentID      int64
+	CanEndContract bool
 }
 
 // BillingDocumentFile is the PDF of one document.
@@ -159,16 +166,19 @@ func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64, inb
 type inboxRead func(txCtx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
 
 func (s *Service) listInbox(ctx context.Context, accountID int64, read inboxRead) ([]BillingDocument, error) {
-	traeger, reader, err := s.billingInboxAccess(ctx, accountID)
+	access, reader, err := s.inboxAccess(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
+	traeger := access.traeger
 	documents := []BillingDocument{}
 	for _, organization := range traeger {
 		err := s.TraegerRuntime.WithinTraeger(ctx, organization.ID, func(txCtx context.Context) error {
 			found, listErr := read(txCtx, organization.ID, reader)
 			for _, document := range found {
 				document.OrganizationID, document.TraegerName = organization.ID, organization.Name
+				document.CanEndContract = document.Kind == DocumentKindContract &&
+					access.grants(document.SchoolID, document.StudentID, GuardianPermissionEnrollmentSubmit)
 				documents = append(documents, document)
 			}
 			return listErr
@@ -234,8 +244,15 @@ func (s *Service) ContractDocumentFile(ctx context.Context, accountID, organizat
 // billingInboxAccess resolves the Träger the account's relationships open
 // and the account's current address, in one administrative transaction.
 func (s *Service) billingInboxAccess(ctx context.Context, accountID int64) ([]Traeger, BillingDocumentReader, error) {
+	access, reader, err := s.inboxAccess(ctx, accountID)
+	return access.traeger, reader, err
+}
+
+// inboxAccess is billingInboxAccess with the relationships behind it, so a
+// list can tell what each relationship grants beyond reading.
+func (s *Service) inboxAccess(ctx context.Context, accountID int64) (documentAccess, BillingDocumentReader, error) {
 	if s.BillingDocuments == nil || s.ContractDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
-		return nil, BillingDocumentReader{}, errors.New("parent: document inbox is not configured")
+		return documentAccess{}, BillingDocumentReader{}, errors.New("parent: document inbox is not configured")
 	}
 	var access documentAccess
 	var email string
@@ -248,12 +265,12 @@ func (s *Service) billingInboxAccess(ctx context.Context, accountID int64) ([]Tr
 		return err
 	})
 	if err != nil {
-		return nil, BillingDocumentReader{}, fmt.Errorf("parent: resolve document inbox: %w", err)
+		return documentAccess{}, BillingDocumentReader{}, fmt.Errorf("parent: resolve document inbox: %w", err)
 	}
 	if len(access.traeger) == 0 {
-		return nil, BillingDocumentReader{}, ErrGuardianPermissionDenied
+		return documentAccess{}, BillingDocumentReader{}, ErrGuardianPermissionDenied
 	}
-	return access.traeger, BillingDocumentReader{AccountID: accountID, Email: strings.TrimSpace(email), Children: access.permittedChildren()}, nil
+	return access, BillingDocumentReader{AccountID: accountID, Email: strings.TrimSpace(email), Children: access.permittedChildren()}, nil
 }
 
 // billingDocumentAccess runs visit with the account's children in one
@@ -289,6 +306,14 @@ func (a documentAccess) permittedChildren() map[int64][]int64 {
 		}
 	}
 	return children
+}
+
+// grants tells whether the relationship to the child studentID at school
+// schoolID, among those that open the inbox, holds permission.
+func (a documentAccess) grants(schoolID, studentID int64, permission string) bool {
+	return slices.ContainsFunc(a.children[schoolID], func(child *ChildSummary) bool {
+		return child.StudentID == studentID && childHasPermission(child, permission)
+	})
 }
 
 // documentAccess keeps the children whose relationship grants the inbox and

@@ -37,6 +37,9 @@ type BillingDocumentResponse struct {
 	// or withdrawn, and its last day (#4682); empty for a letter.
 	ContractStatus string         `json:"contract_status,omitempty"`
 	EndsOn         *timezone.Date `json:"ends_on,omitempty"`
+	// CanEndContract tells that the account may withdraw or terminate the
+	// contract: its relationship to the child grants the right (#4682).
+	CanEndContract bool `json:"can_end_contract,omitempty"`
 }
 
 // listBillingDocuments answers the letters in the inbox of the account.
@@ -69,6 +72,7 @@ func (rs *Resource) respondInbox(w http.ResponseWriter, r *http.Request, inbox p
 			ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil, IssuedOn: document.IssuedOn,
 			TotalCents: document.TotalCents, ChildNames: document.ChildNames, SentAt: document.SentAt,
 			Replaced: document.Replaced, ContractStatus: document.ContractStatus, EndsOn: document.EndsOn,
+			CanEndContract: document.CanEndContract,
 		}
 	}
 	common.Respond(w, r, http.StatusOK, out, "Documents retrieved")

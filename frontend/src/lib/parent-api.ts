@@ -2487,6 +2487,11 @@ export interface ParentDocument {
    */
   readonly contract_status?: string;
   readonly ends_on?: string;
+  /**
+   * The account may withdraw or terminate this contract: its relationship
+   * to the child grants the right (#4682). Absent when it may only read.
+   */
+  readonly can_end_contract?: boolean;
 }
 
 /**

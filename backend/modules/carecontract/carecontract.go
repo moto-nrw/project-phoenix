@@ -464,6 +464,10 @@ type InboxContract struct {
 	// terminated contract (#4682), so the inbox shows its end.
 	Status string         `json:"status"`
 	EndsOn *calendar.Date `json:"ends_on"`
+	// SchoolID and StudentID name the contract's child, so the parents
+	// portal can match it with the relationship that may end it (#4682).
+	SchoolID  int64 `json:"-"`
+	StudentID int64 `json:"-"`
 }
 
 // Inbox serves the contracts of one Träger in the parents' inbox (ADR 0088

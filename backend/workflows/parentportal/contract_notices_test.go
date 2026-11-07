@@ -106,3 +106,34 @@ func TestParentsEndAContractOnlyWithTheRelationshipRight(t *testing.T) {
 	assert.Equal(t, 1, declarations)
 	assert.Equal(t, 1, mails)
 }
+
+// The inbox offers „Verträge hier kündigen“ only where the declaration would
+// pass (#4682): the relationship to the contract's child grants
+// parent_portal.enrollment.submit. With the inbox right alone the contract
+// shows, but cannot be ended from it.
+func TestInboxOffersTheEndOnlyWithTheRelationshipRight(t *testing.T) {
+	t.Parallel()
+	portal, db := noticePortal(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	activeInboxContract(t, db, organization, chain.TenantID, chain.StudentID, "Felix", chain.Email)
+	var link int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM users.student_guardian_relationships WHERE student_id = ? AND guardian_profile_id = ?`,
+		chain.StudentID, chain.GuardianProfileID).Scan(ctx, &link))
+
+	for _, tc := range []struct {
+		name   string
+		submit bool
+	}{{"inbox right only", false}, {"with enrollment.submit", true}} {
+		require.NoError(t, testpkg.SetTestStudentGuardianPermissions(ctx, db, link, map[string]interface{}{
+			"parent_portal.access": true, "parent_portal.enrollments.view": true, "parent_portal.enrollment.submit": tc.submit,
+		}))
+		documents, err := portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxContracts)
+		require.NoError(t, err, tc.name)
+		require.Len(t, documents, 1, tc.name)
+		assert.Equal(t, tc.submit, documents[0].CanEndContract, tc.name)
+	}
+}

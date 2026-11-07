@@ -280,11 +280,17 @@ function ContractNoticeRow({
   const href = `/documents/vertraege/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}`;
   const status = document.contract_status;
   if (status === "aktiv") {
+    // Only where the declaration would pass: without the relationship right
+    // the button would open a page that refuses (#4682).
     return (
       <div className="mt-4 border-t border-gray-100 pt-4">
-        <ButtonLink href={href} variant="outline" size="md">
-          {t("cancelContract")}
-        </ButtonLink>
+        {document.can_end_contract ? (
+          <ButtonLink href={href} variant="outline" size="md">
+            {t("cancelContract")}
+          </ButtonLink>
+        ) : (
+          <p className="text-sm text-gray-500">{t("cancelNotPermitted")}</p>
+        )}
       </div>
     );
   }
