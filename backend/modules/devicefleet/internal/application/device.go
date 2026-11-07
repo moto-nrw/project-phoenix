@@ -166,8 +166,7 @@ func (s *Service) UpdateDeviceLastSeenChecked(ctx context.Context, id int64, che
 		if err != nil || !write {
 			return err
 		}
-		affected, queryStats, err := s.deps.Devices.UpdateColumns(ctx,
-			domain.UpdateDevice{ID: id, LastSeen: &seenAt}, []string{"last_seen"})
+		affected, queryStats, err := s.deps.Devices.TouchLastSeen(ctx, id, seenAt)
 		stats.Add(queryStats)
 		if err != nil {
 			return err

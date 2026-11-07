@@ -11,7 +11,8 @@ import (
 // RecordHeartbeat folds the old live-device lookup into the update. Select
 // the primary key in a subquery so a concurrent rename or archival after the
 // statement snapshot does not change which row the subsequent update targets.
-// Only last_seen is assigned, retaining the existing updated_at trigger.
+// Only last_seen is assigned, retaining the existing updated_at trigger, and
+// like TouchLastSeen it only moves forward.
 func (s *DeviceStore) RecordHeartbeat(ctx context.Context, deviceID string, seenAt time.Time) (int64, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
@@ -23,7 +24,7 @@ func (s *DeviceStore) RecordHeartbeat(ctx context.Context, deviceID string, seen
 		candidate = candidate.Where("candidate.tenant_id = ?", scope.TenantID)
 	}
 	query := db.NewUpdate().Model((*deviceRow)(nil)).ModelTableExpr(deviceTableExpr).
-		Set("last_seen = ?", seenAt).Where(`"device".id = (?)`, candidate)
+		Set(`last_seen = GREATEST("device".last_seen, ?)`, seenAt).Where(`"device".id = (?)`, candidate)
 	if !scope.AcrossSchools {
 		query = query.Where(`"device".tenant_id = ?`, scope.TenantID)
 	}
