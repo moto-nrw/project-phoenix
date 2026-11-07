@@ -197,7 +197,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/announcements/page.tsx",
-    lines: [702, 850, 943],
+    lines: [696, 841, 929],
     reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
   },
 ];

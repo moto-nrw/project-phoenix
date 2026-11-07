@@ -293,19 +293,14 @@ export default function SchoolAbsenceListPage() {
             }
           >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <label htmlFor="absence-list-class" className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700">
-                  Klasse
-                </span>
-                <CustomSelect
-                  id="absence-list-class"
-                  ariaLabel="Klasse"
-                  value={schoolClass}
-                  options={classOptions}
-                  onChange={setChosenClass}
-                  disabled={classes.length < 2}
-                />
-              </label>
+              <CustomSelect
+                id="absence-list-class"
+                label="Klasse"
+                value={schoolClass}
+                options={classOptions}
+                onChange={setChosenClass}
+                disabled={classes.length < 2}
+              />
               <ISODatePicker
                 label="Von"
                 id="absence-list-from"

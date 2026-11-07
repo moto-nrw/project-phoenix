@@ -89,16 +89,9 @@ export default function RootPage() {
         ) : (
           <>
             <div className="text-left">
-              <label
-                id="tenant-select-label"
-                htmlFor="tenant-select"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Einrichtung
-              </label>
               <CustomSelect
                 id="tenant-select"
-                ariaLabelledBy="tenant-select-label"
+                label="Einrichtung"
                 value={selectedSlug}
                 disabled={loading || isNavigating}
                 onChange={setSelectedSlug}
