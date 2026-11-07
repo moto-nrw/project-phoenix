@@ -122,3 +122,40 @@ func assertHolidayTimeEdits(t *testing.T, tc *statisticsHTTPTestContext, account
 		}
 	}
 }
+
+// The Träger report consumes the same historical day basis as the child's
+// Soll und Ist: neither own children nor guests gain retrospective overruns.
+func TestCareTimeOverruns_TimeEditKeepsThePastHolidayComparison(t *testing.T) {
+	t.Parallel()
+	f := newOverrunFixture(t)
+	var org int64
+	require.NoError(t, f.db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, f.school).Scan(context.Background(), &org))
+	testpkg.OwnTraegerHolidayPeriods(t, f.db, org)
+	born := calendar.NewDate(2018, 3, 4)
+	_, err := f.db.ExecContext(context.Background(), `UPDATE users.persons SET birthday = ?
+  WHERE id = (SELECT person_id FROM users.student_profiles WHERE id = ?)`, born, f.child)
+	require.NoError(t, err)
+	monday := calendar.NewDate(2026, 6, 8)
+	booking := ownHolidayBooking(t, f.db, org, f.school, "Sina", "Soll", born, monday, monday.AddDays(4), "08:00", "16:00", "confirmed")
+	guest := testpkg.CreateTestStudent(t, f.db, "Gina", "Gast", "Feriengast")
+	addGuestToTimeEditBooking(t, f.db, org, booking, guest.ID, monday)
+	device := testpkg.CreateTestDevice(t, f.db, "traeger-time-edit")
+	for day := 0; day < 2; day++ {
+		insertAttendanceSpan(t, f.db, f.school, guest.ID, device.ID, monday.AddDays(day), 8*time.Hour, 15*time.Hour+45*time.Minute)
+	}
+	path := "/traeger/care-time-overruns?from=2026-06-08&to=2026-06-09"
+	code, before, raw := f.get(t, f.billing, path)
+	require.Equal(t, http.StatusOK, code, raw)
+	assert.Zero(t, before.Total.OverrunDays)
+	assert.Zero(t, before.Total.UnbookedDays)
+	assert.Zero(t, before.Total.ExtraMinutes)
+	editHolidayTimesOn(t, f.db, org, f.adminID, booking, monday.AddDays(2), "09:00", "13:00")
+	code, after, raw := f.get(t, f.billing, path)
+	require.Equal(t, http.StatusOK, code, raw)
+	assert.Equal(t, before, after, "the same four past child-days still have no overrun")
+	compared := 0
+	for _, school := range after.Schools {
+		compared += school.ComparedDays
+	}
+	assert.Equal(t, 4, compared, "the report actually compares both children on both days")
+}
