@@ -124,38 +124,24 @@ export function AttendanceExportDialog({
       <section>
         <p className="text-sm font-medium text-gray-900">Zeitraum</p>
         <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="attendance-export-from"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Von
-            </label>
-            <Input
-              id="attendance-export-from"
-              type="date"
-              value={from}
-              min={earliest}
-              max={to || today}
-              onChange={(event) => setFrom(event.target.value)}
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="attendance-export-to"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Bis
-            </label>
-            <Input
-              id="attendance-export-to"
-              type="date"
-              value={to}
-              min={from || earliest}
-              max={today}
-              onChange={(event) => setTo(event.target.value)}
-            />
-          </div>
+          <Input
+            label="Von"
+            id="attendance-export-from"
+            type="date"
+            value={from}
+            min={earliest}
+            max={to || today}
+            onChange={(event) => setFrom(event.target.value)}
+          />
+          <Input
+            label="Bis"
+            id="attendance-export-to"
+            type="date"
+            value={to}
+            min={from || earliest}
+            max={today}
+            onChange={(event) => setTo(event.target.value)}
+          />
         </div>
         <p className="mt-2 text-xs text-gray-500">
           {rangeError ??

@@ -768,16 +768,9 @@ function TemplateSelector({
   const selected = templates.find((t) => t.id === selectedId);
   return (
     <div className="space-y-3">
-      <label
-        id="arbeitszeitmodell-template-select-label"
-        htmlFor="arbeitszeitmodell-template-select"
-        className="block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-      >
-        Vorlage
-      </label>
       <CustomSelect
+        label="Vorlage"
         id="arbeitszeitmodell-template-select"
-        ariaLabelledBy="arbeitszeitmodell-template-select-label"
         value={selectedId}
         onChange={onSelect}
         options={[
@@ -888,25 +881,16 @@ function CustomEditor({
 }) {
   return (
     <div className="space-y-4">
-      <div>
-        <label
-          id="arbeitszeitmodell-rotation-select-label"
-          htmlFor="arbeitszeitmodell-rotation-select"
-          className="mb-2 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-        >
-          Rotation
-        </label>
-        <CustomSelect
-          id="arbeitszeitmodell-rotation-select"
-          ariaLabelledBy="arbeitszeitmodell-rotation-select-label"
-          value={String(rotationLength)}
-          onChange={(next) => onRotationChange(Number.parseInt(next, 10))}
-          options={ROTATION_OPTIONS.map((opt) => ({
-            value: String(opt.value),
-            label: opt.label,
-          }))}
-        />
-      </div>
+      <CustomSelect
+        label="Rotation"
+        id="arbeitszeitmodell-rotation-select"
+        value={String(rotationLength)}
+        onChange={(next) => onRotationChange(Number.parseInt(next, 10))}
+        options={ROTATION_OPTIONS.map((opt) => ({
+          value: String(opt.value),
+          label: opt.label,
+        }))}
+      />
 
       {rotationLength > 1 && (
         <SegmentedControl

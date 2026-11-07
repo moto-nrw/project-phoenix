@@ -631,24 +631,17 @@ function WeeklyNoteField({
   readonly onChange: (value: string) => void;
 }) {
   return (
-    <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-xs font-medium text-gray-500"
-      >
-        {label}
-      </label>
-      <Input
-        id={id}
-        type="text"
-        controlSize="compact"
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        maxLength={500}
-        placeholder="Optional"
-      />
-    </div>
+    <Input
+      label={label}
+      id={id}
+      type="text"
+      controlSize="compact"
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      maxLength={500}
+      placeholder="Optional"
+    />
   );
 }
 

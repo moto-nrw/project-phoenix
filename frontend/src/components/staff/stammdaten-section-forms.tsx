@@ -194,22 +194,13 @@ function SelectField({
   readonly onChange: (value: string) => void;
 }) {
   return (
-    <div>
-      <label
-        id={`${id}-label`}
-        htmlFor={id}
-        className="mb-2 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <CustomSelect
-        id={id}
-        ariaLabelledBy={`${id}-label`}
-        value={value}
-        onChange={onChange}
-        options={[...options]}
-      />
-    </div>
+    <CustomSelect
+      label={label}
+      id={id}
+      value={value}
+      onChange={onChange}
+      options={[...options]}
+    />
   );
 }
 

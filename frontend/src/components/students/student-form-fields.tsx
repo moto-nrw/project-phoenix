@@ -11,7 +11,7 @@ import type { Student } from "~/lib/student-helpers";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { RequiredMark } from "~/components/ui/field-label";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { todayISO } from "~/lib/date-helpers";
@@ -181,14 +181,10 @@ function TextInput({
 
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1">
-        <label
-          htmlFor={inputId}
-          className="block text-xs font-medium text-gray-700"
-        >
+      <div className="mb-2 flex items-center gap-1">
+        <FieldLabel htmlFor={inputId} required={required} className="mb-0">
           {label}
-        </label>
-        {required && <RequiredMark />}
+        </FieldLabel>
         {parentVisibleHint && (
           <ParentVisibleBadge compact hint={parentVisibleHint} />
         )}
@@ -231,22 +227,13 @@ function SelectInput({
 }>) {
   const selectId = useId();
   return (
-    <div>
-      <label
-        id={`${selectId}-label`}
-        htmlFor={selectId}
-        className="mb-1 block text-xs font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <CustomSelect
-        id={selectId}
-        ariaLabelledBy={`${selectId}-label`}
-        value={value}
-        options={options}
-        onChange={onChange}
-      />
-    </div>
+    <CustomSelect
+      label={label}
+      id={selectId}
+      value={value}
+      options={options}
+      onChange={onChange}
+    />
   );
 }
 
@@ -268,13 +255,10 @@ function DateInput({
   const inputId = useId();
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1">
-        <label
-          htmlFor={inputId}
-          className="block text-xs font-medium text-gray-700"
-        >
+      <div className="mb-2 flex items-center gap-1">
+        <FieldLabel htmlFor={inputId} className="mb-0">
           {label}
-        </label>
+        </FieldLabel>
         {parentVisibleHint && (
           <ParentVisibleBadge compact hint={parentVisibleHint} />
         )}
@@ -436,23 +420,15 @@ export function PrivacyConsentSection({
           </span>
         </label>
         <div>
-          <label
-            htmlFor="data-retention-days"
-            className="mb-1 block text-xs font-medium text-gray-700"
-          >
-            Aufbewahrungsdauer (Tage)
-          </label>
           <Input
+            label="Aufbewahrungsdauer (Tage)"
             id="data-retention-days"
             controlSize="compact"
             name="data_retention_days"
             type="number"
             min="1"
             max="31"
-            aria-invalid={retentionError ? true : undefined}
-            aria-describedby={
-              retentionError ? "data-retention-days-error" : undefined
-            }
+            error={retentionError}
             value={formData.data_retention_days ?? ""}
             onChange={(e) => {
               const inputValue = e.target.value;
@@ -464,14 +440,7 @@ export function PrivacyConsentSection({
               }
             }}
           />
-          {retentionError && (
-            <p
-              id="data-retention-days-error"
-              className="text-moto-red mt-1 text-xs"
-            >
-              {retentionError}
-            </p>
-          )}
+
           <p className="mt-1 text-xs text-gray-500">
             Daten werden nach dieser Zeit automatisch gelöscht (1-31 Tage)
           </p>
@@ -655,15 +624,12 @@ export function DepartureSection({
       )}
       {onCompanionNoteChange && accompaniedSelected && (
         <div className="mt-3">
-          <label
-            htmlFor={companionNoteId}
-            className="mb-1 block text-xs font-medium text-gray-700"
-          >
-            {onCompanionsChange
-              ? "Oder mit welcher Person?"
-              : "Mit welchem Kind?"}
-          </label>
           <Input
+            label={
+              onCompanionsChange
+                ? "Oder mit welcher Person?"
+                : "Mit welchem Kind?"
+            }
             id={companionNoteId}
             controlSize="compact"
             name="departure_companion_note"

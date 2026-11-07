@@ -303,13 +303,9 @@ export function StudentPaymentCard({
         {editing ? (
           <div ref={editRef} className="max-w-sm space-y-3">
             <div>
-              <label
-                htmlFor="payment-payer"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Wer zahlt für dieses Kind?
-              </label>
               <CustomSelect
+                label="Wer zahlt für dieses Kind?"
+                hint="Zur Auswahl stehen die Erziehungsberechtigten dieses Kindes."
                 id="payment-payer"
                 name="guardian_id"
                 invalid={Boolean(editErrors.fieldError("guardian_id"))}
@@ -328,9 +324,6 @@ export function StudentPaymentCard({
                 disabled={isSaving}
                 testId="payment-payer-select"
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Zur Auswahl stehen die Erziehungsberechtigten dieses Kindes.
-              </p>
             </div>
 
             {payerChanged ? (

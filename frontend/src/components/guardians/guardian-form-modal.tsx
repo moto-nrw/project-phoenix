@@ -727,13 +727,8 @@ export default function GuardianFormModal({
 
                   {/* Email */}
                   <div className="mb-4">
-                    <label
-                      htmlFor={`guardian-email-${entry.id}`}
-                      className={`mb-1 block text-xs font-medium ${hasFieldError(entry.id, "email") ? "text-moto-red" : "text-gray-700"}`}
-                    >
-                      E-Mail
-                    </label>
                     <Input
+                      label="E-Mail"
                       controlSize="compact"
                       id={`guardian-email-${entry.id}`}
                       type="email"
@@ -921,13 +916,8 @@ export default function GuardianFormModal({
                   </h3>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                     <div className="md:col-span-2">
-                      <label
-                        htmlFor={`guardian-street-${entry.id}`}
-                        className="mb-1 block text-xs font-medium text-gray-700"
-                      >
-                        Straße und Hausnummer
-                      </label>
                       <Input
+                        label="Straße und Hausnummer"
                         controlSize="compact"
                         id={`guardian-street-${entry.id}`}
                         type="text"
@@ -940,50 +930,36 @@ export default function GuardianFormModal({
                         maxLength={255}
                       />
                     </div>
-                    <div>
-                      <label
-                        htmlFor={`guardian-postal-${entry.id}`}
-                        className="mb-1 block text-xs font-medium text-gray-700"
-                      >
-                        PLZ
-                      </label>
-                      <Input
-                        controlSize="compact"
-                        id={`guardian-postal-${entry.id}`}
-                        type="text"
-                        value={entry.addressPostalCode}
-                        onChange={(e) =>
-                          updateEntry(
-                            entry.id,
-                            "addressPostalCode",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="50667"
-                        maxLength={5}
-                        disabled={isLoading}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor={`guardian-city-${entry.id}`}
-                        className="mb-1 block text-xs font-medium text-gray-700"
-                      >
-                        Ort
-                      </label>
-                      <Input
-                        controlSize="compact"
-                        id={`guardian-city-${entry.id}`}
-                        type="text"
-                        value={entry.addressCity}
-                        onChange={(e) =>
-                          updateEntry(entry.id, "addressCity", e.target.value)
-                        }
-                        placeholder="Köln"
-                        disabled={isLoading}
-                        maxLength={255}
-                      />
-                    </div>
+                    <Input
+                      label="PLZ"
+                      controlSize="compact"
+                      id={`guardian-postal-${entry.id}`}
+                      type="text"
+                      value={entry.addressPostalCode}
+                      onChange={(e) =>
+                        updateEntry(
+                          entry.id,
+                          "addressPostalCode",
+                          e.target.value,
+                        )
+                      }
+                      placeholder="50667"
+                      maxLength={5}
+                      disabled={isLoading}
+                    />
+                    <Input
+                      label="Ort"
+                      controlSize="compact"
+                      id={`guardian-city-${entry.id}`}
+                      type="text"
+                      value={entry.addressCity}
+                      onChange={(e) =>
+                        updateEntry(entry.id, "addressCity", e.target.value)
+                      }
+                      placeholder="Köln"
+                      disabled={isLoading}
+                      maxLength={255}
+                    />
                   </div>
                 </div>
 
@@ -1006,33 +982,19 @@ export default function GuardianFormModal({
                     Weitere Angaben
                   </h3>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-                    <div>
-                      <label
-                        id={`guardian-language-${entry.id}-label`}
-                        htmlFor={`guardian-language-${entry.id}`}
-                        className="mb-1 block text-xs font-medium text-gray-700"
-                      >
-                        Bevorzugte Sprache
-                      </label>
-                      <CustomSelect
-                        id={`guardian-language-${entry.id}`}
-                        ariaLabelledBy={`guardian-language-${entry.id}-label`}
-                        value={entry.languagePreference}
-                        options={LANGUAGE_PREFERENCES}
-                        onChange={(next) =>
-                          updateEntry(entry.id, "languagePreference", next)
-                        }
-                        disabled={isLoading}
-                      />
-                    </div>
+                    <CustomSelect
+                      label="Bevorzugte Sprache"
+                      id={`guardian-language-${entry.id}`}
+                      value={entry.languagePreference}
+                      options={LANGUAGE_PREFERENCES}
+                      onChange={(next) =>
+                        updateEntry(entry.id, "languagePreference", next)
+                      }
+                      disabled={isLoading}
+                    />
                     <div className="md:col-span-2">
-                      <label
-                        htmlFor={`guardian-notes-${entry.id}`}
-                        className="mb-1 block text-xs font-medium text-gray-700"
-                      >
-                        Notizen
-                      </label>
                       <Textarea
+                        label="Notizen"
                         id={`guardian-notes-${entry.id}`}
                         value={entry.notes}
                         onChange={(e) =>
