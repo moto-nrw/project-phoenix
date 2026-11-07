@@ -22,7 +22,7 @@ import (
 
 var errCareTimesNotConfigured = errors.New("statistics: care time sources are not configured")
 
-func (s *service) StudentCareTimes(ctx context.Context, studentID int64, from, to calendar.Date) (*studentpresence.StudentCareTimes, error) {
+func (s *service) StudentCareTimes(ctx context.Context, studentID int64, from, to calendar.Date, actor studentpresence.StatisticsActor) (*studentpresence.StudentCareTimes, error) {
 	today := calendar.DateFromTime(s.cfg.Now())
 	if err := s.validate(studentpresence.StatisticsFilters{From: from, To: to}, today); err != nil {
 		return nil, err
@@ -36,6 +36,10 @@ func (s *service) StudentCareTimes(ctx context.Context, studentID int64, from, t
 		return nil, err
 	}
 	result := compared[studentID]
+	scope := careTimeAccessScope(studentpresence.CareTimeFilters{From: from, To: to})
+	if err := s.recordStudentAccess(ctx, scope, actor, studentID); err != nil {
+		return nil, err
+	}
 	return &studentpresence.StudentCareTimes{
 		StudentID: studentID, From: from, To: to, DataFrom: dataFrom,
 		ToleranceMinutes: studentpresence.CareTimeToleranceMinutes,
@@ -187,6 +191,13 @@ type attendanceSpan struct {
 // compareCareTimes compares every child-day from the later of from and the
 // retention cutoff; it returns that first compared day.
 func (s *service) compareCareTimes(ctx context.Context, students []*ports.StatisticsStudent, from, to, today calendar.Date) (map[int64]comparedStudent, calendar.Date, error) {
+	if s.cfg.Retention != nil {
+		prefetched, err := s.cfg.Retention.PrefetchCareTimeSettings(ctx)
+		if err != nil {
+			return nil, calendar.Date(""), fmt.Errorf("prefetch care time settings: %w", err)
+		}
+		ctx = prefetched
+	}
 	dataFrom, err := s.careTimeDataFrom(ctx, from, today)
 	if err != nil {
 		return nil, calendar.Date(""), err

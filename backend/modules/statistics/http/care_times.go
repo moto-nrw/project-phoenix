@@ -36,7 +36,7 @@ func (rs *Resource) getStudentCareTimes(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	result, err := rs.Service.StudentCareTimes(r.Context(), studentID, filters.From, filters.To)
+	result, err := rs.Service.StudentCareTimes(r.Context(), studentID, filters.From, filters.To, rs.Runtime.Actor(r))
 	if err != nil {
 		rs.logCareTimeFailure("student care times failed", err)
 		common.RenderError(w, r, renderCareTimeError(err))

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -118,4 +119,46 @@ func TestStudentCareTimes_KeepsTheCarePlanBeforeTheContractStarts(t *testing.T) 
 	assert.Equal(t, "contract", days[2].PlannedSource)
 	require.NotNil(t, days[2].PlannedEnd)
 	assert.Equal(t, "16:00", *days[2].PlannedEnd)
+}
+
+// A contract module without an end time leaves the pickup unknown: the day
+// is "end_unknown", never the green "within_plan" (#4683).
+func TestStudentCareTimes_ContractWithoutEndTimeIsNotWithinTheBooking(t *testing.T) {
+	t.Parallel()
+	tc := setupStatisticsRoute(t)
+	school := testpkg.Tenant(t)
+	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, school, "Ohne", "Endzeit")
+	childID := careTimeChild(t, tc, staff.ID)
+	organization := testpkg.CreateTestOrganization(t, tc.db, &testpkg.Organization{
+		Name: "Träger Endzeit", Slug: fmt.Sprintf("traeger-endzeit-%d", testpkg.UniqueTestTenantID(t)), Active: true}).ID
+	testpkg.OwnTraegerCareContracts(t, tc.db, organization)
+	testpkg.CreateTestCareContract(t, tc.db, organization, school, childID, "versendet", calendar.NewDate(2026, 6, 1),
+		testpkg.CareContractService{Weekday: "mon", Module: "OGS", EndsAt: ""})
+
+	days := contractCareTimes(t, tc, account.ID, childID)
+	require.NotEmpty(t, days)
+	monday := days[0]
+	assert.Equal(t, "2026-06-08", monday.Date)
+	assert.Equal(t, "contract", monday.PlannedSource)
+	assert.Nil(t, monday.PlannedEnd, "the contract names no pickup")
+	assert.Equal(t, "end_unknown", monday.Kind, "an unknown pickup is never shown as within the booking")
+	assert.False(t, monday.Overrun)
+}
+
+// Reading one child's care times leaves a row with the child in the
+// school's data-access log (ADR 0088 section 7, #4683).
+func TestStudentCareTimes_RecordsTheReadOfTheChild(t *testing.T) {
+	t.Parallel()
+	tc := setupStatisticsRoute(t)
+	school := testpkg.Tenant(t)
+	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, school, "Protokoll", "Leitung")
+	childID := careTimeChild(t, tc, staff.ID)
+
+	contractCareTimes(t, tc, account.ID, childID)
+
+	var logged int
+	require.NoError(t, tc.db.NewRaw(`SELECT count(*) FROM audit.data_access_log
+		WHERE tenant_id = ? AND actor_account_id = ? AND student_id = ? AND resource_type = 'attendance_statistics'
+			AND metadata->>'action' = 'view_student'`, school, account.ID, childID).Scan(context.Background(), &logged))
+	assert.Equal(t, 1, logged, "the read of the child's care times is logged with the child")
 }

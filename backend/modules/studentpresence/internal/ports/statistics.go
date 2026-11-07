@@ -13,6 +13,9 @@ import (
 
 // StatisticsAccessEvent records the report scope, not the reported children's data.
 type StatisticsAccessEvent struct {
+	// StudentID names the child of a read of one child's data (#4683);
+	// nil for a report over several children.
+	StudentID      *int64
 	ActorAccountID int64
 	ActorRole      string
 	RangeStart     time.Time
@@ -110,6 +113,9 @@ type StatisticsRetention interface {
 	// gdpr.attendance_retention_days together, in one read where the
 	// settings allow it (#4683: the contract Soll costs one statement more).
 	OccupancyRetentionDays(context.Context) (statusDays, attendanceDays int, err error)
+	// PrefetchCareTimeSettings reads every setting Soll und Ist resolves in
+	// one statement and carries the snapshot in the returned context (#4683).
+	PrefetchCareTimeSettings(context.Context) (context.Context, error)
 }
 
 type PlannedCareDay = studentpresence.PlannedCareDay

@@ -83,6 +83,25 @@ func (r StatisticsRetention) OccupancyRetentionDays(ctx context.Context) (status
 	return statusDays, attendanceDays, nil
 }
 
+// PrefetchCareTimeSettings reads the settings Soll und Ist resolves (both
+// retention windows, the federal state of the holidays, booking-led care)
+// in one statement; the returned context carries them to every resolver
+// after it (#4683). A source that cannot prefetch returns ctx unchanged.
+func (r StatisticsRetention) PrefetchCareTimeSettings(ctx context.Context) (context.Context, error) {
+	prefetcher, ok := r.source.(settingsPrefetcher)
+	if !ok {
+		return ctx, nil
+	}
+	prefetched, err := prefetcher.Prefetch(ctx, []string{
+		configModel.KeyGDPRStatusDayRetentionDays, configModel.KeyGDPRAttendanceRetentionDays,
+		configModel.KeyFederalState, configModel.KeyEnrollmentBookingsAuthoritative,
+	})
+	if err != nil {
+		return ctx, fmt.Errorf("prefetch the care time settings: %w", err)
+	}
+	return prefetched, nil
+}
+
 // StatusDayRetention is the retention window of the student status days
 // (sick and excused days), the tenant's GDPR status day retention.
 type StatusDayRetention struct{ source StatisticsRetentionSource }

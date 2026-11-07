@@ -52,6 +52,7 @@ type overrunEvaluationBody struct {
 }
 
 type overrunFixture struct {
+	signInRole func(*testing.T, string) string
 	router     http.Handler
 	db         *bun.DB
 	traeger    *traegerPortalHandler
@@ -100,6 +101,7 @@ func newOverrunFixtureOn(t *testing.T, db *bun.DB) overrunFixture {
 		testpkg.CareContractService{Weekday: "mon", Module: "OGS", EndsAt: "13:00"})
 
 	signIn := func(role string) (string, int64) {
+		t.Helper()
 		password := testpkg.NewTestPassword()
 		account := traegerAccount(t, db, password)
 		testpkg.CreateTestTraegerMember(t, db, organization, account.ID, role)
@@ -108,6 +110,11 @@ func newOverrunFixtureOn(t *testing.T, db *bun.DB) overrunFixture {
 		return answer.AccessToken, account.ID
 	}
 	admin, adminID := signIn(identityaccess.TraegerRoleAdministration)
+	signInRole := func(t *testing.T, role string) string {
+		t.Helper()
+		token, _ := signIn(role)
+		return token
+	}
 	billing, _ := signIn(identityaccess.TraegerRoleBilling)
 	foreign := newTraegerOffice(t, db, traeger, "Träger Zeitvergleich Fremd", identityaccess.TraegerRoleAdministration)
 
@@ -124,8 +131,13 @@ func newOverrunFixtureOn(t *testing.T, db *bun.DB) overrunFixture {
 		})
 	})
 	mountCareTimeOverrunRoutes(router, organizations, statistics.Statistics, audit.DataAccessLog)
-	return overrunFixture{router: testpkg.SessionVerifier(router), db: db, traeger: traeger, school: school, other: other, child: child,
+	return overrunFixture{signInRole: signInRole, router: testpkg.SessionVerifier(router), db: db, traeger: traeger, school: school, other: other, child: child,
 		admin: admin, billing: billing, adminID: adminID, foreignJWT: foreign.token}
+}
+
+func (f overrunFixture) signIn(t *testing.T, role string) string {
+	t.Helper()
+	return f.signInRole(t, role)
 }
 
 const overrunWindow = "/traeger/care-time-overruns?from=2026-06-08&to=2026-06-16"
@@ -175,6 +187,13 @@ func TestCareTimeOverrunsSummariseEverySchoolFromTheContract(t *testing.T) {
 func TestCareTimeOverrunChildrenNeedTheContractRightAndAreLogged(t *testing.T) {
 	t.Parallel()
 	f := newOverrunFixture(t)
+	// The Leitung of the Träger holds no right "Berichte lesen": neither the
+	// figures nor the names.
+	leadership := f.signIn(t, identityaccess.TraegerRoleLeadership)
+	for _, path := range []string{overrunWindow, "/traeger/care-time-overruns/children?from=2026-06-08&to=2026-06-16"} {
+		code, _, raw := f.get(t, leadership, path)
+		assert.Equal(t, http.StatusForbidden, code, "%s: %s", path, raw)
+	}
 	code, _, raw := f.get(t, f.billing, "/traeger/care-time-overruns/children?from=2026-06-08&to=2026-06-16")
 	assert.Equal(t, http.StatusForbidden, code, "Abrechnung holds no right \"Verträge verwalten\": %s", raw)
 

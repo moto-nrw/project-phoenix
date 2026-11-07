@@ -23,7 +23,7 @@ type StatisticsAuditLog struct {
 
 func (a StatisticsAuditLog) RecordStatisticsAccess(ctx context.Context, event presenceCompose.StatisticsAccessEvent) error {
 	entry := &auditModels.DataAccessLog{
-		ActorAccountID: event.ActorAccountID, ActorRole: event.ActorRole,
+		ActorAccountID: event.ActorAccountID, ActorRole: event.ActorRole, StudentID: event.StudentID,
 		ResourceType: auditModels.ResourceTypeAttendanceStatistics,
 		RangeStart:   event.RangeStart, RangeEnd: event.RangeEnd, AccessedAt: event.AccessedAt,
 	}

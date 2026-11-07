@@ -445,3 +445,7 @@ func TestRoomReportDoesNotMarkEnabledHistoryAsDisabled(t *testing.T) {
 	assert.Equal(t, "Gruppenraum", report.Rooms[0].Name)
 	assert.Equal(t, 30, report.RoomDataDays)
 }
+
+func (reportRetention) PrefetchCareTimeSettings(ctx context.Context) (context.Context, error) {
+	return ctx, nil
+}
