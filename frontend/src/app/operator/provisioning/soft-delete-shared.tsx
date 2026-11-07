@@ -180,6 +180,11 @@ export function useSoftDeletable<T extends SoftDeletable>(
   };
 }
 
+/**
+ * Karte eines gelöschten Eintrags im Papierkorb. Die Aufrufer stellen die
+ * Karten in ein `grid`: sonst wächst die letzte Karte als letzte Fläche der
+ * Seite bis zur Unterkante (`.moto-tenant-body`, #6071).
+ */
 export function DeletedEntityCard({
   name,
   subtitle,
