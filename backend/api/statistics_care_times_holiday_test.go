@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // Soll und Ist with a confirmed holiday booking (#5994, ADR 0156 addendum):
@@ -119,7 +121,9 @@ func TestCareTimeOverrunsReadTheHolidayBooking(t *testing.T) {
 // endsOn] the school hosts, with the time model from to until, and confirms
 // it or leaves it received: a registration names the school as the child's
 // home school, with the child's names and date of birth (#5994).
-func ownHolidayBooking(t *testing.T, db *bun.DB, organization, school int64, first, last string, born, startsOn, endsOn calendar.Date, from, until, status string) {
+type ownBooking struct{ period, week, registration, child int64 }
+
+func ownHolidayBooking(t *testing.T, db *bun.DB, organization, school int64, first, last string, born, startsOn, endsOn calendar.Date, from, until, status string) ownBooking {
 	t.Helper()
 	ctx := context.Background()
 	var period, week, model, registration, child int64
@@ -139,6 +143,33 @@ func ownHolidayBooking(t *testing.T, db *bun.DB, organization, school int64, fir
 	_, err := db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_bookings (organization_id, holiday_period_id,
 			holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id) VALUES (?, ?, ?, ?, ?)`,
 		organization, period, child, week, model)
+	require.NoError(t, err)
+	return ownBooking{period: period, week: week, registration: registration, child: child}
+}
+
+// rebookOwnChild does what the Träger-Büro's rebooking does (#4663): it
+// replaces the child's bookings by the time model from to until in the same
+// week and writes the change into the registration's trail at at.
+func rebookOwnChild(t *testing.T, db *bun.DB, organization int64, booking ownBooking, from, until, at string) {
+	t.Helper()
+	ctx := context.Background()
+	var before, after int64
+	require.NoError(t, db.NewRaw(`SELECT holiday_week_time_model_id FROM enrollment.holiday_registration_bookings
+		WHERE holiday_registration_child_id = ?`, booking.child).Scan(ctx, &before))
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_week_time_models (organization_id, holiday_period_week_id, name, starts_at, ends_at, price_cents)
+		VALUES (?, ?, 'Vormittag', ?, ?, 3000) RETURNING id`, organization, booking.week, from, until).Scan(ctx, &after))
+	_, err := db.ExecContext(ctx, `DELETE FROM enrollment.holiday_registration_bookings WHERE organization_id = ? AND holiday_registration_child_id = ?`,
+		organization, booking.child)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_bookings (organization_id, holiday_period_id,
+			holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id) VALUES (?, ?, ?, ?, ?)`,
+		organization, booking.period, booking.child, booking.week, after)
+	require.NoError(t, err)
+	details := fmt.Sprintf(`{"child_id": %d, "before": [{"week_id": %d, "time_model_id": %d}], "after": [{"week_id": %d, "time_model_id": %d}]}`,
+		booking.child, booking.week, before, booking.week, after)
+	_, err = db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_audit
+			(organization_id, holiday_period_id, holiday_registration_id, action, details, occurred_at)
+		VALUES (?, ?, ?, 'rebook', ?::jsonb, ?::timestamptz)`, organization, booking.period, booking.registration, details, at)
 	require.NoError(t, err)
 }
 
@@ -197,4 +228,88 @@ func TestStudentCareTimes_OwnChildsHolidayBookingReplacesTheContract(t *testing.
 	received := byDate["2026-06-15"]
 	assert.Equal(t, "contract", received.PlannedSource, "a registration that is not confirmed books nothing")
 	assert.Equal(t, "overrun", received.Kind)
+}
+
+// A rebooking changes the booking from its day on, never a day that has
+// passed (#5994): the Soll of a holiday day before the rebooking stays the
+// booking the child had then.
+func TestStudentCareTimes_RebookingKeepsTheSollOfPastHolidayDays(t *testing.T) {
+	t.Parallel()
+	tc := setupStatisticsRoute(t)
+	school := testpkg.Tenant(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, school, "Umbuchung", "Leitung")
+	child := testpkg.CreateTestStudent(t, tc.db, "Rudi", "Umgebucht", "2a")
+	born := calendar.NewDate(2018, 5, 6)
+	_, err := tc.db.ExecContext(context.Background(), `UPDATE users.persons SET birthday = ? WHERE id = ?`, born, child.PersonID)
+	require.NoError(t, err)
+	device := testpkg.CreateTestDevice(t, tc.db, "rebooking-device")
+	monday := calendar.NewDate(2026, 6, 8)
+	insertAttendanceSpan(t, tc.db, school, child.ID, device.ID, monday, 8*time.Hour, 15*time.Hour+45*time.Minute)
+	insertAttendanceSpan(t, tc.db, school, child.ID, device.ID, monday.AddDays(3), 8*time.Hour, 12*time.Hour+55*time.Minute)
+	organization := testpkg.CreateTestOrganization(t, tc.db, &testpkg.Organization{
+		Name: "Träger Umbuchung", Slug: fmt.Sprintf("traeger-umbuchung-%d", testpkg.UniqueTestTenantID(t)), Active: true}).ID
+	testpkg.OwnTraegerHolidayPeriods(t, tc.db, organization)
+	joinTraeger(t, tc.db, organization, school)
+	booking := ownHolidayBooking(t, tc.db, organization, school, "Rudi", "Umgebucht", born, monday, monday.AddDays(4), "08:00", "16:00", "confirmed")
+	// On Wednesday the Träger-Büro rebooks the week to the morning until 13:00.
+	rebookOwnChild(t, tc.db, organization, booking, "08:00", "13:00", "2026-06-10T09:00:00+02:00")
+
+	days := contractCareTimes(t, tc, account.ID, child.ID)
+	byDate := map[string]contractCareTimeDayPayload{}
+	for _, day := range days {
+		byDate[day.Date] = day
+	}
+	past := byDate["2026-06-08"]
+	require.NotNil(t, past.PlannedEnd, "Monday before the rebooking stays booked")
+	assert.Equal(t, "16:00", *past.PlannedEnd, "the rebooking does not change a day that had passed")
+	assert.Equal(t, "within_plan", past.Kind, "a check-out at 15:45 stays within the booking of that day")
+	after := byDate["2026-06-11"]
+	require.NotNil(t, after.PlannedEnd)
+	assert.Equal(t, "13:00", *after.PlannedEnd, "from the rebooking on, the new time model is the Soll")
+	assert.Equal(t, "holiday_booking", after.PlannedSource)
+}
+
+// The own children of a holiday booking are found in one read of the
+// People Directory for all bookings (#5994): two more booked children cost
+// no further statement.
+func TestCareTimeOverrunsQueryBudgetWithOwnHolidayBookings(t *testing.T) {
+	t.Parallel()
+	tc := setupStatisticsRoute(t)
+	school := testpkg.Tenant(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, school, "Budget", "Ferien")
+	claims := claimsFor(t, account.ID)
+	organization := testpkg.CreateTestOrganization(t, tc.db, &testpkg.Organization{
+		Name: "Träger Ferienbudget", Slug: fmt.Sprintf("traeger-ferienbudget-%d", testpkg.UniqueTestTenantID(t)), Active: true}).ID
+	testpkg.OwnTraegerHolidayPeriods(t, tc.db, organization)
+	joinTraeger(t, tc.db, organization, school)
+	device := testpkg.CreateTestDevice(t, tc.db, "holiday-budget-device")
+	monday := calendar.NewDate(2026, 6, 8)
+	bookChild := func(first string, born calendar.Date) {
+		t.Helper()
+		child := testpkg.CreateTestStudent(t, tc.db, first, "Ferienbudget", "2a")
+		_, err := tc.db.ExecContext(context.Background(), `UPDATE users.persons SET birthday = ? WHERE id = ?`, born, child.PersonID)
+		require.NoError(t, err)
+		insertAttendanceSpan(t, tc.db, school, child.ID, device.ID, monday, 8*time.Hour, 16*time.Hour+30*time.Minute)
+		ownHolidayBooking(t, tc.db, organization, school, first, "Ferienbudget", born, monday, monday.AddDays(4), "08:00", "16:00", "confirmed")
+	}
+	bookChild("Anna", calendar.NewDate(2018, 1, 2))
+
+	counter := testpkg.CaptureQueriesForContext(t, tc.db)
+	run := func() []string {
+		t.Helper()
+		counter.Reset()
+		req := httptest.NewRequest(http.MethodGet, "/care-time-overruns?from=2026-06-08&to=2026-06-12", nil)
+		rec := authExec(t, tc, req.WithContext(counter.Context(req.Context())), claims, reportPermissions)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return counter.Queries()
+	}
+	run() // the first list records its access; measure the steady state
+	one := run()
+
+	bookChild("Ben", calendar.NewDate(2018, 2, 3))
+	bookChild("Cleo", calendar.NewDate(2019, 4, 5))
+	three := run()
+
+	assert.Len(t, three, len(one), "the own children of all holiday bookings are read in one batch")
+	querybudgets.AssertQueryBudget(t, "api.statistics.care_time_overruns_own_holiday_bookings", three)
 }

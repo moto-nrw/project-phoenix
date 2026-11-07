@@ -17,32 +17,16 @@ func (s guestBookingsStub) ListHolidayBookings(context.Context, []int64, calenda
 	return s, nil, nil
 }
 
+// identitiesStub is the whole school: every child born on a day asked for.
 type identitiesStub map[int64]enrollment.HolidayStudentIdentity
 
-// HolidayStudentIdentities answers for the children asked for only, as the
-// People Directory read does.
-func (s identitiesStub) HolidayStudentIdentities(_ context.Context, ids []int64) (map[int64]enrollment.HolidayStudentIdentity, error) {
-	result := map[int64]enrollment.HolidayStudentIdentity{}
-	for _, id := range ids {
-		if identity, ok := s[id]; ok {
-			result[id] = identity
-		}
-	}
-	return result, nil
-}
-
-// UniqueHolidayStudents searches the whole school: every child of the stub.
-func (s identitiesStub) UniqueHolidayStudents(_ context.Context, identities []enrollment.HolidayStudentIdentity) (map[int]int64, error) {
-	result := map[int]int64{}
-	for i, identity := range identities {
-		var found []int64
-		for id, candidate := range s {
-			if identityKey(candidate) == identityKey(identity) {
-				found = append(found, id)
+func (s identitiesStub) HolidayStudentsBornOn(_ context.Context, births []calendar.Date) ([]enrollment.HolidayStudentCandidate, error) {
+	var result []enrollment.HolidayStudentCandidate
+	for id, identity := range s {
+		for _, birth := range births {
+			if identity.BirthDate == birth {
+				result = append(result, enrollment.HolidayStudentCandidate{StudentID: id, Identity: identity})
 			}
-		}
-		if len(found) == 1 {
-			result[i] = found[0]
 		}
 	}
 	return result, nil

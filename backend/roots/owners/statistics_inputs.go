@@ -5,6 +5,7 @@ import (
 	"time"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
@@ -16,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type StatisticsAuditLog struct {
@@ -78,14 +78,11 @@ func (a StatisticsReportPeriods) StatisticsHolidayPeriods(ctx context.Context, f
 // statisticsStudentRows are the student rows the report's roster reads.
 type statisticsStudentRows interface {
 	FindOverlappingWithGroups(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]*peopleValues.StudentRosterEntry, error)
-	FindByIDs(context.Context, []int64) (map[int64]*peopleValues.StudentState, error)
-	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (*int64, error)
 }
 
-// statisticsPersons are the persons behind the children, with their date of
-// birth.
-type statisticsPersons interface {
-	FindByIDs(context.Context, []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
+// statisticsBirthdays are the children of the school by date of birth.
+type statisticsBirthdays interface {
+	FindBirthdaysOn(context.Context, []peopleBirthday.BirthdayMonthDay) ([]peopleBirthday.BirthdayEntry, error)
 }
 
 type StatisticsReportStudents struct {
@@ -215,56 +212,33 @@ func (a StatisticsHolidayCareDays) HolidayCareDays(ctx context.Context, studentI
 	return result, nil
 }
 
-// StatisticsHolidayStudentIdentities reads the names and the date of birth of
-// the school's children in two reads of the People Directory, so Enrollment
-// finds the children its own holiday bookings name (#5994).
-type StatisticsHolidayStudentIdentities struct {
-	Students statisticsStudentRows
-	Persons  statisticsPersons
+// StatisticsHolidayStudents reads the children the school cares for that
+// were born on the days of the own holiday bookings, in one read of the
+// People Directory (#5994): Enrollment finds the child of a booking among
+// them. The read is by day of the year; only an equal date counts.
+type StatisticsHolidayStudents struct {
+	Students statisticsBirthdays
 }
 
-func (a StatisticsHolidayStudentIdentities) HolidayStudentIdentities(ctx context.Context, studentIDs []int64) (map[int64]enrollment.HolidayStudentIdentity, error) {
-	students, err := a.Students.FindByIDs(ctx, studentIDs)
+func (a StatisticsHolidayStudents) HolidayStudentsBornOn(ctx context.Context, birthDates []timezone.Date) ([]enrollment.HolidayStudentCandidate, error) {
+	if len(birthDates) == 0 {
+		return nil, nil
+	}
+	wanted := make(map[timezone.Date]bool, len(birthDates))
+	days := make([]peopleBirthday.BirthdayMonthDay, 0, len(birthDates))
+	for _, date := range birthDates {
+		wanted[date] = true
+		days = append(days, peopleBirthday.BirthdayMonthDay{Month: date.Month(), Day: date.Day()})
+	}
+	entries, err := a.Students.FindBirthdaysOn(ctx, days)
 	if err != nil {
 		return nil, err
 	}
-	personIDs := make([]int64, 0, len(students))
-	for _, student := range students {
-		if student != nil {
-			personIDs = append(personIDs, student.PersonID)
-		}
-	}
-	persons, err := a.Persons.FindByIDs(ctx, personIDs)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[int64]enrollment.HolidayStudentIdentity, len(students))
-	for studentID, student := range students {
-		if student == nil || persons[student.PersonID] == nil || persons[student.PersonID].Birthday == nil {
-			continue
-		}
-		person := persons[student.PersonID]
-		result[studentID] = enrollment.HolidayStudentIdentity{FirstName: person.FirstName, LastName: person.LastName, BirthDate: *person.Birthday}
-	}
-	return result, nil
-}
-
-// UniqueHolidayStudents finds for each identity the one enrolled child of
-// the school with it, by the People Directory's case-insensitive match
-// (#1663); none or several leave the identity out.
-func (a StatisticsHolidayStudentIdentities) UniqueHolidayStudents(ctx context.Context, identities []enrollment.HolidayStudentIdentity) (map[int]int64, error) {
-	school, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[int]int64, len(identities))
-	for i, identity := range identities {
-		id, err := a.Students.FindEnrolledStudentIDByNameAndBirthday(ctx, school.Int64(), identity.FirstName, identity.LastName, identity.BirthDate)
-		if err != nil {
-			return nil, err
-		}
-		if id != nil {
-			result[i] = *id
+	result := make([]enrollment.HolidayStudentCandidate, 0, len(entries))
+	for _, entry := range entries {
+		if wanted[entry.Birthday] {
+			result = append(result, enrollment.HolidayStudentCandidate{StudentID: entry.ID,
+				Identity: enrollment.HolidayStudentIdentity{FirstName: entry.FirstName, LastName: entry.LastName, BirthDate: entry.Birthday}})
 		}
 	}
 	return result, nil

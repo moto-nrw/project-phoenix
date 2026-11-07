@@ -38,7 +38,9 @@ func init() {
 // ended_on: those days were booked, and the comparison must not fall back
 // to the contract for them. The cancellation and the confirmation before it
 // come from the registration's trail (ADR 0114); a registration that was
-// never confirmed books nothing. ends_on is the last booked day.
+// never confirmed books nothing. A rebooking changes the bookings from its
+// day on; the days before keep the bookings the trail names as "before".
+// starts_on and ends_on are the first and the last booked day.
 const holidayHostOwnBookingsUpSQL = `
 CREATE FUNCTION enrollment.holiday_host_own_bookings(p_from DATE, p_to DATE)
 	RETURNS TABLE (first_name TEXT, last_name TEXT, birth_date DATE, starts_on DATE, ends_on DATE,
@@ -48,43 +50,75 @@ CREATE FUNCTION enrollment.holiday_host_own_bookings(p_from DATE, p_to DATE)
 	SECURITY DEFINER
 	SET search_path = pg_catalog, pg_temp
 	AS $$
-	SELECT child.first_name, child.last_name, child.birth_date, week.starts_on,
-		CASE WHEN registration.status = 'cancelled' THEN LEAST(week.ends_on, cancellation.cancelled_on - 1) ELSE week.ends_on END,
-		model.starts_at, model.ends_at
-	FROM enrollment.holiday_period_weeks AS week
-	JOIN enrollment.holiday_periods AS period
-		ON period.organization_id = week.organization_id AND period.id = week.holiday_period_id
-	JOIN platform.schools AS school
-		ON school.id = week.host_school_id AND school.organization_id = week.organization_id
-	JOIN enrollment.holiday_registration_bookings AS booking
-		ON booking.organization_id = week.organization_id AND booking.holiday_period_week_id = week.id
-	JOIN enrollment.holiday_week_time_models AS model
-		ON model.organization_id = booking.organization_id AND model.holiday_period_week_id = week.id
-			AND model.id = booking.holiday_week_time_model_id
-	JOIN enrollment.holiday_registration_children AS child
-		ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
-	JOIN enrollment.holiday_registrations AS registration
-		ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
-	LEFT JOIN LATERAL (
-		SELECT (cancel.occurred_at AT TIME ZONE 'Europe/Berlin')::date AS cancelled_on
-		FROM enrollment.holiday_registration_audit AS cancel
-		WHERE cancel.organization_id = registration.organization_id AND cancel.holiday_registration_id = registration.id
-			AND cancel.action = 'cancel'
-			AND EXISTS (
-				SELECT 1 FROM enrollment.holiday_registration_audit AS confirm
-				WHERE confirm.organization_id = cancel.organization_id
-					AND confirm.holiday_registration_id = cancel.holiday_registration_id
-					AND confirm.action = 'confirm' AND confirm.occurred_at < cancel.occurred_at)
-		ORDER BY cancel.occurred_at DESC
-		LIMIT 1
-	) AS cancellation ON true
-	WHERE week.host_school_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
-		AND child.home_school_id = week.host_school_id
-		AND period.status = 'published'
-		AND (registration.status = 'confirmed'
-			OR registration.status = 'cancelled' AND cancellation.cancelled_on > week.starts_on)
-		AND week.starts_on <= p_to
-		AND CASE WHEN registration.status = 'cancelled' THEN LEAST(week.ends_on, cancellation.cancelled_on - 1) ELSE week.ends_on END >= p_from
+	WITH host AS (
+		SELECT NULLIF(current_setting('app.current_tenant_id', true), '')::bigint AS school_id
+	),
+	own AS (
+		SELECT child.id AS child_id, child.organization_id, child.first_name, child.last_name, child.birth_date,
+			registration.id AS registration_id, cancellation.cancelled_on
+		FROM host
+		JOIN enrollment.holiday_registration_children AS child ON child.home_school_id = host.school_id
+		JOIN enrollment.holiday_registrations AS registration
+			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
+		JOIN enrollment.holiday_periods AS period
+			ON period.organization_id = registration.organization_id AND period.id = registration.holiday_period_id
+		LEFT JOIN LATERAL (
+			SELECT (cancel.occurred_at AT TIME ZONE 'Europe/Berlin')::date AS cancelled_on
+			FROM enrollment.holiday_registration_audit AS cancel
+			WHERE cancel.organization_id = registration.organization_id AND cancel.holiday_registration_id = registration.id
+				AND cancel.action = 'cancel'
+				AND EXISTS (
+					SELECT 1 FROM enrollment.holiday_registration_audit AS confirm
+					WHERE confirm.organization_id = cancel.organization_id
+						AND confirm.holiday_registration_id = cancel.holiday_registration_id
+						AND confirm.action = 'confirm' AND confirm.occurred_at < cancel.occurred_at)
+			ORDER BY cancel.occurred_at DESC
+			LIMIT 1
+		) AS cancellation ON true
+		WHERE period.status = 'published'
+			AND (registration.status = 'confirmed'
+				OR registration.status = 'cancelled' AND cancellation.cancelled_on IS NOT NULL)
+	),
+	rebook AS (
+		SELECT own.child_id, audit.occurred_at, (audit.occurred_at AT TIME ZONE 'Europe/Berlin')::date AS on_date, audit.details
+		FROM own
+		JOIN enrollment.holiday_registration_audit AS audit
+			ON audit.organization_id = own.organization_id AND audit.holiday_registration_id = own.registration_id
+				AND audit.action = 'rebook' AND audit.details->>'child_id' = own.child_id::text
+	),
+	segment AS (
+		SELECT own.child_id, booking.holiday_period_week_id AS week_id, booking.holiday_week_time_model_id AS model_id,
+			(SELECT max(rebook.on_date) FROM rebook WHERE rebook.child_id = own.child_id) AS valid_from,
+			NULL::date AS valid_until
+		FROM own
+		JOIN enrollment.holiday_registration_bookings AS booking
+			ON booking.organization_id = own.organization_id AND booking.holiday_registration_child_id = own.child_id
+		UNION ALL
+		SELECT rebook.child_id, (previous->>'week_id')::bigint, (previous->>'time_model_id')::bigint,
+			(SELECT max(earlier.on_date) FROM rebook AS earlier
+				WHERE earlier.child_id = rebook.child_id AND earlier.occurred_at < rebook.occurred_at),
+			rebook.on_date - 1
+		FROM rebook
+		CROSS JOIN LATERAL jsonb_array_elements(COALESCE(rebook.details->'before', '[]'::jsonb)) AS previous
+	),
+	booked AS (
+		SELECT own.first_name, own.last_name, own.birth_date, model.starts_at, model.ends_at,
+			GREATEST(week.starts_on, segment.valid_from) AS first_day,
+			LEAST(week.ends_on, segment.valid_until, own.cancelled_on - 1) AS last_day
+		FROM segment
+		JOIN own ON own.child_id = segment.child_id
+		JOIN enrollment.holiday_period_weeks AS week
+			ON week.organization_id = own.organization_id AND week.id = segment.week_id
+		JOIN platform.schools AS school
+			ON school.id = week.host_school_id AND school.organization_id = week.organization_id
+		JOIN enrollment.holiday_week_time_models AS model
+			ON model.organization_id = week.organization_id AND model.holiday_period_week_id = week.id
+				AND model.id = segment.model_id
+		WHERE week.host_school_id = (SELECT host.school_id FROM host)
+	)
+	SELECT first_name, last_name, birth_date, first_day, last_day, starts_at, ends_at
+	FROM booked
+	WHERE first_day <= last_day AND first_day <= p_to AND last_day >= p_from
 	$$;
 REVOKE ALL ON FUNCTION enrollment.holiday_host_own_bookings(DATE, DATE) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION enrollment.holiday_host_own_bookings(DATE, DATE) TO phoenix_tenant;

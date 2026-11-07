@@ -48,8 +48,8 @@ func NewHolidayGuestBadgeList(today func() calendar.Date) enrollment.HolidayGues
 }
 
 // NewHolidayGuestBookedCare builds the read of the guests' booked days for Soll und Ist (#5994), in the hosting school's tenant transaction.
-func NewHolidayGuestBookedCare(identities enrollment.HolidayStudentIdentityList) enrollment.HolidayGuestBookedCare {
-	return applicationNative.NewHolidayGuestBookedCare(postgres.NewHolidayGuestStore(), identities)
+func NewHolidayGuestBookedCare(children enrollment.HolidayStudentsByBirthDate) enrollment.HolidayGuestBookedCare {
+	return applicationNative.NewHolidayGuestBookedCare(postgres.NewHolidayGuestStore(), children)
 }
 
 // NewHolidayAccessTrail builds the Träger access log's holiday trail (#5326), read in the Träger projection's transaction (ADR 0137).

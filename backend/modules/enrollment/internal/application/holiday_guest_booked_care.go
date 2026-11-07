@@ -19,19 +19,19 @@ type HolidayGuestBookings interface {
 
 // HolidayGuestBookedCare serves enrollment.HolidayGuestBookedCare (#5994).
 type HolidayGuestBookedCare struct {
-	store      HolidayGuestBookings
-	identities enrollment.HolidayStudentIdentityList
+	store    HolidayGuestBookings
+	children enrollment.HolidayStudentsByBirthDate
 }
 
 var _ enrollment.HolidayGuestBookedCare = HolidayGuestBookedCare{}
 
-// NewHolidayGuestBookedCare builds the read of the booked holiday days; the
-// identities find the school's own children.
-func NewHolidayGuestBookedCare(store HolidayGuestBookings, identities enrollment.HolidayStudentIdentityList) HolidayGuestBookedCare {
-	if store == nil || identities == nil {
-		panic("enrollment: the holiday guest store and the student identities are required")
+// NewHolidayGuestBookedCare builds the read of the booked holiday days;
+// children finds the school's own children of a booking.
+func NewHolidayGuestBookedCare(store HolidayGuestBookings, children enrollment.HolidayStudentsByBirthDate) HolidayGuestBookedCare {
+	if store == nil || children == nil {
+		panic("enrollment: the holiday guest store and the school's children are required")
 	}
-	return HolidayGuestBookedCare{store: store, identities: identities}
+	return HolidayGuestBookedCare{store: store, children: children}
 }
 
 // HolidayGuestBookedDays lists the booked days of each guest within
@@ -66,49 +66,44 @@ func (c HolidayGuestBookedCare) HolidayGuestBookedDays(ctx context.Context, stud
 
 // addOwnBookings finds the children of the school its own bookings name, by
 // the rule of the participant list (#4722): the same names and the same date
-// of birth. A booking that fits no child or several, among the children
-// asked for or in the whole school, is left out; the Soll beneath it stays.
-// The school-wide check keeps the answer independent of which children a
-// report asks for.
+// of birth. The children come in one read for all bookings, from the whole
+// school, so the answer does not depend on which children a report asks
+// for. A booking that fits no child or several of the school is left out;
+// the Soll beneath it stays.
 func (c HolidayGuestBookedCare) addOwnBookings(ctx context.Context, result map[int64]map[calendar.Date]enrollment.HolidayGuestBookedDay,
 	studentIDs []int64, own []enrollment.HolidayOwnBooking, from, to calendar.Date) error {
-	identities, err := c.identities.HolidayStudentIdentities(ctx, studentIDs)
+	births := make([]calendar.Date, 0, len(own))
+	seen := map[calendar.Date]bool{}
+	for _, booking := range own {
+		if !seen[booking.Identity.BirthDate] {
+			seen[booking.Identity.BirthDate] = true
+			births = append(births, booking.Identity.BirthDate)
+		}
+	}
+	candidates, err := c.children.HolidayStudentsBornOn(ctx, births)
 	if err != nil {
 		return fmt.Errorf("enrollment: read the children of the school: %w", err)
 	}
 	byIdentity := map[holidayIdentityKey][]int64{}
-	for studentID, identity := range identities {
-		key := identityKey(identity)
-		byIdentity[key] = append(byIdentity[key], studentID)
+	for _, candidate := range candidates {
+		key := identityKey(candidate.Identity)
+		byIdentity[key] = append(byIdentity[key], candidate.StudentID)
 	}
-	var fitting []enrollment.HolidayOwnBooking
-	var candidates []int64
+	asked := make(map[int64]bool, len(studentIDs))
+	for _, id := range studentIDs {
+		asked[id] = true
+	}
 	for _, booking := range own {
-		if matches := byIdentity[identityKey(booking.Identity)]; len(matches) == 1 {
-			fitting, candidates = append(fitting, booking), append(candidates, matches[0])
-		}
-	}
-	if len(fitting) == 0 {
-		return nil
-	}
-	identityList := make([]enrollment.HolidayStudentIdentity, len(fitting))
-	for i, booking := range fitting {
-		identityList[i] = trimmedIdentity(booking.Identity)
-	}
-	unique, err := c.identities.UniqueHolidayStudents(ctx, identityList)
-	if err != nil {
-		return fmt.Errorf("enrollment: check the children of own holiday bookings: %w", err)
-	}
-	for i, booking := range fitting {
-		if studentID, ok := unique[i]; !ok || studentID != candidates[i] {
+		matches := byIdentity[identityKey(booking.Identity)]
+		if len(matches) != 1 || !asked[matches[0]] {
 			continue
 		}
-		day, err := guestBookedDay(enrollment.HolidayGuest{StudentID: candidates[i], TimeModelStarts: booking.StartsAt, TimeModelEnds: booking.EndsAt})
+		day, err := guestBookedDay(enrollment.HolidayGuest{StudentID: matches[0], TimeModelStarts: booking.StartsAt, TimeModelEnds: booking.EndsAt})
 		if err != nil {
 			return err
 		}
 		first, last := guestBookedSpan(enrollment.HolidayGuest{StartsOn: booking.StartsOn, EndsOn: booking.EndsOn}, from, to)
-		addBookedDays(result, candidates[i], first, last, day)
+		addBookedDays(result, matches[0], first, last, day)
 	}
 	return nil
 }
@@ -126,11 +121,6 @@ func identityKey(identity enrollment.HolidayStudentIdentity) holidayIdentityKey 
 		lastName:  strings.ToLower(strings.TrimSpace(identity.LastName)),
 		birthDate: identity.BirthDate,
 	}
-}
-
-func trimmedIdentity(identity enrollment.HolidayStudentIdentity) enrollment.HolidayStudentIdentity {
-	identity.FirstName, identity.LastName = strings.TrimSpace(identity.FirstName), strings.TrimSpace(identity.LastName)
-	return identity
 }
 
 func addBookedDays(result map[int64]map[calendar.Date]enrollment.HolidayGuestBookedDay, studentID int64, first, last calendar.Date, day enrollment.HolidayGuestBookedDay) {

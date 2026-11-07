@@ -19,16 +19,12 @@ import (
 // ownChildIdentities names school A's own child as its registration does.
 type ownChildIdentities map[int64]enrollment.HolidayStudentIdentity
 
-func (o ownChildIdentities) HolidayStudentIdentities(context.Context, []int64) (map[int64]enrollment.HolidayStudentIdentity, error) {
-	return o, nil
-}
-
-func (o ownChildIdentities) UniqueHolidayStudents(_ context.Context, identities []enrollment.HolidayStudentIdentity) (map[int]int64, error) {
-	result := map[int]int64{}
-	for i, identity := range identities {
-		for id, candidate := range o {
-			if candidate == identity {
-				result[i] = id
+func (o ownChildIdentities) HolidayStudentsBornOn(_ context.Context, births []calendar.Date) ([]enrollment.HolidayStudentCandidate, error) {
+	var result []enrollment.HolidayStudentCandidate
+	for id, identity := range o {
+		for _, birth := range births {
+			if identity.BirthDate == birth {
+				result = append(result, enrollment.HolidayStudentCandidate{StudentID: id, Identity: identity})
 			}
 		}
 	}

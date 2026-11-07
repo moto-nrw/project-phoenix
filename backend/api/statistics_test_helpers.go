@@ -77,7 +77,7 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 	service := owners.NewStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
 		PlannedCareDays:  owners.StatisticsPlannedCareDays{CareDays: careDays},
 		ContractCareDays: owners.StatisticsContractCareDays{Contracts: careContractCompose.NewBookedCare()},
-		HolidayCareDays:  owners.StatisticsHolidayCareDays{Bookings: enrollmentCompose.NewHolidayGuestBookedCare(owners.StatisticsHolidayStudentIdentities{Students: students, Persons: owners.MustNewMembershipTestRepositories(db).Person})},
+		HolidayCareDays:  owners.StatisticsHolidayCareDays{Bookings: enrollmentCompose.NewHolidayGuestBookedCare(owners.StatisticsHolidayStudents{Students: students})},
 		DB:               db.Pool(),
 		StatusDays:       owners.StatisticsStatusDays{Query: r.CarePlan}, Courses: owners.NewCourseStatistics(db),
 		Holidays:    schoolCalendarCompose.NewTenantHolidays(calendar),

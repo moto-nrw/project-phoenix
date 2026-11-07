@@ -124,7 +124,8 @@ andere fachliche Entscheidung ändert diesen Abschnitt und die Tests.
    Geburtsdatum, Woche und Zeitmodell; keine Gesundheit, keine Kontakte.
    Sie antwortet auch nach der Woche, denn der Vergleich schaut zurück;
    die Anmeldungen gehen 92 Tage nach dem Zeitraum (#4720) und mit ihnen
-   diese Zeilen. Das erweitert ADR 0116 nur um diesen Zweck. Das Kind findet
+   diese Zeilen. Das erweitert ADR 0116 nur um diesen Zweck (Nachtrag
+   vom 07.11.2026, akzeptiert). Das Kind findet
    Enrollment nach der Regel der Teilnehmerliste (#4722): gleiche Namen
    (ohne Groß- und Kleinschreibung und Leerzeichen am Rand) und gleiches
    Geburtsdatum, gelesen gebündelt aus dem People Directory und nur, wenn es
@@ -132,11 +133,11 @@ andere fachliche Entscheidung ändert diesen Abschnitt und die Tests.
    Kindern passt, bucht niemanden; die Eindeutigkeit gilt für die ganze
    Schule, damit Klassen-, Gruppen- und Einzelansicht dasselbe Soll sehen.
    Storniert das Träger-Büro eine bestätigte Anmeldung, bleiben die Tage vor
-   der Stornierung gebucht (wie `ended_on` bei Gästen); Bestätigung und
-   Stornierung stehen in der Spur der Anmeldung (ADR 0114). Die Wahl dieser Zuordnung trotz des
-   Wortlauts von #5994 („nicht über Namens-/Geburtsdatumsabgleich“) folgt
-   der Review-Entscheidung in PR #6020: Die Ferienanmeldung hat
-   keine andere Verbindung zum Kind.
+   der Stornierung gebucht (wie `ended_on` bei Gästen); eine Umbuchung
+   ändert die Buchung erst ab ihrem Tag. Bestätigung, Stornierung und
+   Umbuchung stehen in der Spur der Anmeldung (ADR 0114). Die Zuordnung über
+   Name und Geburtsdatum hat Yannick Wenger am 07.11.2026 freigegeben
+   (#5994): Die Ferienanmeldung hat keine andere Verbindung zum Kind.
 4. **Ohne Buchung.** Ist ein Kind an einem Ferientag da, für den keine
    Ferienbuchung gilt, entscheidet das Soll darunter; ohne Vertrag und Plan
    ist der Tag „ohne Buchung“. Ein verpasster Tag einer Ferienbuchung in den

@@ -249,3 +249,40 @@ wird, geschützt und befristet. Punkt 3 und der Nachtrag vom 28.10.2026
   Klartext und Funktion von #5202 wieder her. Neue Route im Schul-Router
   (lesend, keine Nutzungsanalyse). Keine neue Tabelle, keine neue Regel in
   `policy.json` außer der Regel für die Migration auf Security Runtime.
+
+## Nachtrag 2026-11-07: Ferienbuchungen eigener Kinder für Soll und Ist (#5994)
+
+**Status: Akzeptiert.** Freigegeben von Yannick Wenger am 07.11.2026
+([Entscheidung in #5994](https://github.com/moto-nrw/project-phoenix/issues/5994)).
+
+Soll und Ist (ADR 0139, ADR 0156) nimmt an einem Tag mit bestätigter
+Ferienbuchung deren Zeitmodell als Soll. Ein Kind der ausrichtenden Schule
+selbst wird nicht als Feriengast kopiert (ADR 0120); seine Buchung braucht
+die Schule deshalb aus der Ferienanmeldung. Punkt 4 (Zugriff bis zum letzten
+Tag der Woche) gilt dafür mit dieser Erweiterung:
+
+- **Was die OGS liest.** `enrollment.holiday_host_own_bookings` (Migration
+  1.15.796) liefert der ausrichtenden Schule in ihrer Tenant-Transaktion die
+  Buchungen ihrer eigenen Kinder (Heimatschule = ausrichtende Schule) in den
+  Wochen, die sie ausrichtet: Vor- und Nachname, Geburtsdatum, Woche und
+  Zeitmodell. Keine Gesundheitsangaben, keine Kontakte, keine Antworten.
+- **Nur bestätigte Buchungen, mit ihrer Geschichte.** Eine Anmeldung zählt,
+  wenn sie bestätigt ist. Storniert das Träger-Büro sie nach der Bestätigung,
+  bleiben die Tage vor der Stornierung gebucht. Eine Umbuchung ändert die
+  Buchung ab ihrem Tag; die Tage davor behalten die Buchung von damals.
+  Bestätigung, Stornierung und Umbuchung kommen aus der Spur der Anmeldung
+  (ADR 0114).
+- **Dauer.** Auch nach der Woche, denn der Vergleich schaut zurück; bis die
+  Anmeldungen 92 Tage nach dem Zeitraum gelöscht werden (#4720).
+- **Nur für Soll und Ist.** Die Funktion liest nur Enrollment für das Soll
+  von Soll und Ist; sie erscheint in keiner Liste und keinem Export der
+  Ferienbetreuung.
+- **Zuordnung.** Wie bei den Gesundheitsangaben eigener Kinder (#4722):
+  Heimatschule, Vor- und Nachname (ohne Groß- und Kleinschreibung und
+  Leerzeichen am Rand) und Geburtsdatum, schulweit eindeutig über das People
+  Directory. Eine Buchung, die zu keinem oder mehreren Kindern passt, bucht
+  niemanden; dann bleibt das bisherige Soll.
+- **Zugriffsprotokoll.** Jede Lesung geschieht innerhalb eines Abrufs, der im
+  Zugriffsprotokoll der Schule steht: Soll und Ist je Kind (`view_student`),
+  Überschreitungsliste und Export, Statistikbericht mit der Belegung nach
+  Uhrzeit, und die Auswertung des Trägers je Schule (ADR 0156 Punkt 5).
