@@ -80,29 +80,17 @@ export function TileCard({
     className,
   );
 
-  if (href && !disabled && nativeAnchor) {
-    return (
-      <a
-        href={href}
-        aria-label={ariaLabel}
-        className={shared}
-        data-testid={testId}
-      >
-        {children}
-      </a>
-    );
-  }
-
   if (href && !disabled) {
+    const Anchor = nativeAnchor ? "a" : Link;
     return (
-      <Link
+      <Anchor
         href={href}
         aria-label={ariaLabel}
         className={shared}
         data-testid={testId}
       >
         {children}
-      </Link>
+      </Anchor>
     );
   }
 

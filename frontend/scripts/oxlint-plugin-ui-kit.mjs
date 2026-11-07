@@ -686,8 +686,10 @@ const SURFACE_KIT_CONTROLS = new Map([
 // Geprüft wird das Element mit seinem className (auch über Konstanten); Knöpfe,
 // Links und Felder sind Bedienelemente, keine Fläche (eigene Regeln), ein
 // gestrichelter Rahmen ist EmptyState/InsetPanel, `moto-*-surface` ist die
-// Kit-Fläche selbst. Das Kit bleibt bei der alten Kette, es definiert die
-// Bedienelemente.
+// Kit-Fläche selbst. Ein Rahmen ohne Füllung zählt nur mit Polster: ohne
+// Polster ist er die Hülle einer Liste oder Tabelle (FramedList). Das Kit
+// bleibt bei der alten Kette, es definiert die Bedienelemente. Die alte
+// Kette ist weiter hart null; nur die Schärfung trägt eine Baseline.
 const SURFACE_WIDE_ROUNDED_RE = /^rounded-(?:md|lg|xl|2xl)$/;
 const SURFACE_FRAME_RE = /^border(?:-[1-9]\d*)?$/;
 const SURFACE_WHITE_FILL_RE = /^bg-white(?:\/\d+)?$/;
@@ -717,16 +719,43 @@ function isWideSurfaceTokens(tokens) {
     return false;
   }
   if (tokens.some((token) => SURFACE_WHITE_FILL_RE.test(token))) return true;
-  const anyFill = tokens.some((token) => /(?:^|:)bg-/.test(token));
+  const anyFill = tokens.some(
+    (token) => /(?:^|:)bg-/.test(token) && !/(?:^|:)bg-transparent$/.test(token),
+  );
   const padded = tokens.some((token) => /^p[xytblrse]?-\d/.test(token));
   return !anyFill && padded;
 }
 
+// Eine Konstante, deren Zeichenkette selbst die alte Kette ist, meldet der
+// Literal-Besucher schon an der Deklaration; ihre Verwendungen zählen nicht
+// noch einmal.
+function usesReportedSurfaceConstant(node, constants) {
+  let found = false;
+  const visit = (current) => {
+    if (found || !current || typeof current !== "object") return;
+    if (current.type === "Identifier") {
+      const init = constants.get(current.name);
+      const value = init ? staticStringValue(init) : null;
+      if (typeof value === "string" && isSurfaceCombo(value)) found = true;
+      return;
+    }
+    for (const [key, value] of Object.entries(current)) {
+      if (key === "parent" || key === "loc" || key === "range") continue;
+      if (Array.isArray(value)) value.forEach(visit);
+      else if (value && typeof value === "object") visit(value);
+    }
+  };
+  visit(node);
+  return found;
+}
+
 /**
  * Shrink-only Baseline je Datei für Regeln mit eigenem Besucher (#5594): die
- * Funde werden gesammelt und erst gemeldet, wenn eine Datei mehr hat, als
- * `baselines[ruleName][file]` erlaubt. Mit `countEnv=count` meldet die Regel
- * jeden Fund; daraus schreibt `pnpm run ui-kit:surface-baseline` die Zahlen.
+ * Funde aus `count` werden gesammelt und erst gemeldet, wenn eine Datei mehr
+ * hat, als `baselines[ruleName][file]` erlaubt. Ein Fund hinter
+ * `oxlint-disable-next-line <rule>` zählt nicht mit, genau wie im Generator.
+ * Mit `countEnv=count` meldet die Regel jeden Fund; daraus schreibt
+ * `pnpm run ui-kit:surface-baseline` die Zahlen.
  */
 function withFileBaseline({ ruleName, baselines, countEnv }, create) {
   return (context) => {
@@ -739,10 +768,22 @@ function withFileBaseline({ ruleName, baselines, countEnv }, create) {
       ...visitors,
       "Program:exit"(node) {
         exit?.(node);
+        const disabledLines = new Set();
+        for (const comment of context.sourceCode?.getAllComments?.() ?? []) {
+          if (
+            comment.value.includes("oxlint-disable-next-line") &&
+            comment.value.includes(`ui-kit/${ruleName}`)
+          ) {
+            disabledLines.add(comment.loc.end.line + 1);
+          }
+        }
+        const counted = findings.filter(
+          (descriptor) => !disabledLines.has(descriptor.node.loc?.start.line),
+        );
         const baseline = baselines[ruleName]?.[key] ?? 0;
         const countMode = process.env[countEnv] === "count";
-        if (!countMode && findings.length <= baseline) return;
-        for (const descriptor of findings) {
+        if (!countMode && counted.length <= baseline) return;
+        for (const descriptor of counted) {
           context.report(
             countMode || baseline === 0
               ? descriptor
@@ -750,7 +791,7 @@ function withFileBaseline({ ruleName, baselines, countEnv }, create) {
                   ...descriptor,
                   messageId: "overBaseline",
                   data: {
-                    found: String(findings.length),
+                    found: String(counted.length),
                     baseline: String(baseline),
                   },
                 },
@@ -789,12 +830,16 @@ const noHandRolledSurface = {
       if (!key.startsWith("src/")) return {};
       if (EXEMPT_FILE_RE.test(key)) return {};
       if (SURFACE_KIT_CONTROLS.has(key)) return {};
-      const outsideKit = !key.startsWith(UI_KIT_DIR);
+      // Die Eltern-Ausnahmen aus #2619 gelten nur für die Schärfung; die
+      // alte Kette bleibt auch dort hart null.
+      const widened =
+        !key.startsWith(UI_KIT_DIR) && !INSET_PARENT_EXCEPTIONS.includes(key);
       const constants = new Map();
 
+      // Die alte Kette ist hart null und meldet sofort, an der Baseline vorbei.
       const check = (node, text) => {
         if (!isSurfaceCombo(text)) return;
-        report({
+        context.report({
           node,
           messageId: "handRolledSurface",
           data: { match: "rounded-xl/2xl … border … bg-white" },
@@ -835,14 +880,17 @@ const noHandRolledSurface = {
           if (rendered !== undefined) check(node, rendered);
         },
         JSXOpeningElement(node) {
-          if (!outsideKit) return;
+          if (!widened) return;
           if (SURFACE_CONTROL_ELEMENTS.has(jsxName(node.name) ?? "")) return;
           const className = jsxAttribute(node, "className");
           if (!className?.value) return;
+          // Die alte Kette meldet schon der Literal-/Attribut-Besucher, auch
+          // in einer Konstante: dort nicht ein zweites Mal je Verwendung.
           const { literal, rendered } = renderedCombo(className.value);
-          if (literal || rendered !== undefined) return; // alte Kette, oben gemeldet
+          if (literal || rendered !== undefined) return;
+          if (usesReportedSurfaceConstant(className.value, constants)) return;
           const text = classText(className.value, constants);
-          if (isWideSurfaceTokens(text.split(/\s+/))) {
+          if (isSurfaceCombo(text) || isWideSurfaceTokens(text.split(/\s+/))) {
             report({
               node: className,
               messageId: "handRolledSurface",

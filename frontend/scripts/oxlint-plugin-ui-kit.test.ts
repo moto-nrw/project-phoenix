@@ -766,6 +766,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     '<div className="rounded-lg border bg-white sm:rounded-2xl" />',
     '<section className="space-y-3 rounded-md border border-gray-200 p-3" />',
     '<li className="rounded-xl border px-4 py-3" />',
+    '<div className="rounded-lg border bg-transparent p-3" />',
   ])("reports the widened surface %s outside the kit", async (element) => {
     const result = await lintSource(
       `export const Probe = () => ${element};`,
@@ -809,6 +810,34 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
       expect(result.output).not.toContain("no-hand-rolled-surface");
     },
   );
+
+  it("reports a chain held in a constant once, not once per use", async () => {
+    const result = await lintSource(
+      `const card = "rounded-xl border bg-white p-4";
+      export const Probe = () => <><div className={card} /><div className={card} /></>;`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(
+      result.output.match(/ui-kit\(no-hand-rolled-surface\)/g),
+    ).toHaveLength(1);
+  });
+
+  it("leaves the #2619 parent exceptions out of the widened check only", async () => {
+    const [widened, classic] = await Promise.all([
+      lintSource(
+        'export const Probe = () => <div className="rounded-lg border bg-white p-4" />;',
+        "src/components/parent/child/child-day-card.tsx",
+      ),
+      lintSource(
+        'export const Probe = () => <div className="rounded-2xl border bg-white p-4" />;',
+        "src/components/parent/child/child-day-card.tsx",
+      ),
+    ]);
+
+    expect(widened.output).not.toContain("no-hand-rolled-surface");
+    expect(classic.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
 
   it("keeps the narrower chain inside the kit, where controls are defined", async () => {
     const result = await lintSource(
@@ -3024,6 +3053,42 @@ describe.concurrent("ui-kit surface baseline (#5594)", () => {
 
     expect(result.status).toBe(1);
     expect(result.output).toContain(`ui-kit(${rule})`);
+  });
+
+  it("keeps the classic surface chain hard-zero in a baselined file", async () => {
+    const [file, allowed] = Object.entries(
+      surfaceBaseline["no-hand-rolled-surface"]!,
+    )[0]!;
+    expect(allowed).toBeGreaterThan(0);
+    const result = await lintSource(
+      'export const Probe = () => <div className="rounded-2xl border bg-white p-4">A</div>;',
+      file,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
+  it("does not count a finding behind its disable comment", async () => {
+    const [file, allowed] = Object.entries(
+      surfaceBaseline["no-hand-rolled-surface"]!,
+    )[0]!;
+    const cards = Array.from(
+      { length: allowed },
+      () => '<div className="rounded-lg border bg-white p-3">A</div>',
+    ).join("");
+    const result = await lintSource(
+      `export const Probe = () => (
+        <>
+          {/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Probe */}
+          <div className="rounded-lg border bg-white p-3">B</div>
+          ${cards}
+        </>
+      );`,
+      file,
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-surface");
   });
 
   it("tolerates exactly the recorded findings", async () => {
