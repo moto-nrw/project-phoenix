@@ -105,4 +105,22 @@ describe("ChoiceTile", () => {
     expect(className).toContain("border-moto-red/20");
     expect(className).not.toContain("border-gray-200");
   });
+
+  it("hält den Ton rot auch im Ruhezustand und tönt die Auswahl", () => {
+    const { rerender } = render(
+      <ChoiceTile tone="red">
+        <Checkbox checked={false} onChange={vi.fn()} />
+        Notfallkontakt
+      </ChoiceTile>,
+    );
+    const tile = () => screen.getByText("Notfallkontakt").closest("label");
+    expect(tile()).toHaveClass("border-moto-red/20");
+    rerender(
+      <ChoiceTile tone="red" selected>
+        <Checkbox checked onChange={vi.fn()} />
+        Notfallkontakt
+      </ChoiceTile>,
+    );
+    expect(tile()).toHaveClass("bg-moto-red-soft");
+  });
 });

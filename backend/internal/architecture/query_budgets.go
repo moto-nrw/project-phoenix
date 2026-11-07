@@ -13,6 +13,8 @@ import (
 // CompareQueryBudgets preserves each SQL contract against an immutable Git
 // base, including the historical Go-map representation. New scenarios establish
 // a budget; an existing scenario cannot disappear, grow or lose exactness.
+// It disappears only with a retirement record whose route leaves the router
+// golden in the same change (ADR 0160).
 func CompareQueryBudgets(project, ref string) error {
 	root, err := gitOutput(project, "rev-parse", "--show-toplevel")
 	if err != nil {
@@ -31,10 +33,14 @@ func CompareQueryBudgets(project, ref string) error {
 	if err != nil {
 		return fmt.Errorf("read candidate query budgets: %w", err)
 	}
-	var violations []string
+	retired, violations, err := retiredQueryBudgets(root, project, sha, base, candidate)
+	if err != nil {
+		return err
+	}
 	for scenario, before := range base {
 		after, exists := candidate[scenario]
 		switch {
+		case !exists && retired[scenario]:
 		case !exists:
 			violations = append(violations, fmt.Sprintf("%s disappeared", scenario))
 		case after.Max > before.Max:

@@ -146,7 +146,7 @@ func TestDeletingATraegerDocumentEndsEveryReleaseAndKeepsTheAudit(t *testing.T) 
 }
 
 // TestDeletingATraegerDocumentNeedsTheRightAndStaysWithinTheTraeger pins the
-// boundaries of #5993: a Träger role without "Anmeldung verwalten" gets 403,
+// boundaries of #5993: a Träger role without "Dokumente verwalten" gets 403,
 // another Träger 404, and neither changes the document.
 func TestDeletingATraegerDocumentNeedsTheRightAndStaysWithinTheTraeger(t *testing.T) {
 	t.Parallel()
@@ -156,7 +156,7 @@ func TestDeletingATraegerDocumentNeedsTheRightAndStaysWithinTheTraeger(t *testin
 
 	readOnly := f.member(t, f.office, identityaccess.TraegerRoleReadOnly)
 	assert.Equal(t, http.StatusForbidden, f.deleteDocument(t, readOnly, document.ID).Code)
-	other := f.newOffice(t, "Träger Fremd Löschen", identityaccess.TraegerRoleAdministration)
+	other := f.newOffice(t, "Träger Fremd Löschen", identityaccess.TraegerRoleDocuments)
 	rec := f.deleteDocument(t, other.token, document.ID)
 	assert.Equal(t, http.StatusNotFound, rec.Code, "another Träger reaches no document of this one")
 	assert.Equal(t, "traeger.document_not_found", refusalOf(t, rec).Code)
@@ -426,7 +426,7 @@ func TestDeletingAnotherTraegersDocumentFindsNothingBeneathRLS(t *testing.T) {
 	f := newTraegerDocumentsFixture(t)
 	document := f.uploaded(t, f.office.token, "Elternbrief")
 	f.released(t, f.office.token, document.ID, map[string]any{"audience": "schools"})
-	other := f.newOffice(t, "Träger Fremd unter RLS", identityaccess.TraegerRoleAdministration)
+	other := f.newOffice(t, "Träger Fremd unter RLS", identityaccess.TraegerRoleDocuments)
 
 	store := organizationtenancyCompose.NewSharedTraegerDocuments()
 	unit := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db))

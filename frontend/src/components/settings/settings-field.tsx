@@ -44,7 +44,7 @@ import {
   paymentTextProblem,
 } from "~/lib/traeger-payment-text";
 import { textTooLong } from "~/lib/text-length";
-import { BooleanField } from "./fields/boolean-field";
+import { Switch } from "~/components/ui/switch";
 import { NumberField } from "./fields/number-field";
 import { SettingsTimeField } from "./fields/time-field";
 import { DateField } from "./fields/date-field";
@@ -1920,10 +1920,10 @@ function renderField(
   switch (setting.type) {
     case "boolean":
       return (
-        <BooleanField
+        <Switch
           ariaLabel={setting.label}
-          value={Boolean(localValue)}
-          onChange={onImmediateSave}
+          checked={Boolean(localValue)}
+          onCheckedChange={onImmediateSave}
           disabled={disabled}
         />
       );

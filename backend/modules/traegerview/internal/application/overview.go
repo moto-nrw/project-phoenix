@@ -99,51 +99,6 @@ func (o *Overview) School(ctx context.Context, organizationID, schoolID int64) (
 	return view, nil
 }
 
-// SchoolsToday returns every school of the Träger with its figures and their
-// sum (#4674). The figures of all schools come from one read per owner, so the
-// overview costs the same statements for 3 and for 100 schools. Figures are
-// aggregated numbers, so the read is not written to the access log (ADR 0084
-// section 7).
-func (o *Overview) SchoolsToday(ctx context.Context, organizationID int64) (traegerview.SchoolsToday, error) {
-	if organizationID <= 0 {
-		return traegerview.SchoolsToday{}, traegerview.ErrTraegerRequired
-	}
-	var today traegerview.SchoolsToday
-	err := o.read(ctx, organizationID, func(adminCtx context.Context, ids []int64) error {
-		schools, err := o.rows.Schools(adminCtx, ids)
-		if err != nil {
-			return err
-		}
-		figures, err := o.schoolFigures(adminCtx, ids)
-		if err != nil {
-			return err
-		}
-		today = schoolsToday(schools, figures, o.now())
-		return nil
-	})
-	if err != nil {
-		return traegerview.SchoolsToday{}, err
-	}
-	return today, nil
-}
-
-// schoolsToday pairs each school with its figures and adds them up.
-func schoolsToday(schools []traegerview.School, figures map[int64]traegerview.SchoolFigures, now time.Time) traegerview.SchoolsToday {
-	today := traegerview.SchoolsToday{Schools: make([]traegerview.SchoolToday, 0, len(schools)), Total: traegerview.SchoolFigures{AsOf: now}}
-	for _, school := range schools {
-		row := traegerview.SchoolToday{School: school, Figures: figures[school.ID]}
-		row.Figures.AsOf = now
-		today.Schools = append(today.Schools, row)
-		today.Total.ChildrenTotal += row.Figures.ChildrenTotal
-		today.Total.ChildrenPresent += row.Figures.ChildrenPresent
-		today.Total.ChildrenSick += row.Figures.ChildrenSick
-		today.Total.StaffTotal += row.Figures.StaffTotal
-		today.Total.StaffPresent += row.Figures.StaffPresent
-	}
-	today.Total.CareRatio = careRatio(today.Total.ChildrenPresent, today.Total.StaffPresent)
-	return today
-}
-
 // schoolView reads one school the caller has checked against the Träger.
 func (o *Overview) schoolView(ctx context.Context, schoolID int64) (traegerview.SchoolView, error) {
 	scope := []int64{schoolID}

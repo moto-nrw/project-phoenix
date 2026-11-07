@@ -148,6 +148,9 @@ var requestSharingErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: parentService.ErrChildNotLinked, Render: func(err error) render.Renderer {
 		return common.ErrorNotFoundWithCode(err, common.CodeCareRequestNotFound)
 	}},
+	{Target: parentService.ErrGuardianPermissionDenied, Render: func(err error) render.Renderer {
+		return common.ErrorForbiddenWithCode(err, common.CodeCareGuardianPermissionDenied)
+	}},
 }, common.ErrorInternalServer)
 
 func renderRequestSharingError(w http.ResponseWriter, r *http.Request, err error) {

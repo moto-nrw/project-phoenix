@@ -41,6 +41,7 @@ import {
   decideOfferingChangeRequest,
   previewOfferingChangeRequest,
 } from "~/lib/offering-request-review-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "OfferingRequestReviewItem" });
 
@@ -603,7 +604,7 @@ export function OfferingRequestReviewItem({
             </p>
           )}
         </ReviewDiffPanel>
-        <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3">
+        <InsetPanel className="mt-3 space-y-2">
           <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
             Gültig ab
           </p>
@@ -656,7 +657,7 @@ export function OfferingRequestReviewItem({
             />
             Anderes Datum wählen
           </label>
-        </div>
+        </InsetPanel>
       </div>
       <ConfirmationModal
         isOpen={approvalPreview !== null}

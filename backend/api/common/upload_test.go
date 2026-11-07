@@ -587,3 +587,49 @@ func TestParseImage_RejectsUnparseableImage(t *testing.T) {
 	_, err := ParseImage(httptest.NewRecorder(), req, "image", 10<<20)
 	require.ErrorIs(t, err, imagemeta.ErrInvalidImage)
 }
+
+// The original name is served as the download name, so the extension has to
+// name the detected content: a PDF named brief.html would be saved as HTML.
+func TestParseUpload_ExtensionMustMatchContent(t *testing.T) {
+	t.Parallel()
+
+	parsers := map[string]func(http.ResponseWriter, *http.Request, string, int64, int64) (*UploadedFile, error){
+		"document": ParseDocumentWithLimits,
+		"office":   ParseOfficeFileWithLimits,
+	}
+	pngBytes := make([]byte, 512)
+	copy(pngBytes, []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
+	for name, parse := range parsers {
+		for _, accepted := range []struct {
+			filename string
+			content  []byte
+		}{
+			{"Brief.PDF", makePDFBytes()},
+			{"foto.jpeg", makeJPEGBytes()},
+			{"IMG_0001.JPG", makeJPEGBytes()},
+			{"scan.png", pngBytes},
+		} {
+			req := createMultipartRequest(t, "document", accepted.filename, accepted.content)
+			uploaded, err := parse(httptest.NewRecorder(), req, "document", 10<<20, 10<<20)
+			require.NoError(t, err, "%s: %s", name, accepted.filename)
+			_ = uploaded.File.Close()
+		}
+		for _, refused := range []struct {
+			filename string
+			content  []byte
+		}{
+			{"brief.html", makePDFBytes()},
+			{"brief.hta", makePDFBytes()},
+			{"brief.svg", makePDFBytes()},
+			{"brief", makePDFBytes()},
+			{"brief.png", makePDFBytes()},
+			{"foto.pdf", makeJPEGBytes()},
+			{"scan.html", pngBytes},
+		} {
+			req := createMultipartRequest(t, "document", refused.filename, refused.content)
+			_, err := parse(httptest.NewRecorder(), req, "document", 10<<20, 10<<20)
+			require.Error(t, err, "%s: %s", name, refused.filename)
+			assert.True(t, IsUploadTypeNotAllowed(err), "%s: %s refused as a type mismatch", name, refused.filename)
+		}
+	}
+}

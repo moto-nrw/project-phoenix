@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyState } from "~/components/ui/empty-state";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirects target tenant root, not a tenant route helper
 import { useRouter } from "next/navigation";
@@ -267,7 +268,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         />
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <InsetPanel framed>
         <p className="text-xs font-medium text-gray-700">
           {t("requirementsTitle")}
         </p>
@@ -299,7 +300,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             </div>
           ))}
         </div>
-      </div>
+      </InsetPanel>
 
       <Button
         type="submit"

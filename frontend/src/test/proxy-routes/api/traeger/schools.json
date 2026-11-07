@@ -13,8 +13,5 @@
   ],
   "api/traeger/schools/occupancy": [
     "GET traeger /traeger/schools/occupancy"
-  ],
-  "api/traeger/schools/today": [
-    "GET traeger /traeger/schools/today"
   ]
 }

@@ -56,8 +56,8 @@ import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerDocumentPage" });
 
-/** Das Recht, das Freigeben, Zurücknehmen und Löschen öffnet (Verwaltung). */
-const MANAGE_RIGHT = "traeger_enrollment:manage";
+/** Das Recht, das Freigeben, Zurücknehmen und Löschen öffnet (Rolle Dokumente, #5992). */
+const MANAGE_RIGHT = "traeger_documents:manage";
 
 export default function TraegerDocumentPage() {
   const params = useParams<{ id: string }>();
@@ -366,7 +366,7 @@ export default function TraegerDocumentPage() {
           description={
             document.releases.length === 0
               ? undefined
-              : "Diese Menschen finden das Dokument: Eltern in der Eltern-App unter „Dokumente“, die OGS-Leitung in moto unter „Dateien“."
+              : `Diese Menschen finden das Dokument: Eltern in der Eltern-App unter „Dokumente“, die OGS-Leitung in moto unter „Dateien“.${canManage ? "" : " Ändern kann, wer die Rolle „Dokumente“ hat."}`
           }
         >
           {document.releases.length === 0 ? (
@@ -375,7 +375,7 @@ export default function TraegerDocumentPage() {
               description={
                 canManage
                   ? "Noch sieht niemand dieses Dokument. Geben Sie es oben frei: für Eltern oder für Schulen."
-                  : "Noch sieht niemand dieses Dokument. Freigeben kann die Verwaltung."
+                  : "Noch sieht niemand dieses Dokument. Freigeben kann, wer die Rolle „Dokumente“ hat."
               }
             />
           ) : (
