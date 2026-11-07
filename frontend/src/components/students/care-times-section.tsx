@@ -143,11 +143,22 @@ const COLUMNS: DataTableColumn<CareTimeDay>[] = [
 export function StudentCareTimesSection({
   studentId,
   active,
-}: Readonly<{ studentId: string; active: boolean }>) {
+  initialRange,
+}: Readonly<{
+  studentId: string;
+  active: boolean;
+  /** Erster Zeitraum ("YYYY-MM-DD"), sonst der laufende Monat bis heute. */
+  initialRange?: { from: string; to: string };
+}>) {
   const todayISO = berlinTodayISO();
   const today = useMemo(() => parseISODate(todayISO), [todayISO]);
   const [range, setRange] = useState<DateRange>(() =>
-    currentMonthRange(parseISODate(berlinTodayISO())),
+    initialRange
+      ? {
+          from: parseISODate(initialRange.from),
+          to: parseISODate(initialRange.to),
+        }
+      : currentMonthRange(parseISODate(berlinTodayISO())),
   );
   const [data, setData] = useState<StudentCareTimes | null>(null);
   const [loading, setLoading] = useState(false);

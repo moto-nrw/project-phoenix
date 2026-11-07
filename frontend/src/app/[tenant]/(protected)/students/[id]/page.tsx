@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { HolidayGuestCareTimes } from "~/components/students/holiday-guest-care-times";
 import { HolidayGuestSection } from "~/components/students/holiday-guest-section";
 import { HolidayStudentHealthSection } from "~/components/students/holiday-student-health-section";
 import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
@@ -1786,6 +1787,10 @@ function StudentDetailPageContent() {
           studentId={studentId}
           canRead={sessionReadsChildDetails}
         />
+      )}
+      {/* Soll und Ist eines Feriengasts: gebucht laut Ferienbuchung (#5994). */}
+      {isHolidayGuest && canReadParentData && (
+        <HolidayGuestCareTimes studentId={studentId} />
       )}
       {!isHolidayGuest && hasFullAccess && (
         <HolidayStudentHealthSection
