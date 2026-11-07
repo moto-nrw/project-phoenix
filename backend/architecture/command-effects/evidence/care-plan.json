@@ -7810,7 +7810,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareStudents.FindCareStudents",
-      "binding_digest": "9e7c14735565f2c4957bbe9494abc427",
+      "binding_digest": "9b389c02b80437b43ece581be1d214c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareStudentDirectory.FindCareStudents",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDs",
@@ -7818,7 +7818,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareStudents.FindCareStudents",
-      "binding_digest": "121f90da61fd0569a1ec875c8d6a7311",
+      "binding_digest": "e80e7dcb04bc3ae89862221c26515c2c",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareStudentDirectory.FindCareStudents",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",

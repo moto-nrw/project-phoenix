@@ -124,3 +124,38 @@ func TestParticipationKeepsThePastOfAScheduledReturn(t *testing.T) {
 	assert.False(t, ParticipatingOn(ids, students, boundaries, restart.AddDays(-1), today, nil)[returning])
 	assert.True(t, ParticipatingOn(ids, students, boundaries, restart, today, nil)[returning])
 }
+
+// A new child approved in December for care from 3 February (#6041 review 2):
+// School Membership knows it never had care (AwaitsFirstCare), so a past day
+// of the running half-year does not pull it in either. A read on 8 December
+// of 7 December must agree with the read on 7 December.
+func TestParticipationHoldsBackTheWholePastOfAKnownNewChild(t *testing.T) {
+	t.Parallel()
+	start := calendar.Date("2027-02-03")
+	until := calendar.Date("2027-07-31")
+	const (
+		newChild int64 = iota + 1
+		returning
+	)
+	students := map[int64]CareStudent{
+		newChild:  {Status: careplan.StudentStatusPending, EnrolledFrom: &start, EnrolledUntil: &until, AwaitsFirstCare: true},
+		returning: {Status: careplan.StudentStatusPending, EnrolledFrom: &start},
+	}
+	ids := []int64{newChild, returning}
+	boundaries := ParticipationBoundaries(students, nil)
+	const yesterday, today calendar.Date = "2026-12-07", "2026-12-08"
+	for _, day := range []calendar.Date{"2026-08-24", yesterday} {
+		assert.False(t, HistoricalParticipationOn(ids, students, boundaries, day, today)[newChild],
+			"%s: a known new child was never cared for before its start", day)
+		assert.False(t, ParticipatingOn(ids, students, boundaries, day, today, nil)[newChild], day)
+		assert.True(t, HistoricalParticipationOn(ids, students, boundaries, day, today)[returning],
+			"%s: a returning child keeps its past", day)
+	}
+	assert.Equal(t,
+		HistoricalParticipationOn(ids, students, boundaries, yesterday, yesterday)[newChild],
+		HistoricalParticipationOn(ids, students, boundaries, yesterday, today)[newChild],
+		"the answer for a day does not change with the day it is read")
+	assert.True(t, ParticipatingOn(ids, students, boundaries, yesterday, today, map[int64]bool{newChild: true})[newChild],
+		"actual presence still wins")
+	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, start, today)[newChild], "the start day counts")
+}

@@ -267,6 +267,53 @@ func TestAbsenceListPreservesCareBeforeAScheduledReturn(t *testing.T) {
 	assert.Equal(t, before.Totals, after.Totals)
 }
 
+// A new child approved in winter for a care start after today (#6041 review
+// 2): the absence list of the running period, read today, must not gain the
+// child with "nicht erfasst" days before its start. Rows, totals and the
+// export stay what they were before the approval.
+func TestAbsenceListLeavesOutAKnownNewChildBeforeItsStart(t *testing.T) {
+	t.Parallel()
+	f := setupMorningAttendanceFixture(t, morningMonday)
+	insertMorningMark(t, f.db, f.tenantID, f.present, "2099-02-25", "absent")
+	path := "/absence-list?class=" + f.class + "&from=2099-02-02&to=" + morningMonday
+	read := func() absenceListBody {
+		rec := f.do(t, http.MethodGet, path, "", classDayReadPermission)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var envelope struct {
+			Data absenceListBody `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
+		return envelope.Data
+	}
+	export := func() string {
+		rec := f.do(t, http.MethodGet, "/absence-list/export?class="+f.class+"&from=2099-02-02&to="+morningMonday+"&format=xlsx", "", classDayReadPermission)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		workbook, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len()))
+		require.NoError(t, err)
+		var content bytes.Buffer
+		for _, file := range workbook.File {
+			reader, err := file.Open()
+			require.NoError(t, err)
+			_, err = io.Copy(&content, reader)
+			require.NoError(t, err)
+			require.NoError(t, reader.Close())
+		}
+		return content.String()
+	}
+	before := read()
+	require.NotEmpty(t, before.Children)
+	require.NotContains(t, export(), "Februar, Neu")
+
+	child := testpkg.CreateTestScheduledStudent(t, f.db, "Neu", "Februar", f.class, "2099-04-19")
+	after := read()
+	for _, row := range after.Children {
+		assert.NotEqual(t, child.ID, row.StudentID, "a child that starts after today was never cared for in this period")
+	}
+	assert.Equal(t, before.Children, after.Children)
+	assert.Equal(t, before.Totals, after.Totals)
+	assert.NotContains(t, export(), "Februar, Neu", "the export leaves the child out too")
+}
+
 func TestAbsenceListPreservesDatedAlumni(t *testing.T) {
 	t.Parallel()
 	f := setupMorningAttendanceFixture(t, morningMonday)

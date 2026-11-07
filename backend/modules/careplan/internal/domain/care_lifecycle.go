@@ -19,7 +19,10 @@ type CareStudent struct {
 	Status        string
 	EnrolledFrom  *calendar.Date
 	EnrolledUntil *calendar.Date
-	UpdatedAt     time.Time
+	// AwaitsFirstCare is School Membership's record that the membership was
+	// created pending with its start and never had care since (#6041).
+	AwaitsFirstCare bool
+	UpdatedAt       time.Time
 }
 
 // CareEndedOn reports whether the care has already ended on day. The
@@ -31,17 +34,19 @@ func (s CareStudent) CareEndedOn(day calendar.Date) bool {
 
 // AwaitsCareStartOn reports whether a pending child still waits for its
 // scheduled care start on day (#6041): the start lies after day, and day is
-// today or later. Only the pending status waits: an immediately activated
-// child already takes part before its regular start, and a pending child
-// without a start day is not placed.
+// today or later, or the child never had care (AwaitsFirstCare). Only the
+// pending status waits: an immediately activated child already takes part
+// before its regular start, and a pending child without a start day is not
+// placed.
 //
-// A past day is never held back. A child whose care resumes later is stored
-// exactly like a new child (pending, the new start, the earlier start
-// replaced), and nothing stored tells whether it was cared for on an earlier
-// day. Holding back past days would erase that care from reports.
+// A past day is held back only for a known new child. A resumption or a
+// renewal stores a returning child exactly like a new one (pending, the new
+// start, the earlier start replaced); without School Membership's fact,
+// holding back its past days would erase real care from reports.
 func (s CareStudent) AwaitsCareStartOn(day, today calendar.Date) bool {
 	return s.Status == careplan.StudentStatusPending && s.EnrolledFrom != nil &&
-		*s.EnrolledFrom != "" && day.Before(*s.EnrolledFrom) && !day.Before(today)
+		*s.EnrolledFrom != "" && day.Before(*s.EnrolledFrom) &&
+		(s.AwaitsFirstCare || !day.Before(today))
 }
 
 // IsAlumnus reports whether the child left with a grade transition.

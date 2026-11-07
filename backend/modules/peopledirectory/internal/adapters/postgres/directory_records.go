@@ -27,6 +27,8 @@ type directoryRecordRow struct {
 
 	EnrolledFrom  *calendar.Date `bun:"enrolled_from"`
 	EnrolledUntil *calendar.Date `bun:"enrolled_until"`
+	// AwaitsFirstCare is School Membership's prior-care fact (#6041).
+	AwaitsFirstCare bool `bun:"awaits_first_care"`
 
 	AddressStreet     *string `bun:"address_street"`
 	AddressCity       *string `bun:"address_city"`
@@ -67,6 +69,7 @@ func (r directoryRecordRow) toDomain(health HealthOpener) (directory.StudentReco
 	record := directory.StudentRecord{
 		ID: r.ID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, TenantID: r.TenantID,
 		PersonID: r.PersonID, SchoolClass: r.SchoolClass, GroupID: r.GroupID, Status: r.Status,
+		AwaitsFirstCare: r.AwaitsFirstCare,
 
 		AddressStreet: r.AddressStreet, AddressCity: r.AddressCity, AddressPostalCode: r.AddressPostalCode,
 		ExtraInfo:  r.ExtraInfo,
@@ -102,7 +105,7 @@ func directoryRecords(rows []directoryRecordRow, health HealthOpener) ([]directo
 
 const studentRecordColumns = `"student".id, "student".created_at, "student".updated_at, "student".tenant_id,
 	"student".person_id, "student".school_class, "student".group_id, "student".status,
-	"student".enrolled_from, "student".enrolled_until,
+	"student".enrolled_from, "student".enrolled_until, "student".awaits_first_care,
 	"student".address_street, "student".address_city, "student".address_postal_code,
 	"student".extra_info, "student".health_data, "student".membership_id, "student".pickup_status,
 	"student".departure_days, "student".allowed_departure_modes, "student".pickup_days, "student".bus_days,

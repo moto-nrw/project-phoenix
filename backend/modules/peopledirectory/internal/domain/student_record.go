@@ -46,6 +46,9 @@ type StudentRecord struct {
 
 	EnrolledFrom  string
 	EnrolledUntil string
+	// AwaitsFirstCare: the membership was created pending with its start and
+	// never had care since (School Membership, #6041).
+	AwaitsFirstCare bool
 
 	AddressStreet     *string
 	AddressCity       *string

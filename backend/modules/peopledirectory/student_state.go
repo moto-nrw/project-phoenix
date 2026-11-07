@@ -55,6 +55,9 @@ type StudentState struct {
 	Status        string         `json:"status"`
 	EnrolledFrom  *calendar.Date `json:"enrolled_from,omitempty"`
 	EnrolledUntil *calendar.Date `json:"enrolled_until,omitempty"`
+	// AwaitsFirstCare: the membership was created pending with its start and
+	// never had care since (School Membership, #6041). Not on the wire.
+	AwaitsFirstCare bool `json:"-"`
 
 	PhotoPath           *string    `json:"-"`
 	PhotoConsentGivenAt *time.Time `json:"photo_consent_given_at,omitempty"`
@@ -155,6 +158,8 @@ func StudentStateFromRecord(record StudentRecord) *StudentState {
 
 		EnrolledFrom:  OptionalCalendarDate(record.EnrolledFrom),
 		EnrolledUntil: OptionalCalendarDate(record.EnrolledUntil),
+
+		AwaitsFirstCare: record.AwaitsFirstCare,
 
 		PhotoPath:           record.PhotoPath,
 		PhotoConsentGivenAt: record.PhotoConsentGivenAt,
@@ -276,6 +281,7 @@ func (s *StudentState) ApplyDirectoryRecord(record StudentRecord) {
 	s.GroupID, s.Status = record.GroupID, record.Status
 	s.EnrolledFrom = OptionalCalendarDate(record.EnrolledFrom)
 	s.EnrolledUntil = OptionalCalendarDate(record.EnrolledUntil)
+	s.AwaitsFirstCare = record.AwaitsFirstCare
 
 	s.AllowedDepartureModes = record.AllowedDepartureModes
 	s.DepartureDays = record.DepartureDays
