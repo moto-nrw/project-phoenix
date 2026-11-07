@@ -27,11 +27,17 @@ interface EmptyStateBaseProps {
   readonly className?: string;
 }
 
-// Ein Ergebnis darf ohne eigenen Titel auskommen, wenn der Seitenkopf ihn trägt.
+// Ein Ergebnis darf ohne eigenen Titel auskommen, wenn der Seitenkopf ihn trägt;
+// ein ganzer Satz steht ruhig als `description` statt fett als Titel.
 // `tone` setzt `icon` auf das runde Medaillon (`IconTile`).
 type EmptyStateProps = EmptyStateBaseProps &
   (
     | { readonly title: string; readonly tone?: undefined }
+    | {
+        readonly title?: undefined;
+        readonly description: string;
+        readonly tone?: undefined;
+      }
     | {
         readonly title?: string;
         readonly tone: EmptyStateTone;

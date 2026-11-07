@@ -140,7 +140,7 @@ export function ChildPage({
         <SectionCard>
           <EmptyState
             variant="compact"
-            title={t("noChildren")}
+            description={t("noChildren")}
             className="py-0"
           />
         </SectionCard>
@@ -174,7 +174,7 @@ export function ChildPage({
         <SectionCard>
           <EmptyState
             variant="compact"
-            title={t("notFound")}
+            description={t("notFound")}
             className="py-0"
           />
         </SectionCard>

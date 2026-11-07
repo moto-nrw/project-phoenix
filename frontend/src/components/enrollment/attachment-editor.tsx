@@ -213,7 +213,10 @@ export function AttachmentEditor({
           ))}
         </ol>
       ) : (
-        <EmptyState variant="compact" title="Noch keine PDFs angehängt." />
+        <EmptyState
+          variant="compact"
+          description="Noch keine PDFs angehängt."
+        />
       )}
       <div className="space-y-2">
         <Button

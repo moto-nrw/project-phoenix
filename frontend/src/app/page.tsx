@@ -86,7 +86,7 @@ export default function RootPage() {
         ) : !loading && tenants.length === 0 ? (
           <EmptyState
             variant="compact"
-            title="Aktuell sind keine Einrichtungen verfügbar."
+            description="Aktuell sind keine Einrichtungen verfügbar."
           />
         ) : (
           <>

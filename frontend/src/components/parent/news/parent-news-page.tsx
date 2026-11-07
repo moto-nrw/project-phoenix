@@ -152,7 +152,11 @@ export function ParentNewsPage() {
         <LoadErrorAlert error={loadError} />
       ) : items.length === 0 ? (
         <SectionCard>
-          <EmptyState variant="compact" title={t("empty")} className="py-0" />
+          <EmptyState
+            variant="compact"
+            description={t("empty")}
+            className="py-0"
+          />
         </SectionCard>
       ) : (
         <div className="space-y-8">

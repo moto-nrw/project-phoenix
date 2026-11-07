@@ -232,7 +232,7 @@ export function GraduatesModal({
             {entries !== null && !loadFailed && entries.length === 0 && (
               <EmptyState
                 variant="compact"
-                title="Dieser Schuljahreswechsel hatte keine Abgänge."
+                description="Dieser Schuljahreswechsel hatte keine Abgänge."
               />
             )}
 

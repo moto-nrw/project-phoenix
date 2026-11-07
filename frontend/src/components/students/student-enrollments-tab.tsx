@@ -137,7 +137,7 @@ export function StudentEnrollmentsTab({
       ) : requests.length === 0 ? (
         <EmptyState
           variant="compact"
-          title="Für dieses Kind ist keine angenommene oder übernommene Online-Anmeldung verknüpft."
+          description="Für dieses Kind ist keine angenommene oder übernommene Online-Anmeldung verknüpft."
         />
       ) : (
         <div className="space-y-4">

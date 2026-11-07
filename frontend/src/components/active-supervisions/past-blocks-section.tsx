@@ -301,7 +301,7 @@ function PastBlockCard({
                   {roster.rows.length === 0 ? (
                     <EmptyState
                       variant="compact"
-                      title="Keine Kinder eingeplant."
+                      description="Keine Kinder eingeplant."
                     />
                   ) : (
                     <>

@@ -371,7 +371,7 @@ export function NewMessageModal({
               ) : guardians.length === 0 ? (
                 <EmptyState
                   variant="compact"
-                  title="Für dieses Kind ist kein Eltern-Zugang hinterlegt."
+                  description="Für dieses Kind ist kein Eltern-Zugang hinterlegt."
                 />
               ) : (
                 <div className="space-y-1">

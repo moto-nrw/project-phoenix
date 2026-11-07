@@ -304,7 +304,7 @@ export function CarePlanDayTimeline({
       ) : isEmpty ? (
         <EmptyState
           variant="compact"
-          title="Kein Betreuungsplan für diesen Tag."
+          description="Kein Betreuungsplan für diesen Tag."
         />
       ) : (
         <>

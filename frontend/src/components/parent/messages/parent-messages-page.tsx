@@ -241,7 +241,7 @@ export function ParentMessagesPage() {
         <SectionCard>
           <EmptyState
             variant="compact"
-            title={t("noChildren")}
+            description={t("noChildren")}
             className="py-0"
           />
         </SectionCard>
