@@ -15,9 +15,11 @@ import (
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -224,11 +226,15 @@ func (n parentDocumentNotifier) NotifyBillingDocument(ctx context.Context, push 
 	if err != nil || len(optedIn) == 0 {
 		return err
 	}
+	keyPrefix, relatedType, err := documentPushIdentity(push.Kind)
+	if err != nil {
+		return err
+	}
 	title, body := deliveryPolicy.ParentDeliveryPolicy{}.ParentBillingDocumentCopy(push.Locale)
 	_, err = n.notifications.NotifyEventDurably(ctx, deliveryPolicy.NotificationEvent{
 		Type:           parentBillingDocumentType,
-		IdempotencyKey: fmt.Sprintf("parent-billing-document:%d:%d", push.DocumentID, push.AccountID),
-		RelatedType:    parentbilling.PushRelatedBillingDocument, RelatedID: push.DocumentID,
+		IdempotencyKey: fmt.Sprintf("%s:%d:%d", keyPrefix, push.DocumentID, push.AccountID),
+		RelatedType:    relatedType, RelatedID: push.DocumentID,
 		Audience: deliveryPolicy.NotificationAudience{
 			TenantID: push.TenantID, Scope: "guardian", GuardianAccountIDs: optedIn, StudentIDs: push.StudentIDs,
 		},
@@ -268,7 +274,7 @@ func (p parentDocumentPushes) send(ctx context.Context, intent deliveryContract.
 // administrative lookup; Delivery's module gate still drops the push of a
 // school that does not book the Eltern-App.
 func BuildParentDocumentNotices(
-	env RootEnvironment, portal carePlanCompose.ParentPortalRepositories, organizations organizationtenancy.Query,
+	db transactionruntime.Database, env RootEnvironment, portal carePlanCompose.ParentPortalRepositories, organizations organizationtenancy.Query,
 	identity identityaccess.GuardianAccessQuery, people PeopleRows, notifications DeliveryNotifications,
 ) parentportal.DocumentNotices {
 	return parentportalcompose.NewDocumentNotices(parentportalcompose.Dependencies{
@@ -276,20 +282,25 @@ func BuildParentDocumentNotices(
 		SchoolTraeger: NewParentSchoolTraeger(organizations), ParentAccounts: NewParentAccounts(identity),
 		GuardianProfileRepo: NewParentGuardianProfileReads(people.GuardianProfiles),
 		DocumentNotifier:    NewParentDocumentNotifier(notifications.Notifier, notifications.Preferences),
-		Logger:              env.Logger.With("service", "parent-document-notices"),
+		// The pushes of a sent contract and of a release (#5941).
+		TraegerRuntime: ParentPortalRuntime{}, StudentRepo: NewParentStudentReads(people.Students),
+		ContractInboxNotices: NewParentContractInboxNotices(careContractCompose.NewInboxNotices()),
+		ReleaseNotices:       NewParentReleaseNotices(organizationTenancyCompose.NewSharedTraegerDocuments()),
+		ReleaseRecipients:    NewParentReleaseRecipients(organizations, NewParentGroupAudience(db)),
+		Logger:               env.Logger.With("service", "parent-document-notices"),
 	})
 }
 
 // deferredPushes routes a claimed deferred push by its kind: the Träger's
-// push of a new document to the parents portal, every other kind to the
-// appointment reminders.
+// pushes of a new document (a letter, a contract, a release) to the parents
+// portal, every other kind to the appointment reminders.
 func deferredPushes(reminders func(context.Context, deliveryContract.ClaimedIntent) error, documents parentportal.DocumentNotices) func(context.Context, deliveryContract.ClaimedIntent) error {
 	return func(ctx context.Context, intent deliveryContract.ClaimedIntent) error {
-		if intent.Template == parentbilling.PushKindBillingDocument {
+		if isTraegerDocumentPush(intent.Template) {
 			if documents == nil {
 				return errors.New("delivery: document notices are not configured")
 			}
-			return parentDocumentPushes{notices: documents}.send(ctx, intent)
+			return parentDocumentPushes{notices: documents}.route(ctx, intent)
 		}
 		if reminders == nil {
 			return errors.New("delivery: deferred push dispatcher is not configured")

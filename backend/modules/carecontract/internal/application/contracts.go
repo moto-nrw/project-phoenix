@@ -31,6 +31,7 @@ type Contracts struct {
 	ledger      carecontract.SignatureLedger
 	links       carecontract.SigningLinks
 	versions    carecontract.ContractVersions
+	notices     carecontract.DocumentNotices
 }
 
 // ContractPorts are the root-bound ports of the contracts. Ledger and
@@ -42,6 +43,9 @@ type ContractPorts struct {
 	Access      carecontract.SchoolAccessLog
 	Ledger      carecontract.SignatureLedger
 	Links       carecontract.SigningLinks
+	// Notices puts the push of a first send on the outbox (#5941). The
+	// roots bind it; a composition without it sends no push.
+	Notices carecontract.DocumentNotices
 }
 
 var _ carecontract.Contracts = (*Contracts)(nil)
@@ -53,7 +57,7 @@ func NewContracts(store ContractStore, renderer LetterRenderer, ports ContractPo
 		panic("care contract: the store, the renderer, the letterhead, the post, the runtime, the access log, the ledger, the link tokens and the versions are required")
 	}
 	return &Contracts{store: store, letterheads: ports.Letterheads, renderer: renderer, post: ports.Post, clock: clock,
-		runtime: ports.Runtime, access: ports.Access, ledger: ports.Ledger, links: ports.Links, versions: versions}
+		runtime: ports.Runtime, access: ports.Access, ledger: ports.Ledger, links: ports.Links, versions: versions, notices: ports.Notices}
 }
 
 // ListContracts lists the contracts of the filter, records the read in the
@@ -425,6 +429,9 @@ func (c *Contracts) deliver(ctx context.Context, reviewer carecontract.Reviewer,
 	})
 	if err != nil {
 		return fmt.Errorf("care contract: enqueue mail: %w", err)
+	}
+	if err := c.enqueueDocumentNotice(ctx, reviewer.OrganizationID, contractID, party.Email); err != nil {
+		return err
 	}
 	if err := c.store.InsertMailing(ctx, reviewer.OrganizationID, reviewer.AccountID, contractID, documentID, outboxID, party.Email); err != nil {
 		return err
