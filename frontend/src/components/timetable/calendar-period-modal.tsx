@@ -41,6 +41,7 @@ import {
   formatPeriodUsage,
 } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "CalendarPeriodModal" });
 
@@ -535,10 +536,7 @@ export function CalendarPeriodModal({
                 initial &&
                 phaseLink &&
                 phaseLink.phases.length > 0 && (
-                  <fieldset className="rounded-xl border border-gray-200 p-3">
-                    <legend className="px-1 text-xs font-semibold text-gray-700">
-                      Verknüpfte Anmeldephasen
-                    </legend>
+                  <FormFieldset legend="Verknüpfte Anmeldephasen">
                     <div className="flex flex-col">
                       {phaseLink.phases.map((phase) => {
                         const linked =
@@ -576,7 +574,7 @@ export function CalendarPeriodModal({
                         );
                       })}
                     </div>
-                  </fieldset>
+                  </FormFieldset>
                 )}
 
               {saveWarnings.map((warning) => (

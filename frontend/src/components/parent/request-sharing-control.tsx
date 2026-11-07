@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
@@ -26,6 +27,7 @@ import {
   type RequestSharingState,
 } from "~/lib/parent-api";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 interface RequestSharingControlProps {
   readonly studentId: string;
@@ -86,7 +88,7 @@ export function RequestSharingSelector({
   if (state.family_protected)
     return <Alert type="info" message={t("protected")} />;
   return (
-    <div className="rounded-xl bg-gray-50 p-3">
+    <InsetPanel>
       <SharingRecipients
         state={state}
         selected={[...selected]}
@@ -101,7 +103,7 @@ export function RequestSharingSelector({
         }
         t={t}
       />
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -237,9 +239,10 @@ function SharingRecipients({
       </legend>
       {hint ? <p className="text-sm text-gray-600">{hint}</p> : null}
       {state.recipients.map((recipient) => (
-        <label
+        <ChoiceTile
           key={recipient.guardian_profile_id}
-          className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900"
+          selected={selected.includes(recipient.guardian_profile_id)}
+          className="min-h-12 py-2 font-normal text-gray-900"
         >
           <Checkbox
             checked={selected.includes(recipient.guardian_profile_id)}
@@ -247,7 +250,7 @@ function SharingRecipients({
             onChange={() => toggle(recipient.guardian_profile_id)}
           />
           <span>{`${recipient.first_name} ${recipient.last_name}`}</span>
-        </label>
+        </ChoiceTile>
       ))}
     </fieldset>
   );

@@ -1,19 +1,16 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { parentAuth } from "~/server/auth/parent";
+import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
 import { withParentAuth } from "~/server/auth/parent-route";
 import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
-import {
-  ApiResponseError,
-  isApiResponseError,
-} from "../api-response-error.server";
+import { ApiResponseError } from "../api-response-error.server";
 import { makeProxyFactories } from "../route-proxy-factory.server";
+import { executeWithTokenRefresh } from "../token-refresh-retry.server";
 import {
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
-  createTokenExpiredResponse,
   createUnauthorizedResponse,
 } from "../route-wrapper-utils.server";
 
@@ -24,24 +21,6 @@ import {
  * depth against accidentally hitting tenant or operator endpoints from
  * a parent-scoped request.
  */
-
-async function tryRetryWithRefreshedToken<T>(
-  originalToken: string,
-  retryFn: (token: string) => Promise<T>,
-): Promise<T | null> {
-  const { uncachedParentAuth: uncachedAuth } =
-    await import("~/server/auth/parent");
-  const updatedSession = await uncachedAuth();
-
-  if (
-    !updatedSession?.user?.token ||
-    updatedSession.user.token === originalToken
-  ) {
-    return null;
-  }
-
-  return retryFn(updatedSession.user.token);
-}
 
 async function parentServerFetch<T>(
   endpoint: string,
@@ -143,33 +122,6 @@ type WithBodyHandler<T, B> = (
   params: Record<string, unknown>,
 ) => Promise<T>;
 
-async function executeWithRetry<T>(
-  request: NextRequest,
-  token: string,
-  executeHandler: (token: string) => Promise<T>,
-  formatResponse: (data: T) => NextResponse,
-): Promise<NextResponse> {
-  try {
-    const data = await executeHandler(token);
-    return formatResponse(data);
-  } catch (handlerError) {
-    if (!isApiResponseError(handlerError, 401)) {
-      throw handlerError;
-    }
-
-    try {
-      const retryData = await tryRetryWithRefreshedToken(token, executeHandler);
-      if (retryData !== null) {
-        return formatResponse(retryData);
-      }
-    } catch {
-      // Retry failed, fall through to token expired
-    }
-
-    return createTokenExpiredResponse(request);
-  }
-}
-
 function createParentNoBodyHandler<T>(
   handler: NoBodyHandler<T>,
   formatResponse: (data: T) => NextResponse,
@@ -180,11 +132,12 @@ function createParentNoBodyHandler<T>(
       if (!session?.user?.token) return createUnauthorizedResponse(request);
       const params = await extractParams(request, context);
 
-      return await executeWithRetry(
+      return await executeWithTokenRefresh(
         request,
         session.user.token,
         (token) => handler(request, token, params),
         formatResponse,
+        uncachedParentAuth,
       );
     } catch (error) {
       return handleApiError(error, request);
@@ -200,11 +153,12 @@ function createParentWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
 
-      return await executeWithRetry(
+      return await executeWithTokenRefresh(
         request,
         session.user.token,
         (token) => handler(request, body, token, params),
         (data) => NextResponse.json(wrapInApiResponse(data)),
+        uncachedParentAuth,
       );
     } catch (error) {
       return handleApiError(error, request);
