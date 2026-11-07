@@ -483,6 +483,7 @@ export function SettingsField({
   );
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const writeQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const pendingSaveRef = useRef<PendingSettingSave>({
     setting,
     categoryItems,
@@ -527,7 +528,10 @@ export function SettingsField({
     if (!localErr && shortening === null) {
       // The field is gone: nothing left to show an error at. The page
       // reloads the schema, so a lost value shows up as the old one.
-      void persistSetting(onSave, pending.setting.key, pending.localValue);
+      const run = writeQueueRef.current.then(() =>
+        persistSetting(onSave, pending.setting.key, pending.localValue),
+      );
+      writeQueueRef.current = run.catch(() => undefined);
     }
   });
 
@@ -550,7 +554,6 @@ export function SettingsField({
     [settingObject, showFieldError],
   );
 
-  const writeQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const doSave = useCallback(
     async (value: unknown): Promise<boolean> => {
       const localError = validateLocally(setting, value, categoryItems);

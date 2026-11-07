@@ -1723,6 +1723,53 @@ describe("SettingsField care-facility term", () => {
     expect(onSave).toHaveBeenCalledTimes(2);
   });
 
+  it("saves the latest unmounted draft after pending and queued saves", async () => {
+    let finishFirst: () => void = () => undefined;
+    let finishSecond: () => void = () => undefined;
+    let storedValue = "Ganztag Süd";
+    const writes: unknown[] = [];
+    const onSave = vi.fn().mockImplementation(async (_key, value) => {
+      if (value === "Ganztag Nord") {
+        await new Promise<void>((resolve) => {
+          finishFirst = resolve;
+        });
+      } else if (value === "Ganztag West") {
+        await new Promise<void>((resolve) => {
+          finishSecond = resolve;
+        });
+      }
+      storedValue = value;
+      writes.push(value);
+    });
+    const { getByRole, unmount } = renderWithProviders(
+      <SettingsField
+        setting={{ ...term, value: storedValue, is_default: false }}
+        onSave={onSave}
+        onReset={vi.fn()}
+      />,
+    );
+
+    const field = ownField(getByRole);
+    fireEvent.change(field, { target: { value: "Ganztag Nord" } });
+    fireEvent.blur(field);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(field, { target: { value: "Ganztag West" } });
+    fireEvent.blur(field);
+    fireEvent.change(field, { target: { value: "Ganztag Ost" } });
+    unmount();
+
+    finishFirst();
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(term.key, "Ganztag West"),
+    );
+    finishSecond();
+    await waitFor(() => expect(writes).toHaveLength(3));
+
+    expect(writes).toEqual(["Ganztag Nord", "Ganztag West", "Ganztag Ost"]);
+    expect(storedValue).toBe("Ganztag Ost");
+  });
+
   it("resets only after the draft and queued preset finish saving", async () => {
     let finishDraft: () => void = () => undefined;
     let finishPreset: () => void = () => undefined;
