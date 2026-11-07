@@ -16,10 +16,17 @@ const TEMPLATES_PATH = "/api/traeger/contract-templates";
 
 /**
  * Every state of ADR 0088. The office reaches draft and sent; the conclusion
- * at the acceptance (#4680) or the signature (#4679) reaches active.
+ * at the acceptance (#4680) or the signature (#4679) reaches active; a
+ * termination or a withdrawal (#4682) ends an active contract.
  */
 export type CareContractStatus =
-  "entwurf" | "versendet" | "unterschrieben" | "aktiv" | "beendet";
+  | "entwurf"
+  | "versendet"
+  | "unterschrieben"
+  | "aktiv"
+  | "gekuendigt"
+  | "widerrufen"
+  | "beendet";
 
 export type ContractTermKind = "open_ended" | "school_year" | "fixed_months";
 export type ContractNoticeTo = "month_end" | "half_year" | "school_year_end";
@@ -47,6 +54,12 @@ interface ContractTemplate extends ContractTerms {
 /** One offering of a school with its template, or none yet. */
 export interface OfferingTemplate {
   readonly acceptanceText?: string;
+  /**
+   * The withdrawal notice and the block for an early start the school adds
+   * to the enrollment form (#4682); empty like `acceptanceText`.
+   */
+  readonly withdrawalText?: string;
+  readonly earlyStartText?: string;
   readonly schoolId: string;
   readonly schoolName: string;
   readonly offeringId: string;
@@ -156,6 +169,8 @@ export interface CareContractSummary {
   readonly sentAt: string | null;
   /** Null until the contract is concluded. */
   readonly concluded: ContractConclusion | null;
+  /** Last day of a terminated contract (#4682); null otherwise. */
+  readonly endsOn: string | null;
 }
 
 export interface CareContractList {
@@ -273,6 +288,8 @@ interface BackendTemplate extends BackendTerms {
 
 interface BackendOfferingTemplate {
   acceptance_text?: string;
+  withdrawal_text?: string;
+  early_start_text?: string;
   school_id: number;
   school_name: string;
   offering_id: number;
@@ -321,6 +338,7 @@ interface BackendSummary {
   created_at: string;
   sent_at: string | null;
   concluded?: { method: ConclusionMethod; at: string } | null;
+  ends_on?: string | null;
 }
 
 interface BackendDetail extends BackendSummary {
@@ -401,6 +419,8 @@ function termsToBackend(terms: ContractTerms): BackendTerms {
 function offeringFromBackend(row: BackendOfferingTemplate): OfferingTemplate {
   return {
     acceptanceText: row.acceptance_text ?? "",
+    withdrawalText: row.withdrawal_text ?? "",
+    earlyStartText: row.early_start_text ?? "",
     schoolId: String(row.school_id),
     schoolName: row.school_name,
     offeringId: String(row.offering_id),
@@ -463,6 +483,7 @@ function summaryFromBackend(row: BackendSummary): CareContractSummary {
     concluded: row.concluded
       ? { method: row.concluded.method, at: row.concluded.at }
       : null,
+    endsOn: row.ends_on ?? null,
   };
 }
 

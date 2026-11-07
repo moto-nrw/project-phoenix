@@ -27,5 +27,9 @@
   "releasedAt": "Udostępniono",
   "downloadFile": "Pobierz",
   "sharedErrorObject": "dokumenty organizatora",
-  "image": "Obraz"
+  "image": "Obraz",
+  "cancelContract": "Wypowiedz umowy tutaj",
+  "terminatedOn": "Wypowiedziana na {date}",
+  "withdrawn": "Odstąpiono",
+  "showConfirmation": "Zobacz potwierdzenie"
 }

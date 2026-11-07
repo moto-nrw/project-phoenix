@@ -23,6 +23,8 @@ export const TAB_LABELS: Record<string, string> = {
   ferien: "Ferienbetreuung",
   // Grenzen der Auffälligkeiten im Dashboard (#4675); nur im Träger-Portal.
   dashboard: "Dashboard",
+  // Bestätigung von Kündigung und Widerruf (#4682); nur im Träger-Portal.
+  vertraege: "Verträge",
 };
 
 export function displayTabLabel(tab: SchemaTab): string {
@@ -85,6 +87,8 @@ export const categoryLabels: Record<string, string> = {
   personaldokumente: "Personaldokumente",
   pin: "Zugang zum Tablet",
   rechtstexte: "Rechtstexte",
+  // Bestätigung von Kündigung und Widerruf (#4682); nur im Träger-Portal.
+  "vertrag-bestaetigungen": "Bestätigung an die Eltern",
   // Wann der Betreuungsvertrag gilt (#4680); Träger-Wert, Schule darf abweichen.
   vertragsabschluss: "Betreuungsvertrag",
   schulstunden: "Schulstunden",

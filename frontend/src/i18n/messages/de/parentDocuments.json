@@ -27,5 +27,9 @@
   "releasedAt": "Freigegeben am",
   "downloadFile": "Herunterladen",
   "sharedErrorObject": "die Dokumente des Trägers",
-  "image": "Bild"
+  "image": "Bild",
+  "cancelContract": "Verträge hier kündigen",
+  "terminatedOn": "Gekündigt zum {date}",
+  "withdrawn": "Widerrufen",
+  "showConfirmation": "Bestätigung ansehen"
 }

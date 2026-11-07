@@ -29,6 +29,8 @@ export const CONTRACT_STATUS_LABELS: Record<CareContractStatus, string> = {
   versendet: "Versendet",
   unterschrieben: "Unterschrieben",
   aktiv: "Aktiv",
+  gekuendigt: "Gekündigt",
+  widerrufen: "Widerrufen",
   beendet: "Beendet",
 };
 
@@ -40,6 +42,8 @@ export const CONTRACT_STATUS_TONES: Record<
   versendet: "blue",
   unterschrieben: "purple",
   aktiv: "green",
+  gekuendigt: "orange",
+  widerrufen: "red",
   beendet: "outline",
 };
 
@@ -49,6 +53,8 @@ export const CONTRACT_STATUS_ORDER: readonly CareContractStatus[] = [
   "versendet",
   "unterschrieben",
   "aktiv",
+  "gekuendigt",
+  "widerrufen",
   "beendet",
 ];
 

@@ -34,16 +34,26 @@ export const ERROR_CATALOG = {
         "Bitte wählen Sie mindestens einen und höchstens 200 Einträge aus.",
       "care_contract.contract_not_draft":
         "Der Vertrag ist schon versendet. Er lässt sich nicht mehr verwerfen.",
+      "care_contract.contract_not_endable":
+        "Dieser Vertrag ist schon gekündigt oder widerrufen oder noch nicht abgeschlossen. Bitte laden Sie die Seite neu.",
       "care_contract.contract_not_found":
         "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
       "care_contract.letterhead_too_long":
         "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
+      "care_contract.notice_template_missing":
+        "Der Träger hat noch keinen Text für die Bestätigung. Bitte melden Sie sich beim Träger.",
       "care_contract.offering_not_found":
         "Dieses Angebot gibt es an der Schule nicht mehr. Bitte laden Sie die Seite neu.",
+      "care_contract.recipient_missing":
+        "Für diesen Vertrag fehlt eine E-Mail-Adresse. Ohne Adresse kann keine Bestätigung verschickt werden.",
       "care_contract.school_outside_traeger":
         "Diese Schule gehört nicht zu Ihrem Träger.",
+      "care_contract.special_termination_closed":
+        "Dieser Vertrag sieht keine Sonderkündigung vor. Bitte wählen Sie die normale Kündigung.",
       "care_contract.template_invalid":
         "Bitte prüfen Sie die markierten Felder.",
+      "care_contract.withdrawal_closed":
+        "Die Widerrufsfrist ist vorbei. Sie können den Vertrag noch kündigen.",
       "care.announcement_stale":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "care.care_exception_conflict":
@@ -1662,15 +1672,25 @@ export const ERROR_CATALOG = {
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
         "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "This contract is already terminated or withdrawn, or not concluded yet. Please reload the page.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_template_missing":
+        "The provider has no confirmation text yet. Please contact the provider.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.recipient_missing":
+        "This contract has no e-mail address. Without an address no confirmation can be sent.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.special_termination_closed":
+        "This contract has no special termination. Please choose the regular termination.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "The withdrawal period is over. You can still terminate the contract.",
       "care.announcement_stale":
         "{object} has been changed in the meantime. Please reload the page.",
       "care.care_exception_conflict":
@@ -2220,15 +2240,25 @@ export const ERROR_CATALOG = {
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
         "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "Этот договор уже расторгнут или отозван либо ещё не заключён. Пожалуйста, обновите страницу.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_template_missing":
+        "У организации ещё нет текста подтверждения. Пожалуйста, свяжитесь с организацией.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.recipient_missing":
+        "У этого договора нет адреса электронной почты. Без адреса подтверждение отправить нельзя.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.special_termination_closed":
+        "Этот договор не предусматривает особого расторжения. Пожалуйста, выберите обычное расторжение.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "Срок отказа от договора истёк. Вы всё ещё можете расторгнуть договор.",
       "care.announcement_stale":
         "Данные изменились: {object}. Обновите страницу.",
       "care.care_exception_conflict":
@@ -2671,15 +2701,25 @@ export const ERROR_CATALOG = {
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
         "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "Kjo kontratë është ndërprerë ose tërhequr tashmë, ose nuk është lidhur ende. Ju lutemi rifreskoni faqen.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_template_missing":
+        "Ofruesi nuk ka ende tekst konfirmimi. Ju lutemi kontaktoni ofruesin.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.recipient_missing":
+        "Kjo kontratë nuk ka adresë e-maili. Pa adresë nuk mund të dërgohet konfirmim.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.special_termination_closed":
+        "Kjo kontratë nuk parashikon ndërprerje të veçantë. Ju lutemi zgjidhni ndërprerjen e zakonshme.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "Afati i tërheqjes ka mbaruar. Ju mund ta ndërprisni ende kontratën.",
       "care.announcement_stale":
         "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
       "care.care_exception_conflict":
@@ -3137,15 +3177,25 @@ export const ERROR_CATALOG = {
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
         "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "Ta umowa została już wypowiedziana lub odwołana albo nie została jeszcze zawarta. Proszę odświeżyć stronę.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_template_missing":
+        "Organizator nie ma jeszcze tekstu potwierdzenia. Proszę skontaktować się z organizatorem.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.recipient_missing":
+        "Ta umowa nie ma adresu e-mail. Bez adresu nie można wysłać potwierdzenia.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.special_termination_closed":
+        "Ta umowa nie przewiduje wypowiedzenia nadzwyczajnego. Proszę wybrać zwykłe wypowiedzenie.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "Termin na odstąpienie od umowy minął. Nadal można wypowiedzieć umowę.",
       "care.announcement_stale":
         "W międzyczasie zmieniono: {object}. Odśwież stronę.",
       "care.care_exception_conflict":
@@ -3590,15 +3640,25 @@ export const ERROR_CATALOG = {
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
         "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "Bu sözleşme zaten feshedildi veya geri alındı ya da henüz yapılmadı. Lütfen sayfayı yenileyin.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_template_missing":
+        "Kurumun henüz onay metni yok. Lütfen kurumla iletişime geçin.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.recipient_missing":
+        "Bu sözleşmenin e-posta adresi yok. Adres olmadan onay gönderilemez.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.special_termination_closed":
+        "Bu sözleşmede özel fesih yok. Lütfen normal feshi seçin.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "Cayma süresi doldu. Sözleşmeyi hâlâ feshedebilirsiniz.",
       "care.announcement_stale":
         "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
       "care.care_exception_conflict":
@@ -4049,15 +4109,25 @@ export const ERROR_CATALOG = {
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
         "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "Цей договір уже розірвано або відкликано чи ще не укладено. Будь ласка, оновіть сторінку.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_template_missing":
+        "Організація ще не має тексту підтвердження. Будь ласка, зверніться до організації.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.recipient_missing":
+        "У цього договору немає адреси електронної пошти. Без адреси підтвердження надіслати не можна.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.special_termination_closed":
+        "Цей договір не передбачає особливого розірвання. Будь ласка, оберіть звичайне розірвання.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "Строк відмови від договору минув. Ви ще можете розірвати договір.",
       "care.announcement_stale": "Дані змінилися: {object}. Оновіть сторінку.",
       "care.care_exception_conflict":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",

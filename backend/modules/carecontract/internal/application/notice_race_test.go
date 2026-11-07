@@ -188,6 +188,15 @@ func TestTerminationEndsTheVersionsInForceOnTheNoticeDate(t *testing.T) {
 	assert.Equal(t, from, after[0].From)
 	assert.Equal(t, end, after[0].Until, "no day after the notice date")
 	assert.Empty(t, f.versionsInForce(t, calendar.NewDate(2027, 1, 1), to), "nothing in January")
+
+	var listed []carecontract.Version
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(txCtx context.Context) error {
+		var err error
+		listed, err = postgres.NewStore().Versions(txCtx, f.org, f.contract)
+		return err
+	}))
+	require.Len(t, listed, 1)
+	assert.Equal(t, &end, listed[0].ValidUntil, "the version list shows the contract's end")
 }
 
 // Invariant: a withdrawal undoes the contract from its start:

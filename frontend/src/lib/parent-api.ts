@@ -41,6 +41,13 @@ import type {
 
 import { boundSessionAccount } from "~/lib/session-account";
 import {
+  type BackendNoticeOptions,
+  type ContractNoticeOptions,
+  declarationBody,
+  type NoticeDeclaration,
+  noticeOptionsFromBackend,
+} from "~/lib/care-contract-notices";
+import {
   isParentAccessRefusal,
   PARENT_ACCESS_REFUSED_EVENT,
 } from "~/lib/parent-access-refusal";
@@ -2474,6 +2481,12 @@ export interface ParentDocument {
    * `service_from`.
    */
   readonly replaced?: boolean;
+  /**
+   * The status of a care contract and the last day of a terminated one
+   * (#4682); absent for a letter.
+   */
+  readonly contract_status?: string;
+  readonly ends_on?: string;
 }
 
 /**
@@ -2580,5 +2593,41 @@ export async function downloadMyDocument(
   downloadBlob(
     blob,
     filenameFromDisposition(response) ?? `dokument-${document.number}.pdf`,
+  );
+}
+
+// ── Kündigung und Widerruf (#4682) ─────────────────────────────────────────
+
+const contractNoticePath = (organizationId: string, contractId: string) =>
+  `/api/parent/me/documents/${encodeURIComponent(organizationId)}/contracts/${encodeURIComponent(contractId)}/notice`;
+
+/**
+ * What the parents can declare today on a care contract sent to them, or
+ * the declaration made. 403 without the relationship right to bind the
+ * family (parent_portal.enrollment.submit), 404 for a contract outside the
+ * inbox.
+ */
+export async function fetchMyContractNoticeOptions(
+  organizationId: string,
+  contractId: string,
+): Promise<ContractNoticeOptions> {
+  return noticeOptionsFromBackend(
+    await getJson<BackendNoticeOptions>(
+      contractNoticePath(organizationId, contractId),
+    ),
+  );
+}
+
+/** The parents' „jetzt kündigen“ or „jetzt widerrufen“ (§ 312k BGB). */
+export async function declareMyContractNotice(
+  organizationId: string,
+  contractId: string,
+  declaration: NoticeDeclaration,
+): Promise<ContractNoticeOptions> {
+  return noticeOptionsFromBackend(
+    await postJson<BackendNoticeOptions>(
+      contractNoticePath(organizationId, contractId),
+      declarationBody(declaration),
+    ),
   );
 }

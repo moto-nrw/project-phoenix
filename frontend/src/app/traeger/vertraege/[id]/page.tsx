@@ -23,6 +23,7 @@ import {
   formatTerm,
   serviceDays,
 } from "~/components/traeger/care-contract-format";
+import { CareContractNoticeCard } from "~/components/traeger/care-contract-notice-card";
 import {
   CareContractVersions,
   plannedVersion,
@@ -239,6 +240,8 @@ export default function TraegerVertragPage() {
     contract !== null &&
     (contract.versions.length > 1 ||
       contract.status === "aktiv" ||
+      contract.status === "gekuendigt" ||
+      contract.status === "widerrufen" ||
       contract.status === "beendet");
 
   return (
@@ -257,6 +260,7 @@ export default function TraegerVertragPage() {
             <span>
               {formatModules(contract.moduleNames)} · {contract.schoolName} · ab{" "}
               {formatDate(contract.effectiveFrom)}
+              {contract.endsOn ? ` bis ${formatDate(contract.endsOn)}` : ""}
             </span>
           </span>
         ) : null
@@ -554,6 +558,14 @@ export default function TraegerVertragPage() {
                   </form>
                 ) : null}
               </SectionCard>
+              {contract.concluded ? (
+                <CareContractNoticeCard
+                  contractId={contract.id}
+                  status={contract.status}
+                  concludedAt={contract.concluded.at}
+                  onChanged={() => void load()}
+                />
+              ) : null}
             </div>
           </div>
           {showVersions ? (
@@ -681,6 +693,22 @@ function StatusNotice({
       <Alert
         type="warning"
         message={`Die Mail an ${last.recipient} kam nicht an. Prüfen Sie die Adresse. Unter „Versand“ können Sie eine andere Adresse verwenden.`}
+      />
+    );
+  }
+  if (contract.status === "gekuendigt" && contract.endsOn) {
+    return (
+      <Alert
+        type="info"
+        message={`Gekündigt. Der Vertrag endet am ${formatDate(contract.endsOn)}. Bis dahin gilt die gebuchte Betreuung. Die Bestätigung steht unter „Vertrag beenden“.`}
+      />
+    );
+  }
+  if (contract.status === "widerrufen") {
+    return (
+      <Alert
+        type="info"
+        message="Widerrufen. Der Vertrag ist vom ersten Tag an aufgehoben und gilt an keinem Tag."
       />
     );
   }

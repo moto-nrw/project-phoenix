@@ -27,5 +27,9 @@
   "releasedAt": "Ndarë më",
   "downloadFile": "Shkarko",
   "sharedErrorObject": "dokumentet e ofruesit",
-  "image": "Imazh"
+  "image": "Imazh",
+  "cancelContract": "Ndërpritni kontratat këtu",
+  "terminatedOn": "E ndërprerë më {date}",
+  "withdrawn": "E tërhequr",
+  "showConfirmation": "Shiko konfirmimin"
 }

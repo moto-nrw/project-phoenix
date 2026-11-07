@@ -16,7 +16,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -262,7 +262,51 @@ function ParentDocumentCard({
           {formatDate(document.sent_at, false, locale)}
         </DataField>
       </DataGrid>
+      {contract && !document.replaced ? (
+        <ContractNoticeRow document={document} />
+      ) : null}
     </InboxDocumentCard>
+  );
+}
+
+/**
+ * The way to end a care contract (#4682, § 312k BGB): the button „Verträge
+ * hier kündigen“ on an active contract, or the end and the confirmation of
+ * one the parents or the Träger ended.
+ */
+function ContractNoticeRow({
+  document,
+}: Readonly<{ document: ParentDocument }>) {
+  const t = useTranslations("parentDocuments");
+  const locale = useLocale();
+  const href = `/documents/vertraege/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}`;
+  const status = document.contract_status;
+  if (status === "aktiv") {
+    return (
+      <div className="mt-4 border-t border-gray-100 pt-4">
+        <ButtonLink href={href} variant="outline" size="md">
+          {t("cancelContract")}
+        </ButtonLink>
+      </div>
+    );
+  }
+  if (status !== "gekuendigt" && status !== "widerrufen") return null;
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+      <StatusBadge
+        label={
+          status === "widerrufen"
+            ? t("withdrawn")
+            : t("terminatedOn", {
+                date: formatDate(document.ends_on ?? "", false, locale),
+              })
+        }
+        tone={status === "widerrufen" ? "red" : "orange"}
+      />
+      <ButtonLink href={href} variant="ghost" size="md">
+        {t("showConfirmation")}
+      </ButtonLink>
+    </div>
   );
 }
 

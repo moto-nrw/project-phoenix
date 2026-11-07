@@ -27,5 +27,9 @@
   "releasedAt": "Paylaşım tarihi",
   "downloadFile": "İndir",
   "sharedErrorObject": "kurumun belgeleri",
-  "image": "Resim"
+  "image": "Resim",
+  "cancelContract": "Sözleşmeleri burada feshet",
+  "terminatedOn": "{date} itibarıyla feshedildi",
+  "withdrawn": "Cayıldı",
+  "showConfirmation": "Onayı görüntüle"
 }

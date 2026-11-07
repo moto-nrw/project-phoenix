@@ -32,7 +32,12 @@ const validUntilSQL = `CASE WHEN v.status IN ` + effectiveStatusSQL + ` THEN LEA
 
 // versionsSQL reads every version of a contract with its services, oldest
 // first.
-const versionsSQL = `SELECT ` + versionColumns + `, v.source, ` + servicesSQL + ` AS services, ` + validUntilSQL + ` AS valid_until
+// The last day a version holds is cut at the last day of a terminated
+// contract (#4682), so the list shows where the contract ends.
+const versionsSQL = `SELECT ` + versionColumns + `, v.source, ` + servicesSQL + ` AS services,
+	CASE WHEN v.status IN ` + effectiveStatusSQL + ` THEN LEAST(` + validUntilSQL + `,
+		(SELECT c.ends_on FROM care_contract.contracts AS c WHERE c.organization_id = v.organization_id AND c.id = v.contract_id))
+	END AS valid_until
 	FROM care_contract.contract_versions AS v
 	WHERE v.organization_id = ? AND v.contract_id = ? ORDER BY v.version_number`
 

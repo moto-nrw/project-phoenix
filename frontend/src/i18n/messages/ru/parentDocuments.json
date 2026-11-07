@@ -27,5 +27,9 @@
   "releasedAt": "Опубликовано",
   "downloadFile": "Скачать",
   "sharedErrorObject": "документы организации",
-  "image": "Изображение"
+  "image": "Изображение",
+  "cancelContract": "Расторгнуть договоры здесь",
+  "terminatedOn": "Расторгнут с {date}",
+  "withdrawn": "Отказ",
+  "showConfirmation": "Посмотреть подтверждение"
 }

@@ -1,0 +1,120 @@
+import {
+  fireEvent,
+  render as renderPlain,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type React from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import type { ContractNoticeOptions } from "~/lib/care-contract-notices";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
+
+const mocks = vi.hoisted(() => ({
+  fetchMyContractNoticeOptions: vi.fn(),
+  declareMyContractNotice: vi.fn(),
+}));
+
+vi.mock("~/lib/parent-api", () => ({
+  fetchMyContractNoticeOptions: mocks.fetchMyContractNoticeOptions,
+  declareMyContractNotice: mocks.declareMyContractNotice,
+}));
+
+import { ParentContractNoticePage } from "./parent-contract-notice-page";
+
+const active: ContractNoticeOptions = {
+  contractId: "27",
+  traegerName: "Ganztag Nord e. V.",
+  status: "aktiv",
+  childName: "Mariam Kumar",
+  modules: "OGS Ganztag",
+  schoolName: "OGS Sonnenhof",
+  terms: "mit 1 Monat Frist zum Monatsende",
+  ordinaryEndsOn: "2026-12-31",
+  specialEndsOn: null,
+  withdrawalUntil: "2026-11-19",
+  earlyStart: false,
+  notice: null,
+};
+
+describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("terminates with „Jetzt kündigen“ and shows the confirmation", async () => {
+    mocks.fetchMyContractNoticeOptions.mockResolvedValue(active);
+    mocks.declareMyContractNotice.mockResolvedValue({
+      ...active,
+      status: "gekuendigt",
+      notice: {
+        kind: "kuendigung",
+        terminationKind: "ordentlich",
+        channel: "eltern_app",
+        declaredAt: "2026-11-07T09:30:00Z",
+        receivedOn: "2026-11-07",
+        endsOn: "2026-12-31",
+        recipient: "priya.kumar@email.de",
+        confirmationText: "wir bestätigen Ihre Kündigung.",
+      },
+    });
+
+    render(<ParentContractNoticePage organizationId="2" contractId="27" />);
+
+    expect(
+      await screen.findByRole("radio", { name: /Kündigen zum 31\.12\.2026/ }),
+    ).toBeChecked();
+    expect(
+      screen.getByText(
+        "Ihr Vertrag endet am 31.12.2026. Bis dahin findet die Betreuung wie gebucht statt.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt kündigen" }));
+
+    await waitFor(() =>
+      expect(mocks.declareMyContractNotice).toHaveBeenCalledWith("2", "27", {
+        kind: "kuendigung",
+        terminationKind: "ordentlich",
+      }),
+    );
+    expect(
+      await screen.findByText(
+        "Ihre Kündigung ist eingegangen. Der Vertrag endet am 31.12.2026.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("wir bestätigen Ihre Kündigung."),
+    ).toBeInTheDocument();
+  });
+
+  it("offers the withdrawal only within its period", async () => {
+    mocks.fetchMyContractNoticeOptions.mockResolvedValue(active);
+    render(<ParentContractNoticePage organizationId="2" contractId="27" />);
+    fireEvent.click(await screen.findByRole("radio", { name: /Widerrufen/ }));
+    expect(
+      screen.getByRole("button", { name: "Jetzt widerrufen" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt widerrufen" }));
+    await waitFor(() =>
+      expect(mocks.declareMyContractNotice).toHaveBeenCalledWith("2", "27", {
+        kind: "widerruf",
+      }),
+    );
+  });
+
+  it("has no withdrawal after the period", async () => {
+    mocks.fetchMyContractNoticeOptions.mockResolvedValue({
+      ...active,
+      withdrawalUntil: null,
+    });
+    render(<ParentContractNoticePage organizationId="2" contractId="27" />);
+    expect(
+      await screen.findByRole("radio", { name: /Kündigen zum/ }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("radio")).toHaveLength(1);
+  });
+});

@@ -27,5 +27,9 @@
   "releasedAt": "Shared on",
   "downloadFile": "Download",
   "sharedErrorObject": "the documents of the provider",
-  "image": "Image"
+  "image": "Image",
+  "cancelContract": "Cancel contracts here",
+  "terminatedOn": "Cancelled as of {date}",
+  "withdrawn": "Withdrawn",
+  "showConfirmation": "View confirmation"
 }

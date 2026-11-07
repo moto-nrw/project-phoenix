@@ -4,7 +4,8 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 /**
  * `/traeger/vertraege` (#4678, #4680, #4681): festlegen, wann der Vertrag
  * gilt, Vertragsbedingungen je Angebot festlegen, Entwürfe aus angenommenen
- * Anmeldungen erstellen, prüfen und senden; Versionen nach einer Änderung.
+ * Anmeldungen erstellen, prüfen und senden; Versionen nach einer Änderung;
+ * Kündigung und Widerruf (#4682).
  */
 export function traegerCareContractsTopic(): HelpTopic {
   return {
@@ -41,6 +42,7 @@ export function traegerCareContractsTopic(): HelpTopic {
           "Müssen die Eltern eine Satzung anerkennen? Setzen Sie den Haken bei `Satzung`. Tragen Sie den Namen und, wenn vorhanden, den Link ein.",
           "Tragen Sie den Namen des `Vertragspartners` ein, wenn er nicht im Briefkopf steht.",
           "Wählen Sie `Bedingungen speichern`.",
+          "Unter `Widerrufsbelehrung für das Anmeldeformular` und `Häkchen „Betreuung vor Ende der Widerrufsfrist“` stehen zwei weitere Texte. Die Schule kopiert beide als eigene Rechtstexte ins Anmeldeformular. Die Belehrung muss bestätigt werden, das Häkchen nicht.",
           "Für `Bei der Annahme`: Tragen Sie den `Vertragspartner` immer ein. Speichern Sie die Bedingungen. Kopieren Sie den Text aus `Gespeicherter Text für das Anmeldeformular` unverändert. Die Schule wählt im Anmeldeformular `Eigene Zustimmung hinzufügen`. Sie trägt ihn unter `Rechtstext / Erklärung` ein. Sie setzt `Muss bestätigt werden` und behält bestehende Rechtstexte bei. Bei mehreren Modulen müssen deren Bedingungen übereinstimmen.",
         ],
       },
@@ -83,6 +85,18 @@ export function traegerCareContractsTopic(): HelpTopic {
           "Mit `PDF` laden Sie eine Version als PDF.",
         ],
       },
+      {
+        title: "Kündigung oder Widerruf eintragen",
+        steps: [
+          "Eltern kündigen selbst in der Eltern-App. Dann steht die Kündigung von allein beim Vertrag. Sie müssen nichts tun.",
+          "Kam eine Kündigung per Mail oder Brief? Wählen Sie in der Liste das Kind.",
+          "Rechts steht die Karte `Vertrag beenden`. Sie zeigt, wann der Vertrag bei einer Kündigung heute endet und bis wann ein Widerruf möglich ist.",
+          "Wählen Sie `Kündigung eintragen`.",
+          "Wählen Sie `Kündigung` oder `Widerruf`. Bei einer Kündigung wählen Sie den Termin.",
+          "Wählen Sie bei `Eingegangen am` den Tag, an dem die Mail oder der Brief ankam.",
+          "Wählen Sie `Kündigung eintragen` oder `Widerruf eintragen`.",
+        ],
+      },
     ],
     steps: [],
     result:
@@ -95,6 +109,9 @@ export function traegerCareContractsTopic(): HelpTopic {
       "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
       "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
       "Frühere Versionen bleiben unter `Versionen` lesbar. `Gilt jetzt` zeigt die Version von heute. Die Abrechnung nimmt für jeden Tag die Version, die an diesem Tag gilt.",
+      "Nach einer Kündigung hat der Vertrag den Status `Gekündigt`. Er gilt bis zum Vertragsende und wird bis dahin abgerechnet. Nach einem Widerruf ist er `Widerrufen` und gilt an keinem Tag.",
+      "Die Eltern bekommen sofort eine Bestätigung per Mail und in der Eltern-App. Den Text legen Sie unter `Einstellungen` → `Allgemein` im Reiter `Verträge` fest. Die Bestätigung steht danach in der Karte `Vertrag beenden`, so wie sie verschickt wurde.",
+      "Den Kündigungstermin rechnet moto aus den Bedingungen im Vertrag, nicht aus den heutigen Vertragsbedingungen. Ein Widerruf ist 14 Tage nach dem Vertragsschluss möglich.",
       "Eine neue Version gilt nie rückwirkend. Kommt eine Freigabe zu spät, gilt die Version ab dem Tag, an dem moto sie anlegt.",
       "Beginnt an einem Tag schon eine Version, und die Schule gibt für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
       "Ist schon eine spätere Version geplant, gilt eine frühere Änderung nur bis dahin. Die geplante Version übernimmt sie nicht von selbst.",
@@ -103,6 +120,8 @@ export function traegerCareContractsTopic(): HelpTopic {
       "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
     ],
     troubleshootingDetails: [
+      "`Kündigung eintragen` fehlt? Der Vertrag ist noch nicht abgeschlossen oder schon beendet. Einen Entwurf oder versendeten Vertrag verwerfen Sie oder lassen ihn liegen.",
+      "Ein Widerruf ist nicht wählbar? Die Widerrufsfrist ist vorbei. Die Eltern können noch kündigen.",
       "Die Schule hat angenommen, aber nach einigen Minuten steht kein aktiver Vertrag da? Dann fehlt etwas. Das Kind steht in `Verträge erstellen` mit dem Grund, zum Beispiel `Vertragsbedingungen fehlen`. Fehlt die E-Mail-Adresse der Eltern, ergänzt die Schule sie in der Anmeldung. moto versucht es danach von selbst noch einmal.",
       "Ein Kind zeigt `Mail-Adresse gesperrt`? Mails an die Adresse der Eltern kamen nicht an. Die Schule prüft die Adresse beim Kind unter `Erziehungsberechtigte` und wählt `Sperre aufheben`. Danach entsteht der Vertrag von selbst.",
       "Ein Kind zeigt `Mails gestoppt`? Die Schule hat die Mails an diese Eltern gestoppt. Der Vertrag kommt erst, wenn die Schule beim Kind unter `Erziehungsberechtigte` `Mails wieder senden` wählt.",

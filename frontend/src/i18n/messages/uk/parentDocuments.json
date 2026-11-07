@@ -27,5 +27,9 @@
   "releasedAt": "Оприлюднено",
   "downloadFile": "Завантажити",
   "sharedErrorObject": "документи організації",
-  "image": "Зображення"
+  "image": "Зображення",
+  "cancelContract": "Розірвати договори тут",
+  "terminatedOn": "Розірвано з {date}",
+  "withdrawn": "Відмова",
+  "showConfirmation": "Переглянути підтвердження"
 }
