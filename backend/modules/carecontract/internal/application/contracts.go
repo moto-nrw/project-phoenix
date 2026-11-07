@@ -352,7 +352,17 @@ func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, co
 	if err != nil {
 		return err
 	}
-	if record.Summary.Status != carecontract.StatusDraft && record.Summary.Status != carecontract.StatusSent {
+	return c.deliver(ctx, reviewer, record, destination)
+}
+
+// deliver sends the contract read under its row lock: it freezes the PDF of
+// a draft, enqueues the mail and records the send.
+func (c *Contracts) deliver(ctx context.Context, reviewer carecontract.Reviewer, record ContractRecord, destination string) error {
+	contractID := record.Summary.ID
+	if record.Summary.Status != carecontract.StatusDraft && record.Summary.Status != carecontract.StatusSent && record.Summary.Status != carecontract.StatusActive {
+		return carecontract.ErrContractNotSendable
+	}
+	if record.Summary.Status == carecontract.StatusActive && record.DocumentID == nil {
 		return carecontract.ErrContractNotSendable
 	}
 	party, previousSends, err := c.deliveryParty(ctx, reviewer.OrganizationID, record, destination)
@@ -373,6 +383,7 @@ func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, co
 		ChildName: fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
 		Modules:   joinGerman(ModuleNames(record.Version.Services)), Filename: file.Filename, PDF: file.Data,
 		IdempotencyKey: fmt.Sprintf("care-contract:%d:%d", contractID, previousSends+1),
+		Concluded:      record.Concluded != nil,
 	})
 	if err != nil {
 		return fmt.Errorf("care contract: enqueue mail: %w", err)
@@ -402,7 +413,7 @@ func (c *Contracts) deliveryParty(ctx context.Context, organizationID int64, rec
 	if len(mailings) > 0 && mailings[0].State == carecontract.MailQueued {
 		return carecontract.Party{}, 0, carecontract.ErrMailPending
 	}
-	if destination != "" && (record.Summary.Status != carecontract.StatusSent || record.DocumentID == nil || len(mailings) == 0 || mailings[0].State != carecontract.MailFailed) {
+	if destination != "" && ((record.Summary.Status != carecontract.StatusSent && record.Summary.Status != carecontract.StatusActive) || record.DocumentID == nil || len(mailings) == 0 || mailings[0].State != carecontract.MailFailed) {
 		return carecontract.Party{}, 0, carecontract.ErrContractNotSendable
 	}
 	if len(mailings) > 0 {

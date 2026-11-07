@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractModes.ConclusionMode",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.ConclusionModes.ConclusionMode",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/records.BatchSettingsService.ResolveString: resolves care_contract.conclusion_mode of the school in its tenant transaction, school value over Träger value over default (#4680, ADR 0086).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
       "classification": "query",
       "effect": "query",
@@ -40,6 +50,16 @@
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.MailBlocks.ContractMailBlocks",
+      "reason": "Read-only delivery state: the Träger reads in one statement whether its schools hold the given addresses, as two booleans each, in its Träger transaction, for the candidates the conclusion at the acceptance could send (#4680). No persistent, lock or scope effect.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.TraegerMailHoldsOf",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailBlock",
@@ -183,7 +203,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.AcceptedApplications",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children of the school in its tenant transaction (#4678, ADR 0153).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children, original acceptance instant and checksummed consent text in the school transaction. The root only maps values; no mutation or scope switch (#4678, #4680, ADR 0153).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.AcceptedContractApplications",
       "target_owner": "enrollment"

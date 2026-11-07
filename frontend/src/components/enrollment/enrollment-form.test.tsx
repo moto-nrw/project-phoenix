@@ -1471,6 +1471,8 @@ describe("EnrollmentForm", () => {
       SubmitEnrollmentPayload,
     ];
     expect(payload.consent_flags).toEqual({ agb: true });
+    // The form version the page showed (#4680).
+    expect(payload.form_schema_id).toBe(Number(schema().id));
   });
 
   it("opens legal block details in a modal from a neutral details button", async () => {
@@ -3068,6 +3070,47 @@ describe("EnrollmentForm", () => {
     expect(
       screen.queryByText(/Einladung zum Eltern-Portal/),
     ).not.toBeInTheDocument();
+  });
+
+  it("sends the shown form version from the edit page (#4680)", async () => {
+    // The edit page renders the form with the request's form version and
+    // its own submitter. The version must travel with the edit, or the
+    // parents' agreement to the contract conditions no longer proves
+    // anything and the contract is not concluded at the acceptance.
+    const submitter = vi.fn().mockResolvedValue({ status_url: "/status/edit" });
+    const draft = editDraft([
+      { id: "c-1", first_name: "Anton", last_name: "Alster" },
+    ]);
+    draft.consent_flags = { care_contract: true };
+    renderForm({
+      submitter,
+      skipCaptcha: true,
+      initialDraft: draft,
+      prefetchedData: {
+        schema: { ...schema(), id: "81", fields: [] },
+        offerings: [],
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts([
+          {
+            key: "care_contract",
+            kind: "terms",
+            title: "Betreuungsvertrag",
+            label: "Ich stimme den Vertragsbedingungen zu.",
+            text: "Vertragsbedingungen für die Betreuung",
+            required: true,
+          },
+        ]),
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => expect(submitter).toHaveBeenCalledOnce());
+    const payload = submitter.mock.calls[0]![0] as SubmitEnrollmentPayload;
+    expect(payload.form_schema_id).toBe(81);
+    expect(payload.consent_flags).toEqual({ care_contract: true });
   });
 
   it("submits a taken-over child unchanged", async () => {

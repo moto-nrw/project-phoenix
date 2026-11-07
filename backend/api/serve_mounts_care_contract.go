@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -35,8 +36,8 @@ import (
 // /traeger/contracts and the templates of the offerings at
 // /traeger/contract-templates.
 func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) {
-	resource := NewCareContractHTTP(organizations, settings, delivery, outcomes, accessLog)
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) {
+	resource := NewCareContractHTTP(organizations, settings, schoolSettings, delivery, outcomes, accessLog)
 	root.Mount("/traeger/contracts", resource.ContractRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/contract-templates", resource.TemplateRouter(ProtectedTraegerRoutes))
 }
@@ -47,19 +48,62 @@ func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations
 // tenant transaction, the letterhead and the contract template to the
 // master data and the branding of the Träger, and the mail to Delivery.
 func NewCareContractHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) *careContractHTTP.Resource {
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) *careContractHTTP.Resource {
+	contractPorts, intakePorts := careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog)
+	return careContractHTTP.NewResource(careContractCompose.NewContracts(contractPorts), careContractCompose.NewIntake(intakePorts),
+		common.RequiresPermission(identityaccess.TraegerRightContractsManage))
+}
+
+// NewCareContractConclusion builds the Worker's conclusion at the
+// acceptance (Weg b, #4680) over the same ports as the portal routes, so
+// the automatic contract reads, renders and sends exactly like the
+// Träger-Büro's.
+func NewCareContractConclusion(organizations HolidayOrganizations, settings TraegerBrandingSettings,
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) carecontract.Conclusion {
+	return careContractCompose.NewConclusion(careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog))
+}
+
+func careContractPorts(organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings CareContractSchoolSettings,
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) (careContractCompose.ContractPorts, careContractCompose.IntakePorts) {
+	if schoolSettings == nil {
+		panic("care contract: the school settings are required")
+	}
 	letterheads := careContractLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
 		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
-	contracts := careContractCompose.NewContracts(careContractCompose.ContractPorts{
+	return careContractCompose.ContractPorts{
 		Letterheads: letterheads, Post: careContractPost{delivery: delivery, outcomes: outcomes},
 		Runtime: careContractRuntime{}, Access: careContractAccessLog{log: accessLog},
-	})
-	intake := careContractCompose.NewIntake(careContractCompose.IntakePorts{
-		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications()},
+	}, careContractCompose.IntakePorts{
+		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications(securityruntime.Fingerprint)},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
 		Access:   careContractAccessLog{log: accessLog}, Runtime: careContractRuntime{},
-	})
-	return careContractHTTP.NewResource(contracts, intake, common.RequiresPermission(identityaccess.TraegerRightContractsManage))
+		Modes: careContractModes{settings: schoolSettings}, Mail: careContractPost{delivery: delivery, outcomes: outcomes},
+	}
+}
+
+// CareContractSchoolSettings resolves a setting of the school whose tenant
+// transaction the caller holds: its own value, else its Träger's, else the
+// default (ADR 0086).
+type CareContractSchoolSettings interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
+// careContractModes binds how a school concludes its contracts to the
+// setting care_contract.conclusion_mode (#4680). An unknown value is an
+// error, never the default: the registry admits only the two values.
+type careContractModes struct {
+	settings CareContractSchoolSettings
+}
+
+func (m careContractModes) ConclusionMode(ctx context.Context, _ int64) (string, error) {
+	mode, err := m.settings.ResolveString(ctx, configModels.KeyCareContractConclusionMode)
+	if err != nil {
+		return "", err
+	}
+	if mode != carecontract.ModeSendLater && mode != carecontract.ModeOnAcceptance {
+		return "", fmt.Errorf("care contract: unknown conclusion mode %q", mode)
+	}
+	return mode, nil
 }
 
 // careContractSchools lists the undeleted schools of the Träger.
@@ -120,12 +164,16 @@ func (a careContractApplications) AcceptedApplications(ctx context.Context, requ
 	result := make([]carecontract.Application, len(found))
 	for i, application := range found {
 		result[i] = carecontract.Application{
+			AcceptedAt:     application.AcceptedAt,
 			RequestChildID: application.RequestChildID, StudentID: application.StudentID,
 			ChildFirstName: application.ChildFirstName, ChildLastName: application.ChildLastName,
 			ChildBirthDate: application.ChildBirthDate, GuardianFirstName: application.GuardianFirstName,
 			GuardianLastName: application.GuardianLastName, GuardianEmail: application.GuardianEmail,
 			GuardianAccountID: application.GuardianAccountID, PhaseName: application.PhaseName,
 			ServiceStartDate: application.ServiceStartDate, ActivateOn: application.ActivateOn,
+		}
+		for _, proof := range application.Acceptances {
+			result[i].Acceptances = append(result[i].Acceptances, carecontract.AcceptedText{Key: proof.Key, Text: proof.Text, SHA256: proof.SHA256, SubmittedAt: proof.SubmittedAt})
 		}
 	}
 	return result, nil
@@ -326,6 +374,28 @@ func (p careContractPost) ContractMailBlock(ctx context.Context, organizationID 
 		provider = p.outcomes.ProviderEmailBlocks(ctx, []string{address})[deliveryContract.NormalizedEmailAddress(address)]
 	}
 	return string(deliveryContract.EmailSendBlockOf(mark, stopped, latest, provider)), nil
+}
+
+// ContractMailBlocks answers ContractMailBlock for the first mail to each
+// address, in one read: a candidate has no earlier mail whose outcome would
+// make the provider worth asking (#4680).
+func (p careContractPost) ContractMailBlocks(ctx context.Context, organizationID int64, addresses []string) (map[string]string, error) {
+	listed, stopped, err := p.outcomes.TraegerMailHoldsOf(ctx, organizationID, addresses)
+	if err != nil {
+		return nil, err
+	}
+	blocks := map[string]string{}
+	for _, address := range addresses {
+		key := deliveryContract.NormalizedEmailAddress(address)
+		mark := deliveryContract.EmailAddressMark("")
+		if listed[key] {
+			mark = deliveryContract.EmailMarkFailed
+		}
+		if block := deliveryContract.EmailSendBlockOf(mark, stopped[key], "", ""); block != "" {
+			blocks[address] = string(block)
+		}
+	}
+	return blocks, nil
 }
 
 // ShareMailBlockLimit lets one request share the limits of the provider's read.

@@ -597,6 +597,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (m careContractModes) ConclusionMode(ctx context.Context, _ int64) (string, error) {\n\tmode, err := m.settings.ResolveString(ctx, configModels.KeyCareContractConclusionMode)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\tif mode != carecontract.ModeSendLater \u0026\u0026 mode != carecontract.ModeOnAcceptance {\n\t\treturn \"\", fmt.Errorf(\"care contract: unknown conclusion mode %q\", mode)\n\t}\n\treturn mode, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/careContractModes.ConclusionMode",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p careContractPost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {\n\tstatuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID, deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tstates := make([]carecontract.MailState, len(statuses))\n\tfor i, status := range statuses {\n\t\tstates[i] = carecontract.MailState{OutboxID: status.ID, State: contractMailState(status.Outcome), Outcome: string(status.Outcome)}\n\t}\n\treturn states, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/careContractPost.ContractMailStates",

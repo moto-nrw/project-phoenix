@@ -60,4 +60,5 @@ type EmailOutcomeStore interface {
 	EmailAddressMarks(ctx context.Context, tenantID int64, addresses []string) (map[string]deliveryContract.EmailAddressMark, error)
 	StoppedEmailAddresses(ctx context.Context, tenantID int64, addresses []string) (map[string]bool, error)
 	TraegerMailHolds(ctx context.Context, organizationID int64, address string) (listed, stopped bool, err error)
+	TraegerMailHoldsOf(ctx context.Context, organizationID int64, addresses []string) (listed, stopped map[string]bool, err error)
 }
