@@ -346,14 +346,23 @@ export function EnrollmentForm({
   withoutSignature = false,
 }: Props) {
   const intl = useCareTermTranslations("enrollmentForm");
+  // Read at call time, so the translator and the effects that depend on it
+  // stay put when the school's term arrives (#6042).
   const careTerm = useCareFacilityTerm();
+  const careTermRef = useRef(careTerm);
+  careTermRef.current = careTerm;
   const activeLocale = useLocale();
   // School-written texts follow the same opt-in as the form chrome: staff
   // previews stay German even when a parent locale cookie exists (#3377).
   const contentLocale = localizedCopy ? activeLocale : DEFAULT_LOCALE;
   const tr = useMemo(
-    () => makeEnrollmentFormTranslator(intl, localizedCopy, careTerm),
-    [intl, localizedCopy, careTerm],
+    () =>
+      makeEnrollmentFormTranslator(
+        intl,
+        localizedCopy,
+        () => careTermRef.current,
+      ),
+    [intl, localizedCopy],
   );
   const { tenantSlug } = useTenant();
   const signatureLabels = useMemo(
@@ -2908,7 +2917,7 @@ const GERMAN_ENROLLMENT_FORM_MESSAGES = germanEnrollmentFormMessages as Record<
 function makeEnrollmentFormTranslator(
   intl: ReturnType<typeof useCareTermTranslations>,
   localizedCopy: boolean,
-  careTerm: string,
+  careTerm: () => string,
 ): EnrollmentFormTranslator {
   if (localizedCopy) {
     return Object.assign(
@@ -2922,7 +2931,7 @@ function makeEnrollmentFormTranslator(
       if (typeof value !== "string") return key;
       // The German staff preview names the school's care like the parents'
       // form does (#6042).
-      return interpolateMessage(value, { careTerm, ...values });
+      return interpolateMessage(value, { careTerm: careTerm(), ...values });
     },
     { raw: (key: string) => readGermanMessage(key) },
   );

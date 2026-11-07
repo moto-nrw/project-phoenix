@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -73,16 +74,24 @@ type TranslationValues = Record<string, unknown> | undefined;
 /**
  * `useTranslations` with the school's term as the `{careTerm}` value of
  * every message. A value the caller passes keeps its own content; messages
- * without the placeholder ignore it.
+ * without the placeholder ignore it. The translator keeps its identity when
+ * the term arrives: status and edit pages load their data in effects that
+ * depend on it, and a new translator would load everything again. Callers
+ * still re-render with the new term because they read this context.
  */
 export function useCareTermTranslations(namespace: string): Translator {
   const t = useTranslations(namespace);
   const careTerm = useCareFacilityTerm();
-  return useMemo(() => withCareTerm(t, careTerm), [t, careTerm]);
+  const termRef = useRef(careTerm);
+  termRef.current = careTerm;
+  return useMemo(() => withCareTerm(t, () => termRef.current), [t]);
 }
 
-function withCareTerm(t: Translator, careTerm: string): Translator {
-  const merge = (values: TranslationValues) => ({ careTerm, ...values });
+function withCareTerm(t: Translator, careTerm: () => string): Translator {
+  const merge = (values: TranslationValues) => ({
+    careTerm: careTerm(),
+    ...values,
+  });
   // The translator's overloads are typed per key; the wrapper forwards the
   // same arguments with one more value, so it keeps the original type.
   const call = t as unknown as (...args: unknown[]) => unknown;

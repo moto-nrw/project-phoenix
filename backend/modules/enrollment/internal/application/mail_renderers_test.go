@@ -450,3 +450,33 @@ func TestRenderersPassTheCareFacilityTermToTheHeader(t *testing.T) {
 		assert.Equal(t, "GTS", contentOf(t, mail)["CareFacilityTerm"], name)
 	}
 }
+
+// The logo stand-in of the mail header is a 48 px circle (#6042): a term of
+// up to four characters fits as it is, a longer one shows at most three
+// initials. The full term stays in the header text, which wraps.
+func TestCareFacilityBadgeStaysShort(t *testing.T) {
+	t.Parallel()
+	for term, want := range map[string]string{
+		"":                          "",
+		"GTS":                       "GTS",
+		"Hort":                      "Hort",
+		"Ganztag Nord":              "GN",
+		"Offene Ganztagsschule":     "OG",
+		"OGS (Grundschule)":         "OG",
+		"Übermittagsbetreuung":      "Übe",
+		"Betreuung an der Schule 1": "BAD",
+	} {
+		assert.Equal(t, want, careFacilityBadge(term), term)
+	}
+
+	renderers := NewMailRenderers()
+	mail, err := render(renderers.Submitted, &outboxRow{Kind: "enrollment_submitted", Payload: map[string]any{
+		enrollment.EnrollmentPayloadRecipientEmail:   "guardian@example.test",
+		enrollment.EnrollmentPayloadStatusURL:        "https://parents.localhost:3000/status/abc",
+		enrollment.EnrollmentPayloadCareFacilityTerm: "Ganztag Nord",
+	}})
+	require.NoError(t, err)
+	content := contentOf(t, mail)
+	assert.Equal(t, "Ganztag Nord", content["CareFacilityTerm"])
+	assert.Equal(t, "GN", content["CareFacilityBadge"])
+}

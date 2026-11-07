@@ -28,7 +28,7 @@
     {{if .LogoURL}}
     <img class="school-logo" src="{{.LogoURL}}" alt="{{if .SchoolName}}{{.SchoolName}}{{else if .SchoolLogoAlt}}{{.SchoolLogoAlt}}{{else}}Logo der Schule{{end}}" />
     {{else}}
-    <div class="school-logo-fallback">{{if .CareFacilityTerm}}{{.CareFacilityTerm}}{{else}}OGS{{end}}</div>
+    <div class="school-logo-fallback">{{if .CareFacilityBadge}}{{.CareFacilityBadge}}{{else}}OGS{{end}}</div>
     {{end}}
     <div class="school-brand-copy">
         <p class="school-kicker">{{if .BrandKicker}}{{.BrandKicker}}{{else if .DefaultBrandKicker}}{{.DefaultBrandKicker}}{{else}}Online-Anmeldung{{end}}</p>

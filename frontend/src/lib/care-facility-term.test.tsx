@@ -69,4 +69,31 @@ describe("care facility term (#6042)", () => {
       screen.getByText("Die Anmeldung liegt der GTS vor."),
     ).toBeInTheDocument();
   });
+
+  it("keeps the translator when the term arrives, so loads do not run again", () => {
+    // Status and edit pages load their data in effects that depend on the
+    // translator; a new identity for the term would load everything again.
+    tenantWithTerm("OGS");
+    const seen: unknown[] = [];
+    function Probe({ term }: { readonly term?: string }) {
+      useProvideCareFacilityTerm(term);
+      const t = useCareTermTranslations("enrollmentStatus");
+      seen.push(t);
+      return <p>{t("stepOneStatus")}</p>;
+    }
+    const { rerender } = render(
+      <CareFacilityTermScope>
+        <Probe />
+      </CareFacilityTermScope>,
+    );
+    rerender(
+      <CareFacilityTermScope>
+        <Probe term="GTS" />
+      </CareFacilityTermScope>,
+    );
+    expect(
+      screen.getByText("Die Anmeldung liegt der GTS vor."),
+    ).toBeInTheDocument();
+    expect(new Set(seen).size).toBe(1);
+  });
 });

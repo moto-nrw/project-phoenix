@@ -49,8 +49,8 @@ import { NumberField } from "./fields/number-field";
 import { SettingsTimeField } from "./fields/time-field";
 import { DateField } from "./fields/date-field";
 import { TextField } from "./fields/text-field";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { type ColorPreset, ColorField } from "./fields/color-field";
-import { type TextPreset, TextPresetField } from "./fields/text-preset-field";
 import { TextareaField } from "./fields/textarea-field";
 import { PasswordField } from "./fields/password-field";
 import { SelectField } from "./fields/select-field";
@@ -551,6 +551,7 @@ export function SettingsField({
     [settingObject, showFieldError],
   );
 
+  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const doSave = useCallback(
     async (value: unknown): Promise<boolean> => {
       const localError = validateLocally(setting, value, categoryItems);
@@ -558,7 +559,13 @@ export function SettingsField({
         setHint(localError);
         return false;
       }
-      const outcome = await persistSetting(onSave, setting.key, value);
+      // Saves of one field run in order: a typed draft saved on blur must
+      // not land after a preset picked right after it (#6042).
+      const run = saveQueueRef.current.then(() =>
+        persistSetting(onSave, setting.key, value),
+      );
+      saveQueueRef.current = run.catch(() => undefined);
+      const outcome = await run;
       if (!outcome.ok) {
         reportFieldFailure(outcome, () => latestDoSaveRef.current(value));
         return false;
@@ -948,6 +955,23 @@ export function SettingsField({
     }
   }, [isDirty, localValue, saveOrConfirm]);
 
+  // A picked preset replaces any typed draft: the pending draft save stops
+  // and the field shows the preset at once, also when the server value does
+  // not change (#6042).
+  const handlePresetPick = useCallback(
+    async (value: unknown) => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      setLocalValue(value);
+      setIsDirty(true);
+      setHint(null);
+      await handleImmediateSave(value);
+    },
+    [handleImmediateSave],
+  );
+
   const performReset = useCallback(async () => {
     if (isResettingRef.current) return;
     isResettingRef.current = true;
@@ -1173,6 +1197,7 @@ export function SettingsField({
               handleBlur,
               revealFn,
               hint ? hintId : undefined,
+              handlePresetPick,
             )}
 
         {offersReset(setting, audience, deletesRoomHistory) && (
@@ -1920,8 +1945,77 @@ async function persistSetting(
 
 /** The preset colours a colour setting offers (registry `options.static`). */
 /** Presets of a text setting (#6042); they never restrict the value. */
-function textPresets(setting: ResolvedSetting): TextPreset[] {
+function textPresets(setting: ResolvedSetting): ColorPreset[] {
   return colorPresets(setting);
+}
+
+const OWN_TEXT_VALUE = "__own__";
+
+/**
+ * Text setting with presets (#6042): the presets and „Eigener Name“ are one
+ * value choice; the text field opens for the own name. A stored value
+ * outside the presets shows as the own name. `ownFor` keeps the field open
+ * for the value typed there, even when it equals a preset.
+ */
+function PresetTextField({
+  ariaLabel,
+  value,
+  onChange,
+  onPick,
+  onBlur,
+  disabled,
+  presets,
+  errorId,
+}: {
+  readonly ariaLabel: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly onPick: (value: string) => void;
+  readonly onBlur: () => Promise<void>;
+  readonly disabled: boolean;
+  readonly presets: readonly ColorPreset[];
+  readonly errorId?: string;
+}) {
+  const [ownFor, setOwnFor] = useState<string | null>(null);
+  const own =
+    !presets.some((preset) => preset.value === value) || ownFor === value;
+  return (
+    <div className="w-full min-w-0 space-y-3">
+      <SegmentedControl
+        ariaLabel={ariaLabel}
+        value={own ? OWN_TEXT_VALUE : value}
+        items={[
+          ...presets.map((preset) => ({
+            value: preset.value,
+            label: preset.label,
+            disabled,
+          })),
+          { value: OWN_TEXT_VALUE, label: "Eigener Name", disabled },
+        ]}
+        onChange={(next) => {
+          if (next === OWN_TEXT_VALUE) {
+            setOwnFor(value);
+            return;
+          }
+          setOwnFor(null);
+          onPick(next);
+        }}
+      />
+      {own && (
+        <TextField
+          ariaLabel={`${ariaLabel}: Eigener Name`}
+          value={value}
+          onChange={(next) => {
+            setOwnFor(next);
+            onChange(next);
+          }}
+          onBlur={() => void onBlur()}
+          disabled={disabled}
+          errorId={errorId}
+        />
+      )}
+    </div>
+  );
 }
 
 function colorPresets(setting: ResolvedSetting): ColorPreset[] {
@@ -1949,6 +2043,7 @@ function renderField(
   onBlur: () => Promise<void>,
   revealFn?: (key: string) => Promise<string | null>,
   errorId?: string,
+  onPresetPick?: (value: unknown) => Promise<void>,
 ) {
   const disabled = !setting.writable;
 
@@ -2002,15 +2097,14 @@ function renderField(
       const presets = textPresets(setting);
       if (presets.length > 0) {
         return (
-          <TextPresetField
+          <PresetTextField
             ariaLabel={setting.label}
             value={toStr(localValue)}
             onChange={onLocalChange}
-            onPick={(next) => void onImmediateSave(next)}
+            onPick={(next) => void (onPresetPick ?? onImmediateSave)(next)}
             onBlur={onBlur}
             disabled={disabled}
             presets={presets}
-            customLabel="Eigener Name"
             errorId={errorId}
           />
         );

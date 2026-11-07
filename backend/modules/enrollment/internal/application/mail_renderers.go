@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -143,6 +145,34 @@ func payloadStringSlice(payload map[string]any, key string) []string {
 	return nil
 }
 
+// careFacilityBadge is the text of the 48 px logo stand-in in the mail
+// header (#6042): a term of up to four characters as it is, else at most
+// three initials, or the first three characters of a single word. The full
+// term stays in the header text, which wraps.
+func careFacilityBadge(term string) string {
+	term = strings.TrimSpace(term)
+	if utf8.RuneCountInString(term) <= 4 {
+		return term
+	}
+	words := strings.Fields(term)
+	if len(words) == 1 {
+		return string([]rune(term)[:3])
+	}
+	initials := make([]rune, 0, 3)
+	for _, word := range words {
+		for _, r := range word {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+				initials = append(initials, unicode.ToUpper(r))
+				break
+			}
+		}
+		if len(initials) == 3 {
+			break
+		}
+	}
+	return string(initials)
+}
+
 // schoolSender is the sender name of a mail: the school's name, or "" for
 // the platform's default sender.
 func schoolSender(schoolName string) string {
@@ -179,6 +209,7 @@ func renderSubmitted(_ string, payload map[string]any) (*enrollment.RenderedMail
 			"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 			"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
 			"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
+			"CareFacilityBadge": careFacilityBadge(payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm)),
 			"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 		},
 	}, nil
@@ -218,6 +249,7 @@ func renderAdminNotification(_ string, payload map[string]any) (*enrollment.Rend
 			"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 			"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
 			"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
+			"CareFacilityBadge": careFacilityBadge(payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm)),
 			"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 		},
 	}, nil
@@ -272,6 +304,7 @@ func rolloverRenderer(spec rolloverRendererSpec) payloadRenderer {
 				"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 				"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
 				"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
+				"CareFacilityBadge": careFacilityBadge(payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm)),
 				"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 				"RolloverDeadline":  payloadString(payload, enrollment.EnrollmentPayloadRolloverDeadline),
 			},
@@ -308,6 +341,7 @@ func renderDecisionMail(kind string, payload map[string]any, subject, templateNa
 			"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 			"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
 			"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
+			"CareFacilityBadge": careFacilityBadge(payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm)),
 			"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 			"StatusReason":      payloadString(payload, enrollment.EnrollmentPayloadStatusReason),
 		},
@@ -370,6 +404,7 @@ func changeRequestRenderer(subject, templateName string) payloadRenderer {
 				"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 				"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
 				"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
+				"CareFacilityBadge": careFacilityBadge(payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm)),
 			},
 		}, nil
 	}

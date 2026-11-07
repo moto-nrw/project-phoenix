@@ -1597,15 +1597,25 @@ describe("SettingsField care-facility term", () => {
       ],
     },
   });
+  const ownField = (
+    getByRole: (role: string, options: object) => HTMLElement,
+  ) =>
+    getByRole("textbox", {
+      name: "Name der Betreuung in Texten für Eltern: Eigener Name",
+    });
 
-  it("saves GTS as soon as it is picked", async () => {
+  it("offers the presets as one value choice and saves GTS at once", async () => {
     const onSave = vi.fn().mockResolvedValue(null);
-    const { getByRole } = renderWithProviders(
+    const { getByRole, queryByRole } = renderWithProviders(
       <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
     );
 
-    expect(getByRole("radio", { name: "OGS" })).toBeChecked();
-    fireEvent.click(getByRole("radio", { name: "GTS" }));
+    expect(getByRole("button", { name: "OGS" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(queryByRole("textbox")).not.toBeInTheDocument();
+    fireEvent.click(getByRole("button", { name: "GTS" }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -1621,10 +1631,8 @@ describe("SettingsField care-facility term", () => {
       <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
     );
 
-    fireEvent.click(getByRole("radio", { name: "Eigener Name" }));
-    const field = getByRole("textbox", {
-      name: "Name der Betreuung in Texten für Eltern: Eigener Name",
-    });
+    fireEvent.click(getByRole("button", { name: "Eigener Name" }));
+    const field = ownField(getByRole);
     fireEvent.change(field, { target: { value: "<b>GTS</b>" } });
     fireEvent.blur(field);
 
@@ -1640,10 +1648,8 @@ describe("SettingsField care-facility term", () => {
       <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
     );
 
-    fireEvent.click(getByRole("radio", { name: "Eigener Name" }));
-    const field = getByRole("textbox", {
-      name: "Name der Betreuung in Texten für Eltern: Eigener Name",
-    });
+    fireEvent.click(getByRole("button", { name: "Eigener Name" }));
+    const field = ownField(getByRole);
     fireEvent.change(field, { target: { value: "Ganztag Nord" } });
     fireEvent.blur(field);
 
@@ -1653,5 +1659,67 @@ describe("SettingsField care-facility term", () => {
         "Ganztag Nord",
       ),
     );
+  });
+
+  it("replaces a refused draft with the picked preset", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole, findByText, queryByRole } = renderWithProviders(
+      <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
+    );
+
+    fireEvent.click(getByRole("button", { name: "Eigener Name" }));
+    const field = ownField(getByRole);
+    fireEvent.change(field, { target: { value: "<b>" } });
+    fireEvent.blur(field);
+    await findByText(/Erlaubt sind Buchstaben, Ziffern/);
+
+    fireEvent.click(getByRole("button", { name: "OGS" }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        "enrollment.care_facility_term",
+        "OGS",
+      ),
+    );
+    expect(getByRole("button", { name: "OGS" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("saves a preset only after the own name saved on blur", async () => {
+    let finishDraft: () => void = () => undefined;
+    const onSave = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<null>((resolve) => {
+            finishDraft = () => resolve(null);
+          }),
+      )
+      .mockResolvedValue(null);
+    const { getByRole } = renderWithProviders(
+      <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
+    );
+
+    fireEvent.click(getByRole("button", { name: "Eigener Name" }));
+    const field = ownField(getByRole);
+    fireEvent.change(field, { target: { value: "Ganztag Nord" } });
+    fireEvent.blur(field);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(getByRole("button", { name: "GTS" }));
+    await Promise.resolve();
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    finishDraft();
+    await waitFor(() =>
+      expect(onSave).toHaveBeenLastCalledWith(
+        "enrollment.care_facility_term",
+        "GTS",
+      ),
+    );
+    expect(onSave).toHaveBeenCalledTimes(2);
   });
 });

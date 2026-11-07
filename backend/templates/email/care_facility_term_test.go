@@ -37,6 +37,7 @@ func TestSchoolBrandTemplate_CareFacilityTerm(t *testing.T) {
 
 	chosen := base()
 	chosen["CareFacilityTerm"] = "GTS"
+	chosen["CareFacilityBadge"] = "GTS"
 	out := render(chosen)
 	assert.True(t, strings.Contains(out, `<div class="school-logo-fallback">GTS</div>`), "logo stand-in names GTS")
 	assert.True(t, strings.Contains(out, `<p class="school-name">Ihre GTS</p>`), "name stand-in names GTS")
@@ -45,7 +46,16 @@ func TestSchoolBrandTemplate_CareFacilityTerm(t *testing.T) {
 
 	escaped := base()
 	escaped["CareFacilityTerm"] = "<b>GTS</b>"
+	escaped["CareFacilityBadge"] = "<b>"
 	assert.False(t, strings.Contains(render(escaped), "<b>GTS</b>"), "a term is text, never markup")
+
+	// A long own name keeps the short badge and the full name as text.
+	long := base()
+	long["CareFacilityTerm"] = "Betreuung an der Schule am Markt"
+	long["CareFacilityBadge"] = "BAD"
+	out = render(long)
+	assert.True(t, strings.Contains(out, `<div class="school-logo-fallback">BAD</div>`), "badge stays short")
+	assert.True(t, strings.Contains(out, `<p class="school-name">Ihre Betreuung an der Schule am Markt</p>`), "full name as text")
 
 	unchanged := render(base())
 	assert.True(t, strings.Contains(unchanged, `<div class="school-logo-fallback">OGS</div>`), "default logo stand-in")
