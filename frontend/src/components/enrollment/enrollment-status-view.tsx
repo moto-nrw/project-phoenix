@@ -118,6 +118,9 @@ function EnrollmentStatusViewContent({
   parentAppHref,
 }: Props) {
   const t = useCareTermTranslations("enrollmentStatus");
+  // Loading depends on these texts, not on the asynchronously loaded care term.
+  const loadErrorObject = t("errorObject");
+  const requestsLoadErrorObject = t("errorObjectChangeRequests");
   const toast = useToast();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   useProvideCareFacilityTerm(status?.care_facility_term);
@@ -176,7 +179,7 @@ function EnrollmentStatusViewContent({
             error: err instanceof Error ? err.message : String(err),
           });
           void showRequestsLoadError(err, {
-            object: t("errorObjectChangeRequests"),
+            object: requestsLoadErrorObject,
             retry: () => void loadRef.current(),
           });
           return null;
@@ -197,7 +200,7 @@ function EnrollmentStatusViewContent({
         error: err instanceof Error ? err.message : String(err),
       });
       void showLoadError(err, {
-        object: t("errorObject"),
+        object: loadErrorObject,
         retry: () => void loadRef.current(),
       });
     } finally {
@@ -205,7 +208,8 @@ function EnrollmentStatusViewContent({
     }
   }, [
     token,
-    t,
+    loadErrorObject,
+    requestsLoadErrorObject,
     clearLoadError,
     clearRequestsLoadError,
     showLoadError,

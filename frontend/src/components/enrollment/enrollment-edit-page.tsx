@@ -54,6 +54,8 @@ export function EnrollmentEditPage(props: Props) {
 function EnrollmentEditPageContent({ params, adjustOnly = false }: Props) {
   const { token } = use(params);
   const t = useCareTermTranslations("enrollmentStatus");
+  const loadErrorObject = t("errorObject");
+  const loadErrorFallback = t("editLoadError");
   const router = useRouter();
   const pathname = usePathname();
   const statusHref = pathname?.replace(/\/(edit|adjust)\/?$/, "") || ".";
@@ -93,7 +95,7 @@ function EnrollmentEditPageContent({ params, adjustOnly = false }: Props) {
       try {
         const result = await fetchEnrollmentEditBootstrap(
           token,
-          t("editLoadError"),
+          loadErrorFallback,
         );
         if (!cancelled) setLoaded({ token, bootstrap: result });
       } catch (err) {
@@ -102,7 +104,7 @@ function EnrollmentEditPageContent({ params, adjustOnly = false }: Props) {
         });
         if (!cancelled) {
           void showLoadError(err, {
-            object: t("errorObject"),
+            object: loadErrorObject,
             retry: () => setLoadAttempt((n) => n + 1),
           });
         }
@@ -114,7 +116,14 @@ function EnrollmentEditPageContent({ params, adjustOnly = false }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [token, t, loadAttempt, clearLoadError, showLoadError]);
+  }, [
+    token,
+    loadErrorObject,
+    loadErrorFallback,
+    loadAttempt,
+    clearLoadError,
+    showLoadError,
+  ]);
 
   const submitter = useCallback(
     async (payload: SubmitEnrollmentPayload) => {

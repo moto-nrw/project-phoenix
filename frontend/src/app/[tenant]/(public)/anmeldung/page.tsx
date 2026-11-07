@@ -43,6 +43,7 @@ const logger = createLogger({ component: "EnrollPhasePicker" });
  */
 export default function EnrollPhasePickerPage() {
   const t = useCareTermTranslations("enrollmentPublic");
+  const loadErrorObject = t("errorObjectPhases");
   const locale = useLocale();
   const { tenantSlug, tenant } = useTenant();
   const tenantPath = useTenantAwarePath();
@@ -81,7 +82,7 @@ export default function EnrollPhasePickerPage() {
           setEnrollmentDisabled(true);
         } else {
           void showLoadError(err, {
-            object: t("errorObjectPhases"),
+            object: loadErrorObject,
             retry: () => setLoadAttempt((n) => n + 1),
           });
         }
@@ -93,7 +94,7 @@ export default function EnrollPhasePickerPage() {
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug, t, loadAttempt, clearLoadError, showLoadError]);
+  }, [tenantSlug, loadErrorObject, loadAttempt, clearLoadError, showLoadError]);
 
   if (loading) {
     return (

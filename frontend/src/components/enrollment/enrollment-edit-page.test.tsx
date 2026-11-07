@@ -96,6 +96,7 @@ vi.mock("~/components/enrollment/enrollment-form", () => ({
 import { EnrollmentEditPage } from "./enrollment-edit-page";
 
 const bootstrap = {
+  care_facility_term: "GTS",
   phase: {
     id: "5",
     name: "2026",
@@ -166,6 +167,7 @@ describe("EnrollmentEditPage", () => {
       "tok",
       "Enrollment cannot be edited",
     );
+    expect(mockFetchEnrollmentEditBootstrap).toHaveBeenCalledTimes(1);
   });
 
   it("withholds the form when the bootstrap omits a supported grade cap", async () => {

@@ -174,6 +174,8 @@ describe("EnrollmentStatusView", () => {
 
     expect((await screen.findAllByText(/\bGTS\b/)).length).toBeGreaterThan(0);
     expect(screen.queryAllByText(/\bOGS\b/)).toHaveLength(0);
+    expect(mockFetchStatus).toHaveBeenCalledTimes(1);
+    expect(mockListEnrollmentChangeRequests).toHaveBeenCalledTimes(1);
   });
 
   it("uses the renamed parent route for direct edits", async () => {

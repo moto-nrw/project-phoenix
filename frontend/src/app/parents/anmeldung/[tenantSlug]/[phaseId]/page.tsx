@@ -61,6 +61,7 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
 
 function ParentEnrollFormPageContent({ params }: PageProps) {
   const t = useCareTermTranslations("enrollmentPublic");
+  const loadErrorObject = t("errorObjectForm");
   const { tenantSlug, phaseId } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -127,7 +128,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
       .catch((err: unknown) => {
         if (cancelled) return;
         void showLoadError(err, {
-          object: t("errorObjectForm"),
+          object: loadErrorObject,
           retry: () => setLoadAttempt((n) => n + 1),
         });
       })
@@ -145,7 +146,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
     loadAttempt,
     clearLoadError,
     showLoadError,
-    t,
+    loadErrorObject,
     targetPath,
   ]);
 

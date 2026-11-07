@@ -58,6 +58,7 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
 
 function EnrollPhaseFormPageContent({ params }: PageProps) {
   const t = useCareTermTranslations("enrollmentPublic");
+  const loadErrorObject = t("errorObjectForm");
   const locale = useLocale();
   const { phaseId } = use(params);
   const router = useRouter();
@@ -91,7 +92,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
       .catch((err: unknown) => {
         if (!cancelled) {
           void showLoadError(err, {
-            object: t("errorObjectForm"),
+            object: loadErrorObject,
             retry: () => setLoadAttempt((n) => n + 1),
           });
         }
@@ -106,7 +107,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
     lateInviteToken,
     phaseId,
     tenantSlug,
-    t,
+    loadErrorObject,
     loadAttempt,
     clearLoadError,
     showLoadError,

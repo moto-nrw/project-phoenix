@@ -1,5 +1,6 @@
 import { renderHook, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { Suspense } from "react";
 import { useTenantSafe } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
 import {
@@ -70,11 +71,42 @@ describe("care facility term (#6042)", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps the translator when the term arrives, so loads do not run again", () => {
-    // Status and edit pages load their data in effects that depend on the
-    // translator; a new identity for the term would load everything again.
+  it("does not leak a suspended render's term into committed translations", () => {
     tenantWithTerm("OGS");
-    const seen: unknown[] = [];
+    const pending = new Promise<void>(() => undefined);
+    const seen: ReturnType<typeof useCareTermTranslations>[] = [];
+    function Probe({ suspended }: { readonly suspended: boolean }) {
+      const t = useCareTermTranslations("enrollmentStatus");
+      if (suspended) throw pending;
+      seen.push(t);
+      return <p>{t("stepOneStatus")}</p>;
+    }
+    const { rerender } = render(
+      <Suspense fallback={<p>Waiting</p>}>
+        <Probe suspended={false} />
+      </Suspense>,
+    );
+    const committed = seen[0];
+    expect(
+      screen.getByText("Die Anmeldung liegt der OGS vor."),
+    ).toBeInTheDocument();
+
+    tenantWithTerm("GTS");
+    rerender(
+      <Suspense fallback={<p>Waiting</p>}>
+        <Probe suspended />
+      </Suspense>,
+    );
+
+    expect(screen.getByText("Waiting")).toBeInTheDocument();
+    expect(committed?.("stepOneStatus")).toBe(
+      "Die Anmeldung liegt der OGS vor.",
+    );
+  });
+
+  it("updates rendered text without changing earlier translations", () => {
+    tenantWithTerm("OGS");
+    const seen: ReturnType<typeof useCareTermTranslations>[] = [];
     function Probe({ term }: { readonly term?: string }) {
       useProvideCareFacilityTerm(term);
       const t = useCareTermTranslations("enrollmentStatus");
@@ -94,6 +126,9 @@ describe("care facility term (#6042)", () => {
     expect(
       screen.getByText("Die Anmeldung liegt der GTS vor."),
     ).toBeInTheDocument();
-    expect(new Set(seen).size).toBe(1);
+    expect(seen[0]?.("stepOneStatus")).toBe("Die Anmeldung liegt der OGS vor.");
+    expect(seen.at(-1)?.("stepOneStatus")).toBe(
+      "Die Anmeldung liegt der GTS vor.",
+    );
   });
 });
