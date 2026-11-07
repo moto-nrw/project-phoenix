@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentcompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -109,11 +108,20 @@ func TestHolidayCareHistorySurvivesRegistrationRetention(t *testing.T) {
 				want = []string{"2020-07-06..2020-07-07 08:00/16:00", "2020-07-08..2020-07-08 09:00/13:00", "2020-07-09..2020-07-10 10:00/17:00"}
 				require.Equal(t, want, read(f.host))
 			}
-			retention := enrollmentcompose.NewHolidayRegistrationRetention(func() calendar.Date { return calendar.NewDate(2020, 10, 12) })
-			err = testpkg.WithinAdminContext(t, ctx, db, func(ctx context.Context) error {
-				_, err := retention.DeleteExpiredHolidayRegistrations(ctx)
-				return err
-			})
+			// Exercise the schema boundary directly, without composing Enrollment
+			// from a migration test: the retention deletes registrations and audit
+			// in one statement, and cascades their children/bookings. In particular,
+			// the trigger must resolve rebookings while that audit is being deleted.
+			_, err = db.ExecContext(ctx, `WITH ended AS (
+    SELECT organization_id, holiday_period_id FROM enrollment.holiday_period_weeks
+    GROUP BY organization_id, holiday_period_id HAVING max(ends_on) < ?
+   ), audit AS (
+    DELETE FROM enrollment.holiday_registration_audit AS entry USING ended
+    WHERE entry.organization_id=ended.organization_id AND entry.holiday_period_id=ended.holiday_period_id
+   )
+   DELETE FROM enrollment.holiday_registrations AS registration USING ended
+   WHERE registration.organization_id=ended.organization_id AND registration.holiday_period_id=ended.holiday_period_id`,
+				calendar.NewDate(2020, 10, 12).AddDays(-92))
 			require.NoError(t, err)
 			var remaining int
 			require.NoError(t, db.NewRaw(`SELECT count(*) FROM enrollment.holiday_registration_children WHERE id=?`, child).Scan(ctx, &remaining))
@@ -126,9 +134,17 @@ func TestHolidayCareHistorySurvivesRegistrationRetention(t *testing.T) {
 			require.NoError(t, db.NewRaw(`SELECT has_function_privilege('phoenix_tenant',
   'enrollment.holiday_host_booked_windows_for_retention(date,date,bigint,bigint)','EXECUTE')`).Scan(ctx, &publicHelper))
 			assert.False(t, publicHelper)
-			_, err = db.ExecContext(ctx, `DELETE FROM users.student_profiles WHERE tenant_id=? AND id=?`, f.host, student.ID)
-			require.NoError(t, err)
-			assert.Empty(t, read(f.host), "retained care windows go with the school's guest child")
+			if rebook {
+				result := eraseSchoolAsCLI(t, db, f.host, beginErasure(t, db, f.host))
+				require.Equal(t, "db_done", result.Status, "school erasure includes the retained care copy: %v", result.ErrorCode)
+				assert.EqualValues(t, 1, result.RowCounts["enrollment.holiday_guests"])
+			} else {
+				_, err = db.ExecContext(ctx, `DELETE FROM users.student_profiles WHERE tenant_id=? AND id=?`, f.host, student.ID)
+				require.NoError(t, err)
+			}
+			require.NoError(t, db.NewRaw(`SELECT count(*) FROM enrollment.holiday_guests WHERE tenant_id=? AND student_id=?`, f.host, student.ID).Scan(ctx, &remaining))
+			assert.Zero(t, remaining, "retained care windows go with the guest child or its erased school")
+			assert.Empty(t, read(f.host))
 		})
 	}
 }
