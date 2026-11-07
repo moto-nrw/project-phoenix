@@ -43,6 +43,18 @@ describe("CareDuplicatesCard", () => {
     expect(screen.getByText("1 Kind")).toBeInTheDocument();
   });
 
+  it("names the children a released run left out", () => {
+    render(<CareDuplicatesCard duplicates={[duplicate("mon")]} released />);
+    expect(
+      screen.getByRole("heading", {
+        name: "Nicht abgerechnet – Doppelter Vertrag",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Sie sind in diesem Lauf nicht abgerechnet/),
+    ).toBeInTheDocument();
+  });
+
   it("shows nothing without a duplicate", () => {
     const { container } = render(
       <div data-testid="anchor">

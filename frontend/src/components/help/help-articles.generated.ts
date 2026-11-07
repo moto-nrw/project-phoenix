@@ -10358,7 +10358,7 @@ export const traegerCareMonthsTopic =
             "Wählen Sie `Monatslauf starten`, dann den Monat und `Lauf starten`.",
             "Prüfen Sie die Rechnungen. Je Schule steht eine Karte. Jede Rechnung hat je Modul eine Zeile mit den gebuchten Wochentagen.",
             "Steht oben `Ohne Preis`, fehlt für einen gebuchten Wochentag ein Preis. Wählen Sie `Preis eintragen`. Danach kommt das Kind in den Lauf.",
-            "Steht oben `Doppelter Vertrag – bitte prüfen`, hat ein Kind zwei gültige Verträge für dasselbe Modul am selben Tag. Der Lauf rechnet es nicht ab. Öffnen Sie die Verträge und beenden oder ändern Sie einen davon. Danach kommt das Kind in den Lauf.",
+            "Steht oben `Doppelter Vertrag – bitte prüfen`, hat ein Kind zwei gültige Verträge für dasselbe Modul am selben Tag. Die Freigabe rechnet dieses Kind nicht ab, alle anderen schon. Nach der Freigabe steht es unter `Nicht abgerechnet – Doppelter Vertrag`. Öffnen Sie die Verträge und beenden oder ändern Sie einen davon. Starten Sie dann einen neuen Monatslauf für diesen Monat. Er rechnet nur dieses Kind ab.",
           ],
         },
         {

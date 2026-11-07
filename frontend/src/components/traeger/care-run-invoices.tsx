@@ -294,12 +294,14 @@ function bookedTwice(entries: readonly CareDuplicate[]): string {
 
 /**
  * The children with two active contracts for the same module and weekday.
- * The run bills none of them, so no child pays twice and none drops out
- * unnoticed; each contract opens from here.
+ * The run and its release bill none of them, so no child pays twice and
+ * none drops out unnoticed; after the release they stay here until a later
+ * run of the month bills them. Each contract opens from here.
  */
 export function CareDuplicatesCard({
   duplicates,
-}: Readonly<{ duplicates: readonly CareDuplicate[] }>) {
+  released = false,
+}: Readonly<{ duplicates: readonly CareDuplicate[]; released?: boolean }>) {
   if (duplicates.length === 0) return null;
   const children = new Map<string, CareDuplicate[]>();
   for (const entry of duplicates) {
@@ -310,13 +312,21 @@ export function CareDuplicatesCard({
   }
   return (
     <SectionCard
-      title="Doppelter Vertrag – bitte prüfen"
+      title={
+        released
+          ? "Nicht abgerechnet – Doppelter Vertrag"
+          : "Doppelter Vertrag – bitte prüfen"
+      }
       titleBadge={
         <span className="text-moto-orange-strong text-sm font-medium">
           {children.size === 1 ? "1 Kind" : `${children.size} Kinder`}
         </span>
       }
-      description="Diese Kinder haben zwei gültige Verträge für dasselbe Modul am selben Tag. Der Lauf rechnet sie nicht ab, damit niemand doppelt zahlt. Beenden oder ändern Sie einen der Verträge. Danach kommt das Kind in den Lauf."
+      description={
+        released
+          ? "Diese Kinder haben zwei gültige Verträge für dasselbe Modul am selben Tag. Sie sind in diesem Lauf nicht abgerechnet. Beenden oder ändern Sie einen der Verträge. Danach rechnet ein neuer Monatslauf das Kind für diesen Monat ab."
+          : "Diese Kinder haben zwei gültige Verträge für dasselbe Modul am selben Tag. Die Freigabe rechnet sie nicht ab, alle anderen Kinder schon. Beenden oder ändern Sie einen der Verträge. Danach rechnet ein neuer Monatslauf das Kind ab."
+      }
     >
       <ResponsiveActionList>
         {[...children.entries()].map(([key, entries]) => {

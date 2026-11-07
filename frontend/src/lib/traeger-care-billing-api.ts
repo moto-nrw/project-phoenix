@@ -151,6 +151,8 @@ export interface CareRunDetail extends CareRun {
   readonly invoices: readonly CareInvoice[];
   readonly unpriced: readonly CareUnpriced[];
   readonly duplicates: readonly CareDuplicate[];
+  /** The children of `duplicates`; the release bills none of them. */
+  readonly duplicateChildren: number;
   readonly billed: number;
   readonly previewCount: number;
   readonly previewCents: number;
@@ -253,6 +255,7 @@ interface BackendRunDetail extends BackendRun {
           | null;
       }[]
     | null;
+  duplicate_children: number;
   billed: number;
   preview_count: number;
   preview_cents: number;
@@ -367,6 +370,7 @@ function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
         schoolName: contract.school_name,
       })),
     })),
+    duplicateChildren: detail.duplicate_children ?? 0,
     billed: detail.billed,
     previewCount: detail.preview_count,
     previewCents: detail.preview_cents,

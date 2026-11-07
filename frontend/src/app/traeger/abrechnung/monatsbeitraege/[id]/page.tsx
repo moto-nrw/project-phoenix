@@ -44,6 +44,17 @@ import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerCareRunPage" });
 
+/**
+ * "1 Kind mit doppeltem Vertrag wird nicht abgerechnet.", after the release
+ * "… ist nicht abgerechnet."
+ */
+function notBilledLabel(children: number, released = false): string {
+  if (children === 1) {
+    return `1 Kind mit doppeltem Vertrag ${released ? "ist" : "wird"} nicht abgerechnet.`;
+  }
+  return `${children} Kinder mit doppeltem Vertrag ${released ? "sind" : "werden"} nicht abgerechnet.`;
+}
+
 export default function TraegerCareRunPage() {
   const params = useParams<{ id: string }>();
   const runId = params?.id ?? "";
@@ -78,9 +89,14 @@ export default function TraegerCareRunPage() {
     if (!run) return;
     setReleasing(true);
     try {
-      setRun(await releaseCareRun(run));
+      const released = await releaseCareRun(run);
+      setRun(released);
       setConfirming(false);
-      success("Der Lauf ist freigegeben. Die Rechnungen sind ausgestellt.");
+      success(
+        released.duplicateChildren > 0
+          ? `Der Lauf ist freigegeben. ${notBilledLabel(released.duplicateChildren, true)}`
+          : "Der Lauf ist freigegeben. Die Rechnungen sind ausgestellt.",
+      );
     } catch (err) {
       logger.error("traeger_care_run_release_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -150,6 +166,12 @@ export default function TraegerCareRunPage() {
               {formatEuro(run.previewCents)} für {formatMonth(run.billingMonth)}{" "}
               bekommen ihre Nummer. Danach lassen sie sich nicht mehr ändern.
             </p>
+            {run.duplicateChildren > 0 ? (
+              <p className="mt-3 text-sm text-gray-700">
+                {notBilledLabel(run.duplicateChildren)} Das holen Sie mit einem
+                neuen Lauf nach, wenn ein Vertrag beendet ist.
+              </p>
+            ) : null}
           </ConfirmationModal>
         ) : null
       }
@@ -213,7 +235,7 @@ export default function TraegerCareRunPage() {
               }
             />
           ) : null}
-          {preview ? <CareDuplicatesCard duplicates={run.duplicates} /> : null}
+          <CareDuplicatesCard duplicates={run.duplicates} released={!preview} />
           {preview ? <CareUnpricedCard unpriced={run.unpriced} /> : null}
           <CareRunInvoices
             invoices={run.invoices}
