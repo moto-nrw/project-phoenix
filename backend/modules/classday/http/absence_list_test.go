@@ -229,6 +229,44 @@ func TestAbsenceListIncludesEndedCare(t *testing.T) {
 	assert.Equal(t, absenceListCounts{AbsentDays: 1, UnexcusedDays: 1, NotRecordedDays: 3}, counts[f.present])
 }
 
+// A child whose care ended on Friday gets a return scheduled on Monday for a
+// later start (#6041 review). The resumption stores the child as pending with
+// the new start and no end, which says nothing about the care before; the
+// days the child was cared for must keep their rows and counts.
+func TestAbsenceListPreservesCareBeforeAScheduledReturn(t *testing.T) {
+	t.Parallel()
+	f := setupMorningAttendanceFixture(t, morningMonday)
+	end := calendar.Date("2099-02-27")
+	testpkg.SetStudentLifecycle(t, f.db, f.present, "active", nil, &end)
+	insertMorningMark(t, f.db, f.tenantID, f.present, "2099-02-25", "absent")
+	_ = testpkg.CreateTestStudentStatusDay(t, f.db, f.present, end, "excused")
+	path := "/absence-list?class=" + f.class + "&from=2099-02-23&to=" + morningMonday
+	read := func() absenceListBody {
+		rec := f.do(t, http.MethodGet, path, "", classDayReadPermission)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var envelope struct {
+			Data absenceListBody `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
+		return envelope.Data
+	}
+	before := read()
+	counts := map[int64]absenceListCounts{}
+	for _, child := range before.Children {
+		counts[child.StudentID] = child.absenceListCounts
+	}
+	require.Contains(t, counts, f.present)
+	require.Equal(t, absenceListCounts{AbsentDays: 2, ExcusedDays: 1, UnexcusedDays: 1, NotRecordedDays: 3}, counts[f.present])
+
+	// What the resumption writes (ResumeStudentCare): the new start, no end,
+	// pending until the start day.
+	restart := calendar.Date("2099-04-19")
+	testpkg.SetStudentLifecycle(t, f.db, f.present, "pending", &restart, nil)
+	after := read()
+	assert.Equal(t, before.Children, after.Children, "scheduling the return must keep the rows and counts of the earlier care")
+	assert.Equal(t, before.Totals, after.Totals)
+}
+
 func TestAbsenceListPreservesDatedAlumni(t *testing.T) {
 	t.Parallel()
 	f := setupMorningAttendanceFixture(t, morningMonday)

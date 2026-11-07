@@ -37,6 +37,8 @@ export function missingChildOrGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       "Ein Kind kann an einem anderen Tag anders eingeplant sein.",
       "Vorübergehend übernommene Gruppen gelten nur bis zum Ende des Tages.",
       "Gelöschte oder noch nicht übernommene Kinder erscheinen nicht in der normalen Kinderliste.",
+      // #6041: ein Kind mit geplantem späterem Start zählt erst ab dem Start.
+      "Ist der Start eines Kindes für später geplant, steht es erst ab dem Start unter `Alle Kinder`. Vorher finden Sie es unter `Datenverwaltung` und danach `Kinderdaten`.",
     ],
     related: [HELP_TOPICS.studentSearch, HELP_TOPICS.ownGroups],
   };
