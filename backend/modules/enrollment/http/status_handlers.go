@@ -52,6 +52,10 @@ type StatusResponse struct {
 	// Signature describes the signature of the current version, without
 	// the image; the proof PDF carries it.
 	Signature *RequestSignatureResponse `json:"signature,omitempty"`
+	// CareFacilityTerm is the school's term for its care, filled into the
+	// page's fixed texts (#6042). The token page runs on the parents host
+	// without a school context, so it travels with the status.
+	CareFacilityTerm string `json:"care_facility_term"`
 }
 
 // StatusGuardianResponse is one additional guardian on the public status
@@ -86,6 +90,7 @@ type EditBootstrapResponse struct {
 	CollectGradeLevel         bool                      `json:"collect_grade_level"`
 	CareOfferingsEnabled      bool                      `json:"care_offerings_enabled"`
 	GradeLevelMax             int                       `json:"grade_level_max"`
+	CareFacilityTerm          string                    `json:"care_facility_term"`
 	LegalTexts                PublicLegalTextsResponse  `json:"legal_texts"`
 	Draft                     EditDraftResponse         `json:"draft"`
 	EditMode                  string                    `json:"edit_mode"`
@@ -201,6 +206,7 @@ type statusView struct {
 	children  []*RequestChild
 	guardians []*capability.RequestGuardian
 	editMode  string
+	careTerm  string
 	proof     *SignatureProof
 	signature *StatusSignature
 	// signatureUnavailable means the optional status read failed. The public
@@ -216,9 +222,11 @@ func (rs *Resource) loadStatusView(ctx context.Context, token string) (view stat
 	if lookupErr != nil {
 		return view, lookupErr, nil
 	}
-	if view.editMode, serverErr = rs.RequestService.EditModeForStatus(ctx, view.req, view.children); serverErr != nil {
-		return view, nil, fmt.Errorf("status: compute edit mode: %w", serverErr)
+	page, serverErr := rs.RequestService.StatusPage(ctx, view.req, view.children)
+	if serverErr != nil {
+		return view, nil, fmt.Errorf("status: compute status page: %w", serverErr)
 	}
+	view.editMode, view.careTerm = page.EditMode, page.CareFacilityTerm
 	rs.loadStatusGuardians(ctx, token, &view)
 	return view, nil, nil
 }
@@ -273,6 +281,7 @@ func (rs *Resource) loadStatusSignatureProof(ctx context.Context, token string, 
 func (rs *Resource) respondStatus(w http.ResponseWriter, r *http.Request, token string, view statusView) {
 	req := view.req
 	resp, anyLocked := newStatusResponse(req, view.editMode, view.children, view.guardians)
+	resp.CareFacilityTerm = view.careTerm
 	if view.signatureUnavailable {
 		resp.SignatureRequired = true
 	} else if view.signature != nil {
@@ -382,6 +391,7 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 		CollectGradeLevel:         draft.CollectGradeLevel,
 		CareOfferingsEnabled:      draft.CareOfferingsEnabled,
 		GradeLevelMax:             draft.GradeLevelMax,
+		CareFacilityTerm:          draft.CareFacilityTerm,
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 draft.LegalTexts.AGB,
 			DSGVO:               draft.LegalTexts.DSGVO,

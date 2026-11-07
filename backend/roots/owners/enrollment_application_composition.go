@@ -72,6 +72,10 @@ func (s enrollmentNotificationSettings) NotifyPerDecision(ctx context.Context) (
 	return s.settings.ResolveString(ctx, configModels.KeyEnrollmentNotifyPerDecision)
 }
 
+func (s enrollmentNotificationSettings) CareFacilityTerm(ctx context.Context) (string, error) {
+	return s.settings.ResolveString(ctx, configModels.KeyEnrollmentCareFacilityTerm)
+}
+
 // EnrollmentCaptchaSettings resolves whether the school in context requires
 // the captcha. The Turnstile keys are platform configuration: one widget
 // serves every school.
