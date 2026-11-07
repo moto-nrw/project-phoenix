@@ -455,6 +455,7 @@ function classCombinations(
   seen = new WeakSet(),
   sourceCode,
   seenVariables = new Set(),
+  { skipReportedSurfaceConstants = false } = {},
 ) {
   if (!node || typeof node !== "object" || seen.has(node)) return [""];
   seen.add(node);
@@ -476,11 +477,20 @@ function classCombinations(
         !definition.node.init
       )
         continue;
+      const value = staticStringValue(definition.node.init);
+      if (
+        skipReportedSurfaceConstants &&
+        typeof value === "string" &&
+        isSurfaceCombo(value)
+      ) {
+        continue;
+      }
       const resolved = classCombinations(
         definition.node.init,
         seen,
         sourceCode,
         seenVariables,
+        { skipReportedSurfaceConstants },
       );
       if (!resolved) return null;
       combinations.push(...resolved);
@@ -494,12 +504,14 @@ function classCombinations(
       seen,
       sourceCode,
       seenVariables,
+      { skipReportedSurfaceConstants },
     );
     const alternate = classCombinations(
       node.alternate,
       seen,
       sourceCode,
       seenVariables,
+      { skipReportedSurfaceConstants },
     );
     if (!consequent || !alternate) return null;
     const merged = [...consequent, ...alternate];
@@ -511,10 +523,13 @@ function classCombinations(
       seen,
       sourceCode,
       seenVariables,
+      { skipReportedSurfaceConstants },
     );
     if (!right) return null;
     if (node.operator === "&&") return ["", ...right];
-    const left = classCombinations(node.left, seen, sourceCode, seenVariables);
+    const left = classCombinations(node.left, seen, sourceCode, seenVariables, {
+      skipReportedSurfaceConstants,
+    });
     if (!left) return null;
     const merged = [...left, ...right];
     return merged.length > MAX_CLASS_COMBINATIONS ? null : merged;
@@ -531,6 +546,7 @@ function classCombinations(
         seen,
         sourceCode,
         seenVariables,
+        { skipReportedSurfaceConstants },
       );
       if (!childCombos) return null;
       combos = crossJoin(combos, childCombos);
@@ -716,6 +732,7 @@ const SURFACE_FRAME_RE = /^border(?:-[1-9]\d*)?$/;
 const SURFACE_WHITE_FILL_RE = /^bg-white(?:\/\d+)?$/;
 const SURFACE_RESPONSIVE_VARIANT_RE =
   /^(?:(?:max-)?(?:sm|md|lg|xl|2xl)|compact|min-\[[^\]]+\]|max-\[[^\]]+\])$/;
+const SURFACE_BREAKPOINTS = ["sm", "md", "lg", "xl", "2xl"];
 const SURFACE_CONTROL_ELEMENTS = new Set([
   "a",
   "button",
@@ -750,14 +767,17 @@ function isWideSurfaceTokens(tokens) {
     variantTokens.push(normalized);
     responsiveTokens.set(variant, variantTokens);
   }
-  return [
-    [...baseTokens, ...stateTokens],
-    ...[...responsiveTokens.values()].map((variantTokens) => [
-      ...baseTokens,
-      ...variantTokens,
-      ...stateTokens,
-    ]),
-  ].some(isWideSurfaceTokenGroup);
+  const states = [[...baseTokens, ...stateTokens]];
+  const cumulativeTokens = [...baseTokens];
+  for (const breakpoint of SURFACE_BREAKPOINTS) {
+    cumulativeTokens.push(...(responsiveTokens.get(breakpoint) ?? []));
+    states.push([...cumulativeTokens, ...stateTokens]);
+    responsiveTokens.delete(breakpoint);
+  }
+  for (const variantTokens of responsiveTokens.values()) {
+    states.push([...baseTokens, ...variantTokens, ...stateTokens]);
+  }
+  return states.some(isWideSurfaceTokenGroup);
 }
 
 function isWideSurfaceTokenGroup(tokens) {
@@ -765,6 +785,8 @@ function isWideSurfaceTokenGroup(tokens) {
     return false;
   }
   if (!tokens.some((token) => SURFACE_FRAME_RE.test(token))) return false;
+  if (tokens.includes("border-transparent")) return false;
+  if (tokens.some((token) => /^border-l-\[/.test(token))) return false;
   if (
     tokens.some(
       (token) =>
@@ -867,7 +889,6 @@ const noHandRolledSurface = {
       // alte Kette bleibt auch dort hart null.
       const widened =
         !key.startsWith(UI_KIT_DIR) && !INSET_PARENT_EXCEPTIONS.includes(key);
-      const constants = new Map();
 
       // Die alte Kette ist hart null und meldet sofort, an der Baseline vorbei.
       const check = (node, text) => {
@@ -889,11 +910,6 @@ const noHandRolledSurface = {
       };
 
       return {
-        VariableDeclarator(node) {
-          if (node.id?.type === "Identifier" && node.init) {
-            constants.set(node.id.name, node.init);
-          }
-        },
         Literal(node) {
           if (typeof node.value === "string") check(node, node.value);
         },
@@ -921,18 +937,26 @@ const noHandRolledSurface = {
           // in einer Konstante: dort nicht ein zweites Mal je Verwendung.
           const { literal, rendered } = renderedCombo(className.value);
           if (literal || rendered !== undefined) return;
-          const text = classText(
+          const combinations = classCombinations(
             className.value,
-            constants,
+            new WeakSet(),
             context.sourceCode,
+            new Set(),
             { skipReportedSurfaceConstants: true },
           );
-          if (isSurfaceCombo(text) || isWideSurfaceTokens(text.split(/\s+/))) {
+          if (
+            combinations?.some(
+              (combo) =>
+                isSurfaceCombo(combo) ||
+                isWideSurfaceTokens(combo.split(/\s+/)),
+            )
+          ) {
             report({
-              node: className,
+              node,
               messageId: "handRolledSurface",
               data: {
-                match: "rounded-md…2xl … border … bg-white(/NN) oder Rahmen mit Polster",
+                match:
+                  "rounded-md…2xl … border … bg-white(/NN) oder Rahmen mit Polster",
               },
             });
           }

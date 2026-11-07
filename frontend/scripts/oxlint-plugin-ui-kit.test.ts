@@ -765,6 +765,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     '<div className="rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-lg" />',
     '<div className="rounded-lg border bg-white sm:rounded-2xl" />',
     '<div className="sm:rounded-lg sm:border sm:bg-white sm:p-3" />',
+    '<div className="p-3 sm:rounded-lg md:border md:bg-white" />',
     '<section className="space-y-3 rounded-md border border-gray-200 p-3" />',
     '<li className="rounded-xl border px-4 py-3" />',
     '<div className="rounded-lg border bg-transparent p-3" />',
@@ -815,6 +816,17 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     ).toHaveLength(2);
   });
 
+  it("does not join mutually exclusive class branches", async () => {
+    const result = await lintSource(
+      `export const Probe = ({ compact }: { compact: boolean }) => (
+        <div className={compact ? "rounded-lg border" : "rounded-lg p-3"} />
+      );`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
   it.each([
     '<button type="button" className="rounded-lg border bg-white px-4 py-2" />',
     '<a href="/x" className="rounded-lg border bg-white px-4 py-2" />',
@@ -825,6 +837,8 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     '<div className="rounded-lg border border-gray-200 bg-gray-50 p-3" />',
     '<div className="rounded-lg border border-gray-200" />',
     '<div className="rounded-full border bg-white px-2 py-0.5" />',
+    '<div className="rounded-xl border border-transparent p-3" />',
+    '<div className="rounded-lg border border-l-[3px] bg-white p-3" />',
     '<div className="hover:rounded-lg hover:border hover:bg-white hover:p-3" />',
   ])(
     "leaves controls, kit surfaces and other shapes alone: %s",
