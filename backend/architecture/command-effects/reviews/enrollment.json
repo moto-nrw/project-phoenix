@@ -1455,6 +1455,26 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudentIdentities.HolidayStudentIdentities",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentityList.HolidayStudentIdentities",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target ports.PersonRepository.FindByIDs: reads the names and the date of birth of the school's children in one batch, so Enrollment finds the children its own holiday bookings name (#5994, rule of #4722).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudentIdentities.HolidayStudentIdentities",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentityList.HolidayStudentIdentities",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target ports.StudentRepository.FindByIDs: reads the names and the date of birth of the school's children in one batch, so Enrollment finds the children its own holiday bookings name (#5994, rule of #4722).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
       "classification": "query",
       "effect": "query",

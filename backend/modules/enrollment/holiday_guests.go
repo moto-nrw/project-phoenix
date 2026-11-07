@@ -208,11 +208,31 @@ type HolidayGuestBookedDay struct {
 	EndsAt   calendar.WallClock
 }
 
-// HolidayGuestBookedCare reads the booked days of the holiday guests of the
-// school whose tenant transaction the caller holds (#5994): Soll und Ist
-// compares them with the attendance. A guest's days run from the first day
-// of its week to the last one, and stop on the day its booking was
-// cancelled. A child without a guest booking on a day has no entry.
+// HolidayOwnBooking is a confirmed holiday booking of a child of the school
+// in a week the school hosts (#5994): the child as the registration names it,
+// the week and the booked time model ("15:04").
+type HolidayOwnBooking struct {
+	Identity         HolidayStudentIdentity
+	StartsOn, EndsOn calendar.Date
+	StartsAt, EndsAt string
+}
+
+// HolidayStudentIdentityList reads the names and the date of birth of
+// children of the school in its tenant transaction, in one read (#5994).
+// A child the school does not have is missing from the map.
+type HolidayStudentIdentityList interface {
+	HolidayStudentIdentities(ctx context.Context, studentIDs []int64) (map[int64]HolidayStudentIdentity, error)
+}
+
+// HolidayGuestBookedCare reads the booked days of the confirmed holiday
+// bookings at the school whose tenant transaction the caller holds (#5994):
+// Soll und Ist compares them with the attendance. A holiday guest's days
+// run from the first day of its week to the last one, and stop on the day
+// its booking was cancelled. A child of the school itself is found by the
+// rule the participant list uses (#4722): the registration names the school
+// as its home school, the same names and the same date of birth; a booking
+// that fits no child or several is left out. A child without a holiday
+// booking on a day has no entry.
 type HolidayGuestBookedCare interface {
 	HolidayGuestBookedDays(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]HolidayGuestBookedDay, error)
 }

@@ -77,6 +77,13 @@ func (a StatisticsReportPeriods) StatisticsHolidayPeriods(ctx context.Context, f
 // statisticsStudentRows are the student rows the report's roster reads.
 type statisticsStudentRows interface {
 	FindOverlappingWithGroups(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]*peopleValues.StudentRosterEntry, error)
+	FindByIDs(context.Context, []int64) (map[int64]*peopleValues.StudentState, error)
+}
+
+// statisticsPersons are the persons behind the children, with their date of
+// birth.
+type statisticsPersons interface {
+	FindByIDs(context.Context, []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
 }
 
 type StatisticsReportStudents struct {
@@ -202,6 +209,40 @@ func (a StatisticsHolidayCareDays) HolidayCareDays(ctx context.Context, studentI
 			byDate[date] = studentpresence.HolidayCareDay{Arrival: day.StartsAt, Pickup: day.EndsAt}
 		}
 		result[studentID] = byDate
+	}
+	return result, nil
+}
+
+// StatisticsHolidayStudentIdentities reads the names and the date of birth of
+// the school's children in two reads of the People Directory, so Enrollment
+// finds the children its own holiday bookings name (#5994).
+type StatisticsHolidayStudentIdentities struct {
+	Students statisticsStudentRows
+	Persons  statisticsPersons
+}
+
+func (a StatisticsHolidayStudentIdentities) HolidayStudentIdentities(ctx context.Context, studentIDs []int64) (map[int64]enrollment.HolidayStudentIdentity, error) {
+	students, err := a.Students.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	personIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		if student != nil {
+			personIDs = append(personIDs, student.PersonID)
+		}
+	}
+	persons, err := a.Persons.FindByIDs(ctx, personIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]enrollment.HolidayStudentIdentity, len(students))
+	for studentID, student := range students {
+		if student == nil || persons[student.PersonID] == nil || persons[student.PersonID].Birthday == nil {
+			continue
+		}
+		person := persons[student.PersonID]
+		result[studentID] = enrollment.HolidayStudentIdentity{FirstName: person.FirstName, LastName: person.LastName, BirthDate: *person.Birthday}
 	}
 	return result, nil
 }

@@ -38,7 +38,7 @@ type StatisticsSettings interface {
 // newStatisticsReports binds the Statistik report to the owners it reads;
 // the service graph calls the result with its access log and retention
 // settings. now fixes the report clock; nil is the Berlin clock.
-func newStatisticsReports(db transactionruntime.Database, carePlan careplan.StudentStatusDaysQuery, careDays careplan.CareDayQuery, calendar schoolcalendar.Days, students statisticsStudentRows, rooms facilities.Query, logger *slog.Logger, now func() time.Time) func(AccessLogLedger, StatisticsSettings) studentpresence.StatisticsReports {
+func newStatisticsReports(db transactionruntime.Database, carePlan careplan.StudentStatusDaysQuery, careDays careplan.CareDayQuery, calendar schoolcalendar.Days, students statisticsStudentRows, persons statisticsPersons, rooms facilities.Query, logger *slog.Logger, now func() time.Time) func(AccessLogLedger, StatisticsSettings) studentpresence.StatisticsReports {
 	return func(accessLog AccessLogLedger, settings StatisticsSettings) studentpresence.StatisticsReports {
 		return NewStatistics(logger, presenceCompose.StatisticsDependencies{
 			DB:               db.Pool(),
@@ -54,7 +54,7 @@ func newStatisticsReports(db transactionruntime.Database, carePlan careplan.Stud
 			Retention:        settingsModule.NewStatisticsRetention(settings),
 			PlannedCareDays:  StatisticsPlannedCareDays{careDays},
 			ContractCareDays: StatisticsContractCareDays{careContractCompose.NewBookedCare()},
-			HolidayCareDays:  StatisticsHolidayCareDays{enrollmentCompose.NewHolidayGuestBookedCare()},
+			HolidayCareDays:  StatisticsHolidayCareDays{enrollmentCompose.NewHolidayGuestBookedCare(StatisticsHolidayStudentIdentities{students, persons})},
 			Logger:           logger.With("service", "statistics"),
 			Now:              now,
 		})

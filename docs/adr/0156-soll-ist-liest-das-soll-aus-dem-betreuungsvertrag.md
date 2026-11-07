@@ -112,18 +112,34 @@ andere fachliche Entscheidung ändert diesen Abschnitt und die Tests.
    Soll und einen Vergleich je Kind und Tag; nichts wird addiert. Ein
    „Kommt heute nicht“ bleibt. Die Quelle heißt `holiday_booking`, die
    Schule sieht „laut Ferienbuchung“.
-2. **Zuordnung.** Buchung und Anwesenheit verbindet die Gäste-Kopie der
-   ausrichtenden Schule (`enrollment.holiday_guests`, ADR 0120), gelesen in
-   deren Tenant-Transaktion über `enrollment.HolidayGuestBookedCare`. Gebucht
-   sind die Tage der Woche bis zum Tag vor einer Stornierung. Kein neues
-   Leserecht, keine Zuordnung über Namen.
-3. **Ohne Buchung.** Ist ein Kind an einem Ferientag da, für den keine
+2. **Zuordnung der Feriengäste.** Buchung und Anwesenheit eines Gasts
+   verbindet seine Kopie in der ausrichtenden Schule
+   (`enrollment.holiday_guests`, ADR 0120), gelesen in deren
+   Tenant-Transaktion über `enrollment.HolidayGuestBookedCare`. Gebucht sind
+   die Tage der Woche bis zum Tag vor einer Stornierung.
+3. **Eigene Kinder.** Ein Kind der ausrichtenden Schule selbst wird nicht
+   kopiert. Migration 1.15.796 gibt der Schule die schmale Funktion
+   `enrollment.holiday_host_own_bookings`: die bestätigten Buchungen ihrer
+   eigenen Kinder in den Wochen, die sie ausrichtet, mit Namen,
+   Geburtsdatum, Woche und Zeitmodell; keine Gesundheit, keine Kontakte.
+   Sie antwortet auch nach der Woche, denn der Vergleich schaut zurück;
+   die Anmeldungen gehen 92 Tage nach dem Zeitraum (#4720) und mit ihnen
+   diese Zeilen. Das erweitert ADR 0116 nur um diesen Zweck. Das Kind findet
+   Enrollment nach der Regel der Teilnehmerliste (#4722): gleiche Namen
+   (ohne Groß- und Kleinschreibung und Leerzeichen am Rand) und gleiches
+   Geburtsdatum, gelesen gebündelt aus dem People Directory und nur, wenn es
+   eigene Buchungen gibt. Eine Buchung, die zu keinem oder zu mehreren
+   Kindern passt, bucht niemanden. Die Wahl dieser Zuordnung trotz des
+   Wortlauts von #5994 („nicht über Namens-/Geburtsdatumsabgleich“) folgt
+   der Review-Entscheidung in PR #6020: Die Ferienanmeldung hat
+   keine andere Verbindung zum Kind.
+4. **Ohne Buchung.** Ist ein Kind an einem Ferientag da, für den keine
    Ferienbuchung gilt, entscheidet das Soll darunter; ohne Vertrag und Plan
-   ist der Tag „ohne Buchung“.
-4. **Lücke.** Kinder der ausrichtenden Schule selbst werden nicht kopiert
-   (ADR 0120); für sie gibt es keine Zuordnung von Buchung zu Kind ohne
-   Namensabgleich. Für sie gilt weiter Vertrag oder Plan. Die Zuordnung ist
-   ein eigener Schritt.
-5. **Abfrage-Budgets.** Die Gästelesung kostet ein Statement je Schule. Dafür
-   liest der Schulkalender Schließtage und Ferienzeiträume jetzt in einer
-   Abfrage (`schoolcalendar.CareCalendarQuery`); die Budgets bleiben gleich.
+   ist der Tag „ohne Buchung“. Ein verpasster Tag einer Ferienbuchung in den
+   Schulferien zählt als „Nicht da“, nicht als geschlossen; Feiertage und
+   Schließtage bleiben geschlossen.
+5. **Abfrage-Budgets.** Gäste und eigene Buchungen kommen in einem
+   Statement je Schule. Dafür liest der Schulkalender Schließtage und
+   Ferienzeiträume jetzt in einer Abfrage (`schoolcalendar.CareCalendarQuery`);
+   die Budgets bleiben gleich. Die Namen und Geburtsdaten liest Enrollment
+   nur, wenn die Schule eigene Buchungen im Zeitraum hat.

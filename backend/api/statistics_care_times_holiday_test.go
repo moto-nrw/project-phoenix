@@ -114,3 +114,87 @@ func TestCareTimeOverrunsReadTheHolidayBooking(t *testing.T) {
 		WHERE actor_account_id = ? AND resource_type = 'care_time_overruns'`, f.adminID).Scan(context.Background(), &logged))
 	assert.Equal(t, 1, logged, "the named read is logged")
 }
+
+// ownHolidayBooking registers child of school for the week [startsOn,
+// endsOn] the school hosts, with the time model from to until, and confirms
+// it or leaves it received: a registration names the school as the child's
+// home school, with the child's names and date of birth (#5994).
+func ownHolidayBooking(t *testing.T, db *bun.DB, organization, school int64, first, last string, born, startsOn, endsOn calendar.Date, from, until, status string) {
+	t.Helper()
+	ctx := context.Background()
+	var period, week, model, registration, child int64
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_periods (organization_id, name, registration_opens_on,
+			registration_closes_on, status, published_at) VALUES (?, 'Sommerferien', '2026-01-01', '2026-06-01', 'published', NOW())
+		RETURNING id`, organization).Scan(ctx, &period))
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_period_weeks (organization_id, holiday_period_id, starts_on, ends_on, host_school_id)
+		VALUES (?, ?, ?, ?, ?) RETURNING id`, organization, period, startsOn, endsOn, school).Scan(ctx, &week))
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_week_time_models (organization_id, holiday_period_week_id, name, starts_at, ends_at, price_cents)
+		VALUES (?, ?, 'Ganztag', ?, ?, 4500) RETURNING id`, organization, week, from, until).Scan(ctx, &model))
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_registrations (organization_id, holiday_period_id, guardian_first_name,
+			guardian_last_name, guardian_email, guardian_phone, privacy_consent_at, status)
+		VALUES (?, ?, 'Eva', 'Ferien', 'eva@example.org', '0123', NOW(), ?) RETURNING id`, organization, period, status).Scan(ctx, &registration))
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_registration_children (organization_id, holiday_period_id,
+			holiday_registration_id, position, first_name, last_name, birth_date, home_school_id)
+		VALUES (?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`, organization, period, registration, first, last, born, school).Scan(ctx, &child))
+	_, err := db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_bookings (organization_id, holiday_period_id,
+			holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id) VALUES (?, ?, ?, ?, ?)`,
+		organization, period, child, week, model)
+	require.NoError(t, err)
+}
+
+// joinTraeger moves the per-test school into organization for the test, as
+// the Träger overrun fixture does.
+func joinTraeger(t *testing.T, db *bun.DB, organization, school int64) {
+	t.Helper()
+	var previous *int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, school).Scan(context.Background(), &previous))
+	_, err := db.ExecContext(context.Background(), `UPDATE platform.schools SET organization_id = ? WHERE id = ?`, organization, school)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `UPDATE platform.schools SET organization_id = ? WHERE id = ?`, previous, school)
+		require.NoError(t, err)
+	})
+}
+
+// A child of the school itself is no holiday guest: its confirmed holiday
+// booking at its own school replaces the contract's Soll as well (#5994).
+// A received registration books nothing; the contract stays.
+func TestStudentCareTimes_OwnChildsHolidayBookingReplacesTheContract(t *testing.T) {
+	t.Parallel()
+	tc := setupStatisticsRoute(t)
+	school := testpkg.Tenant(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, school, "Eigen", "Leitung")
+	child := testpkg.CreateTestStudent(t, tc.db, "Mila", "Eigenkind", "2a")
+	born := calendar.NewDate(2018, 3, 4)
+	_, err := tc.db.ExecContext(context.Background(), `UPDATE users.persons SET birthday = ? WHERE id = ?`, born, child.PersonID)
+	require.NoError(t, err)
+	device := testpkg.CreateTestDevice(t, tc.db, "own-holiday-device")
+	monday := calendar.NewDate(2026, 6, 8)
+	insertAttendanceSpan(t, tc.db, school, child.ID, device.ID, monday, 8*time.Hour, 15*time.Hour+45*time.Minute)
+	insertAttendanceSpan(t, tc.db, school, child.ID, device.ID, monday.AddDays(7), 8*time.Hour, 15*time.Hour+45*time.Minute)
+	organization := testpkg.CreateTestOrganization(t, tc.db, &testpkg.Organization{
+		Name: "Träger Eigenkind", Slug: fmt.Sprintf("traeger-eigenkind-%d", testpkg.UniqueTestTenantID(t)), Active: true}).ID
+	testpkg.OwnTraegerCareContracts(t, tc.db, organization)
+	testpkg.OwnTraegerHolidayPeriods(t, tc.db, organization)
+	joinTraeger(t, tc.db, organization, school)
+	testpkg.CreateTestCareContract(t, tc.db, organization, school, child.ID, "versendet", calendar.NewDate(2026, 6, 1),
+		testpkg.CareContractService{Weekday: "mon", Module: "OGS", EndsAt: "13:00"})
+	// The parents spell the name in their own way; case and spaces do not count.
+	ownHolidayBooking(t, tc.db, organization, school, " mila ", "EIGENKIND", born, monday, monday.AddDays(4), "08:00", "16:00", "confirmed")
+	ownHolidayBooking(t, tc.db, organization, school, "Mila", "Eigenkind", born, monday.AddDays(7), monday.AddDays(7), "08:00", "16:00", "received")
+
+	days := contractCareTimes(t, tc, account.ID, child.ID)
+	byDate := map[string]contractCareTimeDayPayload{}
+	for _, day := range days {
+		byDate[day.Date] = day
+	}
+	holiday := byDate["2026-06-08"]
+	assert.Equal(t, "holiday_booking", holiday.PlannedSource, "the confirmed holiday booking decides the day")
+	require.NotNil(t, holiday.PlannedEnd)
+	assert.Equal(t, "16:00", *holiday.PlannedEnd, "the contract's 13:00 does not override the holiday booking")
+	assert.Equal(t, "within_plan", holiday.Kind)
+
+	received := byDate["2026-06-15"]
+	assert.Equal(t, "contract", received.PlannedSource, "a registration that is not confirmed books nothing")
+	assert.Equal(t, "overrun", received.Kind)
+}

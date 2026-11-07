@@ -3,31 +3,35 @@ package application
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// HolidayGuestBookings lists the guests of the school in the caller's tenant
-// transaction whose week overlaps [from, to], among studentIDs.
+// HolidayGuestBookings lists the confirmed holiday bookings of the school in
+// the caller's tenant transaction that overlap [from, to]: the guests among
+// studentIDs and the bookings of its own children.
 type HolidayGuestBookings interface {
-	ListGuestBookings(ctx context.Context, studentIDs []int64, from, to calendar.Date) ([]enrollment.HolidayGuest, error)
+	ListHolidayBookings(ctx context.Context, studentIDs []int64, from, to calendar.Date) ([]enrollment.HolidayGuest, []enrollment.HolidayOwnBooking, error)
 }
 
 // HolidayGuestBookedCare serves enrollment.HolidayGuestBookedCare (#5994).
 type HolidayGuestBookedCare struct {
-	store HolidayGuestBookings
+	store      HolidayGuestBookings
+	identities enrollment.HolidayStudentIdentityList
 }
 
 var _ enrollment.HolidayGuestBookedCare = HolidayGuestBookedCare{}
 
-// NewHolidayGuestBookedCare builds the read of the guests' booked days.
-func NewHolidayGuestBookedCare(store HolidayGuestBookings) HolidayGuestBookedCare {
-	if store == nil {
-		panic("enrollment: the holiday guest store is required")
+// NewHolidayGuestBookedCare builds the read of the booked holiday days; the
+// identities find the school's own children.
+func NewHolidayGuestBookedCare(store HolidayGuestBookings, identities enrollment.HolidayStudentIdentityList) HolidayGuestBookedCare {
+	if store == nil || identities == nil {
+		panic("enrollment: the holiday guest store and the student identities are required")
 	}
-	return HolidayGuestBookedCare{store: store}
+	return HolidayGuestBookedCare{store: store, identities: identities}
 }
 
 // HolidayGuestBookedDays lists the booked days of each guest within
@@ -39,7 +43,7 @@ func (c HolidayGuestBookedCare) HolidayGuestBookedDays(ctx context.Context, stud
 	if len(studentIDs) == 0 || to.Before(from) {
 		return result, nil
 	}
-	guests, err := c.store.ListGuestBookings(ctx, studentIDs, from, to)
+	guests, own, err := c.store.ListHolidayBookings(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -49,14 +53,72 @@ func (c HolidayGuestBookedCare) HolidayGuestBookedDays(ctx context.Context, stud
 			return nil, err
 		}
 		first, last := guestBookedSpan(guest, from, to)
-		for date := first; !date.After(last); date = date.AddDays(1) {
-			if result[guest.StudentID] == nil {
-				result[guest.StudentID] = map[calendar.Date]enrollment.HolidayGuestBookedDay{}
-			}
-			result[guest.StudentID][date] = day
-		}
+		addBookedDays(result, guest.StudentID, first, last, day)
+	}
+	if len(own) == 0 {
+		return result, nil
+	}
+	if err := c.addOwnBookings(ctx, result, studentIDs, own, from, to); err != nil {
+		return nil, err
 	}
 	return result, nil
+}
+
+// addOwnBookings finds the children of the school its own bookings name, by
+// the rule of the participant list (#4722): the same names and the same date
+// of birth. A booking that fits no child or several is left out; the Soll
+// beneath it stays.
+func (c HolidayGuestBookedCare) addOwnBookings(ctx context.Context, result map[int64]map[calendar.Date]enrollment.HolidayGuestBookedDay,
+	studentIDs []int64, own []enrollment.HolidayOwnBooking, from, to calendar.Date) error {
+	identities, err := c.identities.HolidayStudentIdentities(ctx, studentIDs)
+	if err != nil {
+		return fmt.Errorf("enrollment: read the children of the school: %w", err)
+	}
+	byIdentity := map[holidayIdentityKey][]int64{}
+	for studentID, identity := range identities {
+		key := identityKey(identity)
+		byIdentity[key] = append(byIdentity[key], studentID)
+	}
+	for _, booking := range own {
+		matches := byIdentity[identityKey(booking.Identity)]
+		if len(matches) != 1 {
+			continue
+		}
+		day, err := guestBookedDay(enrollment.HolidayGuest{StudentID: matches[0], TimeModelStarts: booking.StartsAt, TimeModelEnds: booking.EndsAt})
+		if err != nil {
+			return err
+		}
+		first, last := guestBookedSpan(enrollment.HolidayGuest{StartsOn: booking.StartsOn, EndsOn: booking.EndsOn}, from, to)
+		addBookedDays(result, matches[0], first, last, day)
+	}
+	return nil
+}
+
+type holidayIdentityKey struct {
+	firstName, lastName string
+	birthDate           calendar.Date
+}
+
+// identityKey compares names as the participant list does: case and
+// surrounding spaces do not count (lower(btrim(...)), #4722).
+func identityKey(identity enrollment.HolidayStudentIdentity) holidayIdentityKey {
+	return holidayIdentityKey{
+		firstName: strings.ToLower(strings.TrimSpace(identity.FirstName)),
+		lastName:  strings.ToLower(strings.TrimSpace(identity.LastName)),
+		birthDate: identity.BirthDate,
+	}
+}
+
+func addBookedDays(result map[int64]map[calendar.Date]enrollment.HolidayGuestBookedDay, studentID int64, first, last calendar.Date, day enrollment.HolidayGuestBookedDay) {
+	if first.After(last) || first == "" {
+		return
+	}
+	if result[studentID] == nil {
+		result[studentID] = map[calendar.Date]enrollment.HolidayGuestBookedDay{}
+	}
+	for date := first; !date.After(last); date = date.AddDays(1) {
+		result[studentID][date] = day
+	}
 }
 
 // guestBookedSpan is the part of the guest's week within [from, to] its
