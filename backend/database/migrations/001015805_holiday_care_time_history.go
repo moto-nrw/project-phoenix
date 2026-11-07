@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/uptrace/bun"
 )
@@ -174,15 +173,96 @@ func holidayCareTimeHistoryUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-func holidayCareTimeHistoryDown(ctx context.Context, db *bun.DB) error {
-	// Restore the original own-booking function before removing its inputs.
-	original := holidayHostOwnBookingsUpSQL[:strings.Index(holidayHostOwnBookingsUpSQL, "REVOKE ALL ON FUNCTION enrollment.holiday_host_own_bookings")]
-	original = strings.Replace(original, "CREATE FUNCTION", "CREATE OR REPLACE FUNCTION", 1)
-	if _, err := db.ExecContext(ctx, original+`
+// Rollback restores the prior projection before removing the new inputs.
+const holidayOwnBookingsRestoreSQL = `
+CREATE OR REPLACE FUNCTION enrollment.holiday_host_own_bookings(p_from DATE, p_to DATE)
+	RETURNS TABLE (first_name TEXT, last_name TEXT, birth_date DATE, starts_on DATE, ends_on DATE,
+		starts_at TIME, ends_at TIME)
+	LANGUAGE sql
+	STABLE
+	SECURITY DEFINER
+	SET search_path = pg_catalog, pg_temp
+	AS $$
+	WITH host AS (
+		SELECT NULLIF(current_setting('app.current_tenant_id', true), '')::bigint AS school_id
+	),
+	own AS (
+		SELECT child.id AS child_id, child.organization_id, child.first_name, child.last_name, child.birth_date,
+			registration.id AS registration_id, cancellation.cancelled_on
+		FROM host
+		JOIN enrollment.holiday_registration_children AS child ON child.home_school_id = host.school_id
+		JOIN enrollment.holiday_registrations AS registration
+			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
+		JOIN enrollment.holiday_periods AS period
+			ON period.organization_id = registration.organization_id AND period.id = registration.holiday_period_id
+		LEFT JOIN LATERAL (
+			SELECT (cancel.occurred_at AT TIME ZONE 'Europe/Berlin')::date AS cancelled_on
+			FROM enrollment.holiday_registration_audit AS cancel
+			WHERE cancel.organization_id = registration.organization_id AND cancel.holiday_registration_id = registration.id
+				AND cancel.action = 'cancel'
+				AND EXISTS (
+					SELECT 1 FROM enrollment.holiday_registration_audit AS confirm
+					WHERE confirm.organization_id = cancel.organization_id
+						AND confirm.holiday_registration_id = cancel.holiday_registration_id
+						AND confirm.action = 'confirm' AND confirm.occurred_at < cancel.occurred_at)
+			ORDER BY cancel.occurred_at DESC
+			LIMIT 1
+		) AS cancellation ON true
+		WHERE period.status = 'published'
+			AND (registration.status = 'confirmed'
+				OR registration.status = 'cancelled' AND cancellation.cancelled_on IS NOT NULL)
+	),
+	rebook AS (
+		SELECT own.child_id, audit.occurred_at, (audit.occurred_at AT TIME ZONE 'Europe/Berlin')::date AS on_date, audit.details
+		FROM own
+		JOIN enrollment.holiday_registration_audit AS audit
+			ON audit.organization_id = own.organization_id AND audit.holiday_registration_id = own.registration_id
+				AND audit.action = 'rebook' AND audit.details->>'child_id' = own.child_id::text
+	),
+	segment AS (
+		SELECT own.child_id, booking.holiday_period_week_id AS week_id, booking.holiday_week_time_model_id AS model_id,
+			(SELECT max(rebook.on_date) FROM rebook WHERE rebook.child_id = own.child_id) AS valid_from,
+			NULL::date AS valid_until
+		FROM own
+		JOIN enrollment.holiday_registration_bookings AS booking
+			ON booking.organization_id = own.organization_id AND booking.holiday_registration_child_id = own.child_id
+		UNION ALL
+		SELECT rebook.child_id, (previous->>'week_id')::bigint, (previous->>'time_model_id')::bigint,
+			(SELECT max(earlier.on_date) FROM rebook AS earlier
+				WHERE earlier.child_id = rebook.child_id AND earlier.occurred_at < rebook.occurred_at),
+			rebook.on_date - 1
+		FROM rebook
+		CROSS JOIN LATERAL jsonb_array_elements(COALESCE(rebook.details->'before', '[]'::jsonb)) AS previous
+	),
+	booked AS (
+		SELECT own.first_name, own.last_name, own.birth_date, model.starts_at, model.ends_at,
+			GREATEST(week.starts_on, segment.valid_from) AS first_day,
+			LEAST(week.ends_on, segment.valid_until, own.cancelled_on - 1) AS last_day
+		FROM segment
+		JOIN own ON own.child_id = segment.child_id
+		JOIN enrollment.holiday_period_weeks AS week
+			ON week.organization_id = own.organization_id AND week.id = segment.week_id
+		JOIN platform.schools AS school
+			ON school.id = week.host_school_id AND school.organization_id = week.organization_id
+		JOIN enrollment.holiday_week_time_models AS model
+			ON model.organization_id = week.organization_id AND model.holiday_period_week_id = week.id
+				AND model.id = segment.model_id
+		WHERE week.host_school_id = (SELECT host.school_id FROM host)
+	)
+	SELECT first_name, last_name, birth_date, first_day, last_day, starts_at, ends_at
+	FROM booked
+	WHERE first_day <= last_day AND first_day <= p_to AND last_day >= p_from
+	$$;
+`
+
+const holidayCareTimeHistoryDownSQL = `
  DROP FUNCTION enrollment.holiday_host_guest_bookings(DATE, DATE);
  DROP FUNCTION enrollment.holiday_host_booked_windows(DATE, DATE);
  DROP FUNCTION enrollment.holiday_time_model_windows(JSONB, TIME, TIME);
- ALTER TABLE enrollment.holiday_week_time_models DROP COLUMN care_time_history;`); err != nil {
+ ALTER TABLE enrollment.holiday_week_time_models DROP COLUMN care_time_history;`
+
+func holidayCareTimeHistoryDown(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, holidayOwnBookingsRestoreSQL+holidayCareTimeHistoryDownSQL); err != nil {
 		return fmt.Errorf("remove effective holiday care times: %w", err)
 	}
 	return nil

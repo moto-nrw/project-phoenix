@@ -318,7 +318,7 @@ const (
 			(organization_id, holiday_period_week_id, name, starts_at, ends_at, price_cents)
 		VALUES (?, ?, ?, ?::time, ?::time, ?)`
 	updateHolidayTimeModelQuery = `UPDATE enrollment.holiday_week_time_models
-		SET care_time_history = CASE WHEN starts_at IS DISTINCT FROM ?::time OR ends_at IS DISTINCT FROM ?::time
+		SET care_time_history = CASE WHEN starts_at <> ?::time OR ends_at <> ?::time
    THEN jsonb_build_object(?::date::text, jsonb_build_object('starts_at', starts_at, 'ends_at', ends_at)) || care_time_history
    ELSE care_time_history END,
   name = ?, starts_at = ?::time, ends_at = ?::time, price_cents = ?
