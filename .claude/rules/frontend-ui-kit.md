@@ -316,7 +316,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-hand-rolled-field-label` (#5589, hard-zero since #5590).
 
-`ui-kit/no-uppercase-label` (#5590, shrink-only, `pnpm run ui-kit:uppercase-label-baseline`): `uppercase` + `tracking-*` outside `ui/`; exempt: `/start`, NFC print guide.
+`ui-kit/no-uppercase-label` (#5590, hard-zero): `uppercase` + `tracking-*` outside `ui/`; exempt by path: `/start`, NFC print guide, three #2619 parent files.
 
 `ui-kit/no-hand-rolled-notice` (#5591, hard-zero): tinted border and fill of one hue + radius + padding; an amber fill counts without border (warnings are orange `Alert type="warning"`).
 

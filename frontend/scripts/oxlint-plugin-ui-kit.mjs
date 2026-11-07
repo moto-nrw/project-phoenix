@@ -7,7 +7,6 @@ import {
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
-import { uppercaseLabelBaseline } from "./ui-kit-uppercase-label-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -73,7 +72,7 @@ import { uppercaseLabelBaseline } from "./ui-kit-uppercase-label-baseline.mjs";
 //   ui-kit/no-white-on-warm-fill    — no white text on orange (SCHOOLYARD) or
 //                                     amber (WARNING) fills
 //
-// ui-kit/no-uppercase-label (#5590, shrink-only baseline): no `uppercase
+// ui-kit/no-uppercase-label (#5590, hard-zero): no `uppercase
 // tracking-*` class chain outside the kit; group headings use SectionLabel.
 //
 // ui-kit/no-hand-rolled-empty-state (#5597, hard-zero): a dashed, centered box
@@ -3970,11 +3969,15 @@ const noHandRolledListRow = makeRatchetRule({
 // im `className` eines Elements (auch über Ternär-Zweige und `cn(…)`) oder in
 // einer anderen Zeichenkette, etwa einer Konstante. Ausnahmen laut Epic: `/start`
 // und die NFC-Druckanleitung; der Kicker des Elternportals kommt über das Kit
-// (`SectionCard kicker`). Start mit shrink-only Baseline je Datei, Abbau je
-// Bereich in Sub-Issues.
+// (`SectionCard kicker`). Hard-zero seit dem Abbau der Baseline.
+// Eltern-Ausnahmen aus #2619: Kinderkarten, Kinderwahl und Startseite des
+// Elternportals behalten ihre Versalien. Nie anfassen, auch nicht für das Kit.
 const UPPERCASE_LABEL_EXEMPT_FILES = [
   "src/app/start/page.tsx",
   "src/app/help/nfc/",
+  "src/components/parent/child/child-day-card.tsx",
+  "src/components/parent/child/child-switcher.tsx",
+  "src/components/parent/start/parent-start-page.tsx",
 ];
 
 function isUppercaseLabelText(text) {
@@ -4071,9 +4074,8 @@ const noUppercaseLabel = makeRatchetRule({
     "Group headings come from SectionLabel; no `uppercase tracking-*` class chain outside the UI kit.",
   message:
     "Keine Versalien-Überschrift: Gruppenkopf oder Zwischenüberschrift über `SectionLabel` (`as`, `required`) aus ~/components/ui/section-label, Gruppenkopf einer Liste über `ListGroupHeader`, Mini-Tag über `StatusBadge size=\"xs\"`, Tabellenkopf über `DataTable` (#5590, .claude/rules/frontend-ui-kit.md).",
-  baselines: uppercaseLabelBaseline,
+  baselines: {},
   allowlist: [],
-  countEnv: "UI_KIT_UPPERCASE_LABEL_RATCHET",
   kitFile: "src/components/ui/section-label.tsx",
   exemptDir: UI_KIT_DIR,
   exemptFiles: UPPERCASE_LABEL_EXEMPT_FILES,

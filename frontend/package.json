@@ -46,7 +46,6 @@
     "generate:messages": "node scripts/generate-message-index.mjs",
     "generate:help-index": "node scripts/generate-help-index.mjs",
     "ui-kit:button-baseline": "node scripts/ui-kit-button-baseline-update.mjs",
-    "ui-kit:uppercase-label-baseline": "node scripts/ui-kit-uppercase-label-baseline-update.mjs",
     "test:source-contracts": "node --test scripts/*.node-test.mjs",
     "test:bundle-policy": "node --test scripts/perf/*.node-test.mjs"
   },
