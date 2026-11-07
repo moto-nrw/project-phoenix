@@ -266,7 +266,7 @@ describe("traeger-api holiday periods", () => {
     });
   });
 
-  it("sends kept IDs as numbers and leaves them out for new rows", async () => {
+  it("sends kept IDs as numbers, leaves them out for new rows and archives (#5994)", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, { status: "success", data: backendPeriod }),
     );
@@ -289,6 +289,14 @@ describe("traeger-api holiday periods", () => {
               startsAt: "08:00",
               endsAt: "16:00",
               priceCents: 6500,
+            },
+            {
+              id: "9",
+              name: "bis 13 Uhr",
+              startsAt: "08:00",
+              endsAt: "13:00",
+              priceCents: 4500,
+              archived: true,
             },
           ],
         },
@@ -316,6 +324,15 @@ describe("traeger-api holiday periods", () => {
               starts_at: "08:00",
               ends_at: "16:00",
               price_cents: 6500,
+              archived: false,
+            },
+            {
+              id: 9,
+              name: "bis 13 Uhr",
+              starts_at: "08:00",
+              ends_at: "13:00",
+              price_cents: 4500,
+              archived: true,
             },
           ],
         },

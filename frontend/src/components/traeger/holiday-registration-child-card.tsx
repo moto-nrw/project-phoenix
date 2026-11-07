@@ -321,12 +321,21 @@ function RebookingEditor({
                 options={[
                   { value: "", label: "Nicht angemeldet" },
                   ...group.flatMap((week) =>
-                    week.timeModels.map((model) => ({
-                      value: model.id ?? "",
-                      label: parallel
-                        ? `${schoolOf(week)}: ${model.name}`
-                        : model.name,
-                    })),
+                    // An archived time model takes no new booking (#5994);
+                    // the one a week is booked on stays selectable.
+                    week.timeModels
+                      .filter(
+                        (model) =>
+                          !model.archived ||
+                          (week.id !== undefined &&
+                            draft[week.id] === model.id),
+                      )
+                      .map((model) => ({
+                        value: model.id ?? "",
+                        label: parallel
+                          ? `${schoolOf(week)}: ${model.name}`
+                          : model.name,
+                      })),
                   ),
                 ]}
                 onChange={(value) =>

@@ -18,7 +18,6 @@ import {
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
 import { fieldLabelBaseline } from "./ui-kit-field-label-baseline.mjs";
-import { insetBaseline } from "./ui-kit-inset-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import { noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 import {
@@ -2817,35 +2816,27 @@ describe.concurrent("ui-kit/no-hand-rolled-inset (#5592)", () => {
     expect(output).not.toContain(RULE);
   });
 
-  it("fails one finding more than a file's baseline", async () => {
-    const [file, allowed] = Object.entries(
-      insetBaseline["no-hand-rolled-inset"]!,
-    )[0]!;
-    const panels = Array.from(
-      { length: allowed + 1 },
-      () => '<div className="rounded-xl bg-gray-50 p-3">A</div>',
-    ).join("");
-    const result = await lintSource(
-      `export const Probe = () => <>${panels}</>;`,
-      file,
+  it("fails a single finding in a file outside the exceptions", async () => {
+    const result = await lintProbe(
+      'export const Probe = () => <div className="rounded-xl bg-gray-50 p-3">A</div>;',
+      "src/components/parent/child-care.tsx",
     );
 
     expect(result.status).toBe(1);
     expect(result.output).toContain(RULE);
   });
-});
 
-describe("ui-kit/no-hand-rolled-inset baseline is current (#5592)", () => {
-  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken.
-  it("records exactly the findings each file still has", () => {
-    const result = spawnSync(
-      process.execPath,
-      [resolve("scripts/ui-kit-inset-baseline-update.mjs"), "--check"],
-      { encoding: "utf8" },
+  it.each([
+    "src/components/parent/child/child-day-card.tsx",
+    "src/components/parent/child/child-switcher.tsx",
+    "src/components/parent/start/parent-start-page.tsx",
+  ])("leaves the #2619 parent exception %s alone", async (file) => {
+    const { output } = await lintProbe(
+      'export const Probe = () => <div className="rounded-xl bg-gray-50 p-3">A</div>;',
+      file,
     );
-
-    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
-  }, 120_000);
+    expect(output).not.toContain(RULE);
+  });
 });
 
 describe.concurrent("ui-kit/no-hand-rolled-notice (#5591)", () => {

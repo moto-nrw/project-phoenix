@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"time"
 
@@ -85,18 +86,57 @@ type rosterSources struct {
 	template   *rosterTemplateGroup
 }
 
-// buildRosterWithCareDay builds the roster, optionally reusing a care-day
+// buildRosterWithCareDay reads the block and its planned rows and builds the
+// roster; a nil care-day map makes the build resolve it.
+func (s *operations) buildRosterWithCareDay(ctx context.Context, instanceID int64, careDay map[int64]timetable.CareDayStatus) (*timetable.OperationRoster, error) {
+	src, err := s.loadRosterSources(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	return s.buildRosterFromSources(ctx, src, careDay)
+}
+
+// buildRosterFromRows builds the roster of a block whose row and planned
+// rows the caller already read in this request: PlannedNow reads every
+// block and participant of the day once, and the roster uses that
+// observation instead of reading both again (#5735, decision E2). The planned
+// rows take the order the single-block read returns.
+func (s *operations) buildRosterFromRows(ctx context.Context, inst *scheduleModels.ActivityInstance, planned []*scheduleModels.InstanceStudent, careDay map[int64]timetable.CareDayStatus) (*timetable.OperationRoster, error) {
+	src, err := s.completeRosterSources(ctx, rosterSources{inst: inst, planned: plannedInCreationOrder(planned)})
+	if err != nil {
+		return nil, err
+	}
+	return s.buildRosterFromSources(ctx, src, careDay)
+}
+
+// plannedInCreationOrder copies the rows into the order of the single-block
+// participant read: created_at, then id.
+func plannedInCreationOrder(rows []*scheduleModels.InstanceStudent) []*scheduleModels.InstanceStudent {
+	ordered := slices.Clone(rows)
+	slices.SortStableFunc(ordered, func(a, b *scheduleModels.InstanceStudent) int {
+		if c := a.CreatedAt.Compare(b.CreatedAt); c != 0 {
+			return c
+		}
+		switch {
+		case a.ID < b.ID:
+			return -1
+		case a.ID > b.ID:
+			return 1
+		}
+		return 0
+	})
+	return ordered
+}
+
+// buildRosterFromSources builds the roster, optionally reusing a care-day
 // map the caller already resolved: PlannedNow resolves once for every block
 // of the day, nil makes this method resolve for itself.
 //
 // Graduated children and children whose care ended drop off any roster a
 // supervisor can still act on; frozen history (past-dated, completed or
 // cancelled blocks) keeps every row (#405, #2487).
-func (s *operations) buildRosterWithCareDay(ctx context.Context, instanceID int64, careDay map[int64]timetable.CareDayStatus) (*timetable.OperationRoster, error) {
-	src, err := s.loadRosterSources(ctx, instanceID)
-	if err != nil {
-		return nil, err
-	}
+func (s *operations) buildRosterFromSources(ctx context.Context, src rosterSources, careDay map[int64]timetable.CareDayStatus) (*timetable.OperationRoster, error) {
+	var err error
 	warnings := s.rosterWarnings(ctx, src)
 	if careDay == nil {
 		careDay, err = s.deps.CareDays.ResolveForDate(ctx, src.studentIDs, calendar.Date(src.inst.Date))
@@ -133,6 +173,14 @@ func (s *operations) loadRosterSources(ctx context.Context, instanceID int64) (r
 	if src.planned, err = participantsOfInstance(ctx, s.deps.Participants.Reads, instanceID); err != nil {
 		return rosterSources{}, err
 	}
+	return s.completeRosterSources(ctx, src)
+}
+
+// completeRosterSources reads the session visits, the children with their
+// persons and groups and the template behind a block and its planned rows.
+func (s *operations) completeRosterSources(ctx context.Context, src rosterSources) (rosterSources, error) {
+	inst := src.inst
+	var err error
 	if inst.ActiveGroupID != nil {
 		src.visits, err = s.deps.Visits.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{*inst.ActiveGroupID}})
 		if err != nil {
