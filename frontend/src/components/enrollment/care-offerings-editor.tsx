@@ -95,6 +95,7 @@ import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
 import { childrenConcept } from "~/lib/concepts/children";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -1571,30 +1572,18 @@ function CareOfferingTemplateField({
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white/70 p-4">
-      <label className="block" htmlFor="care-offering-template">
-        <span className="text-xs font-medium text-gray-700">Regeltermin</span>
-        <CustomSelect
-          id="care-offering-template"
-          ariaLabel="Regeltermin"
-          value={linkedTemplateID}
-          onChange={(value) =>
-            onChange({ activity_group_id: value ? Number(value) : null })
-          }
-          disabled={selectorDisabled}
-          className="mt-1"
-          invalid={templateError !== undefined}
-          ariaDescribedBy={
-            templateError ? "care-offering-template-error" : undefined
-          }
-          options={options}
-        />
-        <FieldErrorHint
-          id="care-offering-template-error"
-          as="span"
-          message={templateError}
-          live
-        />
-      </label>
+      <CustomSelect
+        id="care-offering-template"
+        label="Regeltermin"
+        value={linkedTemplateID}
+        onChange={(value) =>
+          onChange({ activity_group_id: value ? Number(value) : null })
+        }
+        disabled={selectorDisabled}
+        error={templateError}
+        errorLive
+        options={options}
+      />
       <p className="mt-2 text-xs text-gray-600">
         Genehmigte Anmeldungen werden in diesen Regeltermin übernommen und an
         den ausgewählten Angebotstagen erwartet.
@@ -1657,10 +1646,7 @@ function CareOfferingWeekdayFields({
   const pickupTimesRequired = draft.is_active && draft.counts_as_care;
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Wochentage
-      </legend>
+    <FormFieldset legend="Wochentage">
       <div className="flex flex-wrap gap-2">
         {WEEKDAY_KEYS.map((day) => {
           const active = draft.available_days.includes(day);
@@ -1682,12 +1668,12 @@ function CareOfferingWeekdayFields({
       ) : null}
       {draft.available_days.length > 0 ? (
         <div className="mt-4">
-          <p className="text-xs font-medium text-gray-700">
+          <FieldLabel>
             {pickupTimesRequired
               ? "Gehzeit je Betreuungstag"
               : "Gehzeit je Wochentag (optional)"}
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
+          </FieldLabel>
+          <p className="text-xs text-gray-500">
             Diese Zeiten gelten automatisch für gebuchte Kinder. Von Hand
             gepflegte Gehzeiten bleiben erhalten.
           </p>
@@ -1722,7 +1708,7 @@ function CareOfferingWeekdayFields({
           hint="Sonst gilt das Angebot für den gesamten gewählten Rhythmus."
         />
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -1777,10 +1763,7 @@ function CareOfferingAutomationFields({
   );
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Betreuungstage & Mitbuchung
-      </legend>
+    <FormFieldset legend="Betreuungstage & Mitbuchung">
       <div className="space-y-4">
         <CheckboxCard
           checked={draft.counts_as_care}
@@ -1836,10 +1819,14 @@ function CareOfferingAutomationFields({
         </div>
 
         <div>
-          <p className="text-xs font-medium text-gray-700">
+          <FieldLabel id="auto-add-grades-label">
             Mitbuchung gilt für Klassenstufen
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          </FieldLabel>
+          <div
+            role="group"
+            aria-labelledby="auto-add-grades-label"
+            className="flex flex-wrap gap-2"
+          >
             {gradeOptions.map((grade) => {
               const active = selectedGrades.includes(grade);
               const aboveCurrentCap =
@@ -1861,7 +1848,7 @@ function CareOfferingAutomationFields({
           </p>
         </div>
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -1916,10 +1903,7 @@ function CareOfferingAvailabilityFields({
   const conflicts = countCareOfferingRuleConflicts(rule, bookingGradeCounts);
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Bedingungen für die Verfügbarkeit
-      </legend>
+    <FormFieldset legend="Bedingungen für die Verfügbarkeit">
       <CheckboxCard
         checked={rule !== null}
         onChange={(checked) =>
@@ -1944,35 +1928,29 @@ function CareOfferingAvailabilityFields({
       {rule ? (
         <div className="mt-4 space-y-3">
           {rule.conditions.length > 1 ? (
-            <label className="block" htmlFor="care-offering-availability-match">
-              <span className="text-xs font-medium text-gray-700">
-                Mehrere Bedingungen
-              </span>
-              <CustomSelect
-                id="care-offering-availability-match"
-                ariaLabel="Mehrere Bedingungen"
-                value={rule.match}
-                onChange={(value) =>
-                  onChange({
-                    availability_rule: {
-                      ...rule,
-                      match: value as "all" | "any",
-                    },
-                  })
-                }
-                className="mt-1"
-                options={[
-                  {
-                    value: "all",
-                    label: "Alle Bedingungen müssen erfüllt sein",
+            <CustomSelect
+              id="care-offering-availability-match"
+              label="Mehrere Bedingungen"
+              value={rule.match}
+              onChange={(value) =>
+                onChange({
+                  availability_rule: {
+                    ...rule,
+                    match: value as "all" | "any",
                   },
-                  {
-                    value: "any",
-                    label: "Mindestens eine Bedingung muss erfüllt sein",
-                  },
-                ]}
-              />
-            </label>
+                })
+              }
+              options={[
+                {
+                  value: "all",
+                  label: "Alle Bedingungen müssen erfüllt sein",
+                },
+                {
+                  value: "any",
+                  label: "Mindestens eine Bedingung muss erfüllt sein",
+                },
+              ]}
+            />
           ) : null}
           {rule.conditions.map((condition, index) => (
             <div
@@ -2025,56 +2003,42 @@ function CareOfferingAvailabilityFields({
                 </div>
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label
-                  className="block"
-                  htmlFor={`availability-source-${index}`}
-                >
-                  <span className="text-xs font-medium text-gray-700">
-                    Bedingungsquelle
-                  </span>
-                  <CustomSelect
-                    id={`availability-source-${index}`}
-                    ariaLabel="Bedingungsquelle"
-                    value="grade_level"
-                    onChange={() => undefined}
-                    options={[
-                      {
-                        value: "grade_level",
-                        label: "Klassenstufe des Kindes",
-                      },
-                    ]}
-                    className="mt-1"
-                  />
-                </label>
-                <label
-                  className="block"
-                  htmlFor={`availability-operator-${index}`}
-                >
-                  <span className="text-xs font-medium text-gray-700">
-                    Operator
-                  </span>
-                  <CustomSelect
-                    id={`availability-operator-${index}`}
-                    ariaLabel="Operator"
-                    value={condition.operator}
-                    onChange={(value) =>
-                      updateCondition(index, {
-                        operator: value as "in" | "not_in",
-                      })
-                    }
-                    options={[
-                      { value: "in", label: "ist eine von" },
-                      { value: "not_in", label: "ist keine von" },
-                    ]}
-                    className="mt-1"
-                  />
-                </label>
+                <CustomSelect
+                  id={`availability-source-${index}`}
+                  label="Bedingungsquelle"
+                  value="grade_level"
+                  onChange={() => undefined}
+                  options={[
+                    {
+                      value: "grade_level",
+                      label: "Klassenstufe des Kindes",
+                    },
+                  ]}
+                />
+                <CustomSelect
+                  id={`availability-operator-${index}`}
+                  label="Operator"
+                  value={condition.operator}
+                  onChange={(value) =>
+                    updateCondition(index, {
+                      operator: value as "in" | "not_in",
+                    })
+                  }
+                  options={[
+                    { value: "in", label: "ist eine von" },
+                    { value: "not_in", label: "ist keine von" },
+                  ]}
+                />
               </div>
               <div className="mt-3">
-                <p className="text-xs font-medium text-gray-700">
+                <FieldLabel id={`availability-grades-${index}-label`}>
                   Klassenstufen
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
+                </FieldLabel>
+                <div
+                  role="group"
+                  aria-labelledby={`availability-grades-${index}-label`}
+                  className="flex flex-wrap gap-2"
+                >
                   {gradeOptions.map((grade) => {
                     const active = condition.value.includes(grade);
                     return (
@@ -2147,7 +2111,7 @@ function CareOfferingAvailabilityFields({
           ) : null}
         </div>
       ) : null}
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -2232,10 +2196,7 @@ function CareOfferingDisplayFields({
   onChange: (patch: Partial<CareOfferingInput>) => void;
 }>) {
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Anzeige im Elternformular
-      </legend>
+    <FormFieldset legend="Anzeige im Elternformular">
       <div className="grid gap-2 sm:grid-cols-3">
         <CheckboxCard
           checked={draft.includes_holiday_care}
@@ -2268,7 +2229,7 @@ function CareOfferingDisplayFields({
           hint="Jedes Kind muss dieses Angebot wählen (ohne Platzbegrenzung)"
         />
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -2427,10 +2388,7 @@ function CareOfferingForm({
         placeholder="Kurz erklären, was Eltern hier auswählen."
       />
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Pflichtauswahl
-        </legend>
+      <FormFieldset legend="Pflichtauswahl">
         <p className="mt-1 mb-3 text-sm leading-6 text-gray-600">
           Angebote mit demselben Gruppennamen werden bei der Anmeldung gemeinsam
           geprüft. Verwenden Sie für eine Gruppe überall dieselbe Regel.
@@ -2485,7 +2443,7 @@ function CareOfferingForm({
             einer späteren Änderung gilt dann pro Tag ein Angebot.
           </p>
         )}
-      </fieldset>
+      </FormFieldset>
 
       <CareOfferingWeekdayFields draft={draft} onChange={update} />
 
@@ -2602,20 +2560,16 @@ function CloneOfferingForm({
         </p>
       </header>
 
-      <label className="block" htmlFor="care-offering-clone-target-phase">
-        <span className="text-xs font-medium text-gray-700">Zielphase</span>
-        <CustomSelect
-          id="care-offering-clone-target-phase"
-          ariaLabel="Zielphase"
-          value={targetPhaseId}
-          onChange={setTargetPhaseId}
-          className="mt-1"
-          options={phases.map((phase) => ({
-            value: phase.id,
-            label: `${phase.name} (${KIND_LABELS[phase.kind]})`,
-          }))}
-        />
-      </label>
+      <CustomSelect
+        id="care-offering-clone-target-phase"
+        label="Zielphase"
+        value={targetPhaseId}
+        onChange={setTargetPhaseId}
+        options={phases.map((phase) => ({
+          value: phase.id,
+          label: `${phase.name} (${KIND_LABELS[phase.kind]})`,
+        }))}
+      />
 
       <div className="flex justify-end gap-2">
         <Button

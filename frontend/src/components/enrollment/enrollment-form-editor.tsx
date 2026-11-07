@@ -69,7 +69,7 @@ import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Input } from "~/components/ui/input";
 import { ChoiceTile } from "~/components/ui/choice-tile";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { Switch } from "~/components/ui/switch";
 import {
   TranslationsSection,
   type TranslationTarget,
@@ -127,6 +127,7 @@ import { permissionsConcept } from "~/lib/concepts/permissions";
 import { IconTile } from "~/components/ui/icon-tile";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { Checkbox } from "~/components/ui/checkbox";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
 
@@ -2321,9 +2322,9 @@ function SignatureRequirementSection({
           <span className="text-xs font-medium text-gray-600">
             {required ? "Erforderlich" : "Aus"}
           </span>
-          <BooleanField
-            value={required}
-            onChange={onChange}
+          <Switch
+            checked={required}
+            onCheckedChange={onChange}
             disabled={disabled}
             ariaLabel="Unterschrift erforderlich"
           />
@@ -2540,7 +2541,7 @@ export function LegalBlocksSection({
         className="moto-content-surface rounded-xl border p-4"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <StyledCheckboxButton
+          <InlineCheckbox
             checked={block.enabled}
             disabled={disabled}
             onCheckedChange={(checked) =>
@@ -2548,7 +2549,7 @@ export function LegalBlocksSection({
             }
           >
             Im Formular anzeigen
-          </StyledCheckboxButton>
+          </InlineCheckbox>
           <p className="max-w-xl text-xs leading-5 text-gray-500">
             {helperText}
           </p>
@@ -2679,7 +2680,7 @@ export function LegalBlocksSection({
             block.kind === "consent" &&
             (block.source === "standard" || standardByKey.has(block.key))
           ) ? (
-            <StyledCheckboxButton
+            <InlineCheckbox
               checked={block.required}
               disabled={disabled}
               muted
@@ -2698,7 +2699,7 @@ export function LegalBlocksSection({
               }
             >
               Muss bestätigt werden
-            </StyledCheckboxButton>
+            </InlineCheckbox>
           ) : null}
         </div>
         {block.kind === "consent" ? (
@@ -2804,7 +2805,7 @@ export function LegalBlocksSection({
                   ) : null}
                 </div>
                 <div className="flex shrink-0 items-center justify-end gap-1.5">
-                  <CompactSwitchButton
+                  <Switch
                     checked={block.enabled}
                     onCheckedChange={(checked) =>
                       updateBlock(index, { enabled: checked })
@@ -3074,7 +3075,7 @@ function LegalBlockModeControl({
   );
 }
 
-function StyledCheckboxButton({
+function InlineCheckbox({
   checked,
   disabled,
   muted = false,
@@ -3088,65 +3089,18 @@ function StyledCheckboxButton({
   children: ReactNode;
 }>) {
   return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onCheckedChange(!checked)}
-      className={`inline-flex min-w-0 items-center gap-2 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-50 ${
-        muted
-          ? "text-sm font-medium text-gray-700"
-          : "text-sm font-medium text-gray-800"
-      }`}
+    <label
+      className={`inline-flex min-w-0 items-center gap-2 text-left text-sm font-medium ${
+        muted ? "text-gray-700" : "text-gray-800"
+      } ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
     >
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-          checked ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        <Check
-          className={`h-3.5 w-3.5 text-white transition-opacity ${
-            checked ? "opacity-100" : "opacity-0"
-          }`}
-        />
-      </span>
-      <span>{children}</span>
-    </button>
-  );
-}
-
-function CompactSwitchButton({
-  checked,
-  disabled,
-  ariaLabel,
-  onCheckedChange,
-}: Readonly<{
-  checked: boolean;
-  disabled: boolean;
-  ariaLabel: string;
-  onCheckedChange: (checked: boolean) => void;
-}>) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      disabled={disabled}
-      onClick={() => onCheckedChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
-        checked ? "bg-gray-900" : "bg-gray-200"
-      }`}
-    >
-      <span
-        className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-          checked ? "translate-x-[18px]" : "translate-x-0.5"
-        }`}
-        aria-hidden="true"
+      <Checkbox
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onCheckedChange(event.target.checked)}
       />
-    </button>
+      <span>{children}</span>
+    </label>
   );
 }
 
@@ -3231,9 +3185,9 @@ function CoreFieldRow({
           <span className="text-xs font-medium text-gray-600">
             {required ? "Pflicht" : "Optional"}
           </span>
-          <BooleanField
-            value={required}
-            onChange={(checked) =>
+          <Switch
+            checked={required}
+            onCheckedChange={(checked) =>
               onRequirementChange(field.requirementKey!, checked)
             }
             disabled={disabled}

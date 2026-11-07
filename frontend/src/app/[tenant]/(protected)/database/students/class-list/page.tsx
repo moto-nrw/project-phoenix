@@ -54,6 +54,7 @@ import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { fetchSchoolClasses } from "~/lib/student-api";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 const logger = createLogger({ component: "ClassListEntriesPage" });
 
@@ -742,10 +743,11 @@ export default function ClassListEntriesPage() {
                       den richtigen Datensatz auswählen:
                     </legend>
                     {modal.entry.matchingStudentIds.map((studentId) => (
-                      <label
+                      <ChoiceTile
                         key={studentId}
                         htmlFor={`assign-target-${studentId}`}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                        selected={assignTarget === studentId}
+                        className="justify-between gap-2 py-2 font-normal"
                       >
                         <span className="flex items-center gap-2">
                           <Radio
@@ -763,7 +765,7 @@ export default function ClassListEntriesPage() {
                         >
                           Öffnen
                         </Link>
-                      </label>
+                      </ChoiceTile>
                     ))}
                   </fieldset>
                 ) : null}

@@ -4,12 +4,10 @@
 
 import { Plus, Trash2 } from "lucide-react";
 
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
 import {
@@ -23,6 +21,7 @@ import {
   type CustomFieldInputProps,
   type PhoneEntry,
 } from "./enrollment-form-shared";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 function asPhoneArray(v: unknown): PhoneEntry[] {
   if (!Array.isArray(v)) return [];
@@ -84,20 +83,14 @@ export function PhoneListInput({
       ),
     );
   return (
-    <fieldset
-      className={`rounded-2xl border bg-gray-50/70 p-4 ${error ? "border-moto-red" : "border-gray-200"}`}
-      aria-invalid={error ? "true" : undefined}
-      aria-describedby={error ? errorId : undefined}
+    <FormFieldset
+      legend={field.label}
+      required={field.required}
+      hint={field.help_text}
+      error={error}
+      errorId={errorId}
+      className="bg-gray-50/70"
     >
-      <legend className="px-1 text-sm font-semibold text-gray-900">
-        {field.label}
-        {field.required && <RequiredMark />}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
       {phones.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
           {tr("structured.nonePhone")}
@@ -117,33 +110,27 @@ export function PhoneListInput({
               value={p.phone_number}
               onChange={(e) => setRow(idx, { phone_number: e.target.value })}
             />
-            <label className="block" htmlFor={`${inputName}-${idx}-type`}>
-              <span className="text-xs font-medium text-gray-700">
-                {tr("structured.type")}
-              </span>
-              <CustomSelect
-                id={`${inputName}-${idx}-type`}
-                value={p.phone_type}
-                onChange={(value) =>
-                  setRow(idx, {
-                    phone_type: value as PhoneEntry["phone_type"],
-                  })
-                }
-                ariaLabel={tr("structured.type")}
-                className="mt-1"
-                options={(
-                  [
-                    "mobile",
-                    "home",
-                    "work",
-                    "other",
-                  ] as PhoneEntry["phone_type"][]
-                ).map((key) => ({
-                  value: key,
-                  label: phoneTypeLabels[key] ?? key,
-                }))}
-              />
-            </label>
+            <CustomSelect
+              id={`${inputName}-${idx}-type`}
+              label={tr("structured.type")}
+              value={p.phone_type}
+              onChange={(value) =>
+                setRow(idx, {
+                  phone_type: value as PhoneEntry["phone_type"],
+                })
+              }
+              options={(
+                [
+                  "mobile",
+                  "home",
+                  "work",
+                  "other",
+                ] as PhoneEntry["phone_type"][]
+              ).map((key) => ({
+                value: key,
+                label: phoneTypeLabels[key] ?? key,
+              }))}
+            />
             <StructuredToggle
               checked={Boolean(p.is_primary)}
               onChange={() =>
@@ -187,8 +174,7 @@ export function PhoneListInput({
         <Plus className="h-4 w-4" aria-hidden="true" />
         {tr("structured.addPhone")}
       </Button>
-      <FieldErrorHint id={errorId} message={error} />
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -232,20 +218,14 @@ export function ContactListInput({
       ),
     );
   return (
-    <fieldset
-      className={`rounded-2xl border p-4 ${error ? "border-moto-red shadow-sm" : "moto-content-surface"}`}
-      aria-invalid={error ? "true" : undefined}
-      aria-describedby={error ? errorId : undefined}
+    <FormFieldset
+      legend={field.label}
+      required={field.required}
+      hint={field.help_text}
+      error={error}
+      errorId={errorId}
+      className={error ? "shadow-sm" : "moto-content-surface"}
     >
-      <legend className="px-1 text-sm font-semibold text-gray-900">
-        {field.label}
-        {field.required && <RequiredMark />}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
       {contacts.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
           {tr("structured.noneContact")}
@@ -350,8 +330,7 @@ export function ContactListInput({
         <Plus className="h-4 w-4" aria-hidden="true" />
         {tr("structured.addContact")}
       </Button>
-      <FieldErrorHint id={errorId} message={error} />
-    </fieldset>
+    </FormFieldset>
   );
 }
 
