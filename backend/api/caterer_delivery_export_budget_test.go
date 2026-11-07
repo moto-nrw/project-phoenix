@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -40,7 +41,7 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 	tokenAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
 	family := testpkg.CreateTestSessionFamily(t, db, account.ID, testpkg.Tenant(t), tenant.ScopeCaterer)
-	token, err := tokenAuth.CreateJWT(sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"caterer"}, Scope: tenant.ScopeCaterer, FamilyID: family})
+	token, err := tokentest.CreateJWT(tokenAuth, sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"caterer"}, Scope: tenant.ScopeCaterer, FamilyID: family})
 	require.NoError(t, err)
 
 	addChildren := func(school int64, children int) {

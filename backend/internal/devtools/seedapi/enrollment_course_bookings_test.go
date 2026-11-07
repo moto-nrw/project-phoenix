@@ -12,7 +12,9 @@ import (
 
 // The approved online enrollments fill the courses believably: the
 // Fußball-AG about three quarters, the Theater-AG to its last place, so the
-// parents app keeps a full course. Every booked child is an approved
+// parents app keeps a full course. The Spätbetreuung is full and the
+// Betreuung bis 15 Uhr runs without a booking, so the Träger's occupancy
+// shows a full and an empty care form (#5977). Every booked child is an approved
 // enrollment of the seed. The holiday care has its own holiday phase
 // (#5139): no school-year enrollment books it, Sophie Sharma's holiday
 // request does.
@@ -32,10 +34,15 @@ func TestSeedEnrollmentCourseBookingsFillTheOfferings(t *testing.T) {
 			booked[key]++
 		}
 	}
-	assert.Equal(t, map[string]int{"ferienbetreuung": 20, "ag-fussball": 12, "ag-theater": 8}, capacity)
+	assert.Equal(t, map[string]int{
+		"ogs-ganztag": 60, "ogs-kurz": 40, "ogs-15-uhr": 12, "spaetbetreuung": 4,
+		"ferienbetreuung": 20, "ag-fussball": 12, "ag-theater": 8,
+	}, capacity)
 	assert.Equal(t, 9, booked["ag-fussball"], "nine of twelve")
 	assert.Equal(t, capacity["ag-theater"], booked["ag-theater"], "the Theater-AG is full")
 	assert.Zero(t, booked["ferienbetreuung"], "the holiday care is booked in its own holiday phase")
+	assert.Equal(t, capacity["spaetbetreuung"], booked["spaetbetreuung"], "the Spätbetreuung is full")
+	assert.Zero(t, booked["ogs-15-uhr"], "the Betreuung bis 15 Uhr runs without a booking")
 }
 
 func TestWithSeedCourseBookingsAddsTheCoursesOnce(t *testing.T) {

@@ -1,3 +1,4 @@
+DELETE /traeger/documents/{id}
 DELETE /traeger/documents/{id}/releases/{releaseId}
 GET /traeger/documents/
 GET /traeger/documents/audiences

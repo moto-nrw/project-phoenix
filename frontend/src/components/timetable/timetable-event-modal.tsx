@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCatalogRefreshOnFocus } from "~/components/database/catalog/catalog-manage-link";
 
 import { useModal } from "~/components/ui/modal-context";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
 import { SeriesClosingDaysChoiceModal } from "~/components/planning/series-closing-days-choice-modal";
 import { Alert } from "~/components/ui/alert";
@@ -1047,7 +1048,11 @@ export function TimetableEventModal({
                   ? "Wenn Sie diesen und alle folgenden Termine ändern, gehen diese Anpassungen verloren:"
                   : "Wenn Sie alle Termine der Serie ändern, gehen diese Anpassungen verloren:"}
               </p>
-              <ul className="max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 text-sm">
+              <InsetPanel
+                as="ul"
+                framed
+                className="max-h-52 overflow-y-auto text-sm"
+              >
                 {lostEdits.result.occurrences.map((occ) => (
                   <li
                     // Deleted occurrences share instanceId "0"; date+start keeps
@@ -1065,7 +1070,7 @@ export function TimetableEventModal({
                     </span>
                   </li>
                 ))}
-              </ul>
+              </InsetPanel>
               <p className="text-xs leading-relaxed text-gray-500">
                 Notieren Sie sich diese Termine, um sie anschließend erneut
                 anzupassen.

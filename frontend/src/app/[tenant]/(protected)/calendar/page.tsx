@@ -26,6 +26,7 @@ import {
 } from "~/components/calendar/personal-calendar";
 import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
 import { Button } from "~/components/ui/button";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -1260,10 +1261,7 @@ function StaffCalendarPageInner() {
                         </div>
                         <div className="grid gap-3 lg:grid-cols-2">
                           {targetGroups.map((group) => (
-                            <section
-                              key={group.type}
-                              className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
-                            >
+                            <InsetPanel as="section" key={group.type} framed>
                               <h4 className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
                                 {group.label}
                               </h4>
@@ -1312,7 +1310,7 @@ function StaffCalendarPageInner() {
                                   })
                                 )}
                               </div>
-                            </section>
+                            </InsetPanel>
                           ))}
                         </div>
                       </div>

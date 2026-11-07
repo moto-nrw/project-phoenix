@@ -5,10 +5,12 @@ import (
 	"time"
 
 	"github.com/go-chi/jwtauth/v5"
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/stretchr/testify/require"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 )
 
 func TestNativeInvitationOwnershipProof(t *testing.T) {
@@ -84,7 +86,7 @@ func TestNativeSessionCodecPreservesTokenWire(t *testing.T) {
 			decodedRefresh, err := native.ParseRefreshToken(refreshToken)
 			require.NoError(t, err)
 			require.Equal(t, refresh, decodedRefresh, "persisted refresh expiry must not be extended")
-			oldToken, err := legacy.CreateJWT(*oldClaims)
+			oldToken, err := tokentest.CreateJWT(legacy, *oldClaims)
 			require.NoError(t, err)
 			decodedOld, err := native.ParseAccessToken(oldToken)
 			require.NoError(t, err)
@@ -92,7 +94,7 @@ func TestNativeSessionCodecPreservesTokenWire(t *testing.T) {
 			// Old callers do not know the display-only role origin claim.
 			decoded.RoleIsSystem = nil
 			require.Equal(t, decoded, decodedOld)
-			oldRefresh, err := legacy.CreateRefreshJWT(sessiontoken.RefreshClaims{ID: int(refresh.AccountID), Token: refresh.Token, TenantID: refresh.TenantID, Scope: scope, CommonClaims: sessiontoken.CommonClaims{ExpiresAt: refresh.ExpiresAt}})
+			oldRefresh, err := tokentest.CreateRefreshJWT(legacy, sessiontoken.RefreshClaims{ID: int(refresh.AccountID), Token: refresh.Token, TenantID: refresh.TenantID, Scope: scope, CommonClaims: sessiontoken.CommonClaims{ExpiresAt: refresh.ExpiresAt}})
 			require.NoError(t, err)
 			decodedRefresh, err = native.ParseRefreshToken(oldRefresh)
 			require.NoError(t, err)
@@ -144,14 +146,14 @@ func TestNativeSessionCodecTokenBoundaries(t *testing.T) {
 		challenge := identityaccess.MFAChallengeClaims{AccountID: 42, TenantID: 73, Scope: scope, ChallengeID: 91}
 		challengeToken, err := native.IssueChallengeToken(challenge, time.Hour)
 		require.NoError(t, err)
-		oldChallenge, err := legacy.ParseMFAChallengeJWT(challengeToken)
+		oldChallenge, err := tokentest.ParseMFAChallengeJWT(legacy, challengeToken)
 		require.NoError(t, err)
 		require.Equal(t, scope, oldChallenge.Scope)
 		require.EqualValues(t, 91, oldChallenge.ChallengeID)
 		decodedChallenge, err := native.ParseChallengeToken(challengeToken)
 		require.NoError(t, err)
 		require.Equal(t, challenge, decodedChallenge)
-		oldChallengeToken, err := legacy.CreateMFAChallengeJWT(*oldChallenge, time.Hour)
+		oldChallengeToken, err := tokentest.CreateMFAChallengeJWT(legacy, *oldChallenge, time.Hour)
 		require.NoError(t, err)
 		decodedChallenge, err = native.ParseChallengeToken(oldChallengeToken)
 		require.NoError(t, err)
@@ -162,7 +164,7 @@ func TestNativeSessionCodecTokenBoundaries(t *testing.T) {
 		require.Error(t, err)
 		token, err := native.IssueMFAEnrollmentToken(42, 73, scope, time.Hour)
 		require.NoError(t, err)
-		parsed, err := legacy.ParseMFAEnrollmentJWT(token)
+		parsed, err := tokentest.ParseMFAEnrollmentJWT(legacy, token)
 		require.NoError(t, err)
 		require.Equal(t, scope, parsed.Scope)
 		require.EqualValues(t, 42, parsed.AccountID)

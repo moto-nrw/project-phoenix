@@ -117,33 +117,27 @@ export function PhoneListInput({
               value={p.phone_number}
               onChange={(e) => setRow(idx, { phone_number: e.target.value })}
             />
-            <label className="block" htmlFor={`${inputName}-${idx}-type`}>
-              <span className="text-xs font-medium text-gray-700">
-                {tr("structured.type")}
-              </span>
-              <CustomSelect
-                id={`${inputName}-${idx}-type`}
-                value={p.phone_type}
-                onChange={(value) =>
-                  setRow(idx, {
-                    phone_type: value as PhoneEntry["phone_type"],
-                  })
-                }
-                ariaLabel={tr("structured.type")}
-                className="mt-1"
-                options={(
-                  [
-                    "mobile",
-                    "home",
-                    "work",
-                    "other",
-                  ] as PhoneEntry["phone_type"][]
-                ).map((key) => ({
-                  value: key,
-                  label: phoneTypeLabels[key] ?? key,
-                }))}
-              />
-            </label>
+            <CustomSelect
+              id={`${inputName}-${idx}-type`}
+              label={tr("structured.type")}
+              value={p.phone_type}
+              onChange={(value) =>
+                setRow(idx, {
+                  phone_type: value as PhoneEntry["phone_type"],
+                })
+              }
+              options={(
+                [
+                  "mobile",
+                  "home",
+                  "work",
+                  "other",
+                ] as PhoneEntry["phone_type"][]
+              ).map((key) => ({
+                value: key,
+                label: phoneTypeLabels[key] ?? key,
+              }))}
+            />
             <StructuredToggle
               checked={Boolean(p.is_primary)}
               onChange={() =>

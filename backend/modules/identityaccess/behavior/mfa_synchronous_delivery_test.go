@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -91,11 +92,12 @@ func TestMFAResendRejectsExpiredCredentialBeforeDelivery(t *testing.T) {
 	mailer := &cancelingMFAMailer{err: errors.New("must not be called")}
 	svc, _, db, tokenAuth := newSynchronousDeliveryMFAService(t, mailer)
 	account := testpkg.CreateTestAccount(t, db, "mfa-sync-expired-token")
-	expiredToken, err := tokenAuth.CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
+	expiredToken, err := tokentest.CreateMFAChallengeJWT(tokenAuth, sessiontoken.MFAChallengeClaims{
 		AccountID:  account.ID,
 		Scope:      identityaccess.MFAChallengeScopeTenant,
 		MFAPending: true,
 	}, -time.Minute)
+
 	require.NoError(t, err)
 
 	renewed, err := svc.ResendMFAChallenge(context.Background(), expiredToken, net.ParseIP("203.0.113.72"))

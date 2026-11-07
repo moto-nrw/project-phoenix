@@ -44,12 +44,21 @@ type occupancyBookings struct {
 
 func newOccupancyBookings(t *testing.T, db *bun.DB, school int64) occupancyBookings {
 	t.Helper()
+	return newOccupancyBookingsInPhase(t, db, school, -30, 300, true)
+}
+
+// newOccupancyBookingsInPhase books in a phase whose service period runs
+// from today plus startDays to today plus endDays (both inclusive). The API
+// counts on the real day, so the period follows it.
+func newOccupancyBookingsInPhase(t *testing.T, db *bun.DB, school int64, startDays, endDays int, active bool) occupancyBookings {
+	t.Helper()
 	today := calendar.TodayDate()
+	start, end := today.AddDays(startDays), today.AddDays(endDays)
 	var phase int64
 	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.phases
 		(tenant_id, name, kind, service_start_date, service_end_date, care_overflow_mode, care_offering_selection_mode, is_active)
-		VALUES (?, ?, 'school_year', ?, ?, 'waitlist', 'optional', true) RETURNING id`,
-		school, fmt.Sprintf("Phase %d", testpkg.UniqueTestTenantID(t)), today.AddDays(-30), today.AddDays(300)).Scan(context.Background(), &phase))
+		VALUES (?, ?, 'school_year', ?, ?, 'waitlist', 'optional', ?) RETURNING id`,
+		school, fmt.Sprintf("Phase %d", testpkg.UniqueTestTenantID(t)), start, end, active).Scan(context.Background(), &phase))
 	return occupancyBookings{t: t, db: db, school: school, phase: phase}
 }
 
@@ -156,8 +165,8 @@ func TestTraegerOccupancyCountsTheRosterByGroupAndCareForm(t *testing.T) {
 	assert.Equal(t, 1, bach.WithoutGroup)
 	capacity := 25
 	assert.Equal(t, []traegerview.OccupancyCareForm{
-		{ID: early, Name: "Frühbetreuung", Children: 1},
-		{ID: ogs, Name: "OGS bis 16 Uhr", Children: 2, Capacity: &capacity},
+		{ID: early, Name: "Frühbetreuung", Children: 1, Active: true},
+		{ID: ogs, Name: "OGS bis 16 Uhr", Children: 2, Capacity: &capacity, Active: true},
 	}, bach.CareForms, "only offerings that count as care with a booking valid today; an undecided child, an ended and a future booking do not count")
 	assert.Equal(t, 1, bach.WithoutCareForm, "Cem has only lunch and bookings that are not valid today")
 
@@ -185,6 +194,68 @@ func TestTraegerOccupancyCountsTheRosterByGroupAndCareForm(t *testing.T) {
 	}
 	assert.NotContains(t, csv, "Fremd")
 	assert.Contains(t, csv, day+";OGS Am Bach;;Gruppe;"+foxes.Name+";0;\n", "an empty group is exported too")
+}
+
+// #5977: an offering of a running phase shows up without a booking, with 0
+// children and its places; offerings outside their service period, of an
+// inactive phase or offering, and of another Träger do not.
+func TestTraegerOccupancyListsRunningOfferingsWithoutBooking(t *testing.T) {
+	t.Parallel()
+	db, router, _, _ := newTraegerPortal(t)
+	password := testpkg.NewTestPassword()
+	organization := traegerOrganization(t, db, "Träger Belegung Frei", true)
+	school := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Am Teich")
+	foreignOrganization := traegerOrganization(t, db, "Träger Fremd Frei", true)
+	foreign := testpkg.CreateTestSchoolInOrganization(t, db, foreignOrganization, "OGS Fremd Frei")
+	child := testpkg.CreateTestStudentForTenant(t, db, school, "Mia", "Teich", "1a")
+
+	running := newOccupancyBookings(t, db, school)
+	empty := running.offering("Nachmittagsbetreuung", true, 10)
+	full := running.offering("Kurzbetreuung", true, 1)
+	running.book(child.ID, full, "approved", nil, nil)
+	running.offering("Mittagessen ohne Betreuung", false, 30)
+	inactive := running.offering("Ruhendes Angebot", true, 5)
+	retired := running.offering("Auslaufendes Angebot", true, 6)
+	running.book(child.ID, retired, "approved", nil, nil)
+	_, err := db.ExecContext(context.Background(), `UPDATE enrollment.care_offerings SET is_active = false WHERE id IN (?, ?)`, inactive, retired)
+	require.NoError(t, err)
+	newOccupancyBookingsInPhase(t, db, school, -200, -1, true).offering("Beendetes Angebot", true, 8)
+	newOccupancyBookingsInPhase(t, db, school, 1, 200, true).offering("Künftiges Angebot", true, 8)
+	newOccupancyBookingsInPhase(t, db, school, -30, 30, false).offering("Angebot ruhender Phase", true, 8)
+	newOccupancyBookingsInPhase(t, db, school, 0, 0, true).offering("Tagesangebot", true, 4)
+	newOccupancyBookings(t, db, foreign).offering("Fremdes freies Angebot", true, 10)
+
+	office := traegerAccount(t, db, password)
+	testpkg.CreateTestTraegerMember(t, db, organization, office.ID, identityaccess.TraegerRoleReadOnly)
+	code, answer := traegerSignIn(t, router, office.Email, password, 0)
+	require.Equal(t, http.StatusOK, code)
+
+	rec := traegerOccupancyRequest(t, router, "/traeger/schools/occupancy", answer.AccessToken, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "Fremdes freies Angebot", "no offering of another Träger")
+	teich := occupancyOf(t, decodeSchoolPortalData[traegerview.Occupancy](t, rec.Body.Bytes()), school)
+	ten, one, four, six := 10, 1, 4, 6
+	var oneDay int64
+	for _, form := range teich.CareForms {
+		if form.Name == "Tagesangebot" {
+			oneDay = form.ID
+		}
+	}
+	assert.Equal(t, []traegerview.OccupancyCareForm{
+		{ID: retired, Name: "Auslaufendes Angebot", Children: 1, Capacity: &six, Active: false},
+		{ID: full, Name: "Kurzbetreuung", Children: 1, Capacity: &one, Active: true},
+		{ID: empty, Name: "Nachmittagsbetreuung", Children: 0, Capacity: &ten, Active: true},
+		{ID: oneDay, Name: "Tagesangebot", Children: 0, Capacity: &four, Active: true},
+	}, teich.CareForms, "running offerings without a booking count 0 children; an inactive offering shows only with a booking and says so; ended, future and lunch offerings do not appear")
+	assert.Zero(t, teich.WithoutCareForm)
+
+	export := traegerOccupancyRequest(t, router, "/traeger/schools/occupancy/export", answer.AccessToken, nil)
+	require.Equal(t, http.StatusOK, export.Code, export.Body.String())
+	csv := export.Body.String()
+	assert.Contains(t, csv, ";OGS Am Teich;;Betreuungsform;Nachmittagsbetreuung;0;10\n", "the export lists the empty offering")
+	for _, absent := range []string{"Beendetes Angebot", "Künftiges Angebot", "Angebot ruhender Phase", "Ruhendes Angebot", "Mittagessen", "Fremd"} {
+		assert.NotContains(t, csv, absent)
+	}
 }
 
 func TestTraegerOccupancyNeedsTheOverviewRight(t *testing.T) {
@@ -249,15 +320,24 @@ func TestTraegerOccupancyReadsRefuseOutsideTheAdministrativeTransaction(t *testi
 	testpkg.AssignStudentToGroup(t, db, child.ID, group.ID)
 	testpkg.CreateTestEducationGroupForTenant(t, db, other, "Fremd")
 	bookings := newOccupancyBookings(t, db, school)
-	bookings.book(child.ID, bookings.offering("OGS", true, 0), "approved", nil, nil)
+	ogs := bookings.offering("OGS", true, 0)
+	bookings.book(child.ID, ogs, "approved", nil, nil)
+	// The other school holds everything the reads look for: a running phase,
+	// a booked and an unbooked offering and an approved child. The
+	// administrative transaction bypasses RLS (#5977, rule 25), so only the
+	// school filter of each statement keeps them out.
+	foreignChild := testpkg.CreateTestStudentForTenant(t, db, other, "Fritz", "Fremd", "1a")
+	foreign := newOccupancyBookings(t, db, other)
+	foreign.book(foreignChild.ID, foreign.offering("Fremd gebucht", true, 0), "approved", nil, nil)
+	foreign.offering("Fremd leer", true, 5)
 
 	ports := traegerOccupancyPorts()
 	day := calendar.TodayDate()
 	reads := func(ctx context.Context) []error {
 		_, groups := ports.Groups.MembershipGroupIDsByTenant(ctx, []int64{school})
 		_, names := ports.GroupNames.GroupsByTenant(ctx, []int64{school})
-		_, booked := ports.Bookings.CareOfferingBookingsByTenant(ctx, []int64{school}, day)
-		_, children := ports.Children.ApprovedChildStudentIDsByTenant(ctx, []int64{school})
+		_, booked := ports.Bookings.CareOfferingBookingsByTenant(ctx, []int64{school}, day, nil)
+		_, _, children := ports.Children.BookedChildrenAndRunningPhases(ctx, []int64{school}, day)
 		return []error{groups, names, booked, children}
 	}
 	for index, err := range reads(testpkg.TenantContext(school)) {
@@ -267,6 +347,23 @@ func TestTraegerOccupancyReadsRefuseOutsideTheAdministrativeTransaction(t *testi
 		names, err := ports.GroupNames.GroupsByTenant(adminCtx, []int64{school})
 		require.NoError(t, err)
 		assert.Equal(t, map[int64][]traegerview.NamedGroup{school: {{ID: group.ID, Name: group.Name}}}, names, "only the given schools")
+
+		children, phases, err := ports.Children.BookedChildrenAndRunningPhases(adminCtx, []int64{school}, day)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{bookings.phase}, phases, "only the running phases of the given schools")
+		require.Len(t, children, 1, "only the children of the given schools")
+		for _, student := range children[school] {
+			assert.Equal(t, child.ID, student)
+		}
+		require.Len(t, children[school], 1)
+
+		// Even a phase of another school in the list does not bring its
+		// offerings: the statement filters on the schools itself.
+		offerings, err := ports.Bookings.CareOfferingBookingsByTenant(adminCtx, []int64{school}, day, []int64{bookings.phase, foreign.phase})
+		require.NoError(t, err)
+		require.Len(t, offerings, 1, "only the offerings of the given schools")
+		require.Len(t, offerings[school], 1)
+		assert.Equal(t, ogs, offerings[school][0].ID)
 		return nil
 	}))
 }
