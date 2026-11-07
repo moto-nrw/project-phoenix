@@ -984,14 +984,14 @@ export function StepPersonalKinder({
             />
           )}
           {coverageWarningCount > 0 && (
-            // Eine Meldung für alle Lücken (#5591): Zahl oben, die ersten drei
-            // Beispiele als Liste, der Rest aufklappbar.
+            // Eine Meldung für alle Lücken (#5591): die Zahl als Titel, die
+            // ersten drei Beispiele als Liste, der Rest aufklappbar.
             <Alert
               type="warning"
               announce="off"
+              title={`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Speichern ist weiterhin möglich.`}
               message={
                 <>
-                  <p>{`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Speichern ist weiterhin möglich.`}</p>
                   {coverageWarnings.length > 0 && (
                     <ul className="mt-2 space-y-1">
                       {coverageWarnings.slice(0, 3).map((warning) => (
@@ -1003,6 +1003,10 @@ export function StepPersonalKinder({
                       ))}
                     </ul>
                   )}
+                </>
+              }
+              details={
+                <>
                   {coverageWarningCount > 3 && (
                     <details className="mt-2">
                       <summary className="cursor-pointer font-medium focus-visible:ring-2 focus-visible:ring-current focus-visible:outline-none">
