@@ -99,3 +99,31 @@ User Stories 56, 57 und 118. Er baut auf
   lesen, ist ein eigener Schritt.
 - Eine Toleranz je Träger wäre ein Setting; heute gelten die 15 Minuten von
   ADR 0139.
+
+## Nachtrag 07.11.2026: Ferienbuchung (#5994)
+
+Die Vorrangregel war in #4683 offen. Diese Umsetzung nimmt Option 1 aus
+[#5994](https://github.com/moto-nrw/project-phoenix/issues/5994) an; eine
+andere fachliche Entscheidung ändert diesen Abschnitt und die Tests.
+
+1. **Ferienbuchung vor Vertrag.** An einem Tag mit bestätigter Ferienbuchung
+   ist ihr Zeitmodell das Soll: Ankunft ist sein Beginn, Abholung sein Ende.
+   Vertrag und Betreuungsplan treten an diesem Tag zurück. Es gibt genau ein
+   Soll und einen Vergleich je Kind und Tag; nichts wird addiert. Ein
+   „Kommt heute nicht“ bleibt. Die Quelle heißt `holiday_booking`, die
+   Schule sieht „laut Ferienbuchung“.
+2. **Zuordnung.** Buchung und Anwesenheit verbindet die Gäste-Kopie der
+   ausrichtenden Schule (`enrollment.holiday_guests`, ADR 0120), gelesen in
+   deren Tenant-Transaktion über `enrollment.HolidayGuestBookedCare`. Gebucht
+   sind die Tage der Woche bis zum Tag vor einer Stornierung. Kein neues
+   Leserecht, keine Zuordnung über Namen.
+3. **Ohne Buchung.** Ist ein Kind an einem Ferientag da, für den keine
+   Ferienbuchung gilt, entscheidet das Soll darunter; ohne Vertrag und Plan
+   ist der Tag „ohne Buchung“.
+4. **Lücke.** Kinder der ausrichtenden Schule selbst werden nicht kopiert
+   (ADR 0120); für sie gibt es keine Zuordnung von Buchung zu Kind ohne
+   Namensabgleich. Für sie gilt weiter Vertrag oder Plan. Die Zuordnung ist
+   ein eigener Schritt.
+5. **Abfrage-Budgets.** Die Gästelesung kostet ein Statement je Schule. Dafür
+   liest der Schulkalender Schließtage und Ferienzeiträume jetzt in einer
+   Abfrage (`schoolcalendar.CareCalendarQuery`); die Budgets bleiben gleich.

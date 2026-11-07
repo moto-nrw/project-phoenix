@@ -1243,6 +1243,7 @@ export const careTimeComparisonTopic =
       notes: [
         "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
         "Hat das Kind einen Vertrag vom Träger, gilt der Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Vertrag`. Das Ende ist die Endzeit des letzten Moduls an diesem Wochentag. Die Ankunft kommt weiter aus dem Wochenplan.",
+        "An einem Tag mit bestätigter Ferienbuchung gilt die Ferienbuchung, auch vor dem Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Ferienbuchung`. Ankunft und Ende sind die Zeiten des gebuchten `Zeitmodell`.",
         "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
         "Zeit im Unterricht wird nicht abgezogen. Unter `Hinweis` steht sie als `Zum Unterricht` mit der Uhrzeit.",
         "Kommt ein Kind nach dem Unterricht nicht zurück, endet `Tatsächlich` mit dieser Abmeldung. Die `Abweichung` ist dann groß und negativ. `Zum Unterricht: ab` mit der Uhrzeit zeigt, dass es nicht nach Hause gegangen ist.",
@@ -10341,6 +10342,7 @@ export const traegerCareTimeOverrunsTopic =
         "Rote Zahlen zeigen Überschreitungen. Sprechen Sie mit den Eltern, oder ändern Sie die Buchung.",
       notes: [
         "Das Soll kommt aus dem versendeten Vertrag: je Wochentag die Module und die Endzeit. Ohne Vertrag gilt der Betreuungsplan der Schule.",
+        "An einem Tag mit bestätigter Ferienbuchung gilt die Ferienbuchung, nicht der Vertrag. Jeder Tag zählt nur einmal.",
         "Das Ist reicht vom ersten Einchecken bis zum letzten Auschecken des Tages.",
         "Eine Überschreitung ist mehr als 15 Minuten früher oder später als gebucht. Ein Tag ohne Buchung zählt ganz.",
         "Krank, entschuldigt, abgemeldet, Schließtage und Feiertage zählen nicht.",

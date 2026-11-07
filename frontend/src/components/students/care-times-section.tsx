@@ -66,6 +66,12 @@ function monthPresets(today: Date) {
   ];
 }
 
+/** Hinweis unter „Gebucht“, wenn das Soll nicht aus dem Wochenplan kommt. */
+const PLANNED_SOURCE_HINTS: Record<string, string | undefined> = {
+  contract: "laut Vertrag",
+  holiday_booking: "laut Ferienbuchung",
+};
+
 const COLUMNS: DataTableColumn<CareTimeDay>[] = [
   {
     key: "date",
@@ -80,8 +86,10 @@ const COLUMNS: DataTableColumn<CareTimeDay>[] = [
     render: (day) => (
       <span className="inline-flex flex-col">
         <span>{formatClockSpan(day.planned_start, day.planned_end)}</span>
-        {day.planned_source === "contract" ? (
-          <span className="text-xs text-gray-500">laut Vertrag</span>
+        {PLANNED_SOURCE_HINTS[day.planned_source ?? ""] ? (
+          <span className="text-xs text-gray-500">
+            {PLANNED_SOURCE_HINTS[day.planned_source ?? ""]}
+          </span>
         ) : null}
       </span>
     ),
@@ -195,7 +203,7 @@ export function StudentCareTimesSection({
   return (
     <SectionCard
       title="Soll und Ist"
-      description={`Gebucht ist die hinterlegte Betreuungszeit, mit Vertrag die Zeit laut Vertrag. Tatsächlich ist die Zeit von der ersten Anmeldung bis zur letzten Abmeldung. Zeit im Unterricht steht als Hinweis in der Zeile und wird nicht abgezogen. Mehr als ${tolerance} Minuten früher oder später zählt als Überschreitung, ebenso ein Tag ohne Buchung.`}
+      description={`Gebucht ist die hinterlegte Betreuungszeit, mit Vertrag die Zeit laut Vertrag. An Tagen mit Ferienbuchung gilt die Ferienbuchung. Tatsächlich ist die Zeit von der ersten Anmeldung bis zur letzten Abmeldung. Zeit im Unterricht steht als Hinweis in der Zeile und wird nicht abgezogen. Mehr als ${tolerance} Minuten früher oder später zählt als Überschreitung, ebenso ein Tag ohne Buchung.`}
       actions={
         <DateRangePicker
           value={range}
