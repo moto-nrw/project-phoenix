@@ -118,7 +118,7 @@ export function DayPickerSkeleton({
         >
           <Skeleton className="mb-1 h-4" />
           {Array.from({ length: mondayWeekRows(first) }, (_, week) => (
-            <Skeleton key={week} className="mt-1.5 h-9 rounded-lg" />
+            <Skeleton key={week} shape="control" className="mt-1.5 h-9" />
           ))}
         </div>
       ))}

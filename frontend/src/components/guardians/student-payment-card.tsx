@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Eye, Landmark, Loader2 } from "lucide-react";
+import { Eye, Landmark } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -28,6 +28,7 @@ import {
   updateGuardianPayment,
 } from "~/lib/guardian-payment-api";
 import { createLogger } from "~/lib/logger";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "StudentPaymentCard" });
 
@@ -404,7 +405,7 @@ export function StudentPaymentCard({
                 <DataField label="Kontoinhaber">
                   {isLoading ? (
                     <span className="inline-flex items-center gap-2 text-gray-600">
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      <SpinnerIcon className="h-4 w-4" />
                       Wird geladen…
                     </span>
                   ) : loadFailed ? (
@@ -417,7 +418,8 @@ export function StudentPaymentCard({
               {payer && (
                 <DataField label="IBAN" mono={Boolean(ibanMasked)} fullWidth>
                   {isLoading ? (
-                    <span className="font-sans text-gray-600">
+                    <span className="inline-flex items-center gap-2 font-sans text-gray-600">
+                      <SpinnerIcon className="h-4 w-4" />
                       Wird geladen…
                     </span>
                   ) : loadFailed ? (
@@ -442,10 +444,11 @@ export function StudentPaymentCard({
                   size="md"
                   variant="outline"
                   onClick={() => void handleReveal()}
-                  disabled={isRevealing}
+                  isLoading={isRevealing}
+                  loadingText="Wird geladen…"
                 >
                   <Eye className="mr-1.5 h-4 w-4" aria-hidden />
-                  {isRevealing ? "Wird geladen…" : "Anzeigen"}
+                  Anzeigen
                 </Button>
               </div>
             )}

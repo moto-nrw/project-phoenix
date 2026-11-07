@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -25,15 +26,16 @@ func (s statusDayList) StatusDays(context.Context, calendar.Date, calendar.Date)
 	return s, nil
 }
 
+var careTimeActor = studentpresence.StatisticsActor{AccountID: 3, Role: "admin"}
+
 // shortRetention keeps attendance for days days and status days for a year.
 type shortRetention struct{ days int }
 
 func (shortRetention) RoomRetentionDays(context.Context) (int, error)   { return 30, nil }
 func (shortRetention) CourseRetentionDays(context.Context) (int, error) { return 365, nil }
-func (r shortRetention) AttendanceRetentionDays(context.Context) (int, error) {
-	return r.days, nil
+func (r shortRetention) OccupancyRetentionDays(context.Context) (int, int, error) {
+	return 365, r.days, nil
 }
-func (shortRetention) StatusDayRetentionDays(context.Context) (int, error) { return 365, nil }
 
 func wallClockAt(hour, minute int) *calendar.WallClock {
 	c, err := calendar.NewWallClock(hour, minute, 0, 0)
@@ -84,6 +86,7 @@ func careTimeWeek() (Config, calendar.Date, calendar.Date) {
 			open,
 		}},
 		Retention:   reportRetention{},
+		AccessLog:   &reportAudit{},
 		ClosingDays: dateSet{fri: true},
 		Now:         func() time.Time { return berlin(nextMon, 12, 0) },
 	}
@@ -93,7 +96,7 @@ func careTimeWeek() (Config, calendar.Date, calendar.Date) {
 func TestStudentCareTimesComparesBookedAndActualTimePerDay(t *testing.T) {
 	t.Parallel()
 	cfg, from, to := careTimeWeek()
-	result, err := NewService(cfg).StudentCareTimes(context.Background(), 7, from, to)
+	result, err := NewService(cfg).StudentCareTimes(context.Background(), 7, from, to, careTimeActor)
 	require.NoError(t, err)
 
 	require.Equal(t, studentpresence.CareTimeToleranceMinutes, result.ToleranceMinutes)
@@ -181,11 +184,11 @@ func TestStudentCareTimesRejectsAChildOutsideTheSchoolAndBadWindows(t *testing.T
 	t.Parallel()
 	cfg, from, to := careTimeWeek()
 	service := NewService(cfg)
-	_, err := service.StudentCareTimes(context.Background(), 99, from, to)
+	_, err := service.StudentCareTimes(context.Background(), 99, from, to, careTimeActor)
 	require.ErrorIs(t, err, studentpresence.ErrCareTimeStudentNotFound)
-	_, err = service.StudentCareTimes(context.Background(), 7, to, from)
+	_, err = service.StudentCareTimes(context.Background(), 7, to, from, careTimeActor)
 	require.ErrorIs(t, err, studentpresence.ErrInvalidStatisticsRange)
-	_, err = service.StudentCareTimes(context.Background(), 7, from, to.AddDays(1))
+	_, err = service.StudentCareTimes(context.Background(), 7, from, to.AddDays(1), careTimeActor)
 	require.ErrorIs(t, err, studentpresence.ErrInvalidStatisticsRange, "the window may not reach into the future")
 }
 
@@ -199,7 +202,7 @@ func TestStudentCareTimesSkipsDaysBeyondRetentionAndNamesCancelledDays(t *testin
 	planned[7][from.AddDays(5)] = ports.PlannedCareDay{Expected: true, NoPlan: true}
 	cfg.Retention = shortRetention{days: 4}
 
-	result, err := NewService(cfg).StudentCareTimes(context.Background(), 7, from, to)
+	result, err := NewService(cfg).StudentCareTimes(context.Background(), 7, from, to, careTimeActor)
 	require.NoError(t, err)
 
 	assert.Equal(t, to.AddDays(-4), result.DataFrom)
@@ -245,7 +248,7 @@ func TestStudentCareTimesWaitsForTodayAndNeedsBookedTimes(t *testing.T) {
 	planned := cfg.PlannedCareDays.(plannedStub)
 	planned[7][from] = ports.PlannedCareDay{Expected: true}
 
-	result, err := NewService(cfg).StudentCareTimes(context.Background(), 7, from, to)
+	result, err := NewService(cfg).StudentCareTimes(context.Background(), 7, from, to, careTimeActor)
 	require.NoError(t, err)
 
 	kinds := map[calendar.Date]studentpresence.CareTimeDayKind{}
@@ -333,4 +336,71 @@ func TestClassifyCareTimeDayShowsTimeInClassWithoutDeducting(t *testing.T) {
 		assert.Empty(t, day.ClassTimes)
 		assert.Equal(t, minutes(-450), day.DeviationMinutes)
 	})
+}
+
+// A day without a check-out is never fully compared, also when an early
+// arrival already made it an overrun: its later minutes are unknown (#4683).
+func TestComparedDayCountsKeepsOpenDaysIncomplete(t *testing.T) {
+	t.Parallel()
+	in := wallClockAt(7, 0)
+	out := wallClockAt(15, 0)
+	end := wallClockAt(16, 0)
+	days := []studentpresence.CareTimeDay{
+		{Kind: studentpresence.CareTimeDayWithinPlan, ActualStart: in, ActualEnd: out, PlannedEnd: end},
+		{Kind: studentpresence.CareTimeDayOverrun, ActualStart: in, ActualEnd: out, PlannedEnd: end},
+		{Kind: studentpresence.CareTimeDayUnbooked, ActualStart: in, ActualEnd: out},
+		// A module without an end time: the pickup is unknown, so the end of
+		// the day cannot be compared.
+		{Kind: studentpresence.CareTimeDayWithinPlan, ActualStart: in, ActualEnd: out},
+		{Kind: studentpresence.CareTimeDayOverrun, ActualStart: in},
+		{Kind: studentpresence.CareTimeDayUnbooked, ActualStart: in},
+		{Kind: studentpresence.CareTimeDayOpen, ActualStart: in},
+		{Kind: studentpresence.CareTimeDayNoPlan, ActualStart: in, ActualEnd: out},
+		{Kind: studentpresence.CareTimeDayAbsent},
+	}
+	compared, uncompared := comparedDayCounts(days)
+	assert.Equal(t, 3, compared, "only days with a check-in, a check-out and a known booked end are compared")
+	assert.Equal(t, 5, uncompared, "open days, days without a plan and days without a booked end stay incomplete")
+}
+
+// A booked day whose pickup is unknown is never shown as within the
+// booking: its departure cannot be compared (#4683).
+func TestClassifyCareTimeDayWithoutABookedEnd(t *testing.T) {
+	t.Parallel()
+	date := calendar.NewDate(2026, 6, 8)
+	checkIn := date.BerlinMidnight().Add(8 * time.Hour)
+	checkOut := date.BerlinMidnight().Add(17 * time.Hour)
+	planned := studentpresence.PlannedCareDay{Expected: true, Arrival: wallClockAt(8, 0)}
+
+	day, listed := classifyCareTimeDay(date, planned, &attendanceSpan{firstCheckIn: checkIn, lastCheckOut: &checkOut}, "", true)
+	require.True(t, listed)
+	assert.Equal(t, studentpresence.CareTimeDayEndUnknown, day.Kind)
+	assert.False(t, day.Kind.IsOverrun())
+
+	early := date.BerlinMidnight().Add(7 * time.Hour)
+	day, _ = classifyCareTimeDay(date, planned, &attendanceSpan{firstCheckIn: early, lastCheckOut: &checkOut}, "", true)
+	assert.Equal(t, studentpresence.CareTimeDayOverrun, day.Kind, "an early arrival is an overrun even without a booked end")
+}
+
+func (shortRetention) PrefetchCareTimeSettings(ctx context.Context) (context.Context, error) {
+	return ctx, nil
+}
+
+// No audit, no data (ADR 0088 section 7, #4683): a failed write or lookup of
+// the access log fails the read of one child's care times.
+func TestStudentCareTimesFailsWithoutItsAuditEntry(t *testing.T) {
+	t.Parallel()
+	for name, audit := range map[string]*reportAudit{
+		"write fails":  {recordErr: errors.New("audit store down")},
+		"lookup fails": {lookupErr: errors.New("audit store down")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cfg, from, to := careTimeWeek()
+			cfg.AccessLog = audit
+			result, err := NewService(cfg).StudentCareTimes(context.Background(), 7, from, to, careTimeActor)
+			require.ErrorIs(t, err, studentpresence.ErrStatisticsAuditFailed)
+			assert.Nil(t, result, "the care times never leave without their access log entry")
+		})
+	}
 }

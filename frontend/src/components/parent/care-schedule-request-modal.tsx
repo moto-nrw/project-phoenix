@@ -2,7 +2,6 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
-import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -175,9 +174,14 @@ function ModalFooter({
       <Button type="button" variant="outline" size="md" onClick={onClose}>
         {t("cancel")}
       </Button>
-      <Button type="button" size="md" disabled={submitting} onClick={onSubmit}>
-        {submitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
-        {t(submitting ? "requestSubmitting" : "requestSubmit")}
+      <Button
+        type="button"
+        size="md"
+        isLoading={submitting}
+        loadingText={t("requestSubmitting")}
+        onClick={onSubmit}
+      >
+        {t("requestSubmit")}
       </Button>
     </>
   );

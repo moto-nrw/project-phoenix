@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import { Skeleton } from "./skeleton";
+import { Skeleton, SkeletonRows } from "./skeleton";
 
 describe("Skeleton", () => {
   it("renders a div element", () => {
@@ -46,10 +46,33 @@ describe("Skeleton", () => {
     );
   });
 
-  it("can override rounded class with custom className", () => {
-    render(<Skeleton data-testid="skeleton" className="rounded-full" />);
+  it("does not let className override the radius selected by shape", () => {
+    render(
+      <Skeleton data-testid="skeleton" shape="line" className="rounded-full" />,
+    );
 
     const skeleton = screen.getByTestId("skeleton");
-    expect(skeleton).toHaveClass("rounded-full");
+    expect(skeleton).toHaveClass("rounded-md");
+    expect(skeleton).not.toHaveClass("rounded-full");
+  });
+
+  it.each([
+    ["round", "rounded-full"],
+    ["control", "rounded-lg"],
+    ["inner", "rounded-xl"],
+    ["card", "rounded-2xl"],
+    ["none", "rounded-none"],
+  ] as const)("takes its radius from shape %s", (shape, radius) => {
+    render(<Skeleton data-testid="skeleton" shape={shape} />);
+
+    expect(screen.getByTestId("skeleton")).toHaveClass(radius);
+  });
+
+  it("renders the requested number of rows, hidden from assistive tech", () => {
+    const { container } = render(<SkeletonRows rows={2} />);
+
+    const list = container.firstElementChild;
+    expect(list).toHaveAttribute("aria-hidden", "true");
+    expect(list?.children).toHaveLength(2);
   });
 });

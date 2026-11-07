@@ -620,3 +620,130 @@ describe("Seitenkopf des Tenant-Portals (Spec R3 und R4)", () => {
     expect(stale).toEqual([]);
   });
 });
+
+// --- Ladezustand als Text (#5588) ---------------------------------------------
+
+const APP_DIR = path.join(SRC_DIR, "app");
+const LOADING_TEXT_RE =
+  /\b(?:wird|werden) geladen\b|\bLädt\b|\bLaden(?:\.\.\.|…| …)/i;
+/** Hier ist der Text die Ansage eines Kit-Bausteins, kein Eigenbau. */
+const LOADING_ANNOUNCEMENT_NAMES = new Set([
+  "aria-label",
+  "ariaLabel",
+  "loadingLabel",
+  "loadingText",
+  "placeholder",
+]);
+/** `label` und `message` sind nur an diesen Bausteinen die Ansage. */
+const LOADING_ANNOUNCEMENT_ELEMENTS = new Map([
+  ["Loading", "message"],
+  ["SkeletonRegion", "label"],
+  ["ListPageSkeleton", "label"],
+]);
+
+function isLoadingAnnouncement(owner: ts.Node): boolean {
+  if (
+    ts.isPropertyAssignment(owner) ||
+    ts.isVariableDeclaration(owner) ||
+    ts.isJsxAttribute(owner)
+  ) {
+    if (LOADING_ANNOUNCEMENT_NAMES.has(owner.name.getText())) return true;
+  }
+  if (!ts.isJsxAttribute(owner)) return false;
+  const element = owner.parent.parent;
+  return (
+    LOADING_ANNOUNCEMENT_ELEMENTS.get(element.tagName.getText()) ===
+    owner.name.getText()
+  );
+}
+
+function isInsideScreenReaderText(node: ts.Node): boolean {
+  for (let current = node.parent; current; current = current.parent) {
+    if (!ts.isJsxElement(current)) continue;
+    const className = current.openingElement.attributes.properties.find(
+      (attribute) =>
+        ts.isJsxAttribute(attribute) &&
+        attribute.name.getText() === "className",
+    );
+    if (className?.getText().includes("sr-only")) return true;
+  }
+  return false;
+}
+
+/** Sichtbare Ladetexte einer Datei; Kommentare sieht der Parser nicht als Text. */
+function visibleLoadingTexts(file: string, source: string): string[] {
+  const sourceFile = ts.createSourceFile(
+    file,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const found: string[] = [];
+  const visit = (node: ts.Node) => {
+    const isText =
+      ts.isJsxText(node) ||
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node);
+    if (isText && LOADING_TEXT_RE.test(node.text)) {
+      let owner: ts.Node = node.parent;
+      while (
+        ts.isJsxExpression(owner) ||
+        ts.isConditionalExpression(owner) ||
+        ts.isParenthesizedExpression(owner)
+      ) {
+        owner = owner.parent;
+      }
+      if (!isLoadingAnnouncement(owner) && !isInsideScreenReaderText(node)) {
+        const { line } = sourceFile.getLineAndCharacterOfPosition(
+          node.getStart(),
+        );
+        found.push(`${line + 1}: ${node.text.trim()}`);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+describe("Ladezustand in Seitendateien", () => {
+  const pageFiles = collectPageFiles(APP_DIR);
+
+  it("findet die Seiten aller Portale", () => {
+    expect(pageFiles.length).toBeGreaterThan(100);
+  });
+
+  it.each(pageFiles.map((file) => [path.relative(APP_DIR, file), file]))(
+    "%s zeigt keinen Ladetext von Hand",
+    (_id, file) => {
+      // `Loading`, `SkeletonRegion`, `TenantPage loading` oder `Button isLoading`
+      // tragen die Ansage; ein grauer Satz sagt nicht, dass etwas passiert.
+      expect(visibleLoadingTexts(file, readFileSync(file, "utf8"))).toEqual([]);
+    },
+  );
+
+  it("schlägt auf Ladetext an und lässt die Ansage der Kit-Bausteine durch", () => {
+    expect(
+      visibleLoadingTexts(
+        "probe.tsx",
+        `const a = <p>Wird geladen…</p>;
+         const b = <SectionCard description="Lädt…" />;
+         const c = busy ? "Laden..." : "Weiter";
+         const d = <StatusBadge label="Vorschau wird geladen" />;
+         const e = { label: "Vorschau wird geladen" };`,
+      ),
+    ).toHaveLength(5);
+    expect(
+      visibleLoadingTexts(
+        "probe.tsx",
+        `// Wird geladen…
+         const a = <Loading message="Wird geladen…" />;
+         const b = <SkeletonRegion label="Liste wird geladen" />;
+         const c = <Button loadingText="Lädt …" />;
+         const d = <span className="sr-only">wird geladen</span>;
+         const e = <div aria-label="Wird geladen" />;`,
+      ),
+    ).toEqual([]);
+  });
+});

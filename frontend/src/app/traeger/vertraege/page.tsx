@@ -576,9 +576,11 @@ export default function TraegerVertraegePage() {
           type="button"
           variant="outline"
           disabled={loadingMore || sending}
+          isLoading={loadingMore}
+          loadingText="Wird geladen …"
           onClick={() => void load(contracts.length)}
         >
-          {loadingMore ? "Wird geladen …" : "Weitere Verträge laden"}
+          Weitere Verträge laden
         </Button>
       ) : null}
       {data && selected.size > 0 && selectedDrafts.length < selected.size ? (

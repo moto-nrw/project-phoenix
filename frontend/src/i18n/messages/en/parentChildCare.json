@@ -29,7 +29,8 @@
     "reasonRequiredError": "Enter a short note for the OGS.",
     "requestSentTitle": "Request sent",
     "requestSentBody": "The OGS must still confirm the absence. Until then, your child is still expected.",
-    "errorObject": "the absence report"
+    "errorObject": "the absence report",
+    "submitting": "Reporting …"
   },
   "summary": {
     "none": "No absence",
@@ -93,7 +94,9 @@
     "modeStaffSet": "The OGS has already set the way home for this day: {mode}.",
     "pendingMode": "New way home: {to}",
     "statusApprovedChange": "Confirmed, the change has been applied.",
-    "errorStaffConflictGeneric": "The OGS has already set a change for this day. Please contact the team."
+    "errorStaffConflictGeneric": "The OGS has already set a change for this day. Please contact the team.",
+    "submitting": "Sending …",
+    "savingEdit": "Saving …"
   },
   "actions": {
     "sick": {

@@ -279,7 +279,7 @@ function ParentEnrollSkeleton() {
           className="moto-content-surface overflow-hidden rounded-2xl border"
         >
           <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
-            <Skeleton className="size-11 shrink-0 rounded-xl" />
+            <Skeleton shape="inner" className="size-11 shrink-0" />
             <Skeleton className="h-5 w-48 max-w-2/3" />
           </div>
           <ul className="divide-y divide-gray-100">
@@ -288,12 +288,12 @@ function ParentEnrollSkeleton() {
                 <div className="min-w-0 flex-1 space-y-2">
                   <div className="flex gap-2">
                     <Skeleton className="h-4 w-36" />
-                    <Skeleton className="h-5 w-20 rounded-full" />
+                    <Skeleton shape="round" className="h-5 w-20" />
                   </div>
                   <Skeleton className="h-4 w-56 max-w-full" />
                   <Skeleton className="h-3 w-40" />
                 </div>
-                <Skeleton className="size-5 shrink-0 rounded" />
+                <Skeleton className="size-5 shrink-0" />
               </li>
             ))}
           </ul>

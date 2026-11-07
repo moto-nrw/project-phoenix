@@ -38,7 +38,10 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import {
+  ChoiceTileListSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { fetchStudents } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
@@ -820,7 +823,7 @@ function StudentsInRoomBody({
         label="Kinderliste wird geladen"
         testId="students-in-room-skeleton"
       >
-        <ListSkeleton rows={4} avatar={photosEnabled} />
+        <ChoiceTileListSkeleton rows={4} avatar={photosEnabled} />
       </SkeletonRegion>
     );
   }

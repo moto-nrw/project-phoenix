@@ -15,7 +15,8 @@ export type CareTimeDayKind =
   | "cancelled"
   | "closed"
   | "open"
-  | "no_plan";
+  | "no_plan"
+  | "end_unknown";
 
 interface CareTimeSummary {
   overrun_count: number;
@@ -32,6 +33,8 @@ export interface CareTimeDay {
   date: string;
   kind: CareTimeDayKind;
   overrun: boolean;
+  /** Woher das Soll kommt (#4683): Vertrag des Trägers oder Betreuungsplan. */
+  planned_source?: "contract" | "care_plan" | "";
   planned_start: string | null;
   planned_end: string | null;
   actual_start: string | null;
@@ -155,6 +158,7 @@ export const CARE_TIME_DAY_LABELS: Record<
   closed: { label: "Geschlossen", tone: "gray" },
   open: { label: "Noch nicht abgemeldet", tone: "blue" },
   no_plan: { label: "Keine Zeiten hinterlegt", tone: "gray" },
+  end_unknown: { label: "Abholzeit fehlt", tone: "gray" },
 };
 
 /** „08:00–15:00“, „ab 08:00“ oder „–“, wenn beide Zeiten fehlen. */

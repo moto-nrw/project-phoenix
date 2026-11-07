@@ -1,6 +1,7 @@
 "use client";
 
 import { CollectionGrid } from "~/components/ui/collection-grid";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 
@@ -8,17 +9,17 @@ function DatabaseCardSkeleton() {
   // Mirrors a database section card: icon block, count badge, title,
   // description, footer link.
   return (
-    <div className="moto-content-surface w-full overflow-hidden rounded-2xl border">
+    <SectionCard padding="none" className="w-full">
       <div className="p-4 sm:p-6">
         <div className="mb-4 flex items-start justify-between">
-          <Skeleton className="h-12 w-12 rounded-2xl" />
-          <Skeleton className="h-6 w-16 rounded-full" />
+          <Skeleton shape="card" className="h-12 w-12" />
+          <Skeleton shape="round" className="h-6 w-16" />
         </div>
-        <Skeleton className="mb-2 h-5 w-2/3 rounded" />
-        <Skeleton className="mb-4 h-4 w-full rounded" />
-        <Skeleton className="h-4 w-24 rounded" />
+        <Skeleton className="mb-2 h-5 w-2/3" />
+        <Skeleton className="mb-4 h-4 w-full" />
+        <Skeleton className="h-4 w-24" />
       </div>
-    </div>
+    </SectionCard>
   );
 }
 

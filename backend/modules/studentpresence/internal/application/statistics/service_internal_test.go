@@ -26,11 +26,8 @@ type reportRetention struct{ err error }
 
 func (r reportRetention) RoomRetentionDays(context.Context) (int, error)   { return 30, r.err }
 func (r reportRetention) CourseRetentionDays(context.Context) (int, error) { return 365, r.err }
-func (r reportRetention) AttendanceRetentionDays(context.Context) (int, error) {
-	return 365, r.err
-}
-func (r reportRetention) StatusDayRetentionDays(context.Context) (int, error) {
-	return 365, r.err
+func (r reportRetention) OccupancyRetentionDays(context.Context) (int, int, error) {
+	return 365, 365, r.err
 }
 
 type reportAudit struct {
@@ -447,4 +444,8 @@ func TestRoomReportDoesNotMarkEnabledHistoryAsDisabled(t *testing.T) {
 	require.Len(t, report.Rooms, 1)
 	assert.Equal(t, "Gruppenraum", report.Rooms[0].Name)
 	assert.Equal(t, 30, report.RoomDataDays)
+}
+
+func (reportRetention) PrefetchCareTimeSettings(ctx context.Context) (context.Context, error) {
+	return ctx, nil
 }

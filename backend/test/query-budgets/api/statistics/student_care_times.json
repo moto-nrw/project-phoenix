@@ -1,6 +1,6 @@
 {
   "scenario": "api.statistics.student_care_times",
-  "max": 19,
+  "max": 18,
   "exact": false,
-  "description": "GET /statistics/students/{id}/care-times: fixed tenant and comparison batches, independent of listed days. TestCareTimesQueryBudgets compares three with six days."
+  "description": "GET /statistics/students/{id}/care-times: fixed tenant and comparison batches, independent of listed days. TestCareTimesQueryBudgets compares three with six days. Since #4683 the settings of Soll und Ist (retention windows, federal state, booking-led care) come in one prefetch; the child view also checks and writes its data-access log entry."
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { CheckSquare, Loader2, LogIn, LogOut, X } from "lucide-react";
+import { CheckSquare, LogIn, LogOut, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
@@ -10,6 +10,7 @@ import {
   leftOutLabel,
   type SelectAllControl,
 } from "~/components/students/school-checkin-select-all";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const CHECKIN_BAR_OFFSET_VAR = "--moto-checkin-bar-offset";
 // Measured bar height plus the install hint's clearance (#4358): 106 px in
@@ -214,10 +215,7 @@ export function SchoolCheckinModeMobile({
             </span>
 
             {pendingCount > 0 ? (
-              <Loader2
-                className="size-3.5 shrink-0 animate-spin text-gray-500"
-                aria-hidden
-              />
+              <SpinnerIcon className="size-3.5 shrink-0 text-gray-500" />
             ) : null}
 
             {selectionActive && selectAll ? (
@@ -271,7 +269,7 @@ export function SchoolCheckinModeMobile({
               }
             >
               {runningAction === "in" ? (
-                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                <SpinnerIcon className="size-3.5" />
               ) : (
                 <LogIn className="size-3.5" aria-hidden />
               )}
@@ -288,7 +286,7 @@ export function SchoolCheckinModeMobile({
               }
             >
               {runningAction === "out" ? (
-                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                <SpinnerIcon className="size-3.5" />
               ) : (
                 <LogOut className="size-3.5" aria-hidden />
               )}

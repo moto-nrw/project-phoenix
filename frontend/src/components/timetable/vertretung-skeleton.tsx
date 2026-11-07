@@ -26,14 +26,14 @@ export function VertretungContentSkeleton({
       className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]"
     >
       <div className={`${timetableSurfacePadded} space-y-3`}>
-        <Skeleton className="h-8 w-44 rounded-lg" />
+        <Skeleton shape="control" className="h-8 w-44" />
         {[0, 1, 2, 3].map((row) => (
-          <Skeleton key={row} className="h-16 w-full rounded-xl" />
+          <Skeleton key={row} shape="inner" className="h-16 w-full" />
         ))}
       </div>
       <div className={`${timetableSurfacePadded} space-y-3`}>
-        <Skeleton className="h-8 w-32 rounded-lg" />
-        <Skeleton className="h-96 w-full rounded-xl" />
+        <Skeleton shape="control" className="h-8 w-32" />
+        <Skeleton shape="inner" className="h-96 w-full" />
       </div>
     </div>
   );

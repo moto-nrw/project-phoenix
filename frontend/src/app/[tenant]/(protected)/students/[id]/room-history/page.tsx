@@ -69,7 +69,8 @@ const LazyHistoryCharts = dynamic(() => import("./history-charts"), {
   ssr: false,
   loading: () => (
     <Skeleton
-      className="h-[404px] w-full rounded-2xl md:h-[200px]"
+      shape="card"
+      className="h-[404px] w-full md:h-[200px]"
       aria-hidden
     />
   ),

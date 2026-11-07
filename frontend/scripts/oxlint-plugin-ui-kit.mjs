@@ -80,6 +80,13 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     navigator.clipboard outside the kit and
 //                                     useClipboardCopy; use CopyField
 //
+// One more keeps waiting indicators on the kit (#5588), hard-zero:
+//
+//   ui-kit/no-own-spinner           — no `animate-spin` and no spinner icon
+//                                     from an icon package outside
+//                                     src/components/ui/; use Loading,
+//                                     SpinnerIcon or Button isLoading
+//
 // One more keeps form fields on the kit (#5217):
 //
 //   ui-kit/no-kit-domain-import     — files in components/ui import no other
@@ -1180,15 +1187,15 @@ src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@58
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
 src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
-src/components/students/school-checkin-fab.tsx|text-[10px]@199
-src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
+src/components/students/school-checkin-fab.tsx|text-[10px]@200
+src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@119 text-[10px]@140 text-[10px]@151
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@374
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@529
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-[11px]@310
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1359 text-[11px]@1385 text-[11px]@1561 text-[10px]@1670 text-[11px]@1693
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1360 text-[11px]@1386 text-[11px]@1559 text-[10px]@1668 text-[11px]@1691
 src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@199 text-[10px]@215 text-[11px]@224 text-[10px]@266 text-[10px]@290 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@471
@@ -3302,6 +3309,47 @@ const noShadowKitName = {
   },
 };
 
+// ui-kit/no-own-spinner (#5588).
+
+const SPIN_CLASS_RE = /(?:^|[\s"'`:])animate-spin(?:$|[\s"'`])/;
+const ICON_PACKAGE_RE = /^(?:lucide-react|@phosphor-icons\/)/;
+const SPINNER_ICON_RE =
+  /^(?:Loader(?:2|Circle|Pinwheel)?(?:Icon)?|CircleNotch(?:Icon)?|Spinner(?:Gap|Ball)?(?:Icon)?)$/;
+
+const noOwnSpinner = makeRatchetRule({
+  ruleName: "no-own-spinner",
+  description:
+    "Waiting indicators come from Loading, SpinnerIcon or Button isLoading instead of an own spinner.",
+  message:
+    "Kein eigener Spinner: `Loading` für einen ganzen Bereich, `SpinnerIcon` neben Text oder im Symbolknopf, `Button isLoading loadingText=…` im Knopf (#5588, .claude/rules/frontend-ui-kit.md).",
+  // Hard-zero: der Bestand ist abgebaut, jede neue Stelle schlägt fehl.
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/icons.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ found }) => ({
+    ImportDeclaration(node) {
+      if (!ICON_PACKAGE_RE.test(String(node.source.value))) return;
+      for (const specifier of node.specifiers) {
+        if (
+          specifier.type === "ImportSpecifier" &&
+          SPINNER_ICON_RE.test(specifier.imported.name)
+        ) {
+          found(specifier);
+        }
+      }
+    },
+    Literal(node) {
+      if (typeof node.value === "string" && SPIN_CLASS_RE.test(node.value)) {
+        found(node);
+      }
+    },
+    TemplateElement(node) {
+      if (SPIN_CLASS_RE.test(node.value.raw)) found(node);
+    },
+  }),
+});
+
 // Eingabe-Bausteine (#5596): drei Muster, die es im Kit genau einmal gibt.
 
 /** Direkte JSX-Kinder, auch hinter `&&`, `?:`, Fragment und `{…}`. */
@@ -3563,6 +3611,7 @@ export default {
     "no-grey-button-fill": noGreyButtonFill,
     "no-hand-rolled-button": noHandRolledButton,
     "no-hand-rolled-copy-field": noHandRolledCopyField,
+    "no-own-spinner": noOwnSpinner,
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,

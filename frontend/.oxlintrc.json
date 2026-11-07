@@ -77,6 +77,7 @@
     "ui-kit/no-hand-rolled-portal-nav": "error",
     "ui-kit/no-hand-rolled-dropzone": "error",
     "ui-kit/no-hand-rolled-copy-field": "error",
+    "ui-kit/no-own-spinner": "error",
     "ui-kit/no-pill-dot": "error",
     "ui-kit/no-hex-alpha-tint": "error",
     "ui-kit/no-hand-rolled-dot": "error",

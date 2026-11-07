@@ -164,7 +164,8 @@
     "withdrawalConfirmBack": "Назад",
     "withdrawalConfirmSubmit": "Надіслати запит",
     "errorObjectCatalog": "список пропозицій",
-    "errorObjectRequest": "запит на зміну"
+    "errorObjectRequest": "запит на зміну",
+    "submitting": "Надсилання …"
   },
   "weekdayShort": {
     "1": "Пн",
