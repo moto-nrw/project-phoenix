@@ -71,6 +71,12 @@ Ergänzung in #4682. Keine Rechtsberatung.
 
 ## Folgen
 
+- Fällt das Ende der Widerrufsfrist auf einen Samstag, Sonntag oder einen
+  bundesweiten Feiertag, endet sie am nächsten Werktag (§ 193 BGB). Regionale
+  Feiertage kennt nur School Calendar; dort endet die Frist einen Tag früher,
+  als sie könnte. Eine späte Belehrung verlängert die Frist nie über 12 Monate
+  und 14 Tage nach dem Abschluss hinaus.
+
 - Die Komposition von `modules/carecontract/compose` wächst um die
   Konstruktoren der Erklärungen (+35 LOC) und `workflows/parentportal/compose`
   um den Port (+1 LOC). Zwei neue Träger-Transaktionen der Erklärungen im

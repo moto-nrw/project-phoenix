@@ -236,6 +236,10 @@ describe("CareContractNoticeCard (#4682)", () => {
     fireEvent.click(submit);
     expect(submit).toBeDisabled();
     expect(mocks.recordContractNotice).toHaveBeenCalledTimes(1);
+    expect(mocks.recordContractNotice).toHaveBeenCalledWith(
+      "25",
+      expect.objectContaining({ expectedEndsOn: "2026-12-31" }),
+    );
   });
   it("records a timely dispatch separately from a late receipt", async () => {
     mocks.fetchContractNoticeOptions.mockResolvedValue({

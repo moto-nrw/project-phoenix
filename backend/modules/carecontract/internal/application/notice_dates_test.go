@@ -64,9 +64,34 @@ func TestWithdrawalPeriodFollowsTheNotice(t *testing.T) {
 
 	assert.Equal(t, new(calendar.NewDate(2026, 11, 20)), withdrawalUntil(electronic, &informed))
 	assert.Equal(t, new(calendar.NewDate(2026, 11, 20)), withdrawalUntil(paper, &informed), "the PDF granted it")
-	assert.Equal(t, new(calendar.NewDate(2027, 11, 20)), withdrawalUntil(electronic, nil), "without the notice")
+	assert.Equal(t, new(calendar.NewDate(2027, 11, 22)), withdrawalUntil(electronic, nil),
+		"without the notice: 20 November 2027 is a Saturday, the period ends on Monday (§ 193 BGB)")
 	assert.Nil(t, withdrawalUntil(paper, nil), "signed at the office before the notice")
 	assert.Nil(t, withdrawalUntil(nil, nil), "no conclusion, no period")
+
+	saturday := time.Date(2026, 11, 7, 9, 0, 0, 0, time.UTC)
+	assert.Equal(t, new(calendar.NewDate(2026, 11, 23)), withdrawalUntil(
+		&carecontract.Concluded{Method: carecontract.MethodWithApplication, At: saturday}, &saturday),
+		"21 November 2026 is a Saturday: the period ends on Monday 23 November (§ 193 BGB)")
+	christmas := time.Date(2026, 12, 11, 9, 0, 0, 0, time.UTC)
+	assert.Equal(t, new(calendar.NewDate(2026, 12, 28)), withdrawalUntil(
+		&carecontract.Concluded{Method: carecontract.MethodWithApplication, At: christmas}, &christmas),
+		"25 December (holiday), 26 December (holiday) and Sunday 27 December move it to Monday 28 December")
+	late := time.Date(2027, 11, 20, 9, 0, 0, 0, time.UTC)
+	assert.Equal(t, new(calendar.NewDate(2027, 11, 22)), withdrawalUntil(electronic, &late),
+		"a notice provided late never reaches beyond 12 months and 14 days after the conclusion")
+}
+
+// Easter and the nationwide holidays that depend on it.
+func TestNationwideHolidays(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, calendar.NewDate(2026, 4, 5), easterSunday(2026))
+	assert.Equal(t, calendar.NewDate(2027, 3, 28), easterSunday(2027))
+	for _, day := range []calendar.Date{calendar.NewDate(2026, 4, 3), calendar.NewDate(2026, 4, 6), calendar.NewDate(2026, 5, 14),
+		calendar.NewDate(2026, 5, 25), calendar.NewDate(2026, 10, 3), calendar.NewDate(2026, 12, 26)} {
+		assert.True(t, nationwideHoliday(day), day.String())
+	}
+	assert.False(t, nationwideHoliday(calendar.NewDate(2026, 6, 4)), "Fronleichnam is regional")
 }
 
 // The confirmation fills only the Träger's placeholders and refuses an

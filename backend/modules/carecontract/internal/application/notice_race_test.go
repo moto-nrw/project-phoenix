@@ -332,7 +332,7 @@ func TestLegacyFrozenDocumentDoesNotClaimWithdrawalNotice(t *testing.T) {
 	var informed *time.Time
 	require.NoError(t, f.db.NewRaw(`SELECT withdrawal_informed_at FROM care_contract.contracts WHERE id = ?`, f.contract).Scan(f.ctx, &informed))
 	assert.Nil(t, informed, "conclusion and resend of an old PDF prove no notice provision")
-	assert.Equal(t, new(calendar.NewDate(2027, 11, 20)), withdrawalUntil(&f.conclusion, informed))
+	assert.Equal(t, new(calendar.NewDate(2027, 11, 22)), withdrawalUntil(&f.conclusion, informed), "20 November 2027 is a Saturday (§ 193 BGB)")
 }
 
 func TestOfficeOptionsUseTheReceiptDay(t *testing.T) {

@@ -318,7 +318,15 @@ function RecordNoticeModal({
         kind,
         terminationKind,
         receivedOn,
-        ...(kind === "widerruf" ? { dispatchedOn } : {}),
+        ...(kind === "widerruf"
+          ? { dispatchedOn }
+          : {
+              // The end date the office saw: the backend refuses a changed one.
+              expectedEndsOn:
+                (terminationKind === "sonderkuendigung"
+                  ? choices?.specialEndsOn
+                  : choices?.ordinaryEndsOn) ?? undefined,
+            }),
       });
       success(
         kind === "widerruf"

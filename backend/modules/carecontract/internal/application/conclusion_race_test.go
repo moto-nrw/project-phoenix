@@ -111,7 +111,7 @@ func newRaceFixture(t *testing.T, name string) raceFixture {
 	store := postgres.NewStore()
 	clock := Clock{Now: time.Now}
 	contracts := NewContracts(store, raceRenderer{}, ContractPorts{
-		Letterheads: raceLetterhead{}, Post: &racePost{next: testpkg.UniqueTestTenantID(t)}, Runtime: raceRuntime{}, Access: raceAccess{},
+		Letterheads: raceLetterhead{}, Post: &racePost{next: testpkg.UniqueTestTenantID(t) * 1_000}, Runtime: raceRuntime{}, Access: raceAccess{},
 	}, clock, NewVersions(store))
 	var id int64
 	require.NoError(t, testpkg.WithinTraeger(ctx, org, func(txCtx context.Context) error {
