@@ -111,62 +111,41 @@ export function ClosingDayModal({
       }
     >
       <div ref={formRef} className="space-y-4">
-        <div>
-          <label
-            htmlFor="closing-day-reason"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Grund
-          </label>
-          <Input
-            id="closing-day-reason"
-            name="reason"
-            type="text"
-            value={reason}
-            maxLength={255}
-            onChange={(e) => setReason(e.target.value)}
-            error={formErrors.fieldError("reason")}
-            placeholder="z. B. Pädagogischer Tag, Sommerschließung"
-          />
-        </div>
+        <Input
+          id="closing-day-reason"
+          name="reason"
+          type="text"
+          label="Grund"
+          value={reason}
+          maxLength={255}
+          onChange={(e) => setReason(e.target.value)}
+          error={formErrors.fieldError("reason")}
+          placeholder="z. B. Pädagogischer Tag, Sommerschließung"
+        />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="closing-day-start"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Von
-            </label>
-            <ISODatePicker
-              id="closing-day-start"
-              name="start_date"
-              controlSize="lg"
-              value={startDate}
-              onChange={setStartDate}
-              error={formErrors.fieldError("start_date")}
-              calendarLayout="popover"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="closing-day-end"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Bis
-            </label>
-            <ISODatePicker
-              id="closing-day-end"
-              name="end_date"
-              controlSize="lg"
-              value={endDate}
-              min={startDate || undefined}
-              defaultMonth={startDate}
-              onChange={setEndDate}
-              error={formErrors.fieldError("end_date")}
-              calendarLayout="popover"
-            />
-          </div>
+          <ISODatePicker
+            id="closing-day-start"
+            name="start_date"
+            label="Von"
+            controlSize="lg"
+            value={startDate}
+            onChange={setStartDate}
+            error={formErrors.fieldError("start_date")}
+            calendarLayout="popover"
+          />
+          <ISODatePicker
+            id="closing-day-end"
+            name="end_date"
+            label="Bis"
+            controlSize="lg"
+            value={endDate}
+            min={startDate || undefined}
+            defaultMonth={startDate}
+            onChange={setEndDate}
+            error={formErrors.fieldError("end_date")}
+            calendarLayout="popover"
+          />
         </div>
 
         <p className="text-xs text-gray-500">

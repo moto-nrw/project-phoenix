@@ -12,6 +12,7 @@
  * care-plan-helpers.ts from data the student detail page already holds.
  */
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Ban, Check, LogIn, LogOut } from "lucide-react";
 
@@ -301,9 +302,10 @@ export function CarePlanDayTimeline({
           <AbsenceNotice reason={absence.reason} />
         )
       ) : isEmpty ? (
-        <p className="py-6 text-center text-sm text-gray-500">
-          Kein Betreuungsplan für diesen Tag.
-        </p>
+        <EmptyState
+          variant="compact"
+          description="Kein Betreuungsplan für diesen Tag."
+        />
       ) : (
         <>
           {hasArrival ? (

@@ -937,17 +937,16 @@ function PendingAbsences({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="moto-content-surface flex items-center gap-3 rounded-2xl border px-5 py-4">
-        <span className="bg-moto-green/15 text-moto-green-strong inline-flex h-7 w-7 items-center justify-center rounded-full">
-          <Check className="h-4 w-4" aria-hidden />
-        </span>
-        <div>
-          <p className="text-sm font-medium text-gray-700">
-            Keine offenen Anfragen
-          </p>
-          <p className="text-xs text-gray-500">Alles bearbeitet.</p>
-        </div>
-      </div>
+      <SectionCard>
+        <EmptyState
+          variant="compact"
+          tone="success"
+          icon={<Check aria-hidden />}
+          title="Keine offenen Anfragen"
+          description="Alles bearbeitet."
+          className="py-0"
+        />
+      </SectionCard>
     );
   }
 

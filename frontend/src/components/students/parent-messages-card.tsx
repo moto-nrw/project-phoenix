@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { studentKeys } from "~/lib/swr/portal-keys";
 
 import { useCallback, useEffect, useState } from "react";
@@ -121,11 +122,19 @@ export function ParentMessagesCard({
       {loadFailure ? (
         <LoadErrorAlert error={load.error} />
       ) : threads.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-500">
-          {messagingEnabled
-            ? "Noch keine Unterhaltungen. Schreiben Sie den Eltern die erste Nachricht."
-            : "Der Nachrichtenaustausch mit den Eltern ist für diese Schule deaktiviert."}
-        </p>
+        <EmptyState
+          variant="compact"
+          title={
+            messagingEnabled
+              ? "Noch keine Unterhaltungen."
+              : "Der Nachrichtenaustausch mit den Eltern ist für diese Schule deaktiviert."
+          }
+          description={
+            messagingEnabled
+              ? "Schreiben Sie den Eltern die erste Nachricht."
+              : undefined
+          }
+        />
       ) : (
         <ul className="space-y-2">
           {threads.map((thread) => {
