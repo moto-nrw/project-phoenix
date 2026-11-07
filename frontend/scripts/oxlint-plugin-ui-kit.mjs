@@ -4178,7 +4178,7 @@ const noHandRolledEmptyState = {
       }
       return paths;
     };
-    const collectClassPaths = (node) => {
+    const collectClassPaths = (node, seenVariables = new Set()) => {
       if (node == null || typeof node !== "object") return new Set([0]);
       if (node.type === "Literal" && typeof node.value === "string") {
         return new Set([emptyStateClassPath(node.value)]);
@@ -4193,6 +4193,29 @@ const noHandRolledEmptyState = {
         case "TSTypeAssertion":
         case "TypeCastExpression":
           return collectClassPaths(node.expression);
+        case "Identifier": {
+          const variable = findVariable(sourceCode, node);
+          if (!variable || seenVariables.has(variable)) return new Set([0]);
+
+          const nextSeenVariables = new Set(seenVariables);
+          nextSeenVariables.add(variable);
+          let paths = new Set();
+          for (const definition of variable.defs) {
+            if (
+              definition.type !== "Variable" ||
+              definition.node.type !== "VariableDeclarator" ||
+              definition.parent?.kind !== "const" ||
+              !definition.node.init
+            ) {
+              continue;
+            }
+            paths = eitherClassPaths(
+              paths,
+              collectClassPaths(definition.node.init, nextSeenVariables),
+            );
+          }
+          return paths.size > 0 ? paths : new Set([0]);
+        }
         case "ConditionalExpression":
           return eitherClassPaths(
             collectClassPaths(node.consequent),

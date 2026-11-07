@@ -196,6 +196,21 @@ describe.concurrent("ui-kit/no-hand-rolled-empty-state", () => {
     }
   });
 
+  it("reports classes combined from constants", async () => {
+    const result = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      const dashedClasses = "border-dashed";
+      const centeredClasses = "text-center";
+      export const Probe = () => (
+        <div className={cn(dashedClasses, centeredClasses)}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
   it("allows mutually exclusive dashed and centered classes", async () => {
     const result = await lintSource(
       `declare const loading: boolean;
