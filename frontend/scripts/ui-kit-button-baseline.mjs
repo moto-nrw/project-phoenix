@@ -121,7 +121,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1068],
+    lines: [1066],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
