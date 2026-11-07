@@ -8,6 +8,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "api/common/imagemeta",
+      "owner": "tenant-runtime",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "middleware",
       "owner": "tenant-runtime",
       "role": "http",

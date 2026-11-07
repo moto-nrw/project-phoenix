@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
 import {
@@ -233,9 +234,11 @@ export function ContactListInput({
       )}
       <ul className="space-y-3">
         {contacts.map((c, idx) => (
-          <li
+          <InsetPanel
+            as="li"
+            framed
+            padding="md"
             key={getStableObjectKey(c, "contact")}
-            className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4"
           >
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Input
@@ -317,7 +320,7 @@ export function ContactListInput({
                 {tr("structured.removeContact")}
               </Button>
             </div>
-          </li>
+          </InsetPanel>
         ))}
       </ul>
       <Button

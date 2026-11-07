@@ -18,6 +18,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -349,7 +350,7 @@ func (rs *Resource) saveTemplate(w http.ResponseWriter, r *http.Request) {
 // WriteFile writes a PDF that no cache keeps.
 func WriteFile(w http.ResponseWriter, file carecontract.File, disposition string) {
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition(disposition, file.Filename))
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)

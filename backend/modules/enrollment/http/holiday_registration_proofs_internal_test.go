@@ -12,6 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// refuseHolidayProof answers a proof the transport checks refuse, like
+// uploadProof does after the link and the rate limit passed.
+func refuseHolidayProof(w http.ResponseWriter, r *http.Request) {
+	if _, err := parseHolidayProof(w, r); err != nil {
+		renderUploadRefusal(w, r, err)
+	}
+}
+
 func TestHolidayProofContentMismatch(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, content string }{
@@ -29,8 +37,9 @@ func TestHolidayProofContentMismatch(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/proofs", &body)
 			req.Header.Set("Content-Type", writer.FormDataContentType())
 			w := httptest.NewRecorder()
-			// Rejection must happen before link resolution or storage is reached.
-			(&HolidayRegistrationResource{}).uploadProof(w, req)
+			// The refusal reaches no storage; the route checks the link and
+			// the rate limit before it reads the body.
+			refuseHolidayProof(w, req)
 			require.Equal(t, http.StatusBadRequest, w.Code)
 			var response struct {
 				Code    string         `json:"code"`
@@ -83,7 +92,7 @@ func TestHolidayProofUnsupportedDocumentIsNotContentMismatch(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/proofs", &body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	w := httptest.NewRecorder()
-	(&HolidayRegistrationResource{}).uploadProof(w, req)
+	refuseHolidayProof(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	var response struct {
 		Code string `json:"code"`

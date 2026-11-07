@@ -98,10 +98,12 @@ type UploadRejection struct {
 func (r *UploadRejection) Error() string { return "upload does not fit the file field" }
 
 // UploadIntake stores the uploads of the public form in the caller's tenant
-// transaction. PrepareUpload checks the field and the rate limit and stores
-// the row; once that commits the caller writes the bytes and, when that
-// fails, deletes the row again through RequestUploadRecords.
+// transaction. CountUploadAttempt counts the attempt in the IP's upload
+// bucket before the caller reads the body; PrepareUpload checks the field and
+// stores the row. Once that commits the caller writes the bytes and, when
+// that fails, deletes the row again through RequestUploadRecords.
 type UploadIntake interface {
+	CountUploadAttempt(ctx context.Context, tenantID int64, remoteIP string) error
 	PrepareUpload(ctx context.Context, input UploadInput) (*PreparedUpload, error)
 }
 

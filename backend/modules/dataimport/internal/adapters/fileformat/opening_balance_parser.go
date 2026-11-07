@@ -97,7 +97,7 @@ func ParseOpeningBalanceXLSX(reader io.Reader) ([]importModels.OpeningBalanceImp
 		return nil, fmt.Errorf("read file: %w", err)
 	}
 
-	f, err := excelize.OpenReader(buf)
+	f, err := openXLSX(buf, excelize.Options{})
 	if err != nil {
 		return nil, fmt.Errorf("open excel file: %w", err)
 	}
@@ -110,7 +110,7 @@ func ParseOpeningBalanceXLSX(reader io.Reader) ([]importModels.OpeningBalanceImp
 		return nil, fmt.Errorf("no sheets found in Excel file")
 	}
 
-	sheetRows, err := f.GetRows(sheetName)
+	sheetRows, err := readXLSXRows(f, sheetName)
 	if err != nil {
 		return nil, fmt.Errorf("read rows: %w", err)
 	}

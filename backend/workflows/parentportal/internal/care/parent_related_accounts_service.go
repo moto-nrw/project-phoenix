@@ -297,7 +297,8 @@ func (s *Service) inviteRequiresStaffApproval(ctx context.Context, tenantID int6
 // The caller needs parent_portal.related_accounts.manage on this child
 // (#4603), and the school gates it with guardians.parent_can_remove; the
 // primary guardian can never be removed by a parent (enforced in the
-// invitation service).
+// invitation service). A social worker's relationship is school-managed, as
+// in the contact, pickup and invite paths, so a parent cannot remove it.
 func (s *Service) RemoveRelatedAccount(ctx context.Context, accountID, studentID, guardianProfileID int64) error {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRelatedAccountsManage)
 	if err != nil {
@@ -330,10 +331,28 @@ func (s *Service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
+		if err := s.refuseSchoolManagedRemoval(txCtx, studentID, guardianProfileID); err != nil {
+			return err
+		}
 		return s.GuardianInvites.RevokeAccess(txCtx, GuardianAccessRevocation{
 			StudentID:         studentID,
 			GuardianProfileID: guardianProfileID,
 			ActorAccountID:    accountID,
 		})
 	})
+}
+
+// refuseSchoolManagedRemoval locks the target relationship and refuses a
+// social-worker link: the school sets and removes it, never a parent. The row
+// lock keeps a concurrent staff role change from slipping between this check
+// and the delete.
+func (s *Service) refuseSchoolManagedRemoval(ctx context.Context, studentID, guardianProfileID int64) error {
+	link, err := s.findChildGuardianLinkForUpdate(ctx, studentID, guardianProfileID)
+	if err != nil {
+		return err
+	}
+	if link.GuardianRole == GuardianRoleSocialWorker {
+		return ErrGuardianSocialWorkerManaged
+	}
+	return nil
 }

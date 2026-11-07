@@ -3,6 +3,7 @@ package behavior_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -58,10 +59,28 @@ func TestRolePermissionPersistence(t *testing.T) {
 
 	require.NoError(t, rbac.AssignPermissionToRole(ctx, second.ID, kept.ID))
 	require.NoError(t, rbac.DeleteRole(ctx, first.ID))
-	assertPermissions(first.ID)
+	// A deleted role reads like any role outside the caller's view (#5703);
+	// its mappings are gone with it.
+	_, err = rbac.GetRolePermissions(ctx, first.ID)
+	require.ErrorIs(t, err, identityaccess.ErrRoleNotFound)
+	mappings, err := db.NewSelect().TableExpr("auth.role_permissions").Where("role_id = ?", first.ID).Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, mappings)
 	assertPermissions(second.ID, kept.ID)
 	_, err = rbac.GetPermission(ctx, kept.ID)
 	require.NoError(t, err)
 	require.NoError(t, rbac.RemovePermissionFromRole(ctx, second.ID, kept.ID))
 	assertPermissions(second.ID)
+
+	// auth.permissions.description is nullable; the visible-role read maps
+	// NULL to an empty description like the catalogue read.
+	undescribed := testpkg.CreateTestPermission(t, db, "permission-undescribed", "mapping", "list")
+	_, err = db.NewUpdate().TableExpr("auth.permissions").Set("description = NULL").Where("id = ?", undescribed.ID).Exec(ctx)
+	require.NoError(t, err)
+	require.NoError(t, rbac.AssignPermissionToRole(ctx, second.ID, undescribed.ID))
+	permissions, err := rbac.GetRolePermissions(ctx, second.ID)
+	require.NoError(t, err)
+	require.Len(t, permissions, 1)
+	require.Equal(t, undescribed.ID, permissions[0].ID)
+	require.Empty(t, permissions[0].Description)
 }

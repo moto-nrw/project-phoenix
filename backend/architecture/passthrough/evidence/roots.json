@@ -828,6 +828,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (u enrollmentUploadUnits) CountUploadAttempt(ctx context.Context, tenantID int64, remoteIP string) error {\n\tid, err := tenant.NewTenantID(tenantID)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {\n\t\treturn u.intake.CountUploadAttempt(txCtx, tenantID, remoteIP)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "api/enrollmentUploadUnits.CountUploadAttempt",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (u enrollmentUploadUnits) DiscardUpload(ctx context.Context, tenantID, uploadID int64) error {\n\tid, err := tenant.NewTenantID(tenantID)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {\n\t\treturn u.records.DeleteRequestUpload(txCtx, uploadID)\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "api/enrollmentUploadUnits.DiscardUpload",
@@ -936,6 +943,20 @@
       "evidence": "func (s groupLiveSettings) StudentPhotosEnabled(ctx context.Context) (bool, error) {\n\treturn s.settings.ResolveBool(ctx, settingsplatform.KeyStudentPhotosEnabled)\n}",
       "form": "unclassified-evidence",
       "id": "api/groupLiveSettings.StudentPhotosEnabled",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (u holidayProofUnits) CountHolidayProofUpload(ctx context.Context, link enrollmentOwner.HolidayRegistrationLink, remoteIP string) error {\n\tvar limitErr error\n\terr := tenant.WithinTraeger(ctx, link.OrganizationID, func(txCtx context.Context) error {\n\t\tlimitErr = u.registrations.CountHolidayProofUpload(txCtx, link.OrganizationID, remoteIP)\n\t\tif errors.Is(limitErr, enrollmentOwner.ErrUploadRateLimited) {\n\t\t\treturn nil\n\t\t}\n\t\treturn limitErr\n\t})\n\tif err == nil {\n\t\terr = limitErr\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "api/holidayProofUnits.CountHolidayProofUpload",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (u holidayProofUnits) UploadHolidayProof(ctx context.Context, link enrollmentOwner.HolidayRegistrationLink, upload enrollmentOwner.HolidayProofUpload) (enrollmentOwner.HolidayProofReceipt, error) {\n\tvar receipt enrollmentOwner.HolidayProofReceipt\n\terr := tenant.WithinTraeger(ctx, link.OrganizationID, func(txCtx context.Context) error {\n\t\tvar uploadErr error\n\t\treceipt, uploadErr = u.registrations.UploadHolidayProof(txCtx, link, upload)\n\t\treturn uploadErr\n\t})\n\treturn receipt, err\n}",
+      "form": "unclassified-evidence",
+      "id": "api/holidayProofUnits.UploadHolidayProof",
       "owner": "roots"
     },
     {
