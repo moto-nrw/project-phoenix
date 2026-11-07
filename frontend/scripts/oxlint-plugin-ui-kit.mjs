@@ -3886,11 +3886,89 @@ const noHandRolledEmptyState = {
     if (EXEMPT_FILE_RE.test(key) || key.startsWith("src/components/ui/")) {
       return {};
     }
-    const isDashedAndCentered = (text) => {
+    const DASHED = 1;
+    const CENTERED = 2;
+    const DASHED_AND_CENTERED = DASHED | CENTERED;
+    const emptyStateClassPath = (text) => {
       const classes = text.split(/\s+/);
       return (
-        classes.includes("border-dashed") && classes.includes("text-center")
+        (classes.includes("border-dashed") ? DASHED : 0) |
+        (classes.includes("text-center") ? CENTERED : 0)
       );
+    };
+    const isDashedAndCentered = (text) =>
+      emptyStateClassPath(text) === DASHED_AND_CENTERED;
+    const collectClassPaths = (node) => {
+      if (node == null || typeof node !== "object") return new Set([0]);
+      if (node.type === "Literal" && typeof node.value === "string") {
+        return new Set([emptyStateClassPath(node.value)]);
+      }
+      if (node.type === "TemplateElement") {
+        return new Set([emptyStateClassPath(node.value.raw)]);
+      }
+      const combine = (left, right) =>
+        new Set(
+          [...left].flatMap((leftPath) =>
+            [...right].map((rightPath) => leftPath | rightPath),
+          ),
+        );
+      const either = (left, right) => new Set([...left, ...right]);
+
+      switch (node.type) {
+        case "JSXExpressionContainer":
+        case "ChainExpression":
+        case "TSAsExpression":
+        case "TSTypeAssertion":
+        case "TypeCastExpression":
+          return collectClassPaths(node.expression);
+        case "ConditionalExpression":
+          return either(
+            collectClassPaths(node.consequent),
+            collectClassPaths(node.alternate),
+          );
+        case "LogicalExpression":
+          return node.operator === "&&"
+            ? either(new Set([0]), collectClassPaths(node.right))
+            : either(
+                collectClassPaths(node.left),
+                collectClassPaths(node.right),
+              );
+        case "TemplateLiteral":
+          return node.quasis.reduce(
+            (paths, quasi, index) =>
+              combine(
+                combine(paths, collectClassPaths(quasi)),
+                node.expressions[index] == null
+                  ? new Set([0])
+                  : collectClassPaths(node.expressions[index]),
+              ),
+            new Set([0]),
+          );
+        case "CallExpression":
+          return node.arguments.reduce(
+            (paths, argument) => combine(paths, collectClassPaths(argument)),
+            new Set([0]),
+          );
+        case "ArrayExpression":
+          return node.elements.reduce(
+            (paths, element) => combine(paths, collectClassPaths(element)),
+            new Set([0]),
+          );
+        case "SpreadElement":
+        case "MemberExpression":
+          return collectClassPaths(node.argument ?? node.object);
+        case "TaggedTemplateExpression":
+          return collectClassPaths(node.quasi);
+        case "BinaryExpression":
+          return node.operator === "+"
+            ? combine(
+                collectClassPaths(node.left),
+                collectClassPaths(node.right),
+              )
+            : new Set([0]);
+        default:
+          return new Set([0]);
+      }
     };
     const belongsToClassNameAttribute = (node) => {
       let parent = node.parent;
@@ -3906,9 +3984,11 @@ const noHandRolledEmptyState = {
       // Über alle Teile des className-Ausdrucks, auch Template und cn()-Argumente.
       JSXAttribute(node) {
         if (node.name?.name !== "className") return;
-        const chunks = [];
-        collectStaticStrings(node.value, chunks);
-        if (isDashedAndCentered(chunks.join(" "))) {
+        if (
+          [...collectClassPaths(node.value)].some(
+            (path) => path === DASHED_AND_CENTERED,
+          )
+        ) {
           context.report({ node, messageId: "handRolled" });
         }
       },

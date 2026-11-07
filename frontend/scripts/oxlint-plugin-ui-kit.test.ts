@@ -184,6 +184,30 @@ describe.concurrent("ui-kit/no-hand-rolled-empty-state", () => {
     }
   });
 
+  it("allows mutually exclusive dashed and centered classes", async () => {
+    const result = await lintSource(
+      `declare const loading: boolean;
+      export const Probe = () => (
+        <div className={loading ? "border-dashed" : "text-center"}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
+  });
+
+  it("reports when a conditional branch has both classes", async () => {
+    const result = await lintSource(
+      `declare const loading: boolean;
+      export const Probe = () => (
+        <div className={loading ? "border-dashed text-center" : "p-4"}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain(RULE);
+  });
+
   it("allows a dashed box that is not centered", async () => {
     const result = await lintSource(
       source.replace(" text-center", ""),
