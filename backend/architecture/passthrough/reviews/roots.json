@@ -3887,6 +3887,11 @@
     },
     {
       "decision": "0090",
+      "id": "roots/owners/enrollmentNotificationSettings.CareFacilityTerm",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "roots/owners/enrollmentNotificationSettings.NotifyPerDecision",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
