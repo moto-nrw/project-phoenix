@@ -193,14 +193,7 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 	if err != nil {
 		return nil, err
 	}
-	// Every balance lock is held before the closed snapshots are read once,
-	// so the read sees each staff member's final state (#5821).
-	for _, staffID := range staffIDs {
-		if err := s.snapshotRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
-			return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
-		}
-	}
-	closedMonths, err := s.closedMonthsByStaff(ctx, staffIDs, key)
+	closedMonths, err := s.lockAndReadClosedMonths(ctx, staffIDs, key)
 	if err != nil {
 		return nil, err
 	}
@@ -237,6 +230,18 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 type staffClosedMonths struct {
 	keyClosed bool
 	latest    *monthKey
+}
+
+// lockAndReadClosedMonths takes every staff balance lock in the given
+// (ascending) order before the closed snapshots are read once, so the read
+// sees each staff member's final state (#5821).
+func (s *staffMonthCloseService) lockAndReadClosedMonths(ctx context.Context, staffIDs []int64, key monthKey) (map[int64]staffClosedMonths, error) {
+	for _, staffID := range staffIDs {
+		if err := s.snapshotRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
+			return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
+		}
+	}
+	return s.closedMonthsByStaff(ctx, staffIDs, key)
 }
 
 // closedMonthsByStaff reads the active snapshots of all staff once and
