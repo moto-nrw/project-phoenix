@@ -254,7 +254,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
                   </div>
                 )}
 
-                <div className="mt-4">
+                <div className="mt-4 max-w-xs">
                   <Input
                     id={`grade-${item.child_id}`}
                     label="Klassenstufe für nächste Phase (optional)"
@@ -276,7 +276,6 @@ export function RolloverReviewQueue({ phaseID }: Props) {
                         ? String(item.target_grade_level)
                         : ""
                     }
-                    className="w-24"
                     disabled={busy}
                   />
                 </div>
