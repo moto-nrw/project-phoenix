@@ -19,17 +19,22 @@ import (
 // no session, whatever the scope and whether a guard ran.
 func TestSessionMintRefusesAnAccountErasedAfterItsChecks(t *testing.T) {
 	t.Parallel()
-	for _, scope := range []string{domain.PortalTenant.Claim, domain.PortalParent.Claim, domain.PortalSchool.Claim, domain.PortalCaterer.Claim, domain.PortalOrg.Claim} {
-		t.Run("scope "+domain.PersistedPortalScope(scope), func(t *testing.T) {
+	for _, portal := range []domain.Portal{domain.PortalTenant, domain.PortalParent, domain.PortalSchool, domain.PortalCaterer, domain.PortalOrg} {
+		t.Run("portal "+portal.Name, func(t *testing.T) {
 			t.Parallel()
 			f := newAuthFixture(t)
 			f.seedStaff(1, 10, "user")
 			f.store.erasedBeforeMint = true
 			tenantID := int64(10)
-			if scope == domain.PortalOrg.Claim {
+			if portal.Name == domain.PortalOrg.Name {
 				tenantID = 0
 			}
-			_, err := f.auth.createRefreshSessionGuarded(context.Background(), f.store.accounts[1], tenantID, scope, nil, "", true)
+			admit := func(context.Context, domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
+				return &domain.AccountClaimsPayload{Scope: portal.Claim}, nil
+			}
+			_, err := f.auth.mintAccountSession(context.Background(), mintRequest{
+				portal: portal, account: f.store.accounts[1], tenantID: tenantID, eligible: admit,
+			})
 			require.ErrorIs(t, err, domain.ErrAccountNotFound)
 			assert.Empty(t, f.store.sessionsOf(1), "no session for the erased account")
 			assert.NotContains(t, f.store.calls, "InsertAccountSession")
@@ -43,7 +48,7 @@ func TestLoginsRefuseAnAccountErasedAfterTheCredentialCheck(t *testing.T) {
 	t.Parallel()
 	for name, login := range map[string]func(f *authFixture) error{
 		"tenant": func(f *authFixture) error {
-			_, _, err := f.auth.loginWithAudit(context.Background(), "user1@example.com", "secret", "192.0.2.1", "tests", "")
+			_, _, err := tenantPasswordLogin(f.auth, context.Background(), "user1@example.com", "secret", "192.0.2.1", "tests")
 			return err
 		},
 		"parent": func(f *authFixture) error {
@@ -66,7 +71,7 @@ func TestLoginsRefuseAnAccountErasedAfterTheCredentialCheck(t *testing.T) {
 	}
 }
 
-// The live-account check sits in prepareSessionMint, which only
+// The live-account check sits in authorizeMint, which only
 // persistSessionInTransaction calls. The refresh rotation writes its
 // successor after it locked the live account (lockAccount). No other code of
 // the package writes an account session, so no mint path passes the check
@@ -86,11 +91,17 @@ func TestEveryAccountSessionIsWrittenBehindTheLiveAccountCheck(t *testing.T) {
 			writers[file] = count
 		}
 	}
-	assert.Equal(t, map[string]int{"account_login.go": 1, "session_refresh.go": 1}, writers)
+	assert.Equal(t, map[string]int{"session_mint.go": 1, "session_refresh.go": 1}, writers)
 
-	persist := functionSource(t, "account_login.go", "func (s *AccountAuthentication) persistSessionInTransaction(")
-	requireCalledBefore(t, persist, "s.prepareSessionMint(", "s.sessions.CreateAccountSession(",
+	persist := functionSource(t, "session_mint.go", "func (s *AccountAuthentication) persistSessionInTransaction(")
+	requireCalledBefore(t, persist, "s.authorizeMint(", "s.sessions.CreateAccountSession(",
 		"the login mint checks the live account before it writes the session")
+	// Both writers open their transaction through the one mint unit.
+	assert.Contains(t, persist, "s.mintUnit(ctx, ", "the mint transaction opens through mintUnit")
+	rotate := functionSource(t, "session_refresh.go", "func (s *AccountAuthentication) refreshSessionInTransaction(")
+	assert.Contains(t, rotate, "s.mintUnit(ctx, rotation.run)", "the rotation transaction opens through mintUnit")
+	ledger := functionSource(t, "account_login.go", "func (s *AccountAuthentication) logAuthEvent(")
+	assert.Contains(t, ledger, "s.ledgerUnit(", "an authentication event opens its school transaction through ledgerUnit")
 	refresh := functionSource(t, "session_refresh.go", "func (r *refreshRotation) run(")
 	requireCalledBefore(t, refresh, "r.lockAccount(", "r.persist(",
 		"the refresh rotation locks the live account before it writes the successor")

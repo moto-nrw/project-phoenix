@@ -245,7 +245,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Lowered by #4497: the caterer scope of CapabilityGate.StartChallenge in
 // modules/identityaccess makes it no pass-through any more (-1).
 // Lowered: AddGuardianPhone validates ambient create facts instead of merely forwarding.
-const modulePassthroughOwnerBudgetTotal = 1405
+const modulePassthroughOwnerBudgetTotal = 1403
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -280,7 +280,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess": 214,
+	"modules/identityaccess": 212,
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
 	"modules/organizationtenancy": 12,

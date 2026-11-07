@@ -137,67 +137,75 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.ChangeCatererPassword",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererAccessEngine.ChangeCatererPassword",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.ConfirmCatererMFA",
-      "binding_digest": "75881e6665787bf3846bfee345b9dd1c",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSecondFactor.ConfirmCatererMFA",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.ConfirmCatererMFA",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSecondFactor.ConfirmCatererMFA",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.ConfirmCatererMFA",
-      "binding_digest": "9dfd604d0440d4e611ce5862e2cbd0cd",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSecondFactor.ConfirmCatererMFA",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.FinishCatererPasskeyLogin",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.FinishCatererPasskeyLogin",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.FinishCatererPasskeyLogin",
-      "binding_digest": "75881e6665787bf3846bfee345b9dd1c",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.FinishCatererPasskeyLogin",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.FinishCatererPasskeyLogin",
-      "binding_digest": "9dfd604d0440d4e611ce5862e2cbd0cd",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.FinishCatererPasskeyLogin",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.LoginCaterer",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.LoginCaterer",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.LoginCaterer",
-      "binding_digest": "406cb723391c3a885c1bc955fd8b123d",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.LoginCaterer",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.LoginCaterer",
-      "binding_digest": "bd1a70127367748151afa00b5ffd5b4a",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.LoginCaterer",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.VerifyCatererMFA",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.VerifyCatererMFA",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.VerifyCatererMFA",
-      "binding_digest": "75881e6665787bf3846bfee345b9dd1c",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.VerifyCatererMFA",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.VerifyCatererMFA",
-      "binding_digest": "9dfd604d0440d4e611ce5862e2cbd0cd",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.VerifyCatererMFA",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
     },
     {
@@ -394,6 +402,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptTraegerInvitation",
+      "binding_digest": "458e778e93307f763cff64c8c938cb40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptTraegerInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptTraegerInvitation",
       "binding_digest": "581ce9345a4b9a2dd4ecb28a81005e43",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptTraegerInvitation",
       "source_owner": "identity-access",
@@ -481,19 +497,67 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA",
-      "binding_digest": "8675253404e41aaa16470fa4eca0d92f",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueSchoolTokensForVerifiedMFA",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueSchoolTokensForVerifiedMFA",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueSchoolTokensForVerifiedMFA",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueSchoolTokensForVerifiedMFA",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTokensForPasskey",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTokensForPasskey",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTokensForPasskey",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTokensForPasskey",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTokensForVerifiedMFA",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTokensForVerifiedMFA",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTokensForVerifiedMFA",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTokensForVerifiedMFA",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA",
-      "binding_digest": "13f4500d3e6d6cd817ca73e87b4129b4",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
@@ -585,67 +649,91 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
-      "binding_digest": "93b0d14f623a7d025241618c64f84110",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginParentWithAudit",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginParentWithAudit",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginParentWithAudit",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginParentWithAudit",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
-      "binding_digest": "a97f3a2f19bea31c6f0504cd661b83cd",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
-      "binding_digest": "93b0d14f623a7d025241618c64f84110",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
-      "binding_digest": "a97f3a2f19bea31c6f0504cd661b83cd",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginTraeger",
-      "binding_digest": "8675253404e41aaa16470fa4eca0d92f",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginTraeger",
-      "binding_digest": "13f4500d3e6d6cd817ca73e87b4129b4",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
-      "binding_digest": "47d44e017b4f6c3150d7f29bbe58619f",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginTraeger",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
-      "binding_digest": "ce2a8422f317bce2731efdf35c2fa108",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LogoutWithAudit",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LogoutWithAudit",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -658,7 +746,15 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
-      "binding_digest": "7594960d90a55b923f1384ceef544f3d",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
+      "binding_digest": "1b84bb4b0f18a0e7872c04e2c7751237",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
@@ -666,7 +762,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
-      "binding_digest": "4d8379bafc8ffe403a4a8efc5f645370",
+      "binding_digest": "55aa569ae36adf29932a699b45999abe",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
@@ -770,66 +866,130 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.StartTraegerSchoolSession",
-      "binding_digest": "a5330d022deae6bd5834bcc910d6bf45",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.StartTraegerSchoolSession",
-      "binding_digest": "bec1d7e22624b2ceae37e117ad1e3642",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SwitchTenant",
-      "binding_digest": "f7ebbf293a8bdd41901f866fddc040ef",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SwitchSchool",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchSchool",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SwitchSchool",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchSchool",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SwitchTenant",
-      "binding_digest": "ecdb9cb57df654c8b5ac7f34da118e10",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "binding_digest": "93b0d14f623a7d025241618c64f84110",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SwitchTenant",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginParentWithAudit",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentAccountLogin.LoginParentWithAudit",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginParentWithAudit",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentAccountLogin.LoginParentWithAudit",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueSchoolTokensForVerifiedMFA",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.IssueSchoolTokensForVerifiedMFA",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueSchoolTokensForVerifiedMFA",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.IssueSchoolTokensForVerifiedMFA",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "binding_digest": "a97f3a2f19bea31c6f0504cd661b83cd",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolAtTenantWithMFAGate",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "binding_digest": "93b0d14f623a7d025241618c64f84110",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolAtTenantWithMFAGate",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "binding_digest": "a97f3a2f19bea31c6f0504cd661b83cd",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolWithMFAGate",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolWithMFAGate",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchSchool",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.SwitchSchool",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchSchool",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.SwitchSchool",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
@@ -994,34 +1154,42 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA",
-      "binding_digest": "8675253404e41aaa16470fa4eca0d92f",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountLogin.IssueTraegerTokensForVerifiedMFA",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA",
-      "binding_digest": "13f4500d3e6d6cd817ca73e87b4129b4",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountLogin.IssueTraegerTokensForVerifiedMFA",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.LoginTraeger",
-      "binding_digest": "8675253404e41aaa16470fa4eca0d92f",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountLogin.LoginTraeger",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.LoginTraeger",
-      "binding_digest": "13f4500d3e6d6cd817ca73e87b4129b4",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountLogin.LoginTraeger",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.LoginTraeger",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountLogin.LoginTraeger",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.AcceptTraegerInvitation",
+      "binding_digest": "458e778e93307f763cff64c8c938cb40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.AcceptTraegerInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -1098,18 +1266,18 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.StartTraegerSchoolSession",
-      "binding_digest": "a5330d022deae6bd5834bcc910d6bf45",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerSchoolSessions.StartTraegerSchoolSession",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.StartTraegerSchoolSession",
-      "binding_digest": "bec1d7e22624b2ceae37e117ad1e3642",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerSchoolSessions.StartTraegerSchoolSession",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
@@ -1337,19 +1505,67 @@
       "target_owner": "security-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
-      "binding_digest": "8675253404e41aaa16470fa4eca0d92f",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.IssueTraegerTokensForVerifiedMFA",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueSchoolTokensForVerifiedMFA",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.IssueSchoolTokensForVerifiedMFA",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueSchoolTokensForVerifiedMFA",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.IssueSchoolTokensForVerifiedMFA",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTokensForPasskey",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.IssueTokensForPasskey",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTokensForPasskey",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.IssueTokensForPasskey",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTokensForVerifiedMFA",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.IssueTokensForVerifiedMFA",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTokensForVerifiedMFA",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.IssueTokensForVerifiedMFA",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
-      "binding_digest": "13f4500d3e6d6cd817ca73e87b4129b4",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.IssueTraegerTokensForVerifiedMFA",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.IssueTraegerTokensForVerifiedMFA",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
@@ -1401,72 +1617,104 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "binding_digest": "93b0d14f623a7d025241618c64f84110",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginParentWithAudit",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginParentWithAudit",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginParentWithAudit",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginParentWithAudit",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "binding_digest": "a97f3a2f19bea31c6f0504cd661b83cd",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolAtTenantWithMFAGate",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "binding_digest": "93b0d14f623a7d025241618c64f84110",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolAtTenantWithMFAGate",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "binding_digest": "a97f3a2f19bea31c6f0504cd661b83cd",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolWithMFAGate",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
-      "binding_digest": "8675253404e41aaa16470fa4eca0d92f",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolWithMFAGate",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
-      "binding_digest": "13f4500d3e6d6cd817ca73e87b4129b4",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginTraeger",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
-      "binding_digest": "47d44e017b4f6c3150d7f29bbe58619f",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginTraeger",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
-      "binding_digest": "ce2a8422f317bce2731efdf35c2fa108",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginWithMFAGate",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginWithMFAGate",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LogoutWithAudit",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LogoutWithAudit",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
-      "binding_digest": "7594960d90a55b923f1384ceef544f3d",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RefreshTokenWithAudit",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
+      "binding_digest": "1b84bb4b0f18a0e7872c04e2c7751237",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RefreshTokenWithAudit",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
@@ -1474,7 +1722,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
-      "binding_digest": "4d8379bafc8ffe403a4a8efc5f645370",
+      "binding_digest": "55aa569ae36adf29932a699b45999abe",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RefreshTokenWithAudit",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
@@ -1482,34 +1730,50 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
-      "binding_digest": "a5330d022deae6bd5834bcc910d6bf45",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.StartTraegerSchoolSession",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
-      "binding_digest": "bec1d7e22624b2ceae37e117ad1e3642",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.StartTraegerSchoolSession",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
-      "binding_digest": "f7ebbf293a8bdd41901f866fddc040ef",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.SwitchTenant",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchSchool",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.SwitchSchool",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchSchool",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.SwitchSchool",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
-      "binding_digest": "ecdb9cb57df654c8b5ac7f34da118e10",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.SwitchTenant",
       "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.SwitchTenant",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
@@ -2121,6 +2385,22 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAuthentication.IssueTokensForPasskey",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.accountPasskeySessions.IssueTokensForPasskey",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAuthentication.IssueTokensForPasskey",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.accountPasskeySessions.IssueTokensForPasskey",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.CallerActivities.SupervisedActivityGroupIDs",
       "binding_digest": "e7a3ecc7ff79979e16da0cc8818422ca",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.CallerActivities.SupervisedActivityGroupIDs",
@@ -2391,6 +2671,38 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DemoSchoolAccess.MarkDemoSchoolUsed",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAuthentication.IssueDemoParentTokens",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.DemoSessions.IssueDemoParentTokens",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAuthentication.IssueDemoParentTokens",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.DemoSessions.IssueDemoParentTokens",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAuthentication.IssueDemoTokens",
+      "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.DemoSessions.IssueDemoTokens",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAuthentication.IssueDemoTokens",
+      "binding_digest": "8f88e7c64fd7f94e5f7315a320187b17",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.DemoSessions.IssueDemoTokens",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.EmailFormat.IsRoutable",

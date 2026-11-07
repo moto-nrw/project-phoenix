@@ -21,7 +21,7 @@ import (
 )
 
 // completeMFAExchangeStub is a narrow AuthService stub for the verify
-// success-path tests. It only implements IssueTokensForAuthenticatedAccount;
+// success-path tests. It only implements IssueTokensForPasskey;
 // any other method panics so accidental drift in the handler shape gets
 // caught loudly. (Distinct from loginGateStub to avoid coupling its
 // recorder fields to these tests — and to keep the no-test-modifications
@@ -41,7 +41,7 @@ type completeMFAExchangeStub struct {
 
 var _ AccountSessions = (*completeMFAExchangeStub)(nil)
 
-func (s *completeMFAExchangeStub) IssueTokensForAuthenticatedAccount(
+func (s *completeMFAExchangeStub) IssueTokensForPasskey(
 	_ context.Context,
 	accountID, tenantID int64,
 	ipAddress, userAgent string,
@@ -240,7 +240,7 @@ func TestMFAVerify_RememberDeviceEmptyCookieSkipsHeader(t *testing.T) {
 func TestMFAVerify_IssueTokensFailureSurfacesAsUnauthorized(t *testing.T) {
 	t.Parallel()
 
-	// IssueTokensForAuthenticatedAccount wraps the underlying repo error in
+	// IssueTokensForPasskey wraps the underlying repo error in
 	// an *identityaccess.AuthenticationError. The handler must translate
 	// ErrAccountInactive into a 401, not a 500, to match the rest of the
 	// login surface.
@@ -366,5 +366,5 @@ func TestMFAVerify_SessionFailureDoesNotExposeTrustedCookie(t *testing.T) {
 }
 
 func (s *completeMFAExchangeStub) IssueTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error) {
-	return s.IssueTokensForAuthenticatedAccount(ctx, proof.AccountID, proof.TenantID, ipAddress, userAgent)
+	return s.IssueTokensForPasskey(ctx, proof.AccountID, proof.TenantID, ipAddress, userAgent)
 }

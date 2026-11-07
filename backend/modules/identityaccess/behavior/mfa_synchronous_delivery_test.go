@@ -100,7 +100,7 @@ func TestMFAResendRejectsExpiredCredentialBeforeDelivery(t *testing.T) {
 
 	require.NoError(t, err)
 
-	renewed, err := svc.ResendMFAChallenge(context.Background(), expiredToken, net.ParseIP("203.0.113.72"))
+	renewed, err := svc.ResendMFAChallengeForScope(context.Background(), expiredToken, net.ParseIP("203.0.113.72"), identityaccess.MFAChallengeScopeTenant)
 
 	require.ErrorIs(t, err, identityaccess.ErrMFAChallengeTokenInvalid)
 	assert.Empty(t, renewed)

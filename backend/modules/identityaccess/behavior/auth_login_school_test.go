@@ -397,7 +397,7 @@ func TestIssueSchoolTokens_NoPortalRole_Refused(t *testing.T) {
 	tenantID, _ := newSchoolTenant(t, db)
 	_, accountID := newSchoolAccount(t, db, service, "school-issue-no-role", tenantID)
 
-	_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(context.Background(), accountID, tenantID, "", "")
+	_, _, err := issueSchoolTokens(service, context.Background(), accountID, tenantID, "", "")
 
 	require.Error(t, err)
 	var authErr *identityaccess.AuthenticationError
@@ -573,7 +573,7 @@ func TestIssueSchoolTokens_Lehrkraft_MintsSchoolScopedPair(t *testing.T) {
 	tenantID, _ := newSchoolTenant(t, db)
 	_, accountID := createLehrkraftAccount(t, db, service, "school-issue", tenantID)
 
-	accessToken, refreshToken, err := service.IssueSchoolTokensForAuthenticatedAccount(
+	accessToken, refreshToken, err := issueSchoolTokens(service,
 		context.Background(), accountID, tenantID, "", "")
 
 	require.NoError(t, err)
@@ -598,7 +598,7 @@ func TestIssueSchoolTokens_AccountStateGates(t *testing.T) {
 	_, accountID := createLehrkraftAccount(t, db, service, "school-issue-gates", tenantID)
 
 	t.Run("unknown account", func(t *testing.T) {
-		_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(
+		_, _, err := issueSchoolTokens(service,
 			context.Background(), missingAccountID, tenantID, "", "")
 
 		require.Error(t, err)
@@ -611,7 +611,7 @@ func TestIssueSchoolTokens_AccountStateGates(t *testing.T) {
 		setAccountActive(t, db, accountID, false)
 		defer setAccountActive(t, db, accountID, true)
 
-		_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(
+		_, _, err := issueSchoolTokens(service,
 			context.Background(), accountID, tenantID, "", "")
 
 		require.Error(t, err)
@@ -627,7 +627,7 @@ func TestIssueSchoolTokens_AccountStateGates(t *testing.T) {
 		setSchoolActive(t, db, tenantID, false)
 		defer setSchoolActive(t, db, tenantID, true)
 
-		_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(
+		_, _, err := issueSchoolTokens(service,
 			context.Background(), accountID, tenantID, "", "")
 
 		require.Error(t, err)
@@ -737,7 +737,7 @@ func TestSchoolTokenMints_RevokedMembership_Refused(t *testing.T) {
 	})
 
 	t.Run("mfa verify token issue", func(t *testing.T) {
-		_, _, issueErr := service.IssueSchoolTokensForAuthenticatedAccount(
+		_, _, issueErr := issueSchoolTokens(service,
 			context.Background(), accountID, tenantID, "", "")
 
 		require.Error(t, issueErr)
@@ -780,7 +780,7 @@ func TestIssueSchoolTokens_SoftDeletedSchool_Refused(t *testing.T) {
 	_, err := db.Exec("UPDATE platform.schools SET deleted_at = NOW(), active = true WHERE id = ?", tenantID)
 	require.NoError(t, err)
 
-	_, _, err = service.IssueSchoolTokensForAuthenticatedAccount(
+	_, _, err = issueSchoolTokens(service,
 		context.Background(), accountID, tenantID, "", "")
 
 	require.Error(t, err)

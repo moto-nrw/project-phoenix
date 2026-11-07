@@ -700,8 +700,11 @@ Backend paths in this section are relative to `backend/`:
 
 - Tenant login rejects guardian-only accounts with `ErrParentMustUseParentPortal`
   (403) and school-portal-only accounts with `ErrMustUseSchoolPortal` (403,
-  `identity.use_school_portal`). Dual-role accounts remain eligible. The school-only
-  guard applies at all four tenant-session mint/renew sites, including refresh.
+  `identity.use_school_portal`). Dual-role accounts remain eligible. Both rules
+  live in the tenant portal's eligibility guard, which every tenant-session mint
+  (login, MFA/passkey exchange, demo, switch) and refresh runs under the account
+  lock. A refresh token from before the scope claim whose account is
+  guardian-only at its school renews as a parent session.
 - Parents login requires a guardian role on at least one tenant mapping
   (`ErrAccountNoGuardianRole`, 403). `ParentScopeMiddleware` accepts only `scope=parent`.
 - School login requires a school-portal role (currently `lehrkraft`) on an
@@ -770,9 +773,18 @@ Backend paths in this section are relative to `backend/`:
   and an Absprung whose Träger family is gone is refused (#5422). Only a
   session with `via_traeger` shows the link back to the Träger portal in the
   school's navigation (#5687); it changes neither session.
-- Every account session, in every portal, is minted after the mint
-  transaction stamped `last_login` on the live account under its row lock
-  (`prepareSessionMint`; refresh locks the live account first). An account the
+- Every account session, in every portal, is minted by one pipeline
+  (`mintAccountSession`, `internal/application/session_mint.go`); refresh runs
+  the same steps in its rotation. In the write transaction, in this order: the
+  school's MFA policy lock (portals that follow it), the account row FOR
+  UPDATE, the proof re-check (redeemed code, remembered device, Träger source
+  session), the portal's eligibility guard, which returns the claims (tenant:
+  mapping, not guardian-only, not school-only; school: live school, mapping,
+  school-portal role; parent: guardian role at a live school that books
+  Eltern-App; Träger: membership; Träger school: right and school of the
+  Träger; caterer: caterer account), then the `last_login` stamp on the live
+  account, the source family and the MFA floor. A demo access counts as an
+  e-mail proof: its link leaves by mail only. An account the
   hourly erasure anonymized after the caller's checks gets no session; the
   login routes answer it like wrong credentials (#5546). The erasure passes
   over an account a login holds; a login waits for an erasure holding the

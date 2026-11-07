@@ -63,75 +63,131 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 		s.logRefreshDecision("refresh_session_rejected", "invalid_format", 0, 0)
 		return nil, err
 	}
-	// A caterer session is a case of its own: it has no school membership,
-	// so none of the tenant rules below apply (ADR 0077).
-	if claims.Scope == domain.PortalCaterer.Claim {
-		return s.refreshCatererSession(ctx, claims, ipAddress, userAgent)
-	}
-	if err := s.validateRefreshSchool(ctx, claims); err != nil {
-		return nil, err
-	}
-	// A portal whose module the school no longer books renews no session
-	// (#4895). Refused before the rotation, like the checks above.
-	if err := s.requirePortalBookedForRefresh(ctx, claims); err != nil {
-		s.logRefreshDecision("refresh_session_rejected", "portal_module_not_booked", claims.AccountID, claims.TenantID)
-		return nil, err
-	}
-	// Every refresh carries its authorization and its claims into the
-	// rotation transaction: either the rotation and the claims commit
-	// together, or the transaction rolls back and the presented refresh
-	// token is still the caller's.
-	var metadata *domain.AccountClaimsPayload
-	guard, err := s.refreshMintGuard(claims, &metadata)
+	plan, err := s.planRefresh(ctx, claims)
 	if err != nil {
 		return nil, err
 	}
-	account, newSession, recovered, err := s.refreshSessionInTransaction(ctx, claims, ipAddress, userAgent, s.refreshTenant(claims), guard)
+	// The portal's guard runs inside the rotation transaction: either the
+	// rotation and the claims commit together, or the transaction rolls back
+	// and the presented refresh token is still the caller's.
+	rotation, err := s.refreshSessionInTransaction(ctx, claims, ipAddress, userAgent, plan)
 	if err != nil {
 		return nil, err
 	}
-	if recovered {
+	if rotation.recovered {
 		s.logger.Info("refresh_rotation_recovered",
 			slog.Int64("account_id", claims.AccountID),
-			slog.Int64("tenant_id", claims.TenantID),
-			slog.Int("generation", newSession.Generation))
+			slog.Int64("tenant_id", rotation.newSession.TenantID),
+			slog.Int("generation", rotation.newSession.Generation))
 	}
-	if metadata == nil {
-		return nil, failed("refresh session", fmt.Errorf("refresh claims payload missing after rotation"))
-	}
-	access, refresh := buildClaims(account, newSession, metadata, account.Email)
-	accessToken, refreshTokenString, err := s.generateAndLogTokens(s.refreshAuditContext(ctx, claims), account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventTokenRefresh)
+	access, refresh := buildClaims(rotation.account, rotation.newSession, rotation.payload, rotation.account.Email)
+	accessToken, refreshTokenString, err := s.codec.IssueTokenPair(access, refresh)
 	if err != nil {
-		return nil, err
+		return nil, failed("generate tokens", err)
 	}
+	// Filed at the school the successor is kept at, which the refresh
+	// validated: the route carries no tenant.
+	s.auditSession(ctx, rotation.account.ID, mintAudit{event: domain.AuthEventTokenRefresh, ipAddress: ipAddress, userAgent: userAgent, schoolID: rotation.newSession.TenantID})
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshTokenString}, nil
 }
 
-// validateRefreshSchool refuses a refresh whose school access is gone before
-// the rotation, so the caller's refresh token stays intact.
-func (s *AccountAuthentication) validateRefreshSchool(ctx context.Context, claims domain.RefreshClaims) error {
-	// A Träger school session has no mapping at its school; its guard
-	// re-checks the Träger instead (ADR 0084 section 5).
-	if claims.TenantID > 0 && !traegerSchoolRefresh(claims) {
-		if err := s.validateTenantAccess(ctx, claims); err != nil {
-			return err
-		}
-	}
-	if claims.Scope == domain.PortalSchool.Claim && !domain.PortalSchool.Holds(claims.TenantID, claims.OrgID) {
-		s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", claims.AccountID, claims.TenantID)
-		return failed("refresh school session", identityaccess.ErrTenantAccessDenied)
-	}
-	return nil
+// refreshPlan is what the refresh of one portal runs inside its rotation:
+// the portal's eligibility and the school its successor is kept at.
+type refreshPlan struct {
+	portal    domain.Portal
+	eligible  eligibility
+	successor successorTenant
 }
 
-// refreshAuditContext is where a refresh is filed: at the tenant the refresh
-// validated against, since the route carries no tenant and the fallback
-// would attribute a multi-school account's refresh to its first mapping.
-func (s *AccountAuthentication) refreshAuditContext(ctx context.Context, claims domain.RefreshClaims) context.Context {
-	if claims.TenantID > 0 {
-		return s.runtime.WithTenantID(ctx, claims.TenantID)
+// planRefresh runs the refusals that need no rotation lock and picks the
+// portal's guard. Every refusal here and in the guard happens before the
+// rotation commits, so the presented refresh token stays valid: a school
+// that books its module again lets the session continue.
+func (s *AccountAuthentication) planRefresh(ctx context.Context, claims domain.RefreshClaims) (refreshPlan, error) {
+	portal, ok := domain.PortalOfClaim(claims.Scope)
+	if !ok || !portal.Persisted {
+		s.logRefreshDecision("refresh_session_rejected", "unknown_scope", claims.AccountID, claims.TenantID)
+		return refreshPlan{}, failed("refresh session", identityaccess.ErrInvalidToken)
 	}
-	return ctx
+	plan := refreshPlan{portal: portal, successor: s.refreshTenant(claims)}
+	switch {
+	case portal.Name == domain.PortalCaterer.Name:
+		// A caterer token never names a school (ADR 0077).
+		if claims.TenantID != 0 {
+			s.logRefreshDecision("refresh_session_rejected", "caterer_token_with_tenant", claims.AccountID, claims.TenantID)
+			return refreshPlan{}, failed("refresh caterer session", identityaccess.ErrInvalidToken)
+		}
+		plan.eligible, plan.successor = s.catererEligibility(), s.catererSessionSchool
+	case traegerSchoolRefresh(claims):
+		// A Träger school session has no mapping at its school; its guard
+		// re-checks the Träger instead (ADR 0084 section 5).
+		if claims.TenantID <= 0 {
+			s.logRefreshDecision("refresh_session_rejected", "traeger_school_token_without_school", claims.AccountID, claims.TenantID)
+			return refreshPlan{}, failed("refresh Träger school session", identityaccess.ErrInvalidToken)
+		}
+		plan.eligible = s.traegerSchoolEligibility(claims.OrgID, claims.TenantID)
+	case portal.Name == domain.PortalOrg.Name:
+		if !portal.Holds(claims.TenantID, claims.OrgID) {
+			s.logRefreshDecision("refresh_session_rejected", "traeger_token_without_traeger", claims.AccountID, claims.TenantID)
+			return refreshPlan{}, failed("refresh Träger session", identityaccess.ErrInvalidToken)
+		}
+		plan.eligible = s.traegerEligibility(claims.OrgID)
+	default:
+		eligible, err := s.planStaffOrParentRefresh(ctx, portal, claims)
+		if err != nil {
+			return refreshPlan{}, err
+		}
+		plan.eligible = eligible
+	}
+	return plan, nil
+}
+
+// planStaffOrParentRefresh covers the portals bound to the account's own
+// mapping: tenant, school and parent. An inactive school is refused before
+// the rotation so the client can retry after reactivation; a portal whose
+// module the school no longer books renews no session (#4895).
+func (s *AccountAuthentication) planStaffOrParentRefresh(ctx context.Context, portal domain.Portal, claims domain.RefreshClaims) (eligibility, error) {
+	if claims.TenantID > 0 {
+		if err := s.validateTenantAccess(ctx, claims); err != nil {
+			return nil, err
+		}
+	}
+	switch portal.Name {
+	case domain.PortalSchool.Name:
+		if !portal.Holds(claims.TenantID, claims.OrgID) {
+			s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", claims.AccountID, claims.TenantID)
+			return nil, failed("refresh school session", identityaccess.ErrTenantAccessDenied)
+		}
+		if err := s.requireSchoolPortal(ctx, "refresh school session", claims.AccountID, claims.TenantID); err != nil {
+			s.logRefreshDecision("refresh_session_rejected", "portal_module_not_booked", claims.AccountID, claims.TenantID)
+			return nil, err
+		}
+		return s.schoolRefreshEligibility(claims.TenantID), nil
+	case domain.PortalParent.Name:
+		booked, err := s.requireParentPortalForAccount(ctx, "refresh parent session", claims.AccountID)
+		if err != nil {
+			s.logRefreshDecision("refresh_session_rejected", "portal_module_not_booked", claims.AccountID, claims.TenantID)
+			return nil, err
+		}
+		return s.parentRefreshEligibility(booked), nil
+	default:
+		return s.tenantRefreshEligibility(claims.TenantID), nil
+	}
+}
+
+// parentRefreshEligibility reports a parent left without a live guardian
+// school as ErrTenantNotFound, the answer the refresh route gave when the
+// successor found no school to be kept at.
+func (s *AccountAuthentication) parentRefreshEligibility(booked []int64) eligibility {
+	parent := s.parentEligibility("refresh parent session", booked)
+	return func(ctx context.Context, account domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
+		payload, err := parent(ctx, account)
+		if errors.Is(err, identityaccess.ErrAccountNoGuardianRole) {
+			s.logRefreshDecision("refresh_session_rejected", "no_live_guardian_school", account.ID, 0)
+			return nil, failed("refresh parent session", identityaccess.ErrTenantNotFound)
+		}
+		return payload, err
+	}
 }
 
 // refreshTenant pins the successor of a tenant or parent session to the
@@ -150,32 +206,6 @@ func (s *AccountAuthentication) refreshTenant(claims domain.RefreshClaims) succe
 	}
 }
 
-// refreshMintGuard selects the guard that re-authorizes the refresh of the
-// presented portal inside the rotation transaction. A Träger session names
-// its Träger and never a school; its guard re-checks the membership and
-// reloads the roles (ADR 0084).
-func (s *AccountAuthentication) refreshMintGuard(claims domain.RefreshClaims, metadata **domain.AccountClaimsPayload) (mintGuard, error) {
-	if traegerSchoolRefresh(claims) {
-		if claims.TenantID <= 0 {
-			s.logRefreshDecision("refresh_session_rejected", "traeger_school_token_without_school", claims.AccountID, claims.TenantID)
-			return nil, failed("refresh Träger school session", identityaccess.ErrInvalidToken)
-		}
-		return s.traegerSchoolMintGuard(claims.OrgID, claims.TenantID, metadata), nil
-	}
-	switch claims.Scope {
-	case domain.PortalSchool.Claim:
-		return s.schoolRefreshMintGuard(claims.AccountID, claims.TenantID, metadata), nil
-	case domain.PortalOrg.Claim:
-		if !domain.PortalOrg.Holds(claims.TenantID, claims.OrgID) {
-			s.logRefreshDecision("refresh_session_rejected", "traeger_token_without_traeger", claims.AccountID, claims.TenantID)
-			return nil, failed("refresh Träger session", identityaccess.ErrInvalidToken)
-		}
-		return s.traegerMintGuard(claims.OrgID, metadata), nil
-	default:
-		return s.refreshClaimsGuard(claims.Scope, claims.TenantID, metadata), nil
-	}
-}
-
 // traegerSchoolRefresh reports the refresh of an OGS session the Träger-Büro
 // opened through the Absprung: a school-bound refresh token that names its
 // Träger. Other OGS refresh tokens name none.
@@ -183,58 +213,25 @@ func traegerSchoolRefresh(claims domain.RefreshClaims) bool {
 	return domain.PersistedPortalScope(claims.Scope) == domain.PortalTenant.Name && claims.OrgID > 0
 }
 
-// refreshClaimsGuard assembles the claims of a non-school refresh (tenant and
-// parent scopes) inside the rotation transaction. Parent-scope refresh tokens
-// round-trip as parent tokens: detected via the scope claim or, for tokens
-// that predate it, a guardian-only role set at the refresh tenant.
-func (s *AccountAuthentication) refreshClaimsGuard(scope string, tenantID int64, out **domain.AccountClaimsPayload) mintGuard {
-	return func(ctx context.Context, account domain.LoginAccount) error {
-		if scope == domain.PortalParent.Claim {
-			*out = buildParentMetadata(account)
-			return nil
-		}
-		guardianOnly, err := s.isGuardianOnlyAccountInTx(ctx, account.ID, tenantID)
-		if err != nil {
-			return err
-		}
-		if guardianOnly {
-			*out = buildParentMetadata(account)
-			return nil
-		}
-		// Refresh preserves the tenant of the presented token; the default
-		// fallback could silently switch a multi-school account.
-		metadata, err := s.loadAccountMetadataForTenantInTx(ctx, account, tenantID)
-		if err != nil {
-			return err
-		}
-		// A tenant refresh must not outlive the role change that turned the
-		// account into a school-portal-only one (#2207).
-		if domain.IsSchoolPortalOnly(metadata.Roles) {
-			return failed("refresh token", identityaccess.ErrMustUseSchoolPortal)
-		}
-		*out = metadata
-		return nil
-	}
-}
-
 // refreshSessionInTransaction validates and rotates the session in one
 // administrative transaction: the owning account is locked first (the same
-// account -> session order login uses), the guard runs under that lock, then
+// account -> session order login uses), the portal's eligibility runs under
+// that lock, then
 // the presented session is locked, validated, and either recovered from a
 // committed hand-off or rotated.
-func (s *AccountAuthentication) refreshSessionInTransaction(ctx context.Context, claims domain.RefreshClaims, ipAddress, userAgent string, successor successorTenant, guard mintGuard) (domain.LoginAccount, domain.AccountSession, bool, error) {
-	rotation := refreshRotation{service: s, claims: claims, ipAddress: ipAddress, userAgent: userAgent, successorTenant: successor, guard: guard}
-	if err := s.runtime.WithAdminTx(ctx, rotation.run); err != nil {
+func (s *AccountAuthentication) refreshSessionInTransaction(ctx context.Context, claims domain.RefreshClaims, ipAddress, userAgent string, plan refreshPlan) (*refreshRotation, error) {
+	rotation := &refreshRotation{service: s, claims: claims, ipAddress: ipAddress, userAgent: userAgent, plan: plan}
+	if err := s.mintUnit(ctx, rotation.run); err != nil {
 		s.auditRejectedRefresh(ctx, claims.AccountID, ipAddress, userAgent, err)
-		return domain.LoginAccount{}, domain.AccountSession{}, false, failed("refresh transaction", err)
+		return nil, failed("refresh transaction", err)
 	}
 	if rotation.revokedForPush != nil {
 		s.queuePushCleanup(ctx, rotation.revokedForPush.AccountID, []domain.AccountSession{*rotation.revokedForPush}, "family")
 	}
 	if rotation.rejectAfterCommit != nil {
-		return domain.LoginAccount{}, domain.AccountSession{}, false, failed("refresh transaction", rotation.rejectAfterCommit)
+		return nil, failed("refresh transaction", rotation.rejectAfterCommit)
 	}
-	return rotation.account, rotation.newSession, rotation.recovered, nil
+	return rotation, nil
 }
 
 // successorTenant names the tenant the successor of the current session is
@@ -248,15 +245,18 @@ type refreshRotation struct {
 	claims            domain.RefreshClaims
 	ipAddress         string
 	userAgent         string
-	successorTenant   successorTenant
-	guard             mintGuard
+	plan              refreshPlan
 	account           domain.LoginAccount
+	payload           *domain.AccountClaimsPayload
 	newSession        domain.AccountSession
 	recovered         bool
 	rejectAfterCommit error
 	revokedForPush    *domain.AccountSession
 }
 
+// run is the mint pipeline's order for a rotation: policy lock, account
+// lock, the portal's eligibility, then the presented session, the floor and
+// the live-account stamp.
 func (r *refreshRotation) run(ctx context.Context) error {
 	now := time.Now()
 	if err := r.lockAccount(ctx); err != nil {
@@ -279,20 +279,15 @@ func (r *refreshRotation) run(ctx context.Context) error {
 	if err := r.validateLineage(ctx, current); err != nil || r.rejectAfterCommit != nil {
 		return err
 	}
-	if err := r.service.requireSessionMFA(ctx, r.account.ID, current.TenantID, current.PortalScope, current.MFAVerified); err != nil {
-		return err
-	}
-	if err := r.service.requireTraegerSchoolMFA(current); err != nil {
+	if err := r.service.requireMintFloor(ctx, r.account.ID, current.TenantID, current); err != nil {
 		return err
 	}
 	return r.persist(ctx, current, wasRecovered, now)
 }
 
 func (r *refreshRotation) lockAccount(ctx context.Context) error {
-	if r.service.mfa.Configured() && r.claims.Scope != domain.PortalParent.Claim && r.claims.TenantID > 0 {
-		if err := r.service.lockMFAPolicyForMint(ctx, r.claims.AccountID, r.claims.TenantID); err != nil {
-			return err
-		}
+	if err := r.service.lockMFAPolicyFor(ctx, r.plan.portal, r.claims.AccountID, r.claims.TenantID); err != nil {
+		return err
 	}
 	unlocked, err := r.service.sessions.findAccountSessionByToken(ctx, r.claims.Token)
 	if err != nil {
@@ -302,7 +297,7 @@ func (r *refreshRotation) lockAccount(ctx context.Context) error {
 		}
 		return fmt.Errorf("find refresh token owner: %w", err)
 	}
-	r.account, err = r.service.fetchAndValidateAccountForUpdate(ctx, unlocked.AccountID)
+	r.account, err = r.service.lockLiveAccount(ctx, unlocked.AccountID)
 	if err != nil {
 		reason := "account_lookup_failed"
 		if errors.Is(err, identityaccess.ErrAccountInactive) {
@@ -313,10 +308,8 @@ func (r *refreshRotation) lockAccount(ctx context.Context) error {
 		r.service.logRefreshDecision("refresh_session_rejected", reason, r.claims.AccountID, r.claims.TenantID)
 		return err
 	}
-	if r.guard != nil {
-		return r.guard(ctx, r.account)
-	}
-	return nil
+	r.payload, err = r.service.eligibleClaims(ctx, r.plan.eligible, r.account)
+	return err
 }
 
 func (r *refreshRotation) presentedSession(ctx context.Context) (domain.AccountSession, error) {
@@ -372,7 +365,7 @@ func (r *refreshRotation) reject(ctx context.Context, session domain.AccountSess
 }
 
 func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSession, wasRecovered bool, now time.Time) error {
-	effectiveTenantID, err := r.successorTenant(ctx, r.account.ID, current)
+	effectiveTenantID, err := r.plan.successor(ctx, r.account.ID, current)
 	if err != nil {
 		return err
 	}
@@ -394,16 +387,8 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 			return err
 		}
 	}
-	recorded, _, err := r.service.store.RecordAccountLogin(ctx, r.account.ID, time.Now())
-	if err != nil {
-		return err
-	}
-	// The rotation locked the live account first (lockAccount), so it cannot
-	// be erased by now; the check keeps the stamp's contract in one place.
-	if !recorded {
-		return failed("get account", domain.ErrAccountNotFound)
-	}
-	return nil
+	_, err = r.service.stampLiveAccount(ctx, r.account.ID)
+	return err
 }
 
 func (s *AccountAuthentication) auditRejectedRefresh(ctx context.Context, accountID int64, ipAddress, userAgent string, err error) {
@@ -415,22 +400,6 @@ func (s *AccountAuthentication) auditRejectedRefresh(ctx context.Context, accoun
 			slog.Int64("account_id", accountID),
 			slog.Any("error", auditErr))
 	}
-}
-
-// fetchAndValidateAccountForUpdate locks the account before refresh locks
-// its session row, preserving the account-first order login uses.
-func (s *AccountAuthentication) fetchAndValidateAccountForUpdate(ctx context.Context, accountID int64) (domain.LoginAccount, error) {
-	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, true)
-	if err != nil {
-		return domain.LoginAccount{}, failed("get account", fmt.Errorf("account lookup failed: %w", err))
-	}
-	if !found {
-		return domain.LoginAccount{}, failed("get account", domain.ErrAccountNotFound)
-	}
-	if !account.Active {
-		return domain.LoginAccount{}, failed("check account status", identityaccess.ErrAccountInactive)
-	}
-	return account, nil
 }
 
 // resolveRefreshHandoff follows a bounded, validated successor chain. A chain
@@ -684,7 +653,7 @@ func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.
 			continue
 		}
 		auditCtx := s.runtime.WithTenantID(ctx, schoolID)
-		err := s.runtime.WithTenantTx(auditCtx, schoolID, func(txCtx context.Context) error {
+		err := s.ledgerUnit(auditCtx, schoolID, func(txCtx context.Context) error {
 			return s.auditLogoutAtSchool(txCtx, revoked.AccountID, bySchool[schoolID], schoolID == tenantID, ipAddress, userAgent)
 		})
 		if err != nil {

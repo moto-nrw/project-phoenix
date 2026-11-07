@@ -241,7 +241,7 @@ func loginAsAdmin(t *testing.T, db *bun.DB, _ chi.Router) (token string, validRo
 	// Password-only login now correctly returns an enrollment token, not a
 	// usable admin session. Login/MFA behavior has its own HTTP/behavior tests.
 	module := setupAuthModuleOn(t, db)
-	accessToken, _, err := module.Auth.IssueTokensForAuthenticatedAccount(ctx, adminAccount.ID, testpkg.Tenant(t), "", "")
+	accessToken, _, err := module.Auth.IssueTokensForPasskey(ctx, adminAccount.ID, testpkg.Tenant(t), "", "")
 	require.NoError(t, err)
 
 	return accessToken, userRole.ID

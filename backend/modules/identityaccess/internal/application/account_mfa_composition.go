@@ -115,10 +115,6 @@ func (unavailableAccountMFA) ResendMFAChallengeForScope(context.Context, string,
 	return "", errAccountMFAUnavailable
 }
 
-func (unavailableAccountMFA) ResendMFAChallenge(context.Context, string, net.IP) (string, error) {
-	return "", errAccountMFAUnavailable
-}
-
 func (unavailableAccountMFA) EnrollMFA(context.Context, int64) error { return errAccountMFAUnavailable }
 
 func (unavailableAccountMFA) DisableMFA(context.Context, int64) error {

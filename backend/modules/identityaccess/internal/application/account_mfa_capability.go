@@ -90,11 +90,6 @@ func (c ComposedAccountMFA) ResendMFAChallengeForScope(ctx context.Context, chal
 	return token, MFAError(err)
 }
 
-func (c ComposedAccountMFA) ResendMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
-	token, err := c.Flows.ResendChallenge(c.ctx(ctx), challengeToken, ip)
-	return token, MFAError(err)
-}
-
 func (c ComposedAccountMFA) EnrollMFA(ctx context.Context, accountID int64) error {
 	return MFAError(c.Flows.Enroll(c.ctx(ctx), accountID))
 }

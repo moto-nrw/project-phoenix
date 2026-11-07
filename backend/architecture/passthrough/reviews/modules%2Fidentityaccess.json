@@ -267,11 +267,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallenge",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallengeForScope",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -548,11 +543,6 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.PrepareTrustedDevice",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResendMFAChallenge",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

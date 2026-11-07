@@ -115,7 +115,7 @@ func TestIssueSchoolTokens_PortalNotBooked_Refused(t *testing.T) {
 	_, accountID := createLehrkraftAccount(t, db, service, "school-issue-unbooked", tenantID)
 	cancelModule(t, db, tenantID, moduleUnterrichtVormittag)
 
-	_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(context.Background(), accountID, tenantID, "", "")
+	_, _, err := issueSchoolTokens(service, context.Background(), accountID, tenantID, "", "")
 
 	requirePortalNotBooked(t, err, "unterricht_vormittag")
 }

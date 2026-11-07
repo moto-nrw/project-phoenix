@@ -35,7 +35,14 @@ type AccountAuthentication struct {
 	audit          ports.AuthAudit
 	push           ports.PushSubscriptionCleanup
 	runtime        ports.Runtime
-	attach         func(context.Context) context.Context
+	// mintUnit is the administrative transaction every account session is
+	// minted and rotated in, and ledgerUnit the school transaction every
+	// authentication event outside one is filed in. They are the runtime's
+	// own methods, held as function values so the command-effect inventory
+	// follows them to the tenant runtime (ADR 0098).
+	mintUnit   func(ctx context.Context, fn func(context.Context) error) error
+	ledgerUnit func(ctx context.Context, tenantID int64, fn func(context.Context) error) error
+	attach     func(context.Context) context.Context
 	// withRecoveryProof binds a refresh-token recovery proof to the request
 	// context, where the rotation policy reads its hash.
 	withRecoveryProof func(ctx context.Context, proof string) context.Context
@@ -119,7 +126,7 @@ func NewAccountAuthentication(sessions *Service, deps AccountAuthenticationDepen
 	return &AccountAuthentication{
 		sessions: sessions, store: deps.Store, schools: deps.Schools, traeger: deps.Traeger, portalModules: deps.PortalModules, persons: deps.Persons, passwords: deps.Passwords, passwordPolicy: deps.PasswordPolicy,
 		codec: deps.Codec, mfa: deps.MFA, mfaLock: deps.MFALock, audit: deps.Audit, push: deps.Push,
-		runtime: deps.Runtime, attach: deps.Attach, withRecoveryProof: deps.WithRecoveryProof, rotation: deps.Rotation, caterers: deps.Caterers, logger: logger,
+		runtime: deps.Runtime, mintUnit: deps.Runtime.WithAdminTx, ledgerUnit: deps.Runtime.WithTenantTx, attach: deps.Attach, withRecoveryProof: deps.WithRecoveryProof, rotation: deps.Rotation, caterers: deps.Caterers, logger: logger,
 	}, nil
 }
 
@@ -141,27 +148,6 @@ func (e *OperationError) Error() string {
 func (e *OperationError) Unwrap() error { return e.Err }
 
 func failed(op string, err error) error { return &OperationError{Op: op, Err: err} }
-
-// mintGuard runs inside the token-persistence transaction, immediately before
-// the session row is written. It is the only place where an authorization
-// fact can be re-checked atomically with the write it authorizes; the login
-// flows verify everything else in already-committed transactions that may be
-// stale by the time the token is minted. A guard receives the administrative
-// transaction in ctx and must read through the store on it, never open a
-// nested one. Returning an error aborts the mint; the error surfaces verbatim
-// and is never retried. A guard is also where anything the JWT is built from
-// belongs: assembling claims after the transaction committed means a failure
-// there has already rotated the caller's refresh token with no successor to
-// hand back.
-type mintGuard func(ctx context.Context, account domain.LoginAccount) error
-
-// mintGuardError marks an error as coming from a mintGuard so the retry loop
-// passes the caller's sentinel through instead of burying it under the
-// generic transaction wrapper.
-type mintGuardError struct{ err error }
-
-func (e *mintGuardError) Error() string { return e.err.Error() }
-func (e *mintGuardError) Unwrap() error { return e.err }
 
 type SchoolDirectory struct{ identityPorts.SchoolDirectory }
 
@@ -266,14 +252,6 @@ func pendingWipes(values []identityaccess.PendingAccountWideWipe) []domain.Pendi
 	return result
 }
 
-func (s *AccountAuthentication) LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error) {
-	if s == nil {
-		return "", "", errAccountAuthenticationUnavailable
-	}
-	access, refresh, err := s.loginWithAudit(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, tenantSlug)
-	return access, refresh, authenticationError(err)
-}
-
 func (s *AccountAuthentication) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*identityaccess.LoginResult, error) {
 	if s == nil {
 		return nil, errAccountAuthenticationUnavailable
@@ -297,14 +275,6 @@ func (s *AccountAuthentication) LoginParentWithAudit(ctx context.Context, email,
 	return access, refresh, authenticationError(err)
 }
 
-func (s *AccountAuthentication) IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
-	if s == nil {
-		return "", "", errAccountAuthenticationUnavailable
-	}
-	access, refresh, err := s.issueSchoolTokensForAuthenticatedAccount(bindRuntime(s.attach, ctx), accountID, tenantID, ipAddress, userAgent)
-	return access, refresh, authenticationError(err)
-}
-
 func (s *AccountAuthentication) RefreshTokenWithAudit(ctx context.Context, refreshToken, recoveryProof, ipAddress, userAgent string) (string, string, error) {
 	if s == nil {
 		return "", "", errAccountAuthenticationUnavailable
@@ -316,11 +286,11 @@ func (s *AccountAuthentication) RefreshTokenWithAudit(ctx context.Context, refre
 	return access, refresh, authenticationError(err)
 }
 
-func (s *AccountAuthentication) SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (string, string, error) {
+func (s *AccountAuthentication) SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID, ipAddress, userAgent string) (string, string, error) {
 	if s == nil {
 		return "", "", errAccountAuthenticationUnavailable
 	}
-	access, refresh, err := s.switchTenant(bindRuntime(s.attach, ctx), accountID, tenantSlug, presentedFamilyID)
+	access, refresh, err := s.switchTenant(bindRuntime(s.attach, ctx), accountID, tenantSlug, presentedFamilyID, ipAddress, userAgent)
 	return access, refresh, authenticationError(err)
 }
 
@@ -386,12 +356,4 @@ func (s *AccountAuthentication) FindSchoolPortalTenant(ctx context.Context, acco
 // BindRuntime attaches the unit of work the session flows were composed with.
 func (s *AccountAuthentication) BindRuntime(ctx context.Context) context.Context {
 	return bindRuntime(s.attach, ctx)
-}
-
-func (s *AccountAuthentication) IssueSchoolTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error) {
-	if s == nil {
-		return "", "", errAccountAuthenticationUnavailable
-	}
-	access, refresh, err := s.issueSchoolTokensForAuthenticatedAccount(bindRuntime(s.attach, ctx), proof.AccountID, proof.TenantID, ipAddress, userAgent, proof)
-	return access, refresh, authenticationError(err)
 }

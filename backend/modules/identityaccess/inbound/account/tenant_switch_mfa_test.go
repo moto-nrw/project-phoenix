@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -18,8 +19,10 @@ func TestTenantSwitchWithoutMFAProofIsUnauthorized(t *testing.T) {
 	password := testpkg.NewTestPassword()
 	account := testpkg.CreateTestAccountWithPassword(t, tc.db, "switch-mfa@example.test", password)
 	testpkg.EnsureAccountTenant(t, tc.db, account.ID, testpkg.Tenant(t))
-	access, _, err := tc.resource.Sessions.LoginWithAudit(context.Background(), account.Email, password, "", "", "")
+	login, err := tc.resource.Sessions.LoginWithMFAGate(context.Background(), account.Email, password, "", "", "", "")
 	require.NoError(t, err)
+	require.Equal(t, identityaccess.LoginStatusAuthenticated, login.Status)
+	access := login.AccessToken
 	target, slug := testpkg.CreateTestTenant(t, tc.db)
 	testpkg.EnsureAccountTenant(t, tc.db, account.ID, target)
 	testpkg.GrantTestPermission(t, tc.db, target, account.ID, "student_documents:health")
@@ -45,7 +48,7 @@ func TestTenantSwitchPreservesVerifiedMFAAcrossOrganizationsAfterRotation(t *tes
 	testpkg.EnsureAccountTenant(t, tc.db, account.ID, target)
 	testpkg.GrantTestPermission(t, tc.db, target, account.ID, "staff:financial")
 	// The same capability completes a successful email/passkey MFA exchange.
-	_, refresh, err := tc.resource.Sessions.IssueTokensForAuthenticatedAccount(context.Background(), account.ID, source, "", "")
+	_, refresh, err := tc.resource.Sessions.IssueTokensForPasskey(context.Background(), account.ID, source, "", "")
 	require.NoError(t, err)
 	access, _, err := tc.resource.Sessions.RefreshTokenWithAudit(context.Background(), refresh, "", "", "")
 	require.NoError(t, err)
@@ -80,7 +83,7 @@ func TestTenantSwitchCannotRestoreInvalidatedMFAProof(t *testing.T) {
 			target, slug := testpkg.CreateTestTenant(t, tc.db)
 			testpkg.EnsureAccountTenant(t, tc.db, account.ID, target)
 			testpkg.GrantTestPermission(t, tc.db, target, account.ID, "student_documents:health")
-			access, refresh, err := tc.resource.Sessions.IssueTokensForAuthenticatedAccount(context.Background(), account.ID, source, "", "")
+			access, refresh, err := tc.resource.Sessions.IssueTokensForPasskey(context.Background(), account.ID, source, "", "")
 			require.NoError(t, err)
 			switch invalidation {
 			case "mfa-reset":
@@ -116,7 +119,7 @@ func TestTenantSwitchCannotRestoreInvalidatedMFAProof(t *testing.T) {
 			if invalidation == "retired-after-switch" {
 				// Completing the regular MFA exchange again restores a live source
 				// family; crossing organizations itself does not invalidate proof.
-				fresh, _, err := tc.resource.Sessions.IssueTokensForAuthenticatedAccount(context.Background(), account.ID, source, "", "")
+				fresh, _, err := tc.resource.Sessions.IssueTokensForPasskey(context.Background(), account.ID, source, "", "")
 				require.NoError(t, err)
 				retry := testutil.NewJSONRequest(t, http.MethodPost, "/auth/switch-tenant", map[string]string{"tenant_slug": slug})
 				retry.Header.Set("Authorization", "Bearer "+fresh)

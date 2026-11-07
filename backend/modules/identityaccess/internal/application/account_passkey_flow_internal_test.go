@@ -83,7 +83,7 @@ type fakePasskeySessions struct {
 	askedForID int64
 }
 
-func (s *fakePasskeySessions) IssueTokensForAuthenticatedAccount(_ context.Context, _, _ int64, _, _ string) (string, string, error) {
+func (s *fakePasskeySessions) IssueTokensForPasskey(_ context.Context, _, _ int64, _, _ string) (string, string, error) {
 	return s.access, s.refresh, s.issueErr
 }
 

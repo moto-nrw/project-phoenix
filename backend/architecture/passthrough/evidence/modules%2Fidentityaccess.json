@@ -373,13 +373,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (f *AccountMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.resend(ctx, claims, ip)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallenge",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
       "evidence": "func (f *AccountMFAFlows) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\tif claims.Scope != expectedScope {\n\t\treturn \"\", identityaccess.ErrMFAUnsupportedScope\n\t}\n\treturn f.resend(ctx, claims, ip)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallengeForScope",
@@ -768,13 +761,6 @@
       "evidence": "func (c ComposedAccountMFA) PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {\n\tissue, err := c.Flows.PrepareTrustedDevice(c.ctx(ctx), accountID, tenantID, userAgent, ip)\n\tif err != nil || issue == nil {\n\t\treturn nil, MFAError(err)\n\t}\n\treturn func(issueCtx context.Context) (string, time.Time, error) {\n\t\tcookie, expiresAt, err := issue(c.ctx(issueCtx))\n\t\treturn cookie, expiresAt, MFAError(err)\n\t}, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.PrepareTrustedDevice",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
-      "evidence": "func (c ComposedAccountMFA) ResendMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\ttoken, err := c.Flows.ResendChallenge(c.ctx(ctx), challengeToken, ip)\n\treturn token, MFAError(err)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResendMFAChallenge",
       "owner": "modules/identityaccess"
     },
     {

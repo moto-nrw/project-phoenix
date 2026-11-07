@@ -32,7 +32,7 @@ func TestUsersProductionBoundPositiveGrowthQueryBudget(t *testing.T) {
 	router.Mount("/api/users", resource.Router())
 	reader := testpkg.CreateTestAccount(t, db, "person-list-reader")
 	testpkg.GrantTestPermission(t, db, testpkg.Tenant(t), reader.ID, "users:read")
-	token, _, err := identity.Auth.IssueTokensForAuthenticatedAccount(testpkg.Ctx(t), reader.ID, testpkg.Tenant(t), "", "")
+	token, _, err := identity.Auth.IssueTokensForPasskey(testpkg.Ctx(t), reader.ID, testpkg.Tenant(t), "", "")
 	require.NoError(t, err)
 	claims, err := testutil.TestTokenAuth(t).ParseAccessJWT(token)
 	require.NoError(t, err)

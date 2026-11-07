@@ -1141,3 +1141,13 @@ func (s *fakeStore) SavePasswordLoginState(_ context.Context, id int64, operator
 	s.passwordStates[id] = state
 	return nil
 }
+
+// tenantPasswordLogin is the tenant password login of a fixture without a
+// configured second factor, which always answers with a token pair.
+func tenantPasswordLogin(auth *AccountAuthentication, ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
+	result, err := auth.loginWithMFAGate(ctx, email, password, ipAddress, userAgent, "", "")
+	if err != nil {
+		return "", "", err
+	}
+	return result.AccessToken, result.RefreshToken, nil
+}

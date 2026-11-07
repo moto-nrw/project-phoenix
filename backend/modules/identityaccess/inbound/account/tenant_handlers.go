@@ -338,7 +338,7 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("tenant switch unavailable")))
 		return
 	}
-	accessToken, refreshToken, err := rs.Sessions.SwitchTenant(r.Context(), int64(claims.ID), req.TenantSlug, claims.FamilyID)
+	accessToken, refreshToken, err := rs.Sessions.SwitchTenant(r.Context(), int64(claims.ID), req.TenantSlug, claims.FamilyID, getClientIP(r), r.Header.Get(headerUserAgent))
 	if err != nil {
 		if errors.Is(err, identityaccess.ErrInvalidToken) {
 			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(

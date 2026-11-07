@@ -138,13 +138,6 @@ func (m *MFAServiceMock) VerifyMFAChallengeForOwner(ctx context.Context, challen
 	return m.VerifyMFAChallengeForScope(ctx, challengeToken, code, expectedScope)
 }
 
-func (m *MFAServiceMock) ResendMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
-	if m.ResendMFAChallengeFn != nil {
-		return m.ResendMFAChallengeFn(ctx, challengeToken, ip)
-	}
-	return "", nil
-}
-
 // ResendMFAChallengeForScope mirrors VerifyMFAChallengeForScope: without a
 // scope-aware override it runs whatever ResendMFAChallengeFn the test set.
 func (m *MFAServiceMock) ResendMFAChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {

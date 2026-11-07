@@ -73,16 +73,14 @@ func (c *CatererAccess) login(ctx context.Context, request identityaccess.Catere
 	if gate.challenge != nil {
 		return *gate.challenge, nil
 	}
-	return c.mintSession(ctx, account, schools[0], gate.verified, gate.guard, request.IPAddress, request.UserAgent)
+	return c.mintSession(ctx, account, schools[0], gate.proof, request.IPAddress, request.UserAgent)
 }
 
 // catererSignInGate is the outcome of the second-factor check of a sign-in:
-// a challenge to answer, or a session to mint, proven by a remembered
-// device where the caterer switched the factor on.
+// a challenge to answer, or a session to mint with its proof.
 type catererSignInGate struct {
 	challenge *identityaccess.CatererLoginResult
-	verified  bool
-	guard     mintGuard
+	proof     mintProof
 }
 
 func (c *CatererAccess) signInGate(ctx context.Context, account domain.LoginAccount, request identityaccess.CatererLoginRequest) (catererSignInGate, error) {
@@ -98,12 +96,7 @@ func (c *CatererAccess) signInGate(ctx context.Context, account domain.LoginAcco
 		return catererSignInGate{}, nil
 	}
 	if c.auth.trustedDeviceVerified(schoolless, account.ID, 0, request.TrustedDeviceCookie) {
-		// A reset may commit between this check and the mint: the guard
-		// re-checks the factor and the device under the account lock.
-		guard := c.auth.trustedDeviceMintGuard(account.ID, 0, request.TrustedDeviceCookie, nil)
-		return catererSignInGate{verified: true, guard: func(guardCtx context.Context, presented domain.LoginAccount) error {
-			return guard(c.tenantless(guardCtx), presented)
-		}}, nil
+		return catererSignInGate{proof: mintProof{kind: proofTrustedDevice, trustedDeviceCookie: request.TrustedDeviceCookie}}, nil
 	}
 	result, err := c.auth.mfaChallengeResult(schoolless, account, 0, domain.PortalCaterer, request.IPAddress)
 	if err != nil {
@@ -120,25 +113,21 @@ func (c *CatererAccess) signInGate(ctx context.Context, account domain.LoginAcco
 
 // mintSession persists the caterer session at the school it is kept at and
 // issues its pair. The login is filed at that school.
-func (c *CatererAccess) mintSession(ctx context.Context, account domain.LoginAccount, schoolID int64, verified bool, guard mintGuard, ipAddress, userAgent string) (identityaccess.CatererLoginResult, error) {
-	ctx = c.runtime.WithTenantID(ctx, schoolID)
-	session, err := c.auth.createRefreshSessionGuarded(ctx, account, schoolID, domain.PortalCaterer.Claim, guard, "", verified)
+func (c *CatererAccess) mintSession(ctx context.Context, account domain.LoginAccount, schoolID int64, proof mintProof, ipAddress, userAgent string) (identityaccess.CatererLoginResult, error) {
+	minted, err := c.auth.mintAccountSession(c.runtime.WithTenantID(ctx, schoolID), mintRequest{
+		portal: domain.PortalCaterer, account: account, tenantID: schoolID, proof: proof,
+		eligible: c.auth.catererEligibility(),
+		audit:    &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: schoolID},
+	})
 	if err != nil {
 		return identityaccess.CatererLoginResult{}, err
 	}
-	access, refresh := buildClaims(account, session, buildCatererMetadata(account), account.Email)
-	accessToken, refreshToken, err := c.auth.generateAndLogTokens(ctx, account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventLogin)
-	if err != nil {
-		return identityaccess.CatererLoginResult{}, err
-	}
-	return identityaccess.CatererLoginResult{Status: identityaccess.CatererLoginAuthenticated, AccessToken: accessToken, RefreshToken: refreshToken}, nil
+	return identityaccess.CatererLoginResult{Status: identityaccess.CatererLoginAuthenticated, AccessToken: minted.accessToken, RefreshToken: minted.refreshToken}, nil
 }
 
 // mintProvenSession mints the session of a caterer that proved its second
-// factor: a redeemed code, or a passkey (proof nil). The proof's reset
-// generation is re-checked under the account lock, so a code proved before
-// an operator reset mints nothing.
-func (c *CatererAccess) mintProvenSession(ctx context.Context, accountID int64, proof *identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (identityaccess.CatererLoginResult, error) {
+// factor: a redeemed code, or a passkey (proof nil).
+func (c *CatererAccess) mintProvenSession(ctx context.Context, accountID int64, challenge *identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (identityaccess.CatererLoginResult, error) {
 	account, err := c.auth.authenticatedAccount(ctx, "issue caterer tokens", accountID)
 	if err != nil {
 		return identityaccess.CatererLoginResult{}, err
@@ -150,8 +139,11 @@ func (c *CatererAccess) mintProvenSession(ctx context.Context, accountID int64, 
 	if len(schools) == 0 {
 		return identityaccess.CatererLoginResult{}, failed("caterer login", domain.ErrCatererWithoutSchool)
 	}
-	guard := c.auth.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeCaterer, nil)
-	return c.mintSession(ctx, account, schools[0], true, guard, ipAddress, userAgent)
+	proof := mintProof{kind: proofPasskey}
+	if challenge != nil {
+		proof = challengeProof(challenge)
+	}
+	return c.mintSession(ctx, account, schools[0], proof, ipAddress, userAgent)
 }
 
 // VerifyCatererMFA redeems the mailed code of a caterer sign-in and mints

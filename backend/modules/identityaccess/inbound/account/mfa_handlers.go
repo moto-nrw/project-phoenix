@@ -109,10 +109,9 @@ type MFAResendResponse = common.MFAResendResponse
 // Rate-limited inside the service. Returns the renewed challenge JWT —
 // see MFAResendResponse for why the previous 204-shape was unsafe.
 //
-// Scope-enforcing on purpose (mirrors the school endpoint): the unscoped
-// ResendChallenge accepts ANY challenge token, so this tenant surface would
-// otherwise happily send another code for a school-scope challenge and burn
-// that account's 3-codes-per-15-minutes budget from outside its own portal.
+// Scope-enforcing (mirrors the school endpoint): a challenge of another
+// portal is refused, so this surface cannot burn that account's
+// 3-codes-per-15-minutes budget from outside its own portal.
 func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return

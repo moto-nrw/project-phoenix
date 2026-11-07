@@ -26,7 +26,7 @@ func TestRBACRolePermissionsListQueryBudget(t *testing.T) {
 	foreignActor := testpkg.CreateTestAccount(t, f.db, "rbac-role-perms-other-school")
 	testpkg.EnsureAccountTenant(t, f.db, foreignActor.ID, foreignID)
 	testpkg.GrantTestPermission(t, f.db, foreignID, foreignActor.ID, "roles:manage")
-	foreignToken, _, err := f.module.Auth.IssueTokensForAuthenticatedAccount(f.foreign, foreignActor.ID, foreignID, "", "")
+	foreignToken, _, err := f.module.Auth.IssueTokensForPasskey(f.foreign, foreignActor.ID, foreignID, "", "")
 	require.NoError(t, err)
 
 	own := testpkg.CreateTestRole(t, f.db, "rbac-role-perms-own")

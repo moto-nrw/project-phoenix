@@ -24,7 +24,7 @@ func TestRBACPermissionsListQueryBudget(t *testing.T) {
 	foreignID := tenant.FromContext(f.foreign)
 	testpkg.EnsureAccountTenant(t, f.db, foreignActor.ID, foreignID)
 	testpkg.GrantTestPermission(t, f.db, foreignID, foreignActor.ID, "permissions:read")
-	foreignToken, _, err := f.module.Auth.IssueTokensForAuthenticatedAccount(f.foreign, foreignActor.ID, foreignID, "", "")
+	foreignToken, _, err := f.module.Auth.IssueTokensForPasskey(f.foreign, foreignActor.ID, foreignID, "", "")
 	require.NoError(t, err)
 	baseline, err := f.module.AccountAuthentication.ListPermissions(testpkg.Ctx(t), identityaccess.PermissionFilter{})
 	require.NoError(t, err)

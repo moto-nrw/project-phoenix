@@ -23,7 +23,7 @@ func TestTenantSessionLifecycle(t *testing.T) {
 	f.persons.names[personKey{1, 10}] = [2]string{"Ada", "Lovelace"}
 	ctx := context.Background()
 
-	access, refresh, err := f.auth.loginWithAudit(ctx, "user1@example.com", "secret", "192.0.2.1", "tests", "")
+	access, refresh, err := tenantPasswordLogin(f.auth, ctx, "user1@example.com", "secret", "192.0.2.1", "tests")
 	require.NoError(t, err)
 
 	accessClaims := decodeAccess(t, access)
@@ -62,12 +62,12 @@ func TestTenantSessionLifecycle(t *testing.T) {
 	assert.Equal(t, int64(10), f.audit.eventsOfType(domain.AuthEventTokenRevoked)[0].TenantID)
 }
 
-func TestLoginWithAudit_WrongPasswordIsInvalidCredentials(t *testing.T) {
+func TestTenantLogin_WrongPasswordIsInvalidCredentials(t *testing.T) {
 	t.Parallel()
 	f := newAuthFixture(t)
 	f.seedStaff(1, 10, "user")
 
-	_, _, err := f.auth.loginWithAudit(context.Background(), "user1@example.com", "wrong", "192.0.2.1", "tests", "")
+	_, _, err := tenantPasswordLogin(f.auth, context.Background(), "user1@example.com", "wrong", "192.0.2.1", "tests")
 	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials)
 	assert.Empty(t, f.store.sessionsOf(1))
 	events := f.audit.eventsOfType(domain.AuthEventLogin)
@@ -75,12 +75,12 @@ func TestLoginWithAudit_WrongPasswordIsInvalidCredentials(t *testing.T) {
 	assert.False(t, events[0].Success)
 }
 
-func TestLoginWithAudit_GuardianOnlyAccountMustUseParentPortal(t *testing.T) {
+func TestTenantLogin_GuardianOnlyAccountMustUseParentPortal(t *testing.T) {
 	t.Parallel()
 	f := newAuthFixture(t)
 	f.seedStaff(1, 10, "guardian")
 
-	_, _, err := f.auth.loginWithAudit(context.Background(), "user1@example.com", "secret", "192.0.2.1", "tests", "")
+	_, _, err := tenantPasswordLogin(f.auth, context.Background(), "user1@example.com", "secret", "192.0.2.1", "tests")
 	require.ErrorIs(t, err, identityaccess.ErrParentMustUseParentPortal, "wrong-portal rejection")
 	assert.Empty(t, f.store.sessionsOf(1))
 }
@@ -126,7 +126,7 @@ func TestRefreshToken_RejectionsRevokeFamilyWithoutIssuingTokens(t *testing.T) {
 			f := newAuthFixture(t)
 			f.seedStaff(1, 10, "user")
 			ctx := context.Background()
-			_, refresh, err := f.auth.loginWithAudit(ctx, "user1@example.com", "secret", "", "tests", "")
+			_, refresh, err := tenantPasswordLogin(f.auth, ctx, "user1@example.com", "secret", "", "tests")
 			require.NoError(t, err)
 			sessions := f.store.sessionsOf(1)
 			require.Len(t, sessions, 1)
@@ -202,7 +202,7 @@ func TestRefreshRequiresMFAAfterPrivilegeGrant(t *testing.T) {
 	f := newAuthFixture(t)
 	f.seedStaff(1, 10, "custom")
 	ctx := context.Background()
-	_, refresh, err := f.auth.loginWithAudit(ctx, "user1@example.com", "secret", "", "tests", "")
+	_, refresh, err := tenantPasswordLogin(f.auth, ctx, "user1@example.com", "secret", "", "tests")
 	require.NoError(t, err)
 	f.mfa.configured = true
 	f.mfa.policyInTx = domain.MFAPolicyForMode(domain.MFAModeOff)

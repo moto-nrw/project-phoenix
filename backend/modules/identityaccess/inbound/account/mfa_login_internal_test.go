@@ -215,7 +215,7 @@ func TestLogin_ServiceErrorMapping(t *testing.T) {
 // guardian-only account is indistinguishable from any other 403 and the user
 // gets a generic "login failed" that reads like a password problem.
 //
-// Safe to be this specific: LoginWithAudit only reaches
+// Safe to be this specific: the tenant login only reaches
 // ErrParentMustUseParentPortal after validateLoginCredentials accepted the
 // password, so the caller already owns the account.
 func TestLogin_GuardianOnlyReturnsParentPortalCode(t *testing.T) {

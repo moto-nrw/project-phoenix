@@ -67,7 +67,7 @@ type accountPasskeyGate interface {
 // accountPasskeySessions mints the pair a completed login returns and proves
 // the account's membership in the school whose portal started the ceremony.
 type accountPasskeySessions interface {
-	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error)
+	IssueTokensForPasskey(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error)
 	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)
 }
 
@@ -306,7 +306,7 @@ func (f *AccountPasskeyFlows) FinishLogin(ctx context.Context, request domain.Ac
 	if err != nil {
 		return domain.PasskeyLoginResult{}, err
 	}
-	accessToken, refreshToken, err := f.sessions.IssueTokensForAuthenticatedAccount(ctx, verified.accountID, verified.tenantID, request.IPAddress, request.UserAgent)
+	accessToken, refreshToken, err := f.sessions.IssueTokensForPasskey(ctx, verified.accountID, verified.tenantID, request.IPAddress, request.UserAgent)
 	if err != nil {
 		return domain.PasskeyLoginResult{}, err
 	}

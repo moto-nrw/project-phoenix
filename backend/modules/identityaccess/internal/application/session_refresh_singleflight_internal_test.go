@@ -32,7 +32,7 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 		f := newAuthFixture(t)
 		f.seedStaff(1, 10, "user")
 		ctx := context.Background()
-		_, refreshToken, err := f.auth.loginWithAudit(ctx, "user1@example.com", "secret", "", "", "")
+		_, refreshToken, err := tenantPasswordLogin(f.auth, ctx, "user1@example.com", "secret", "", "")
 		require.NoError(t, err)
 
 		codec := &blockedRefreshCodec{release: make(chan struct{})}
