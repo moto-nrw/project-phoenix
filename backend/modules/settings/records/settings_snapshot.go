@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"math"
 	"time"
 )
@@ -275,11 +274,4 @@ func (s *SettingsSnapshot) Int(key string) (int, error) {
 	default:
 		return 0, &SettingsError{Op: "snapshot_int", Err: fmt.Errorf("expected number, got %T", value)}
 	}
-}
-
-// MergeSettingsSnapshots combines cache hits and freshly resolved keys without exposing their maps.
-func MergeSettingsSnapshots(left, right *SettingsSnapshot) *SettingsSnapshot {
-	values := maps.Clone(left.values)
-	maps.Copy(values, right.values)
-	return newSettingsSnapshotFromValues(left.tenantID, values)
 }
