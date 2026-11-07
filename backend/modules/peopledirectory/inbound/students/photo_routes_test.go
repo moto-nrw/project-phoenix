@@ -862,3 +862,43 @@ func TestServeStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }
+
+// exifGPSSegment is an APP1/Exif segment whose IFD0 points at GPS data, as
+// a phone camera writes it.
+const exifGPSSegment = "\xFF\xE1\x00\x2CExif\x00\x00II\x2A\x00\x08\x00\x00\x00\x01\x00\x25\x88\x04\x00\x01\x00\x00\x00\x1A\x00\x00\x00\x00\x00\x00\x00GPS-51.22N"
+
+// withExifGPS inserts exifGPSSegment directly after the JPEG SOI marker.
+func withExifGPS(plain []byte) []byte {
+	return append(append([]byte{0xFF, 0xD8}, exifGPSSegment...), plain[2:]...)
+}
+
+// A direct API upload skips the browser's re-encoding; the server must still
+// store the child photo without Exif (and so without GPS coordinates).
+func TestUploadStudentPhoto_StripsExifGPS(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+	enableStudentPhotos(t, tc)
+	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "Exif", "PU9")
+	stampPhotoConsentRow(t, tc, student.ID)
+
+	body, contentType := buildMultipart(t, "photo", "phone.jpg", withExifGPS(jpegBytes(t)), nil)
+	req, err := http.NewRequest("POST", fmt.Sprintf("/%d/photo", student.ID), body)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
+
+	rr := testutil.ExecuteRequest(tc.router(), req)
+	t.Cleanup(func() { removeUploadedPhotoFile(t, rr.Body.Bytes()) })
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	photoPath, err := (nativeUploads.UploadFiles{}).StoredPath("public", readStudentPhotoPath(t, tc, student.ID), common.StudentPhotoStoredURLPrefix)
+	require.NoError(t, err)
+	stored, err := os.ReadFile(photoPath)
+	require.NoError(t, err)
+	assert.NotContains(t, string(stored), "Exif")
+	assert.NotContains(t, string(stored), "GPS-51.22N")
+	assert.Equal(t, jpegBytes(t), stored, "only the metadata segment is removed")
+	_, err = jpeg.Decode(bytes.NewReader(stored))
+	require.NoError(t, err)
+}
