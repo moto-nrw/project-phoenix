@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"sync"
 	"testing"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // The monthly contribution of the care contract (#4684). The months lie far
@@ -125,7 +127,8 @@ type careBillingFixture struct {
 
 func newCareBillingFixture(t *testing.T, name string) careBillingFixture {
 	t.Helper()
-	db, portal, _, _ := newTraegerPortal(t)
+	_, portal, _, _ := newTraegerPortal(t)
+	db := testpkg.SetupTestDB(t)
 	office := newTraegerOffice(t, db, portal, name, identityaccess.TraegerRoleBilling)
 	testpkg.OwnTraegerCareContracts(t, db, office.organization)
 	rec := traegerJSON(t, portal, office.token, http.MethodPut, numberRangesPath+"/care", map[string]any{"pattern": "MB-{JJJJ}-{NNNN}"})
@@ -326,7 +329,9 @@ func TestCareMonthlyBillingNeedsTheRightAndStaysWithItsTraeger(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "Betreuung bis 14:00 Uhr", "no price or module of another Träger")
 	rec = traegerJSON(t, f.traeger, foreign.token, http.MethodGet, careRunsPath, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Empty(t, decodeSchoolPortalData[[]careRunBody](t, rec.Body.Bytes()))
+	assert.Empty(t, decodeSchoolPortalData[struct {
+		Runs []careRunBody `json:"runs"`
+	}](t, rec.Body.Bytes()).Runs)
 	// A run of the other Träger never bills this Träger's contract.
 	foreignRun := traegerJSON(t, f.traeger, foreign.token, http.MethodPost, careRunsPath, map[string]any{"billing_month": careMonth})
 	require.Equal(t, http.StatusCreated, foreignRun.Code, foreignRun.Body.String())
@@ -362,4 +367,34 @@ func TestCarePriceListIsCheckedBeforeItIsSaved(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "parent_billing.care_run_invalid")
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodDelete, careTariffsPath+fmt.Sprintf("/%d/2029-09-01", school), nil)
 	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+}
+
+// The list of the monthly runs and the price list read the same statements
+// for any number of runs, contracts and prices.
+func TestCareMonthlyListsQueryBudgetIsFlat(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Monatsbeitrag Budget")
+	school := f.office.schools[0]
+	list := func(path string) []string {
+		counter := testpkg.CaptureQueriesForContext(t, f.db)
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+f.office.token)
+		rec := httptest.NewRecorder()
+		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return counter.Selects("")
+	}
+	careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	f.startRun(t, careMonth)
+	runs, tariffs := list(careRunsPath), list(careTariffsPath)
+	careContract(t, f.db, f.office.organization, f.office.schools[1], "Noah", careMonth, sjrServices()...)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(f.office.schools[1], "2029-10-01", 2800))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	f.startRun(t, "2030-02-01")
+	assert.Len(t, list(careRunsPath), len(runs), "the list reads the same statements for any number of runs")
+	assert.Len(t, list(careTariffsPath), len(tariffs), "the price list reads the same statements for any number of prices")
+	querybudgets.AssertQueryBudget(t, "api.traeger.care_billing_runs", runs)
+	querybudgets.AssertQueryBudget(t, "api.traeger.care_tariffs", tariffs)
 }

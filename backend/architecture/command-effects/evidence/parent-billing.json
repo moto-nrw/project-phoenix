@@ -137,6 +137,30 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.CareMonthRule",
+      "binding_digest": "27ee080577b52f26c26a8697338a6438",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.CareMonthRule",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareContracts.Recipients",
+      "binding_digest": "ccc46fb834b73c55bbf6488878ef0708",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.BillingRecipients",
+      "target_owner": "care-contract"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareContracts.VersionsInForce",
+      "binding_digest": "42e171ce5a9af8c1e1bc5bc2c6800458",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.VersionsInForce",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.VersionsInForce",
+      "target_owner": "care-contract"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
       "binding_digest": "e4e8a4e182c95b65aee0af7bee7b381f",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.ConfirmedHolidayRegistrations",

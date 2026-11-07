@@ -12,33 +12,48 @@ type PartyStore interface {
 	PartiesOf(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64][]carecontract.Party, error)
 }
 
-// Parties serves carecontract.ContractParties for the parents' billing.
-type Parties struct {
-	store PartyStore
+// BillingReads serves carecontract.ContractBilling: the versions in force
+// and the recipient of each monthly invoice (#4684).
+type BillingReads struct {
+	*Versions
+	parties PartyStore
 }
 
-var _ carecontract.ContractParties = (*Parties)(nil)
+var _ carecontract.ContractBilling = (*BillingReads)(nil)
 
-// NewParties builds the read of the contract parties.
-func NewParties(store PartyStore) *Parties {
-	if store == nil {
-		panic("care contract: the store is required")
-	}
-	return &Parties{store: store}
+// BillingStore is a store that reads versions and parties.
+type BillingStore interface {
+	Store
+	PartyStore
 }
 
-// PartiesOf checks the Träger and reads the parties; no contract reads
-// nothing.
-func (p *Parties) PartiesOf(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64][]carecontract.Party, error) {
+// NewBillingReads builds the reads of the parents' billing.
+func NewBillingReads(store BillingStore) *BillingReads {
+	return &BillingReads{Versions: NewVersions(store), parties: store}
+}
+
+// BillingRecipients picks per contract the first party with an e-mail
+// address, else the first party: the invoice goes where a mail can reach.
+func (b *BillingReads) BillingRecipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]carecontract.Party, error) {
 	if organizationID <= 0 {
 		return nil, &carecontract.ValidationError{Fields: map[string]string{"organization": "required"}}
 	}
+	recipients := map[int64]carecontract.Party{}
 	if len(contractIDs) == 0 {
-		return map[int64][]carecontract.Party{}, nil
+		return recipients, nil
 	}
-	parties, err := p.store.PartiesOf(ctx, organizationID, contractIDs)
+	parties, err := b.parties.PartiesOf(ctx, organizationID, contractIDs)
 	if err != nil {
 		return nil, fmt.Errorf("care contract: read contract parties: %w", err)
 	}
-	return parties, nil
+	for contractID, list := range parties {
+		recipients[contractID] = list[0]
+		for _, party := range list {
+			if party.Email != "" {
+				recipients[contractID] = party
+				break
+			}
+		}
+	}
+	return recipients, nil
 }

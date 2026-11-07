@@ -64,20 +64,19 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 // parties of the Betreuungsvertrag in the caller's Träger transaction, and
 // to the Träger's month rule.
 func NewCareBillingHTTP(settings TraegerBrandingSettings) *parentBillingHTTP.CareBillingResource {
-	contracts := parentBillingCareContracts{versions: careContractCompose.NewContractVersions(), parties: careContractCompose.NewContractParties()}
+	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
 	return parentBillingHTTP.NewCareBillingResource(parentBillingCompose.NewCareBilling(contracts, parentBillingSettings{settings: settings}),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
 // parentBillingCareContracts translates the Betreuungsvertrag's versions in
-// force and contract parties into the Elternabrechnung's port.
+// force and invoice recipients into the Elternabrechnung's port.
 type parentBillingCareContracts struct {
-	versions carecontract.ContractVersions
-	parties  carecontract.ContractParties
+	contracts carecontract.ContractBilling
 }
 
 func (c parentBillingCareContracts) VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date) ([]parentbilling.CareContractVersion, error) {
-	periods, err := c.versions.VersionsInForce(ctx, organizationID, from, to)
+	periods, err := c.contracts.VersionsInForce(ctx, organizationID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -97,23 +96,15 @@ func (c parentBillingCareContracts) VersionsInForce(ctx context.Context, organiz
 	return versions, nil
 }
 
-// Recipients names the first party with an e-mail address, else the first
-// party of each contract.
+// Recipients translates the party each invoice goes to.
 func (c parentBillingCareContracts) Recipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]parentbilling.CareRecipient, error) {
-	parties, err := c.parties.PartiesOf(ctx, organizationID, contractIDs)
+	parties, err := c.contracts.BillingRecipients(ctx, organizationID, contractIDs)
 	if err != nil {
 		return nil, err
 	}
 	recipients := make(map[int64]parentbilling.CareRecipient, len(parties))
-	for contractID, list := range parties {
-		chosen := list[0]
-		for _, party := range list {
-			if party.Email != "" {
-				chosen = party
-				break
-			}
-		}
-		recipients[contractID] = parentbilling.CareRecipient{FirstName: chosen.FirstName, LastName: chosen.LastName, Email: chosen.Email}
+	for contractID, party := range parties {
+		recipients[contractID] = parentbilling.CareRecipient{FirstName: party.FirstName, LastName: party.LastName, Email: party.Email}
 	}
 	return recipients, nil
 }

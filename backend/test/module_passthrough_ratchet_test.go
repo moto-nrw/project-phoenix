@@ -235,6 +235,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0116: the hosted holiday weeks of modules/enrollment (+1).
 // Raised by ADR 0115: the new owner modules/parentbilling (+5).
 // Raised by ADR 0119: the billing run list of modules/parentbilling (+1).
+// Raised by ADR 0158: the monthly run list of modules/parentbilling (+1).
 // Lowered by ADR 0118: the holiday registration retention of modules/enrollment
 // also prunes its deletion log and is no pass-through any more (-1).
 // Raised by ADR 0131: the kiosk count revision read of modules/studentpresence (+1).
@@ -244,7 +245,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0141: the payroll dispatch overview of modules/workforce (+1).
 // Lowered by #4497: the caterer scope of CapabilityGate.StartChallenge in
 // modules/identityaccess makes it no pass-through any more (-1).
-const modulePassthroughOwnerBudgetTotal = 1409
+const modulePassthroughOwnerBudgetTotal = 1410
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -285,7 +286,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/organizationtenancy": 12,
 	// Added by ADR 0115: the rule checks and the link check of the new owner
 	// Elternabrechnung. Raised by ADR 0119: the billing run list (+1).
-	"modules/parentbilling":    6,
+	"modules/parentbilling":    7,
 	"modules/peopledirectory":  208,
 	"modules/requestreview":    15,
 	"modules/schedulerruntime": 4,

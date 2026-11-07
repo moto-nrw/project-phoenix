@@ -219,7 +219,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0156: the booked care read and the overrun evaluation of
 // modules/carecontract/compose (+19) and the contract Soll port of
 // modules/studentpresence/compose (+4) add exactly 23 LOC.
-const moduleComposeBudgetTotal = 12980
+// ADR 0158: the monthly contribution constructor of
+// modules/parentbilling/compose adds exactly 5 LOC.
+const moduleComposeBudgetTotal = 12985
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -286,7 +288,7 @@ var moduleComposeBudgets = map[string]int{
 	// ports of the contract reads for the schools' access logs.
 	// ADR 0156: the booked care read and the overrun evaluation (+19); #4681 lowers it by 2.
 	"modules/carecontract/compose":                67,
-	"modules/parentbilling/compose":               50,
+	"modules/parentbilling/compose":               55,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":    973,

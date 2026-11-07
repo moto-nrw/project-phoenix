@@ -2,12 +2,14 @@ package carecontract
 
 import "context"
 
-// ContractParties reads the parties of contracts for the parents' billing
-// (#4684): the monthly invoice of a contract goes to one of them. It runs in
-// the Träger transaction the caller holds, which records the read in its
-// own trail.
-type ContractParties interface {
-	// PartiesOf names the parties of every given contract of the Träger in
-	// the order they were added; a contract of another Träger has none.
-	PartiesOf(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64][]Party, error)
+// ContractBilling is what the parents' billing reads of the contracts
+// (#4681, #4684): the versions in force and the party each monthly invoice
+// goes to. It runs in the Träger transaction the caller holds.
+type ContractBilling interface {
+	ContractVersions
+	// BillingRecipients names per contract of the Träger the party its
+	// invoice goes to: the first party with an e-mail address, else the
+	// first party. A contract of another Träger or without a party has
+	// none.
+	BillingRecipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]Party, error)
 }

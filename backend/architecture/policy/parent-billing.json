@@ -45,6 +45,26 @@
   ],
   "data_objects": [
     {
+      "name": "parent_billing.care_invoice_positions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoices",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_runs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_tariffs",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.contribution_rules",
       "write_owner": "parent-billing"
     },

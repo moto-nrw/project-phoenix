@@ -1,7 +1,6 @@
 package application
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -122,11 +121,11 @@ func careModules(versions []parentbilling.CareContractVersion, tariffs []parentb
 	result := make([]parentbilling.CareModule, 0, len(modules))
 	for k, module := range modules {
 		module.ContractCount = len(contracts[k])
-		slices.SortFunc(module.BookedWeekdays, func(a, b string) int { return cmp.Compare(weekdayOrder[a], weekdayOrder[b]) })
+		slices.SortFunc(module.BookedWeekdays, func(a, b string) int { return compareOrdered(weekdayOrder[a], weekdayOrder[b]) })
 		result = append(result, *module)
 	}
 	slices.SortFunc(result, func(a, b parentbilling.CareModule) int {
-		return cmp.Or(cmp.Compare(a.SchoolID, b.SchoolID), cmp.Compare(a.EndsAt, b.EndsAt), cmp.Compare(a.ModuleName, b.ModuleName))
+		return firstNonZero(compareOrdered(a.SchoolID, b.SchoolID), compareOrdered(a.EndsAt, b.EndsAt), compareOrdered(a.ModuleName, b.ModuleName))
 	})
 	return result
 }
@@ -221,13 +220,33 @@ func normalizePriceList(list parentbilling.CarePriceList) (parentbilling.CarePri
 	return list, nil
 }
 
-// ListCareRuns lists the monthly runs, the latest month first. The list
-// carries no personal data.
-func (c *CareBilling) ListCareRuns(ctx context.Context, organizationID int64) ([]parentbilling.CareRun, error) {
+// ListCareRuns lists the monthly runs, the latest month first, and
+// suggests the month a new run bills: the current month, or the first one
+// after it without a released run. The list carries no personal data.
+func (c *CareBilling) ListCareRuns(ctx context.Context, organizationID int64) (parentbilling.CareRunList, error) {
 	if organizationID <= 0 {
-		return nil, errTraegerRequired
+		return parentbilling.CareRunList{}, errTraegerRequired
 	}
-	return c.store.ListCareRuns(ctx, organizationID)
+	runs, err := c.store.ListCareRuns(ctx, organizationID)
+	if err != nil {
+		return parentbilling.CareRunList{}, fmt.Errorf("parent billing: list care runs: %w", err)
+	}
+	return parentbilling.CareRunList{Runs: runs, SuggestedMonth: suggestedMonth(c.today(), runs)}, nil
+}
+
+// suggestedMonth is the first month from today's on without a released run.
+func suggestedMonth(today calendar.Date, runs []parentbilling.CareRun) calendar.Date {
+	released := map[calendar.Date]bool{}
+	for _, run := range runs {
+		if run.Status == parentbilling.RunReleased {
+			released[run.BillingMonth] = true
+		}
+	}
+	month := firstOfMonth(today)
+	for released[month] {
+		month = monthEnd(month).AddDays(1)
+	}
+	return month
 }
 
 // StartCareRun starts a calculated run of a month. A month has at most one

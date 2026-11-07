@@ -272,7 +272,7 @@ func TestCareMonthModuleEndsWithinMonth(t *testing.T) {
 func TestShareOfMonthRoundsHalfUp(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, int64(50), shareOfMonth(100, 15, 30))
-	assert.Equal(t, int64(2), shareOfMonth(3, 15, 30), "1.5 rounds up")
+	assert.EqualValues(t, 2, shareOfMonth(3, 15, 30), "1.5 rounds up")
 	assert.Equal(t, int64(100), shareOfMonth(100, 31, 31))
 }
 
@@ -293,4 +293,16 @@ func TestMonthEndCrossesTheYear(t *testing.T) {
 	assert.Equal(t, "2026-12-31", monthEnd(day(t, "2026-12-01")).String())
 	assert.Equal(t, "2028-02-29", monthEnd(day(t, "2028-02-01")).String())
 	assert.Equal(t, time.December, firstOfMonth(day(t, "2026-12-24")).Month())
+}
+
+func TestSuggestedMonthSkipsReleasedMonths(t *testing.T) {
+	t.Parallel()
+	runs := []parentbilling.CareRun{
+		{BillingMonth: day(t, "2026-11-01"), Status: parentbilling.RunReleased},
+		{BillingMonth: day(t, "2026-12-01"), Status: parentbilling.RunCalculated},
+	}
+	assert.Equal(t, "2026-12-01", suggestedMonth(day(t, "2026-11-07"), runs).String())
+	assert.Equal(t, "2026-11-01", suggestedMonth(day(t, "2026-11-07"), nil).String())
+	runs[1].Status = parentbilling.RunReleased
+	assert.Equal(t, "2027-01-01", suggestedMonth(day(t, "2026-11-30"), runs).String())
 }

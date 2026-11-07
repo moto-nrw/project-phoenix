@@ -1,7 +1,6 @@
 package application
 
 import (
-	"cmp"
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
@@ -86,8 +85,8 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 		result.invoices = append(result.invoices, invoice)
 	}
 	slices.SortStableFunc(result.invoices, func(a, b parentbilling.CareInvoice) int {
-		return cmp.Or(cmp.Compare(a.SchoolName, b.SchoolName), cmp.Compare(a.ChildLastName, b.ChildLastName),
-			cmp.Compare(a.ChildFirstName, b.ChildFirstName), cmp.Compare(a.ContractID, b.ContractID))
+		return firstNonZero(compareOrdered(a.SchoolName, b.SchoolName), compareOrdered(a.ChildLastName, b.ChildLastName),
+			compareOrdered(a.ChildFirstName, b.ChildFirstName), compareOrdered(a.ContractID, b.ContractID))
 	})
 	return result, nil
 }
@@ -194,14 +193,9 @@ func modulesOf(segment billedSegment, rule string) []bookedModule {
 	byOffering := map[int64]*bookedModule{}
 	var modules []*bookedModule
 	for _, service := range segment.version.Services {
-		until := segment.until
-		if service.LastDay != nil {
-			if service.LastDay.Before(segment.from) {
-				continue
-			}
-			if rule == parentbilling.MonthRuleProRata && service.LastDay.Before(until) {
-				until = *service.LastDay
-			}
+		until, booked := serviceUntil(segment, rule, service)
+		if !booked {
+			continue
 		}
 		module, ok := byOffering[service.CareOfferingID]
 		if !ok {
@@ -218,13 +212,29 @@ func modulesOf(segment billedSegment, rule string) []bookedModule {
 	}
 	result := make([]bookedModule, len(modules))
 	for i, module := range modules {
-		slices.SortFunc(module.weekdays, func(a, b string) int { return cmp.Compare(weekdayOrder[a], weekdayOrder[b]) })
+		slices.SortFunc(module.weekdays, func(a, b string) int { return compareOrdered(weekdayOrder[a], weekdayOrder[b]) })
 		result[i] = *module
 	}
 	slices.SortStableFunc(result, func(a, b bookedModule) int {
-		return cmp.Or(cmp.Compare(a.endsAt, b.endsAt), cmp.Compare(a.name, b.name))
+		return firstNonZero(compareOrdered(a.endsAt, b.endsAt), compareOrdered(a.name, b.name))
 	})
 	return result
+}
+
+// serviceUntil is the last day a service bills in its segment, and whether
+// it bills at all: a module whose last booked day lies before the segment
+// does not; pro rata it stops after its last booked day.
+func serviceUntil(segment billedSegment, rule string, service parentbilling.CareContractService) (calendar.Date, bool) {
+	if service.LastDay == nil {
+		return segment.until, true
+	}
+	if service.LastDay.Before(segment.from) {
+		return calendar.Date(""), false
+	}
+	if rule == parentbilling.MonthRuleProRata && service.LastDay.Before(segment.until) {
+		return *service.LastDay, true
+	}
+	return segment.until, true
 }
 
 // priceKey names the price of one weekday of a module at a school.
@@ -276,11 +286,32 @@ func withValidity(tariffs []parentbilling.CareTariff) []parentbilling.CareTariff
 		}
 	}
 	slices.SortFunc(result, func(a, b parentbilling.CareTariff) int {
-		return cmp.Or(cmp.Compare(a.SchoolID, b.SchoolID), a.ValidFrom.Compare(b.ValidFrom),
-			cmp.Compare(a.ModuleName, b.ModuleName), cmp.Compare(weekdayOrder[a.Weekday], weekdayOrder[b.Weekday]))
+		return firstNonZero(compareOrdered(a.SchoolID, b.SchoolID), a.ValidFrom.Compare(b.ValidFrom),
+			compareOrdered(a.ModuleName, b.ModuleName), compareOrdered(weekdayOrder[a.Weekday], weekdayOrder[b.Weekday]))
 	})
 	return result
 }
 
 // isMonthStart reports a first day of a month.
 func isMonthStart(day calendar.Date) bool { return !day.IsZero() && day.Day() == 1 }
+
+// compareOrdered orders two values ascending.
+func compareOrdered[T int | int64 | string](a, b T) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	}
+	return 0
+}
+
+// firstNonZero is the first decisive comparison.
+func firstNonZero(comparisons ...int) int {
+	for _, comparison := range comparisons {
+		if comparison != 0 {
+			return comparison
+		}
+	}
+	return 0
+}

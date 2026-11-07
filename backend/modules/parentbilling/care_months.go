@@ -133,6 +133,14 @@ type CareRun struct {
 	MonthRule     string         `json:"month_rule"`
 }
 
+// CareRunList is the list of the monthly runs, the latest month first,
+// with the month a new run would bill: the earliest month from the current
+// one on without a released run.
+type CareRunList struct {
+	Runs           []CareRun     `json:"runs"`
+	SuggestedMonth calendar.Date `json:"suggested_month"`
+}
+
 // CareWeekdayPrice is a booked weekday of a position with its monthly
 // price and the part of it the position bills.
 type CareWeekdayPrice struct {
@@ -256,7 +264,7 @@ type CareBilling interface {
 	CareTariffs(ctx context.Context, reviewer HolidayReviewer) (CareTariffs, error)
 	SaveCarePriceList(ctx context.Context, reviewer HolidayReviewer, list CarePriceList) (CareTariffs, error)
 	DeleteCarePriceList(ctx context.Context, reviewer HolidayReviewer, schoolID int64, validFrom calendar.Date) (CareTariffs, error)
-	ListCareRuns(ctx context.Context, organizationID int64) ([]CareRun, error)
+	ListCareRuns(ctx context.Context, organizationID int64) (CareRunList, error)
 	StartCareRun(ctx context.Context, reviewer HolidayReviewer, month calendar.Date) (CareRun, error)
 	CareRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (CareRunDetail, error)
 	ReleaseCareRun(ctx context.Context, reviewer HolidayReviewer, runID int64, release BillingRelease) (CareRunDetail, error)
