@@ -26,6 +26,8 @@ export function enrollmentReviewTopic(): HelpTopic {
       "Die Eltern sehen die Entscheidung bei ihrer Anmeldung. Bei `Bestätigen` wird das Kind übernommen.",
     notes: [
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
+      // #6041
+      "Beginnt die Betreuung später, steht ein bestätigtes Kind erst ab diesem Tag in den Listen. Unter `Datenverwaltung` und danach `Kinderdaten` finden Sie es schon vorher.",
       // #5934
       "Unter `E-Mails an die Familie` sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind. Steht dort `Adresse prüfen`, sprechen Sie die Familie direkt an.",
       "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",

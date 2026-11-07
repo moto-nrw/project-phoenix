@@ -281,3 +281,37 @@ Ferienzeit da. Punkt 2 und Punkt 4 gelten mit diesen Änderungen:
 - **Kiosk.** PyrePortal zeigt den Hinweis nicht; ein Gast hat kein Armband
   und wird im Browser an- und abgemeldet. Ein Hinweis am Tablet folgt als
   eigenes Issue, falls die ausrichtende OGS das Tablet nutzt.
+
+## Nachtrag 2026-11-07: Vorgemerkte eigene Kinder erst ab Betreuungsbeginn (#6041)
+
+Rückmeldung der Grundschule Barnstorf vom 06.11.2026
+([#6041](https://github.com/moto-nrw/project-phoenix/issues/6041)): Eltern
+melden im Dezember für die Betreuung ab Februar an, und bestätigte Kinder
+standen sofort in den laufenden Listen. Für die Teilnahme von Care Plan gilt
+der Satz „Eigene Kinder mit späterem Start bleiben, wie sie sind“ aus dem
+Nachtrag vom 03.11.2026 nicht mehr:
+
+- Ein vorgemerktes Kind (Status `pending`), dessen `enrolled_from` nach dem
+  Tag der Liste liegt, nimmt an diesem Tag nicht an der Betreuung teil.
+  Care Plan entscheidet das in `ParticipatingOn`
+  (`modules/careplan/internal/domain`), also für jede Leserin der
+  Teilnahme: laufende Kinderliste mit Zählung und Export
+  (`GET /api/students`, `POST /api/students/export`), Gruppenliste und
+  Live-Ansicht der Gruppe, Klassenliste, geplante Betreuungstage mit ihren
+  Zählern und die Fehlzeitenliste.
+- Maßgeblich ist der Betreuungsbeginn, nicht die Anmeldefrist: Ab
+  `enrolled_from` zählt das Kind, auch bevor der stündliche Abgleich es
+  aktiviert, und auch an einem ausdrücklich gewählten Planungstag ab dem
+  Beginn. Die Kinderverwaltung (`include_pending_withdrawals`,
+  `AdministrativelyVisibleOn`), die Ansicht aller Kinder und die
+  Anmeldeverwaltung zeigen es weiter, damit die Schule den Start vorbereitet.
+- Ein sofort aktiviertes Kind (Status `active`) zählt weiter vor seinem
+  regulären Beginn, wie bei der Stichtagszahl. Eine laufende
+  Wiederanmeldung bleibt aktiv und zählt. Ein tatsächlich anwesendes Kind
+  bleibt stehen. Ein vorgemerktes Kind ohne Beginn blendet die Regel nicht
+  aus. Das Ende der Betreuung und der Feriengast bleiben, wie oben
+  beschrieben.
+- Die Live-Listen des People Directory, die ohne Teilnahme von Care Plan
+  lesen (`currentCare`), ändert dieser Nachtrag nicht; ob vorgemerkte
+  Kinder dort fehlen sollen, klärt
+  [#6050](https://github.com/moto-nrw/project-phoenix/issues/6050).

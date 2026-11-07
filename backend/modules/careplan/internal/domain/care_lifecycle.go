@@ -29,6 +29,15 @@ func (s CareStudent) CareEndedOn(day calendar.Date) bool {
 	return s.EnrolledUntil != nil && day.After(*s.EnrolledUntil)
 }
 
+// AwaitsCareStartOn reports whether a pending child's scheduled care start
+// still lies after day (#6041). Only the pending status waits: an immediately
+// activated child already takes part before its regular start, and a pending
+// child without a start day is not placed.
+func (s CareStudent) AwaitsCareStartOn(day calendar.Date) bool {
+	return s.Status == careplan.StudentStatusPending && s.EnrolledFrom != nil &&
+		!s.EnrolledFrom.IsZero() && day.Before(*s.EnrolledFrom)
+}
+
 // IsAlumnus reports whether the child left with a grade transition.
 func (s CareStudent) IsAlumnus() bool { return s.Status == careplan.StudentStatusAlumnus }
 

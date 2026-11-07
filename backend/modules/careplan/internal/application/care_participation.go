@@ -69,7 +69,8 @@ func (s *CareLifecycle) inUnitParticipatingStudentIDsByDate(ctx context.Context,
 }
 
 // administrativelyVisibleStudentIDs keeps a child with a pending withdrawal
-// task in the administrative lists until the task is resolved.
+// task in the administrative lists until the task is resolved, and a child
+// scheduled for a later care start before that start (#6041).
 func (s *CareLifecycle) administrativelyVisibleStudentIDs(ctx context.Context, studentIDs []int64, on calendar.Date, actuallyPresent map[int64]bool) (map[int64]bool, error) {
 	retained, err := s.records.ListPendingWithdrawalStudentIDs(ctx, studentIDs)
 	if err != nil {
@@ -80,7 +81,11 @@ func (s *CareLifecycle) administrativelyVisibleStudentIDs(ctx context.Context, s
 			retained[id] = true
 		}
 	}
-	return s.ParticipatingStudentIDs(ctx, studentIDs, on, retained)
+	students, boundaries, err := s.participationFacts(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	return domain.AdministrativelyVisibleOn(studentIDs, students, boundaries, on, retained), nil
 }
 
 // participationFacts reads the children and their first day without

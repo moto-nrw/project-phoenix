@@ -422,7 +422,8 @@ func ParticipationBoundaries(students map[int64]CareStudent, pending map[int64]c
 }
 
 // ParticipatingOn applies the boundaries to one day. Actual presence always
-// wins, and a graduate only remains while actually present.
+// wins; otherwise a graduate and a pending child before its scheduled care
+// start (#6041) do not take part.
 func ParticipatingOn(
 	studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date,
 	on calendar.Date, actuallyPresent map[int64]bool,
@@ -437,18 +438,39 @@ func ParticipatingOn(
 		}
 	}
 	for id, student := range students {
-		if student.IsAlumnus() && !actuallyPresent[id] {
+		if !actuallyPresent[id] && (student.IsAlumnus() || student.AwaitsCareStartOn(on)) {
 			delete(participating, id)
 		}
 	}
 	return participating
 }
 
+// AdministrativelyVisibleOn is the participation the administrative child
+// list shows: retained children (a pending withdrawal task, actual presence)
+// stay, and a pending child waiting for its scheduled care start stays
+// findable for the school to prepare it (#6041).
+func AdministrativelyVisibleOn(
+	studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date,
+	on calendar.Date, retained map[int64]bool,
+) map[int64]bool {
+	visible := ParticipatingOn(studentIDs, students, boundaries, on, retained)
+	for _, id := range studentIDs {
+		if students[id].AwaitsCareStartOn(on) {
+			visible[id] = true
+		}
+	}
+	return visible
+}
+
 // HistoricalParticipationOn retains alumni before a recorded departure.
-// An alumnus with no dated boundary cannot be placed in a historical period.
+// An alumnus with no dated boundary cannot be placed in a historical period,
+// and no child takes part before its scheduled care start.
 func HistoricalParticipationOn(studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date, on calendar.Date) map[int64]bool {
 	participating := ParticipatingOn(studentIDs, students, boundaries, on, nil)
 	for _, id := range studentIDs {
+		if students[id].AwaitsCareStartOn(on) {
+			continue
+		}
 		if boundary, known := boundaries[id]; known && on.Before(boundary) {
 			participating[id] = true
 		}
