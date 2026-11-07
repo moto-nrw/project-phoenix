@@ -25,7 +25,7 @@ export function TimetableAddMenu({
     // Die Aktionen der Kopfkarte stehen unter sm in einer gemeinsamen Zeile;
     // ein Knopf, der sich die volle Breite nimmt, drängt die anderen heraus.
     <OverflowMenu
-      ariaLabel="Neu anlegen"
+      ariaLabel="Neu"
       disabled={disabled}
       wrapperClassName="flex-1 sm:flex-none"
       triggerButton={{ variant: "primary", size: "md" }}

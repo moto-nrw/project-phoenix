@@ -255,7 +255,9 @@ describe("AnchoredPopover", () => {
     const behind = screen.getByRole("button", { name: "Dahinter" });
 
     fireEvent.mouseDown(behind);
-    expect(screen.getByRole("dialog", { name: "Mit Fokus" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Mit Fokus" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(behind);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

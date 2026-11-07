@@ -13,7 +13,7 @@ describe("TimetableAddMenu", () => {
         onAddSeries={onAddSeries}
       />,
     );
-    const trigger = screen.getByRole("button", { name: "Neu anlegen" });
+    const trigger = screen.getByRole("button", { name: "Neu" });
     // Enter und Leertaste lösen einen Klick ohne Zeiger aus (detail 0).
     fireEvent.click(trigger, { detail: 0 });
 
@@ -41,6 +41,6 @@ describe("TimetableAddMenu", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Neu anlegen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Neu" })).toBeDisabled();
   });
 });

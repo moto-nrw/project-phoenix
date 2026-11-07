@@ -576,12 +576,12 @@ describe("BrandTenantSwitcher", () => {
 
     // The current tenant must not appear as a switch-target button.
     openDropdown();
-    expect(
-      screen.getByRole("menuitem", { name: "School A" }),
-    ).toHaveAttribute("href");
-    expect(
-      screen.getByRole("menuitem", { name: "School B" }).tagName,
-    ).toBe("BUTTON");
+    expect(screen.getByRole("menuitem", { name: "School A" })).toHaveAttribute(
+      "href",
+    );
+    expect(screen.getByRole("menuitem", { name: "School B" }).tagName).toBe(
+      "BUTTON",
+    );
   });
 
   it("reports a failed switch through the shared error path and retries it", async () => {

@@ -109,50 +109,50 @@ export function GapJumpList({
       )}
     >
       {({ close }) => (
-          <ul className="divide-y divide-gray-100">
-            {sorted.map((gap) => {
-              const hasCoveragePair =
-                gap.plannedStaffCount !== undefined &&
-                gap.plannedStaffCount > 0 &&
-                gap.presentStaffCount !== undefined;
-              return (
-                <li key={gap.instanceId}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      close();
-                      onJump(gap);
-                    }}
-                    className="flex w-full flex-col gap-1 px-3 py-2 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
-                  >
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-gray-900">
-                        {gap.title}
-                      </span>
-                      <span className="shrink-0 text-[11px] text-gray-500 tabular-nums">
-                        {gap.startTime}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CoverageIndicator
-                        size="sm"
-                        state="gap"
-                        current={
-                          hasCoveragePair ? gap.presentStaffCount : undefined
-                        }
-                        total={
-                          hasCoveragePair ? gap.plannedStaffCount : undefined
-                        }
-                      />
-                      <span className="text-[11px] text-gray-400 tabular-nums">
-                        {formatDate(gap.date)}
-                      </span>
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+        <ul className="divide-y divide-gray-100">
+          {sorted.map((gap) => {
+            const hasCoveragePair =
+              gap.plannedStaffCount !== undefined &&
+              gap.plannedStaffCount > 0 &&
+              gap.presentStaffCount !== undefined;
+            return (
+              <li key={gap.instanceId}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    onJump(gap);
+                  }}
+                  className="flex w-full flex-col gap-1 px-3 py-2 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs font-semibold text-gray-900">
+                      {gap.title}
+                    </span>
+                    <span className="shrink-0 text-[11px] text-gray-500 tabular-nums">
+                      {gap.startTime}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CoverageIndicator
+                      size="sm"
+                      state="gap"
+                      current={
+                        hasCoveragePair ? gap.presentStaffCount : undefined
+                      }
+                      total={
+                        hasCoveragePair ? gap.plannedStaffCount : undefined
+                      }
+                    />
+                    <span className="text-[11px] text-gray-400 tabular-nums">
+                      {formatDate(gap.date)}
+                    </span>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </AnchoredPopover>
   );

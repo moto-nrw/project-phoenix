@@ -2516,8 +2516,14 @@ describe.concurrent("ui-kit/no-hand-rolled-menu (#5601)", () => {
 
 describe.concurrent("ui-kit/no-hand-rolled-popover (#5601)", () => {
   it.each([
-    ["a class string", `<div className="moto-popover-surface rounded-xl border" />`],
-    ["a computed class", `<div className={\`moto-popover-surface \${extra}\`} />`],
+    [
+      "a class string",
+      `<div className="moto-popover-surface rounded-xl border" />`,
+    ],
+    [
+      "a computed class",
+      `<div className={\`moto-popover-surface \${extra}\`} />`,
+    ],
   ])("fails %s", async (_name, element) => {
     const result = await lintSource(
       `function Probe({ extra }: { extra: string }) {

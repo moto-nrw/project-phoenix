@@ -76,10 +76,10 @@ export const Composed: Story = {
                 userEmail="anna.schmidt@example.com"
               />
               <ProfileDropdownMenu
-            onClose={() => setIsOpen(false)}
-            onLogout={() => setIsOpen(false)}
-            profileUrl="/profile"
-          />
+                onClose={() => setIsOpen(false)}
+                onLogout={() => setIsOpen(false)}
+                profileUrl="/profile"
+              />
             </>
           ) : null}
         </div>

@@ -258,7 +258,7 @@ export function AnchoredPopover({
                 {header}
               </div>
             ) : null}
-            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain">
               {content}
             </div>
             {footer != null ? (

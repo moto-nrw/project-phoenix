@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { LogIn, MoreVertical } from "lucide-react";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -230,7 +229,9 @@ export function StudentStatusActionsMenu({
       }
       items={[
         {
-          label: isClassTrip ? "Klassenfahrt bearbeiten" : "Klassenfahrt planen",
+          label: isClassTrip
+            ? "Klassenfahrt bearbeiten"
+            : "Klassenfahrt planen",
           description:
             isClassTrip && classTripSinceDisplay
               ? `Seit ${classTripSinceDisplay}`

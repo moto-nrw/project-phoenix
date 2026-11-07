@@ -25,9 +25,7 @@ import { Check, ChevronDown, Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
-import {
-  timetableWarningText,
-} from "./timetable-style";
+import { timetableWarningText } from "./timetable-style";
 
 import {
   type CalendarPeriod,
@@ -346,7 +344,6 @@ export function PeriodSwitcherDropdown({
               </div>
             ))}
           </div>
-
         </>
       )}
     </AnchoredPopover>

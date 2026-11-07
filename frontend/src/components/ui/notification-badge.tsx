@@ -1,9 +1,5 @@
 export type NotificationBadgeTone =
-  | "staff"
-  | "parents"
-  | "feedback"
-  | "danger"
-  | "blue";
+  "staff" | "parents" | "feedback" | "danger" | "blue";
 export type NotificationBadgeSize = "sm" | "md";
 
 // The count is small bold text, so WCAG AA wants 4.5:1 against the pill.

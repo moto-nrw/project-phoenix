@@ -214,12 +214,7 @@ describe("ProfileDropdownMenu", () => {
   it("does not render profile link when profileUrl is not provided", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();
-    render(
-      <ProfileDropdownMenu
-        onClose={onClose}
-        onLogout={onLogout}
-      />,
-    );
+    render(<ProfileDropdownMenu onClose={onClose} onLogout={onLogout} />);
 
     // Anker: das offene Menü zeigt den Abmelden-Knopf.
     expect(
@@ -233,12 +228,7 @@ describe("ProfileDropdownMenu", () => {
   it("renders logout button", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();
-    render(
-      <ProfileDropdownMenu
-        onClose={onClose}
-        onLogout={onLogout}
-      />,
-    );
+    render(<ProfileDropdownMenu onClose={onClose} onLogout={onLogout} />);
 
     expect(
       screen.getByRole("button", { name: /abmelden/i }),
@@ -248,12 +238,7 @@ describe("ProfileDropdownMenu", () => {
   it("calls onLogout when logout clicked", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();
-    render(
-      <ProfileDropdownMenu
-        onClose={onClose}
-        onLogout={onLogout}
-      />,
-    );
+    render(<ProfileDropdownMenu onClose={onClose} onLogout={onLogout} />);
 
     fireEvent.click(screen.getByRole("button", { name: /abmelden/i }));
     expect(onClose).toHaveBeenCalled();
@@ -278,12 +263,7 @@ describe("ProfileDropdownMenu", () => {
   it("does not render its own full-screen dismissal layer", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();
-    render(
-      <ProfileDropdownMenu
-        onClose={onClose}
-        onLogout={onLogout}
-      />,
-    );
+    render(<ProfileDropdownMenu onClose={onClose} onLogout={onLogout} />);
 
     // Anker: das offene Menü zeigt den Abmelden-Knopf.
     expect(

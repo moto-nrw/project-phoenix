@@ -274,27 +274,29 @@ describe("StudentStatusActionsMenu", () => {
     ).toHaveClass("moto-hover-elevated");
   });
 
-describe("StudentStatusActionsMenu keyboard", () => {
-  it("works with the keyboard", () => {
-    const onPlanClassTrip = vi.fn();
-    render(
-      <StudentStatusActionsMenu
-        isClassTrip={false}
-        onPlanClassTrip={onPlanClassTrip}
-        isLoading={false}
-      />,
-    );
-    const trigger = screen.getByRole("button", {
-      name: "Weitere Statusaktionen",
+  describe("StudentStatusActionsMenu keyboard", () => {
+    it("works with the keyboard", () => {
+      const onPlanClassTrip = vi.fn();
+      render(
+        <StudentStatusActionsMenu
+          isClassTrip={false}
+          onPlanClassTrip={onPlanClassTrip}
+          isLoading={false}
+        />,
+      );
+      const trigger = screen.getByRole("button", {
+        name: "Weitere Statusaktionen",
+      });
+      fireEvent.click(trigger, { detail: 0 });
+
+      const entry = screen.getByRole("menuitem", {
+        name: "Klassenfahrt planen",
+      });
+      expect(entry).toHaveFocus();
+      fireEvent.keyDown(entry, { key: " " });
+
+      expect(onPlanClassTrip).toHaveBeenCalledOnce();
+      expect(trigger).toHaveFocus();
     });
-    fireEvent.click(trigger, { detail: 0 });
-
-    const entry = screen.getByRole("menuitem", { name: "Klassenfahrt planen" });
-    expect(entry).toHaveFocus();
-    fireEvent.keyDown(entry, { key: " " });
-
-    expect(onPlanClassTrip).toHaveBeenCalledOnce();
-    expect(trigger).toHaveFocus();
   });
-});
 });
