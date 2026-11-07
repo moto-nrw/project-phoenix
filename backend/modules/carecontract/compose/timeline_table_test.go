@@ -91,7 +91,7 @@ func newTableFixture(t *testing.T, fixedMonths int, versions []tableVersion) *ta
 	}
 	f.conclusion = compose.NewConclusion(
 		compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtimeDouble{}, Access: school},
-		compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: modesDouble{}})
+		compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: modesDouble{}, Mail: noMailBlocks{}})
 	return f
 }
 
