@@ -1258,6 +1258,17 @@ function PhaseActions({
       disabled: saving,
       onClick: onEdit,
     },
+    // Works for every phase, also inactive, closed or invitation-only ones
+    // whose public link shows nothing yet (#6044).
+    {
+      label: "Vorschau mit Angeboten",
+      icon: <ExternalLink className="h-4 w-4" aria-hidden />,
+      href: tenantPath(
+        `/anmeldung/preview?phaseId=${encodeURIComponent(phase.id)}`,
+      ),
+      external: true,
+      onClick: () => undefined,
+    },
     ...(hasNoPublicForm
       ? []
       : [

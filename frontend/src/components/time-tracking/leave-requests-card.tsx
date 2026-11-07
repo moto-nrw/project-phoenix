@@ -16,6 +16,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Textarea } from "~/components/ui/textarea";
+import { SectionLabel } from "~/components/ui/section-label";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -296,9 +297,7 @@ export function LeaveRequestsCard() {
 
             {sortedQuestionedVacations.length > 0 && (
               <div className="mt-5 border-t border-gray-100 pt-5">
-                <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                  Rückfragen
-                </h3>
+                <SectionLabel className="mb-3">Rückfragen</SectionLabel>
                 <ul className="space-y-2">
                   {sortedQuestionedVacations.map((vacation) => (
                     <AbsenceRequestItem
@@ -316,9 +315,7 @@ export function LeaveRequestsCard() {
 
             {recentVacations.length > 0 && (
               <div className="mt-5 border-t border-gray-100 pt-5">
-                <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                  Meine Anträge
-                </h3>
+                <SectionLabel className="mb-3">Meine Anträge</SectionLabel>
                 <ul className="space-y-2">
                   {recentVacations.map((vacation) => (
                     <AbsenceRequestItem

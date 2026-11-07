@@ -36,6 +36,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { feedbackConcept } from "~/lib/concepts/feedback";
 import { PlanLegend } from "~/components/ui/planning/plan-legend";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
 
@@ -380,17 +381,16 @@ function StudentFeedbackHistoryPageContent() {
 
                       return (
                         <div key={dateString}>
-                          <div className="border-b border-gray-50 bg-gray-50/50 px-4 py-2 sm:px-6">
-                            <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                              {dateObj.toLocaleDateString("de-DE", {
-                                timeZone: "Europe/Berlin",
-                                weekday: "long",
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}
-                            </h3>
-                          </div>
+                          <ListGroupHeader
+                            className="border-b border-gray-50 sm:px-6"
+                            title={dateObj.toLocaleDateString("de-DE", {
+                              timeZone: "Europe/Berlin",
+                              weekday: "long",
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          />
                           <div className="divide-y divide-gray-50 px-4 sm:px-6">
                             {feedbackForDate.map((feedback) => (
                               <div
