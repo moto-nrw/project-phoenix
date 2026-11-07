@@ -10482,6 +10482,86 @@
       "target_owner": "school-membership"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindMembershipByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindMembershipByID",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindMembershipByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindMembershipByID",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindMembershipByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindMembershipByID",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindMembershipByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindMembershipByID",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindMembershipByPersonID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindMembershipByPersonID",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffByPerson",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindMembershipByPersonID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindMembershipByPersonID",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindMembershipByPersonID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindMembershipByPersonID",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffByPerson",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindMembershipByPersonID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindMembershipByPersonID",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindReachableCalendarStaffIDs",
       "classification": "query",
       "effect": "query",
@@ -10720,6 +10800,36 @@
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListMembershipWithPerson",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListMembershipWithPerson",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListMembershipWithPerson",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListMembershipWithPerson",
+      "reason": "E1 #5892: ExternalCaregiver classifies an already hydrated membership/person value in memory. Qualification name lookup uses no Employment fields; no persistent write, lock or scope switch.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListMembershipWithPerson",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListMembershipWithPerson",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListStaffByRoles",
@@ -13473,7 +13583,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListRosterWithStaffAndPerson",
-      "reason": "Kiosk roster reads School Membership teacher/live-staff facts in one statement via ListTeachers(IncludeStaff), preserving the separate Workforce employment read and People person read. No writes, locks, scope switches or detached work.",
+      "reason": "E1 #5860: Kiosk roster requests IncludeStaff plus MembershipOnly. Same teacher/live-member selection and person hydration; unused Employment is omitted. Query-only, no writes, locks or changed device/tenant authorization.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListTeachers",
       "target_owner": "school-membership"
@@ -13483,7 +13593,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListRosterWithStaffAndPerson",
-      "reason": "Kiosk roster reads School Membership teacher/live-staff facts in one statement via ListTeachers(IncludeStaff), preserving the separate Workforce employment read and People person read. No writes, locks, scope switches or detached work.",
+      "reason": "E1 #5860: Kiosk roster requests IncludeStaff plus MembershipOnly. Same teacher/live-member selection and person hydration; unused Employment is omitted. Query-only, no writes, locks or changed device/tenant authorization.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListTeachers",
       "target_owner": "school-membership"

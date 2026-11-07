@@ -270,10 +270,20 @@ func (c *effectiveTimeCore[S, E, N, D]) data(
 	ctx context.Context,
 	studentID int64,
 ) (*domain.EffectiveTimeData[S, E, N], error) {
+	return c.dataWithSchedules(ctx, studentID, true)
+}
+
+// dataWithSchedules skips the stored week only when a caller replaces it
+// with an authoritative projection. Exceptions and notes keep their order.
+func (c *effectiveTimeCore[S, E, N, D]) dataWithSchedules(ctx context.Context, studentID int64, withSchedules bool) (*domain.EffectiveTimeData[S, E, N], error) {
 	op := c.operation("get student %s data")
-	schedules, err := c.schedules.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &careplan.ScheduleError{Op: op, Err: err}
+	var schedules []S
+	if withSchedules {
+		var err error
+		schedules, err = c.schedules.FindByStudentID(ctx, studentID)
+		if err != nil {
+			return nil, &careplan.ScheduleError{Op: op, Err: err}
+		}
 	}
 	exceptions, err := c.exceptions.FindByStudentID(ctx, studentID)
 	if err != nil {

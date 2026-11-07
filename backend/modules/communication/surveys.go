@@ -292,7 +292,7 @@ type SurveyAnswerRecords interface {
 	RecordSubmission(ctx context.Context, tenantID, surveyID, accountID int64, named bool, answers []SurveyAnswerInput) (bool, error)
 	HasParticipated(ctx context.Context, tenantID, surveyID, accountID int64) (bool, error)
 	ParticipantAccounts(ctx context.Context, surveyID int64) ([]int64, error)
-	Tally(ctx context.Context, surveyID int64) (*SurveyTally, error)
+	Tally(ctx context.Context, surveyID int64, includeTexts bool) (*SurveyTally, error)
 	NamedResponses(ctx context.Context, surveyID int64) ([]SurveyNamedResponse, error)
 }
 
