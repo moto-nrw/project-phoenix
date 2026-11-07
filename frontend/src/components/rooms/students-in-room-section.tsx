@@ -743,7 +743,6 @@ function BulkMoveToolbar({
             value: option.value,
             label: option.label,
           }))}
-          className="bg-white text-sm md:text-sm"
         />
         <Button
           type="button"

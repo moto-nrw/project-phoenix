@@ -16,10 +16,8 @@ import {
   PublishAnnouncementDialog,
   UnpublishAnnouncementDialog,
 } from "~/components/announcements/announcement-lifecycle-dialogs";
-import { BackLink } from "~/components/ui/back-link";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useToast } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { formatDate } from "~/lib/date-helpers";
@@ -69,31 +67,25 @@ export default function SchoolParentLetterPage() {
   // Die Liste lädt beim Öffnen neu; hier genügt der Brief selbst.
   const refresh = () => mutate().then(() => undefined);
 
-  const back = <BackLink href={listHref} label="Zurück zu den Elternbriefen" />;
-
-  if (isLoading && !letter) {
-    return (
-      <div className="-mt-1.5 w-full space-y-6">
-        {back}
-        <SkeletonRegion label="Elternbrief wird geladen…">
-          <ListSkeleton rows={4} avatar={false} />
-        </SkeletonRegion>
-      </div>
-    );
-  }
+  const back = {
+    back: true,
+    backHref: listHref,
+    backLabel: "Zurück zu den Elternbriefen",
+  } as const;
 
   if (!letter) {
+    const gone = notFound || (!isLoading && !error);
     return (
-      <div className="-mt-1.5 w-full space-y-6">
-        {back}
-        {notFound || !error ? (
-          <p className="text-sm text-gray-600">
-            Diesen Elternbrief gibt es nicht mehr.
-          </p>
-        ) : loadError ? (
-          <LoadErrorAlert error={loadError} />
-        ) : null}
-      </div>
+      <TenantPage
+        title="Elternbrief"
+        {...back}
+        loading={isLoading}
+        loadingLabel="Elternbrief wird geladen…"
+        error={gone ? null : loadError}
+        empty={
+          gone ? { title: "Diesen Elternbrief gibt es nicht mehr." } : null
+        }
+      />
     );
   }
 
@@ -111,23 +103,47 @@ export default function SchoolParentLetterPage() {
   ].join(" · ");
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      {back}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold break-words text-gray-900 sm:text-2xl">
-            {letter.title}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">{statusLine}</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <TenantPage
+      title={letter.title}
+      {...back}
+      stats={statusLine}
+      actions={
+        <>
           <StatusBadge {...SCHOOL_PARENT_LETTER_STATUS[letter.status]} />
           {menuItems.length > 0 ? (
             <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
           ) : null}
-        </div>
-      </div>
-
+        </>
+      }
+      overlays={
+        <>
+          {action === "publish" && (
+            <PublishAnnouncementDialog
+              announcement={letter}
+              apiBase={SCHOOL_PARENT_LETTERS_BASE}
+              onClose={() => setAction(null)}
+              onDone={refresh}
+            />
+          )}
+          {action === "unpublish" && (
+            <UnpublishAnnouncementDialog
+              announcement={letter}
+              apiBase={SCHOOL_PARENT_LETTERS_BASE}
+              onClose={() => setAction(null)}
+              onDone={refresh}
+            />
+          )}
+          {action === "delete" && (
+            <DeleteAnnouncementDialog
+              announcement={letter}
+              apiBase={SCHOOL_PARENT_LETTERS_BASE}
+              onClose={() => setAction(null)}
+              onDone={() => router.push(listHref)}
+            />
+          )}
+        </>
+      }
+    >
       <AnnouncementDetail
         announcement={letter}
         groups={[]}
@@ -141,31 +157,6 @@ export default function SchoolParentLetterPage() {
           )
         }
       />
-
-      {action === "publish" && (
-        <PublishAnnouncementDialog
-          announcement={letter}
-          apiBase={SCHOOL_PARENT_LETTERS_BASE}
-          onClose={() => setAction(null)}
-          onDone={refresh}
-        />
-      )}
-      {action === "unpublish" && (
-        <UnpublishAnnouncementDialog
-          announcement={letter}
-          apiBase={SCHOOL_PARENT_LETTERS_BASE}
-          onClose={() => setAction(null)}
-          onDone={refresh}
-        />
-      )}
-      {action === "delete" && (
-        <DeleteAnnouncementDialog
-          announcement={letter}
-          apiBase={SCHOOL_PARENT_LETTERS_BASE}
-          onClose={() => setAction(null)}
-          onDone={() => router.push(listHref)}
-        />
-      )}
-    </div>
+    </TenantPage>
   );
 }

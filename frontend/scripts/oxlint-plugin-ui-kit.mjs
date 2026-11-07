@@ -91,6 +91,9 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 //   ui-kit/no-kit-domain-import     — files in components/ui import no other
 //                                     components and fetch no data (#5586)
+//   ui-kit/no-radix-outside-kit     — @radix-ui is an implementation detail of
+//                                     components/ui; everyone else imports the
+//                                     kit component. Hard-zero (#5604).
 //   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
 //                                     outside RAW_INPUT_KIT_PRIMITIVES; use Input,
 //                                     Textarea, Checkbox, Radio, TimeField,
@@ -123,6 +126,12 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     classes on CustomSelect, MultiSelect
 //                                     or ListboxDropdown outside the kit;
 //                                     pick controlSize, pass layout only
+//
+// One more keeps the control height in the kit (#5605):
+//
+//   ui-kit/no-control-height-override — no `h-8`, `h-9` or `!size-*` on Input,
+//                                     selects, DateRangePicker or OverflowMenu;
+//                                     hard-zero
 //
 // Two more keep SectionCard the only card head (#5581):
 //
@@ -1194,7 +1203,7 @@ src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 t
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@199 text-[10px]@215 text-[11px]@224 text-[10px]@266 text-[10px]@290 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@471
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
-src/components/timetable/substitution-slide-over.tsx|text-[11px]@747 text-[11px]@751
+src/components/timetable/substitution-slide-over.tsx|text-[11px]@748 text-[11px]@752
 src/components/timetable/template-card.tsx|text-[11px]@131 text-[10px]@201
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@456 text-[11px]@456 text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
@@ -1220,11 +1229,10 @@ const noTinyText = makeClassStringRule({
 });
 // ui-kit/no-tenant-kicker — die blaue Mini-Überschrift über einer Überschrift
 // ist im Tenant-Portal abgeschafft (sie trug sechs verschiedene Bedeutungen im
-// selben Slot). Kein Baseline-Eintrag: der Bestand ist in derselben PR auf
-// null gebracht. Eltern-, Schul- und Operator-Portal sind nicht Teil dieser
-// Umstellung und bekommen ihren eigenen Durchgang.
-const OTHER_PORTALS_RE =
-  /(^|\/)(components\/parent|app\/parents|components\/school|app\/school|components\/class-day|components\/operator|app\/operator)\//;
+// selben Slot). Kein Baseline-Eintrag: der Bestand ist auf null gebracht. Das
+// Schul- und das Operator-Portal gehören seit #5604 dazu; nur das Elternportal
+// behält seinen Kicker (ADR 0149).
+const OTHER_PORTALS_RE = /(^|\/)(components\/parent|app\/parents)\//;
 
 const noTenantKicker = {
   meta: {
@@ -1256,11 +1264,12 @@ const noTenantKicker = {
 // einer eigenen Klassenkette. Für jede Form gibt es ein Kit-Bauteil:
 // SectionCard (Fläche mit oder ohne Kopf), TileCard (anklickbare Kachel),
 // StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
-// greift nur in Seitendateien des Tenant- und des Träger-Portals (#5146) —
+// greift in Seitendateien des Tenant-, Träger-, Schul- und Operator-Portals
+// (#5146, #5604) —
 // Kit- und Komponentendateien dürfen die Fläche definieren, sie sind die
 // Quelle.
 const TENANT_PAGE_FILE_RE =
-  /app\/(?:\[tenant\]\/\(protected\)|traeger)\/(?:.*\/)?(page|loading)\.tsx$/;
+  /app\/(?:\[tenant\]\/\(protected\)|traeger|school|operator)\/(?:.*\/)?(page|loading)\.tsx$/;
 // Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
 // Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
 // (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.
@@ -1619,6 +1628,47 @@ const requireCheckboxLabel = {
           return;
         }
         context.report({ node, messageId: "missingLabel" });
+      },
+    };
+  },
+};
+
+// --- ui-kit/no-radix-outside-kit ----------------------------------------------
+//
+// Radix is what the kit builds on, not a second kit. A portal page that reaches
+// for a primitive directly bypasses the kit's styling and behaviour next to the
+// kit parts it renders anyway (`TabsPrimitive.Content` beside `Tabs`, #5604).
+
+const noRadixOutsideKit = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "Only files under components/ui import from @radix-ui.",
+    },
+    messages: {
+      radix:
+        "'{{source}}' nur im Kit importieren. Außerhalb von components/ui den Kit-Baustein nehmen (Reiter: Tabs, TabsContent aus ~/components/ui/tabs), siehe .claude/rules/frontend-ui-kit.md.",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
+
+    const checkSource = (node, source) => {
+      if (typeof source !== "string" || !source.startsWith("@radix-ui/")) {
+        return;
+      }
+      context.report({ node, messageId: "radix", data: { source } });
+    };
+    const checkDeclaration = (node) => checkSource(node, node.source?.value);
+
+    return {
+      ImportDeclaration: checkDeclaration,
+      ExportNamedDeclaration: checkDeclaration,
+      ExportAllDeclaration: checkDeclaration,
+      ImportExpression(node) {
+        checkSource(node, node.source?.value);
       },
     };
   },
@@ -2887,6 +2937,103 @@ const noSelectOverride = {
   },
 };
 
+// --- ui-kit/no-control-height-override (#5605) -----------------------------
+//
+// Spec R17: Es gibt eine Bedienhöhe. Input wählt sie über `controlSize`, die
+// Auswahlfelder ebenso, OverflowMenu über `triggerSize`. `h-8`, `h-9` und
+// `!size-*` an diesen Bauteilen stellten 36- und 28-px-Felder neben die
+// 40er. Hart null.
+
+const CONTROL_HEIGHT_MODULES = new Map([
+  ["~/components/ui/input", "Input"],
+  ["@/components/ui/input", "Input"],
+  ["~/components/ui/custom-select", "CustomSelect"],
+  ["@/components/ui/custom-select", "CustomSelect"],
+  ["~/components/ui/multi-select", "MultiSelect"],
+  ["@/components/ui/multi-select", "MultiSelect"],
+  ["~/components/ui/date-range-picker", "DateRangePicker"],
+  ["@/components/ui/date-range-picker", "DateRangePicker"],
+  ["~/components/ui/page-header/OverflowMenu", "OverflowMenu"],
+  ["@/components/ui/page-header/OverflowMenu", "OverflowMenu"],
+]);
+const CONTROL_HEIGHT_CLASS_PROPS = [
+  "className",
+  "triggerClassName",
+  "containerClassName",
+];
+
+function controlHeightTokens(text) {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => {
+      const utility = token.replace(/^(?:[^\s:]+:)+/, "");
+      return /^!?h-[89]$/.test(utility) || /^!size-/.test(utility);
+    });
+}
+
+const noControlHeightOverride = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Keep the height of inputs, selects and overflow menus in the kit.",
+    },
+    messages: {
+      override:
+        'Keine eigene Bedienhöhe ({{tokens}}): Input und Auswahlfelder nehmen controlSize="compact" (40 px), OverflowMenu triggerSize (#5605, .claude/rules/frontend-ui-kit.md).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    const constants = new Map();
+    const controls = new Set();
+    const pending = [];
+    return {
+      ImportDeclaration(node) {
+        const source =
+          node.source.type === "Literal" ? String(node.source.value) : "";
+        const exported = CONTROL_HEIGHT_MODULES.get(source);
+        if (!exported) return;
+        for (const specifier of node.specifiers) {
+          if (specifier.type !== "ImportSpecifier") continue;
+          const imported =
+            specifier.imported.type === "Identifier"
+              ? specifier.imported.name
+              : String(specifier.imported.value);
+          if (imported === exported) controls.add(specifier.local.name);
+        }
+      },
+      VariableDeclarator(node) {
+        if (node.id?.type === "Identifier" && node.init) {
+          constants.set(node.id.name, node.init);
+        }
+      },
+      JSXOpeningElement(node) {
+        if (controls.has(jsxName(node.name) ?? "")) pending.push(node);
+      },
+      "Program:exit"() {
+        for (const node of pending) {
+          const tokens = CONTROL_HEIGHT_CLASS_PROPS.flatMap((name) => {
+            const attribute = jsxAttribute(node, name);
+            if (!attribute?.value) return [];
+            return controlHeightTokens(classText(attribute.value, constants));
+          });
+          if (tokens.length > 0) {
+            context.report({
+              node,
+              messageId: "override",
+              data: { tokens: [...new Set(tokens)].join(" ") },
+            });
+          }
+        }
+      },
+    };
+  },
+};
+
 // --- ui-kit/no-important-override + ui-kit/no-section-card-bleed (#5581) ---
 //
 // Fehlt einer Kit-Komponente eine Prop, wird sie im Kit ergänzt, nicht von
@@ -3521,6 +3668,7 @@ export default {
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-hand-rolled-weekday-toggle": noHandRolledWeekdayToggle,
     "no-hex-alpha-tint": noHexAlphaTint,
+    "no-control-height-override": noControlHeightOverride,
     "no-important-override": noImportantOverride,
     "no-pill-dot": noPillDot,
     "no-raw-input": noRawInput,
@@ -3532,6 +3680,7 @@ export default {
     "no-status-dot-outside-plans": noStatusDotOutsidePlans,
     "no-shadcn-tokens": noShadcnTokens,
     "no-shadow-kit-name": noShadowKitName,
+    "no-radix-outside-kit": noRadixOutsideKit,
     "no-tenant-kicker": noTenantKicker,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
     "no-tiny-text": noTinyText,

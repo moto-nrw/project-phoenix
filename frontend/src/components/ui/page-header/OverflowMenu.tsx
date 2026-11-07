@@ -112,8 +112,9 @@ interface OverflowMenuProps {
    * Trigger footprint. `"default"` is the 36px page-header kebab; `"sm"` is a
    * compact 24px kebab with a smaller icon and a more muted default color, for
    * dense inline chrome (e.g. a shift block in the Dienstplan grid) where the
-   * full-size trigger would tower over the row. Additive — existing callers
-   * omit it and get the unchanged 36px trigger.
+   * full-size trigger would tower over the row. Under `pointer: coarse` it is
+   * 44px (finger rule). Additive — existing callers omit it and get the
+   * unchanged 36px trigger.
    */
   readonly triggerSize?: "default" | "sm";
   /** Optional class for the trigger button (size/spacing tweaks). */
@@ -164,9 +165,9 @@ export function OverflowMenu({
 }: OverflowMenuProps) {
   // Size variant: the "default" values are byte-for-byte the previous hardcoded
   // ones, so unchanged callers keep the exact 36px trigger + 20px icon +
-  // gray-600 color. "sm" shrinks to a 24px trigger, 16px icon, and a muted
-  // gray-400 (splitting color from the string avoids a Tailwind text-* conflict
-  // that class-string order would not resolve).
+  // gray-600 color. "sm" shrinks to a 24px trigger (44px under pointer:
+  // coarse), 16px icon, and a muted gray-400 (splitting color from the string
+  // avoids a Tailwind text-* conflict that class-string order would not resolve).
   const triggerSizeClass =
     // Default-Kebab: Breite folgt der Höhe (`aspect-square`), damit der
     // runde Hover-Kreis rund bleibt, wenn die Kopfkarte ihre Bedienhöhe
@@ -174,7 +175,7 @@ export function OverflowMenu({
     triggerContent != null
       ? ""
       : triggerSize === "sm"
-        ? "size-6"
+        ? "size-6 pointer-coarse:size-11"
         : "aspect-square h-9";
   const triggerColorClass =
     triggerSize === "sm" ? "text-gray-400" : "text-gray-600";

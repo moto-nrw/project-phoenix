@@ -5,9 +5,11 @@ Gerüst. Kein „ungefähr gleich", kein Sonderweg pro Seite. Es gibt KEINE
 Ausnahmeseite mehr — Startseite, Profil und Notfallliste tragen dasselbe
 Gerüst wie jede Liste.
 
-Nicht anfassen: Eltern-Portal (`app/parents`, `components/parent`),
-Schul-Portal (`app/school`, `components/school`, `components/class-day`),
-Operator-Portal (`app/operator`, `components/operator`).
+Dasselbe Gerüst gilt für das Träger-Portal und seit #5604 für das Schul-Portal
+(`app/school`, `components/school`, `components/class-day`) und das
+Operator-Portal (`app/operator`, `components/operator`), jeweils ohne die Seiten
+vor der Anmeldung. Nicht anfassen: Eltern-Portal (`app/parents`,
+`components/parent`), es behält `ParentPage`.
 
 ## Das Gerüst
 
@@ -72,6 +74,9 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Unter sm: eine Aktion steht neben der Statuszeile; ab zwei bleiben die
    Symbolknöpfe dort und jeder Textknopf bekommt eine volle Zeile darunter
    (Abschnitt „Unter sm").
+   Der Bearbeitungszustand der Startseite trägt „Abbrechen“ und „Fertig“: Das
+   Paar ist eine Entscheidung. `tenant-page-scaffold.test.ts` prüft Regel 3 und
+   4 und führt diese Ausnahme (#5605).
 5. **Suche und Filter gehören in `search`/`filters`.** Handgebaute Zeilen aus
    `Input` + `CustomSelect` werden zu `FilterConfig[]` (`type: "dropdown"`).
    Nur wenn ein Filter wirklich nicht abbildbar ist: `type: "custom"` mit
@@ -198,6 +203,8 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
     `ToggleChip` (`h-10`) und die Navigationsgruppe der
     `PlanningContextBar` teilen dieses Maß. Kein 32-px-Bedienelement mehr
     neben einem 40er in derselben Zeile.
+    `ui-kit/no-control-height-override` sperrt `h-8`, `h-9` und `!size-*` an
+    Eingabefeldern, Auswahllisten und Kebab-Menüs (#5605).
 18. **Höchstens EIN Bedienband in der Kopfkarte.** Titel und Statuszeile
     sind Text; darunter steht GENAU EINE interaktive Zeile (Suche + Filter
     - eine Aktion, oder das Planungsband). Die Kontextzeile der

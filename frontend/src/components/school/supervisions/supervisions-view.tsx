@@ -26,7 +26,9 @@ import {
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { BackAction } from "~/components/ui/back-link";
 import { Button } from "~/components/ui/button";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   TimetableRosterContent,
@@ -97,10 +99,9 @@ function SupervisionIntro({
   instance: PlannedTimetableInstance;
   busy: boolean;
   onStart: () => void;
-  /** Rückweg zum Überblick, über dem Titel (nur wenn es einen gibt). */
+  /** Rückweg zum Überblick, oben in der Karte (nur wenn es einen gibt). */
   back?: ReactNode;
 }>) {
-  const room = instance.roomName ?? `Raum ${instance.roomId}`;
   // Die Minutenuhr, weil "noch nicht" von selbst in "jetzt" übergehen muss,
   // ohne dass jemand die Seite neu lädt.
   const now = useMinuteClock();
@@ -109,30 +110,13 @@ function SupervisionIntro({
     startState === "too_early"
       ? `Die Aufsicht lässt sich ab ${instance.startTime} starten.`
       : START_EXPLANATIONS[startState];
-  const cancelled = startState === "cancelled";
   const showStartButton =
     startState === "startable" || startState === "too_early";
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5">
+    <SectionCard>
       {back ? <div className="mb-3">{back}</div> : null}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h2 className="truncate text-base font-semibold text-gray-900">
-            {instance.title}
-          </h2>
-          <p className="mt-1 truncate text-sm text-gray-600">
-            {room} · {instance.startTime} bis {instance.endTime}
-          </p>
-        </div>
-        {cancelled ? (
-          <StatusColorBadge label="Fällt aus" color={LOCATION_COLORS.DANGER} />
-        ) : null}
-      </div>
-
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-600">
-        {explanation}
-      </p>
+      <p className="max-w-2xl text-sm leading-6 text-gray-600">{explanation}</p>
 
       {showStartButton ? (
         <div className="mt-4">
@@ -153,7 +137,7 @@ function SupervisionIntro({
           Sie vertreten hier eine andere Person.
         </p>
       ) : null}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -404,14 +388,39 @@ export function SchoolSupervisionsView() {
       />
     ) : null;
 
+  // Die Kopfkarte trägt, was bisher die Einführungskarte oben nannte.
+  const introInstance = openInstance && !showRoster ? openInstance : null;
+
   return (
-    <div className="w-full space-y-4">
+    <TenantPage
+      title={introInstance?.title ?? "Meine Aufsichten"}
+      stats={
+        introInstance
+          ? `${introInstance.roomName ?? `Raum ${introInstance.roomId}`} · ${introInstance.startTime} bis ${introInstance.endTime}`
+          : undefined
+      }
+      actions={
+        introInstance?.status === "cancelled" ? (
+          <StatusColorBadge label="Fällt aus" color={LOCATION_COLORS.DANGER} />
+        ) : undefined
+      }
+      loading={isLoading && !listLoadError}
+      loadingLabel="Aufsichten werden geladen…"
+      overlays={
+        openId ? (
+          <StudentSheetModal
+            instanceId={openId}
+            studentId={sheetRow?.studentId ?? null}
+            studentName={sheetRow?.studentName ?? ""}
+            onClose={() => setSheetRow(null)}
+          />
+        ) : null
+      }
+    >
       <LoadErrorAlert error={listLoadError} />
       {openInstance && wantsRoster ? (
         <LoadErrorAlert error={rosterLoadError} />
       ) : null}
-
-      {isLoading ? <Skeleton className="h-64 w-full" /> : null}
 
       {!isLoading && view.mode === "overview" ? (
         <SupervisionsOverview
@@ -422,7 +431,8 @@ export function SchoolSupervisionsView() {
       ) : null}
 
       {/* Ohne Einführungskarte (Kinderliste) steht der Rückweg allein über
-          der Liste; sonst sitzt er in der Karte über dem Titel. */}
+          der Liste; sonst sitzt er oben in der Karte. Die Detailansicht hat
+          keine eigene Adresse, deshalb kein Rückweg-Link im Seitenkopf. */}
       {showRoster ? backToOverview : null}
 
       {openInstance && !showRoster ? (
@@ -492,15 +502,6 @@ export function SchoolSupervisionsView() {
             .join(", ")}
         </p>
       ) : null}
-
-      {openId ? (
-        <StudentSheetModal
-          instanceId={openId}
-          studentId={sheetRow?.studentId ?? null}
-          studentName={sheetRow?.studentName ?? ""}
-          onClose={() => setSheetRow(null)}
-        />
-      ) : null}
-    </div>
+    </TenantPage>
   );
 }

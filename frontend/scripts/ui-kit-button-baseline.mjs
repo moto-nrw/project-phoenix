@@ -145,7 +145,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/components/class-day/class-day-overview.tsx",
-    lines: [173],
+    lines: [179],
     reason:
       "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
   },
@@ -246,13 +246,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/announcements/page.tsx",
-    lines: [697],
+    lines: [654],
     reason: "Auslöser des Dringlichkeits-Felds, sieht aus wie ein Select",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/announcements/page.tsx",
-    lines: [807, 949, 1038],
+    lines: [771, 919, 1012],
     reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
   },
 ];

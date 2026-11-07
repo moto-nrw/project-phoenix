@@ -398,9 +398,12 @@ describe("AdminEnrollmentPhaseDetail", () => {
       );
     });
 
-    expect(
-      screen.getByRole("button", { name: "Anmeldungen exportieren" }),
-    ).toBeVisible();
+    // Der Export der Anmeldungen steht im Kebab des Kopfes (Spec R4).
+    const headMenu = screen.getByRole("button", { name: "Weitere Aktionen" });
+    fireEvent.click(headMenu);
+    expect(screen.getByText("Exportieren")).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Excel" })).toBeVisible();
+    fireEvent.click(headMenu);
 
     fireEvent.click(
       screen.getByRole("button", { name: "Auswertung exportieren" }),

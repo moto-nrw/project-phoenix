@@ -444,10 +444,11 @@ function HomeContent() {
       }
       prominent
       statsLoading={isLoading}
-      stats={
+      stats={editing ? undefined : headerStats}
+      info={
         editing
           ? "Karte ziehen, um sie zu verschieben. Anklicken, um Breite zu ändern oder sie zu entfernen."
-          : headerStats
+          : undefined
       }
       error={
         loadError
