@@ -129,7 +129,7 @@ func newRaceFixture(t *testing.T, name string) raceFixture {
 		// the acceptance makes none.
 		Ledger: struct{ carecontract.SignatureLedger }{},
 		Links:  carecontract.SigningLinks{Tokens: &raceTokens{}, ParentsURL: "http://parents.localhost", Fingerprint: raceFingerprint},
-	}, clock)
+	}, clock, NewVersions(store))
 	var id int64
 	require.NoError(t, testpkg.WithinTraeger(ctx, org, func(txCtx context.Context) error {
 		var err error

@@ -20,6 +20,8 @@
   "startsOn": "Beginn",
   "lettersErrorObject": "die Briefe",
   "contractsErrorObject": "die Betreuungsverträge",
+  "replaced": "Ersetzt",
+  "replacedNote": "Diese Fassung gilt nicht mehr. Ab {date} gilt eine neue Fassung. Sie enthält Ihre bestätigten Änderungen. Die neue Fassung bekommen Sie vom Träger.",
   "sharedSender": "Vom Träger für Eltern freigegeben: {traeger}",
   "file": "Datei",
   "releasedAt": "Freigegeben am",

@@ -50,6 +50,7 @@ func (rs *Resource) ContractRouter(protectedTraegerRoutes func(chi.Router, func(
 		open.Get("/{id}", rs.detail)
 		open.Get("/{id}/document", rs.document)
 		open.Get("/{id}/paper-signature", rs.paperDocument)
+		open.Get("/{id}/versions/{number}/document", rs.versionDocument)
 		inTx := r.With(rs.requireContract, withTx)
 		inTx.Post("/send", rs.send)
 		inTx.Delete("/{id}", rs.discard)
@@ -263,6 +264,26 @@ func (rs *Resource) document(w http.ResponseWriter, r *http.Request) {
 	WriteFile(w, file, "inline")
 }
 
+// versionDocument answers the PDF of one version of the contract (#4681).
+func (rs *Resource) versionDocument(w http.ResponseWriter, r *http.Request) {
+	reviewer, id, ok := contractKey(w, r)
+	if !ok {
+		return
+	}
+	number, err := strconv.Atoi(chi.URLParam(r, "number"))
+	if err != nil || number <= 0 || number > 32767 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid version number")))
+		return
+	}
+	file, err := rs.contracts.VersionDocument(r.Context(), reviewer, id, number)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderError(w, r, err)
+		return
+	}
+	WriteFile(w, file, "inline")
+}
+
 func (rs *Resource) discard(w http.ResponseWriter, r *http.Request) {
 	reviewer, id, ok := contractKey(w, r)
 	if !ok {
@@ -340,6 +361,9 @@ var errorRules = []struct {
 	render func(error) render.Renderer
 }{
 	{carecontract.ErrContractNotFound, func(err error) render.Renderer {
+		return common.ErrorNotFoundWithCode(err, common.CodeCareContractContractNotFound)
+	}},
+	{carecontract.ErrVersionNotFound, func(err error) render.Renderer {
 		return common.ErrorNotFoundWithCode(err, common.CodeCareContractContractNotFound)
 	}},
 	{carecontract.ErrApplicationNotFound, func(err error) render.Renderer {

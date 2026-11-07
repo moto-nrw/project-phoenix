@@ -35,6 +35,8 @@ type BillingDocumentResponse struct {
 	ContractStatus string     `json:"contract_status,omitempty"`
 	CanSign        bool       `json:"can_sign,omitempty"`
 	SignedAt       *time.Time `json:"signed_at,omitempty"`
+	// Replaced marks a contract version replaced by a later change (#4681).
+	Replaced bool `json:"replaced"`
 }
 
 // listBillingDocuments answers the letters in the inbox of the account.
@@ -66,7 +68,7 @@ func (rs *Resource) respondInbox(w http.ResponseWriter, r *http.Request, inbox p
 			TraegerName: document.TraegerName, Kind: document.Kind, Number: document.Number, PeriodName: document.PeriodName,
 			ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil, IssuedOn: document.IssuedOn,
 			TotalCents: document.TotalCents, ChildNames: document.ChildNames, SentAt: document.SentAt,
-			ContractStatus: document.ContractStatus, SignedAt: document.SignedAt, CanSign: document.CanSign,
+			ContractStatus: document.ContractStatus, SignedAt: document.SignedAt, CanSign: document.CanSign, Replaced: document.Replaced,
 		}
 	}
 	common.Respond(w, r, http.StatusOK, out, "Documents retrieved")

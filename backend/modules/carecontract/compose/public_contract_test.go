@@ -141,6 +141,12 @@ func sha256Hex(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// testSigningLinks binds the signing links of the contracts (#4679) to the
+// token double, for tests that do not reach the signature.
+func testSigningLinks() carecontract.SigningLinks {
+	return carecontract.SigningLinks{Tokens: &tokenDouble{}, ParentsURL: "http://parents.localhost", Fingerprint: sha256Hex}
+}
+
 type letterheadDouble struct{ missing bool }
 
 func (h letterheadDouble) Letterhead(context.Context, carecontract.Reviewer) (carecontract.Letterhead, error) {

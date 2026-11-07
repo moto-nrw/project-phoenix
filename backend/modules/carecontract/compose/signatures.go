@@ -37,7 +37,7 @@ func NewInboxSigning(ports SignaturePorts) carecontract.InboxSigning {
 func NewPaperSignatures(contractPorts ContractPorts, ports SignaturePorts) carecontract.PaperSignatures {
 	clock := application.Clock{Now: time.Now}
 	store := postgres.NewStore()
-	contracts := application.NewContracts(store, rendering.NewRenderer(), application.ContractPorts(contractPorts), clock)
+	contracts := application.NewContracts(store, rendering.NewRenderer(), application.ContractPorts(contractPorts), clock, NewContractVersions())
 	return application.NewSignatures(store, application.SignaturePorts(ports), clock, contracts)
 }
 

@@ -16,6 +16,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { ParentSection } from "~/components/parent/shell/parent-section";
+import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -249,6 +250,17 @@ function ParentDocumentCard({
           : undefined
       }
     >
+      {contract && document.replaced ? (
+        <div className="mb-4 space-y-2">
+          <StatusBadge label={t("replaced")} tone="outline" />
+          <Alert
+            type="info"
+            message={t("replacedNote", {
+              date: formatDate(document.service_from, false, locale),
+            })}
+          />
+        </div>
+      ) : null}
       <DataGrid>
         {contract && document.contract_status ? (
           <DataField label={t("status")}>

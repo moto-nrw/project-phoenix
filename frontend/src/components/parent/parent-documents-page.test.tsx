@@ -274,6 +274,41 @@ describe("ParentDocumentsPage", () => {
     },
   );
 
+  it("marks a replaced contract version and names from when the new version applies (#4681)", async () => {
+    const contract: ParentDocument = {
+      ...letter,
+      id: "74",
+      kind: "care_contract",
+      number: "Nr. 74",
+      period_name: "OGS Ganztag · OGS Sonnenhof",
+      service_from: "2027-03-01",
+      total_cents: 0,
+      child_names: ["Lina"],
+    };
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [
+        { ...contract, replaced: true },
+        { ...contract, id: "75", replaced: false },
+      ],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
+    render(<ParentDocumentsPage />);
+
+    expect(
+      await screen.findAllByRole("heading", { name: "Betreuungsvertrag" }),
+    ).toHaveLength(2);
+    expect(screen.getByText("Ersetzt")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Diese Fassung gilt nicht mehr. Ab 01.03.2027 gilt eine neue Fassung. Sie enthält Ihre bestätigten Änderungen. Die neue Fassung bekommen Sie vom Träger.",
+      ),
+    ).toBeInTheDocument();
+    // Only the replaced version carries the mark.
+    expect(screen.getAllByText("Ersetzt")).toHaveLength(1);
+  });
+
   it("explains an empty inbox and how letters arrive", async () => {
     mocks.listMyDocuments.mockResolvedValue({
       documents: [],

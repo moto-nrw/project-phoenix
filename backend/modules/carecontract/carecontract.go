@@ -40,6 +40,9 @@ const (
 	VersionEffective  = "wirksam"
 	VersionSuperseded = "abgeloest"
 	VersionRejected   = "abgelehnt"
+	// VersionReplaced is a version that a change on its own first day
+	// replaced (#4681): it stays in the history and holds on no day.
+	VersionReplaced = "ersetzt"
 )
 
 // The term of a contract template.
@@ -281,6 +284,13 @@ type Version struct {
 	PriceCents *int64        `json:"price_cents"`
 	Terms      TemplateInput `json:"terms"`
 	CreatedAt  time.Time     `json:"created_at"`
+	// Source tells where the version came from: SourceConclusion or
+	// SourceBookingChange (#4681).
+	Source string `json:"source"`
+	// ValidUntil is the last day the version holds: the day before the next
+	// effective version starts, else its own end. Nil while it holds open
+	// ended or is no effective version.
+	ValidUntil *calendar.Date `json:"valid_until"`
 }
 
 // Party is a party to the contract.
@@ -335,6 +345,9 @@ type ContractDetail struct {
 	// Reminders the reminder mails while it waits (#4679, signature.go).
 	Signature *ContractSignature `json:"signature"`
 	Reminders []Reminder         `json:"reminders"`
+	// Versions are all versions of the contract, oldest first (#4681). The
+	// version above is the one in force today, else the next one.
+	Versions []Version `json:"versions"`
 }
 
 // File is a rendered PDF.
@@ -390,6 +403,10 @@ type Contracts interface {
 	ResendContract(ctx context.Context, reviewer Reviewer, contractID int64, email string) (SendResult, error)
 	// DiscardContract removes a draft; a sent contract stays.
 	DiscardContract(ctx context.Context, reviewer Reviewer, contractID int64) error
+	// VersionDocument answers the PDF of one version (#4681): the stored one
+	// when it was sent, else a rendering with the current template that
+	// stores nothing.
+	VersionDocument(ctx context.Context, reviewer Reviewer, contractID int64, number int) (File, error)
 }
 
 // Intake creates contracts from the accepted applications and keeps the
@@ -438,6 +455,10 @@ type InboxContract struct {
 	CanSign  bool       `json:"can_sign"`
 	Status   string     `json:"status"`
 	SignedAt *time.Time `json:"signed_at"`
+	// Replaced tells that a change on the first day of the sent version
+	// replaced it (#4681): it holds on no day, and a changed version holds
+	// from EffectiveOn.
+	Replaced bool `json:"replaced"`
 }
 
 // Inbox serves the contracts of one Träger in the parents' inbox (ADR 0088

@@ -2472,6 +2472,12 @@ export interface ParentDocument {
   readonly contract_status?: string;
   readonly can_sign?: boolean;
   readonly signed_at?: string | null;
+  /**
+   * A care contract version that a change on its own first day replaced
+   * (#4681): it holds on no day; the changed version holds from
+   * `service_from`.
+   */
+  readonly replaced?: boolean;
 }
 
 /**

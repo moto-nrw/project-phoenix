@@ -20,6 +20,8 @@
   "startsOn": "Starts on",
   "lettersErrorObject": "the letters",
   "contractsErrorObject": "the care contracts",
+  "replaced": "Replaced",
+  "replacedNote": "This version no longer applies. A new version applies from {date}. It contains your confirmed changes. You get the new version from the provider.",
   "sharedSender": "Shared with parents by {traeger}",
   "file": "File",
   "releasedAt": "Shared on",

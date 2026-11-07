@@ -5456,6 +5456,7 @@ export const parentCareChangeTopic =
         "Eine Änderung am Wochenplan ist dauerhaft und gilt jede Woche.",
         "Geht es nur um einen Tag? Ändern Sie stattdessen die Abholung für diesen Tag.",
         "Eine offene Anfrage lässt sich mit `Anfrage bearbeiten` noch ändern.",
+        "Gilt Ihr Betreuungsvertrag schon? Nach der Bestätigung bekommt er eine neue Version ab dem bestätigten Tag. Die alte Version gilt bis dahin weiter.",
         "Betreut Ihre OGS am Wochenende? Dann gilt der Freitagsplan auch für Samstag und Sonntag.",
       ],
       differences: [
@@ -5809,6 +5810,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Steht im Vertrag `Vertragsschluss`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
+      "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
       "Bei einem freigegebenen Dokument steht `Vom Träger für Eltern freigegeben`. Es gilt für alle Eltern, für die der Träger es freigegeben hat, zum Beispiel für eine Gruppe. Diese Dokumente kommen nicht per Mail.",
       "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein Bestätigungsschreiben kommt? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Einen Betreuungsvertrag bekommen Sie per Mail.",
@@ -5821,6 +5823,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen.",
     ],
     related: [
+      HELP_TOPICS.parentCareChange,
       HELP_TOPICS.parentHolidayRegistration,
       HELP_TOPICS.parentNotifications,
     ],
@@ -10196,10 +10199,10 @@ export const traegerBriefkopfTopic =
   } satisfies typeof authored_traegerBriefkopfTopic;
 
 /**
- * `/traeger/vertraege` (#4678, #4679, #4680): festlegen, wann der Vertrag
- * gilt, Vertragsbedingungen je Angebot festlegen, Entwürfe aus angenommenen
- * Anmeldungen erstellen, prüfen und senden; die Unterschrift der Eltern und
- * den Papiervertrag erfassen.
+ * `/traeger/vertraege` (#4678, #4679, #4680, #4681): festlegen, wann der
+ * Vertrag gilt, Vertragsbedingungen je Angebot festlegen, Entwürfe aus
+ * angenommenen Anmeldungen erstellen, prüfen und senden; die Unterschrift
+ * der Eltern und den Papiervertrag erfassen; Versionen nach einer Änderung.
  */
 export const traegerCareContractsTopic =
   function traegerCareContractsTopic(): HelpTopic {
@@ -10291,6 +10294,16 @@ export const traegerCareContractsTopic =
             "Wählen Sie `Vertrag abschließen`. Der Vertrag ist dann `Aktiv`. Mit `Papiervertrag laden` holen Sie das PDF später wieder.",
           ],
         },
+        {
+          title: "Wenn sich die Betreuung ändert: neue Version",
+          steps: [
+            "Die Eltern beantragen in der Eltern-App andere Tage oder Zeiten. Die Schule gibt die Änderung frei.",
+            "Nach wenigen Minuten bekommt der aktive Vertrag eine neue Version. Sie gilt ab dem Tag, den die Schule freigegeben hat.",
+            "Wählen Sie in der Liste das Kind. Oben steht, ab wann die neue Version gilt.",
+            "Unter `Versionen` sehen Sie jede Version mit ihren Tagen. `Geändert` markiert die Wochentage, die anders sind als vorher.",
+            "Mit `PDF` laden Sie eine Version als PDF.",
+          ],
+        },
       ],
       steps: [],
       result:
@@ -10304,6 +10317,10 @@ export const traegerCareContractsTopic =
         "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
         "Hat ein Vertrag noch keine Unterschrift, bekommen die Eltern eine Erinnerung per Mail, höchstens drei. Nach wie vielen Tagen, legen Sie unter `Einstellungen` → `Allgemein` im Bereich `Betreuungsverträge` fest. Bei 0 gibt es keine Erinnerung.",
         "Der Link in der Mail gilt einmal und 30 Tage. Jede Erinnerung bringt einen neuen Link.",
+        "Frühere Versionen bleiben unter `Versionen` lesbar. `Gilt jetzt` zeigt die Version von heute. Die Abrechnung nimmt für jeden Tag die Version, die an diesem Tag gilt.",
+        "Eine neue Version gilt nie rückwirkend. Kommt eine Freigabe zu spät, gilt die Version ab dem Tag, an dem moto sie anlegt.",
+        "Beginnt an einem Tag schon eine Version, und die Schule gibt für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
+        "Ist schon eine spätere Version geplant, gilt eine frühere Änderung nur bis dahin. Die geplante Version übernimmt sie nicht von selbst.",
       ],
       differences: [
         "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
@@ -10323,6 +10340,7 @@ export const traegerCareContractsTopic =
         "Der Name des Vertragspartners fehlt? Ergänzen Sie den Briefkopf. Oder verwerfen Sie den Entwurf und erstellen ihn mit eingetragenem Vertragspartner neu.",
         "Die Eltern sagen, der Link gilt nicht mehr? Er war schon benutzt oder ist abgelaufen. Wählen Sie `Erneut senden`. Die Eltern bekommen einen neuen Link. Oder sie unterschreiben in der Eltern-App unter `Dokumente`.",
         "Die Karte `Unterschrift` meldet, die Prüfsumme stimmt nicht? Der gespeicherte Nachweis wurde verändert. Melden Sie das dem moto-Team.",
+        "Die Schule hat eine Änderung freigegeben, aber es gibt keine neue Version? Neue Versionen bekommen nur aktive Verträge. Bucht das Kind ab dem Tag gar keine Betreuung mehr, ist das eine Kündigung und keine neue Version.",
       ],
       related: [
         HELP_TOPICS.traegerDocumentTemplates,
