@@ -134,7 +134,10 @@ export function ParentPageHeader({
   return (
     // `header` bleibt das Element des Seitenkopfs; die Fläche kommt aus dem Kit.
     <header>
-      <SectionCard overflow="visible" className={prominent ? "max-sm:p-5" : ""}>
+      <SectionCard
+        overflow="visible"
+        className={prominent ? "compact:p-5 max-sm:p-5" : ""}
+      >
         <div className="space-y-3">
           {backHref && backLabel && (
             <BackLink href={backHref} label={backLabel} />
