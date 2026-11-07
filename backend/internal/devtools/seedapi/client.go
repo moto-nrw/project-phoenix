@@ -388,3 +388,9 @@ func extractResponseSummary(resp map[string]any) string {
 	}
 	return fmt.Sprintf("{%s}", strings.Join(parts, ", "))
 }
+
+// PostFileWithAuthAndFields makes a multipart POST with a file part and form
+// fields under the given session, such as a paper care contract (#4679).
+func (c *Client) PostFileWithAuthAndFields(auth AuthRef, path, fieldName, filename string, contents []byte, fields map[string]string) ([]byte, error) {
+	return c.uploadFile(auth, "POST", path, fieldName, filename, contents, fields)
+}

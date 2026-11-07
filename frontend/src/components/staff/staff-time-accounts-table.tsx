@@ -15,6 +15,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Lock } from "lucide-react";
 
+import { FieldLabel } from "~/components/ui/field-label";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import type { FormErrorInput } from "~/components/ui/form-error";
@@ -253,7 +254,7 @@ export function StaffTimeAccountsTable({
   return (
     <SectionCard
       title="Zeitkonten"
-      titleClassName="text-sm"
+      titleSize="sm"
       headingLevel={3}
       description={description}
       actions={
@@ -416,12 +417,9 @@ export function StaffTimeAccountsTable({
 
       {showCustomSaldo && (
         <div className="flex flex-wrap items-center gap-2">
-          <label
-            htmlFor="saldo-min-hours"
-            className="text-xs font-medium text-gray-600"
-          >
+          <FieldLabel htmlFor="saldo-min-hours" className="mb-0">
             Saldo mindestens (Stunden)
-          </label>
+          </FieldLabel>
           <Input
             id="saldo-min-hours"
             type="number"

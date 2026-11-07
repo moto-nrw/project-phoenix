@@ -3,9 +3,8 @@
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListRow } from "~/components/ui/list-row";
-import { SectionCard } from "~/components/ui/section-card";
 import { SkeletonRows } from "~/components/ui/skeleton";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
@@ -43,10 +42,8 @@ export function RemindersBlock() {
   const { shown, hidden } = useHomeCardRows(sorted, MAX_ROWS);
 
   return (
-    <SectionCard
+    <HomeCard
       title="Erinnerungen"
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       leading={<HomeCardIcon concept={pickupConcept} />}
       inlineActions
       actions={
@@ -134,6 +131,6 @@ export function RemindersBlock() {
           </>
         );
       })()}
-    </SectionCard>
+    </HomeCard>
   );
 }

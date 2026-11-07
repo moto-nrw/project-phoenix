@@ -216,6 +216,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0132",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.FindByGuardianProfileIDForDeletePreview",
+      "reason": "Owner-private adapter translates guardian relationship rows into existing snapshots while preserving preview lock/phone-read semantics; exact non-debt evidence."
+    },
+    {
       "decision": "0090",
       "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.FindByID",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -547,17 +552,7 @@
     },
     {
       "decision": "0090",
-      "id": "modules/peopledirectory/internal/application/GuardianDirectory.AddGuardianPhone",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/peopledirectory/internal/application/GuardianDirectory.AddGuardiansToStudent",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/peopledirectory/internal/application/GuardianDirectory.CreateGuardian",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -588,11 +583,6 @@
     {
       "decision": "0090",
       "id": "modules/peopledirectory/internal/application/GuardianDirectory.FindGuardianPhone",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/peopledirectory/internal/application/GuardianDirectory.GuardianDeleteImpact",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

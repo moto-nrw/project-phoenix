@@ -3,6 +3,7 @@ package supervisiondashboard
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -66,6 +67,48 @@ func openRoomByName(t *testing.T, projection *Projection, name string) OpenRoom 
 	}
 	t.Fatalf("open room %q missing", name)
 	return OpenRoom{}
+}
+
+func TestSelectedOpenRoomSessionReusesUnmergedVisits(t *testing.T) {
+	t.Parallel()
+	for _, empty := range []bool{false, true} {
+		t.Run(fmt.Sprintf("empty=%t", empty), func(t *testing.T) {
+			f, _ := openRoomFakes()
+			f.supervised = func(context.Context) ([]Session, error) {
+				return []Session{{ID: 12, Name: "GT 2"}}, nil
+			}
+			entry := time.Date(2026, time.August, 19, 11, 30, 0, 0, time.UTC)
+			f.openVisits = func(context.Context, []int64) ([]VisitRecord, error) {
+				if empty {
+					return nil, nil
+				}
+				return []VisitRecord{
+					{StudentID: 101, ActiveGroupID: 12, EntryTime: entry, FirstName: "Zora"},
+					{StudentID: 102, ActiveGroupID: 12, EntryTime: entry.Add(-time.Minute), FirstName: "Anna"},
+					{StudentID: 101, ActiveGroupID: 11, EntryTime: entry.Add(-time.Hour), FirstName: "Zora"},
+				}, nil
+			}
+			f.groupVisits = func(context.Context, int64) ([]VisitRecord, error) {
+				t.Fatal("selected session was already loaded with the open rooms")
+				return nil, nil
+			}
+			projection, err := newService(f).Dashboard(context.Background(), 12)
+			require.NoError(t, err)
+			if empty {
+				require.NotNil(t, projection.Visits)
+				assert.Empty(t, projection.Visits)
+				return
+			}
+			require.Len(t, projection.Visits, 2)
+			assert.Equal(t, int64(101), projection.Visits[0].StudentID, "preserve owner order, not room name order")
+			assert.Equal(t, int64(12), projection.Visits[0].ActiveGroupID, "room deduplication must not replace the selected session's visit")
+			assert.Equal(t, entry, projection.Visits[0].CheckInTime)
+			assert.Equal(t, int64(102), projection.Visits[1].StudentID)
+			yard := openRoomByName(t, projection, "Schulhof")
+			require.Len(t, yard.Students, 2)
+			assert.Equal(t, int64(11), yard.Students[1].ActiveGroupID, "the room still picks the earlier stay")
+		})
+	}
 }
 
 // A released room lists its sessions with what each section needs (#3281):

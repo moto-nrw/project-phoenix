@@ -24,7 +24,7 @@ type fakeEnrollmentDecisionService struct {
 	studentID int64
 }
 
-func (f *fakeEnrollmentDecisionService) StudentDecisionRequests(_ context.Context, studentID int64) ([]*capability.DecisionSummary, error) {
+func (f *fakeEnrollmentDecisionService) StudentExtraFieldRequests(_ context.Context, studentID int64) ([]*capability.DecisionSummary, error) {
 	f.studentID = studentID
 	return f.summaries, nil
 }
@@ -40,6 +40,15 @@ func (f *fakeEnrollmentFormSchemaService) SchemaVersion(_ context.Context, id in
 		return nil, f.err
 	}
 	return f.schemas[id], nil
+}
+
+func (f *fakeEnrollmentFormSchemaService) StudentExtraFieldSchemas(ctx context.Context, ids []int64) ([]capability.SchemaVersionResult, error) {
+	results := make([]capability.SchemaVersionResult, 0, len(ids))
+	for _, id := range ids {
+		schema, err := f.SchemaVersion(ctx, id)
+		results = append(results, capability.SchemaVersionResult{ID: id, Schema: schema, Err: err})
+	}
+	return results, nil
 }
 
 func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing.T) {

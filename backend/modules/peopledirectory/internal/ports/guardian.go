@@ -68,6 +68,7 @@ type GuardianPortalWrites interface {
 	UpdateContact(context.Context, int64, domain.GuardianContact) (bool, domain.OperationStats, error)
 	DeletePhones(ctx context.Context, guardianID int64) (domain.OperationStats, error)
 	InsertPhone(ctx context.Context, guardianID int64, phone domain.GuardianPhoneRecord) (int64, domain.OperationStats, error)
+	InsertPhones(ctx context.Context, guardianID int64, phones []domain.GuardianPhoneRecord) (domain.OperationStats, error)
 	UpdatePhoneNumber(ctx context.Context, phoneID int64, number string) (bool, domain.OperationStats, error)
 	DeletePhone(ctx context.Context, phoneID int64) (bool, domain.OperationStats, error)
 	// InsertLinkIfAbsent writes the relationship half of a new link and

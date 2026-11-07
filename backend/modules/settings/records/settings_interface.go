@@ -205,6 +205,9 @@ type SettingWriteLocks interface {
 // intentionally expose only the single-value operations they consume.
 type BatchSettingsService interface {
 	SettingsService
+	// Named class-day reads keep their consistency protocol with Settings.
+	TimetableEnabled(context.Context) (bool, error)
+	PickupCutoffs(context.Context) (short, long string, err error)
 
 	ResolveMany(ctx context.Context, keys []string) (*SettingsSnapshot, error)
 	// Prefetch resolves keys in one read and returns ctx carrying the snapshot,

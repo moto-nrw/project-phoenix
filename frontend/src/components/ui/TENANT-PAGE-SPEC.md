@@ -8,8 +8,8 @@ Gerüst wie jede Liste.
 Dasselbe Gerüst gilt für das Träger-Portal und seit #5604 für das Schul-Portal
 (`app/school`, `components/school`, `components/class-day`) und das
 Operator-Portal (`app/operator`, `components/operator`), jeweils ohne die Seiten
-vor der Anmeldung. Nicht anfassen: Eltern-Portal (`app/parents`,
-`components/parent`), es behält `ParentPage`.
+vor der Anmeldung. Das Eltern-Portal (`app/parents`, `components/parent`) behält `ParentPage`; Laden,
+Leerzustand und Fehler laufen dort über denselben `PageBody` (#5606).
 
 ## Das Gerüst
 

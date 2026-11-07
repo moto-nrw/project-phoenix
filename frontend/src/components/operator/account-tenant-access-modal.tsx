@@ -531,57 +531,43 @@ export function AccountTenantAccessModal({
               </h4>
               <FormErrorAlert message={grantErrors.error} />
               <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="account-access-school"
-                    className="mb-1 block text-xs font-medium text-gray-600"
-                  >
-                    Schule
-                  </label>
-                  <CustomSelect
-                    id="account-access-school"
-                    name="school_id"
-                    invalid={Boolean(grantErrors.fieldError("school_id"))}
-                    value={addSchoolId}
-                    options={availableSchools.map((school) => ({
-                      value: school.id,
-                      label: school.label,
-                    }))}
-                    onChange={(schoolId) => {
-                      setAddSchoolId(schoolId);
-                      setAddRoleId("");
-                    }}
-                    disabled={saving || availableSchools.length === 0}
-                    placeholder={
-                      availableSchools.length === 0
-                        ? "Alle Schulen bereits zugeordnet"
-                        : "Schule wählen"
-                    }
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="account-access-role"
-                    className="mb-1 block text-xs font-medium text-gray-600"
-                  >
-                    Rolle
-                  </label>
-                  <CustomSelect
-                    id="account-access-role"
-                    name="role_id"
-                    invalid={Boolean(grantErrors.fieldError("role_id"))}
-                    value={addRoleId}
-                    options={rolesForSchool(addSchoolId).map((role) => ({
-                      value: role.id,
-                      label: roleLabel(role.name),
-                    }))}
-                    onChange={setAddRoleId}
-                    disabled={
-                      saving || !addSchoolId || !rolesBySchool[addSchoolId]
-                    }
-                    placeholder="Rolle wählen"
-                  />
-                </div>
+                <CustomSelect
+                  id="account-access-school"
+                  name="school_id"
+                  label="Schule"
+                  invalid={Boolean(grantErrors.fieldError("school_id"))}
+                  value={addSchoolId}
+                  options={availableSchools.map((school) => ({
+                    value: school.id,
+                    label: school.label,
+                  }))}
+                  onChange={(schoolId) => {
+                    setAddSchoolId(schoolId);
+                    setAddRoleId("");
+                  }}
+                  disabled={saving || availableSchools.length === 0}
+                  placeholder={
+                    availableSchools.length === 0
+                      ? "Alle Schulen bereits zugeordnet"
+                      : "Schule wählen"
+                  }
+                />
+                <CustomSelect
+                  id="account-access-role"
+                  name="role_id"
+                  label="Rolle"
+                  invalid={Boolean(grantErrors.fieldError("role_id"))}
+                  value={addRoleId}
+                  options={rolesForSchool(addSchoolId).map((role) => ({
+                    value: role.id,
+                    label: roleLabel(role.name),
+                  }))}
+                  onChange={setAddRoleId}
+                  disabled={
+                    saving || !addSchoolId || !rolesBySchool[addSchoolId]
+                  }
+                  placeholder="Rolle wählen"
+                />
               </div>
 
               {needsName && (

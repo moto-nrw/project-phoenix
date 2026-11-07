@@ -4,10 +4,15 @@ export const codes = [
   "care_contract.contract_input_invalid",
   "care_contract.contract_not_draft",
   "care_contract.contract_not_found",
+  "care_contract.contract_not_signable",
   "care_contract.letterhead_too_long",
   "care_contract.offering_not_found",
+  "care_contract.paper_document_invalid",
   "care_contract.school_outside_traeger",
+  "care_contract.signature_invalid",
+  "care_contract.signing_link_invalid",
   "care_contract.template_invalid",
+  "care_contract.withdrawal_notice_required",
 ] as const;
 
 export const classes = {
@@ -15,10 +20,15 @@ export const classes = {
   "care_contract.contract_input_invalid": "input",
   "care_contract.contract_not_draft": "business_rejection",
   "care_contract.contract_not_found": "business_rejection",
+  "care_contract.contract_not_signable": "business_rejection",
   "care_contract.letterhead_too_long": "business_rejection",
   "care_contract.offering_not_found": "business_rejection",
+  "care_contract.paper_document_invalid": "input",
   "care_contract.school_outside_traeger": "permission",
+  "care_contract.signature_invalid": "input",
+  "care_contract.signing_link_invalid": "business_rejection",
   "care_contract.template_invalid": "input",
+  "care_contract.withdrawal_notice_required": "input",
 } as const;
 
 export const parameters = {
@@ -26,8 +36,13 @@ export const parameters = {
   "care_contract.contract_input_invalid": [],
   "care_contract.contract_not_draft": [],
   "care_contract.contract_not_found": [],
+  "care_contract.contract_not_signable": [],
   "care_contract.letterhead_too_long": [],
   "care_contract.offering_not_found": [],
+  "care_contract.paper_document_invalid": [],
   "care_contract.school_outside_traeger": [],
+  "care_contract.signature_invalid": [],
+  "care_contract.signing_link_invalid": [],
   "care_contract.template_invalid": [],
+  "care_contract.withdrawal_notice_required": [],
 } as const;

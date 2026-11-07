@@ -564,6 +564,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/parent/enrollments/{tenantSlug}/uploads"}:                                                 notCaptured,
 	{http.MethodPost, "/parent/me/calendar/feed/rotate"}:                                                          notCaptured,
 	{http.MethodPost, "/parent/me/calendar/recipients/{recipientId}/response"}:                                    notCaptured,
+	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/sign"}:                        event("care_contract_signed"),
 	{http.MethodDelete, "/parent/me/children/{studentId}/care-exception"}:                                         notCaptured,
 	{http.MethodPost, "/parent/me/children/{studentId}/care-exception"}:                                           event("pickup_change_requested"),
 	{http.MethodPost, "/parent/me/children/{studentId}/care-offerings/requests"}:                                  event("offering_change_requested"),

@@ -46,6 +46,7 @@ func (s *OfferingChanges) assertCapacityAvailable(
 	if err := s.assertCourseCapacitiesAvailable(ctx, courseCapacityCheck{
 		studentID: studentID, requestChildID: in.requestChildID, offerings: courseOfferings,
 		from: in.effectiveFrom, until: check.phaseEndExclusive, pending: pending,
+		child: selectionFactsChild(in.facts),
 	}); err != nil {
 		return err
 	}
@@ -57,7 +58,7 @@ func (s *OfferingChanges) assertCapacityAvailable(
 // approval that releases one of this child's offerings holds that row lock
 // too, so this one cannot count a slot that is about to become free.
 func (s *OfferingChanges) lockCapacityOfferings(ctx context.Context, in selectionMaterialization, studentID int64) (*capacityCheck, error) {
-	current, err := s.currentSelections(ctx, in.requestChildID, in.effectiveFrom)
+	current, err := s.capacityCurrentSelections(ctx, in)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}

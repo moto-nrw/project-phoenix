@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.materialization.schedules.create.n3",
+  "max": 66,
+  "exact": true,
+  "description": "Full locked tenant materialization with 3 templates, create run; one shared schedule read, output counts verified."
+}

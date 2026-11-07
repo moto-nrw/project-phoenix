@@ -1,5 +1,6 @@
 "use client";
 
+import { DataField, DataGrid } from "~/components/ui/data-field";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { CareScheduleRequestModal } from "~/components/parent/care-schedule-request-modal";
@@ -114,7 +115,7 @@ function ScheduleDays({
 }>) {
   const days = new Map(schedule.weekdays.map((day) => [day.weekday, day]));
   return (
-    <dl
+    <ul
       data-parent-tour="child-care-times"
       className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5"
     >
@@ -126,7 +127,7 @@ function ScheduleDays({
           childFirstName={childFirstName}
         />
       ))}
-    </dl>
+    </ul>
   );
 }
 
@@ -151,14 +152,14 @@ function ScheduleDay({
       ? day.modes.map((mode) => t(`departureModes.${mode}`)).join(", ")
       : t("careSchedule.notSet");
   return (
-    <div className="moto-content-surface rounded-xl border p-4">
-      <dt className="flex flex-col items-start gap-3 text-base font-semibold text-gray-900">
+    <li className="moto-content-surface rounded-xl border p-4">
+      <div className="flex flex-col items-start gap-3 text-base font-semibold text-gray-900">
         <span>{t(`careSchedule.weekdays.${DAY_KEYS[weekday]}`)}</span>
         <StatusBadge label={status} tone={scheduled ? "green" : "gray"} />
-      </dt>
-      <dd className="mt-4 space-y-4">
+      </div>
+      <div className="mt-4">
         {scheduled && (
-          <>
+          <DataGrid columns={1}>
             <CareFact
               label={t("careSchedule.pickup")}
               value={
@@ -173,10 +174,10 @@ function ScheduleDay({
               value={modes}
               emptyLabel={t("careSchedule.notSet")}
             />
-          </>
+          </DataGrid>
         )}
-      </dd>
-    </div>
+      </div>
+    </li>
   );
 }
 
@@ -200,11 +201,11 @@ function PendingRequestPanel({
         })}
       </p>
       {pending.diff.length > 0 && (
-        <dl className="space-y-2">
+        <DataGrid columns={1}>
           {pending.diff.map((entry, index) => (
             <CareScheduleDiff key={`${entry.label}-${index}`} entry={entry} />
           ))}
-        </dl>
+        </DataGrid>
       )}
       <p className="text-sm text-gray-500">{t("pendingNotice")}</p>
       <RequestSharingControl
@@ -239,12 +240,9 @@ function CareScheduleDiff({ entry }: Readonly<{ entry: RequestDiffEntry }>) {
     ? t(`departureModes.${entry.new_mode}`)
     : entry.new;
   return (
-    <div className="text-sm">
-      <dt className="font-medium text-gray-900">{label}</dt>
-      <dd className="text-gray-600">
-        {oldValue} → {newValue}
-      </dd>
-    </div>
+    <DataField label={label}>
+      {oldValue} → {newValue}
+    </DataField>
   );
 }
 
@@ -257,12 +255,5 @@ function CareFact({
   value?: string;
   emptyLabel: string;
 }>) {
-  return (
-    <div>
-      <span className="block text-sm text-gray-500">{label}</span>
-      <span className="block text-sm font-medium text-gray-900">
-        {value || emptyLabel}
-      </span>
-    </div>
-  );
+  return <DataField label={label}>{value || emptyLabel}</DataField>;
 }

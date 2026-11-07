@@ -61,10 +61,10 @@ import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled"
 import { createLogger } from "~/lib/logger";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
-const DETAIL_CARD_CLASS = "moto-content-surface rounded-2xl border p-5 sm:p-6";
 
 function canUseAllMoveTargets(session: Session | null): boolean {
   const permissions = session?.user?.permissions ?? [];
@@ -471,75 +471,77 @@ export function StudentsInRoomSection({
     // Quiet section header to match the other slide-over blocks
     // (Rauminformationen / Belegungshistorie). Section element +
     // aria-label keep the named landmark the tests and a11y tooling expect.
-    <section aria-label="Kinder im Raum" className={DETAIL_CARD_CLASS}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-          Kinder im Raum
-        </h2>
-        {totalCount > 0 && (
-          <Button
-            type="button"
-            variant="outline"
-            size="compact"
-            onClick={openInSearch}
-            aria-label="Alle Kinder öffnen"
-            title="Alle Kinder öffnen"
-            className="shrink-0"
-          >
-            Alle Kinder
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
-        )}
-      </div>
-      <p className="text-sm text-gray-600">
-        <span className="font-medium text-gray-900">{totalCount}</span>{" "}
-        {totalCount === 1 ? "Kind" : "Kinder"} aktuell anwesend
-      </p>
-
-      {isTruncated && (
-        <div
-          role="status"
-          className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border p-3 text-sm"
-        >
-          Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
-          {hiddenCount} weitere {hiddenCount === 1 ? "Kind ist" : "Kinder sind"}{" "}
-          aktuell nicht in dieser Übersicht. Öffnen Sie „Alle Kinder“, um alle
-          zu sehen.
+    <section aria-label="Kinder im Raum">
+      <SectionCard overflow="visible">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+            Kinder im Raum
+          </h2>
+          {totalCount > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              onClick={openInSearch}
+              aria-label="Alle Kinder öffnen"
+              title="Alle Kinder öffnen"
+              className="shrink-0"
+            >
+              Alle Kinder
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          )}
         </div>
-      )}
+        <p className="text-sm text-gray-600">
+          <span className="font-medium text-gray-900">{totalCount}</span>{" "}
+          {totalCount === 1 ? "Kind" : "Kinder"} aktuell anwesend
+        </p>
 
-      {/* Breathing room between the count + Kindersuche button row and
+        {isTruncated && (
+          <div
+            role="status"
+            className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border p-3 text-sm"
+          >
+            Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
+            {hiddenCount} weitere{" "}
+            {hiddenCount === 1 ? "Kind ist" : "Kinder sind"} aktuell nicht in
+            dieser Übersicht. Öffnen Sie „Alle Kinder“, um alle zu sehen.
+          </div>
+        )}
+
+        {/* Breathing room between the count + Kindersuche button row and
           the first student card. Without it the button bottom edge sits
           flush with the first card border. Review feedback (#1323). */}
-      <div className="mt-4">
-        {canBulkMove && students.length > 0 ? (
-          <BulkMoveToolbar
-            selectedCount={selectedVisibleCount}
-            totalCount={selectableStudentIds.size}
-            targetValue={targetValue}
-            targetOptions={targetOptions}
-            targetScope={targetScope}
-            state={bulkMoveState}
-            error={moveErrors.error}
-            containerRef={moveToolbarRef}
-            onSelectAll={selectAllVisible}
-            onClearSelection={clearSelection}
-            onTargetChange={changeTarget}
-            onMoveSelected={moveSelectedStudents}
+        <div className="mt-4">
+          {canBulkMove && students.length > 0 ? (
+            <BulkMoveToolbar
+              selectedCount={selectedVisibleCount}
+              totalCount={selectableStudentIds.size}
+              targetValue={targetValue}
+              targetOptions={targetOptions}
+              targetScope={targetScope}
+              state={bulkMoveState}
+              error={moveErrors.error}
+              containerRef={moveToolbarRef}
+              onSelectAll={selectAllVisible}
+              onClearSelection={clearSelection}
+              onTargetChange={changeTarget}
+              onMoveSelected={moveSelectedStudents}
+            />
+          ) : null}
+          <StudentsInRoomBody
+            fromReferrer={fromReferrer}
+            loading={isLoading}
+            loadError={loadError}
+            students={students}
+            selectable={canBulkMove}
+            selectableStudentIds={selectableStudentIds}
+            selectedStudentIds={selectedStudentIds}
+            onToggleStudentSelection={toggleStudentSelection}
+            router={router}
           />
-        ) : null}
-        <StudentsInRoomBody
-          fromReferrer={fromReferrer}
-          loading={isLoading}
-          loadError={loadError}
-          students={students}
-          selectable={canBulkMove}
-          selectableStudentIds={selectableStudentIds}
-          selectedStudentIds={selectedStudentIds}
-          onToggleStudentSelection={toggleStudentSelection}
-          router={router}
-        />
-      </div>
+        </div>
+      </SectionCard>
     </section>
   );
 }

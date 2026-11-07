@@ -32,7 +32,7 @@ func NewCareTimeOverrunHTTP(organizations HolidayOrganizations, statistics stude
 	accessLog owners.DataAccessAppender) *careContractHTTP.OverrunResource {
 	evaluations := careContractCompose.NewOverrunEvaluations(careContractCompose.OverrunPorts{
 		Schools: careContractSchools{organizations: organizations}, CareTimes: careContractCareTimes{statistics: statistics},
-		Access: careContractAccessLog{log: accessLog}, Runtime: careContractRuntime{},
+		Access: careContractAccessLog{log: accessLog}, Runtime: owners.CareContractRuntime{},
 	})
 	return careContractHTTP.NewOverrunResource(evaluations,
 		common.RequiresPermission(identityaccess.TraegerRightReportsRead),

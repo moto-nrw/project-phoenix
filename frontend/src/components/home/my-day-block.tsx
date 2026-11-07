@@ -9,12 +9,11 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListRow } from "~/components/ui/list-row";
 import Link from "~/components/ui/navigation-link";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { SectionCard } from "~/components/ui/section-card";
 import { SkeletonRows } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { BlockState } from "~/components/home/day-flow-block";
 import { blockStaffNames } from "~/components/timetable/block-row-parts";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import {
   HomeCardLink,
   HomeMoreRow,
@@ -117,11 +116,9 @@ export function MyDayBlock() {
         })();
 
   return (
-    <SectionCard
+    <HomeCard
       title="Mein Tag"
       leading={<HomeCardIcon concept={carePlanConcept} />}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       inlineActions
       actions={
         <HomeCardLink href={dayPlanHref} label={`Mein Tag: ${dayPlanLabel}`}>
@@ -176,7 +173,7 @@ export function MyDayBlock() {
           </>
         );
       })()}
-    </SectionCard>
+    </HomeCard>
   );
 }
 

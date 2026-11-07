@@ -1,0 +1,6 @@
+{
+  "scenario": "api.auth.accounts.by_role.positive_growth",
+  "max": 4,
+  "exact": true,
+  "description": "GET /auth/accounts/by-role/{roleName}: protected route-sized production resource, persisted grants/JWT and tenant RLS; exact 3/8 fixture account rows holding one tenant role; host liveness excluded."
+}

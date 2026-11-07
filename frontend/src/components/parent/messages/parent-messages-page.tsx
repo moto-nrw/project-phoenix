@@ -1,11 +1,8 @@
 "use client";
 
-import { SectionCard } from "~/components/ui/section-card";
-import { EmptyState } from "~/components/ui/empty-state";
 import { useCallback, useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { CaretRightIcon, ChecksIcon } from "@phosphor-icons/react/ssr";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import NavigationLink from "~/components/ui/navigation-link";
@@ -32,11 +29,8 @@ import {
 } from "~/lib/hooks/use-parent-resources";
 import { formatChatClockTime, formatChatDateTime } from "~/lib/date-helpers";
 import { parentPath } from "~/lib/parent-url";
-import {
-  ParentPage,
-  ParentPageHeader,
-  ParentSectionSkeleton,
-} from "~/components/parent/parent-page";
+import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { messagesConcept } from "~/lib/concepts/messages";
 
 /**
@@ -164,33 +158,24 @@ export function ParentMessagesPage() {
     refreshThreads,
   );
 
-  if (loading) {
-    return (
-      <ParentPage>
-        <div data-parent-tour="messages">
-          <ParentPageHeader
-            kicker={t("kicker")}
-            title={t("title")}
-            description={t("description")}
-          />
-        </div>
-        <ParentSectionSkeleton rows={3} showHeader={false} />
-      </ParentPage>
-    );
-  }
+  const header = (
+    <div data-parent-tour="messages">
+      <ParentPageHeader
+        kicker={t("kicker")}
+        title={t("title")}
+        description={t("description")}
+      />
+    </div>
+  );
 
-  if (failure) {
+  if (loading || failure || children.length === 0) {
     return (
-      <ParentPage>
-        <div data-parent-tour="messages">
-          <ParentPageHeader
-            kicker={t("kicker")}
-            title={t("title")}
-            description={t("description")}
-          />
-        </div>
-        <LoadErrorAlert error={error} />
-      </ParentPage>
+      <ParentPage
+        header={header}
+        loading={loading && <ListSkeleton rows={3} avatar={false} />}
+        error={failure ? error : null}
+        empty={{ title: t("noChildren") }}
+      />
     );
   }
 
@@ -228,36 +213,8 @@ export function ParentMessagesPage() {
     );
   }
 
-  if (children.length === 0) {
-    return (
-      <ParentPage>
-        <div data-parent-tour="messages">
-          <ParentPageHeader
-            kicker={t("kicker")}
-            title={t("title")}
-            description={t("description")}
-          />
-        </div>
-        <SectionCard>
-          <EmptyState
-            variant="compact"
-            description={t("noChildren")}
-            className="py-0"
-          />
-        </SectionCard>
-      </ParentPage>
-    );
-  }
-
   return (
-    <ParentPage>
-      <div data-parent-tour="messages">
-        <ParentPageHeader
-          kicker={t("kicker")}
-          title={t("title")}
-          description={t("description")}
-        />
-      </div>
+    <ParentPage header={header}>
       <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border">
         {rows.map((row) => (
           <li key={`${row.studentId}:${row.audience}`}>

@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.presence25.pickup_times.n3",
+  "max": 9,
+  "exact": true,
+  "description": "Full protected POST pickup_times, positive N3; complete response entries asserted."
+}

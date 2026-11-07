@@ -27,5 +27,11 @@
   "releasedAt": "Freigegeben am",
   "downloadFile": "Herunterladen",
   "sharedErrorObject": "die Dokumente des Trägers",
-  "image": "Bild"
+  "image": "Bild",
+  "awaitingSignature": "Wartet auf Ihre Unterschrift",
+  "signed": "Unterschrieben",
+  "concluded": "Abgeschlossen",
+  "signNow": "Lesen und unterschreiben",
+  "signedAt": "Unterschrieben am",
+  "status": "Stand"
 }

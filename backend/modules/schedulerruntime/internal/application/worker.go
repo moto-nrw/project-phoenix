@@ -70,6 +70,7 @@ func requiredWorkerJobIDs() []ports.JobID {
 		"planned-staff-exits",
 		"care-contract-conclusion",
 		"staff-qualification-reminders",
+		"care-contract-reminders",
 		"week-protocols",
 		"payroll-dispatch",
 		"meal-orders",
@@ -117,6 +118,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.plannedStaffExits), "planned-staff-exits", s.schedulePlannedStaffExitsTask)
 	add(s.careContractConclusion != nil, "care-contract-conclusion", s.scheduleCareContractConclusionTask)
 	add(!isNilDependency(s.staffQualificationReminders), "staff-qualification-reminders", s.scheduleStaffQualificationRemindersTask)
+	add(s.careContractReminders != nil, "care-contract-reminders", s.scheduleCareContractRemindersTask)
 	add(!isNilDependency(s.weekProtocols), "week-protocols", s.scheduleWeekProtocolsTask)
 	add(!isNilDependency(s.payrollDispatch), "payroll-dispatch", s.schedulePayrollDispatchTask)
 	add(!isNilDependency(s.mealOrders), "meal-orders", s.scheduleMealOrdersTask)

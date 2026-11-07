@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -134,8 +135,7 @@ func TestNotifyDropsQueuedDeliveryOnRollback(t *testing.T) {
 	})
 
 	mock.ExpectBegin()
-	mock.ExpectExec("SET LOCAL ROLE phoenix_tenant").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("^" + regexp.QuoteMeta("SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_tenant_id', '41', true)") + "$").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
 	channel := &recordingChannel{name: "recording"}

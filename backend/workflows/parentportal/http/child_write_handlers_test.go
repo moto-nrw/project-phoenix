@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -108,12 +109,13 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService
 func parentToken(t *testing.T, accountID int64) string {
 	t.Helper()
 	tokenAuth := testpkg.GetTestTokenAuth(t)
-	token, err := tokenAuth.CreateJWT(sessiontoken.AppClaims{
+	token, err := tokentest.CreateJWT(tokenAuth, sessiontoken.AppClaims{
 		ID:    int(accountID),
 		Sub:   strconv.FormatInt(accountID, 10),
 		Scope: tenant.ScopeParent,
 		Roles: []string{"guardian"},
 	})
+
 	require.NoError(t, err)
 	return token
 }

@@ -1,0 +1,6 @@
+{
+  "scenario": "operator.lists.accounts",
+  "max": 20,
+  "exact": true,
+  "description": "GET /operator/accounts; N new accounts each mapped to the fixture school and primary school, hence 2N additional response rows. N=3/8 positive body IDs and cardinality. Complete protected route-sized request: real owners, signed live operator session, mandatory access audit where mounted and owner transactions/RLS. Fixture setup/token issuance and outer Serve-host middleware excluded. Observed scenario count, not a universal floor."
+}

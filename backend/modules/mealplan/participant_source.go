@@ -11,6 +11,10 @@ type ParticipantCandidate struct {
 
 type ParticipantFinder func(context.Context, string) ([]ParticipantCandidate, error)
 
+// ParticipantDaysFinder reads each requested day in the caller's tenant unit.
+// A failure is retried through ParticipantFinder at the original daily boundary.
+type ParticipantDaysFinder func(context.Context, []string) (map[string][]ParticipantCandidate, error)
+
 // StudentNameFinder names children by ID, enrolled or not, for past orders.
 type StudentNameFinder func(context.Context, []int64) ([]ParticipantCandidate, error)
 

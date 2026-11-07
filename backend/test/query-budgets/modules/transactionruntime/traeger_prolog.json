@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.transactionruntime.traeger_prolog",
+  "max": 4,
+  "exact": true,
+  "description": "Träger unit: BEGIN, transaction-local role and organization in one statement, scope assertion, COMMIT or ROLLBACK."
+}

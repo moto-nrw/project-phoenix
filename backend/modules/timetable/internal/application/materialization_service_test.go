@@ -841,7 +841,7 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 	tfID := int64(406)
 	roomID := int64(407)
 	template := &activityContract.Group{Name: "Lernzeit", PlannedRoomID: &roomID, ID: 408}
-	scheduleRow := &activityContract.Schedule{Weekday: 1, TimeframeID: &tfID}
+	scheduleRow := &activityContract.Schedule{ActivityGroupID: template.ID, Weekday: 1, TimeframeID: &tfID}
 	timeframe := &schedule.Timeframe{StartTime: start, EndTime: &end, ID: tfID}
 
 	makeSvc := func(
