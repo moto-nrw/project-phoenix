@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -254,10 +254,27 @@ describe("AnchoredPopover", () => {
     const inner = screen.getByRole("button", { name: "Im Rahmen" });
 
     inner.focus();
-    fireEvent.keyDown(inner, { key: "Tab" });
+    const event = createEvent.keyDown(inner, { key: "Tab" });
+    fireEvent(inner, event);
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("prevents reverse Tab when it returns focus to the trigger", () => {
+    render(<FocusPopover />);
+    const trigger = screen.getByRole("button", { name: "Öffnen" });
+    fireEvent.click(trigger);
+    const inner = screen.getByRole("button", { name: "Im Rahmen" });
+
+    inner.focus();
+    const event = createEvent.keyDown(inner, { key: "Tab", shiftKey: true });
+    fireEvent(inner, event);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(event.defaultPrevented).toBe(true);
   });
 
   it("toggles from the trigger while a swallowing popover is open", () => {
@@ -300,5 +317,15 @@ describe("AnchoredPopover", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(onBehindClick).toHaveBeenCalledOnce();
+  });
+
+  it("closes on an outside touch by default", () => {
+    render(<FocusPopover />);
+    fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
+    const behind = screen.getByRole("button", { name: "Dahinter" });
+
+    fireEvent.touchStart(behind);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

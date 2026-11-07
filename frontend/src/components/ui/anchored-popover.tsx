@@ -182,7 +182,7 @@ export function AnchoredPopover({
       !triggerRef.current?.contains(target) &&
       !panelRef.current?.contains(target) &&
       !belongsToPopoverMenu(target);
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
       if (isOutside(event.target as Node)) close(false);
     };
     const handleOutsideClick = (event: MouseEvent) => {
@@ -199,11 +199,15 @@ export function AnchoredPopover({
       document.addEventListener("click", handleOutsideClick, true);
     } else {
       document.addEventListener("mousedown", handlePointerDown);
+      document.addEventListener("touchstart", handlePointerDown, {
+        passive: true,
+      });
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("click", handleOutsideClick, true);
       document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [close, open, panelId, swallowOutsideClick]);
@@ -231,7 +235,7 @@ export function AnchoredPopover({
     const index = entries.indexOf(document.activeElement as HTMLElement);
     const atEdge = event.shiftKey ? index <= 0 : index === entries.length - 1;
     if (!atEdge) return;
-    if (event.shiftKey) event.preventDefault();
+    event.preventDefault();
     close();
   };
 
