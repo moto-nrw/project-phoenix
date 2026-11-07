@@ -404,14 +404,29 @@ function countTextActions(
 }
 
 /** Feste Texte, die `stats` je Zweig zeigen kann. */
-function statsLiterals(node: ts.Node | undefined): string[] {
+function statsLiterals(
+  node: ts.Node | undefined,
+  constants: LocalConstants,
+  seen: ReadonlySet<string> = new Set(),
+): string[] {
   if (!node) return [];
+  if (ts.isIdentifier(node)) {
+    if (seen.has(node.text)) return [];
+    return statsLiterals(
+      constants.get(node.text),
+      constants,
+      new Set([...seen, node.text]),
+    );
+  }
   if (ts.isJsxExpression(node) || ts.isParenthesizedExpression(node)) {
-    return statsLiterals(node.expression);
+    return statsLiterals(node.expression, constants, seen);
   }
   if (ts.isStringLiteralLike(node)) return [node.text];
   if (ts.isConditionalExpression(node)) {
-    return [...statsLiterals(node.whenTrue), ...statsLiterals(node.whenFalse)];
+    return [
+      ...statsLiterals(node.whenTrue, constants, seen),
+      ...statsLiterals(node.whenFalse, constants, seen),
+    ];
   }
   return [];
 }
@@ -450,7 +465,7 @@ function headViolations(source: string): string[] {
     if (count > 1) violations.push(`${count} sichtbare Text-Aktionen`);
   };
   const checkStats = (node: ts.Node | undefined) => {
-    for (const text of statsLiterals(node)) {
+    for (const text of statsLiterals(node, constants)) {
       if (text.length > MAX_STATS_LITERAL) {
         violations.push(`Satz in der Statuszeile: „${text}“`);
       }
@@ -517,6 +532,17 @@ describe("Seitenkopf des Tenant-Portals (Spec R3 und R4)", () => {
       headViolations(
         `<TenantPage title="A" stats={editing ? "Karte ziehen, um sie zu verschieben und zu ändern." : line} />`,
       ),
+    ).toEqual([
+      "Satz in der Statuszeile: „Karte ziehen, um sie zu verschieben und zu ändern.“",
+    ]);
+  });
+
+  it("meldet einen langen festen Text in einer lokalen Konstante", () => {
+    expect(
+      headViolations(`
+        const statusLine = "Karte ziehen, um sie zu verschieben und zu ändern.";
+        const page = <TenantPage title="A" stats={statusLine} />;
+      `),
     ).toEqual([
       "Satz in der Statuszeile: „Karte ziehen, um sie zu verschieben und zu ändern.“",
     ]);
