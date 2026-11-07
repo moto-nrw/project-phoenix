@@ -75,6 +75,7 @@ import {
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -903,9 +904,7 @@ export function SickNoteModal({
             {t(kindHint)}
           </InsetPanel>
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-gray-700">
-              {t("sick.periodLabel")}
-            </legend>
+            <SectionLabel as="legend">{t("sick.periodLabel")}</SectionLabel>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <ISODatePicker
                 {...datePicker}
