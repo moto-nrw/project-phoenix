@@ -1,5 +1,7 @@
 "use client";
 
+import { MousePointer2 } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
@@ -7,7 +9,6 @@ import {
   DetailPanel,
   type DetailTab,
 } from "~/components/database/detail-panel";
-import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
@@ -84,9 +85,7 @@ export function PermissionsMasterDetail({
       renderItem={renderItem}
       keyFor={keyForPermission}
       emptyState={
-        <div className="text-center text-sm text-gray-500">
-          Keine Berechtigungen gefunden.
-        </div>
+        <EmptyState variant="compact" title="Keine Berechtigungen gefunden." />
       }
     />
   );
@@ -94,9 +93,12 @@ export function PermissionsMasterDetail({
   const detailNode = selectedPermission ? (
     <PermissionDetailContent permission={selectedPermission} />
   ) : (
-    <EmptyDetailState
+    <EmptyState
+      icon={<MousePointer2 className="h-10 w-10" aria-hidden="true" />}
+      titleAs="h3"
       title="Keine Berechtigung ausgewählt"
       description="Wähle links eine Berechtigung, um die Details zu sehen."
+      className="h-full justify-center"
     />
   );
 

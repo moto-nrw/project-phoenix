@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useEffect, useState } from "react";
 import { Search, ArrowLeft, Check, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -303,9 +304,11 @@ export default function GuardianPickerPanel({
               query.trim().length >= MIN_QUERY_LENGTH &&
               results.length === 0 &&
               !searchFailed && (
-                <p className="px-1 py-4 text-center text-xs text-gray-500">
-                  Keine Erziehungsberechtigten gefunden.
-                </p>
+                <EmptyState
+                  variant="compact"
+                  title="Keine Erziehungsberechtigten gefunden."
+                  className="px-1"
+                />
               )}
 
             {!loading && query.trim().length < MIN_QUERY_LENGTH && (

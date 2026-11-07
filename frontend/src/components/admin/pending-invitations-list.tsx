@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -326,9 +327,11 @@ export function PendingInvitationsList({
       <LoadErrorAlert error={loadError.error} className="mb-4" />
 
       {failedWithoutData ? null : sortedInvitations.length === 0 ? (
-        <div className="mt-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-4 py-6 text-center">
-          <p className="text-xs text-gray-400">Keine offenen Einladungen</p>
-        </div>
+        <EmptyState
+          variant="dashed"
+          title="Keine offenen Einladungen"
+          className="mt-2"
+        />
       ) : (
         <div className="mt-4">
           <DataTable

@@ -1228,7 +1228,7 @@ function NoPhaseState() {
   const tenantPath = useTenantAwarePath();
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+    <SectionCard>
       <EmptyState
         icon={<ConceptIconTile concept={calendarPeriodsConcept} size="page" />}
         title="Erst eine Anmeldephase anlegen"
@@ -1248,19 +1248,19 @@ function NoPhaseState() {
           </ButtonLink>
         }
       />
-    </section>
+    </SectionCard>
   );
 }
 
 function EmptyCareOfferingState() {
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+    <SectionCard>
       <EmptyState
         icon={<ConceptIconTile concept={carePlanConcept} size="page" />}
         title="Noch kein Betreuungsangebot angelegt"
         description="Erstellen Sie das erste Angebot, das Eltern auswählen können. Typisch sind Regelbetreuung, Ferienbetreuung oder ein Angebot mit Mittagessen."
       />
-    </section>
+    </SectionCard>
   );
 }
 
