@@ -17,6 +17,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatePicker } from "~/components/ui/date-picker";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { FieldLabel } from "~/components/ui/field-label";
 import type { FormError } from "~/components/ui/form-error";
 import { Input } from "~/components/ui/input";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -196,9 +197,9 @@ export function SurveyEditorFields({
         </ChoiceTile>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <span className="mb-1 block text-sm font-medium text-gray-700">
+            <FieldLabel invalid={Boolean(errors?.closesAt)}>
               Teilnahme bis
-            </span>
+            </FieldLabel>
             <DatePicker
               value={draft.closesDay}
               onChange={(closesDay) => update({ closesDay })}

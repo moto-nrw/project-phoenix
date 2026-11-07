@@ -271,14 +271,9 @@ export function FilesPage() {
           <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
             {/* Folder list: a panel on desktop, a select on small screens */}
             <div className="moto-content-surface rounded-2xl border p-3 lg:hidden">
-              <label
-                htmlFor="dateien-ordner"
-                className="mb-1.5 block text-xs font-medium text-gray-600"
-              >
-                Ordner
-              </label>
               <CustomSelect
                 id="dateien-ordner"
+                label="Ordner"
                 value={selected?.id ?? ""}
                 options={folders.map((folder) => ({
                   value: folder.id,
