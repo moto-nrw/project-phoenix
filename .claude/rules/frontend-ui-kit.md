@@ -116,7 +116,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Icon tile (symbol on a grey or tinted square/circle) | `IconTile` (`size`, `shape`, `tone`); a concept: `ConceptIconTile` | `~/components/ui/icon-tile` |
 | Any card: page section with heading, explanation, actions, or a plain surface | `SectionCard`, the only card head: `concept`/`icon`/`leading`, `collapsible`, `flush`, `footer`, `padding="none"`, `loading`; `kicker`: ADR 0149 | `~/components/ui/section-card` |
 | Any other framed white container (list wrapper, inner card, skeleton) | the `moto-content-surface` utility + `rounded-2xl border` (inner cards keep `rounded-xl`); never `border-gray-200 bg-white` by hand | `globals.css` |
-| Floating panel at a control, with content | `AnchoredPopover` — `header`, `footer`, `align`, `focusPanelOnOpen` (links or buttons inside), `swallowOutsideClick`; `moto-popover-surface` by hand only in `ui/` | `~/components/ui/anchored-popover` |
+| Floating panel at a control, with content | `AnchoredPopover` — `header`, `footer`, `align`, `focusPanelOnOpen`, `swallowOutsideClick` | `~/components/ui/anchored-popover` |
 | Count on an icon or nav row | `NotificationBadge` — `tone`, `size` | `~/components/ui/notification-badge` |
 | Selectable row or tile (label around a Checkbox/Radio, mode-picker button, row with a selection state) | `ChoiceTile` — `as` = `label` (default) / `button` / `div`, `selected`, `disabled`, `tone` = `gray` `green` `blue`; padding via `className` | `~/components/ui/choice-tile` |
 | Label/value fields | `DataField` in a `dl`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
@@ -148,7 +148,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Failed API call shown to the user | `useApiErrorDisplay` (toast), `useApiFormError` + `FormErrorAlert`, `useApiLoadError` + `LoadErrorAlert`; rules in `.claude/rules/error-path.md` | `~/contexts/ToastContext`, `~/components/ui/form-error-alert` |
 | List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header/PageHeaderWithSearch` |
 | Header nav tabs (sliding indicator, mobile dropdown) | `NavigationTabs` | `~/components/ui/page-header/NavigationTabs` |
-| Kebab / overflow action menu (every row action of a list item goes here; `bauart/no-row-action-buttons` fails a per-row `Button` named Bearbeiten/Löschen/Archivieren/…); menu behind a text button | `OverflowMenu` — entry `description`, `selected`; `triggerButton` + `triggerContent` for a kit button, `wrapperClassName` for layout | `~/components/ui/page-header/OverflowMenu` |
+| Kebab / overflow action menu (every row action of a list item goes here; `bauart/no-row-action-buttons` fails a per-row `Button` named Bearbeiten/Löschen/Archivieren/…); menu behind a text button | `OverflowMenu` — entry `description`, `selected`; `triggerButton` + `triggerContent` for a kit button, `wrapperClassName` | `~/components/ui/page-header/OverflowMenu` |
 | Filter toggle button | `FilterButton` | `~/components/ui/page-header/FilterButton` |
 | Stammdaten-Katalog einer Schule (Kategorien, Planungsspuren, Schichtarten, Abwesenheitsarten): Sammlung + Objektbearbeitung | `CatalogPage` auf einer eigenen Route unter `/database/…`; ein Formular, dem ein Eintrag fehlt, trägt nur die Auswahl und `CatalogManageLink`. Nie ein Slide-over, Modal oder Auswahlfeld — `bauart/no-manage-surface-in-overlay` fällt darauf (#3114). | `~/components/database/catalog/catalog-page`, `~/components/database/catalog/catalog-manage-link` |
 
