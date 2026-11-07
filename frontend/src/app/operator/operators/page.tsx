@@ -382,7 +382,7 @@ function PendingInvitationsList({
               </p>
               <p className="text-xs text-gray-500">
                 Eingeladen von {inv.creatorName ?? "Unbekannt"}
-                {" — "}
+                {" · "}
                 Läuft ab am{" "}
                 {new Date(inv.expiresAt).toLocaleDateString("de-DE", {
                   timeZone: "Europe/Berlin",

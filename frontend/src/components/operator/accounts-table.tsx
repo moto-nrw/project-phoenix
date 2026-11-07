@@ -86,7 +86,7 @@ function AccountStatusBadge({ status }: Readonly<{ status: string }>) {
 function getDisplayName(account: AccountRow): string {
   return account.firstName || account.lastName
     ? `${account.firstName} ${account.lastName}`.trim()
-    : "—";
+    : "–";
 }
 
 function getNameSortValue(account: AccountRow): string {
@@ -160,14 +160,14 @@ export function AccountsTable({
               ))}
             </span>
           ) : (
-            <span className="text-gray-400">—</span>
+            <span className="text-gray-400">–</span>
           ),
         sortValue: (row) => row.roleName.toLowerCase(),
       },
       {
         key: "pedagogicRole",
         header: "Päd. Rolle",
-        render: (row) => row.pedagogicRole || "—",
+        render: (row) => row.pedagogicRole || "–",
         sortValue: (row) => row.pedagogicRole.toLowerCase(),
         className: "text-gray-600",
       },
@@ -210,7 +210,7 @@ export function AccountsTable({
             row.status !== "invited" &&
             onManageTenantAccess != null;
           if (!canManageCaregiver && !canManageMFA && !canManageTenantAccess) {
-            return <span className="text-xs text-gray-400">—</span>;
+            return <span className="text-xs text-gray-400">–</span>;
           }
           return (
             <div className="flex flex-wrap justify-end gap-2">

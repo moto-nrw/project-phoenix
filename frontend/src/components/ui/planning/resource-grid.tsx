@@ -122,8 +122,7 @@ function getColumnBackgroundClass(
  * matching floor for the row height: it applies to EVERY cell, empty or filled,
  * and is sized so a cell holding one plain entry does not grow past it.
  *
- * The skeleton (dienstplan-skeleton.tsx) imports these so it keeps rastering
- * like the real grid. `columnWidth` carries the same values as
+ * `columnWidth` carries the same values as
  * COLUMN_MIN_WIDTH_CLASS above as plain lengths — Tailwind only picks up class
  * names written out as literals, hence the two shapes.
  */
@@ -148,7 +147,7 @@ export const RESOURCE_GRID_METRICS = {
 };
 
 /** Table width below which the grid scrolls instead of squeezing columns. */
-export function resourceGridMinWidth(
+function resourceGridMinWidth(
   columnCount: number,
   columnMode: ResourceGridColumnMode = "days",
 ): string {
@@ -172,7 +171,7 @@ export function ResourceGrid<TRow>({
   className,
 }: ResourceGridProps<TRow>) {
   const columnMinWidth = COLUMN_MIN_WIDTH_CLASS[columnMode];
-  const cellWrapperClass = `flex ${RESOURCE_GRID_METRICS.cellMinHeightClass[columnMode]} flex-col`;
+  const cellWrapperClass = `flex ${RESOURCE_GRID_METRICS.cellMinHeightClass[columnMode]} w-full flex-col`;
 
   return (
     // Radius, Rand und Ausschnitt sitzen auf der Fläche, gescrollt wird im

@@ -227,7 +227,7 @@ function UnregisteredTagsTable({
       {
         key: "device",
         header: "Gerät",
-        render: (row) => row.deviceName || row.deviceIdentifier || "—",
+        render: (row) => row.deviceName || row.deviceIdentifier || "–",
         sortValue: (row) =>
           (row.deviceName || row.deviceIdentifier || "").toLowerCase(),
         className: "text-gray-600",
