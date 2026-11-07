@@ -37,7 +37,7 @@ export function rosterPickupTimeLabel(
   if (pickupTimesRedacted) return null;
   if (pickupTimesLoaded === undefined) return null;
   if (!pickupTimesLoaded) return "Nicht geladen";
-  return pickupTime ?? "—";
+  return pickupTime ?? "–";
 }
 
 /**

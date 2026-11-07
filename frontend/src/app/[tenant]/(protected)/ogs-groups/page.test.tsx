@@ -367,7 +367,7 @@ vi.mock("~/components/students/student-card", () => ({
       >
         {pickupTime && <>Abholzeit: {pickupTime} Uhr</>}
         {!pickupTime && isException && (notes || "Abwesend")}
-        {!pickupTime && !isException && <>Abholzeit: —</>}
+        {!pickupTime && !isException && <>Abholzeit: –</>}
         {notes && <span>({notes})</span>}
       </div>
     );
@@ -2061,8 +2061,8 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(screen.getAllByTestId("student-card")).toHaveLength(3);
     });
 
-    // Always-show-pickup-time: fallback "Abholzeit: —" row is rendered
-    const fallbackRows = screen.getAllByText("Abholzeit: —");
+    // Always-show-pickup-time: fallback "Abholzeit: –" row is rendered
+    const fallbackRows = screen.getAllByText("Abholzeit: –");
     expect(fallbackRows).toHaveLength(3);
   });
 });

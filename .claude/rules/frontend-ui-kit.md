@@ -50,7 +50,7 @@ What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second
 
 **One create button per surface, also when it is empty.** The create action stays in the head (`TenantPage` `actions`, `SectionCard` `action`), where it also sits when the list is filled. The empty state shows title and description without a second create button and may point to the head in text; on the database pages that includes the mobile FAB. `empty.action` / `EmptyState` `action` is only for a different step, such as „Filter zurücksetzen" while a search or filter is active (#5034). Outside production `TenantPage` logs `tenant_page_empty_action_repeats_head_action` when an empty-state control carries the name of a head control.
 
-**One empty-value glyph.** Where a table cell or a field has no value, it shows „–" (en dash). „—" was in use side by side with it, sometimes in the same table. Where there is room, say why the value is missing instead of printing a glyph.
+**One empty-value glyph.** An empty table cell or field shows „–" (en dash); `ui-kit/no-em-dash-empty-value` fails „—" alone. With room, say why the value is missing.
 
 **Planning surfaces have no second head.** `PlanningContextBar` is the control band inside the head card (`searchSlot`), not a card of its own.
 
@@ -111,7 +111,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Footer of an edit state (Abbrechen + Speichern, saving label, disabled while the draft is invalid) | `EditActions` — the only save affordance outside settings; auto-save on blur/change is ratcheted to zero by `bauart/no-autosave`. An object is edited in its tab, never in an overlay titled „… bearbeiten“ / „… verwalten“ (`bauart/no-edit-overlay`, #3116) | `~/components/ui/edit-actions` |
 | Tabs (switching CONTENT panels) | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` — `variant="default"` (pill) or `"line"` (underline) | `~/components/ui/tabs` |
 | Segmented choice that is a VALUE, not a panel (mode picker, Monat/Woche, modal section switcher) | `SegmentedControl` — `variant="joined"` (bordered inline) or `"pills"` (tinted, per-item `tone`), `fullWidth` for modal tab bars | `~/components/ui/segmented-control` |
-| Data / list table | `DataTable`, `DataTableStatusBadge` | `~/components/ui/data-table` |
+| Data / list table; `expandable`, `renderSubRows`, `summaryRow`; column key `actions` stays pinned | `DataTable`, `DataTableStatusBadge` | `~/components/ui/data-table` |
 | Key figure tile | `StatCard` — default `variant="card"`; `inline` for dense grids in cards | `~/components/ui/stat-card` |
 | Icon tile (symbol on a grey or tinted square/circle) | `IconTile` (`size`, `shape`, `tone`); a concept: `ConceptIconTile` | `~/components/ui/icon-tile` |
 | Any card: page section with heading, explanation, actions, or a plain surface | `SectionCard`, the only card head: `concept`/`icon`/`leading`, `collapsible`, `flush`, `footer`, `padding="none"`, `loading`; `kicker`: ADR 0149 | `~/components/ui/section-card` |
@@ -290,7 +290,7 @@ Buttons, `Checkbox`, `OverflowMenu`, `StatusBadge`, `EmptyState`, `SegmentedCont
 
 ## UI skills: this rule outranks all of them
 
-The UI skills live in `frontend/.claude/skills/` and load only when an agent works in `frontend/`. **This rule and the kit win; a skill's generic advice is the fallback where this rule is silent.** Run one review, not four. `better-interface` coordinates the six `better-*` skills and is the entry point for a full pass.
+The UI skills live in `frontend/.claude/skills/` and load only when an agent works in `frontend/`. **This rule and the kit win; a skill's generic advice is the fallback where this rule is silent.** Run one review, not four. `better-interface` is the entry point for a full pass over the six `better-*` skills.
 
 The three places where following the vendored skill literally produces wrong output here (two of them fail `pnpm run check`):
 
@@ -309,6 +309,8 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-radix-outside-kit` (#5604, hard-zero): `@radix-ui/*` only under `components/ui/`.
 
+`ui-kit/no-raw-table` (#5600, hard-zero): no `<table>` outside `ui/`.
+
 `ui-kit/no-kit-domain-import` (#5586, hard-zero): `components/ui/` imports no other component folder and calls no `fetch`/`useSWR*`; context comes through props and slots. Planning pieces live in `ui/planning/`. `no-hand-rolled-surface` applies in `ui/` too.
 
 `ui-kit/no-own-spinner` (#5588, hard-zero): no `animate-spin` or icon-package spinner outside `ui/`. `bauart/no-own-skeleton` also fails `<Skeleton>` rows in an own surface and radius classes on it. The scaffold test fails visible loading text in `page.tsx`.
@@ -324,7 +326,7 @@ rg -n "from ['\"]@moto-nrw/design-system['\"]" frontend/src -g '*.tsx' -g '*.ts'
 
 ## Mandatory visual check — do not skip
 
-For any change a school user would see, **run the app locally and look at the actual screen before calling the work done**. Use the `verify` / agent-browser flow against `{slug}.localhost:3000`, screenshot the changed screen, and compare it side by side with the nearest canonical screen above. If it doesn't sit naturally next to that screen, it isn't done.
+For any change a school user would see, **run the app locally and look at the actual screen before calling the work done**. Use the `verify` / agent-browser flow against `{slug}.localhost:3000`, screenshot it, and compare it with the nearest canonical screen above. If it doesn't sit naturally next to that screen, it isn't done.
 
 ## Design-review checklist
 

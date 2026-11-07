@@ -77,8 +77,8 @@ describe("PersonsTable", () => {
       />,
     );
 
-    // Both the tag column and the email column fall back to —
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    // Both the tag column and the email column fall back to –
+    expect(screen.getAllByText("–").length).toBeGreaterThanOrEqual(2);
   });
 
   it("does not show the Schule column when showSchool is not set", () => {

@@ -2,24 +2,25 @@
 
 import { CapacityStrip } from "~/components/ui/planning/capacity-strip";
 import {
-  RESOURCE_GRID_METRICS,
-  resourceGridMinWidth,
+  ResourceGrid,
+  type ResourceGridColumn,
 } from "~/components/ui/planning/resource-grid";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { PlanningContextBarSkeleton } from "~/components/timetable/betreuungsplan-skeleton";
 
-// Das Skelett rastert wie das echte Wochenraster (Issue #2026). Die Maße —
-// Spaltenbreiten und Zellen-Mindesthöhe — kommen aus RESOURCE_GRID_METRICS und
-// wandern mit; die Tabellenstruktur (Ränder, Paddings, sticky Personenspalte)
-// ist bewusst nachgebaut, weil das ResourceGrid Textspalten-Köpfe erwartet und
-// hier nur Platzhalter stehen. Ändert sich dort die Struktur, muss sie hier
-// nachgezogen werden.
-const SKELETON_DAY_COLUMNS = 5;
-const DAY_COLUMN_INDEXES = Array.from(
-  { length: SKELETON_DAY_COLUMNS },
-  (_, index) => index,
+// Das Skelett IST das echte Wochenraster (Issue #2026), nur mit Platzhaltern
+// statt Personen und Diensten; Spaltenbreiten und Zellhöhen können deshalb
+// nicht auseinanderlaufen.
+const SKELETON_COLUMNS: ResourceGridColumn[] = Array.from(
+  { length: 5 },
+  (_, index) => ({
+    key: String(index),
+    label: "",
+    headerNote: <Skeleton className="h-4 w-14" />,
+  }),
 );
+const SKELETON_ROWS = Array.from({ length: 6 }, (_, index) => index);
 
 // The grid surface card: staff column + 5 weekday columns, 6 rows, plus the
 // CapacityStrip footer row (label + 5 cells). Shared by both the full-page
@@ -29,61 +30,23 @@ function GridSkeletonBody() {
   return (
     <SectionCard padding="none">
       <div className="p-4 sm:p-6">
-        <SectionCard padding="none" className="max-w-full">
-          <div className="max-w-full overflow-x-auto">
-            <table
-              className="w-full table-fixed border-collapse text-sm"
-              style={{ minWidth: resourceGridMinWidth(SKELETON_DAY_COLUMNS) }}
-            >
-              <colgroup>
-                <col style={{ width: RESOURCE_GRID_METRICS.rowHeaderWidth }} />
-                {DAY_COLUMN_INDEXES.map((col) => (
-                  <col key={col} />
-                ))}
-              </colgroup>
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="sticky left-0 z-10 bg-gray-50 px-2 py-1.5 text-left">
-                    <Skeleton className="h-4 w-16" />
-                  </th>
-                  {DAY_COLUMN_INDEXES.map((col) => (
-                    <th key={col} className="px-2 py-1.5 text-left">
-                      <Skeleton className="h-4 w-14" />
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: 6 }, (_, row) => (
-                  <tr key={row} className="border-t border-gray-100">
-                    <th className="sticky left-0 z-10 bg-white px-2 py-1.5 text-left align-top font-normal">
-                      <Skeleton className="h-4 w-32" />
-                    </th>
-                    {DAY_COLUMN_INDEXES.map((col) => (
-                      <td
-                        key={col}
-                        className="border-l border-gray-100 px-1 py-1 align-top"
-                      >
-                        <Skeleton
-                          className={`${RESOURCE_GRID_METRICS.cellMinHeightClass.days} w-full`}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <CapacityStrip
-                  rowLabel={<Skeleton className="h-4 w-28" />}
-                  cells={DAY_COLUMN_INDEXES.map((col) => ({
-                    key: String(col),
-                    content: <Skeleton className="mx-auto h-4 w-8" />,
-                  }))}
-                />
-              </tfoot>
-            </table>
-          </div>
-        </SectionCard>
+        <ResourceGrid
+          columns={SKELETON_COLUMNS}
+          rows={SKELETON_ROWS}
+          getRowKey={String}
+          cornerHeader={<Skeleton className="h-4 w-16" />}
+          renderRowHeader={() => <Skeleton className="h-4 w-32" />}
+          renderCell={() => <Skeleton className="w-full flex-1" />}
+          footer={
+            <CapacityStrip
+              rowLabel={<Skeleton className="h-4 w-28" />}
+              cells={SKELETON_COLUMNS.map((column) => ({
+                key: column.key,
+                content: <Skeleton className="mx-auto h-4 w-8" />,
+              }))}
+            />
+          }
+        />
       </div>
     </SectionCard>
   );
