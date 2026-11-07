@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingCareMonthsVersion = "1.15.788"
+const parentBillingCareMonthsVersion = "1.15.790"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
