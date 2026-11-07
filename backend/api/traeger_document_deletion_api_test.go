@@ -217,7 +217,9 @@ func TestAFailedTraegerDocumentDeletionChangesNothing(t *testing.T) {
 // deleted document's row as their referent.
 func TestADeletedTraegerDocumentKeepsItsReadsForTheirRetention(t *testing.T) {
 	t.Parallel()
-	f := newTraegerDocumentsFixture(t)
+	// The retention sweeps the reads of every Träger; its own database keeps
+	// it from deleting another test's reads and theirs from deleting its own.
+	f := newTraegerDocumentsFixtureOn(t, testpkg.SetupIsolatedTestDB(t))
 	ctx := context.Background()
 	document := f.uploaded(t, f.office.token, "Hausordnung")
 	_, err := f.db.ExecContext(ctx, `INSERT INTO platform.traeger_document_reads (organization_id, document_id, reader, read_at)
