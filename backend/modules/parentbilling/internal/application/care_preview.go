@@ -182,8 +182,8 @@ func findDuplicates(month calendar.Date, byContract map[int64][]parentbilling.Ca
 		contracts := byChild[key]
 		for i := 0; i < len(contracts); i++ {
 			for j := i + 1; j < len(contracts); j++ {
-				if duplicate, ok := sharedSlot(month, byContract[contracts[i]], byContract[contracts[j]]); ok {
-					duplicates = append(duplicates, duplicate)
+				if shared := sharedSlots(month, byContract[contracts[i]], byContract[contracts[j]]); len(shared) > 0 {
+					duplicates = append(duplicates, shared...)
 					held[contracts[i]], held[contracts[j]] = true, true
 				}
 			}
@@ -192,8 +192,9 @@ func findDuplicates(month calendar.Date, byContract map[int64][]parentbilling.Ca
 	return duplicates, held
 }
 
-// sharedSlot finds the first module and day both contracts book.
-func sharedSlot(month calendar.Date, first, second []parentbilling.CareContractVersion) (parentbilling.CareDuplicate, bool) {
+// sharedSlots lists every module and weekday both contracts book on a day
+// of the month, in the order of the second contract's days.
+func sharedSlots(month calendar.Date, first, second []parentbilling.CareContractVersion) []parentbilling.CareDuplicate {
 	booked := map[slotKey]string{}
 	for day := month; !day.After(monthEnd(month)); day = day.AddDays(1) {
 		if version, ok := versionOn(first, day); ok {
@@ -204,25 +205,35 @@ func sharedSlot(month calendar.Date, first, second []parentbilling.CareContractV
 			}
 		}
 	}
+	type moduleDay struct {
+		offeringID int64
+		weekday    string
+	}
+	seen := map[moduleDay]bool{}
+	shared := []parentbilling.CareDuplicate{}
 	for day := month; !day.After(monthEnd(month)); day = day.AddDays(1) {
 		version, ok := versionOn(second, day)
 		if !ok {
 			continue
 		}
 		for _, service := range version.Services {
-			if name, both := booked[slotKey{service.CareOfferingID, day}]; both && bookedOn(service, day) {
-				a, b := first[0], version
-				return parentbilling.CareDuplicate{
-					ChildFirstName: a.ChildFirstName, ChildLastName: a.ChildLastName, ModuleName: name, Weekday: service.Weekday,
-					Contracts: []parentbilling.CareDuplicateContract{
-						{ContractID: a.ContractID, SchoolID: a.SchoolID, SchoolName: a.SchoolName},
-						{ContractID: b.ContractID, SchoolID: b.SchoolID, SchoolName: b.SchoolName},
-					},
-				}, true
+			name, both := booked[slotKey{service.CareOfferingID, day}]
+			slot := moduleDay{service.CareOfferingID, service.Weekday}
+			if !both || !bookedOn(service, day) || seen[slot] {
+				continue
 			}
+			seen[slot] = true
+			a := first[0]
+			shared = append(shared, parentbilling.CareDuplicate{
+				ChildFirstName: a.ChildFirstName, ChildLastName: a.ChildLastName, ModuleName: name, Weekday: service.Weekday,
+				Contracts: []parentbilling.CareDuplicateContract{
+					{ContractID: a.ContractID, SchoolID: a.SchoolID, SchoolName: a.SchoolName},
+					{ContractID: version.ContractID, SchoolID: version.SchoolID, SchoolName: version.SchoolName},
+				},
+			})
 		}
 	}
-	return parentbilling.CareDuplicate{}, false
+	return shared
 }
 
 // moduleRun is a stretch of days a module is booked on the same weekdays.

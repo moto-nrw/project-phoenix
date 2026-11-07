@@ -278,6 +278,20 @@ export function CareUnpricedCard({
   );
 }
 
+/** "Kurzbetreuung: Montag, Dienstag · Frühbetreuung: Freitag". */
+function bookedTwice(entries: readonly CareDuplicate[]): string {
+  const days = new Map<string, string[]>();
+  for (const entry of entries) {
+    days.set(entry.moduleName, [
+      ...(days.get(entry.moduleName) ?? []),
+      WEEKDAY_LONG[entry.weekday],
+    ]);
+  }
+  return [...days.entries()]
+    .map(([module, weekdays]) => `${module}: ${weekdays.join(", ")}`)
+    .join(" · ");
+}
+
 /**
  * The children with two active contracts for the same module and weekday.
  * The run bills none of them, so no child pays twice and none drops out
@@ -317,12 +331,7 @@ export function CareDuplicatesCard({
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">{child}</p>
                 <p className="mt-0.5 text-sm text-gray-600">
-                  {entries
-                    .map(
-                      (entry) =>
-                        `${entry.moduleName} am ${WEEKDAY_LONG[entry.weekday]}`,
-                    )
-                    .join(", ")}
+                  {bookedTwice(entries)}
                 </p>
               </div>
               <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">

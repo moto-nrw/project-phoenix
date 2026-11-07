@@ -35,9 +35,7 @@ describe("CareDuplicatesCard", () => {
     expect(row).not.toBeNull();
     const item = within(row as HTMLElement);
     expect(
-      item.getByText(
-        "Betreuung bis 14:00 Uhr am Montag, Betreuung bis 14:00 Uhr am Dienstag",
-      ),
+      item.getByText("Betreuung bis 14:00 Uhr: Montag, Dienstag"),
     ).toBeInTheDocument();
     expect(
       item.getAllByRole("link").map((link) => link.getAttribute("href")),

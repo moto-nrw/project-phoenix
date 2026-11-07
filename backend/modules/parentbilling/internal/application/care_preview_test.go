@@ -374,10 +374,15 @@ func TestCareMonthDuplicateContractsAreHeldForReview(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, month.invoices, "neither contract is billed")
 	assert.Zero(t, month.total())
-	require.Len(t, month.duplicates, 1)
-	assert.Equal(t, "Mia", month.duplicates[0].ChildFirstName)
-	assert.Equal(t, []int64{contractMia, contractNoah},
-		[]int64{month.duplicates[0].Contracts[0].ContractID, month.duplicates[0].Contracts[1].ContractID})
+	// Every module and weekday both contracts book is named, once.
+	require.Len(t, month.duplicates, 2)
+	assert.Equal(t, [][2]string{{"Betreuung bis 14:00 Uhr", "mon"}, {"Betreuung bis 16:30 Uhr", "tue"}},
+		[][2]string{{month.duplicates[0].ModuleName, month.duplicates[0].Weekday}, {month.duplicates[1].ModuleName, month.duplicates[1].Weekday}})
+	for _, duplicate := range month.duplicates {
+		assert.Equal(t, "Mia", duplicate.ChildFirstName)
+		assert.Equal(t, []int64{contractMia, contractNoah},
+			[]int64{duplicate.Contracts[0].ContractID, duplicate.Contracts[1].ContractID})
+	}
 
 	// Without a child record the name and the date of birth name the child.
 	birth := day(t, "2019-03-04")
@@ -387,7 +392,7 @@ func TestCareMonthDuplicateContractsAreHeldForReview(t *testing.T) {
 		versions: []parentbilling.CareContractVersion{first, second}, tariffs: sjrTariffs(t)})
 	require.NoError(t, err)
 	assert.Empty(t, month.invoices)
-	require.Len(t, month.duplicates, 1)
+	require.Len(t, month.duplicates, 2)
 
 	// Another child of the same name is no duplicate.
 	other := day(t, "2020-05-06")
