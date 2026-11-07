@@ -25,8 +25,11 @@ func TestContractAcceptancesRequireUnchangedParentEvidenceBeforeApproval(t *test
 		Blocks: []LegalBlockSnapshot{{Key: "contract", Kind: LegalBlockKindTerms, Required: true, Source: LegalBlockSourceCustom,
 			Text: text, TextSHA256: "known-text-fingerprint"}}}
 	tests := map[string]func(*LegalBlocksSnapshotEntry){
-		"valid":                              func(*LegalBlocksSnapshotEntry) {},
-		"optional block the parents ticked":  func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].Required = false },
+		"valid":                             func(*LegalBlocksSnapshotEntry) {},
+		"optional block the parents ticked": func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].Required = false },
+		"optional consent block ticked": func(e *LegalBlocksSnapshotEntry) {
+			e.Blocks[0].Required, e.Blocks[0].Kind = false, LegalBlockKindConsent
+		},
 		"old snapshot without checksum":      func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].TextSHA256 = "" },
 		"form showed an older version":       func(e *LegalBlocksSnapshotEntry) { e.DisplayedFormSchemaID = 80 },
 		"form reported no version":           func(e *LegalBlocksSnapshotEntry) { e.DisplayedFormSchemaID = 0 },
@@ -51,7 +54,7 @@ func TestContractAcceptancesRequireUnchangedParentEvidenceBeforeApproval(t *test
 				assert.Equal(t, text, found[0].Text)
 				assert.Equal(t, submitted, found[0].SubmittedAt)
 				assert.True(t, found[0].Required)
-			case "optional block the parents ticked":
+			case "optional block the parents ticked", "optional consent block ticked":
 				require.Len(t, found, 1, "a ticked wish is evidence too (#4682)")
 				assert.False(t, found[0].Required, "but never the required conditions")
 			default:

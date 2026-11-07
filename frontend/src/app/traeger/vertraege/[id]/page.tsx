@@ -572,6 +572,11 @@ export default function TraegerVertragPage() {
             <CareContractVersions
               contractId={contract.id}
               versions={contract.versions}
+              end={{
+                withdrawn: contract.status === "widerrufen",
+                endsOn:
+                  contract.status === "gekuendigt" ? contract.endsOn : null,
+              }}
             />
           ) : null}
           <SectionCard

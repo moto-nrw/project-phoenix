@@ -33,12 +33,7 @@ import type {
   ContractNoticeOptions,
 } from "~/lib/care-contract-notices";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
-import {
-  berlinTodayISO,
-  formatBerlinDate,
-  formatBerlinTime,
-  formatDate,
-} from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import {
   declareMyContractNotice,
   fetchMyContractNoticeOptions,
@@ -361,10 +356,7 @@ function NoticeDone({
                 : formatDate(notice.endsOn ?? "", false, locale)}
             </DataField>
             <DataField label={t("declaredAt")}>
-              {t("declaredAtValue", {
-                date: formatBerlinDate(notice.declaredAt, locale),
-                time: formatBerlinTime(notice.declaredAt, locale),
-              })}
+              {formatDate(notice.receivedOn, false, locale)}
             </DataField>
             <DataField label={t("bookedCare")}>{options.modules}</DataField>
             <DataField label={t("sentTo")}>

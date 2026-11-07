@@ -93,7 +93,11 @@ func ContractAcceptances(raw json.RawMessage, source string, acceptedAt *time.Ti
 }
 
 func contractAcceptance(block LegalBlockSnapshot, flags map[string]bool, at time.Time, fingerprint func([]byte) string) (ContractAcceptance, bool) {
-	if block.Kind != LegalBlockKindTerms || block.Source != LegalBlockSourceCustom || !flags[block.Key] || block.Text == "" || len(block.Attachments) > 0 {
+	// A required own block is saved as terms, an optional one as consent: the
+	// form editor sets the kind from „Muss bestätigt werden“. Both are the
+	// parents' ticked declaration; Required tells them apart (#4682).
+	if (block.Kind != LegalBlockKindTerms && block.Kind != LegalBlockKindConsent) || block.Source != LegalBlockSourceCustom ||
+		!flags[block.Key] || block.Text == "" || len(block.Attachments) > 0 {
 		return ContractAcceptance{}, false
 	}
 	checksum := fingerprint([]byte(block.Text))

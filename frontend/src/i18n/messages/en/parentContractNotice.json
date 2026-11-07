@@ -32,7 +32,6 @@
   "withdrawnLabel": "Validity",
   "withdrawnValue": "The contract never applied",
   "declaredAt": "Received on",
-  "declaredAtValue": "{date} at {time}",
   "sentTo": "Confirmation sent to",
   "confirmationTitle": "Your confirmation",
   "datesChanged": "The dates have changed. Please choose again."

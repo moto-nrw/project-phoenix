@@ -52,8 +52,14 @@ func concludeWithEarlyStart(t *testing.T, f careContractFixture) int64 {
 	require.NotEmpty(t, earlyStart)
 	var submitted time.Time
 	require.NoError(t, f.db.NewRaw(`SELECT NOW()`).Scan(ctx, &submitted))
+	// As the form editor saves them: a required own block as terms, an
+	// optional one as consent.
 	block := func(key, text string, required bool) enrollment.LegalBlockSnapshot {
-		return enrollment.LegalBlockSnapshot{Key: key, Kind: enrollment.LegalBlockKindTerms, Source: enrollment.LegalBlockSourceCustom,
+		kind := enrollment.LegalBlockKindConsent
+		if required {
+			kind = enrollment.LegalBlockKindTerms
+		}
+		return enrollment.LegalBlockSnapshot{Key: key, Kind: kind, Source: enrollment.LegalBlockSourceCustom,
 			Required: required, Text: text, TextSHA256: securityruntime.Fingerprint([]byte(text))}
 	}
 	snapshot, err := json.Marshal([]enrollment.LegalBlocksSnapshotEntry{{

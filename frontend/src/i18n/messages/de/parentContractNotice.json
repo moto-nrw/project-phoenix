@@ -32,7 +32,6 @@
   "withdrawnLabel": "Gültigkeit",
   "withdrawnValue": "Der Vertrag gilt von Anfang an nicht",
   "declaredAt": "Eingegangen am",
-  "declaredAtValue": "{date} um {time} Uhr",
   "sentTo": "Bestätigung geschickt an",
   "confirmationTitle": "Ihre Bestätigung",
   "datesChanged": "Die Termine haben sich geändert. Bitte wählen Sie erneut."

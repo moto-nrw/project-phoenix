@@ -37,7 +37,21 @@ const logger = createLogger({ component: "CareContractVersions" });
 
 /** Where a version stands on a day, for its badge. */
 export type VersionPhase =
-  "current" | "planned" | "past" | "pending" | "rejected" | "replaced";
+  | "current"
+  | "planned"
+  | "past"
+  | "pending"
+  | "rejected"
+  | "replaced"
+  | "ended"
+  | "withdrawn";
+
+/** How the contract itself ended (#4682); it cuts every version. */
+export type ContractEnd = Readonly<{
+  withdrawn: boolean;
+  /** Last day of a terminated contract ("YYYY-MM-DD"). */
+  endsOn: string | null;
+}>;
 
 const PHASE_TONES: Record<VersionPhase, StatusBadgeTone> = {
   current: "green",
@@ -46,17 +60,31 @@ const PHASE_TONES: Record<VersionPhase, StatusBadgeTone> = {
   pending: "gray",
   rejected: "red",
   replaced: "outline",
+  ended: "outline",
+  withdrawn: "red",
 };
 
 /** The phase of a version on the Berlin day `today` ("YYYY-MM-DD"). */
 export function versionPhase(
   version: ContractVersion,
   today: string,
+  end?: ContractEnd,
 ): VersionPhase {
   if (version.status === "beantragt") return "pending";
   if (version.status === "abgelehnt") return "rejected";
   // Replaced by a change on its own first day: it holds on no day.
   if (version.status === "ersetzt") return "replaced";
+  // A withdrawal undoes the contract from its first day, so no version
+  // held; a termination ends every version on its last day.
+  if (end?.withdrawn) return "withdrawn";
+  if (
+    end?.endsOn &&
+    (version.effectiveFrom > end.endsOn ||
+      (end.endsOn < today &&
+        (version.validUntil === null || version.validUntil >= today)))
+  ) {
+    return "ended";
+  }
   if (version.effectiveFrom > today) return "planned";
   if (version.validUntil !== null && version.validUntil < today) return "past";
   return "current";
@@ -76,6 +104,10 @@ function phaseLabel(version: ContractVersion, phase: VersionPhase): string {
       return "Abgelehnt";
     case "replaced":
       return "Ersetzt";
+    case "ended":
+      return "Vertrag beendet";
+    case "withdrawn":
+      return "Widerrufen";
   }
 }
 
@@ -143,9 +175,11 @@ export function plannedVersion(
 export function CareContractVersions({
   contractId,
   versions,
+  end,
 }: Readonly<{
   contractId: string;
   versions: readonly ContractVersion[];
+  end?: ContractEnd;
 }>) {
   const today = useBerlinToday();
   const actionError = useApiErrorDisplay();
@@ -187,7 +221,7 @@ export function CareContractVersions({
     >
       <ResponsiveActionList>
         {ordered.map((version, index) => {
-          const phase = versionPhase(version, today);
+          const phase = versionPhase(version, today, end);
           // Compared with the version that holds before it; a replaced
           // version held on no day.
           const changed = changedWeekdays(

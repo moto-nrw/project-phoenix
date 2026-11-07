@@ -32,7 +32,6 @@
   "withdrawnLabel": "Действие",
   "withdrawnValue": "Договор не действует с самого начала",
   "declaredAt": "Получено",
-  "declaredAtValue": "{date} в {time}",
   "sentTo": "Подтверждение отправлено на",
   "confirmationTitle": "Ваше подтверждение",
   "datesChanged": "Даты изменились. Пожалуйста, выберите ещё раз."

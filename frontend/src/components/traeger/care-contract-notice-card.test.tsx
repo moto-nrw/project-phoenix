@@ -142,7 +142,7 @@ describe("CareContractNoticeCard (#4682)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Kündigung eintragen" }),
     );
-    fireEvent.change(screen.getByLabelText(/Eingegangen am/), {
+    fireEvent.change(await screen.findByLabelText(/Eingegangen am/), {
       target: { value: "2026-09-01" },
     });
     expect(
@@ -188,7 +188,7 @@ describe("CareContractNoticeCard (#4682)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Kündigung eintragen" }),
     );
-    fireEvent.change(screen.getByLabelText(/Eingegangen am/), {
+    fireEvent.change(await screen.findByLabelText(/Eingegangen am/), {
       target: { value: "2026-09-01" },
     });
     expect(

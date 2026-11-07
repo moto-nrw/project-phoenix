@@ -32,7 +32,6 @@
   "withdrawnLabel": "Geçerlilik",
   "withdrawnValue": "Sözleşme baştan geçerli değil",
   "declaredAt": "Ulaştığı tarih",
-  "declaredAtValue": "{date}, saat {time}",
   "sentTo": "Onayın gönderildiği adres",
   "confirmationTitle": "Onayınız",
   "datesChanged": "Tarihler değişti. Lütfen yeniden seçin."
