@@ -51,7 +51,15 @@ describe("parent message catalog completeness", () => {
 // pl, tr and uk were translated as complete catalogs (#3202). Unlike ru and sq
 // they carry no German leftovers anywhere, so the whole catalog is guarded: a
 // value equal to German would reach families as German text without warning.
-const fullCatalogInvariants = new Set(["OGS", "OGS: {text}", "PDF", "Excel"]);
+// "{careTerm}" alone is the school's own name for its care (#6042), the same
+// word in every language, like "OGS" before it.
+const fullCatalogInvariants = new Set([
+  "OGS",
+  "OGS: {text}",
+  "{careTerm}",
+  "PDF",
+  "Excel",
+]);
 
 describe("complete catalogs for pl, tr and uk", () => {
   it.each([

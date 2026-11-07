@@ -422,13 +422,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s intakeService) EditModeForStatus(ctx context.Context, req *Request, children []*RequestChild) (string, error) {\n\tif req == nil {\n\t\treturn capability.EditModeNone, nil\n\t}\n\tstatus, err := requestStatusInput(req, children)\n\tif err != nil {\n\t\treturn capability.EditModeNone, err\n\t}\n\treturn s.owner.EditModeForStatus(ctx, status)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/enrollment/http/intakeService.EditModeForStatus",
-      "owner": "modules/enrollment"
-    },
-    {
-      "build": "production",
       "evidence": "func (s intakeService) GetEditDraft(ctx context.Context, token string) (*EditDraft, error) {\n\tdraft, err := s.owner.EditDraft(ctx, token)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn editDraftValue(draft)\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/http/intakeService.GetEditDraft",
@@ -502,6 +495,13 @@
       "evidence": "func (s intakeService) ReplaceEditable(ctx context.Context, token string, req SubmitRequest) (*SubmitResult, error) {\n\tencoded, err := encodeSubmitRequest(req)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn submitResultValue(s.owner.ReplaceEditable(ctx, token, encoded))\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/http/intakeService.ReplaceEditable",
+      "owner": "modules/enrollment"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s intakeService) StatusPage(ctx context.Context, req *Request, children []*RequestChild) (capability.StatusPage, error) {\n\tnone := capability.StatusPage{EditMode: capability.EditModeNone}\n\tif req == nil {\n\t\treturn none, nil\n\t}\n\tstatus, err := requestStatusInput(req, children)\n\tif err != nil {\n\t\treturn none, err\n\t}\n\treturn s.owner.StatusPage(ctx, status)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/enrollment/http/intakeService.StatusPage",
       "owner": "modules/enrollment"
     },
     {

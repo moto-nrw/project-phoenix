@@ -135,6 +135,7 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 		EarlyCheckoutNoteToleranceMinutes: resolved.earlyCheckoutTolerance,
 		WeekendFollowsFriday:              resolved.weekendFollowsFriday,
 		ChildSearchOnlyNavigation:         resolved.childSearchOnlyNavigation,
+		CareFacilityTerm:                  resolved.careFacilityTerm,
 	}
 }
 
@@ -174,6 +175,7 @@ func tenantShellSettingKeys() []string {
 		settings.KeyEarlyCheckoutNoteToleranceMinutes,
 		settings.KeyWeekendFollowsFriday,
 		settings.KeyChildSearchOnlyNavigation,
+		settings.KeyEnrollmentCareFacilityTerm,
 		// Not read from this snapshot — prefetched so the hard-fail
 		// resolveTenantGradeLevelMax call hits the request cache instead of
 		// opening a second tenant transaction (issue #2065).
@@ -217,6 +219,7 @@ func resolveTenantShellValues(readBool func(string) (bool, error), readString fu
 		{settings.KeyOperationalOverviewScope, &resolved.overviewScope},
 		{settings.KeyAttendanceEditScope, &resolved.attendanceEditScope},
 		{settings.KeyParentRequestReasonPolicy, &resolved.reasonPolicy},
+		{settings.KeyEnrollmentCareFacilityTerm, &resolved.careFacilityTerm},
 	}
 	for _, field := range stringFields {
 		value, err := readString(field.key)

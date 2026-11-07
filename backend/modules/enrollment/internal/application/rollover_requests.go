@@ -261,9 +261,18 @@ func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmen
 	if *newPhase.RolloverMode == enrollmentNative.PhaseRolloverModeOptIn {
 		kind = enrollmentNative.MailKindRolloverOptIn
 	}
+	payload, err := s.renewalMailPayload(ctx, newPhase, req, childNames)
+	if err != nil {
+		s.deps.Logger.Warn("rollover: renewal email branding failed",
+			slog.Int64("request_id", req.ID),
+			slog.String("kind", kind),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
 	if err := s.deps.Outbox.EnqueueMail(ctx, Mail{
 		Kind:              kind,
-		Payload:           s.renewalMailPayload(ctx, newPhase, req, childNames),
+		Payload:           payload,
 		RelatedEntityType: enrollmentNative.MailRelatedRequest,
 		RelatedEntityID:   req.ID,
 	}); err != nil {
@@ -277,8 +286,11 @@ func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmen
 	result.EnqueuedEmails++
 }
 
-func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollmentNative.Phase, req *Request, childNames []string) map[string]any {
-	schoolName, logoURL, footerLogoURL := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
+func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollmentNative.Phase, req *Request, childNames []string) (map[string]any, error) {
+	brand, err := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
+	if err != nil {
+		return nil, err
+	}
 	deadlineStr := ""
 	if newPhase.RolloverDeadline != nil {
 		deadlineStr = newPhase.RolloverDeadline.Format("02.01.2006")
@@ -287,13 +299,14 @@ func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollment
 		enrollmentNative.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
 		enrollmentNative.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
 		enrollmentNative.EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
-		enrollmentNative.EnrollmentPayloadSchoolName:        schoolName,
+		enrollmentNative.EnrollmentPayloadSchoolName:        brand.SchoolName,
 		enrollmentNative.EnrollmentPayloadPhaseName:         newPhase.Name,
 		enrollmentNative.EnrollmentPayloadStatusURL:         enrollmentNative.StatusURL(s.deps.ParentsURL, req.StatusToken),
-		enrollmentNative.EnrollmentPayloadLogoURL:           logoURL,
-		enrollmentNative.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
+		enrollmentNative.EnrollmentPayloadLogoURL:           brand.LogoURL,
+		enrollmentNative.EnrollmentPayloadMotoLogoURL:       brand.MotoLogoURL,
+		enrollmentNative.EnrollmentPayloadCareFacilityTerm:  brand.CareFacilityTerm,
 		enrollmentNative.EnrollmentPayloadChildNames:        childNames,
 		enrollmentNative.EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
 		enrollmentNative.EnrollmentPayloadRolloverDeadline:  deadlineStr,
-	}
+	}, nil
 }
