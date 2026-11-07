@@ -1,5 +1,6 @@
 "use client";
 
+import { DataField, DataGrid } from "~/components/ui/data-field";
 import {
   type Dispatch,
   type SetStateAction,
@@ -49,7 +50,7 @@ import {
   ParentSection,
   ParentSubsection,
 } from "~/components/parent/shell/parent-section";
-import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
+import { VisibilityBadge } from "~/components/ui/visibility-badge";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
 import {
   useChildRequests,
@@ -289,6 +290,7 @@ function ChildMasterDataContent({
   ) => void;
 }>) {
   const t = useTranslations("parentMasterData");
+  const visibilityT = useTranslations("parentVisibility");
   const pendingByField = useMemo(() => {
     const map = new Map<string, MasterDataChange>();
     for (const c of data.pending_changes) {
@@ -355,7 +357,13 @@ function ChildMasterDataContent({
       title={t("sections.contact")}
       description={t("editableHint")}
       concept={accountsConcept}
-      actions={<OgsVisibleBadge />}
+      actions={
+        <VisibilityBadge
+          audience="ogs"
+          label={visibilityT("ogs")}
+          hint={visibilityT("ogsDescription")}
+        />
+      }
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <AutoSaveField
@@ -552,7 +560,7 @@ function IdentitySection({
         ) : undefined
       }
     >
-      <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <DataGrid>
         <IdentityFact
           studentId={studentId}
           label={t("fields.firstName")}
@@ -586,7 +594,7 @@ function IdentitySection({
           pending={schoolClassPending}
           onEdited={refresh}
         />
-      </dl>
+      </DataGrid>
       {!requestable && (
         <p className="text-xs text-gray-500">{t("requestDisabled")}</p>
       )}
@@ -634,13 +642,10 @@ function IdentityFact({
     : t("notSet");
   const isSelf = pending?.is_self === true;
   return (
-    <div className="min-w-0">
-      <dt className="text-sm text-gray-500">{label}</dt>
-      <dd className="mt-1 text-base font-medium break-words text-gray-900">
-        {value}
-      </dd>
+    <DataField label={label}>
+      {value}
       {pending && (
-        <dd className="mt-3">
+        <div className="mt-3 font-normal">
           <div
             role="group"
             aria-labelledby={requestTitleId}
@@ -678,7 +683,7 @@ function IdentityFact({
               </div>
             )}
           </div>
-        </dd>
+        </div>
       )}
       {pending && editing && editableValue !== null && (
         <RequestEditModal
@@ -693,7 +698,7 @@ function IdentityFact({
           onSaved={() => onEdited?.()}
         />
       )}
-    </div>
+    </DataField>
   );
 }
 
@@ -1007,7 +1012,7 @@ function DepartureDays({
 }>) {
   const t = useTranslations("parentMasterData");
   return (
-    <dl
+    <ul
       data-parent-tour={tourTarget ? "child-departure" : undefined}
       className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5"
     >
@@ -1016,25 +1021,26 @@ function DepartureDays({
           (modes?.[day] ?? []).includes(mode),
         );
         return (
-          <div
+          <li
             key={day}
             className={cn(
-              "flex items-baseline justify-between gap-3 rounded-xl px-3 py-2.5 sm:block",
+              "rounded-xl px-3 py-2.5",
               nested ? "bg-white" : "bg-gray-50",
             )}
           >
-            <dt className="text-sm text-gray-500">
-              {t(`careSchedule.weekdays.${day}`)}
-            </dt>
-            <dd className="text-right text-sm font-medium text-gray-900 sm:mt-1 sm:text-left">
-              {dayModes.length > 0
-                ? dayModes.map((mode) => t(`departureModes.${mode}`)).join(", ")
-                : t("departureModes.none")}
-            </dd>
-          </div>
+            <DataGrid columns={1}>
+              <DataField label={t(`careSchedule.weekdays.${day}`)}>
+                {dayModes.length > 0
+                  ? dayModes
+                      .map((mode) => t(`departureModes.${mode}`))
+                      .join(", ")
+                  : t("departureModes.none")}
+              </DataField>
+            </DataGrid>
+          </li>
         );
       })}
-    </dl>
+    </ul>
   );
 }
 

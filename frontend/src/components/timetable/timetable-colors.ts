@@ -2,21 +2,6 @@ import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type { InstanceStatus } from "~/lib/timetable-types";
 
-export const timetableSurface = "moto-content-surface rounded-2xl border";
-
-export const timetableSurfacePadded = `${timetableSurface} p-4 sm:p-5`;
-
-export const timetableNestedSurface = "moto-content-surface rounded-xl border";
-
-export const timetableMutedSurface =
-  "rounded-xl border border-gray-200 bg-gray-50/70";
-
-export const timetableDangerPanel =
-  "rounded-xl border border-moto-red/20 bg-moto-red/5 p-3";
-
-/** Readable dark-amber text pairing with white/gray-50 backgrounds. */
-export const timetableWarningText = "text-moto-amber-strong";
-
 /**
  * Shared 5-tone palette for small status/ratio indicators across the
  * timetable feature (issue #1838). Supersedes two previously-separate,

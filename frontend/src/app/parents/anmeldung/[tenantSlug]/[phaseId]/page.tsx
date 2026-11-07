@@ -28,7 +28,6 @@ import {
 import { parentPath } from "~/lib/parent-url";
 import { resolveTenant, type TenantInfo } from "~/lib/tenant-api";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 
 interface PageProps {
   readonly params: Promise<{ tenantSlug: string; phaseId: string }>;
@@ -167,25 +166,33 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
       tenantSlug={tenantSlug}
       tenant={loading || loadError ? null : (loaded?.tenant ?? null)}
     >
-      <ParentPage>
-        <ParentPageHeader
-          kicker={t("parentEmbeddedKicker")}
-          title={t("formEyebrow")}
-          description={t("parentEmbeddedDescription")}
-          backHref={parentPath("/parents/anmeldung")}
-          backLabel={t("backToParentPicker")}
-        />
-
-        {loading ? (
-          <div className="space-y-5" aria-busy="true">
-            <span className="sr-only">{t("detailsLoading")}</span>
-            <ParentSectionSkeleton rows={4} />
-            <ParentSectionSkeleton rows={5} />
-            <ParentSectionSkeleton rows={3} />
-          </div>
-        ) : loadError || !loaded ? (
-          <LoadErrorAlert error={loadError ?? t("detailsLoadFailed")} />
-        ) : (
+      <ParentPage
+        header={
+          <ParentPageHeader
+            kicker={t("parentEmbeddedKicker")}
+            title={t("formEyebrow")}
+            description={t("parentEmbeddedDescription")}
+            backHref={parentPath("/parents/anmeldung")}
+            backLabel={t("backToParentPicker")}
+          />
+        }
+        loading={
+          loading && (
+            <div className="space-y-5">
+              <ParentSectionSkeleton rows={4} announce={false} />
+              <ParentSectionSkeleton rows={5} announce={false} />
+              <ParentSectionSkeleton rows={3} announce={false} />
+            </div>
+          )
+        }
+        loadingLabel={t("detailsLoading")}
+        error={
+          loading
+            ? null
+            : (loadError ?? (loaded ? null : t("detailsLoadFailed")))
+        }
+      >
+        {loaded ? (
           <EnrollmentForm
             phaseID={phaseId}
             gradeLevelMax={loaded.tenant.gradeLevelMax}
@@ -197,7 +204,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
             skipCaptcha
             localizedCopy
           />
-        )}
+        ) : null}
       </ParentPage>
     </TenantProvider>
   );

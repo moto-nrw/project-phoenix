@@ -43,6 +43,7 @@ import { catererPath } from "~/lib/caterer-url";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { InvitationSummary } from "~/components/auth/invitation-summary";
 
 const logger = createLogger({ component: "CatererInvitationPage" });
 
@@ -296,14 +297,7 @@ function AcceptForm({
     >
       <FormErrorAlert message={formErrors.error} />
 
-      <section className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm">
-        <p className="font-medium text-gray-700">
-          Einladung für{" "}
-          <span className="font-semibold text-gray-900">
-            {invitation.email}
-          </span>
-        </p>
-      </section>
+      <InvitationSummary email={invitation.email} />
 
       <div>
         <FieldLabel

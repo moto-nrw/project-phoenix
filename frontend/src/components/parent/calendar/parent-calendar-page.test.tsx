@@ -101,9 +101,7 @@ describe("ParentCalendarPage", () => {
       screen.getByRole("heading", { name: "Kalender" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("parent-calendar-skeleton")).toBeInTheDocument();
-    expect(
-      screen.getAllByTestId("parent-page-section-row-skeleton"),
-    ).toHaveLength(2);
+    expect(screen.getByTestId("parent-page-section-skeleton")).toBeVisible();
   });
 
   it("lädt anstehende Termine für das erlaubte 92-Tage-Fenster", async () => {

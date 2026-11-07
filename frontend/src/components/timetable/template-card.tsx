@@ -26,8 +26,7 @@ import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import {
   TIMETABLE_NEUTRAL_COLOR,
   TIMETABLE_UNTYPED_EDGE_COLOR,
-  timetableSurface,
-} from "./timetable-style";
+} from "./timetable-colors";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { roomsConcept } from "~/lib/concepts/rooms";
@@ -109,9 +108,7 @@ export function TemplateCard({
   const targetSummary = summarizeTargets(template);
 
   return (
-    <article
-      className={`${timetableSurface} relative flex flex-col transition-[border-color,box-shadow] hover:border-gray-300 hover:shadow-md!`}
-    >
+    <article className="moto-content-surface relative flex flex-col rounded-2xl border transition-shadow hover:shadow-md!">
       {/* The card itself must not clip: the roster-maintenance tooltip has to
           leave it. Only this layer clips, so the colour bar follows the card's
           rounded edge exactly as before. */}

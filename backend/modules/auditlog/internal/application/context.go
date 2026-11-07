@@ -16,3 +16,14 @@ func ContextWithTenant(ctx context.Context, tenantID int64) context.Context {
 func ContextWithTransaction(ctx context.Context, transaction any) context.Context {
 	return auditModels.WithTransaction(ctx, transaction)
 }
+
+// The readers below let modules/auditlog/audittest observe the handoff;
+// production reads it in the Audit adapters themselves. They are values, not
+// functions, so the dead-code check sees them referenced from production
+// while modules/auditlog stays identical with and without testhooks (#5990).
+var (
+	// TenantIDFromContext returns the tenant the Audit adapters read, or zero.
+	TenantIDFromContext = auditModels.TenantIDFromContext
+	// TransactionFromContext returns the transaction the Audit adapters read.
+	TransactionFromContext = auditModels.TransactionFromContext
+)

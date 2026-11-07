@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { setTestClock } from "~/test/clock";
-import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
+import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-colors";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useOperationalOverviewScope,

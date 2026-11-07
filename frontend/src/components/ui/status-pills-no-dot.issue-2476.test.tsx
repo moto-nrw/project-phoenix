@@ -5,7 +5,7 @@ import { DataTableStatusBadge } from "./data-table";
 import { LocationBadge } from "./location-badge";
 import { OccupancyBadges } from "./planning/occupancy-badges";
 import { OriginChip } from "./planning/origin-chip";
-import { ParentVisibleBadge } from "./parent-visible-badge";
+import { VisibilityBadge } from "./visibility-badge";
 import { PresenceBadge } from "./presence-badge";
 import { StatusBadge } from "./status-badge";
 import { StatusColorBadge } from "./status-color-badge";
@@ -279,9 +279,9 @@ describe("RoomStatusBadge without decorative dot", () => {
   });
 });
 
-describe("ParentVisibleBadge without decorative dot", () => {
+describe("VisibilityBadge without decorative dot", () => {
   it("carries its eye icon and label, and no dot", () => {
-    render(<ParentVisibleBadge hint="Hinweis" />);
+    render(<VisibilityBadge hint="Hinweis" />);
     const pill = screen.getByText("Für Eltern sichtbar");
     expect(pill.textContent).toBe("Für Eltern sichtbar");
     expect(Array.from(pill.children).map((child) => child.tagName)).toEqual([

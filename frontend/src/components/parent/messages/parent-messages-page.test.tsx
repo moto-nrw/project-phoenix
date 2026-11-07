@@ -189,9 +189,9 @@ describe("ParentMessagesPage", () => {
     expect(
       screen.getByRole("heading", { name: "Nachrichten" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getAllByTestId("parent-page-section-row-skeleton"),
-    ).toHaveLength(3);
+    expect(screen.getByRole("status")).toHaveAccessibleName(
+      "Inhalt wird geladen",
+    );
   });
 
   it("ist bei einem Kind selbst die Unterhaltung, ohne Zwischenschritt", async () => {

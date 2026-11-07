@@ -67,11 +67,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { useApiFormError } from "~/contexts/ToastContext";
 
-import {
-  instanceStatusTone,
-  timetableMutedSurface,
-  timetableNestedSurface,
-} from "./timetable-style";
+import { instanceStatusTone } from "./timetable-colors";
 import {
   buildStaffDeviationInput,
   coverageIds as resolveCoverageIds,
@@ -90,6 +86,7 @@ import {
 import type { GuardianNoticeReach } from "~/lib/timetable-types";
 import { substitutionConcept } from "~/lib/concepts/substitution";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface StaffOption {
   id: string;
@@ -677,12 +674,12 @@ export function SubstitutionSlideOver({
                       Personal
                     </h3>
                     {plannedStaff.length === 0 ? (
-                      <div className={`${timetableMutedSurface} px-3 py-1`}>
+                      <InsetPanel framed padding="tight">
                         <EmptyState
                           variant="compact"
                           title="Für diesen Block war niemand geplant"
                         />
-                      </div>
+                      </InsetPanel>
                     ) : (
                       <ul className="space-y-2">
                         {plannedStaff.map((row) => {
@@ -881,7 +878,7 @@ export function SubstitutionSlideOver({
                     <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                       Block
                     </h3>
-                    <div className={`${timetableNestedSurface} space-y-3 p-3`}>
+                    <InsetPanel tone="white" className="space-y-3">
                       <label
                         htmlFor="vp-unstaffed"
                         className="flex items-start gap-2"
@@ -916,7 +913,7 @@ export function SubstitutionSlideOver({
                           placeholder="Grund (optional)"
                         />
                       )}
-                    </div>
+                    </InsetPanel>
                   </section>
                 )}
 
@@ -930,7 +927,7 @@ export function SubstitutionSlideOver({
                       Der Termin wird abgesagt. Abwesenheit, Ersatz und „bewusst
                       unbesetzt“ sind dabei ohne Wirkung.
                     </p>
-                    <div className={`${timetableNestedSurface} space-y-2 p-3`}>
+                    <InsetPanel tone="white" className="space-y-2">
                       <Input
                         controlSize="compact"
                         value={cancelReason}
@@ -947,14 +944,15 @@ export function SubstitutionSlideOver({
                         disabled={saving}
                         compact
                       />
-                    </div>
+                    </InsetPanel>
                   </section>
                 )}
 
                 {!canEdit &&
                   (instance.status === "cancelled" ? (
-                    <div
-                      className={`${timetableMutedSurface} space-y-1 p-3 text-sm text-gray-500`}
+                    <InsetPanel
+                      framed
+                      className="space-y-1 text-sm text-gray-500"
                     >
                       <p className="font-medium text-gray-700">
                         Dieser Block wurde abgesagt.
@@ -962,7 +960,7 @@ export function SubstitutionSlideOver({
                       {instance.cancelReason && (
                         <p>Grund: {instance.cancelReason}</p>
                       )}
-                    </div>
+                    </InsetPanel>
                   ) : !canManage &&
                     !isPast &&
                     (instance.status === "planned" ||
@@ -970,20 +968,16 @@ export function SubstitutionSlideOver({
                     // The block is editable in principle, but the user only holds
                     // read access to the plan — surface that instead of the
                     // "past/completed" message, which would be misleading (#1840).
-                    <p
-                      className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
-                    >
+                    <InsetPanel as="p" framed className="text-sm text-gray-500">
                       Sie haben nur Leserechte für den Vertretungsplan.
                       Änderungen können nur Personen mit Verwaltungsrechten
                       vornehmen.
-                    </p>
+                    </InsetPanel>
                   ) : (
-                    <p
-                      className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
-                    >
+                    <InsetPanel as="p" framed className="text-sm text-gray-500">
                       Vergangene oder abgeschlossene Termine können nicht mehr
                       geändert werden.
-                    </p>
+                    </InsetPanel>
                   ))}
               </form>
 
@@ -1264,10 +1258,7 @@ function HistoryTab({
             {events.map((ev) => {
               const change = changeSummary(ev, staffNames);
               return (
-                <li
-                  key={ev.id}
-                  className={`${timetableMutedSurface} rounded-lg p-3`}
-                >
+                <InsetPanel as="li" key={ev.id} framed>
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-sm font-medium text-gray-900">
                       {deviationEventLabel(ev.eventType)}
@@ -1294,7 +1285,7 @@ function HistoryTab({
                     {" · "}
                     {ev.actorName ?? "Unbekanntes Konto"}
                   </p>
-                </li>
+                </InsetPanel>
               );
             })}
           </ul>
