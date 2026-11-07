@@ -155,17 +155,14 @@ func parseEnrollmentUpload(w http.ResponseWriter, r *http.Request) (*common.Uplo
 	}, nil
 }
 
-// extensionMatchesContent reports whether the file name's extension names
-// the detected content. A PDF renamed to .png, or a file without a known
-// extension, is refused even though the bytes alone would pass.
+// extensionMatchesContent reports whether the upload is one the online
+// registration accepts (PDF, PNG, JPEG) and its extension names the
+// detected content. The shared parser already refuses a mismatch; this
+// narrows the accepted formats.
 func extensionMatchesContent(filename, contentType string) bool {
-	switch strings.ToLower(filepath.Ext(filename)) {
-	case ".pdf":
-		return contentType == "application/pdf"
-	case ".png":
-		return contentType == "image/png"
-	case ".jpg", ".jpeg":
-		return contentType == "image/jpeg" || contentType == "image/jpg"
+	switch contentType {
+	case "application/pdf", "image/png", "image/jpeg", "image/jpg":
+		return common.ExtensionMatchesContent(filename, contentType)
 	default:
 		return false
 	}
