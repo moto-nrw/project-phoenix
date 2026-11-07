@@ -274,6 +274,27 @@ function findVariable(sourceCode, identifier) {
   return undefined;
 }
 
+/**
+ * Resolves the initializer of the exact lexical binding, including a binding
+ * declared later in the module. Falling back to the traversal-built map would
+ * make class checks depend on declaration order and can pick a shadowed name.
+ */
+function constantInitializer(identifier, constants, sourceCode) {
+  if (!sourceCode) return constants.get(identifier.name);
+  const variable = findVariable(sourceCode, identifier);
+  if (!variable) return undefined;
+  for (const definition of variable.defs) {
+    if (
+      definition.type === "Variable" &&
+      definition.node.type === "VariableDeclarator" &&
+      definition.node.init
+    ) {
+      return definition.node.init;
+    }
+  }
+  return undefined;
+}
+
 function collectClassTemplateLiterals(
   node,
   templates,
@@ -703,6 +724,10 @@ const SURFACE_CONTROL_ELEMENTS = new Set([
   "Link",
   "NavLink",
   "NavigationLink",
+  "Button",
+  "ButtonLink",
+  "ListRowLink",
+  "ChoiceTile",
 ]);
 
 function isWideSurfaceTokens(tokens) {
@@ -729,12 +754,12 @@ function isWideSurfaceTokens(tokens) {
 // Eine Konstante, deren Zeichenkette selbst die alte Kette ist, meldet der
 // Literal-Besucher schon an der Deklaration; ihre Verwendungen zählen nicht
 // noch einmal.
-function usesReportedSurfaceConstant(node, constants) {
+function usesReportedSurfaceConstant(node, constants, sourceCode) {
   let found = false;
   const visit = (current) => {
     if (found || !current || typeof current !== "object") return;
     if (current.type === "Identifier") {
-      const init = constants.get(current.name);
+      const init = constantInitializer(current, constants, sourceCode);
       const value = init ? staticStringValue(init) : null;
       if (typeof value === "string" && isSurfaceCombo(value)) found = true;
       return;
@@ -888,8 +913,20 @@ const noHandRolledSurface = {
           // in einer Konstante: dort nicht ein zweites Mal je Verwendung.
           const { literal, rendered } = renderedCombo(className.value);
           if (literal || rendered !== undefined) return;
-          if (usesReportedSurfaceConstant(className.value, constants)) return;
-          const text = classText(className.value, constants);
+          if (
+            usesReportedSurfaceConstant(
+              className.value,
+              constants,
+              context.sourceCode,
+            )
+          ) {
+            return;
+          }
+          const text = classText(
+            className.value,
+            constants,
+            context.sourceCode,
+          );
           if (isSurfaceCombo(text) || isWideSurfaceTokens(text.split(/\s+/))) {
             report({
               node: className,
@@ -2217,11 +2254,12 @@ function staticAttributeValue(attribute) {
 
 /**
  * Static class text of an expression. Same-file constants (`const chip =
- * "…"`) are followed one level, so a class chain moved into a variable still
- * counts. `buttonClassName(…)` is the kit itself and contributes nothing here;
- * its className goes through no-button-override.
+ * "…"`) are followed one level, including bindings declared later in the
+ * module, so a class chain moved into a variable still counts.
+ * `buttonClassName(…)` is the kit itself and contributes nothing here; its
+ * className goes through no-button-override.
  */
-function classText(node, constants) {
+function classText(node, constants, sourceCode) {
   const chunks = [];
   const visit = (current, depth) => {
     if (!current || typeof current !== "object") return;
@@ -2233,7 +2271,7 @@ function classText(node, constants) {
       return;
     }
     if (current.type === "Identifier" && depth < 2) {
-      const init = constants.get(current.name);
+      const init = constantInitializer(current, constants, sourceCode);
       if (init) visit(init, depth + 1);
       return;
     }

@@ -789,6 +789,16 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
   });
 
+  it("follows a module constant declared after its JSX use", async () => {
+    const result = await lintSource(
+      `export const Probe = () => <div className={frame} />;
+      const frame = "rounded-lg border border-gray-200 p-3";`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
   it.each([
     '<button type="button" className="rounded-lg border bg-white px-4 py-2" />',
     '<a href="/x" className="rounded-lg border bg-white px-4 py-2" />',
@@ -804,6 +814,18 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     async (element) => {
       const result = await lintSource(
         `export const Probe = () => ${element};`,
+        "src/components/probe-surface.tsx",
+      );
+
+      expect(result.output).not.toContain("no-hand-rolled-surface");
+    },
+  );
+
+  it.each(["Button", "ButtonLink", "ListRowLink", "ChoiceTile"])(
+    "leaves the shared control component %s alone",
+    async (component) => {
+      const result = await lintSource(
+        `export const Probe = () => <${component} className="rounded-lg border bg-white p-3" />;`,
         "src/components/probe-surface.tsx",
       );
 
