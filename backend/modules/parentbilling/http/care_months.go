@@ -21,6 +21,7 @@ import (
 // the session's Träger, which comes from the session, never the request.
 type CareBillingResource struct {
 	billing        capability.CareBilling
+	letters        capability.CareLetterService
 	requireBilling common.Middleware
 }
 
@@ -56,6 +57,7 @@ func (rs *CareBillingResource) RunRouter(protectedTraegerRoutes func(chi.Router,
 		billing.Post("/", rs.start)
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/release", rs.release)
+		rs.mountLetters(billing)
 	})
 	return r
 }

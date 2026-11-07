@@ -53,3 +53,10 @@ func NewBillingFamilies() parentbilling.BillingFamilies {
 func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings) parentbilling.CareBilling {
 	return application.NewCareBilling(postgres.NewStore(), contracts, schools, settings, calendar.TodayDate)
 }
+
+// NewCareLetters builds the letters, mail, print and Storno of the monthly runs (#4684, ADR 0165) over the ports the root binds.
+func NewCareLetters(letterheads parentbilling.BillingLetterheads, contracts parentbilling.CareContracts, post parentbilling.BillingLetterPost, carePost parentbilling.CareLetterPost) parentbilling.CareLetterService {
+	return application.NewCareLetters(postgres.NewStore(), application.CareLetterPorts{
+		Letterheads: letterheads, Recipients: contracts, Post: post, CarePost: carePost,
+	}, rendering.NewRenderer(), rendering.NewRenderer(), calendar.TodayDate)
+}

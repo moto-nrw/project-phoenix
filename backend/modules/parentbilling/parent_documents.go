@@ -60,7 +60,9 @@ type ParentDocument struct {
 	DocumentID int64 `json:"id"`
 	// RunID is the run whose trail records the read; the parents never see
 	// it.
-	RunID        int64         `json:"-"`
+	RunID int64 `json:"-"`
+	// CareRun tells that RunID names a monthly run (#4684).
+	CareRun      bool          `json:"-"`
 	Kind         string        `json:"kind"`
 	Number       string        `json:"number"`
 	PeriodName   string        `json:"period_name"`

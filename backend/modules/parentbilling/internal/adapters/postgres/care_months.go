@@ -29,6 +29,8 @@ const (
 	careInvoiceNumberConstraint = "uq_care_invoices_number"
 	// careInvoiceMonthConstraint bills a contract at most once a month.
 	careInvoiceMonthConstraint = "uq_care_invoices_contract_month"
+	// careInvoiceReissueConstraint replaces a cancelled invoice at most once.
+	careInvoiceReissueConstraint = "uq_care_invoices_reissue"
 )
 
 type careTariffRow struct {
@@ -105,6 +107,7 @@ type careInvoiceRow struct {
 	RecipientEmail     string        `bun:"recipient_email"`
 	MonthRule          string        `bun:"month_rule"`
 	TotalCents         int64         `bun:"total_cents"`
+	ReplacesInvoiceID  *int64        `bun:"replaces_invoice_id"`
 }
 
 type careInvoicePositionRow struct {
@@ -311,8 +314,13 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		return nil, err
 	}
 	var ids []int64
-	if err := db.NewRaw(`SELECT care_contract_id FROM parent_billing.care_invoices
-		WHERE organization_id = ? AND billing_month = ?`, organizationID, month).Scan(ctx, &ids); err != nil {
+	// A cancelled invoice bills nothing any more (#4684, ADR 0165): a later
+	// run of the month bills its contract again.
+	if err := db.NewRaw(`SELECT invoice.care_contract_id FROM parent_billing.care_invoices AS invoice
+		WHERE invoice.organization_id = ? AND invoice.billing_month = ?
+			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoice_cancellations AS cancellation
+				WHERE cancellation.organization_id = invoice.organization_id AND cancellation.invoice_id = invoice.id)`,
+		organizationID, month).Scan(ctx, &ids); err != nil {
 		return nil, fmt.Errorf("read invoiced contracts: %w", err)
 	}
 	invoiced := make(map[int64]bool, len(ids))
@@ -336,18 +344,20 @@ func (s *Store) InsertCareRunEvent(ctx context.Context, organizationID, runID, a
 	return err
 }
 
-// Tables of issued numbers. The holiday documents and the monthly invoices
-// take their numbers from two number ranges; a Träger may give both the same
-// pattern, so neither may repeat a number of the other.
+// Tables of issued numbers. The holiday documents, the monthly invoices and
+// their Storno take their numbers from two number ranges; a Träger may give
+// both the same pattern, so none may repeat a number of another (#4684).
 const (
-	holidayNumbersTable = "parent_billing.documents"
-	careNumbersTable    = "parent_billing.care_invoices"
+	holidayNumbersTable          = "parent_billing.documents"
+	careNumbersTable             = "parent_billing.care_invoices"
+	careCancellationNumbersTable = "parent_billing.care_invoice_cancellations"
 )
 
 // claimInvoiceNumbers holds the invoice numbers of the Träger until the
 // transaction ends, so a holiday and a monthly issue run one after the
-// other, and reports a number the other table already carries as
-// ErrInvoiceNumberTaken. Both issue paths call it before they insert.
+// other, and reports a number otherTable or a Storno of a monthly invoice
+// already carries as ErrInvoiceNumberTaken (#4684). Every issue path calls
+// it before it inserts; a Storno calls it for both other tables.
 func claimInvoiceNumbers(ctx context.Context, db bun.IDB, organizationID int64, numbers []string, otherTable string) error {
 	if len(numbers) == 0 {
 		return nil
@@ -356,18 +366,15 @@ func claimInvoiceNumbers(ctx context.Context, db bun.IDB, organizationID int64, 
 		organizationID).Exec(ctx); err != nil {
 		return fmt.Errorf("hold the invoice numbers: %w", err)
 	}
-	query := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM parent_billing.documents WHERE organization_id = ? AND number = ANY(?))`,
-		organizationID, pgdialect.Array(numbers))
-	if otherTable == careNumbersTable {
-		query = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM parent_billing.care_invoices WHERE organization_id = ? AND number = ANY(?))`,
-			organizationID, pgdialect.Array(numbers))
-	}
-	var taken bool
-	if err := query.Scan(ctx, &taken); err != nil {
-		return fmt.Errorf("check invoice numbers: %w", err)
-	}
-	if taken {
-		return parentbilling.ErrInvoiceNumberTaken
+	for _, table := range []string{otherTable, careCancellationNumbersTable} {
+		var taken bool
+		if err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM ? WHERE organization_id = ? AND number = ANY(?))`,
+			bun.Safe(table), organizationID, pgdialect.Array(numbers)).Scan(ctx, &taken); err != nil {
+			return fmt.Errorf("check invoice numbers: %w", err)
+		}
+		if taken {
+			return parentbilling.ErrInvoiceNumberTaken
+		}
 	}
 	return nil
 }
@@ -389,6 +396,10 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 	if err := claimInvoiceNumbers(ctx, db, organizationID, numbers, holidayNumbersTable); err != nil {
 		return err
 	}
+	replaced, err := cancelledInvoicesToReplace(ctx, db, organizationID, run.BillingMonth, invoices)
+	if err != nil {
+		return err
+	}
 	rows := make([]careInvoiceRow, len(invoices))
 	for i, invoice := range invoices {
 		rows[i] = careInvoiceRow{
@@ -397,14 +408,14 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 			SchoolID: invoice.SchoolID, SchoolName: invoice.SchoolName, ChildFirstName: invoice.ChildFirstName,
 			ChildLastName: invoice.ChildLastName, RecipientFirstName: invoice.Recipient.FirstName,
 			RecipientLastName: invoice.Recipient.LastName, RecipientEmail: invoice.Recipient.Email,
-			MonthRule: rule, TotalCents: invoice.TotalCents,
+			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[invoice.ContractID],
 		}
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
 		switch constraintOf(err) {
 		case careInvoiceNumberConstraint:
 			return parentbilling.ErrInvoiceNumberTaken
-		case careInvoiceMonthConstraint:
+		case careInvoiceMonthConstraint, careInvoiceReissueConstraint:
 			return parentbilling.ErrBillingRunChanged
 		}
 		return fmt.Errorf("insert care invoices: %w", err)

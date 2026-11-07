@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.care_billing_run_letters",
+  "max": 0,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/care-billing-runs/{id}/letters (#4684, ADR 0165):\nthe Träger binding, the run, its letter set, invoices with their positions,\nStorno, letters and sends, the mail states of Delivery and the read in the\ntrail. Flat in the number of invoices."
+}

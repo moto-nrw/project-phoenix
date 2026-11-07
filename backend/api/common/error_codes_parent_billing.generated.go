@@ -17,6 +17,9 @@ const CodeParentBillingBillingRunNotFound = "parent_billing.billing_run_not_foun
 const CodeParentBillingBillingRunNotReleased = "parent_billing.billing_run_not_released"
 const CodeParentBillingBillingRunOpen = "parent_billing.billing_run_open"
 const CodeParentBillingBillingRunReleased = "parent_billing.billing_run_released"
+const CodeParentBillingCareInvoiceCancelled = "parent_billing.care_invoice_cancelled"
+const CodeParentBillingCareInvoiceNotFound = "parent_billing.care_invoice_not_found"
+const CodeParentBillingCareRecipientChanged = "parent_billing.care_recipient_changed"
 const CodeParentBillingCareRunInvalid = "parent_billing.care_run_invalid"
 const CodeParentBillingCareRunNotFound = "parent_billing.care_run_not_found"
 const CodeParentBillingCareRunOpen = "parent_billing.care_run_open"
@@ -71,6 +74,9 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBillingRunNotReleased, "business_rejection"},
 	{CodeParentBillingBillingRunOpen, "business_rejection"},
 	{CodeParentBillingBillingRunReleased, "business_rejection"},
+	{CodeParentBillingCareInvoiceCancelled, "business_rejection"},
+	{CodeParentBillingCareInvoiceNotFound, "business_rejection"},
+	{CodeParentBillingCareRecipientChanged, "business_rejection"},
 	{CodeParentBillingCareRunInvalid, "input"},
 	{CodeParentBillingCareRunNotFound, "business_rejection"},
 	{CodeParentBillingCareRunOpen, "business_rejection"},
