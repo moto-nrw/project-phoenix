@@ -1,6 +1,9 @@
 package presence
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // ConfigureForTest applies construction-time options to a service the
 // behaviour tests already built through their shared fixtures. Production
@@ -16,4 +19,10 @@ func ConfigureForTest(svc Service, options ...ServiceOption) {
 // real owner repositories without replaying the preceding session writes.
 func ValidateTransferredSupervisorLocksForTest(svc Service, ctx context.Context, groupIDs []int64, lockedStaff map[int64]bool) error {
 	return svc.(*service).validateTransferredSupervisorLocks(ctx, groupIDs, lockedStaff)
+}
+
+// AssignSessionSupervisorsForTest runs the session start's best-effort
+// supervisor assignment inside the caller's transaction.
+func AssignSessionSupervisorsForTest(svc Service, ctx context.Context, groupID int64, staffIDs []int64, start time.Time) {
+	svc.(*service).assignMultipleSupervisorsNonCritical(ctx, groupID, staffIDs, start)
 }

@@ -8,6 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { cn } from "~/lib/utils";
 
 export type InstallStepsPlatform = "ios" | "android";
@@ -63,10 +64,11 @@ export function PushInstallSteps({
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-800">
               {step}
             </span>
-            <div
+            <InsetPanel
+              padding={compact ? "compact" : "sm"}
               className={cn(
-                "flex min-w-0 flex-1 items-start gap-2 rounded-xl bg-gray-50 px-3",
-                compact ? "py-2" : "py-2.5",
+                "flex min-w-0 flex-1 items-start gap-2",
+                !compact && "py-2.5",
               )}
             >
               <StepIcon
@@ -86,7 +88,7 @@ export function PushInstallSteps({
                     : `installStepAndroid${step}`,
                 )}
               </span>
-            </div>
+            </InsetPanel>
           </li>
         ))}
       </ol>

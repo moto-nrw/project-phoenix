@@ -27,6 +27,9 @@ type Store interface {
 	CreateClosingDay(context.Context, schoolcalendar.ClosingDayFields) (schoolcalendar.ClosingDay, domain.OperationStats, error)
 	UpdateClosingDay(context.Context, int64, schoolcalendar.ClosingDayFields) (schoolcalendar.ClosingDay, domain.OperationStats, error)
 	DeleteClosingDay(context.Context, int64) (domain.OperationStats, error)
+	// ListCareCalendarRanges lists the closing days and the active holiday
+	// periods overlapping [from, to] in one statement.
+	ListCareCalendarRanges(ctx context.Context, from, to string) (closing, holidays []schoolcalendar.ClosingDay, stats domain.OperationStats, err error)
 
 	FindDateframe(ctx context.Context, id int64) (schoolcalendar.Dateframe, bool, domain.OperationStats, error)
 	ListDateframes(context.Context, schoolcalendar.DateframeFilter) ([]schoolcalendar.Dateframe, domain.OperationStats, error)

@@ -24,6 +24,7 @@ import { createLogger } from "~/lib/logger";
 import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { Button } from "~/components/ui/button";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ResetPasswordPage" });
 
@@ -364,7 +365,7 @@ export function ResetPasswordPageContent({
           />
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-left">
+        <InsetPanel framed className="text-left">
           <p className="mb-1.5 text-xs font-medium text-gray-700">
             {copy.requirementsTitle}
           </p>
@@ -373,7 +374,7 @@ export function ResetPasswordPageContent({
               <li key={requirement}>{requirement}</li>
             ))}
           </ul>
-        </div>
+        </InsetPanel>
 
         <Button
           type="submit"

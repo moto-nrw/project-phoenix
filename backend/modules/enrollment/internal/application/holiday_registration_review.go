@@ -364,12 +364,14 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	if !found {
 		return nil, enrollment.ErrHolidayRegistrationEntryNotFound
 	}
-	if err := validateHolidayBookings(bookings, period); err != nil {
-		return nil, validation.Errors{"bookings": err}
-	}
 	before := make([]enrollment.HolidayBookingChange, len(child.Bookings))
+	kept := make([]enrollment.HolidayBookingInput, len(child.Bookings))
 	for i, booking := range child.Bookings {
 		before[i] = enrollment.HolidayBookingChange{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID}
+		kept[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID}
+	}
+	if err := validateHolidayBookings(bookings, period, kept); err != nil {
+		return nil, validation.Errors{"bookings": err}
 	}
 	after := make([]enrollment.HolidayBookingChange, len(bookings))
 	for i, booking := range bookings {
