@@ -252,3 +252,18 @@ it("offers no deletion without the right to manage", async () => {
     screen.queryByRole("button", { name: "Weitere Aktionen zum Dokument" }),
   ).not.toBeInTheDocument();
 });
+
+// #5993 review: without the school names the dialog could not say which
+// schools lose the document, so no deletion is offered until they load.
+it("offers no deletion while the school names are missing", async () => {
+  renderPage();
+
+  expect(
+    await screen.findByText(
+      catalogText("general.unavailable", "die Liste der Schulen"),
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Weitere Aktionen zum Dokument" }),
+  ).not.toBeInTheDocument();
+});

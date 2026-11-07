@@ -210,7 +210,10 @@ export default function TraegerDocumentPage() {
                 Freigeben
               </Button>
             )}
-            {canManage && (
+            {/* Without the school names the dialog could not name the
+                schools that lose the document; the page shows their failed
+                load with a retry instead. */}
+            {canManage && schools !== null && (
               <OverflowMenu
                 ariaLabel="Weitere Aktionen zum Dokument"
                 items={[
