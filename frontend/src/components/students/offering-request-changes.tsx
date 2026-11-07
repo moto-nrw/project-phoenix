@@ -6,7 +6,7 @@
 // Trägers nicht die ganze Prüfung der Schule lädt.
 
 import type { ReactNode } from "react";
-import { ReviewDiffPanel } from "~/components/students/request-review-card";
+import { ReviewDiffPanel } from "~/components/students/review-diff-panel";
 import { Checkbox } from "~/components/ui/checkbox";
 import { SectionLabel } from "~/components/ui/section-label";
 import { StatusBadge } from "~/components/ui/status-badge";
