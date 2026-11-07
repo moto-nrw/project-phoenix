@@ -8,6 +8,7 @@ package timetracking
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -772,4 +773,111 @@ func TestAutoCheckout_QueriesOpenSessionsIncludingToday(t *testing.T) {
 // exercises the single-staff path only.
 func (m *wsMockStaffShiftRepository) FindByStaffIDsAndDateRange(context.Context, []int64, Date, Date) (map[int64][]*TimeTrackingShift, error) {
 	return nil, nil
+}
+
+// #5823 (E5): the tick decides on the listed row which sessions are due and
+// locks only those. The invariants below pin that protocol.
+
+// autoCheckoutLockLog records the balance and row locks in call order.
+type autoCheckoutLockLog struct {
+	calls []string
+}
+
+func (l *autoCheckoutLockLog) balance() func(context.Context, int64) error {
+	return func(_ context.Context, staffID int64) error {
+		l.calls = append(l.calls, fmt.Sprintf("balance:%d", staffID))
+		return nil
+	}
+}
+
+func (l *autoCheckoutLockLog) row(lockRow func(context.Context, int64) (*WorkSession, error)) func(context.Context, int64) (*WorkSession, error) {
+	return func(ctx context.Context, id int64) (*WorkSession, error) {
+		l.calls = append(l.calls, fmt.Sprintf("row:%d", id))
+		return lockRow(ctx, id)
+	}
+}
+
+func autoCheckoutSessionAt(id, staffID int64, day Date, checkInHour int) *WorkSession {
+	session := &WorkSession{StaffID: staffID, Date: day, CheckInTime: day.BerlinMidnight().Add(time.Duration(checkInHour) * time.Hour)}
+	session.ID = id
+	return session
+}
+
+// Invariants 1 and 3: a session that is not due on its listed row takes no
+// lock; the due sessions' staff are locked once each in ascending order, all
+// before the first row lock.
+func TestAutoCheckout_LocksOnlyDueCandidatesInStaffOrder(t *testing.T) {
+	t.Parallel()
+
+	day := NewDate(2026, time.March, 2)
+	sessions := []*WorkSession{
+		autoCheckoutSessionAt(1, 30, day, 8),  // due
+		autoCheckoutSessionAt(2, 20, day, 17), // checked in after shift end
+		autoCheckoutSessionAt(3, 10, day, 8),  // due
+		autoCheckoutSessionAt(4, 40, day, 8),  // no shift planned
+	}
+	service, sessionRepo, _, _, _ := autoCheckoutFixture(sessions, []*TimeTrackingShift{
+		shiftFor(30, day, 8, 16), shiftFor(20, day, 8, 16), shiftFor(10, day, 8, 16),
+	})
+	service.nowFunc = func() time.Time { return day.BerlinMidnight().Add(18 * time.Hour) }
+	sessionRepo.closeSessionFunc = func(context.Context, int64, time.Time, bool) (bool, error) { return true, nil }
+	var locks autoCheckoutLockLog
+	sessionRepo.lockBalanceWritesFunc = locks.balance()
+	sessionRepo.lockOpenByIDFunc = locks.row(sessionRepo.lockOpenByIDFunc)
+
+	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+	assert.Equal(t, []string{"balance:10", "balance:30", "row:1", "row:3"}, locks.calls)
+}
+
+// Invariant 2 with the E5 contract: a session that is due on its locked row
+// but not on its listed row is left for the next tick, without a lock.
+func TestAutoCheckout_LeavesSessionDueOnlyAfterListingForNextTick(t *testing.T) {
+	t.Parallel()
+
+	day := NewDate(2026, time.March, 2)
+	shift := shiftFor(7, day, 8, 16)
+	listed := autoCheckoutSessionAt(42, 7, day, 17) // listed: checked in after shift end
+	service, sessionRepo, _, _, _ := autoCheckoutFixture([]*WorkSession{listed}, []*TimeTrackingShift{shift})
+	service.nowFunc = func() time.Time { return day.BerlinMidnight().Add(18 * time.Hour) }
+	corrected := autoCheckoutSessionAt(42, 7, day, 8) // corrected check-in after the list
+	sessionRepo.lockOpenByIDFunc = func(context.Context, int64) (*WorkSession, error) { return corrected, nil }
+	sessionRepo.closeSessionFunc = func(context.Context, int64, time.Time, bool) (bool, error) {
+		t.Fatal("a session not due on its listed row must wait for the next tick")
+		return true, nil
+	}
+	var locks autoCheckoutLockLog
+	sessionRepo.lockBalanceWritesFunc = locks.balance()
+	sessionRepo.lockOpenByIDFunc = locks.row(sessionRepo.lockOpenByIDFunc)
+
+	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
+
+	require.NoError(t, err)
+	assert.Zero(t, count)
+	assert.Empty(t, locks.calls)
+}
+
+// Invariant 4: a balance-lock failure aborts before any row is touched.
+func TestAutoCheckout_BalanceLockFailureAbortsBeforeRowLocks(t *testing.T) {
+	t.Parallel()
+
+	day := NewDate(2026, time.March, 2)
+	service, sessionRepo, _, _, _ := autoCheckoutFixture(
+		[]*WorkSession{autoCheckoutSessionAt(1, 10, day, 8)},
+		[]*TimeTrackingShift{shiftFor(10, day, 8, 16)},
+	)
+	service.nowFunc = func() time.Time { return day.BerlinMidnight().Add(18 * time.Hour) }
+	lockErr := errors.New("lock timeout")
+	sessionRepo.lockBalanceWritesFunc = func(context.Context, int64) error { return lockErr }
+	sessionRepo.lockOpenByIDFunc = func(context.Context, int64) (*WorkSession, error) {
+		t.Fatal("no row lock after a failed balance lock")
+		return nil, nil
+	}
+
+	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
+
+	require.ErrorIs(t, err, lockErr)
+	assert.Zero(t, count)
 }

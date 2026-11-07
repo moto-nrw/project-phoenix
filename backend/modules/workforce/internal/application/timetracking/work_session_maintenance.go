@@ -86,9 +86,6 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	if len(openSessions) == 0 {
 		return 0, nil
 	}
-	if err := s.lockStaffBalanceWritesOrdered(ctx, sessionStaffIDs(openSessions)); err != nil {
-		return 0, err
-	}
 
 	latestEndByDate, err := s.latestShiftEndsByDate(ctx, openSessions)
 	if err != nil {
@@ -96,8 +93,19 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	}
 
 	run := autoCheckoutRun{now: now, grace: grace, latestEndByDate: latestEndByDate, tenantID: tenant.FromContext(ctx)}
+	// Only sessions whose listed row is due are locked; autoCheckoutSession
+	// checks each again on its freshly locked row. A session that became due
+	// after the list waits for the next tick (#5823).
+	candidates := run.dueSessions(openSessions)
+	if len(candidates) == 0 {
+		return 0, nil
+	}
+	if err := s.lockStaffBalanceWritesOrdered(ctx, sessionStaffIDs(candidates)); err != nil {
+		return 0, err
+	}
+
 	count := 0
-	for _, listedSession := range openSessions {
+	for _, listedSession := range candidates {
 		checkedOut, err := s.autoCheckoutSession(ctx, run, listedSession)
 		if err != nil {
 			return count, err
@@ -121,6 +129,17 @@ type autoCheckoutRun struct {
 	grace           time.Duration
 	latestEndByDate map[calendar.Date]map[int64]*TimeTrackingShift
 	tenantID        int64
+}
+
+// dueSessions keeps the listed sessions whose checkout is due, in list order.
+func (run autoCheckoutRun) dueSessions(sessions []*WorkSession) []*WorkSession {
+	due := make([]*WorkSession, 0, len(sessions))
+	for _, session := range sessions {
+		if _, ok := run.dueCloseAt(session); ok {
+			due = append(due, session)
+		}
+	}
+	return due
 }
 
 // sessionStaffIDs lists the staff member of every session, in session order.
