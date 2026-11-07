@@ -46,7 +46,6 @@ const logger = createLogger({ component: "CatererLoginPage" });
 // als Titel.
 const SHELL_COPY = {
   eyebrow: "Caterer-Portal",
-  eyebrowClassName: "text-moto-blue",
   title: "Willkommen im Caterer-Portal",
   subtitle: "Melden Sie sich mit Ihrem Caterer-Konto an.",
 } as const;

@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { CheckCircleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import {
@@ -224,9 +225,9 @@ export function HelpEntry({
           absolut positioniert ueber statischem Inhalt und malt das Punktmuster
           sonst quer ueber die Kacheln, die dadurch durchsichtig wirken. */}
       <main className="relative mx-auto w-full max-w-3xl px-4 py-10 sm:py-16">
-        <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
+        <SectionLabel as="p">
           {showSchoolStep ? "Schritt 2 von 2" : "Schritt 1 von 2"}
-        </p>
+        </SectionLabel>
 
         {showSchoolStep ? (
           <>

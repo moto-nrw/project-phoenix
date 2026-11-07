@@ -11,6 +11,7 @@
 // Design follows the Anmeldungen/Planung surface language: one calm content
 // surface inside `TenantPage`, gray-50 stat blocks, no colored dashboards.
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -683,9 +684,9 @@ function ClassDayOverviewContent({
                   <>
                     {schoolMode && schoolDay && (
                       <>
-                        <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                        <SectionLabel className="mt-5">
                           Ganze Schule
-                        </h3>
+                        </SectionLabel>
                         <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                           {schoolLists.map((list) => (
                             <StatCard
@@ -829,9 +830,9 @@ function ClassDayOverviewContent({
                     )}
                     {classes !== undefined && (
                       <>
-                        <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                        <SectionLabel className="mt-5">
                           {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
-                        </h3>
+                        </SectionLabel>
                         {schoolMode ? (
                           <div className="mt-2 grid gap-3 lg:grid-cols-2">
                             {classes.map((klass) => (

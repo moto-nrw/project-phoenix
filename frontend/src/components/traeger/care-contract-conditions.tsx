@@ -5,6 +5,7 @@
 // Schulen des Trägers, rechts die Bedingungen des gewählten Angebots. Ein
 // neuer Vertrag übernimmt sie; ein bestehender behält seine.
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { useMemo, useRef, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -114,9 +115,7 @@ export function CareContractConditions({
         <div className="space-y-5">
           {schools.map((school) => (
             <div key={school} className="space-y-2">
-              <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                {school}
-              </h3>
+              <SectionLabel>{school}</SectionLabel>
               {offerings
                 .filter((offering) => offering.schoolName === school)
                 .map((offering) => {
