@@ -109,7 +109,7 @@ Die 14 Szenarien von #5862: `related_accounts` (N3, N8), `master_data`,
 
 ### 4xx-Ausgänge je Route
 
-Stand `development` @ `ec35058c7f`, je Zeile am Code gelesen. Pfade ohne
+Stand `development` @ `b4b1950e5a`, je Zeile am Code gelesen. Pfade ohne
 Verzeichnis liegen im Paket der Route: `workflows/parentportal/http/` für die
 Eltern-Handler, `workflows/parentportal/internal/care/` für `child.go`,
 `meal_plan.go` und `parent_care_offerings_service.go`,
@@ -189,7 +189,7 @@ erneute Prüfung, beim Download Tenant 3 Zeile und Datei.
 | 404 | `general.input` | Zeile oder gespeicherte Datei fehlt beim Öffnen | `filestorage/internal/application/attachments.go:345–346`, `service.go:366–370` | Tenant 3 bzw. nach Rahmen |
 | 404 | `general.input` | Nachweis fehlt, Kind oder Anhang passt nicht (Nachweis-Download, ohne Schalter) | `parent_declaration_feed.go:175`, `193`, `parent_announcement_attachments.go:77–97`, `entry.go:84–85` | vor Rahmen bzw. Admin 1 |
 
-**#5862 Eltern-Kind-Leserouten** (`routes.go:119–226`; Admin 1 `child.go:61`,
+**#5862 Eltern-Kind-Leserouten** (`routes.go:122–229`; Admin 1 `child.go:61`,
 dann Tenant 1 der Route). Gemeinsame Zeilen aller 13 Routen:
 
 | ID | Status | Code | Ursache | Datei:Zeile | Phase |
@@ -200,15 +200,18 @@ dann Tenant 1 der Route). Gemeinsame Zeilen aller 13 Routen:
 | G4 | 403 | `care.guardian_permission_denied` | Recht fehlt; nur erreichbar, wenn die Route ein anderes Recht als `parent_portal.access` verlangt | `child.go:69–70`, gemappt `child_write_errors.go:18–19` | Admin 1 |
 
 Fehler, die kein Renderer kennt, werden 500 (`child_write_handlers.go:602–621`,
-`request_sharing_handlers.go:138–152`).
+`request_sharing_handlers.go:138–154`). Die drei Freigabe-Routen mappen G4
+auf 403 `care.guardian_permission_denied` (`request_sharing_handlers.go:151–153`);
+beim Lesen verlangen sie nur `parent_portal.access`
+(`parent_request_sharing_service.go:122–124`), G4 ist dort nicht erreichbar.
 
 | Route (`/me/children/{studentId}/…`) | Zusätzliche 4xx: Status, Code, Ursache, Datei:Zeile, Phase |
 |---|---|
 | `consents` | nur G1–G3 (`consent_handlers.go:42`, `46`) |
 | `meal-participation` | 400 `general.input`, `from`/`to` fehlt oder kein Datum, `child_write_handlers.go:433–437`, vor Rahmen. 400 `meals.participation_out_of_range`, Zeitraum außerhalb dieser Woche bis Montag + 25 Tage, `meal_plan.go:88–90`, gemappt `child_write_errors.go:41–42`, **zwischen**. 403 `meals.registration_disabled`, Speiseplan oder Anmeldung aus, `modules/mealplan/internal/application/service.go:447–448`, `461–462`, `meal_plan.go:215–216`, Tenant 1. 400 `meals.invalid_participation`, ungültige Bestellregeln, `meal_plan.go:219–220`, Tenant 1 |
 | `excused-requests` | nur G1–G3 |
-| `requests/{requestType}/{requestId}/events` | 400 `general.input`, `requestId` ungültig, `request_edit_handlers.go:322`, vor Rahmen. G3 wird hier 404 `care.request_not_found` (`request_sharing_handlers.go:148–150`), Admin 1. 400 `care.request_sharing_invalid`, unbekannter Typ, `parent_request_sharing_service.go:445`, Tenant 1. 404 `care.request_not_found`, Anfrage fehlt, falsche Art oder nicht vom Konto, `parent_request_sharing_service.go:429`, `467`, Tenant 1 |
-| `request-sharing/{requestType}/{requestId}` | wie `events`: 400 `general.input` (`request_sharing_handlers.go:106`), G3 als 404 `care.request_not_found`, dann 400 `care.request_sharing_invalid` und 404 `care.request_not_found` in Tenant 1 (`parent_request_sharing_service.go:429`, `445`, `467`) |
+| `requests/{requestType}/{requestId}/events` | 400 `general.input`, `requestId` ungültig, `request_edit_handlers.go:322`, vor Rahmen. G3 wird hier 404 `care.request_not_found` (`request_sharing_handlers.go:148–150`), Admin 1. 400 `care.request_sharing_invalid`, unbekannter Typ, `parent_request_sharing_service.go:480`, Tenant 1. 404 `care.request_not_found`, Anfrage fehlt, falsche Art oder nicht vom Konto, `parent_request_sharing_service.go:464`, `502`, Tenant 1 |
+| `request-sharing/{requestType}/{requestId}` | wie `events`: 400 `general.input` (`request_sharing_handlers.go:106`), G3 als 404 `care.request_not_found`, dann 400 `care.request_sharing_invalid` und 404 `care.request_not_found` in Tenant 1 (`parent_request_sharing_service.go:464`, `480`, `502`) |
 | `request-sharing-options` | G1, G2; G3 als 404 `care.request_not_found` (`request_sharing_handlers.go:148–150`), Admin 1 |
 | `care-exception` | 400 `general.input`, `from`/`to` ungültig oder `to` vor `from`, `child_write_handlers.go:237–249`, gerendert `care_exception_handlers.go:290–292`, vor Rahmen |
 | `pickup-change-requests` | nur G1–G3 |
