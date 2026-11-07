@@ -11,12 +11,11 @@ import { Cake } from "lucide-react";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SectionCard } from "~/components/ui/section-card";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { SwitchRow } from "~/components/ui/switch";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { fetchBirthdayOptOut, updateBirthdayOptOut } from "~/lib/birthdays-api";
-import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "BirthdayVisibilitySection" });
 
@@ -127,17 +126,12 @@ export function BirthdayVisibilitySection() {
       ) : loadFailed ? (
         <LoadErrorAlert error={loadError} />
       ) : (
-        <InsetPanel framed className="flex items-center justify-between gap-3">
-          <span className="text-sm text-gray-800">
-            Meinen Geburtstag auf der Startseite anzeigen
-          </span>
-          <BooleanField
-            value={visible}
-            onChange={(next) => void toggle(next)}
-            disabled={busy}
-            ariaLabel="Meinen Geburtstag auf der Startseite anzeigen"
-          />
-        </InsetPanel>
+        <SwitchRow
+          label="Meinen Geburtstag auf der Startseite anzeigen"
+          checked={visible}
+          onCheckedChange={(next) => void toggle(next)}
+          disabled={busy}
+        />
       )}
     </SectionCard>
   );

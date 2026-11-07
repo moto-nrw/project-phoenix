@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { ArrowRight, Check, Mail, UserRound, X } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
@@ -418,17 +419,25 @@ function ChangeSummary({
       </div>
 
       {request.parent_note ? (
-        <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm leading-6 text-gray-700">
+        <InsetPanel
+          framed
+          padding="compact"
+          className="text-sm leading-6 text-gray-700"
+        >
           <span className="font-semibold">Hinweis der Eltern: </span>
           {request.parent_note}
-        </div>
+        </InsetPanel>
       ) : null}
 
       {request.origin === "admin" && request.admin_decision_note ? (
-        <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm leading-6 text-gray-700">
+        <InsetPanel
+          framed
+          padding="compact"
+          className="text-sm leading-6 text-gray-700"
+        >
           <span className="font-semibold">Grund: </span>
           {request.admin_decision_note}
-        </div>
+        </InsetPanel>
       ) : null}
 
       <EnrollmentChangeRequestDiff
@@ -461,10 +470,7 @@ function MessageThread({
       ) : (
         <ol className="space-y-3">
           {messages.map((message) => (
-            <li
-              key={message.id}
-              className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2"
-            >
+            <InsetPanel as="li" framed padding="compact" key={message.id}>
               <p className="text-xs font-semibold text-gray-500">
                 {messageAuthorLabel(message.author_type)} ·{" "}
                 {formatChatDateTime(message.created_at)}
@@ -472,15 +478,19 @@ function MessageThread({
               <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-gray-700">
                 {message.body}
               </p>
-            </li>
+            </InsetPanel>
           ))}
         </ol>
       )}
       {request.admin_decision_note ? (
-        <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm leading-6 text-gray-700">
+        <InsetPanel
+          framed
+          padding="compact"
+          className="text-sm leading-6 text-gray-700"
+        >
           <span className="font-semibold">Entscheidung: </span>
           {request.admin_decision_note}
-        </div>
+        </InsetPanel>
       ) : null}
     </section>
   );

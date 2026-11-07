@@ -7,7 +7,7 @@ import {
   TENANT_ANALYTICS_CONSENT_COPY,
   type AnalyticsConsentCopy,
 } from "~/components/analytics/analytics-consent-copy";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { SwitchRow } from "~/components/ui/switch";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -21,7 +21,6 @@ import {
 } from "~/lib/analytics-consent";
 import { createLogger } from "~/lib/logger";
 import { useTenant } from "~/lib/tenant-context";
-import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "AnalyticsConsentSection" });
 
@@ -99,18 +98,12 @@ export function AnalyticsConsentSection({
         <LoadErrorAlert error={loadError} />
       ) : (
         <div className="space-y-3">
-          <InsetPanel
-            framed
-            className="flex items-center justify-between gap-3"
-          >
-            <span className="text-sm text-gray-800">{copy.switchLabel}</span>
-            <BooleanField
-              value={consent.granted === true}
-              onChange={(next) => void toggle(next)}
-              disabled={busy}
-              ariaLabel={copy.switchLabel}
-            />
-          </InsetPanel>
+          <SwitchRow
+            label={copy.switchLabel}
+            checked={consent.granted === true}
+            onCheckedChange={(next) => void toggle(next)}
+            disabled={busy}
+          />
           {consent.schoolAllows ? null : (
             <p className="text-sm text-gray-600">{copy.schoolOff}</p>
           )}

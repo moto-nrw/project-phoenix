@@ -15,8 +15,8 @@ import (
 
 // traegerOccupancyPorts binds the owners' reads behind the Träger's occupancy
 // (#4676): the group of each membership at School Membership, the group names
-// at School Structure, the booked care offerings at Care Plan and the child
-// of each approved enrollment at Enrollment.
+// at School Structure, the care offerings at Care Plan and the child of each
+// approved enrollment with the running phases at Enrollment (#5977).
 func traegerOccupancyPorts() traegerview.OccupancyPorts {
 	return traegerview.OccupancyPorts{
 		Groups:     schoolMembershipCompose.NewSchoolRosters(),
@@ -48,8 +48,8 @@ type traegerCareBookings struct {
 	bookings careplan.TraegerCareBookings
 }
 
-func (b traegerCareBookings) CareOfferingBookingsByTenant(ctx context.Context, schools []int64, day calendar.Date) (map[int64][]traegerview.CareOfferingBookings, error) {
-	offerings, err := b.bookings.CareOfferingBookingsByTenant(ctx, schools, day)
+func (b traegerCareBookings) CareOfferingBookingsByTenant(ctx context.Context, schools []int64, day calendar.Date, runningPhases []int64) (map[int64][]traegerview.CareOfferingBookings, error) {
+	offerings, err := b.bookings.CareOfferingBookingsByTenant(ctx, schools, day, runningPhases)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (b traegerCareBookings) CareOfferingBookingsByTenant(ctx context.Context, s
 	for school, booked := range offerings {
 		for _, offering := range booked {
 			result[school] = append(result[school], traegerview.CareOfferingBookings{
-				ID: offering.ID, Name: offering.Name, Capacity: offering.Capacity, RequestChildIDs: offering.RequestChildIDs,
+				ID: offering.ID, Name: offering.Name, Capacity: offering.Capacity, Active: offering.Active, RequestChildIDs: offering.RequestChildIDs,
 			})
 		}
 	}

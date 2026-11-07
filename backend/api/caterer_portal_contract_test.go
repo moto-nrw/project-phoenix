@@ -17,6 +17,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -251,7 +252,7 @@ func checkCatererScopeMatrix(t *testing.T, graph *goldenRuntime) {
 	tokenAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
 	mint := func(claims sessiontoken.AppClaims) string {
-		token, mintErr := tokenAuth.CreateJWT(claims)
+		token, mintErr := tokentest.CreateJWT(tokenAuth, claims)
 		require.NoError(t, mintErr)
 		return token
 	}

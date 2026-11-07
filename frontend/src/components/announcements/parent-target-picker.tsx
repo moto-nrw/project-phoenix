@@ -4,7 +4,6 @@ import { FieldLabel } from "~/components/ui/field-label";
 import { FramedList } from "~/components/ui/framed-list";
 import { groups as groupsKeys } from "~/lib/swr/groups";
 import { useEffect, useId, useRef, useState } from "react";
-import { Check } from "lucide-react";
 
 import { summarizeTargets } from "~/components/announcements/announcement-meta";
 import type { FormError } from "~/components/ui/form-error";
@@ -21,6 +20,8 @@ import type { Student } from "~/lib/student-helpers";
 import type { Activity } from "~/lib/activity-helpers";
 import type { AnnouncementTarget } from "~/lib/parent-announcements-api";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { CheckboxIndicator } from "~/components/ui/checkbox";
 
 /*
  * Die Empfängerwahl für Eltern: ganze Schule, Klassen, Gruppen, AGs und
@@ -47,24 +48,16 @@ function CheckPill({
   readonly onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <ChoiceTile
+      as="button"
+      selected={active}
+      aria-pressed={active}
       onClick={onClick}
-      className={`flex w-full min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all ${
-        active
-          ? "border-gray-900 bg-gray-50 text-gray-900"
-          : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-      }`}
+      className="w-full min-w-0 gap-2 py-2 font-normal"
     >
-      <span
-        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${
-          active ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
-        }`}
-      >
-        {active && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
-      </span>
+      <CheckboxIndicator checked={active} />
       <span className="truncate">{label}</span>
-    </button>
+    </ChoiceTile>
   );
 }
 

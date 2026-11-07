@@ -115,7 +115,9 @@ export function occupancyCareFormRows(
 /**
  * The care forms over all schools, by name, most children first. Offers of
  * several schools with the same name („OGS bis 16 Uhr“) add up; the places
- * only when every one of them has a limit.
+ * only when every one of them has a limit. An offer the school no longer
+ * offers adds only the places its children use, so none of its places
+ * reads as free (#5977).
  */
 export function occupancyCareFormSums(
   schools: readonly TraegerSchoolOccupancy[],
@@ -143,7 +145,12 @@ export function occupancyCareFormSums(
       sum.schools.add(school.id);
       sum.children += form.children;
       if (form.capacity === null) sum.open = true;
-      else sum.capacity = (sum.capacity ?? 0) + form.capacity;
+      else
+        sum.capacity =
+          (sum.capacity ?? 0) +
+          (form.active
+            ? form.capacity
+            : Math.min(form.children, form.capacity));
       sums.set(key, sum);
     }
   }
@@ -157,6 +164,41 @@ export function occupancyCareFormSums(
     .sort(
       (a, b) => b.children - a.children || a.name.localeCompare(b.name, "de"),
     );
+}
+
+/**
+ * The places of the active care forms that have a limit (#5977). An offer
+ * without a booking counts with all its places free. An offer without a limit
+ * stays out, because its free places are unknown, and so does an offer the
+ * school no longer offers: nobody can book its places (as `totalFreePlaces`
+ * of the school's offering list). `full` counts the offers without a free
+ * place, the overbooked ones included.
+ */
+export interface OccupancyPlaces {
+  readonly limited: number;
+  readonly places: number;
+  readonly taken: number;
+  readonly free: number;
+  readonly full: number;
+}
+
+export function occupancyPlaces(
+  schools: readonly TraegerSchoolOccupancy[],
+): OccupancyPlaces {
+  let limited = 0;
+  let places = 0;
+  let taken = 0;
+  let full = 0;
+  for (const school of schools) {
+    for (const form of school.careForms) {
+      if (form.capacity === null || !form.active) continue;
+      limited++;
+      places += form.capacity;
+      taken += Math.min(form.children, form.capacity);
+      if (form.children >= form.capacity) full++;
+    }
+  }
+  return { limited, places, taken, free: places - taken, full };
 }
 
 /** Unlimited offers have no ratio; bookings against zero places sort highest. */

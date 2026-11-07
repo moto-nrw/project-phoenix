@@ -426,6 +426,26 @@ describe("operator proxy factories", () => {
       data: { refreshed: true },
     });
   });
+
+  it("answers 204 instead of 401 when a DELETE succeeds on its retry", async () => {
+    mockAuth
+      .mockResolvedValueOnce({ user: { token: "old-token" } })
+      .mockResolvedValueOnce({ user: { token: "new-token" } });
+    mockFetch
+      .mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ status: "success", data: null }));
+
+    const handler = proxyDelete(
+      (params) => `/operator/items/${String(params.id)}`,
+    );
+    const response = await handler(
+      createProxyRequest("/api/operator/items/42", { method: "DELETE" }),
+      mockContext,
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(204);
+  });
 });
 
 describe("createOperatorProxyPostHandler", () => {

@@ -9,6 +9,7 @@
  */
 
 import { SectionCard } from "~/components/ui/section-card";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { DataField, DataGrid } from "~/components/ui/data-field";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
@@ -199,10 +200,7 @@ function ProofDocument({
         <h3 className="text-lg font-semibold">{t("historyTitle")}</h3>
         <ol className="space-y-3">
           {proof.submissions.map((entry) => (
-            <li
-              key={entry.id}
-              className="rounded-xl bg-gray-50 px-4 py-3 text-sm"
-            >
+            <InsetPanel as="li" padding="md" className="text-sm" key={entry.id}>
               <p className="text-base font-semibold">
                 {t("entry", {
                   action: td(`done.${entry.action}`),
@@ -242,7 +240,7 @@ function ProofDocument({
                   </figcaption>
                 </figure>
               )}
-            </li>
+            </InsetPanel>
           ))}
         </ol>
       </section>

@@ -12,6 +12,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
@@ -64,13 +65,11 @@ async function proxyParentDocumentPdf(
       cache: "no-store",
     });
 
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedParentAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
-    }
-  }
+  const upstream = await sendWithTokenRefresh(
+    token,
+    makeRequest,
+    uncachedParentAuth,
+  );
 
   if (!upstream.ok) {
     logger.warn("parent_document_pdf_proxy_non_ok", {

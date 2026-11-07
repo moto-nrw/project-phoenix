@@ -14,17 +14,19 @@ export function traegerOccupancyTopic(): HelpTopic {
     icon: "ChartLine",
     steps: [
       "Wählen Sie in der Navigation `Belegung`.",
-      "Lesen Sie oben die Summe für alle Schulen.",
+      "Lesen Sie oben die Summe für alle Schulen und die freien Plätze.",
       "Wählen Sie einen Reiter: `Schulen`, `Gruppen` oder `Betreuungsformen`.",
       "Wählen Sie `Herunterladen` und dann `CSV`, um alle Zahlen als Tabelle zu speichern.",
     ],
     result:
-      "Sie sehen für jede Schule, wie viele Kinder in welcher Gruppe sind und welches Betreuungsangebot sie heute gebucht haben.",
+      "Sie sehen für jede Schule, wie viele Kinder in welcher Gruppe sind und welches Betreuungsangebot sie heute gebucht haben. Sie sehen auch, wo noch Plätze frei sind.",
     notes: [
       "Suchen Sie oben nach einer Schule oder einem Ort. Die Summe zählt dann nur diese Schulen.",
       "Es zählen dieselben Kinder wie bei der Stichtagszahl, aber von heute.",
       "Eine Betreuungsform ist ein Betreuungsangebot, das als Betreuung zählt, zum Beispiel „OGS bis 16 Uhr“. Mittagessen zählt nicht.",
+      "Unter `Betreuungsformen` steht jedes Angebot, das heute läuft. Auch eins, das noch niemand gebucht hat. Es hat dann 0 Kinder und alle Plätze frei.",
       "Unter `Betreuungsformen` stehen Angebote mit gleichem Namen an mehreren Schulen auch zusammengezählt.",
+      "`Freie Plätze` zählt nur Angebote, für die die Schule Plätze festgelegt hat.",
       "Sie sehen nur Zahlen, keine Namen von Kindern.",
     ],
     differences: [

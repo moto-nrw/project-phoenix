@@ -2,6 +2,7 @@
 
 import { Plus, Search } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -29,6 +30,7 @@ import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-en
 import { staffConcept } from "~/lib/concepts/staff";
 import { IconTile } from "~/components/ui/icon-tile";
 import { foldForSearch } from "~/lib/search-fold";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -611,15 +613,19 @@ export function SpontaneousActivityStart({
                 Weitere Betreuer
               </div>
               {staff.length > 0 ? (
-                <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2">
+                <InsetPanel
+                  framed
+                  className="grid max-h-44 gap-2 overflow-y-auto"
+                >
                   {staff.map((item) => {
                     const accountMark = item.isExternal
                       ? externalAccountMark(item.externalAccountStatus)
                       : null;
                     return (
-                      <label
+                      <ChoiceTile
                         key={item.id}
-                        className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm text-gray-800"
+                        selected={additionalStaffIds.includes(item.id)}
+                        className="min-h-10 py-2 font-normal"
                       >
                         <Checkbox
                           checked={additionalStaffIds.includes(item.id)}
@@ -642,10 +648,10 @@ export function SpontaneousActivityStart({
                             </span>
                           ) : null}
                         </span>
-                      </label>
+                      </ChoiceTile>
                     );
                   })}
-                </div>
+                </InsetPanel>
               ) : null}
               {canCreateExternalCaregiver ? (
                 <ExternalCaregiverEntry

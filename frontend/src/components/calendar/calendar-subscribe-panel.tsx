@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { Button, ButtonLink } from "~/components/ui/button";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -97,7 +98,7 @@ function CopyValueRow({
   };
 
   return (
-    <div className="rounded-xl bg-gray-50 p-3">
+    <InsetPanel>
       <p className="text-xs font-medium text-gray-500">{label}</p>
       <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p
@@ -122,7 +123,7 @@ function CopyValueRow({
           {copied ? copiedLabel : copyLabel}
         </Button>
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -279,20 +280,20 @@ export function CalendarSubscribePanel({
               </p>
             </div>
 
-            <div className="rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-600">
+            <InsetPanel className="text-sm leading-6 text-gray-600">
               <p className="font-semibold text-gray-700">{copy.howToTitle}</p>
               <p className="mt-1">{copy.howToMac}</p>
               <p className="mt-1">{copy.howToApple}</p>
               <p className="mt-1">{copy.howToAndroid}</p>
-            </div>
+            </InsetPanel>
           </div>
         ) : null}
 
         {open && feed && !feed.url ? (
           <div className="mt-4">
-            <div className="rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-600">
+            <InsetPanel className="text-sm leading-6 text-gray-600">
               {copy.alreadyActive}
-            </div>
+            </InsetPanel>
           </div>
         ) : null}
 
@@ -350,15 +351,21 @@ export function CalendarSubscribePanel({
                     </p>
                   </>
                 ) : (
-                  <p className="rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-600">
+                  <InsetPanel
+                    as="p"
+                    className="text-sm leading-6 text-gray-600"
+                  >
                     {staffT("passwordHidden")}
-                  </p>
+                  </InsetPanel>
                 )}
               </div>
             ) : (
-              <p className="mt-4 rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-600">
+              <InsetPanel
+                as="p"
+                className="mt-4 text-sm leading-6 text-gray-600"
+              >
                 {staffT("caldavUnavailable")}
-              </p>
+              </InsetPanel>
             )}
           </div>
         ) : null}

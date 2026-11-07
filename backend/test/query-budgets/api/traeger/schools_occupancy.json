@@ -2,5 +2,5 @@
   "scenario": "api.traeger.schools_occupancy",
   "max": 8,
   "exact": true,
-  "description": "modules/traegerview — GET /traeger/schools/occupancy (#4676): the Träger\nrow, the school IDs of the Träger, the school rows, the roster of the\nStichtagszahl rule, the group of each membership, the group names, the\nbooked care offerings and the child of each approved enrollment for the\nwhole school set in one administrative transaction. Flat in the number of\nschools."
+  "description": "modules/traegerview — GET /traeger/schools/occupancy (#4676, #5977): the\nTräger row, the school IDs of the Träger, the school rows, the roster of\nthe Stichtagszahl rule, the group of each membership, the group names, the\nchild of each approved enrollment with the running phases and the care\nofferings booked or running today for the whole school set in one\nadministrative transaction. Flat in the number of schools."
 }

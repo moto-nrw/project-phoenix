@@ -17,6 +17,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -477,9 +478,10 @@ func (w *targetRiskWorkload) mfaChallenge(t *testing.T, code, submitted string) 
 		(account_id, scope, tenant_id, code_hash, expires_at, created_at, updated_at)
 		VALUES (?, 'tenant', ?, ?, NOW() + INTERVAL '10 minutes', NOW(), NOW()) RETURNING id`,
 		w.mfaAccountID, w.tenantID, testpkg.HashTestPassword(t, code)).Scan(context.Background(), &challengeID))
-	challenge, err := testpkg.TestTokenAuth(t).CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
+	challenge, err := tokentest.CreateMFAChallengeJWT(testpkg.TestTokenAuth(t), sessiontoken.MFAChallengeClaims{
 		AccountID: w.mfaAccountID, Scope: sessiontoken.MFAChallengeScopeTenant, TenantID: w.tenantID, ChallengeID: challengeID,
 	}, 10*time.Minute)
+
 	require.NoError(t, err)
 	return fmt.Sprintf(`{"challenge_token":%q,"code":%q}`, challenge, submitted)
 }

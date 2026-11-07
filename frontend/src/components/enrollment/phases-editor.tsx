@@ -109,6 +109,7 @@ import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { RemovableChip } from "~/components/ui/removable-chip";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -1423,22 +1424,13 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
       </div>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Betreuungszeitraum
-        </legend>
+      <FormFieldset legend="Betreuungszeitraum">
         {periods.length > 0 && (
-          <label
-            className="mb-3 block"
-            htmlFor="phase-calendar-period"
-            id="phase-calendar-period-label"
-          >
-            <span className="text-xs text-gray-600">
-              Kalenderzeitraum (optional)
-            </span>
+          <div className="mb-3">
             <CustomSelect
-              ariaLabelledBy="phase-calendar-period-label"
               id="phase-calendar-period"
+              label="Kalenderzeitraum (optional)"
+              hint="Verknüpft die Anmeldephase mit einem Zeitraum aus der Planung und übernimmt dessen Beginn und Ende."
               value={draft.calendar_period_id ?? ""}
               onChange={(value) => {
                 if (!value) {
@@ -1458,7 +1450,6 @@ function PhaseForm(props: PhaseFormProps) {
                     : {}),
                 });
               }}
-              className="mt-1"
               options={[
                 { value: "", label: "Kein Kalenderzeitraum" },
                 ...periods.map((period) => ({
@@ -1467,10 +1458,6 @@ function PhaseForm(props: PhaseFormProps) {
                 })),
               ]}
             />
-            <span className="mt-1 block text-xs text-gray-500">
-              Verknüpft die Anmeldephase mit einem Zeitraum aus der Planung und
-              übernimmt dessen Beginn und Ende.
-            </span>
             {!draft.calendar_period_id && (
               <span className="text-moto-orange mt-1 block text-xs">
                 Ohne Verknüpfung können Betreuungsplan und Dienstplan später
@@ -1496,23 +1483,17 @@ function PhaseForm(props: PhaseFormProps) {
                 </Button>
               </span>
             )}
-          </label>
+          </div>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="block">
-            <label
-              htmlFor="service_start_date"
-              className="text-xs text-gray-600"
-            >
-              Beginn
-            </label>
+          <div>
             <ISODatePicker
               id="service_start_date"
               controlSize="md"
+              label="Beginn"
               ariaLabel="Beginn"
               value={draft.service_start_date}
               error={fieldError("service_start_date")}
-              className="mt-1"
               calendarLayout="popover"
               hideClearButton
               required
@@ -1534,49 +1515,37 @@ function PhaseForm(props: PhaseFormProps) {
               }}
             />
           </div>
-          <div className="block">
-            <label htmlFor="service_end_date" className="text-xs text-gray-600">
-              Ende
-            </label>
+          <div>
             <ISODatePicker
               id="service_end_date"
               controlSize="md"
+              label="Ende"
               ariaLabel="Ende"
               min={draft.service_start_date || undefined}
               value={draft.service_end_date}
               onChange={(next) => update({ service_end_date: next })}
               error={fieldError("service_end_date")}
-              className="mt-1"
               calendarLayout="popover"
               hideClearButton
               required
             />
           </div>
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Anmeldefenster (optional)
-        </legend>
+      <FormFieldset legend="Anmeldefenster (optional)">
         <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
           Lassen Sie beide Felder leer, wenn das Anmeldeformular jederzeit
           erreichbar sein soll. Sonst kann die Anmeldung nur in diesem Zeitraum
           eingereicht werden.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="block">
-            <label
-              htmlFor="enrollment_open_at"
-              className="text-xs text-gray-600"
-            >
-              Öffnung
-            </label>
+          <div>
+            <FieldLabel htmlFor="enrollment_open_at">Öffnung</FieldLabel>
             <DateTimePicker
               id="enrollment_open_at"
               dateAriaLabel="Öffnung"
               timeAriaLabel="Öffnung Uhrzeit"
-              className="mt-1"
               value={toLocalInputValue(draft.enrollment_open_at)}
               invalid={Boolean(fieldError("enrollment_open_at"))}
               onChange={(nextLocal) => {
@@ -1598,18 +1567,12 @@ function PhaseForm(props: PhaseFormProps) {
               }}
             />
           </div>
-          <div className="block">
-            <label
-              htmlFor="enrollment_close_at"
-              className="text-xs text-gray-600"
-            >
-              Schließung
-            </label>
+          <div>
+            <FieldLabel htmlFor="enrollment_close_at">Schließung</FieldLabel>
             <DateTimePicker
               id="enrollment_close_at"
               dateAriaLabel="Schließung"
               timeAriaLabel="Schließung Uhrzeit"
-              className="mt-1"
               min={toLocalInputValue(draft.enrollment_open_at) || undefined}
               value={toLocalInputValue(draft.enrollment_close_at)}
               invalid={Boolean(fieldError("enrollment_close_at"))}
@@ -1624,19 +1587,17 @@ function PhaseForm(props: PhaseFormProps) {
             />
           </div>
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset
+      <FormFieldset
         ref={formSectionRef}
-        className={`rounded-xl border p-4 transition-colors duration-300 ${
+        legend="Formular"
+        className={`transition-colors duration-300 ${
           highlightFormSection
             ? "border-moto-green bg-moto-green/8 ring-moto-green/12 ring-4"
-            : "border-gray-200"
+            : ""
         }`}
       >
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Formular
-        </legend>
         <div className="space-y-2 text-sm">
           <label
             htmlFor="schema-source-base"
@@ -1706,70 +1667,50 @@ function PhaseForm(props: PhaseFormProps) {
             </span>
           </label>
         </div>
-      </fieldset>
+      </FormFieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label
-          className="block"
-          htmlFor="phase-care-selection-mode"
-          id="phase-care-selection-mode-label"
-        >
-          <span className="text-xs font-medium text-gray-700">
-            Betreuungsauswahl
-          </span>
-          <CustomSelect
-            ariaLabelledBy="phase-care-selection-mode-label"
-            id="phase-care-selection-mode"
-            value={draft.care_offering_selection_mode}
-            onChange={(value) =>
-              update({
-                care_offering_selection_mode:
-                  value as PhaseCareOfferingSelectionMode,
-              })
-            }
-            className="mt-1 py-2"
-            options={[
-              { value: "optional", label: CARE_SELECTION_LABELS.optional },
-              {
-                value: "at_least_one",
-                label: CARE_SELECTION_LABELS.at_least_one,
-              },
-              {
-                value: "exactly_one",
-                label: CARE_SELECTION_LABELS.exactly_one,
-              },
-            ]}
-          />
-          <span className="mt-1 block text-xs text-gray-500">
-            Pflichtangebote bleiben davon getrennt und sind immer vorausgewählt.
-          </span>
-        </label>
+        <CustomSelect
+          id="phase-care-selection-mode"
+          label="Betreuungsauswahl"
+          hint="Pflichtangebote bleiben davon getrennt und sind immer vorausgewählt."
+          value={draft.care_offering_selection_mode}
+          onChange={(value) =>
+            update({
+              care_offering_selection_mode:
+                value as PhaseCareOfferingSelectionMode,
+            })
+          }
+          className="py-2"
+          options={[
+            { value: "optional", label: CARE_SELECTION_LABELS.optional },
+            {
+              value: "at_least_one",
+              label: CARE_SELECTION_LABELS.at_least_one,
+            },
+            {
+              value: "exactly_one",
+              label: CARE_SELECTION_LABELS.exactly_one,
+            },
+          ]}
+        />
 
-        <label
-          className="block"
-          htmlFor="phase-care-overflow-mode"
-          id="phase-care-overflow-mode-label"
-        >
-          <span className="text-xs font-medium text-gray-700">
-            Verhalten bei voller Betreuung
-          </span>
-          <CustomSelect
-            ariaLabelledBy="phase-care-overflow-mode-label"
-            id="phase-care-overflow-mode"
-            value={draft.care_overflow_mode}
-            onChange={(value) =>
-              update({
-                care_overflow_mode: value as PhaseCareOverflowMode,
-              })
-            }
-            className="mt-1 py-2"
-            options={[
-              { value: "waitlist", label: OVERFLOW_LABELS.waitlist },
-              { value: "reject", label: OVERFLOW_LABELS.reject },
-              { value: "allow", label: OVERFLOW_LABELS.allow },
-            ]}
-          />
-        </label>
+        <CustomSelect
+          id="phase-care-overflow-mode"
+          label="Verhalten bei voller Betreuung"
+          value={draft.care_overflow_mode}
+          onChange={(value) =>
+            update({
+              care_overflow_mode: value as PhaseCareOverflowMode,
+            })
+          }
+          className="py-2"
+          options={[
+            { value: "waitlist", label: OVERFLOW_LABELS.waitlist },
+            { value: "reject", label: OVERFLOW_LABELS.reject },
+            { value: "allow", label: OVERFLOW_LABELS.allow },
+          ]}
+        />
 
         <div className="flex flex-col gap-2 pt-5">
           <CheckboxCard
@@ -1789,10 +1730,7 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
       </div>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Zielgruppe
-        </legend>
+      <FormFieldset legend="Zielgruppe">
         <div className="space-y-2 text-sm">
           {AUDIENCE_OPTIONS.map((option) => (
             <label
@@ -1821,10 +1759,8 @@ function PhaseForm(props: PhaseFormProps) {
           ))}
         </div>
         <div className="mt-4">
-          <span className="text-xs font-medium text-gray-700">
-            Nur für Klassenstufen (optional)
-          </span>
-          <p className="mt-1 text-xs leading-5 text-gray-500">
+          <FieldLabel>Nur für Klassenstufen (optional)</FieldLabel>
+          <p className="text-xs leading-5 text-gray-500">
             Leer lassen für keine Einschränkung. Kinder müssen eine dieser
             Klassenstufen angeben, zum Beispiel für eine Phase nur für den 3.
             Jahrgang. Dafür genügt die Klassenstufen-Abfrage, konkrete Klassen
@@ -1837,10 +1773,8 @@ function PhaseForm(props: PhaseFormProps) {
           />
         </div>
         <div className="mt-4">
-          <span className="text-xs font-medium text-gray-700">
-            Nur für Klassen (optional)
-          </span>
-          <p className="mt-1 text-xs leading-5 text-gray-500">
+          <FieldLabel>Nur für Klassen (optional)</FieldLabel>
+          <p className="text-xs leading-5 text-gray-500">
             Leer lassen für keine Einschränkung. Kinder müssen eine dieser
             Klassen angeben. Diese Klassen werden automatisch als „Konkrete
             Klassen“ zur Auswahl angeboten und sind ab Klasse 2 bei aktiver
@@ -1869,12 +1803,9 @@ function PhaseForm(props: PhaseFormProps) {
             }
           />
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Konkrete Klassen
-        </legend>
+      <FormFieldset legend="Konkrete Klassen">
         <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
           Ab der 2. Klasse können Eltern die konkrete Klasse (z. B. 2a) aus
           dieser Liste wählen. Für die 1. Klasse wird weiterhin nur die
@@ -1916,7 +1847,7 @@ function PhaseForm(props: PhaseFormProps) {
             hint="(Eltern müssen ab der 2. Klasse eine Klasse wählen)"
           />
         </div>
-      </fieldset>
+      </FormFieldset>
 
       <TranslationsSection
         targets={
