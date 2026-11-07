@@ -7,7 +7,6 @@ import {
   latestSchemasByName,
   schemaToPublicFormSchema,
   listSchemas,
-  fetchPublicActiveSchema,
   fetchPublicLegalTexts,
   createSchema,
   deleteEnrollmentLegalDocument,
@@ -16,7 +15,6 @@ import {
   deleteSchema,
   uploadEnrollmentLegalDocument,
   type FormSchema,
-  type FormField,
 } from "./enrollment-form-schema-api";
 import { ApiError } from "./api-error";
 import { presentError } from "./error-presentation";
@@ -252,48 +250,6 @@ describe("listSchemas", () => {
     mockFetch(async () => new Response("server boom", { status: 500 }));
     await expect(listSchemas()).rejects.toThrow(
       /Formularvorlagen konnten nicht geladen werden/,
-    );
-  });
-});
-
-// --- fetchPublicActiveSchema -----------------------------------------
-
-describe("fetchPublicActiveSchema", () => {
-  it("returns null on 404 (no schema published yet)", async () => {
-    // 404 is the explicit no-schema fallback path so the form renders
-    // core fields only.
-    mockFetch(async () => new Response("", { status: 404 }));
-    const out = await fetchPublicActiveSchema("slug", "1");
-    expect(out).toBeNull();
-  });
-
-  it("returns the schema on 200", async () => {
-    mockFetch(async () =>
-      jsonResponse({
-        data: { id: "1234", version: 1, fields: [] as FormField[] },
-      }),
-    );
-    const out = await fetchPublicActiveSchema("slug", "1");
-    expect(out).not.toBeNull();
-    expect(out!.id).toBe("1234");
-  });
-
-  it("URL-encodes the tenant slug and phase id", async () => {
-    let seenURL = "";
-    mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ data: { id: "1", version: 1, fields: [] } });
-    });
-    await fetchPublicActiveSchema("we/ird", "ph/ase");
-    expect(seenURL).not.toContain("we/ird");
-    expect(seenURL).toContain("we%2Fird");
-    expect(seenURL).toContain("ph%2Fase");
-  });
-
-  it("throws with the German fallback on non-OK non-404", async () => {
-    mockFetch(async () => new Response("nope", { status: 500 }));
-    await expect(fetchPublicActiveSchema("slug", "1")).rejects.toThrow(
-      /Formular konnte nicht geladen werden/,
     );
   });
 });

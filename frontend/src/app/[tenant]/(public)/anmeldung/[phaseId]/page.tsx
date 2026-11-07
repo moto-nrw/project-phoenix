@@ -7,6 +7,7 @@ import { Check, Mail } from "lucide-react";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale, useTranslations } from "next-intl";
+import { LATE_INVITE_QUERY_PARAM } from "~/lib/enrollment-http";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import { prefetchedDataFromBootstrap } from "~/components/enrollment/enrollment-form-config";
 import {
@@ -59,7 +60,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
   const { phaseId } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const lateInviteToken = searchParams.get("late_invite")?.trim();
+  const lateInviteToken = searchParams.get(LATE_INVITE_QUERY_PARAM)?.trim();
   const { tenantSlug, tenant } = useTenant();
   const tenantPath = useTenantAwarePath();
   const [bootstrap, setBootstrap] = useState<PublicEnrollmentBootstrap | null>(

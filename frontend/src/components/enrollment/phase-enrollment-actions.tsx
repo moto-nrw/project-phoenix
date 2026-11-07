@@ -46,6 +46,7 @@ import {
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
 import { createLogger } from "~/lib/logger";
+import { withLateInviteQuery } from "~/lib/enrollment-http";
 import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "PhaseEnrollmentActions" });
@@ -93,7 +94,7 @@ export function LateInviteModal({
         guardian_email: guardianEmail.trim(),
         reason: reason.trim() || undefined,
       });
-      setGeneratedUrl(buildLateInviteUrl(phaseUrl, result.token));
+      setGeneratedUrl(withLateInviteQuery(phaseUrl, result.token));
     } catch (err) {
       logger.warn("late_invite_create_failed", {
         error: err instanceof Error ? err.message : "unknown",
@@ -431,15 +432,4 @@ function toManualPrefetchedData(
     },
     { phaseRestrictions: false },
   );
-}
-
-function buildLateInviteUrl(phaseUrl: string, token: string): string {
-  try {
-    const url = new URL(phaseUrl);
-    url.searchParams.set("late_invite", token);
-    return url.toString();
-  } catch {
-    const separator = phaseUrl.includes("?") ? "&" : "?";
-    return `${phaseUrl}${separator}late_invite=${encodeURIComponent(token)}`;
-  }
 }

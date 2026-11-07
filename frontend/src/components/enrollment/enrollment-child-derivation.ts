@@ -3,6 +3,7 @@
 // class rule from deriveChild, so a rule changes in one place.
 
 import { availableCareOfferings } from "~/lib/care-offering-availability";
+import { getSchoolYear } from "~/lib/student-helpers";
 import {
   materializeCareSelection,
   type MaterializedCareSelection,
@@ -189,13 +190,6 @@ export function selectableGradeLevels(
     : everyGrade;
 }
 
-// The first run of digits in a class name ("2a" -> "2", "Klasse 12b" ->
-// "12"), like getSchoolYear and the backend schoolclass helper.
-function schoolClassGradePrefix(schoolClass: string): string {
-  const match = /(\d+)/.exec(schoolClass);
-  return match?.[1] ?? "";
-}
-
 /**
  * Whether a class may be offered for a grade. The phase list mixes all
  * grades and the backend rejects a mismatch; classes without a numeric
@@ -205,8 +199,8 @@ export function classMatchesGrade(
   schoolClass: string,
   gradeLevel: string,
 ): boolean {
-  const prefix = schoolClassGradePrefix(schoolClass);
-  return prefix === "" || prefix === gradeLevel.trim();
+  const grade = getSchoolYear(schoolClass);
+  return grade === null || grade === gradeLevel.trim();
 }
 
 // Grade 2 and up collect a class whenever the phase offers a matching one
@@ -226,9 +220,7 @@ function collectsConcreteClassForGrade(
     );
   }
   if (config.collect_grade_1 === true) return true;
-  return config.available_classes.some(
-    (cls) => schoolClassGradePrefix(cls) === "1",
-  );
+  return config.available_classes.some((cls) => getSchoolYear(cls) === "1");
 }
 
 function materializeChildCare(

@@ -341,7 +341,7 @@ describe("Turnstile CSP", () => {
     ["school-a.localhost:3000", "/ferienanmeldung/link-key"],
     [SCHOOL_HOSTNAME, "/anmeldung/5"],
     [OPERATOR_HOSTNAME, "/anmeldung/5"],
-    ["school-a.localhost:3000", "/api/enrollment/captcha-config/school-a"],
+    ["school-a.localhost:3000", "/api/enrollment/phases/public/school-a"],
   ])("keeps the original CSP on %s%s", (host, path) => {
     const res = proxy(makeRequest(`http://${host}${path}`, host));
     const csp = res.headers.get("Content-Security-Policy") ?? "";

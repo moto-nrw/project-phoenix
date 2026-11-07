@@ -117,6 +117,7 @@ export const nodeLogicTestFiles = [
   "src/lib/enrollment-change-request-diff.test.ts",
   "src/lib/enrollment-api-error.test.ts",
   "src/lib/enrollment-field-visibility.test.ts",
+  "src/lib/enrollment-http.test.ts",
   "src/lib/enrollment-phase-api.test.ts",
   "src/lib/enrollment-phase-responses-api.test.ts",
   "src/lib/enrollment-submission-api.eligibility.test.ts",

@@ -12,6 +12,10 @@ import {
   hostnameFromAuthority,
 } from "~/lib/client-headers.server";
 import { problemResponse } from "~/lib/api-helpers.server";
+import {
+  LATE_INVITE_QUERY_PARAM,
+  withLateInviteQuery,
+} from "~/lib/enrollment-http";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "EnrollmentFormBootstrapRoute" });
@@ -48,13 +52,12 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
       return problemResponse(400, "Invalid request host", request);
     }
     const isParentPortal = requestHostname === parentsHostname;
-    const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();
-    const backendUrl = new URL(
+    const backendUrl = withLateInviteQuery(
       `${getServerApiUrl()}/api/enrollment/form-bootstrap/public/${encodeURIComponent(
         tenantSlug,
       )}/${encodeURIComponent(phaseId)}`,
+      request.nextUrl.searchParams.get(LATE_INVITE_QUERY_PARAM),
     );
-    if (lateInvite) backendUrl.searchParams.set("late_invite", lateInvite);
     const response = await fetch(backendUrl, {
       headers: clientIdentityHeaders(request.headers),
       cache: "no-store",

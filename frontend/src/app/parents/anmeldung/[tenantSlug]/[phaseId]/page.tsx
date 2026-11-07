@@ -4,6 +4,7 @@ import { Suspense, use, useCallback, useEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- parent portal uses bare paths, no tenant-router
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { LATE_INVITE_QUERY_PARAM } from "~/lib/enrollment-http";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
   prefetchedDataFromBootstrap,
@@ -58,7 +59,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
   const { tenantSlug, phaseId } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const lateInviteToken = searchParams.get("late_invite")?.trim();
+  const lateInviteToken = searchParams.get(LATE_INVITE_QUERY_PARAM)?.trim();
   const [loaded, setLoaded] = useState<{
     tenant: TenantInfo;
     prefetchedData: EnrollmentFormPrefetchedData;
