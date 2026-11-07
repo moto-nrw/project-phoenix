@@ -376,7 +376,7 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadInvalid,
 			map[string]any{"max_mb": rejection.MaxMB, "allowed_types": rejection.AllowedTypes}))
 	case errors.Is(err, capability.ErrUploadRateLimited):
-		w.Header().Set("Retry-After", "3600")
+		setRateLimitRetryAfter(w)
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentUploadRateLimited))
 	case errors.Is(err, capability.ErrHolidayProofExpired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentUploadExpired))
@@ -389,8 +389,7 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 	case errors.Is(err, capability.ErrHolidayRegistrationFormChanged):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationFormChanged))
 	case errors.Is(err, capability.ErrRateLimited):
-		// The same hint as the online registration: no exact remaining time.
-		w.Header().Set("Retry-After", "3600")
+		setRateLimitRetryAfter(w)
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentSubmissionRateLimited))
 	case errors.Is(err, capability.ErrCaptchaRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCaptchaRequired))

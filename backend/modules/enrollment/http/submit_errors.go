@@ -14,11 +14,19 @@ import (
 func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	renderer := submitErrorRenderer(err)
 	if resp, ok := renderer.(*common.ErrResponse); ok && resp.Code == common.CodeEnrollmentSubmissionRateLimited {
-		// 429 Too Many Requests. Hard-coded retry hint avoids leaking
-		// the exact remaining seconds.
-		w.Header().Set("Retry-After", "3600")
+		setRateLimitRetryAfter(w)
 	}
 	common.RenderError(w, r, renderer)
+}
+
+// rateLimitRetryAfterSeconds is the Retry-After hint of every refused
+// public submission, upload and holiday registration. It is fixed on purpose:
+// it does not leak the remaining time of the bucket that refused.
+const rateLimitRetryAfterSeconds = "3600"
+
+// setRateLimitRetryAfter sets the Retry-After hint of a rate-limit refusal.
+func setRateLimitRetryAfter(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", rateLimitRetryAfterSeconds)
 }
 
 // submitErrorRenderer classifies a refused submission. The first matching
