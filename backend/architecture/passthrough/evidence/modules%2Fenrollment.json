@@ -695,7 +695,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (m *Service) DeleteExpiredSubmissionRateLimits(ctx context.Context) (int, int, error) {\n\tdeleted, err := m.store.CleanupExpired(ctx)\n\tif err != nil {\n\t\treturn 0, 0, err\n\t}\n\treturn deleted, submissionRateLimitRetentionDays, nil\n}",
+      "evidence": "func (m *Service) DeleteExpiredSubmissionRateLimits(ctx context.Context) (int, int, error) {\n\tdeleted, err := m.store.CleanupExpired(ctx, rateLimitRetention)\n\tif err != nil {\n\t\treturn 0, 0, err\n\t}\n\treturn deleted, submissionRateLimitRetentionDays, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/internal/application/Service.DeleteExpiredSubmissionRateLimits",
       "owner": "modules/enrollment"
