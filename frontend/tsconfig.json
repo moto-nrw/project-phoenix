@@ -29,9 +29,7 @@
         "name": "next"
       }
     ],
-    // TypeScript 7 can restore pnpm store paths without a file extension from
-    // its incremental cache; those paths make the native parser panic.
-    "incremental": false,
+    "incremental": true,
     /* Path Aliases */
     "paths": {
       "~/*": [
