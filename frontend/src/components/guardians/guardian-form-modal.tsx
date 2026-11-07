@@ -620,12 +620,12 @@ export default function GuardianFormModal({
                   </h3>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                     <div>
-                      <div className="mb-1 flex items-center gap-1">
+                      <div className="mb-2 flex items-center gap-1">
                         <FieldLabel
                           htmlFor={`guardian-first-name-${entry.id}`}
                           required
                           invalid={hasFieldError(entry.id, "firstName")}
-                          className="mb-0 text-xs"
+                          className="mb-0"
                         >
                           Vorname
                         </FieldLabel>
@@ -653,12 +653,12 @@ export default function GuardianFormModal({
                     </div>
 
                     <div>
-                      <div className="mb-1 flex items-center gap-1">
+                      <div className="mb-2 flex items-center gap-1">
                         <FieldLabel
                           htmlFor={`guardian-last-name-${entry.id}`}
                           required
                           invalid={hasFieldError(entry.id, "lastName")}
-                          className="mb-0 text-xs"
+                          className="mb-0"
                         >
                           Nachname
                         </FieldLabel>
@@ -747,9 +747,7 @@ export default function GuardianFormModal({
 
                   {/* Phone Numbers */}
                   <div className="space-y-3">
-                    <span className="block text-xs font-medium text-gray-700">
-                      Telefonnummern
-                    </span>
+                    <FieldLabel className="mb-0">Telefonnummern</FieldLabel>
 
                     {entry.phoneNumbers.map((phone, phoneIndex) => (
                       <div
