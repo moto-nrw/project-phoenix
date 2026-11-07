@@ -734,7 +734,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     expect(output).not.toContain("no-hand-rolled-surface");
   });
 
-  it("ignores unsupported variants, frameless borders and translucent fills", async () => {
+  it("ignores unsupported variants, frameless borders and transparent fills", async () => {
     const result = await lintSource(
       `
       function Probe() {
@@ -742,6 +742,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
           <div className="rounded-xl border-0 bg-white px-4 ring-1" />
           <div className="rounded-xl border-none bg-white p-4" />
           <div className="rounded-2xl border-b bg-white p-4" />
+          <div className="rounded-lg border bg-white/0 p-3" />
           <div className="flex gap-4 print:rounded-2xl print:border print:bg-white" />
         </>;
       }

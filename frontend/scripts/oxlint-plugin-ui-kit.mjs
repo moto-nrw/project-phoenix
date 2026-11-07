@@ -728,7 +728,7 @@ const SURFACE_KIT_CONTROLS = new Map([
 // Kette ist weiter hart null; nur die Schärfung trägt eine Baseline.
 const SURFACE_WIDE_ROUNDED_RE = /^rounded-(?:md|lg|xl|2xl)$/;
 const SURFACE_FRAME_RE = /^border(?:-[1-9]\d*)?$/;
-const SURFACE_WHITE_FILL_RE = /^bg-white(?:\/\d+)?$/;
+const SURFACE_WHITE_FILL_RE = /^bg-white(?:\/[1-9]\d*)?$/;
 const SURFACE_RESPONSIVE_VARIANT_RE =
   /^(?:(?:max-)?(?:sm|md|lg|xl|2xl)|compact|min-\[[^\]]+\]|max-\[[^\]]+\])$/;
 const SURFACE_BREAKPOINTS = ["sm", "md", "lg", "xl", "2xl"];
