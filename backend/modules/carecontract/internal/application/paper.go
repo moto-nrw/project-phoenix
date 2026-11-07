@@ -54,6 +54,9 @@ func (s *Signatures) RecordPaperSignature(ctx context.Context, reviewer carecont
 	if err != nil {
 		return err
 	}
+	// The record was read before the PDF froze: the conclusion sees the
+	// contract as it is now, sent with its frozen PDF.
+	record.Summary.Status, record.DocumentID = carecontract.StatusSent, &document.ID
 	checksum, err := versionChecksum(s.ports.Links.Fingerprint, record.Version)
 	if err != nil {
 		return err
@@ -67,7 +70,7 @@ func (s *Signatures) RecordPaperSignature(ctx context.Context, reviewer carecont
 	}); err != nil {
 		return err
 	}
-	status, err := concludeSigned(ctx, s.store, reviewer.OrganizationID, record, now)
+	status, err := concludeSigned(ctx, s.store, reviewer.OrganizationID, reviewer.AccountID, record, carecontract.SignaturePaper, now)
 	if err != nil {
 		return err
 	}

@@ -304,13 +304,13 @@ func (s *Signatures) sign(ctx context.Context, organizationID int64, record Cont
 	}); err != nil {
 		return carecontract.SigningView{}, err
 	}
-	status, err := concludeSigned(ctx, s.store, organizationID, record, now)
-	if err != nil {
-		return carecontract.SigningView{}, err
-	}
 	accountID := int64(0)
 	if who.accountID != nil {
 		accountID = *who.accountID
+	}
+	status, err := concludeSigned(ctx, s.store, organizationID, accountID, record, input.Method, now)
+	if err != nil {
+		return carecontract.SigningView{}, err
 	}
 	if err := s.event(ctx, organizationID, record, accountID, ports.ActionSign, map[string]any{
 		"via": who.channel, "method": input.Method, "document_sha256": document.SHA256, "version_sha256": checksum,

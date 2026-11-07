@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,15 +12,25 @@ import (
 )
 
 // The conclusion of a signed contract (#4679). A signature, online or on
-// paper, concludes the sent contract: it becomes aktiv and its version
-// wirksam, under the row lock the caller holds. #4680 concludes a contract
-// at the acceptance of the application with the same transition
-// (concludeContract there, methods einfach_elektronisch and papier for the
-// signature); once both are merged, concludeSigned calls it.
+// paper, concludes the sent contract through the one transition of #4680
+// (concludeContract): it becomes aktiv with the method and the instant of
+// the signature, its version wirksam, under the row lock the caller holds.
 
-// concludeSigned moves the sent contract of record to aktiv.
-func concludeSigned(ctx context.Context, store SignatureStore, organizationID int64, record ContractRecord, at time.Time) (string, error) {
-	if err := store.ConcludeContract(ctx, organizationID, record.Summary.ID, record.Version.ID, at); err != nil {
+// concludeSigned concludes the sent contract of record with the signature
+// made at at: einfach_elektronisch for a drawn or typed signature, papier
+// for a paper contract. A contract the transition refuses is no contract a
+// signature can conclude.
+func concludeSigned(ctx context.Context, store Store, organizationID, accountID int64, record ContractRecord,
+	signature string, at time.Time) (string, error) {
+	method := carecontract.MethodElectronic
+	if signature == carecontract.SignaturePaper {
+		method = carecontract.MethodPaper
+	}
+	err := concludeContract(ctx, store, organizationID, accountID, record, carecontract.Concluded{Method: method, At: at})
+	if errors.Is(err, carecontract.ErrContractNotConcludable) {
+		return "", fmt.Errorf("%w: %w", carecontract.ErrContractNotSignable, err)
+	}
+	if err != nil {
 		return "", err
 	}
 	return carecontract.StatusActive, nil

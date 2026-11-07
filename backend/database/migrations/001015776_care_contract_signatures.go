@@ -14,7 +14,8 @@ func init() {
 		Version:     careContractSignaturesVersion,
 		Description: "Betreuungsvertrag: Unterschrift, einmaliger Mail-Link, Papiervertrag, Erinnerung (#4679)",
 		DependsOn: []string{
-			careContractDraftsVersion, // the tables of the contract (#4678)
+			careContractDraftsVersion,     // the tables of the contract (#4678)
+			careContractConclusionVersion, // concluded_at, conclusion_method and the version trigger (#4680)
 		},
 	})
 	Migrations.MustRegister(careContractSignaturesUp, careContractSignaturesDown)
@@ -45,10 +46,11 @@ func init() {
 //     not signed yet, at most one per number and contract.
 //
 // The request role adds signatures, links and reminders and never changes a
-// signature; of a link it may only set used_at. A signed contract becomes
-// aktiv and its version wirksam, the transition #4680 (1.15.760) guards with
-// its trigger once both are merged; the grant on the status of a version is
-// the same in both.
+// signature; of a link it may only set used_at. A signature concludes the
+// contract through the transition of #4680 (1.15.773): aktiv with
+// concluded_at and conclusion_method (chk_contracts_active_concluded), its
+// version wirksam under that migration's trigger. The grant on the status of
+// a version is the same in both, and Down leaves it to 1.15.773.
 const careContractSignaturesUpSQL = `
 CREATE TABLE audit.traeger_signatures (
 	id BIGSERIAL PRIMARY KEY,

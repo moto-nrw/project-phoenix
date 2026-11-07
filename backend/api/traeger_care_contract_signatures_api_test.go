@@ -17,6 +17,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -361,4 +362,73 @@ func TestCareContractRemindersFollowTheTraegersDays(t *testing.T) {
 
 	assert.Equal(t, "aktiv", signedDetail(t, f, signed).Status)
 	assert.Equal(t, "versendet", signedDetail(t, f, waiting).Status)
+}
+
+// concludedRow is a contract as the conclusion of #4680 leaves it.
+type concludedRow struct {
+	Status        string     `bun:"status"`
+	ConcludedAt   *time.Time `bun:"concluded_at"`
+	Method        *string    `bun:"conclusion_method"`
+	VersionStatus string     `bun:"version_status"`
+	SignedAt      time.Time  `bun:"signed_at"`
+	Conclusions   int        `bun:"conclusions"`
+}
+
+func readConcluded(t *testing.T, f careContractFixture, contractID int64) concludedRow {
+	t.Helper()
+	var row concludedRow
+	require.NoError(t, f.db.NewRaw(`SELECT c.status, c.concluded_at, c.conclusion_method, v.status AS version_status, s.signed_at,
+			(SELECT COUNT(*) FROM care_contract.contract_events e WHERE e.contract_id = c.id AND e.action = 'conclude') AS conclusions
+		FROM care_contract.contracts c
+		JOIN care_contract.contract_versions v ON v.contract_id = c.id
+		JOIN care_contract.contract_signatures s ON s.contract_version_id = v.id
+		WHERE c.id = ?`, contractID).Scan(context.Background(), &row))
+	return row
+}
+
+// TestCareContractSignatureConcludesThroughTheConclusionTransition pins that
+// a signature concludes its contract through the one transition of #4680:
+// online and on paper the contract becomes aktiv with concluded_at and the
+// method of ADR 0088 section 3, its version wirksam, the trail records the
+// conclusion once, and chk_contracts_active_concluded holds for every row.
+func TestCareContractSignatureConcludesThroughTheConclusionTransition(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Abschluss Unterschrift")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+
+	online, link := sentCareContract(t, f, f.child)
+	rec := publicSigning(t, f.traeger, http.MethodPost, link+"/sign",
+		map[string]any{"method": "drawn", "image_png": signatureImage(t), "withdrawal_notice_acknowledged": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	sibling := careContractApplication(t, f.db, f.school, f.phase, f.offering, "Ben", "erika.muster@example.org")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, "/traeger/contracts",
+		map[string]any{"contracts": []any{map[string]any{"school_id": f.school, "request_child_id": sibling}}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	paper := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes()).Created[0].ID
+	rec = paperUpload(t, f, f.office.token, paper, "vertrag.pdf", []byte("%PDF-1.4 unterschriebener Vertrag"))
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+
+	for name, want := range map[string]struct {
+		id     int64
+		method string
+	}{"online": {online, "einfach_elektronisch"}, "paper from a draft": {paper, "papier"}} {
+		row := readConcluded(t, f, want.id)
+		assert.Equal(t, "aktiv", row.Status, name)
+		require.NotNil(t, row.ConcludedAt, "%s: an active contract is concluded", name)
+		assert.True(t, row.ConcludedAt.Equal(row.SignedAt), "%s: concluded when signed", name)
+		require.NotNil(t, row.Method, name)
+		assert.Equal(t, want.method, *row.Method, name)
+		assert.Equal(t, "wirksam", row.VersionStatus, name)
+		assert.Equal(t, 1, row.Conclusions, "%s: the trail records the conclusion once", name)
+	}
+
+	var constraint string
+	require.NoError(t, f.db.NewRaw(`SELECT pg_get_constraintdef(oid) FROM pg_constraint
+		WHERE conrelid = 'care_contract.contracts'::regclass AND conname = 'chk_contracts_active_concluded'`).Scan(context.Background(), &constraint))
+	assert.Contains(t, constraint, "concluded_at IS NOT NULL", "the constraint stays as #4680 defines it")
+	var violations int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM care_contract.contracts
+		WHERE status = 'aktiv' AND (concluded_at IS NULL OR conclusion_method IS NULL)`).Scan(context.Background(), &violations))
+	assert.Zero(t, violations, "no active contract without its conclusion")
 }

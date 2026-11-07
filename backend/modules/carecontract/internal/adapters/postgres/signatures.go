@@ -204,36 +204,6 @@ func (Store) PaperDocument(ctx context.Context, organizationID, contractID int64
 	return row.file(err, carecontract.ErrContractNotFound)
 }
 
-// ConcludeContract moves a sent contract to aktiv and its version from
-// beantragt to wirksam. Both updates are conditional: a contract that is no
-// longer versendet, or a version no longer beantragt, answers
-// ErrContractNotSignable and changes nothing the caller keeps.
-func (Store) ConcludeContract(ctx context.Context, organizationID, contractID, versionID int64, _ time.Time) error {
-	db, err := traegerDB(ctx, organizationID)
-	if err != nil {
-		return err
-	}
-	result, err := db.ExecContext(ctx, `UPDATE care_contract.contracts SET status = ?
-		WHERE organization_id = ? AND id = ? AND status = ?`,
-		carecontract.StatusActive, organizationID, contractID, carecontract.StatusSent)
-	if err != nil {
-		return fmt.Errorf("care contract postgres: conclude contract: %w", err)
-	}
-	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
-		return carecontract.ErrContractNotSignable
-	}
-	result, err = db.ExecContext(ctx, `UPDATE care_contract.contract_versions SET status = ?
-		WHERE organization_id = ? AND contract_id = ? AND id = ? AND status = ?`,
-		carecontract.VersionEffective, organizationID, contractID, versionID, carecontract.VersionRequested)
-	if err != nil {
-		return fmt.Errorf("care contract postgres: make version effective: %w", err)
-	}
-	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
-		return carecontract.ErrContractNotSignable
-	}
-	return nil
-}
-
 // Reminders reads the reminder mails of a contract, oldest first.
 func (Store) Reminders(ctx context.Context, organizationID, contractID int64) ([]carecontract.Reminder, error) {
 	db, err := traegerDB(ctx, organizationID)

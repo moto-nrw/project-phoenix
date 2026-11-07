@@ -40,7 +40,11 @@ und ADR 0088 §3 auf.
    Zeitpunkt der Widerrufsbelehrung und den Wunsch nach Beginn in der
    Widerrufsfrist. Eine Signatur je Version; eine geänderte Version
    unterschreibt neu (#4816). Die Unterschrift schließt den versendeten
-   Vertrag mit dem Übergang von #4680 ab.
+   Vertrag über den einen Übergang von #4680 ab (`concludeContract`):
+   `aktiv` mit `concluded_at` und `conclusion_method` (`einfach_elektronisch`
+   online, `papier` auf Papier), die Version `wirksam`. So gilt
+   `chk_contracts_active_concluded` aus 1.15.773 auch für unterschriebene
+   Verträge; die Migration 1.15.776 hängt von 1.15.773 ab.
 3. **Einmaliger Mail-Link.** `<Träger>.<Token>`, gespeichert wird nur der
    SHA-256 des Tokens. Der Link nennt einen Vertrag und das PDF, mit dem er
    ging, gilt 30 Tage und einmal. Lesen verbraucht ihn nicht; nur die
@@ -79,7 +83,5 @@ und ADR 0088 §3 auf.
 
 - #4816 legt für eine neue Version eine neue Signatur an; der Unique-Key je
   Version bleibt.
-- Nach dem Merge von #4680 ruft die Unterschrift dessen `concludeContract`
-  mit den Methoden `einfach_elektronisch` und `papier` auf.
 - Eine kundenspezifische Schriftform ersetzt die einfache Signatur nicht; das
   prüft das Onboarding.

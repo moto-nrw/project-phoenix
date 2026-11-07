@@ -92,7 +92,6 @@ type SignatureStore interface {
 	InsertSignature(ctx context.Context, organizationID int64, signature NewSignature) error
 	Signature(ctx context.Context, organizationID, contractID, versionID int64) (*StoredSignature, error)
 	PaperDocument(ctx context.Context, organizationID, contractID int64) (carecontract.File, error)
-	ConcludeContract(ctx context.Context, organizationID, contractID, versionID int64, at time.Time) error
 	Reminders(ctx context.Context, organizationID, contractID int64) ([]carecontract.Reminder, error)
 	DueReminders(ctx context.Context, organizationID int64, lastContactBefore time.Time, maxReminders int) ([]ReminderCandidate, error)
 	InsertReminder(ctx context.Context, organizationID, contractID int64, number int, outboxID int64, recipient string) error
