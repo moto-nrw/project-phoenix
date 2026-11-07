@@ -38,7 +38,6 @@ import { operatorsConcept } from "~/lib/concepts/operators";
 import { SectionCard } from "~/components/ui/section-card";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
 
 const logger = createLogger({ component: "OperatorOperatorsPage" });
 
@@ -65,16 +64,12 @@ export default function OperatorOperatorsPage() {
     <TenantPage
       title="Operatoren"
       info={<p>Neue Operatoren einladen und bestehende anzeigen.</p>}
+      loading={isLoading}
+      loadingLabel="Operatoren werden geladen"
     >
       <InviteForm onCreated={() => void mutate()} />
 
       <LoadErrorAlert error={loadError} />
-
-      {isLoading && (
-        <SkeletonRegion label="Operatoren werden geladen">
-          <ListSkeleton rows={4} avatar={false} />
-        </SkeletonRegion>
-      )}
 
       {data && (
         <>

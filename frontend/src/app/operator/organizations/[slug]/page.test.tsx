@@ -1565,21 +1565,21 @@ describe("OperatorOrganizationDetailPage", () => {
   // verifying the row-level caregiver button exists, exercising the prop
   // passthrough path.
 
-  // --- EmptyState action button + Create Device modal in Geräte tab ---
+  // --- Kopfaktionen + Create Device modal in Geräte tab ---
   // Each click here exercises an `onClick` arrow that lives inside JSX and
   // would otherwise stay uncovered.
 
-  it("opens the create-school modal from the empty-state action", async () => {
+  it("opens the create-school modal from the header action", async () => {
     currentSearchParams = new URLSearchParams("tab=schulen");
     setupSWR({ schools: [] });
 
     await renderPage();
 
-    // The page renders two paths to "Neue Schule": the tab-action button and
-    // the EmptyState button. Click the latter (button inside the empty card).
-    const buttons = await screen.findAllByText("Neue Schule");
-    // Click the last one (the EmptyState action) to hit line 521.
-    fireEvent.click(buttons[buttons.length - 1]!);
+    const action = await screen.findByRole("button", {
+      name: "Neue Schule",
+    });
+    expect(action.closest("header")).not.toBeNull();
+    fireEvent.click(action);
 
     await waitFor(() =>
       expect(screen.getByTestId("modal")).toBeInTheDocument(),

@@ -47,7 +47,6 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import {
-  ProvisioningEmptyState,
   PlusIcon,
   SimpleEmptyState,
 } from "~/app/operator/provisioning/provisioning-shared";
@@ -681,7 +680,12 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
           active={organization.active}
         />
       }
-      actions={orgHeaderActions}
+      actions={
+        <>
+          {orgHeaderActions}
+          {tabActions}
+        </>
+      }
       tabs={{
         value: activeTab,
         onChange: handleTabValueChange,
@@ -861,12 +865,6 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         </>
       ) : null}
 
-      {tabActions ? (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {tabActions}
-        </div>
-      ) : null}
-
       {activeTab === "schulen" ? (
         <>
           <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
@@ -893,12 +891,12 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             !schoolsError &&
             organizationSchoolSummaries !== undefined &&
             activeSchools.length === 0 ? (
-            <ProvisioningEmptyState
-              title="Keine Schulen"
-              description="Erstellen Sie eine neue Schule unter diesem Träger."
-              buttonLabel="Neue Schule"
-              onAction={() => setCreateSchoolOpen(true)}
-            />
+            <SectionCard>
+              <EmptyState
+                title="Keine Schulen"
+                description="Erstellen Sie eine neue Schule über die Kopfkarte."
+              />
+            </SectionCard>
           ) : (organizationSchoolSummaries === undefined && !schoolsLoading) ||
             schoolsError ? null : (
             <DataTable

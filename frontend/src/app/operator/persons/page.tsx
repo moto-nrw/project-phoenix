@@ -17,10 +17,6 @@ import { PersonTags } from "~/components/operator/persons-table";
 import { StaffPersonMerge } from "~/components/operator/staff-person-merge";
 import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { SimpleEmptyState } from "../provisioning/provisioning-shared";
-import {
-  SkeletonRegion,
-  CardGridSkeleton,
-} from "~/components/ui/page-skeletons";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 
@@ -77,6 +73,8 @@ function OperatorPersonsPageContent() {
   return (
     <TenantPage
       title="Personen"
+      loading={selectedSchool !== null && schoolPersonsLoading}
+      loadingLabel="Personen werden geladen"
       stats={
         count === undefined ? undefined : (
           <TenantPageStats
@@ -124,14 +122,6 @@ function OperatorPersonsPageContent() {
           title="Keine Schule ausgewählt"
           description="Wählen Sie eine Schule aus, um deren Personen anzuzeigen."
         />
-      ) : schoolPersonsLoading ? (
-        <SkeletonRegion label="Personen werden geladen">
-          <CardGridSkeleton
-            cards={6}
-            rowsPerCard={2}
-            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-          />
-        </SkeletonRegion>
       ) : !schoolPersons || schoolPersonsError ? null : schoolPersons.length ===
         0 ? (
         <SimpleEmptyState

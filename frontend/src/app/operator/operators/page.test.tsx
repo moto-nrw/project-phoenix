@@ -174,6 +174,9 @@ describe("OperatorOperatorsPage", () => {
     expect(
       screen.getByLabelText("Operatoren werden geladen"),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Neuen Operator einladen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("displays pending invitations and operators", () => {

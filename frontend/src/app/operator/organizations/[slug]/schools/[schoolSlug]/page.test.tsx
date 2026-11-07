@@ -597,14 +597,19 @@ describe("OperatorSchoolDetailPage", () => {
 
   // --- Konten tab actions ---
 
-  it("renders 'Konto erstellen' and 'Admin einladen' on the Konten tab", async () => {
+  it("renders the Konten actions in the header", async () => {
     currentSearchParams = new URLSearchParams("tab=konten");
     setupSWR();
 
     await renderPage();
 
-    expect(await screen.findByText("Konto erstellen")).toBeInTheDocument();
-    expect(screen.getByText("Admin einladen")).toBeInTheDocument();
+    const createAccount = await screen.findByRole("button", {
+      name: "Konto erstellen",
+    });
+    expect(createAccount.closest("header")).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Admin einladen" }).closest("header"),
+    ).not.toBeNull();
   });
 
   it("opens 'Admin einladen' modal", async () => {
