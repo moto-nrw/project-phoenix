@@ -89,7 +89,7 @@ export interface EnrollmentFormProblems {
 type CareSelectionRule = "at_least_one" | "exactly_one";
 
 /** Whether a child breaks the phase-wide offering selection rule. */
-export function violatesCareSelectionRule(
+function violatesCareSelectionRule(
   child: ChildDraft,
   derivation: ChildDerivation,
   rule: CareSelectionRule,

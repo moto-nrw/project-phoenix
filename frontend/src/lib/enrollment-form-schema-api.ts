@@ -376,22 +376,6 @@ export interface PublicCaptchaConfig {
   site_key: string;
 }
 
-export async function fetchPublicCaptchaConfig(
-  tenantSlug: string,
-): Promise<PublicCaptchaConfig | null> {
-  const response = await sendEnrollmentRequest(
-    `/api/enrollment/captcha-config/${encodeURIComponent(tenantSlug)}`,
-    { cache: "no-store" },
-  );
-  if (!response.ok) {
-    logger.warn("public_captcha_config_failed", {
-      status: response.status,
-    });
-    return null;
-  }
-  return readEnrollmentJSON<PublicCaptchaConfig>(response);
-}
-
 export interface PublicLegalBlock {
   attachments?: FormAttachment[];
   key: string;
