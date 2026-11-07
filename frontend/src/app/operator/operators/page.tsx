@@ -263,6 +263,7 @@ function InviteOperatorModal({
         setEmail("");
         setDisplayName("");
         onCreated();
+        onClose();
       } catch (err) {
         logger.error("create_invitation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -277,6 +278,7 @@ function InviteOperatorModal({
       displayName,
       isSubmitting,
       onCreated,
+      onClose,
       toastSuccess,
       showFormError,
       clearFormError,

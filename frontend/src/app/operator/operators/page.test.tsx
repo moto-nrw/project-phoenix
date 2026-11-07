@@ -283,6 +283,9 @@ describe("OperatorOperatorsPage", () => {
     expect(
       await screen.findByText("Einladung wurde gesendet."),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Neuen Operator einladen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("sends undefined displayName when field is empty", async () => {
