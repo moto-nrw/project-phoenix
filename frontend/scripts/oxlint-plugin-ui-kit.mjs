@@ -894,13 +894,47 @@ const noHandRolledSurface = {
           data: { match: "rounded-xl/2xl … border … bg-white" },
         });
       };
+      const isReportedSurfaceConstant = (value, seenVariables = new Set()) => {
+        if (value?.type === "JSXExpressionContainer") {
+          return isReportedSurfaceConstant(value.expression, seenVariables);
+        }
+        if (value?.type !== "Identifier") return false;
+        const variable = findVariable(context.sourceCode, value);
+        if (!variable || seenVariables.has(variable)) return false;
+        seenVariables.add(variable);
+        for (const definition of variable.defs) {
+          if (
+            definition.type !== "Variable" ||
+            definition.node.type !== "VariableDeclarator" ||
+            definition.parent?.kind !== "const" ||
+            !definition.node.init
+          )
+            continue;
+          const initializer = definition.node.init;
+          if (isSurfaceCombo(staticStringValue(initializer) ?? "")) return true;
+          if (initializer.type === "CallExpression") {
+            const combinations = classCombinations(
+              initializer,
+              new WeakSet(),
+              context.sourceCode,
+            );
+            if (combinations?.some(isSurfaceCombo)) return true;
+          }
+          if (isReportedSurfaceConstant(initializer, seenVariables)) return true;
+        }
+        return false;
+      };
       const renderedCombo = (value) => {
         const chunks = [];
         collectStaticStrings(value, chunks);
         if (chunks.some((chunk) => isSurfaceCombo(chunk))) {
           return { literal: true };
         }
-        const combos = classCombinations(value) ?? [chunks.join(" ")];
+        const combos = classCombinations(
+          value,
+          new WeakSet(),
+          context.sourceCode,
+        ) ?? [chunks.join(" ")];
         return { rendered: combos.find((combo) => isSurfaceCombo(combo)) };
       };
 
@@ -913,15 +947,33 @@ const noHandRolledSurface = {
             check(node, quasi.value.raw);
           }
         },
+        VariableDeclarator(node) {
+          if (
+            node.parent?.kind !== "const" ||
+            node.init?.type !== "CallExpression"
+          )
+            return;
+          const chunks = [];
+          collectStaticStrings(node.init, chunks);
+          if (chunks.some(isSurfaceCombo)) return;
+          const combos = classCombinations(
+            node.init,
+            new WeakSet(),
+            context.sourceCode,
+          );
+          const rendered = combos?.find((combo) => isSurfaceCombo(combo));
+          if (rendered !== undefined) check(node, rendered);
+        },
         JSXAttribute(node) {
           if (
             node.name.type !== "JSXIdentifier" ||
             node.name.name !== "className"
           )
             return;
+          if (isReportedSurfaceConstant(node.value)) return;
           const { literal, rendered } = renderedCombo(node.value);
           if (literal) return; // already reported by the Literal/TemplateLiteral visitors
-          if (rendered !== undefined) check(node, rendered);
+          if (rendered !== undefined) check(node.parent ?? node, rendered);
         },
         JSXOpeningElement(node) {
           if (!widened) return;
@@ -1549,6 +1601,40 @@ const noHandRolledPageCard = {
     },
     (context, report) => {
       if (!isPageCardScope(fileKey(context))) return {};
+      const isReportedPageCardConstant = (value, seenVariables = new Set()) => {
+        if (value?.type === "JSXExpressionContainer") {
+          return isReportedPageCardConstant(value.expression, seenVariables);
+        }
+        if (value?.type !== "Identifier") return false;
+        const variable = findVariable(context.sourceCode, value);
+        if (!variable || seenVariables.has(variable)) return false;
+        seenVariables.add(variable);
+        for (const definition of variable.defs) {
+          if (
+            definition.type !== "Variable" ||
+            definition.node.type !== "VariableDeclarator" ||
+            definition.parent?.kind !== "const" ||
+            !definition.node.init
+          )
+            continue;
+          const initializer = definition.node.init;
+          if (HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")) {
+            return true;
+          }
+          if (initializer.type === "CallExpression") {
+            const combinations = classCombinations(
+              initializer,
+              new WeakSet(),
+              context.sourceCode,
+            );
+            if (combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
+              return true;
+            }
+          }
+          if (isReportedPageCardConstant(initializer, seenVariables)) return true;
+        }
+        return false;
+      };
 
       return {
         Literal(node) {
@@ -1565,6 +1651,26 @@ const noHandRolledPageCard = {
             report({ node, messageId: "surface" });
           }
         },
+        VariableDeclarator(node) {
+          if (
+            node.parent?.kind !== "const" ||
+            node.init?.type !== "CallExpression"
+          )
+            return;
+          const chunks = [];
+          collectStaticStrings(node.init, chunks);
+          if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
+            return;
+          }
+          const combos = classCombinations(
+            node.init,
+            new WeakSet(),
+            context.sourceCode,
+          );
+          if (combos?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
+            report({ node, messageId: "surface" });
+          }
+        },
         JSXAttribute(node) {
           if (
             node.name.type !== "JSXIdentifier" ||
@@ -1577,7 +1683,12 @@ const noHandRolledPageCard = {
           if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
             return; // already reported by the Literal/TemplateElement visitors
           }
-          const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+          if (isReportedPageCardConstant(node.value)) return;
+          const combos = classCombinations(
+            node.value,
+            new WeakSet(),
+            context.sourceCode,
+          ) ?? [chunks.join(" ")];
           const rendered = combos.find((combo) =>
             HANDROLLED_SURFACE_RE.test(combo),
           );

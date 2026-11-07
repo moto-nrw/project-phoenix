@@ -919,6 +919,20 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     expect(result.status, output).toBe(0);
     expect(output).not.toContain("no-hand-rolled-surface");
   });
+
+  it("honours the escape hatch for a composed surface expression", async () => {
+    const result = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      export const Probe = () => (
+        // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Nachrichtensprechblase, keine Kartenfläche
+        <div className={cn("rounded-xl", "border", "bg-white")} />
+      );`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).not.toContain("no-hand-rolled-surface");
+  });
 });
 
 describe.concurrent("ui-kit/no-rounded-3xl", () => {
@@ -1227,6 +1241,18 @@ describe.concurrent("ui-kit/no-hand-rolled-page-card", () => {
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-hand-rolled-page-card\)/g)).toHaveLength(2);
+  });
+
+  it("reports a card surface held in a composed local constant", async () => {
+    const result = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      const card = cn("moto-content-surface", "rounded-2xl", "p-6");
+      export const Probe = () => <div className={card} />;`,
+      "src/components/probe-card.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-page-card)");
   });
 
   it("accepts control surfaces in pages and the chain in the kit", async () => {
@@ -3243,6 +3269,22 @@ describe.concurrent("ui-kit surface baseline (#5594)", () => {
     expect(allowed).toBeGreaterThan(0);
     const result = await lintSource(
       'export const Probe = () => <div className="rounded-2xl border bg-white p-4">A</div>;',
+      file,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
+  it("keeps a composed legacy surface constant hard-zero in a baselined file", async () => {
+    const [file, allowed] = Object.entries(
+      surfaceBaseline["no-hand-rolled-surface"]!,
+    )[0]!;
+    expect(allowed).toBeGreaterThan(0);
+    const result = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      const card = cn("rounded-xl", "border", "bg-white", "p-4");
+      export const Probe = () => <div className={card}>A</div>;`,
       file,
     );
 
