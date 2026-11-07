@@ -53,6 +53,7 @@ import {
   WeekdayPicker,
 } from "./shift-recurrence-fields";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "ShiftEditModal" });
 const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
@@ -1305,9 +1306,9 @@ export function ShiftEditModal({
                               className="space-y-2"
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                                <SectionLabel as="p">
                                   Vertretung {index + 1}
-                                </span>
+                                </SectionLabel>
                                 <span className="inline-flex rounded-full">
                                   <Button
                                     type="button"
