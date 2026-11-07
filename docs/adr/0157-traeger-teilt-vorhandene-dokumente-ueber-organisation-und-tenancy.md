@@ -60,7 +60,7 @@ ADR 0070).
    und die Schule noch zum Träger gehört (ADR 0084 §7, ADR 0088 §7). Ohne
    Freigabe gibt es keinen Eintrag bei einer Schule.
 7. **Löschen** (#5993): Das Träger-Büro löscht ein Dokument mit dem Recht
-   „Anmeldung verwalten“. In einer Träger-Transaktion sperrt der Dienst die
+   „Dokumente verwalten“ (Punkt 8). In einer Träger-Transaktion sperrt der Dienst die
    Zeile des Dokuments, nimmt alle aktiven Freigaben mit dem handelnden Konto
    zurück, entfernt die Datei (`content` wird NULL) und vermerkt
    `deleted_at` und `deleted_by`. Die Zeile bleibt mit Titel und Dateiname,
@@ -70,8 +70,9 @@ ADR 0070).
    Dokument danach gelöscht. Ein Trigger lehnt Freigaben gelöschter Dokumente
    ab, die Funktionen der Schulen und die Abfragen der Eltern übergehen sie.
 8. **Rechte im Träger-Büro:** Lesen „Übersicht lesen“, Hochladen, Freigeben,
-   Zurücknehmen und Löschen „Anmeldung verwalten“ (Verwaltung). Ein eigenes Recht wäre ein
-   Nachtrag zu ADR 0084.
+   Zurücknehmen und Löschen „Dokumente verwalten“ (Rolle Dokumente, #5992,
+   Nachtrag vom 07.11.2026 zu ADR 0084). Bis dahin galt „Anmeldung
+   verwalten“.
 
 ## Register
 
