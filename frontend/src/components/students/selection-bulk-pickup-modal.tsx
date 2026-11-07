@@ -15,6 +15,7 @@ import {
   type BulkPickupScheduleInput,
 } from "~/lib/pickup-schedule-api";
 import { WEEKDAYS } from "~/lib/student-arrival-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "SelectionBulkPickupModal" });
 
@@ -175,9 +176,11 @@ export function SelectionBulkPickupModal({
         ) : null}
         <div className="space-y-2">
           {WEEKDAYS.map((day) => (
-            <div
+            <InsetPanel
               key={day.value}
-              className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5"
+              framed
+              padding="compact"
+              className="flex items-center gap-3"
             >
               <FieldLabel
                 htmlFor={`bulk-pickup-${day.value}`}
@@ -205,7 +208,7 @@ export function SelectionBulkPickupModal({
                   nicht ändern
                 </span>
               ) : null}
-            </div>
+            </InsetPanel>
           ))}
         </div>
       </div>

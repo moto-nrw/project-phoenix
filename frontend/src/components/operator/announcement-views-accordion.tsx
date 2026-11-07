@@ -89,7 +89,7 @@ export function AnnouncementViewsAccordion({
         <div className="overflow-hidden">
           <div className="pb-3">
             {/* Loading state */}
-            {isLoading && <Loading fullPage={false} message="Laden..." />}
+            {isLoading && <Loading message="Laden..." />}
 
             {/* Error */}
             <LoadErrorAlert

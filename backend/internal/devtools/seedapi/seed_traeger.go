@@ -13,7 +13,8 @@ import (
 )
 
 // seedTraegerInvitees are the colleagues the seeded Träger-Büro has invited
-// (#4650), one per role it hands out besides the Verwaltung and the Leitung. The Träger-Portal
+// (#4650), one per role it hands out besides the Verwaltung and the Leitung,
+// among them one for the documents alone (#5992). The Träger-Portal
 // shows people by address only; the reserved TLD .example receives no mail.
 var seedTraegerInvitees = []struct {
 	email string
@@ -21,19 +22,23 @@ var seedTraegerInvitees = []struct {
 }{
 	{"jana.krause@ganztag-nord.example", "billing"},
 	{"tobias.engel@ganztag-nord.example", "personnel"},
+	{"lena.vogt@ganztag-nord.example", "documents"},
 }
 
 // seedTraegerOperatorInvitee is the person the moto team invites into the
 // Träger-Büro from the operator portal (#5144), with two roles in one step.
 // The Träger-Büro already has its Leitung, so she gets Verwaltung without
-// Leitung and Schulzugang (#5471).
+// Leitung and Schulzugang (#5471), and Dokumente with it like every
+// Verwaltung (#5992).
 var seedTraegerOperatorInvitee = struct {
 	email string
 	roles []string
-}{"petra.hoffmann@ganztag-nord.example", []string{"administration", "billing"}}
+}{"petra.hoffmann@ganztag-nord.example", []string{"administration", "documents", "billing"}}
 
 // seedTraegerAdminRoles are the Träger roles of the bootstrap school admin.
-var seedTraegerAdminRoles = []string{"administration", "leadership", "school_access", "billing"}
+// Dokumente comes with Verwaltung (#5992), so the dev database manages the
+// shared documents.
+var seedTraegerAdminRoles = []string{"administration", "documents", "leadership", "school_access", "billing"}
 
 // seedTraegerBueroStep makes the bootstrap school admin the first person of
 // the Träger-Büro (ADR 0084, #4649) through the operator route, so every dev
@@ -61,11 +66,11 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 	if _, err := rt.Client.Post(path, map[string]any{"email": rt.Bootstrap.AdminEmail, "roles": seedTraegerAdminRoles}); err != nil {
 		return fmt.Errorf("assign the Träger-Büro: %w", err)
 	}
-	fmt.Println("  Träger-Büro: school admin assigned with roles Verwaltung, Leitung, Schulzugang and Abrechnung")
+	fmt.Println("  Träger-Büro: school admin assigned with roles Verwaltung, Dokumente, Leitung, Schulzugang and Abrechnung")
 	if _, err := rt.Client.Post(path+"/invitations", map[string]any{"email": seedTraegerOperatorInvitee.email, "roles": seedTraegerOperatorInvitee.roles}); err != nil {
 		return fmt.Errorf("invite into the Träger-Büro from the operator portal: %w", err)
 	}
-	fmt.Println("  Träger-Büro: operator invited a person with roles Verwaltung and Abrechnung")
+	fmt.Println("  Träger-Büro: operator invited a person with roles Verwaltung, Dokumente and Abrechnung")
 	return seedTraegerInvitation(rt)
 }
 

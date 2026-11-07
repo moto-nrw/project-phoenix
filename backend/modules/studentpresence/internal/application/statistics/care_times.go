@@ -173,9 +173,12 @@ type comparedStudent struct {
 // whole population.
 type careTimeInputs struct {
 	careDays map[calendar.Date]bool
-	planned  map[int64]map[calendar.Date]studentpresence.PlannedCareDay
-	spans    map[dayKey]attendanceSpan
-	status   map[dayKey]string
+	// vacationOnly are care weekdays only a holiday period excludes; on them
+	// a holiday booking keeps the day a care day (#5994).
+	vacationOnly map[calendar.Date]bool
+	planned      map[int64]map[calendar.Date]studentpresence.PlannedCareDay
+	spans        map[dayKey]attendanceSpan
+	status       map[dayKey]string
 }
 
 // attendanceSpan is the Ist of one child-day: the first check-in and the last
@@ -228,7 +231,9 @@ func compareStudentDays(student *ports.StatisticsStudent, inputs careTimeInputs,
 		if span, ok := inputs.spans[key]; ok {
 			attended = &span
 		}
-		day, listed := classifyCareTimeDay(date, inputs.planned[student.ID][date], attended, inputs.status[key], inputs.careDays[date])
+		planned := inputs.planned[student.ID][date]
+		careDay := inputs.careDays[date] || planned.Source == studentpresence.PlannedCareSourceHoliday && inputs.vacationOnly[date]
+		day, listed := classifyCareTimeDay(date, planned, attended, inputs.status[key], careDay)
 		// Today is not over: a child who has not checked in yet may still come.
 		if !listed || (date == today && day.Kind == studentpresence.CareTimeDayAbsent) {
 			continue
@@ -265,7 +270,7 @@ func (s *service) loadCareTimeInputs(ctx context.Context, students []*ports.Stat
 	}
 	var inputs careTimeInputs
 	var err error
-	if inputs.careDays, _, err = s.careDays(ctx, from, to); err != nil {
+	if inputs.careDays, inputs.vacationOnly, _, err = s.careCalendar(ctx, from, to); err != nil {
 		return careTimeInputs{}, err
 	}
 	if inputs.planned, err = s.cfg.PlannedCareDays.PlannedCareDays(ctx, ids, from, to); err != nil {

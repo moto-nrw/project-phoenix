@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { redirect, useSearchParams } from "next/navigation";
+import { redirect, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   ClipboardList,
@@ -135,7 +135,8 @@ function StudentsPageContent() {
     [collectionReferrer, tenantPath],
   );
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, warning: toastWarning } = useToast();
+  const router = useRouter();
   const { showMessage } = useApiErrorDisplay();
 
   const { data: session, status } = useSession({
@@ -368,20 +369,35 @@ function StudentsPageContent() {
     ) => {
       const newStudent = await service.create(studentData);
       const displayName = studentsConfig.list.item.title(newStudent);
-      toastSuccess(
-        getDbOperationMessage(
-          "create",
-          studentsConfig.name.singular,
-          displayName,
-        ),
-      );
+      if (newStudent.privacy_consent_saved === false) {
+        // The child exists, but the consent input is lost (#5970): the notice
+        // stays until closed and leads to the child's page to enter it again.
+        toastWarning(
+          `„${displayName}“ ist angelegt. Die Angaben unter Datenschutz wurden aber nicht gespeichert. Bitte öffnen Sie das Kind und tragen Sie sie dort nach.`,
+          {
+            duration: 0,
+            action: {
+              label: "Öffnen",
+              onClick: () => router.push(objectHref(newStudent)),
+            },
+          },
+        );
+      } else {
+        toastSuccess(
+          getDbOperationMessage(
+            "create",
+            studentsConfig.name.singular,
+            displayName,
+          ),
+        );
+      }
       setShowCreateModal(false);
       await Promise.all([
         tenantMutate("database-students-list"),
         tenantMutate("database-students-child-quota"),
       ]);
     },
-    [service, tenantMutate, toastSuccess],
+    [service, tenantMutate, toastSuccess, toastWarning, router, objectHref],
   );
 
   const handleArrivalChanged = useCallback(() => {

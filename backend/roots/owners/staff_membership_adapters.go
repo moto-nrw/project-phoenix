@@ -193,6 +193,39 @@ func (r StaffMembershipRepository) Delete(ctx context.Context, id any) error {
 	return membershipError("delete staff", r.Membership.DeleteStaff(ctx, staffID))
 }
 
+func (r StaffMembershipRepository) FindMembershipByID(ctx context.Context, id int64) (*peopleValues.Staff, error) {
+	if id <= 0 {
+		return r.FindByID(ctx, id)
+	}
+	return r.findMembership(ctx, schoolmembership.StaffFilter{IDs: []int64{id}}, "find staff by id")
+}
+
+func (r StaffMembershipRepository) FindMembershipByPersonID(ctx context.Context, personID int64) (*peopleValues.Staff, error) {
+	if personID <= 0 {
+		return r.FindByPersonID(ctx, personID)
+	}
+	return r.findMembership(ctx, schoolmembership.StaffFilter{PersonIDs: []int64{personID}}, "find by person ID")
+}
+
+func (r StaffMembershipRepository) findMembership(ctx context.Context, filter schoolmembership.StaffFilter, op string) (*peopleValues.Staff, error) {
+	ids := filter.IDs
+	if ids == nil {
+		ids = filter.PersonIDs
+	}
+	if len(ids) != 1 || ids[0] <= 0 {
+		return nil, membershipNotFound(op)
+	}
+	filter.MembershipOnly = true
+	rows, err := r.Membership.ListStaff(ctx, filter)
+	if err != nil {
+		return nil, membershipError(op, err)
+	}
+	if len(rows) == 0 {
+		return nil, membershipNotFound(op)
+	}
+	return toLegacyStaff(rows[0]), nil
+}
+
 func (r StaffMembershipRepository) FindByID(ctx context.Context, id any) (*peopleValues.Staff, error) {
 	staffID, err := MembershipID(id)
 	if err != nil {
@@ -281,6 +314,11 @@ func (r StaffMembershipRepository) hydrateStaffPersons(ctx context.Context, memb
 		member.IsExternalCaregiver = schoolmembership.ExternalCaregiver(member.HasExternalCaregiverRecord, member.Person != nil)
 	}
 	return nil
+}
+
+func (r StaffMembershipRepository) ListMembershipWithPerson(ctx context.Context) ([]*peopleValues.Staff, error) {
+	r.membershipOnly = true
+	return r.ListAllWithPerson(ctx)
 }
 
 func (r StaffMembershipRepository) ListAllWithPerson(ctx context.Context) ([]*peopleValues.Staff, error) {

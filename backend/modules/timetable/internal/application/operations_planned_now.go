@@ -260,7 +260,7 @@ func (s *operations) plannedNowEntry(
 		}
 	}
 	if opts.IncludeRoster {
-		roster, err := s.buildRosterWithCareDay(ctx, candidate.instance.ID, careDay)
+		roster, err := s.buildRosterFromRows(ctx, candidate.instance, candidate.studentRows, careDay)
 		if err != nil {
 			return timetable.OperationPlannedInstance{}, err
 		}

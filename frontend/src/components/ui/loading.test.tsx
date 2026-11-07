@@ -9,12 +9,6 @@ describe("Loading", () => {
     expect(screen.getByLabelText("Lädt...")).toBeInTheDocument();
   });
 
-  it("renders with custom message", () => {
-    render(<Loading message="Loading data..." />);
-
-    expect(screen.getByLabelText("Loading data...")).toBeInTheDocument();
-  });
-
   it("renders a visible status message", () => {
     render(<Loading message="Please wait" />);
 
@@ -22,8 +16,8 @@ describe("Loading", () => {
     expect(screen.getByText("Please wait")).not.toHaveClass("sr-only");
   });
 
-  it("renders with fullPage styles by default", () => {
-    render(<Loading />);
+  it("covers the whole screen only when asked to", () => {
+    render(<Loading fullPage />);
 
     const output = screen.getByLabelText("Lädt...");
     expect(output.className).toContain("fixed");
@@ -31,8 +25,8 @@ describe("Loading", () => {
     expect(output.className).toContain("z-50");
   });
 
-  it("renders without fullPage styles when fullPage is false", () => {
-    render(<Loading fullPage={false} />);
+  it("stays inside its region by default", () => {
+    render(<Loading />);
 
     const output = screen.getByLabelText("Lädt...");
     expect(output.className).not.toContain("fixed");
@@ -49,7 +43,7 @@ describe("Loading", () => {
   });
 
   it("allows an inline loading region to preserve its layout height", () => {
-    render(<Loading fullPage={false} className="h-full min-h-[240px]" />);
+    render(<Loading className="h-full min-h-[240px]" />);
 
     const output = screen.getByLabelText("Lädt...");
     expect(output).toHaveClass("h-full", "min-h-[240px]");

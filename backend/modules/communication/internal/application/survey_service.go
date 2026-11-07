@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -268,7 +269,8 @@ func (s *surveyService) SurveyResults(ctx context.Context, id int64) (*communica
 	if survey == nil {
 		return nil, communication.ErrSurveyNotFound
 	}
-	tally, err := s.store.Tally(ctx, id)
+	includeTexts := slices.ContainsFunc(survey.Questions, func(q communication.SurveyQuestion) bool { return q.Kind == communication.SurveyQuestionText })
+	tally, err := s.store.Tally(ctx, id, includeTexts)
 	if err != nil {
 		return nil, err
 	}

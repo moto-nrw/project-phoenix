@@ -144,7 +144,7 @@ func (s *Service) lockEditableGuardianContact(ctx context.Context, accountID, st
 	if err != nil {
 		return editableGuardianContact{}, err
 	}
-	callerStudents, err := s.callerFamilyStudentSet(ctx, accountID)
+	_, editableStudents, err := s.callerStudentSets(ctx, accountID)
 	if err != nil {
 		return editableGuardianContact{}, err
 	}
@@ -158,15 +158,16 @@ func (s *Service) lockEditableGuardianContact(ctx context.Context, accountID, st
 	}
 	// A contact edit propagates to every child the profile serves (intended for
 	// siblings). Load every child this profile is linked to: it drives both the
-	// cross-family containment guard (a contact-only profile that also serves a
-	// child outside the caller's family is the school's to edit, not this
-	// caller's) and the post-commit broadcast (every sibling's parent view must
+	// containment guard (a contact-only profile that also serves a child the
+	// caller holds no parent_portal.guardian.edit for, whether another family's
+	// or a sibling with narrower rights, is not this caller's to edit) and the
+	// post-commit broadcast (every sibling's parent view must
 	// refresh, not just the one the edit was routed through).
 	profileLinks, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
 		return editableGuardianContact{}, err
 	}
-	if !isSelf && !profileStaysInFamily(profileLinks, callerStudents) {
+	if !isSelf && !profileStaysInFamily(profileLinks, editableStudents) {
 		return editableGuardianContact{}, ErrGuardianSharedAcrossFamilies
 	}
 	return editableGuardianContact{profile: profile, link: link, profileLinks: profileLinks}, nil

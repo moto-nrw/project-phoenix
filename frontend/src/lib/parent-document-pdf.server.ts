@@ -2,10 +2,8 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Dokumentenpostfach (#4671, #4678): ein Dokument des Trägers als
 // gespeichertes PDF, ein Schreiben oder ein Betreuungsvertrag.
 //
-// Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen. Spiegelt
-// den Download-Proxy des Erklärungsnachweises: JWT serverseitig setzen, bei 401
-// einmal erneuern, Body mit Content-Type und Content-Disposition unverändert
-// durchreichen. Ein Dokument außerhalb des Postfachs beantwortet das Backend
+// Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen. Ein
+// Dokument außerhalb des Postfachs beantwortet das Backend
 // mit 404, ein Konto ohne Recht mit 403.
 
 import type { NextRequest } from "next/server";

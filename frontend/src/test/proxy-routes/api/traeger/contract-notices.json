@@ -1,0 +1,9 @@
+{
+  "api/traeger/contract-notices/[id]": [
+    "GET traeger /traeger/contract-notices/id%2F1",
+    "POST traeger /traeger/contract-notices/id%2F1"
+  ],
+  "api/traeger/contract-notices/[id]/ends-on": [
+    "PUT traeger /traeger/contract-notices/id%2F1/ends-on"
+  ]
+}

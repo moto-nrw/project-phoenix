@@ -482,6 +482,14 @@ func (m *mockGroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context
 	return nil, nil
 }
 
+func (m *mockGroupSupervisorRepository) FindActiveByGroupIDWithoutStaff(ctx context.Context, activeGroupID int64) ([]*ports.GroupSupervisor, error) {
+	return m.FindByActiveGroupID(ctx, activeGroupID, true)
+}
+
+func (m *mockGroupSupervisorRepository) AttachStaff(context.Context, []*ports.GroupSupervisor) error {
+	return nil
+}
+
 func (m *mockGroupSupervisorRepository) EndSupervision(ctx context.Context, id int64) error {
 	if m.endSupervisionFunc != nil {
 		return m.endSupervisionFunc(ctx, id)

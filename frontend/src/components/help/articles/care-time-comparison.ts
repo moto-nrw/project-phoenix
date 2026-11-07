@@ -44,6 +44,8 @@ export function careTimeComparisonTopic(): HelpTopic {
     notes: [
       "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
       "Hat das Kind einen Vertrag vom Träger, gilt der Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Vertrag`. Das Ende ist die Endzeit des letzten Moduls an diesem Wochentag. Die Ankunft kommt weiter aus dem Wochenplan.",
+      "An einem Tag mit bestätigter Ferienbuchung gilt die Ferienbuchung, auch vor dem Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Ferienbuchung`. Ankunft und Ende sind die Zeiten des gebuchten `Zeitmodell`.",
+      "Bei einem Feriengast steht `Soll und Ist` unter `Feriengast`. Der Zeitraum beginnt mit seiner Ferienwoche.",
       "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
       "Zeit im Unterricht wird nicht abgezogen. Unter `Hinweis` steht sie als `Zum Unterricht` mit der Uhrzeit.",
       "Kommt ein Kind nach dem Unterricht nicht zurück, endet `Tatsächlich` mit dieser Abmeldung. Die `Abweichung` ist dann groß und negativ. `Zum Unterricht: ab` mit der Uhrzeit zeigt, dass es nicht nach Hause gegangen ist.",

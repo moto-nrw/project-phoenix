@@ -193,9 +193,12 @@ func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int6
 		return nil, errRoleAdministrationUnavailable
 	}
 	operation := func(ctx context.Context) ([]domain.ManagedPermission, error) {
-		permissions, err := r.store.ListRolePermissions(ctx, roleID)
+		permissions, found, err := r.store.ListVisibleRolePermissions(ctx, roleID)
 		if err != nil {
 			return nil, failed("get role permissions", err)
+		}
+		if !found {
+			return nil, failed("get role permissions", domain.ErrRoleNotFound)
 		}
 		return permissions, nil
 	}

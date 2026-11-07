@@ -90,6 +90,62 @@ describe("Soll und Ist je Kind (#4774)", () => {
     );
   });
 
+  it("lädt neu, wenn sich die Buchung ändert, und behält den Zeitraum (#5994)", async () => {
+    mockFetch.mockResolvedValue(result([]));
+    const range = { from: "2026-09-07", to: "2026-09-09" };
+    const { rerender } = render(
+      <StudentCareTimesSection
+        studentId="7"
+        active
+        initialRange={range}
+        refreshKey="08:00-13:00"
+      />,
+    );
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <StudentCareTimesSection
+        studentId="7"
+        active
+        initialRange={range}
+        refreshKey="08:00-16:00"
+      />,
+    );
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    expect(mockFetch).toHaveBeenLastCalledWith("7", "2026-09-07", "2026-09-09");
+  });
+
+  it("nennt die Quelle der gebuchten Zeit: Ferienbuchung, Vertrag oder keine (#5994)", async () => {
+    mockFetch.mockResolvedValue(
+      result([
+        day({
+          date: "2026-09-07",
+          planned_source: "holiday_booking",
+          planned_end: "16:00",
+        }),
+        day({ date: "2026-09-08", planned_source: "contract" }),
+        day({ date: "2026-09-09", planned_source: "care_plan" }),
+      ]),
+    );
+    render(<StudentCareTimesSection studentId="7" active />);
+
+    const table = within(await screen.findByRole("table"));
+    const rows = await table.findAllByRole("row");
+    const rowOf = (date: string) =>
+      rows.find((row) => row.textContent?.includes(date));
+    expect(
+      within(rowOf("07.09.")!).getByText("laut Ferienbuchung"),
+    ).toBeInTheDocument();
+    expect(
+      within(rowOf("08.09.")!).getByText("laut Vertrag"),
+    ).toBeInTheDocument();
+    const planRow = within(rowOf("09.09.")!);
+    // Gebucht und Tatsächlich zeigen dieselbe Spanne.
+    expect(planRow.getAllByText("08:00–15:00")).toHaveLength(2);
+    expect(planRow.queryByText(/^laut /)).toBeNull();
+  });
+
   it("markiert Überschreitungen mit Farbe und Text und nennt den Grund", async () => {
     mockFetch.mockResolvedValue(
       result([

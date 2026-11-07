@@ -8,8 +8,12 @@
 package me_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -751,17 +755,10 @@ func TestUploadAvatar_Success(t *testing.T) {
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Upload", "Success")
 
-	pngContent := string([]byte{
-		0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n',
-		0x00, 0x00, 0x00, 0x0d, 'I', 'H', 'D', 'R',
-		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-		0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde,
-		0x00, 0x00, 0x00, 0x0a, 'I', 'D', 'A', 'T',
-		0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00, 0x00,
-		0x03, 0x01, 0x01, 0x00, 0xc9, 0xfe, 0x92, 0xef,
-		0x00, 0x00, 0x00, 0x00, 'I', 'E', 'N', 'D',
-		0xae, 'B', 0x60, 0x82,
-	})
+	// A real encoded PNG: uploads are parsed chunk by chunk to strip metadata.
+	var pngBuf bytes.Buffer
+	require.NoError(t, png.Encode(&pngBuf, image.NewRGBA(image.Rect(0, 0, 1, 1))))
+	pngContent := pngBuf.String()
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewMultipartRequest(t, "POST", "/profile/avatar", "avatar", "avatar.png", pngContent,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
@@ -861,4 +858,34 @@ func TestGetMyGroups_WithSubstitution(t *testing.T) {
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	assert.Equal(t, "success", response["status"])
+}
+
+// A direct API upload skips the browser's re-encoding; the stored avatar must
+// still be free of Exif (and so of GPS coordinates).
+func TestUploadAvatar_StripsExifGPS(t *testing.T) {
+	t.Parallel()
+	tc := setupUserContextRoute(t)
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Upload", "Exif")
+
+	var plain bytes.Buffer
+	require.NoError(t, jpeg.Encode(&plain, image.NewGray(image.Rect(0, 0, 1, 1)), nil))
+	exifGPS := "\xFF\xE1\x00\x2CExif\x00\x00II\x2A\x00\x08\x00\x00\x00\x01\x00\x25\x88\x04\x00\x01\x00\x00\x00\x1A\x00\x00\x00\x00\x00\x00\x00GPS-51.22N"
+	upload := "\xFF\xD8" + exifGPS + plain.String()[2:]
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	req := testutil.NewMultipartRequest(t, "POST", "/profile/avatar", "avatar", "avatar.jpg", upload,
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
+	)
+	rr := testutil.ExecuteRequest(tc.router, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	avatar, err := tc.avatar(context.Background(), account.ID)
+	require.NoError(t, err)
+	avatarFilePath := storedFile(t, avatar)
+	t.Cleanup(func() { _ = os.Remove(avatarFilePath) })
+	stored, err := os.ReadFile(avatarFilePath)
+	require.NoError(t, err)
+	assert.NotContains(t, string(stored), "Exif")
+	assert.NotContains(t, string(stored), "GPS-51.22N")
+	assert.Equal(t, plain.Bytes(), stored, "only the metadata segment is removed")
 }

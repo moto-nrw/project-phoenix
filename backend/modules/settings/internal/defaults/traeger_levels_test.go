@@ -14,7 +14,8 @@ import (
 // texts of the branding are "traeger" (#4653), and so are the switch for the
 // debtor number at the confirmation of a holiday registration (#5621) and
 // the payment sentence of the confirmation letter (#5622), and the
-// thresholds of the hints on the Träger dashboard (#4675); how the contracts
+// thresholds of the hints on the Träger dashboard (#4675), the confirmations
+// of a termination and a withdrawal of a care contract (#4682); how the contracts
 // of a school come about is "beide" (#4680: Träger value with a school
 // override); everything else stays at the school. A change of these lists is
 // a product
@@ -34,8 +35,10 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 	sort.Strings(want)
 	wantTraeger := []string{
 		config.KeyBrandingFooterText, config.KeyBrandingLetterheadText, config.KeyBrandingPrimaryColor,
+		config.KeyCareContractExtraordinaryConfirmation,
 		// The reminder of an unsigned care contract (#4679).
 		config.KeyCareContractSignatureReminderDays,
+		config.KeyCareContractTerminationConfirmation, config.KeyCareContractWithdrawalConfirmation,
 		config.KeyParentBillingCareMonthChange, config.KeyParentBillingCostTakeoverOrder, config.KeyParentBillingDebtorNumberOnConfirm,
 		config.KeyParentBillingPaymentText, config.KeyParentBillingSiblingRank,
 		config.KeyTraegerAlertChildrenPerStaff, config.KeyTraegerAlertOpenEnrollments, config.KeyTraegerAlertSickPercent,

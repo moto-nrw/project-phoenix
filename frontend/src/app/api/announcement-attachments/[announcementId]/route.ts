@@ -13,7 +13,6 @@ import {
 } from "~/lib/file-upload-wrapper.server";
 import { proxyGet } from "~/lib/route-proxy.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
-import { uncachedAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 
 export const GET = proxyGet(
@@ -41,29 +40,14 @@ export const POST = createFileUploadHandler<unknown>(
     }
 
     const backendUrl = `${getServerApiUrl()}/api/announcement-attachments/${announcementId}`;
-    // Rebuild the form from the in-memory file so the body is re-readable for
-    // the post-refresh retry.
-    const buffer = await file.arrayBuffer();
     const forwarded = new FormData();
-    forwarded.append(
-      "file",
-      new File([buffer], file.name, { type: file.type }),
-    );
+    forwarded.append("file", file);
 
-    const sendUpload = (bearer: string) =>
-      fetch(backendUrl, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${bearer}` },
-        body: forwarded,
-      });
-
-    let response = await sendUpload(token);
-    if (response.status === 401) {
-      const refreshed = await uncachedAuth();
-      if (refreshed?.user?.token && refreshed.user.token !== token) {
-        response = await sendUpload(refreshed.user.token);
-      }
-    }
+    const response = await fetch(backendUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: forwarded,
+    });
 
     if (!response.ok) throw await backendResponseError(response);
 

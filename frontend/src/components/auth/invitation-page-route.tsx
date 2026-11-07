@@ -22,7 +22,7 @@ export function InvitationPageRoute({
   redirectToPath?: string;
 } = {}) {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={<Loading />}>
       <InviteWithToken redirectToPath={redirectToPath} />
     </Suspense>
   );

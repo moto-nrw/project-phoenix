@@ -84,7 +84,7 @@ func reviewGapFixture(t *testing.T, project string, policy *Policy, effect, clas
 
 func commitGapFixture(t *testing.T, project string) string {
 	t.Helper()
-	writeFile(t, filepath.Join(project, "test", "query-budgets", "owner", "list.json"), queryBudgetFragment)
+	writeQueryBudgetFixture(t, project)
 	writeFile(t, filepath.Join(project, commandEffectDecision), "# Existing ADR 0083\n")
 	gitfixture.Init(t, project)
 	runGit(t, project, "add", ".")

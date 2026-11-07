@@ -135,7 +135,7 @@
   "holiday_registration_invalid": "Please check the marked fields.",
   "holiday_registration_not_found": "This registration link does not exist. Please use the link you received from the provider.",
   "holiday_registration_state_conflict": "This is not possible for this registration right now. Please reload the page.",
-  "holiday_week_booked": "This week already has registrations. That is why the week and its booked time models cannot be removed.",
+  "holiday_week_booked": "This week already has registrations. That is why the week and its booked time models cannot be removed. You can archive a booked time model instead. Then nobody can book it any more.",
   "holiday_weeks_booked_together": "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",
   "hosted_holiday_week_not_found": "There is no participant list for this week any more. It is only available until the last day of the week.",
   "holiday_guest_not_found": "The details of this holiday guest are no longer available. They are kept only until 7 days after the holiday week.",

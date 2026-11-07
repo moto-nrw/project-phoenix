@@ -49,20 +49,15 @@ var payrollCategories = []payrollCategory{
 }
 
 func (s *payrollStatusService) GetPayrollStatus(ctx context.Context) (*configModel.PayrollStatus, error) {
-	keys := []string{
-		configModel.KeyPayrollDatevBeraternummer,
-		configModel.KeyPayrollDatevMandantennummer,
-		configModel.KeyPayrollDispatchAuto,
-		configModel.KeyPayrollDispatchChannel,
-		configModel.KeyPayrollDispatchFormat,
-		configModel.KeyPayrollDispatchEmail,
-	}
-	for _, category := range payrollCategories {
-		keys = append(keys, category.key)
-		if category.unitKey != "" {
-			keys = append(keys, category.unitKey)
-		}
-	}
+	return s.payrollStatus(ctx, true)
+}
+
+func (s *payrollStatusService) GetPayrollConfigurationStatus(ctx context.Context) (*configModel.PayrollStatus, error) {
+	return s.payrollStatus(ctx, false)
+}
+
+func (s *payrollStatusService) payrollStatus(ctx context.Context, includeStaff bool) (*configModel.PayrollStatus, error) {
+	keys := payrollSettingKeys()
 	var snapshot *configModel.SettingsSnapshot
 	if batch, ok := s.settings.(interface {
 		ResolveMany(context.Context, []string) (*configModel.SettingsSnapshot, error)
@@ -89,9 +84,12 @@ func (s *payrollStatusService) GetPayrollStatus(ctx context.Context) (*configMod
 		return nil, err
 	}
 
-	staffTotal, staffWithoutPersonnelNumber, err := s.countStaffPersonnelNumbers(ctx)
-	if err != nil {
-		return nil, err
+	var staffTotal, staffWithoutPersonnelNumber int
+	if includeStaff {
+		staffTotal, staffWithoutPersonnelNumber, err = s.countStaffPersonnelNumbers(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &configModel.PayrollStatus{
@@ -105,6 +103,24 @@ func (s *payrollStatusService) GetPayrollStatus(ctx context.Context) (*configMod
 		StaffWithoutPersonnelNumber: staffWithoutPersonnelNumber,
 		Dispatch:                    dispatch,
 	}, nil
+}
+
+func payrollSettingKeys() []string {
+	keys := []string{
+		configModel.KeyPayrollDatevBeraternummer,
+		configModel.KeyPayrollDatevMandantennummer,
+		configModel.KeyPayrollDispatchAuto,
+		configModel.KeyPayrollDispatchChannel,
+		configModel.KeyPayrollDispatchFormat,
+		configModel.KeyPayrollDispatchEmail,
+	}
+	for _, category := range payrollCategories {
+		keys = append(keys, category.key)
+		if category.unitKey != "" {
+			keys = append(keys, category.unitKey)
+		}
+	}
+	return keys
 }
 
 func (s *payrollStatusService) resolvePayrollCategories(ctx context.Context, snapshot *configModel.SettingsSnapshot) ([]configModel.PayrollCategoryStatus, int, error) {

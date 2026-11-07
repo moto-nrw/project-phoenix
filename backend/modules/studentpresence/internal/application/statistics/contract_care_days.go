@@ -47,7 +47,9 @@ func (c contractCareDays) PlannedCareDays(ctx context.Context, studentIDs []int6
 // contractCareDay is the Soll of a day the contract covers, over the care
 // plan's verdict of that day.
 func contractCareDay(booked studentpresence.ContractCareDay, plan studentpresence.PlannedCareDay) studentpresence.PlannedCareDay {
-	day := studentpresence.PlannedCareDay{Source: studentpresence.PlannedCareSourceContract}
+	// A cancellation of the day stays, also on a day the contract books no
+	// module: a holiday booking above must not undo it (#5994).
+	day := studentpresence.PlannedCareDay{Source: studentpresence.PlannedCareSourceContract, Cancelled: plan.Cancelled}
 	if !booked.Booked {
 		return day
 	}

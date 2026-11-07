@@ -8,6 +8,7 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // die Mitteilung gibt.
 
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { NextResponse } from "next/server";
 import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
 import { withParentAuth } from "~/server/auth/parent-route";
@@ -44,13 +45,9 @@ async function GETHandler(
       headers: { Authorization: `Bearer ${bearer}` },
     });
 
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedParentAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
-    }
-  }
+  const upstream = await sendWithTokenRefresh(token, makeRequest, () =>
+    uncachedParentAuth(),
+  );
 
   if (!upstream.ok) {
     logger.warn("parent_attachment_download_proxy_non_ok", {

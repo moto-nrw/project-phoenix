@@ -29,7 +29,7 @@ interface UseRequirePermissionReturn {
  *   const { isReady } = useRequirePermission("users:update");
  *   const { isReady } = useRequirePermission(["display:read", "display:manage"]);
  *   const { isReady } = useRequirePermission(canReviewChangeRequests);
- *   if (!isReady) return <Loading fullPage={false} />;
+ *   if (!isReady) return <Loading />;
  */
 export function useRequirePermission(
   permission:

@@ -146,7 +146,7 @@ func (s staffAdminSubjects) SetPersonnelNumber(ctx context.Context, staffID int6
 }
 
 func (s staffAdminSubjects) OffboardedStaffIDs(ctx context.Context) ([]int64, error) {
-	members, err := s.membership.ListStaff(ctx, schoolmembership.StaffFilter{IncludeDeleted: true})
+	members, err := s.membership.ListStaff(ctx, schoolmembership.StaffFilter{IncludeDeleted: true, MembershipOnly: true})
 	if err != nil {
 		return nil, err
 	}

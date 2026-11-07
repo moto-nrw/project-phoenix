@@ -997,7 +997,7 @@ export function CareScheduleManager({
   if (isLoading && arrivalData.schedules.length === 0) {
     return (
       <SectionCard>
-        <Loading fullPage={false} message="Betreuungszeiten werden geladen …" />
+        <Loading message="Betreuungszeiten werden geladen …" />
       </SectionCard>
     );
   }

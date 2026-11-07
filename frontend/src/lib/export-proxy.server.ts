@@ -7,21 +7,93 @@ import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { captureBffException } from "~/lib/sentry-bff.server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 
 /**
- * Route handler for the export endpoints that answer with a file.
+ * Route handlers for the export endpoints that answer with a file.
  *
- * These bypass the JSON route wrapper (it cannot stream bytes) and so each
- * one had grown the same forty lines: authenticate, POST, retry once on a
- * 401 with a refreshed token, pass the bytes and the Content-Disposition
- * through. That is here once.
+ * These bypass the JSON route wrapper (it cannot stream bytes): authenticate,
+ * send, repeat once with the refreshed session after a 401, pass the bytes
+ * and the Content-Disposition through.
  *
  * Server-only — import it dynamically from anything that could reach a
  * client bundle (route handlers are safe to import it statically).
  */
-export function createFileExportRoute(options: {
-  /** Backend path, e.g. "/api/staff-shifts/export". */
-  backendPath: string;
+
+type RouteParams = Record<string, string>;
+
+async function bufferedFileResponse(
+  response: Response,
+  request: NextRequest,
+): Promise<Response> {
+  if (!response.ok) return forwardBackendResponse(response, request);
+  const data = await response.arrayBuffer();
+  const headers = new Headers({
+    "Content-Type":
+      response.headers.get("content-type") ?? "application/octet-stream",
+    "Content-Length": String(data.byteLength),
+  });
+  const disposition = response.headers.get("content-disposition");
+  if (disposition) headers.set("Content-Disposition", disposition);
+  return new NextResponse(data, { status: 200, headers });
+}
+
+function createExportHandler<P extends RouteParams>(
+  component: string,
+  failureEvent: string,
+  prepare: (
+    request: NextRequest,
+    params: P,
+  ) => Promise<{ path: string; init: RequestInit } | Response>,
+) {
+  const logger = createLogger({ component });
+  return async function handler(
+    request: NextRequest,
+    context?: { params: Promise<P> },
+  ) {
+    try {
+      const session = await auth();
+      const token = session?.user?.token;
+      if (!token) return problemResponse(401, "Unauthorized", request);
+
+      const prepared = await prepare(
+        request,
+        ((await context?.params) ?? {}) as P,
+      );
+      if (prepared instanceof Response) return prepared;
+
+      const { getServerApiUrl } = await import("~/lib/server-api-url");
+      const forwardHeaders = await incomingClientForwardHeaders();
+      const send = (bearer: string) =>
+        fetch(`${getServerApiUrl()}${prepared.path}`, {
+          ...prepared.init,
+          headers: {
+            Authorization: `Bearer ${bearer}`,
+            ...(prepared.init.headers as Record<string, string> | undefined),
+            ...forwardHeaders,
+          },
+          cache: "no-store",
+        });
+
+      return await bufferedFileResponse(
+        await sendWithTokenRefresh(token, send, () => uncachedAuth()),
+        request,
+      );
+    } catch (error) {
+      captureBffException(error, request);
+      const message = error instanceof Error ? error.message : "Export failed";
+      logger.error(failureEvent, { error: message });
+      return problemResponse(500, message, request);
+    }
+  };
+}
+
+/** POST export: forwards the JSON request body to the backend. */
+export function createFileExportRoute<
+  P extends RouteParams = RouteParams,
+>(options: {
+  /** Backend path, e.g. "/api/staff-shifts/export", or built from the route params. Encode each segment. */
+  backendPath: string | ((params: P) => string);
   /** Logger component name, e.g. "DienstplanExportRoute". */
   component: string;
   /**
@@ -31,44 +103,10 @@ export function createFileExportRoute(options: {
    */
   normalizeBody?: (raw: unknown) => unknown;
 }) {
-  const logger = createLogger({ component: options.component });
-
-  async function proxy(request: NextRequest, token: string, body: string) {
-    const { getServerApiUrl } = await import("~/lib/server-api-url");
-    const response = await fetch(`${getServerApiUrl()}${options.backendPath}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        ...(await incomingClientForwardHeaders()),
-      },
-      body,
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      return forwardBackendResponse(response, request);
-    }
-
-    const contentType =
-      response.headers.get("content-type") ?? "application/octet-stream";
-    const disposition = response.headers.get("content-disposition");
-    const data = await response.arrayBuffer();
-    const headers = new Headers({
-      "Content-Type": contentType,
-      "Content-Length": String(data.byteLength),
-    });
-    if (disposition) headers.set("Content-Disposition", disposition);
-    return new NextResponse(data, { status: 200, headers });
-  }
-
-  return async function handler(request: NextRequest) {
-    try {
-      const session = await auth();
-      if (!session?.user?.token) {
-        return problemResponse(401, "Unauthorized", request);
-      }
-
+  return createExportHandler<P>(
+    options.component,
+    "file_export_route_failed",
+    async (request, params) => {
       let body = await request.text();
       if (options.normalizeBody) {
         try {
@@ -83,101 +121,44 @@ export function createFileExportRoute(options: {
           );
         }
       }
-
-      const response = await proxy(request, session.user.token, body);
-      if (response.status !== 401) return response;
-
-      // The access token lives 15 minutes; a single refreshed retry keeps a
-      // long-open planning tab from failing an export it is allowed to run.
-      const refreshed = await uncachedAuth();
-      if (
-        !refreshed?.user?.token ||
-        refreshed.user.token === session.user.token
-      ) {
-        return response;
-      }
-      return proxy(request, refreshed.user.token, body);
-    } catch (error) {
-      captureBffException(error, request);
-      const message = error instanceof Error ? error.message : "Export failed";
-      logger.error("file_export_route_failed", { error: message });
-      return problemResponse(500, message, request);
-    }
-  };
+      const path =
+        typeof options.backendPath === "string"
+          ? options.backendPath
+          : options.backendPath(params);
+      return {
+        path,
+        init: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+        },
+      };
+    },
+  );
 }
 
 /**
- * GET counterpart of `createFileExportRoute` for exports whose backend path
- * carries the object id (`/api/surveys/{id}/results/export`). Same steps:
- * authenticate, fetch, retry once on a 401 with a refreshed token, pass the
- * bytes with Content-Type and Content-Disposition through. Query strings are
- * not forwarded; the path is the whole request.
+ * GET export whose backend path carries the object id
+ * (`/api/surveys/{id}/results/export`). Query strings are not forwarded; the
+ * path is the whole request. The file leaves with `Cache-Control: no-store`.
  */
-export function createFileDownloadRoute<
-  P extends Record<string, string>,
->(options: {
+export function createFileDownloadRoute<P extends RouteParams>(options: {
   /** Backend path built from the route params. Encode each segment. */
   backendPath: (params: P) => string;
   /** Logger component name, e.g. "SurveyResultsExportRoute". */
   component: string;
 }) {
-  const logger = createLogger({ component: options.component });
-
-  async function proxy(request: NextRequest, token: string, path: string) {
-    const { getServerApiUrl } = await import("~/lib/server-api-url");
-    const response = await fetch(`${getServerApiUrl()}${path}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(await incomingClientForwardHeaders()),
-      },
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      return forwardBackendResponse(response, request);
-    }
-
-    const contentType =
-      response.headers.get("content-type") ?? "application/octet-stream";
-    const disposition = response.headers.get("content-disposition");
-    const data = await response.arrayBuffer();
-    const headers = new Headers({
-      "Content-Type": contentType,
-      "Content-Length": String(data.byteLength),
-      "Cache-Control": "no-store",
-    });
-    if (disposition) headers.set("Content-Disposition", disposition);
-    return new NextResponse(data, { status: 200, headers });
-  }
-
-  return async function handler(
-    request: NextRequest,
-    context: { params: Promise<P> },
-  ) {
-    try {
-      const session = await auth();
-      if (!session?.user?.token) {
-        return problemResponse(401, "Unauthorized", request);
-      }
-
-      const path = options.backendPath(await context.params);
-      const response = await proxy(request, session.user.token, path);
-      if (response.status !== 401) return response;
-
-      const refreshed = await uncachedAuth();
-      if (
-        !refreshed?.user?.token ||
-        refreshed.user.token === session.user.token
-      ) {
-        return response;
-      }
-      return proxy(request, refreshed.user.token, path);
-    } catch (error) {
-      captureBffException(error, request);
-      const message = error instanceof Error ? error.message : "Export failed";
-      logger.error("file_download_route_failed", { error: message });
-      return problemResponse(500, message, request);
-    }
+  const handler = createExportHandler<P>(
+    options.component,
+    "file_download_route_failed",
+    async (_request, params) => ({
+      path: options.backendPath(params),
+      init: { method: "GET" },
+    }),
+  );
+  return async (request: NextRequest, context: { params: Promise<P> }) => {
+    const response = await handler(request, context);
+    if (response.ok) response.headers.set("Cache-Control", "no-store");
+    return response;
   };
 }

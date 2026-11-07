@@ -140,6 +140,52 @@ func (s *Store) ListRolePermissions(ctx context.Context, roleID int64) ([]domain
 		Where("rp.role_id = ?", roleID), "find by role ID")
 }
 
+// visibleRolePermissionRow is one row of the role's outer join to its
+// selection: a visible role without permissions yields one row with a NULL
+// permission ID, an invisible role yields none. The other columns scan NULL
+// as their zero value, like scanPermissions (description is nullable).
+type visibleRolePermissionRow struct {
+	ID          *int64    `bun:"id"`
+	Name        string    `bun:"name"`
+	Description string    `bun:"description"`
+	Resource    string    `bun:"resource"`
+	Action      string    `bun:"action"`
+	CreatedAt   time.Time `bun:"created_at"`
+	UpdatedAt   time.Time `bun:"updated_at"`
+}
+
+// ListVisibleRolePermissions loads a role's selection in one statement, but
+// only when the role itself is visible with the scope FindRole uses: the
+// caller's custom roles and the global system roles. auth.role_permissions has
+// no tenant column, so the role row is the boundary (#5703).
+func (s *Store) ListVisibleRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, bool, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	query := db.NewSelect().TableExpr(`auth.roles AS "role"`).
+		ColumnExpr("permission.id, permission.name, permission.description, permission.resource, permission.action, permission.created_at, permission.updated_at").
+		Join("LEFT JOIN (auth.role_permissions AS rp JOIN auth.permissions AS permission ON permission.id = rp.permission_id) ON rp.role_id = \"role\".id").
+		Where(`"role".id = ?`, roleID)
+	query = scopeTenantQuery(s.scope(ctx), query, `("role".tenant_id = ? OR "role".tenant_id IS NULL)`)
+	var rows []visibleRolePermissionRow
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, false, fmt.Errorf("find visible role permissions: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, false, nil
+	}
+	permissions := make([]domain.ManagedPermission, 0, len(rows))
+	for _, row := range rows {
+		if row.ID == nil {
+			continue
+		}
+		permissions = append(permissions, domain.ManagedPermission{ID: *row.ID, Name: row.Name, Description: row.Description,
+			Resource: row.Resource, Action: row.Action, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
+	}
+	return permissions, true, nil
+}
+
 // AssignRolePermission is idempotent under the caller's role-row lock.
 func (s *Store) AssignRolePermission(ctx context.Context, roleID, permissionID int64) error {
 	db, err := s.database(ctx)

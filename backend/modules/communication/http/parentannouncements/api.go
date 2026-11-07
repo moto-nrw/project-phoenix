@@ -299,12 +299,16 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, out, "Announcements retrieved")
 }
 
-func (rs *Resource) readableAnnouncement(w http.ResponseWriter, r *http.Request) (*announcementService.ParentAnnouncement, bool) {
+func (rs *Resource) readableAnnouncement(w http.ResponseWriter, r *http.Request, hydrate bool) (*announcementService.ParentAnnouncement, bool) {
 	id, ok := parseAnnouncementID(w, r)
 	if !ok {
 		return nil, false
 	}
-	a, err := rs.Service.GetParentAnnouncement(r.Context(), id)
+	var read []announcementService.ParentAnnouncementRead
+	if !hydrate {
+		read = []announcementService.ParentAnnouncementRead{announcementService.ParentAnnouncementHeaderOnly}
+	}
+	a, err := rs.Service.GetParentAnnouncement(r.Context(), id, read...)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return nil, false
@@ -325,14 +329,14 @@ func (rs *Resource) readableAnnouncement(w http.ResponseWriter, r *http.Request)
 // same draft visibility rule as the announcement itself, inside the tenant transaction.
 func (rs *Resource) requireReadableAnnouncement(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := rs.readableAnnouncement(w, r); ok {
+		if _, ok := rs.readableAnnouncement(w, r, false); ok {
 			next.ServeHTTP(w, r)
 		}
 	})
 }
 
 func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
-	a, ok := rs.readableAnnouncement(w, r)
+	a, ok := rs.readableAnnouncement(w, r, true)
 	if !ok {
 		return
 	}
