@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyState } from "~/components/ui/empty-state";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   useCallback,
   useContext,
@@ -3218,7 +3219,7 @@ function TargetSuggestions({
   );
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+    <InsetPanel as="section" framed padding="md">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">
@@ -3277,7 +3278,7 @@ function TargetSuggestions({
           );
         })}
       </div>
-    </section>
+    </InsetPanel>
   );
 }
 

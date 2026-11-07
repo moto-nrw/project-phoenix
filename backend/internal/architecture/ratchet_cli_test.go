@@ -1103,7 +1103,7 @@ func initializeRatchetRepository(t *testing.T, repo, baseline, policy string) st
 	if err := os.CopyFS(repo, os.DirFS(fixturePath(t, "valid"))); err != nil {
 		t.Fatalf("copy project fixture: %v", err)
 	}
-	writeFile(t, filepath.Join(repo, "test", "query-budgets", "owner", "list.json"), queryBudgetFragment)
+	writeQueryBudgetFixture(t, repo)
 	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
 	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"), baseline)
 	gitfixture.Init(t, repo)

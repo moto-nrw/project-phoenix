@@ -10,6 +10,7 @@ import { SpinnerIcon } from "~/components/ui/icons";
 
 interface LoadingProps {
   readonly message?: string;
+  /** Deckt den ganzen Bildschirm ab; nur für Guards und Seiten ohne Gerüst. */
   readonly fullPage?: boolean;
   /** Kompakte Zeile für einen begrenzten Bereich wie einen Picker. */
   readonly compact?: boolean;
@@ -18,7 +19,7 @@ interface LoadingProps {
 
 export function Loading({
   message = "Lädt...",
-  fullPage = true,
+  fullPage = false,
   compact = false,
   className,
 }: LoadingProps) {

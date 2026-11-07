@@ -26,6 +26,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { useDebounce } from "~/lib/use-debounce";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "InvitationForm" });
 
@@ -349,11 +350,11 @@ export function InvitationForm({
 
         {successInfo && (
           <div className="space-y-2">
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+            <InsetPanel framed padding="compact">
               <p className="font-mono text-xs break-all text-gray-600">
                 {successInfo.link}
               </p>
-            </div>
+            </InsetPanel>
           </div>
         )}
 

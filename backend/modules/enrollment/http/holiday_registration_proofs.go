@@ -21,19 +21,24 @@ import (
 // field of the online registration (#4783): the content type comes from the
 // bytes, the extension must name it and the size is measured.
 
-// uploadProof stores one proof of benefits for the link's period.
+// uploadProof stores one proof of benefits for the link's period. The link
+// and the IP's upload bucket are checked before the body is read.
 func (rs *HolidayRegistrationResource) uploadProof(w http.ResponseWriter, r *http.Request) {
-	upload, err := parseHolidayProof(w, r)
-	if err != nil {
-		renderUploadRefusal(w, r, err)
-		return
-	}
 	link, err := rs.resolveLink(r.Context(), chi.URLParam(r, "token"))
 	if err != nil {
 		renderHolidayRegistrationError(w, r, err)
 		return
 	}
-	receipt, err := rs.proofs.UploadHolidayProof(r.Context(), link, remoteIPFromRequest(r), upload)
+	if err := rs.proofs.CountHolidayProofUpload(r.Context(), link, remoteIPFromRequest(r)); err != nil {
+		renderHolidayRegistrationError(w, r, err)
+		return
+	}
+	upload, err := parseHolidayProof(w, r)
+	if err != nil {
+		renderUploadRefusal(w, r, err)
+		return
+	}
+	receipt, err := rs.proofs.UploadHolidayProof(r.Context(), link, upload)
 	if err != nil {
 		renderHolidayRegistrationError(w, r, err)
 		return

@@ -193,4 +193,7 @@ type AcceptedText struct {
 	Text        string
 	SHA256      string
 	SubmittedAt time.Time
+	// Required tells that the form demanded the tick: only a required block
+	// proves the conditions; an optional one records a wish (#4682).
+	Required bool
 }

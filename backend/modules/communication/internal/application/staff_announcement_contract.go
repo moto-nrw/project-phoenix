@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // OutboxEnqueuer is the slice of the email outbox service this package needs:
@@ -130,7 +132,7 @@ type ClassLetterSender struct {
 // StaffService is the staff-facing parent-announcement contract.
 type StaffService interface {
 	List(ctx context.Context, includeInactive bool) ([]*StaffParentAnnouncement, error)
-	Get(ctx context.Context, id int64) (*StaffParentAnnouncement, error)
+	Get(ctx context.Context, id int64, read ...communication.ParentAnnouncementRead) (*StaffParentAnnouncement, error)
 	Create(ctx context.Context, createdBy int64, in Input) (*StaffParentAnnouncement, error)
 	Update(ctx context.Context, id int64, in Input) (*StaffParentAnnouncement, error)
 	Delete(ctx context.Context, id int64) error

@@ -71,16 +71,16 @@ The full conversion spec, including what to do when a page's head lives in a vie
 
 ## Visual references — look at the real UI
 
-Don't design from imagination. The app's real screens are captured as images you can open directly with the Read tool:
+Don't design from imagination; open the real screens with the Read tool:
 
-- **App screenshots** → `frontend/public/help/screens/*.webp` (~85 screens, captured for the old help guide; nothing maintains them since the help became text-only, so treat them as dated but indicative). Open the relevant one before building or changing that screen. Anchors:
+- **App screenshots** → `frontend/public/help/screens/*.webp` (old help-guide captures: dated but indicative). Open the relevant one first. Anchors:
   - `mitarbeiter.webp` = staff list · `mitarbeitende-anlegen.webp` = staff create
   - `kinderdetailansicht.webp` = child detail · `kindersuche.webp` = student search/list
   - `meine-gruppen.webp` = groups · `aktivitaeten.webp` = activities
   - `datenverwaltung.webp` = data admin · NFC kiosk = `nfc-*.webp`
 - **Component gallery** → https://moto-nrw.github.io/design-system/. Renders the **package** components, not ours: anatomy only.
 
-Match what you see: density, neutral grays, brand-green accents used sparingly, no decorative hero cards.
+Match their density, neutral grays, sparing brand green, no hero cards.
 
 ## New UI is suspicious by default
 
@@ -104,7 +104,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | On/off setting | `Switch` (`ariaLabel`); with label, description `SwitchRow` (`framed`) | `~/components/ui/switch` |
 | Framed field group | `FormFieldset` (`legend`, `required`, `hint`, `error`) | `~/components/ui/form-fieldset` |
 | Consent or confirmation a person ticks (Einwilligung, „verbindlich“) | `ConsentCheckbox` — `required`, `error`, `action` for the legal text button | `~/components/ui/consent-checkbox` |
-| Inline alert / banner (one notice) | `Alert` (`type`, `message`); a notice that needs attention is `type="warning"` (orange), never an amber box; several notices of the same kind follow [Several notices of the same kind](#several-notices-of-the-same-kind) | `~/components/ui/alert` |
+| Inline alert / banner (one notice) | `Alert` (`type`, `message`, `icon`, `onDismiss`; in fields `size="compact"`; location hex: `color`); a notice that needs attention is `type="warning"` (orange), never an amber box; several notices of the same kind follow [Several notices of the same kind](#several-notices-of-the-same-kind) | `~/components/ui/alert` |
 | Row as its own surface (start page, roster, persons in a panel); own button beside a link: no `href`, link in `children` | `ListRow` — `href`, `onClick`, `tone`, `density`, `trailing`; loading: `SkeletonRows`, `ListRowSkeleton` | `~/components/ui/list-row`, `ui/skeleton` |
 | Framed list with dividers, inside a card or panel | `FramedList` — `maxHeight`, `header` | `~/components/ui/framed-list` |
 | Row leading elsewhere: icon, title, subtitle, badge, arrow | `ListRowLink`, alone `framed` | `~/components/ui/list-row-link` |
@@ -133,7 +133,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Number with minus and plus (except time tracking's break stepper) | `NumberStepper` | `~/components/ui/number-stepper` |
 | Day strip on a phone | `PlanningDayChip stacked` (`marker`, `statusLabel`, `today`) | `~/components/ui/planning/planning-context-bar` |
 | Date / range picker | `DatePicker`, `DateRangePicker` (selection gray-900, today blue); with time: `DateTimePicker` | `~/components/ui/<kebab-name>` |
-| Loading | Area: `Loading fullPage={false}`; beside text or in icon button: `SpinnerIcon`; text button: `Button isLoading loadingText`; known shape: `SectionCard loading`, `page-skeletons` in `SkeletonRegion`, `Skeleton` (`shape`), `SkeletonRows` | `~/components/ui/`: `loading`, `icons`, `button`, `page-skeletons`, `skeleton` |
+| Loading | Area: `Loading`; whole screen (guards only): `Loading fullPage`; beside text or in icon button: `SpinnerIcon`; text button: `Button isLoading loadingText`; known shape: `SectionCard loading`, `page-skeletons` in `SkeletonRegion`, `Skeleton` (`shape`), `SkeletonRows` | `~/components/ui/`: `loading`, `icons`, `button`, `page-skeletons`, `skeleton` |
 | Avatar | `Avatar` (`tone`) | `~/components/ui/avatar` |
 | Who sees a field | `VisibilityBadge audience` | `~/components/ui/visibility-badge` |
 | File drop or choice | `Dropzone`; caller checks beyond `accept` | `~/components/ui/dropzone` |
@@ -314,6 +314,8 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-hand-rolled-field-label` (#5589, shrink-only): lower `ui-kit-field-label-baseline.json` via `pnpm run ui-kit:field-label-baseline`.
 
+`ui-kit/no-hand-rolled-notice` (#5591, shrink-only, `pnpm run ui-kit:notice-baseline`): tinted border and fill of one hue + radius + padding.
+
 `ui-kit/no-radix-outside-kit` (#5604, hard-zero): `@radix-ui/*` only under `components/ui/`.
 
 `ui-kit/no-arbitrary-shadow`, `no-hand-rolled-list-row`, `no-hand-rolled-framed-list` (#5593, hard-zero): no `shadow-[…]`, hand-built list row or framed list outside `ui/`. `ui-kit/no-hand-rolled-nav-row` (#5593, shrink-only): no full-width row with an arrow; use `ListRowLink`.
@@ -332,10 +334,6 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `moto-content-surface` and `moto-popover-surface` are unlayered, so they beat Tailwind border, background, shadow and ring utilities on the same element; `ui-kit/no-dead-surface-utility` fails such utilities beside them (focus: `outline-2`, override: `!`). With a tinted branch (`danger ? "border-moto-red/20 bg-moto-red/10" : …`), `moto-content-surface` goes in the neutral branch only. Its `backdrop-filter: blur(8px)` makes it the containing block for `position: fixed` descendants (kit `Modal` is portal-rendered and unaffected).
 
-## Mandatory visual check — do not skip
-
-For any change a school user would see, **run the app locally and look at the actual screen before calling the work done**. Use the `verify` / agent-browser flow against `{slug}.localhost:3000`, screenshot it, and compare it with the nearest canonical screen above. If it doesn't sit naturally next to that screen, it isn't done.
-
 ## Design-review checklist
 
 Apply before marking UI work complete or approving it:
@@ -347,6 +345,7 @@ Apply before marking UI work complete or approving it:
 - [ ] Radius, spacing, and density match the canonical screens (card = `SectionCard`)
 - [ ] No marketing-style hero / decorative cards — it reads as an operational school tool
 - [ ] Works on mobile
+- [ ] Looked at in the running app next to the nearest canonical screen
 - [ ] Dense enough for daily operational use (not airy / landing-page)
 - [ ] **Missverständnis-Check** passed and recorded in the PR description: every visible block explains its purpose in one sentence, nothing read-only looks clickable, preconditions are stated in the product, no two labels share a word stem without a visible boundary, copy follows `moto-einfache-sprache` — full checklist in `.claude/rules/verstaendlichkeit.md`
 

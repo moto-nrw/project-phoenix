@@ -1,6 +1,7 @@
 "use client";
 
 import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   EnrollmentUploadScope,
   fileValueMissing,
@@ -2256,12 +2257,11 @@ export function EnrollmentForm({
                   </div>
                 )}
                 {availabilityNotices[child.clientId] ? (
-                  <p
-                    role="status"
-                    className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-sm"
-                  >
-                    {tr("care.availabilitySelectionRemoved")}
-                  </p>
+                  <Alert
+                    type="warning"
+                    announce="polite"
+                    message={tr("care.availabilitySelectionRemoved")}
+                  />
                 ) : null}
 
                 {showCareSection && (
@@ -2416,18 +2416,20 @@ export function EnrollmentForm({
                                 tr={tr}
                               />
                             ) : (
-                              <div
+                              <InsetPanel
+                                framed
+                                padding="compact"
+                                tone={
+                                  groupDayConflicts(bucket.group).length > 0
+                                    ? "danger"
+                                    : "muted"
+                                }
                                 key={`group-${bucket.group}`}
                                 aria-invalid={
                                   groupDayConflicts(bucket.group).length > 0
                                     ? true
                                     : undefined
                                 }
-                                className={`rounded-lg border p-2 ${
-                                  groupDayConflicts(bucket.group).length > 0
-                                    ? "border-moto-red bg-moto-red/5"
-                                    : "border-gray-200 bg-gray-50/60"
-                                }`}
                               >
                                 <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
                                   <span className="text-xs font-semibold text-gray-800">
@@ -2503,7 +2505,7 @@ export function EnrollmentForm({
                                     </p>
                                   ),
                                 )}
-                              </div>
+                              </InsetPanel>
                             ),
                           )}
                         </div>
@@ -2623,9 +2625,14 @@ export function EnrollmentForm({
               description={tr("sections.consentDescription")}
             />
             {localizedCopy && activeLocale !== DEFAULT_LOCALE ? (
-              <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600">
+              <InsetPanel
+                as="p"
+                framed
+                padding="compact"
+                className="text-xs leading-5 text-gray-600"
+              >
                 {tr("legalGermanNotice")}
-              </p>
+              </InsetPanel>
             ) : null}
             {legalBlocks.map((block) => (
               <div key={block.key}>

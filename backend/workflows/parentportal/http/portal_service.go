@@ -57,6 +57,10 @@ type PortalService interface {
 	BillingDocumentLetter(ctx context.Context, accountID, organizationID, documentID int64) (parentService.BillingDocumentFile, error)
 	// ContractDocumentFile reads the PDF of one sent care contract (ADR 0153).
 	ContractDocumentFile(ctx context.Context, accountID, organizationID, contractID int64) (parentService.BillingDocumentFile, error)
+	// ContractNoticeOptions and DeclareContractNotice withdraw and
+	// terminate a contract sent to the account (#4682).
+	ContractNoticeOptions(ctx context.Context, accountID, organizationID, contractID int64) (parentService.ContractNoticeOptions, error)
+	DeclareContractNotice(ctx context.Context, accountID, organizationID, contractID int64, input parentService.ContractNoticeInput) (parentService.ContractNoticeOptions, error)
 	// ContractSigningView and SignContract read and sign a care contract
 	// of the inbox (#4679).
 	ContractSigningView(ctx context.Context, accountID, organizationID, contractID int64) (parentService.ContractSigningView, error)

@@ -1,0 +1,7 @@
+[
+  {
+    "scenario": "api.traeger.schools_today",
+    "route": "GET /traeger/schools/today",
+    "issue": 5972
+  }
+]

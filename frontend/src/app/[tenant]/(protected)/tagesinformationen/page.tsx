@@ -257,7 +257,7 @@ export default function TagesinformationenPage() {
           // verlässt sich jemand auf eine leere Tafel, die nur nicht geladen war.
           <LoadErrorAlert error={todayLoadError} />
         ) : (todayLoading && todayNotices.length === 0) || todayError ? (
-          <Loading fullPage={false} />
+          <Loading />
         ) : todayNotices.length === 0 ? (
           <p className="text-sm leading-6 text-gray-600">
             Für heute liegen keine Hinweise vor.
@@ -276,7 +276,7 @@ export default function TagesinformationenPage() {
           {listLoadError ? (
             <LoadErrorAlert error={listLoadError} />
           ) : (isLoading && notices.length === 0) || noticesError ? (
-            <Loading fullPage={false} />
+            <Loading />
           ) : notices.length === 0 ? (
             <EmptyState
               icon={<Megaphone className="h-6 w-6" />}

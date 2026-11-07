@@ -147,13 +147,18 @@ type StaffFinancialPlain struct {
 	SocialSecurityNumber *string
 }
 
+// StaffRead selects membership facts when Employment is not consumed.
+type StaffRead uint8
+
+const StaffMembershipOnly StaffRead = 1
+
 // StaffLookups resolves staff members and the person behind an account. The
 // lookups return the retained not-found failure unchanged so the HTTP layer
 // classifies it the way it always did.
 type StaffLookups interface {
 	PersonByAccountID(ctx context.Context, accountID int64) (*Person, error)
 	StaffByPersonID(ctx context.Context, personID int64) (*StaffProfile, error)
-	StaffByID(ctx context.Context, staffID int64) (*StaffProfile, error)
+	StaffByID(ctx context.Context, staffID int64, read ...StaffRead) (*StaffProfile, error)
 	ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error)
 }
 

@@ -521,7 +521,7 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDate(
 	studentID int64,
 	date calendar.Date,
 ) (*careplan.StudentArrivalData, error) {
-	data, err := s.data(ctx, studentID)
+	data, err := s.dataWithSchedules(ctx, studentID, s.baselines == nil)
 	if err != nil {
 		return nil, err
 	}
@@ -549,7 +549,7 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
 	studentID int64,
 	from, to calendar.Date,
 ) (*careplan.StudentArrivalData, error) {
-	data, err := s.data(ctx, studentID)
+	data, err := s.dataWithSchedules(ctx, studentID, s.baselines == nil)
 	if err != nil {
 		return nil, err
 	}

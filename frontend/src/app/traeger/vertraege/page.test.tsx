@@ -58,6 +58,7 @@ const DRAFT: CareContractSummary = {
   createdAt: "2026-09-01T08:00:00Z",
   sentAt: null,
   concluded: null,
+  endsOn: null,
 };
 
 const SENT: CareContractSummary = {

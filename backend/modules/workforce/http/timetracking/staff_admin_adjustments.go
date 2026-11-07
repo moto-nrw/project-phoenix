@@ -46,7 +46,7 @@ func renderBalanceAdjustmentError(w http.ResponseWriter, r *http.Request, err er
 }
 
 func (rs *StaffAdminResource) requireBalanceAdjustmentStaff(w http.ResponseWriter, r *http.Request, staffID int64) bool {
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.StaffByID(r.Context(), staffID, workforce.StaffMembershipOnly); err != nil {
 		if common.IsNotFound(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		} else {

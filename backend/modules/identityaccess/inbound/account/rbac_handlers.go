@@ -393,6 +393,12 @@ func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	permissions, err := rs.Sessions.GetRolePermissions(r.Context(), int64(roleID))
+	if errors.Is(err, identityaccess.ErrRoleNotFound) {
+		// Same answer as GET /auth/roles/{id}/ for a role outside the
+		// caller's school, so neither read reveals that it exists (#5703).
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("role not found")))
+		return
+	}
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

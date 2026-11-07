@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"log/slog"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/api/common/imagemeta"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -39,9 +41,29 @@ func ParseImage(w http.ResponseWriter, r *http.Request, fieldName string, maxSiz
 
 // ParseImageWithLimits enforces an advertised file-size cap separately from
 // the multipart body cap. Body cap needs headroom for boundaries and headers.
+// The returned file holds the image without metadata (imagemeta.Strip), so
+// no caller can store Exif/GPS data from a client that skipped re-encoding.
 func ParseImageWithLimits(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64) (*UploadedFile, error) {
-	return parseUploadWithLimits(w, r, fieldName, maxFileSize, maxBodySize, detectImageContentType)
+	uploaded, err := parseUploadWithLimits(w, r, fieldName, maxFileSize, maxBodySize, detectImageContentType)
+	if err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(io.LimitReader(uploaded.File, maxFileSize+1))
+	CloseFile(uploaded.File)
+	if err != nil || int64(len(data)) > maxFileSize {
+		return nil, errors.New("failed to process file")
+	}
+	stripped, err := imagemeta.Strip(data, uploaded.ContentType)
+	if err != nil {
+		return nil, err
+	}
+	uploaded.File = nopCloseReadSeeker{bytes.NewReader(stripped)}
+	return uploaded, nil
 }
+
+type nopCloseReadSeeker struct{ io.ReadSeeker }
+
+func (nopCloseReadSeeker) Close() error { return nil }
 
 // ParsePDFWithLimits enforces an advertised file-size cap separately from
 // the multipart body cap. Body cap needs headroom for boundaries and headers.

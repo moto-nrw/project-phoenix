@@ -196,6 +196,11 @@ func (s *Signatures) InboxSigningView(ctx context.Context, organizationID, contr
 	if err != nil {
 		return carecontract.SigningView{}, err
 	}
+	// The page shows a contract that waits for the signature or carries it;
+	// a terminated or withdrawn one has its confirmation page (#4682).
+	if record.Summary.Status != carecontract.StatusSent && record.Summary.Status != carecontract.StatusActive {
+		return carecontract.SigningView{}, carecontract.ErrContractNotSignable
+	}
 	view, err := s.view(ctx, organizationID, record, document)
 	if err != nil {
 		return carecontract.SigningView{}, err
