@@ -268,6 +268,9 @@ type ClassListQuery interface {
 	// MatchingStudentIDs names the enrolled students sharing an entry's name
 	// and class: the "Zuordnen" hint, never an automatic merge.
 	MatchingStudentIDs(context.Context, ClassListEntryFields) ([]int64, error)
+	// MatchingStudentIDsForEntries answers MatchingStudentIDs for every
+	// entry from one shared read; result[i] answers entries[i].
+	MatchingStudentIDsForEntries(context.Context, []ClassListEntryFields) ([][]int64, error)
 }
 
 // TeachingAssignmentQuery reads the class teacher and group teacher rows.
