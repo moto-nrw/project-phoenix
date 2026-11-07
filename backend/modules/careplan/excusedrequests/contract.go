@@ -190,6 +190,11 @@ type Request struct {
 // QueueFilter is the owner-neutral paging contract shared by the
 // immediate-notice and approval-request queues.
 type QueueFilter struct {
+	// OmitDiff skips only the best-effort care-schedule display diff for
+	// counts, retaining every row, child and reviewer-scope check. It must
+	// stay false for pages and conflict scans, whose keys depend on the diff.
+	// Other queues ignore it.
+	OmitDiff      bool
 	UrgentOnly    *bool
 	UrgentDate    string
 	StudentIDs    []int64

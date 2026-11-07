@@ -7,6 +7,7 @@ import {
   RELATIONSHIP_TYPES,
   type GuardianRole,
 } from "@/lib/guardian-helpers";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { VisibilityBadge } from "~/components/ui/visibility-badge";
@@ -39,14 +40,10 @@ export function RelationshipTypeSelect({
     <div>
       {/* The marker sits beside the label, never inside: the label is this
           select's aria-labelledby target, so its text is the accessible name. */}
-      <div className="mb-1 flex items-center gap-1">
-        <label
-          id={`${id}-label`}
-          htmlFor={id}
-          className="block text-xs font-medium text-gray-700"
-        >
+      <div className="mb-2 flex items-center gap-1">
+        <FieldLabel id={`${id}-label`} htmlFor={id} className="mb-0">
           Beziehung zum Kind
-        </label>
+        </FieldLabel>
         {parentVisibleHint && (
           <VisibilityBadge compact hint={parentVisibleHint} />
         )}
@@ -77,23 +74,14 @@ export function GuardianRoleSelect({
   disabled = false,
 }: GuardianRoleSelectProps) {
   return (
-    <div>
-      <label
-        id={`${id}-label`}
-        htmlFor={id}
-        className="mb-1 block text-xs font-medium text-gray-700"
-      >
-        Portalrolle
-      </label>
-      <CustomSelect
-        id={id}
-        ariaLabelledBy={`${id}-label`}
-        value={value}
-        options={GUARDIAN_ROLE_OPTIONS}
-        onChange={(next) => onChange(next as GuardianRole)}
-        disabled={disabled}
-      />
-    </div>
+    <CustomSelect
+      label="Portalrolle"
+      id={id}
+      value={value}
+      options={GUARDIAN_ROLE_OPTIONS}
+      onChange={(next) => onChange(next as GuardianRole)}
+      disabled={disabled}
+    />
   );
 }
 

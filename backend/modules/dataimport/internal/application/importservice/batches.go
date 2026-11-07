@@ -327,9 +327,21 @@ func (a *batchImportAttempt[T]) readCheckpoint(ctx context.Context) (*importMode
 }
 
 func (a *batchImportAttempt[T]) applyAcceptedRows(ctx context.Context, batch *importModels.ImportResult[T]) error {
+	service := a.run.service
+	if config, ok := service.config.(interface {
+		BatchWriteConfig(context.Context, []T) ports.ImportConfig[T]
+	}); ok {
+		rows := make([]T, 0, a.next-a.run.position)
+		for _, index := range a.run.order[a.run.position:a.next] {
+			if a.run.accepted[index] {
+				rows = append(rows, a.run.request.Rows[index])
+			}
+		}
+		service = &ImportService[T]{config: config.BatchWriteConfig(ctx, rows)}
+	}
 	for _, index := range a.run.order[a.run.position:a.next] {
 		if a.run.accepted[index] {
-			if err := a.run.service.applyBatchRow(ctx, a.run.request, batch, &a.run.request.Rows[index], index+2); err != nil {
+			if err := service.applyBatchRow(ctx, a.run.request, batch, &a.run.request.Rows[index], index+2); err != nil {
 				return err
 			}
 		}

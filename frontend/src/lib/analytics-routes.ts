@@ -147,8 +147,12 @@ export const TRACKED_PARENT_ROUTE_TEMPLATES = [
   "/demo",
   // Dokumente des Trägers (#4671).
   "/documents",
+  // Einen Betreuungsvertrag lesen und unterschreiben (#4679).
+  "/documents/vertrag/:organizationId/:contractId",
   // Öffentliche Ferienanmeldung eines Trägers (#4661), ohne Konto.
   "/ferienanmeldung/:token",
+  // Einmaliger Link einer Vertragsmail (#4679), ohne Konto.
+  "/vertrag-unterschreiben/:link",
   "/invite",
   "/login",
   "/meal-plan",

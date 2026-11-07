@@ -50,10 +50,10 @@ func TestStudentImportConfig_CreateSingleGuardianRelationship_ForwardsRolePreset
 	config := NewStudentImportConfig(ports.StudentImportDeps{Transactions: newTestTransactions(), Guardians: guardians})
 	ctx := context.Background()
 
-	require.NoError(t, config.createSingleGuardianRelationship(ctx, 41, importModels.GuardianImportData{
+	require.NoError(t, config.createSingleGuardianRelationship(ctx, ports.CreatedEnrollmentStudent{ID: 41}, importModels.GuardianImportData{
 		FirstName: "Import", LastName: "Parent", Email: "import-parent@example.test", RelationshipType: "Elternteil",
 	}, 1))
-	require.NoError(t, config.createSingleGuardianRelationship(ctx, 41, importModels.GuardianImportData{
+	require.NoError(t, config.createSingleGuardianRelationship(ctx, ports.CreatedEnrollmentStudent{ID: 41}, importModels.GuardianImportData{
 		FirstName: "Nur", LastName: "Abholung", RelationshipType: "Oma", GuardianRole: "Nur Abholung", CanPickup: true, EmergencyPriority: 3,
 	}, 2))
 
@@ -67,12 +67,42 @@ func TestStudentImportConfig_CreateSingleGuardianRelationship_ForwardsRolePreset
 	assert.Len(t, guardians.guardians, 2, "one profile per guardian row")
 
 	// The same e-mail resolves to the existing profile instead of a twin.
-	require.NoError(t, config.createSingleGuardianRelationship(ctx, 42, importModels.GuardianImportData{
+	require.NoError(t, config.createSingleGuardianRelationship(ctx, ports.CreatedEnrollmentStudent{ID: 42}, importModels.GuardianImportData{
 		FirstName: "Import", LastName: "Parent", Email: "IMPORT-PARENT@example.test", RelationshipType: "Mutter", AddressCity: "Köln",
 	}, 1))
 	assert.Len(t, guardians.guardians, 2)
 	assert.Equal(t, "Köln", *guardians.guardians[guardians.linked[0].GuardianProfileID].AddressCity, "non-empty cells patch the reused profile")
 }
+
+func TestStudentImportConfig_CreatedStudentFactNeedsTransaction(t *testing.T) {
+	t.Parallel()
+	for name, active := range map[string]bool{"top level": false, "ambient transaction": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			guardians := newFakeGuardians()
+			config := NewStudentImportConfig(ports.StudentImportDeps{
+				Transactions: guardianFactTransactions{active: active}, Guardians: guardians,
+			})
+			created := ports.CreatedEnrollmentStudent{ID: 41, TenantID: 23}
+			require.NoError(t, config.createSingleGuardianRelationship(context.Background(), created,
+				importModels.GuardianImportData{FirstName: "Import", LastName: "Parent", RelationshipType: "Mutter"}, 1))
+			require.Len(t, guardians.linked, 1)
+			if active {
+				require.NotNil(t, guardians.linked[0].CreatedStudent)
+				require.Equal(t, created, *guardians.linked[0].CreatedStudent)
+			} else {
+				require.Nil(t, guardians.linked[0].CreatedStudent)
+			}
+		})
+	}
+}
+
+type guardianFactTransactions struct {
+	importModels.Transactions
+	active bool
+}
+
+func (t guardianFactTransactions) HasTransaction(context.Context) bool { return t.active }
 
 func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {
 	t.Parallel()

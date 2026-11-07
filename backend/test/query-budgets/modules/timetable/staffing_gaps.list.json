@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.staffing_gaps.list",
+  "max": 2,
+  "exact": true,
+  "description": "One instance-window SELECT and one batched instance-staff SELECT, through the real root-bound Timetable staffing-gap capability. Flat for 3 and 8 returned rows; caller tenant transaction setup excluded."
+}

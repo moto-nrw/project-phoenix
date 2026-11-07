@@ -266,7 +266,9 @@ func newFakeGuardians(guardians ...ports.Guardian) *fakeGuardians {
 			defer f.mu.Unlock()
 			var result []ports.GuardianWithLink
 			for _, link := range f.links[studentID] {
-				result = append(result, ports.GuardianWithLink{Guardian: f.guardians[link.GuardianProfileID], Link: link})
+				guardian := f.guardians[link.GuardianProfileID]
+				guardian.PhoneNumbers = append([]ports.GuardianPhone(nil), f.phones[guardian.ID]...)
+				result = append(result, ports.GuardianWithLink{Guardian: guardian, Link: link})
 			}
 			return result, nil
 		},

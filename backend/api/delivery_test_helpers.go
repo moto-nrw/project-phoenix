@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/moto-nrw/project-phoenix/realtime"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -23,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
 // NewNotificationConsentTestStore builds Communication's consent capability
@@ -57,6 +60,19 @@ type DeliveryTestModule struct {
 	Notifications           deliveryCompose.Notifier
 	PushSubscriptions       deliveryCompose.PushSubscriptionService
 	NotificationPreferences deliveryCompose.NotificationPreferenceService
+}
+
+// NotificationPreferenceRouterForTests mounts the actual protected resources
+// over the module's real owner stores. The outer host's session-liveness and
+// module-booking middleware are outside this route-sized test root.
+func (m DeliveryTestModule) NotificationPreferenceRouterForTests() chi.Router {
+	router := chi.NewRouter()
+	notifications := NewNotificationHTTP(nil, nil, m.NotificationPreferences)
+	router.Mount("/api/notifications", notifications.Router())
+	router.Mount("/school/notifications", notifications.SchoolRouter())
+	parents := parentAPI.NewResource(parentAPI.ResourceConfig{Preferences: bindParentPreferences(m.NotificationPreferences)})
+	router.Mount("/parent", parents.Router(ParentSessionChain))
+	return router
 }
 
 func NewPushSubscriptionTestService(db transactionruntime.Database, unit tenant.UnitOfWork, vapid deliveryCompose.VAPIDConfig) (deliveryCompose.PushSubscriptionService, error) {

@@ -86,6 +86,17 @@ type SchoolLookup interface {
 	IsSchoolClosed(ctx context.Context, schoolID int64) (bool, error)
 }
 
+// SchoolCheckResult is the optional school guard's outcome after successful
+// credential discovery. A failed read rolls back the read-only discovery unit
+// before authentication applies its existing fail-open/fail-closed policy.
+type SchoolCheckResult struct {
+	Closed bool
+	Err    error
+}
+
+func (e *SchoolCheckResult) Error() string { return "device school check failed" }
+func (e *SchoolCheckResult) Unwrap() error { return e.Err }
+
 // PINResolver resolves the device PIN for a given tenant.
 // Returns an error when the setting cannot be read. Empty values reject access.
 // Errors are logged: they must describe the lookup failure, never a PIN value.
@@ -234,7 +245,12 @@ func (a *Authenticator) authenticateDevice(ctx context.Context, c credentials) (
 	if err != nil {
 		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
 	}
-	if errResp := a.validateDevicePIN(ctx, device, c.devicePIN); errResp != nil {
+	if c.devicePIN == "" {
+		return nil, a.validateDevicePIN(ctx, device, c.devicePIN)
+	}
+	if errResp := a.deps.LastSeen.authenticateAndObserve(tenantCtx, a.deps.Devices, device, func(pinCtx context.Context) *ErrResponse {
+		return a.validateDevicePIN(pinCtx, device, c.devicePIN)
+	}); errResp != nil {
 		return nil, errResp
 	}
 
@@ -243,7 +259,6 @@ func (a *Authenticator) authenticateDevice(ctx context.Context, c credentials) (
 	slog.Debug("device authentication successful",
 		slog.String("device_id", device.DeviceID),
 	)
-	a.deps.LastSeen.updateDeviceLastSeen(tenantCtx, a.deps.Devices, device)
 	return tenantCtx, nil
 }
 
@@ -280,7 +295,8 @@ func (a *Authenticator) extractAndValidateAPIKey(ctx context.Context, authorizat
 	}
 
 	device, err := a.deps.Devices.FindByAPIKey(ctx, apiKey)
-	if err != nil {
+	var schoolResult *SchoolCheckResult
+	if err != nil && !errors.As(err, &schoolResult) {
 		slog.Warn("device authentication failed: invalid API key",
 			slog.String("error", err.Error()),
 		)
@@ -296,6 +312,11 @@ func (a *Authenticator) extractAndValidateAPIKey(ctx context.Context, authorizat
 		)
 		return nil, ErrDeviceForbidden(ErrDeviceInactive)
 	}
+	if schoolResult != nil {
+		if rejection := rejectSchoolResult(device, schoolResult.Closed, schoolResult.Err); rejection != nil {
+			return nil, rejection
+		}
+	}
 	return device, nil
 }
 
@@ -309,6 +330,10 @@ func (a *Authenticator) rejectClosedSchool(ctx context.Context, device *Authenti
 		return nil
 	}
 	closed, err := a.deps.Schools.IsSchoolClosed(ctx, device.TenantID)
+	return rejectSchoolResult(device, closed, err)
+}
+
+func rejectSchoolResult(device *AuthenticatedDevice, closed bool, err error) *ErrResponse {
 	switch {
 	case errors.Is(err, ErrSchoolNotFound):
 		slog.Warn("device authentication rejected: school not found",
@@ -435,27 +460,36 @@ func NewLastSeenDebouncer() *LastSeenDebouncer {
 // Uses device.ID (PK, globally unique) for the debounce cache key and DB update
 // to avoid cross-tenant collisions when device_id strings overlap.
 func (d *LastSeenDebouncer) updateDeviceLastSeen(ctx context.Context, devices DeviceDirectory, device *AuthenticatedDevice) {
+	observedAt, state, writing := d.observeDevice(ctx, devices, device)
+	if writing {
+		d.persistLastSeen(ctx, devices, device.ID, observedAt, state)
+	}
+}
+
+func (d *LastSeenDebouncer) observeDevice(ctx context.Context, devices DeviceDirectory, device *AuthenticatedDevice) (time.Time, *lastSeenDebounceState, bool) {
 	now := time.Now()
 	device.LastSeen = &now
 
 	state := d.getOrCreateLastSeenState(device.ID)
 	state.mu.Lock()
+	defer state.mu.Unlock()
 	state.latestSeen = now
 	// Deferred heartbeats retain the authenticated school/runtime, not the request cancellation.
 	d.pendingContexts.Store(device.ID, d.flushContext(ctx))
 
-	shouldWriteNow := !state.writeInFlight && (state.lastPersisted.IsZero() || (now.Sub(state.lastPersisted) >= lastSeenDebounceWindow && state.flushTimer == nil))
-	if shouldWriteNow {
+	if heartbeatDue(state, now) {
 		state.writeInFlight = true
-		state.mu.Unlock()
-		d.persistLastSeen(ctx, devices, device.ID, now, state)
-		return
+		return now, state, true
 	}
-
 	if !state.writeInFlight {
 		d.scheduleDeferredFlushLocked(devices, device.ID, state, now)
 	}
-	state.mu.Unlock()
+	return now, state, false
+}
+
+// heartbeatDue requires state.mu.
+func heartbeatDue(state *lastSeenDebounceState, now time.Time) bool {
+	return !state.writeInFlight && (state.lastPersisted.IsZero() || (now.Sub(state.lastPersisted) >= lastSeenDebounceWindow && state.flushTimer == nil))
 }
 
 func (d *LastSeenDebouncer) getOrCreateLastSeenState(id int64) *lastSeenDebounceState {
@@ -472,7 +506,11 @@ func (d *LastSeenDebouncer) getOrCreateLastSeenState(id int64) *lastSeenDebounce
 }
 
 func (d *LastSeenDebouncer) persistLastSeen(ctx context.Context, devices DeviceDirectory, id int64, observedAt time.Time, state *lastSeenDebounceState) {
-	if err := devices.RecordLastSeen(ctx, id, observedAt); err != nil {
+	d.completeLastSeen(devices, id, observedAt, state, devices.RecordLastSeen(ctx, id, observedAt))
+}
+
+func (d *LastSeenDebouncer) completeLastSeen(devices DeviceDirectory, id int64, observedAt time.Time, state *lastSeenDebounceState, err error) {
+	if err != nil {
 		slog.Warn("failed to update device last seen time",
 			slog.Int64("device_pk", id),
 			slog.String("error", err.Error()),

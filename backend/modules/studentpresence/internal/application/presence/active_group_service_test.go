@@ -841,7 +841,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
 		}
-		err = testpkg.TenantCommand1(t, deviceCtx, db, service.CreateVisit, visit1)
+		err = testpkg.TenantCommand1(t, deviceCtx, db, func(ctx context.Context, visit *studentpresence.Visit) error { return service.CreateVisit(ctx, visit) }, visit1)
 		require.NoError(t, err)
 
 		visit2 := &studentpresence.Visit{
@@ -849,7 +849,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
 		}
-		err = testpkg.TenantCommand1(t, deviceCtx, db, service.CreateVisit, visit2)
+		err = testpkg.TenantCommand1(t, deviceCtx, db, func(ctx context.Context, visit *studentpresence.Visit) error { return service.CreateVisit(ctx, visit) }, visit2)
 		require.NoError(t, err)
 
 		// Verify visits are active (no exit time)
@@ -1013,7 +1013,7 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 			ActiveGroupID: session1.ID,
 			EntryTime:     time.Now(),
 		}
-		err = testpkg.TenantCommand1(t, deviceCtx, db, service.CreateVisit, visit)
+		err = testpkg.TenantCommand1(t, deviceCtx, db, func(ctx context.Context, visit *studentpresence.Visit) error { return service.CreateVisit(ctx, visit) }, visit)
 		require.NoError(t, err)
 
 		// ACT

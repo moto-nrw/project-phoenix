@@ -1,0 +1,6 @@
+{
+  "scenario": "api.enrollment.schema.versions.reads",
+  "max": 1,
+  "exact": true,
+  "description": "Real schema handler and owner administration read, inside the caller tenant transaction; N=3/8 schemas. Authentication and transaction envelope excluded."
+}

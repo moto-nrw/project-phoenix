@@ -3,6 +3,7 @@ package contracttest_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 
@@ -186,25 +187,44 @@ func TestCourseCatalogQueryBudget(t *testing.T) {
 	require.NoError(t, err)
 
 	counter := testpkg.CaptureQueriesForContext(t, env.db)
-	ctx = counter.Context(ctx)
-	var catalog *careplan.CourseCatalog
-	err = tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		var catalogErr error
-		catalog, catalogErr = svc.CourseCatalog(txCtx, fx.studentID, env.creatorID)
-		return catalogErr
-	})
-	require.NoError(t, err)
-	var courseItem *careplan.CourseCatalogItem
-	for i := range catalog.Items {
-		if catalog.Items[i].OfferingID == course.ID {
-			courseItem = &catalog.Items[i]
-			break
+	requestCtx := counter.Context(ctx)
+	created, smallStatements, smallItems := 1, 0, 0
+	for _, n := range []int{1, 3, 12} {
+		for created < n {
+			createAdjustmentCareOfferingWith(t, env, fmt.Sprintf("Kurs Budget-%d", created), func(o *offeringContract.CareOfferingRecord) {
+				o.ActivityGroupID = &group.ID
+				o.DaysOfWeekMode = offeringContract.DaysOfWeekModeFixed
+				o.AvailableDays = []string{"mon"}
+			})
+			created++
+		}
+		counter.Reset()
+		var catalog *careplan.CourseCatalog
+		err = tenant.WithTenantTx(requestCtx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			var catalogErr error
+			catalog, catalogErr = svc.CourseCatalog(txCtx, fx.studentID, env.creatorID)
+			return catalogErr
+		})
+		require.NoError(t, err)
+		var courseItem *careplan.CourseCatalogItem
+		for i := range catalog.Items {
+			if catalog.Items[i].OfferingID == course.ID {
+				courseItem = &catalog.Items[i]
+				break
+			}
+		}
+		require.NotNil(t, courseItem)
+		assert.True(t, courseItem.Waitlisted)
+		assert.Zero(t, counter.WriteRows())
+		t.Logf("course catalog N=%d items=%d total=%d", n, len(catalog.Items), counter.Total())
+		querybudgets.AssertQueryBudget(t, "api.parent.child_courses", counter.Queries())
+		if n == 1 {
+			smallStatements, smallItems = counter.Total(), len(catalog.Items)
+		} else {
+			assert.Len(t, catalog.Items, smallItems+n-1)
+			assert.Equal(t, smallStatements, counter.Total(), "catalog growth adds no roundtrips")
 		}
 	}
-	require.NotNil(t, courseItem)
-	assert.True(t, courseItem.Waitlisted)
-	t.Logf("course catalog issued %d queries", counter.Total())
-	querybudgets.AssertQueryBudget(t, "api.parent.child_courses", counter.Queries())
 }
 
 func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t *testing.T) {

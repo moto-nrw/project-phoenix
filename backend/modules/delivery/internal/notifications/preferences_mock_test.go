@@ -535,3 +535,34 @@ func TestGuardianPathsRequireTheirDependencies(t *testing.T) {
 		require.ErrorIs(t, err, notifications.ErrUnknownNotificationType)
 	})
 }
+
+func TestGetForAccountCancellationKeepsFirstGateIdentity(t *testing.T) {
+	t.Parallel()
+	for _, portal := range []string{notifications.PortalStaff, notifications.PortalSchool} {
+		t.Run(portal, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			firstType := notifications.TypePickupUpcoming
+			if portal == notifications.PortalSchool {
+				firstType = notifications.TypeSchoolClassAbsenceReported
+			}
+			def, known := notifications.GetType(firstType)
+			require.True(t, known)
+			var calls []string
+			settings := &settingsDouble{ResolveBoolFn: func(ctx context.Context, key string) (bool, error) {
+				calls = append(calls, key)
+				if len(calls) == 1 {
+					cancel()
+					return true, nil
+				}
+				return false, ctx.Err()
+			}}
+			svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil, securityruntime.HasPermission)
+			overview, err := svc.GetForAccount(ctx, prefAccountA, portal)
+			require.Nil(t, overview)
+			require.ErrorIs(t, err, context.Canceled)
+			require.EqualError(t, err, "resolve "+def.TenantGate+": context canceled")
+			require.Equal(t, []string{"notifications.dispatch_enabled", def.TenantGate}, calls)
+		})
+	}
+}

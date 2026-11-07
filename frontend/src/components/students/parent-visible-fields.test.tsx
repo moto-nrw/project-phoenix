@@ -28,7 +28,7 @@ describe("Für-Eltern-sichtbar Kennzeichnung", () => {
     const label = screen.getByText(new RegExp(`^${labelText}`));
     expect(label.textContent).not.toContain("Für Eltern sichtbar");
     return Boolean(
-      label.parentElement?.textContent?.includes("Für Eltern sichtbar"),
+      label.closest("div")?.textContent?.includes("Für Eltern sichtbar"),
     );
   }
 

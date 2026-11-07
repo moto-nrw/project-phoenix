@@ -1,5 +1,6 @@
 // Teacher Entity Configuration
 
+import { Input } from "~/components/ui/input";
 import { createLogger } from "~/lib/logger";
 import { defineEntityConfig } from "@/lib/database/types";
 import type { Teacher, TeacherWithCredentials } from "@/lib/teacher-api";
@@ -83,17 +84,13 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             label: "RFID-Karte (Funktion nicht verfügbar)",
             type: "custom",
             component: () => (
-              <div>
-                <span className="mb-1 block text-xs font-medium text-gray-400 md:text-sm">
-                  RFID-Karte (Funktion nicht verfügbar)
-                </span>
-                <div className="w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-400 md:px-4 md:py-2 md:text-base">
-                  RFID-Funktion deaktiviert
-                </div>
-                <p className="mt-1 text-xs text-gray-400">
-                  Die RFID-Kartenzuweisung ist derzeit nicht verfügbar
-                </p>
-              </div>
+              <Input
+                id="teacher-rfid-unavailable"
+                label="RFID-Karte (Funktion nicht verfügbar)"
+                value="RFID-Funktion deaktiviert"
+                hint="Die RFID-Kartenzuweisung ist derzeit nicht verfügbar"
+                disabled
+              />
             ),
           },
         ],

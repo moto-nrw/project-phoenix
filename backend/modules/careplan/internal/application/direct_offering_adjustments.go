@@ -21,6 +21,7 @@ type directAdjustmentScope struct {
 	effectiveFrom         calendar.Date
 	catalog               *careplan.OfferingChangeCatalog
 	bookingsAuthoritative bool
+	selectionFacts        *directSelectionFacts
 }
 
 // PrepareDirectOfferingAdjustment takes the offering-derived write gates
@@ -58,6 +59,10 @@ func (s *OfferingChanges) previewDirectOfferingAdjustment(
 	if err != nil {
 		return nil, err
 	}
+	return s.previewDirectOfferingInScope(ctx, input, scope, checkCapacity)
+}
+
+func (s *OfferingChanges) previewDirectOfferingInScope(ctx context.Context, input careplan.DirectOfferingAdjustmentInput, scope *directAdjustmentScope, checkCapacity bool) (*careplan.DirectOfferingAdjustmentPreview, error) {
 	result := &careplan.DirectOfferingAdjustmentPreview{
 		RequestID: scope.period.RequestID, RequestChildID: scope.period.RequestChildID, Catalog: scope.catalog,
 	}
@@ -129,6 +134,7 @@ func (s *OfferingChanges) directMaterializedSelections(
 	in := selectionMaterialization{
 		phase: scope.phase, requestChildID: scope.period.RequestChildID, effectiveFrom: scope.effectiveFrom,
 		selections: input.Selections, allowCompleteWithdrawal: scope.bookingsAuthoritative,
+		facts: scope.selectionFacts,
 	}
 	if _, err := s.validateSelections(ctx, in); err != nil {
 		return nil, nil, err
@@ -156,14 +162,18 @@ func (s *OfferingChanges) directOfferingDiff(
 	scope *directAdjustmentScope,
 	base, selected []careplan.OfferingSelection,
 ) (*offeringDecisionDiff, []int64, error) {
-	current, err := s.currentSelections(ctx, scope.period.RequestChildID, scope.effectiveFrom)
+	current, err := s.directCurrentSelections(ctx, scope)
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
 	ids, _, _ := offeringChangeSides(current, offeringChangeSelections(selected))
+	var offerings map[int64]*careplan.CareOffering
+	if scope.selectionFacts != nil {
+		offerings = scope.selectionFacts.allowed
+	}
 	diff, err := s.buildDecisionDiff(ctx, decisionDiffInput{
 		excludedIDs: input.ExcludedAutoOfferingIDs, current: current, base: base, selected: selected,
-		course: scope.catalog, requested: input.Selections,
+		course: scope.catalog, requested: input.Selections, offerings: offerings,
 	})
 	if err != nil {
 		return nil, nil, err

@@ -1,0 +1,6 @@
+{
+  "scenario": "api.activities.student_available.complete",
+  "max": 11,
+  "exact": true,
+  "description": "Available student activities, N1/N3/N8 groups including an empty group: complete signed-request permission/TenantTx frame, both student gates, open groups and enrollment sets, then four roster reads. Not a cold-auth production floor."
+}

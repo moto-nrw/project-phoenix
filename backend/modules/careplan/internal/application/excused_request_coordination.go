@@ -36,7 +36,7 @@ func (w *ExcusedRequests) GetExcusedBulkCandidate(ctx context.Context, requestID
 	if err != nil {
 		return nil, err
 	}
-	eligible, _, _, err := w.excusedBulkEligibility(ctx, &req, student, view, w.today())
+	eligible, _, _, err := w.excusedBulkEligibility(ctx, &req, student, view, w.today(), absenceReviewFacts{})
 	if err != nil {
 		return nil, err
 	}

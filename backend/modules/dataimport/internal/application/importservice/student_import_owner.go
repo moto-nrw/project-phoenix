@@ -45,13 +45,14 @@ func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importM
 	if err != nil {
 		return 0, err
 	}
-	studentID, err := c.createStudentFromRow(ctx, person.ID, row)
+	student, err := c.createStudentFromRow(ctx, person.ID, row)
 	if err != nil {
 		return 0, err
 	}
-	if err := c.createGuardianRelationships(ctx, studentID, row.Guardians); err != nil {
+	if err := c.createGuardianRelationships(ctx, student, row.Guardians); err != nil {
 		return 0, err
 	}
+	studentID := student.ID
 	if err := c.createPrivacyConsentIfNeeded(ctx, studentID, row); err != nil {
 		return 0, err
 	}
@@ -81,7 +82,7 @@ func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row impor
 // createStudentFromRow creates the student under the owner's class-write
 // gate and then patches the profile columns the enrollment command does not
 // carry (health, notes, address, group, departure plan, consent dates).
-func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (int64, error) {
+func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (ports.CreatedEnrollmentStudent, error) {
 	enrolledFrom := parseOptionalImportCalendarDate(row.EnrolledFrom)
 	input := ports.EnrollmentStudent{
 		PersonID:      personID,
@@ -97,7 +98,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	}
 	departure, err := importDeparturePatch(ports.AllowedDepartureModesFromDeparture(departurePlanFromImportRow(row)), boundedNotePtr(row.DepartureCompanionNote))
 	if err != nil {
-		return 0, fmt.Errorf("create student: %w", err)
+		return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
 	}
 	patch := departure
 	patch.ExtraInfoSet, patch.ExtraInfo = true, importModels.OptionalCell(row.ExtraInfo)
@@ -116,7 +117,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	input.InitialProfile = &patch
 	created, err := c.Students.CreateEnrollmentStudent(ctx, input)
 	if err != nil {
-		return 0, fmt.Errorf("create student: %w", err)
+		return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
 	}
 
 	if c.ConsentHistory != nil {
@@ -124,10 +125,10 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions", func() error {
 			return c.ConsentHistory.RecordTransitions(ctx, nil, after, consents.ConsentSourceImport, nil, time.Now())
 		}); err != nil {
-			return 0, fmt.Errorf("create student consent history: %w", err)
+			return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student consent history: %w", err)
 		}
 	}
-	return created.ID, nil
+	return created, nil
 }
 
 // consentSnapshot is the minimal student view the consent-history recorder

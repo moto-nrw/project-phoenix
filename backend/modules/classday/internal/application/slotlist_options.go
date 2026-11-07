@@ -60,14 +60,13 @@ func (s *service) ListOptions(ctx context.Context, requested classday.Date) (*cl
 func (s *service) optionSlots(ctx context.Context, instances []*slotInstance) ([]classday.Slot, map[classday.ListKind][]int64, error) {
 	slots := make([]classday.Slot, 0, len(instances))
 	kindInstanceIDs := map[classday.ListKind][]int64{}
-	roomCache := map[int64]string{}
+	roomNames, err := s.slotRoomNames(ctx, instances, classday.ListKindNone)
+	if err != nil {
+		return nil, nil, err
+	}
 	for _, inst := range instances {
 		if inst.Status == ports.InstanceStatusCancelled {
 			continue
-		}
-		roomName, err := s.lookupRoomName(ctx, inst.RoomID, roomCache)
-		if err != nil {
-			return nil, nil, err
 		}
 		listKind := ""
 		if inst.ListKind != nil {
@@ -79,7 +78,7 @@ func (s *service) optionSlots(ctx context.Context, instances []*slotInstance) ([
 			TimeRange:  fmt.Sprintf("%s\u2013%s", inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout)),
 			Status:     inst.Status,
 			ListKind:   listKind,
-			RoomName:   roomName,
+			RoomName:   roomNames[inst.RoomID],
 		})
 		if inst.ListKind == nil {
 			continue

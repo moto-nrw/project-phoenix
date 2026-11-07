@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { NotebookPen } from "lucide-react";
 
+import { FieldLabel } from "~/components/ui/field-label";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -350,9 +351,7 @@ function NoteForm({
           </div>
         )}
         <div>
-          <span className="mb-2 block text-sm font-medium text-gray-700">
-            Art
-          </span>
+          <FieldLabel>Art</FieldLabel>
           <SegmentedControl
             items={KIND_ITEMS}
             value={draft.kind}
@@ -369,52 +368,29 @@ function NoteForm({
           />
         </div>
         {referenceChoices ? (
-          <div>
-            <label
-              htmlFor={`${idPrefix}-reference`}
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Bezug
-            </label>
-            <CustomSelect
-              id={`${idPrefix}-reference`}
-              value={referenceValue(draft)}
-              options={referenceChoices}
-              onChange={(value) => onChange(withReference(draft, value))}
-            />
-            {referenceHint ? (
-              <p className="mt-1 text-xs text-gray-500">{referenceHint}</p>
-            ) : null}
-          </div>
+          <CustomSelect
+            label="Bezug"
+            hint={referenceHint}
+            id={`${idPrefix}-reference`}
+            value={referenceValue(draft)}
+            options={referenceChoices}
+            onChange={(value) => onChange(withReference(draft, value))}
+          />
         ) : null}
-        <div>
-          <label
-            htmlFor={`${idPrefix}-visibility`}
-            className="mb-2 block text-sm font-medium text-gray-700"
-          >
-            Wer sieht die Notiz?
-          </label>
-          <CustomSelect
-            id={`${idPrefix}-visibility`}
-            value={draft.visibility}
-            options={visibilityOptions}
-            onChange={(visibility) => onChange({ ...draft, visibility })}
-          />
-        </div>
-        <div>
-          <label
-            htmlFor={`${idPrefix}-category`}
-            className="mb-2 block text-sm font-medium text-gray-700"
-          >
-            Thema
-          </label>
-          <CustomSelect
-            id={`${idPrefix}-category`}
-            value={draft.category ?? ""}
-            options={CATEGORY_OPTIONS}
-            onChange={(category) => onChange({ ...draft, category })}
-          />
-        </div>
+        <CustomSelect
+          label="Wer sieht die Notiz?"
+          id={`${idPrefix}-visibility`}
+          value={draft.visibility}
+          options={visibilityOptions}
+          onChange={(visibility) => onChange({ ...draft, visibility })}
+        />
+        <CustomSelect
+          label="Thema"
+          id={`${idPrefix}-category`}
+          value={draft.category ?? ""}
+          options={CATEGORY_OPTIONS}
+          onChange={(category) => onChange({ ...draft, category })}
+        />
       </div>
       {/* Freigabe für die Schule (#4797): standardmäßig aus. */}
       <ChoiceTile selected={sharedWithSchool} className="items-start p-3">

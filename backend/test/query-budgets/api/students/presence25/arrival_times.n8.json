@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.presence25.arrival_times.n8",
+  "max": 10,
+  "exact": true,
+  "description": "Full protected POST arrival_times, positive N8; complete response entries asserted."
+}

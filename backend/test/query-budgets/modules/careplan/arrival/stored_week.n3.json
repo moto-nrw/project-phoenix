@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.careplan.arrival.stored_week.n3",
+  "max": 4,
+  "exact": true,
+  "description": "Stored arrival-week fallback with no baseline reader, N3. Complete rows, empty student plans and order verified; tenant transaction included. One ID-set SELECT, independent of student count."
+}

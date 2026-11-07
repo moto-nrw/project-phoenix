@@ -80,7 +80,7 @@ func (s *PickupAdjustments) preview(ctx context.Context, input careplan.PickupAd
 	if err != nil {
 		return nil, err
 	}
-	return s.completePickupAdjustmentPreview(ctx, input, plans, preview)
+	return s.completePickupAdjustmentPreview(ctx, input, plans, preview, today)
 }
 
 // pickupAdjustmentPlans are the current plan, its booking-derived part and
@@ -95,8 +95,9 @@ func (s *PickupAdjustments) completePickupAdjustmentPreview(
 	input careplan.PickupAdjustmentPreviewInput,
 	plans *pickupAdjustmentPlans,
 	preview *careplan.PickupAdjustmentPreview,
+	today calendar.Date,
 ) (*careplan.PickupAdjustmentPreview, error) {
-	if err := s.attachOfferingAdjustment(ctx, input, plans.proposed, preview); err != nil {
+	if err := s.attachOfferingAdjustment(ctx, input, plans.proposed, preview, today); err != nil {
 		return nil, err
 	}
 	if err := s.attachRemovedManualNotes(ctx, input, preview); err != nil {
@@ -211,6 +212,7 @@ func (s *PickupAdjustments) attachOfferingAdjustment(
 	input careplan.PickupAdjustmentPreviewInput,
 	proposed map[int]careplan.PickupAdjustmentSchedule,
 	preview *careplan.PickupAdjustmentPreview,
+	today calendar.Date,
 ) error {
 	direct, err := s.deps.Offerings.PreviewDirectOfferingAdjustment(ctx, directPreviewInput(input))
 	if errors.Is(err, careplan.ErrCareOfferingsDisabled) || errors.Is(err, careplan.ErrOfferingChangeNoEnrollment) {
@@ -221,7 +223,7 @@ func (s *PickupAdjustments) attachOfferingAdjustment(
 	}
 	preview.OfferingCatalog = direct.Catalog
 	preview.OfferingConsequences = direct.Consequences
-	preview.MatchingOfferings, err = s.matchingPickupOfferings(ctx, input, direct.Catalog, proposed)
+	preview.MatchingOfferings, err = s.matchingPickupOfferings(ctx, input, direct.Catalog, proposed, today)
 	return err
 }
 
@@ -237,51 +239,37 @@ func (s *PickupAdjustments) matchingPickupOfferings(
 	input careplan.PickupAdjustmentPreviewInput,
 	catalog *careplan.OfferingChangeCatalog,
 	proposed map[int]careplan.PickupAdjustmentSchedule,
+	today calendar.Date,
 ) ([]careplan.PickupOfferingMatch, error) {
 	if catalog == nil || !pickupPlanHasExactlyDays(proposed, input.CareDays) {
 		return []careplan.PickupOfferingMatch{}, nil
 	}
 	careDays := canonicalDaysFromWeekdays(input.CareDays)
-	matches := make([]careplan.PickupOfferingMatch, 0)
+	candidates := make([]careplan.PickupOfferingMatch, 0)
+	alternatives := make([][]careplan.OfferingChangeSelection, 0)
 	for _, item := range catalog.Items {
-		match, ok, err := s.matchingPickupOffering(ctx, input, catalog, item, careDays, proposed)
-		if err != nil {
-			return nil, err
+		selectedDays, eligible := pickupOfferingSelectedDays(item, careDays)
+		if !eligible {
+			continue
 		}
-		if ok {
-			matches = append(matches, match)
+		selections := pickupOfferingCandidateSelections(catalog, item, selectedDays)
+		candidates = append(candidates, careplan.PickupOfferingMatch{
+			OfferingID: item.OfferingID, Name: item.Name, SelectedDays: append([]string(nil), selectedDays...),
+			Selections: cloneOfferingSelections(selections),
+		})
+		alternatives = append(alternatives, selections)
+	}
+	previews, err := s.deps.Offerings.PreviewDirectOfferingAlternatives(ctx, directPreviewInput(input), today, alternatives)
+	if err != nil {
+		return nil, err
+	}
+	matches := make([]careplan.PickupOfferingMatch, 0, len(candidates))
+	for i, direct := range previews {
+		if direct != nil && materializedPickupMatches(direct.MaterializedPickupTimes, proposed) {
+			matches = append(matches, candidates[i])
 		}
 	}
 	return matches, nil
-}
-
-func (s *PickupAdjustments) matchingPickupOffering(
-	ctx context.Context,
-	input careplan.PickupAdjustmentPreviewInput,
-	catalog *careplan.OfferingChangeCatalog,
-	item careplan.OfferingChangeCatalogItem,
-	careDays []string,
-	proposed map[int]careplan.PickupAdjustmentSchedule,
-) (careplan.PickupOfferingMatch, bool, error) {
-	selectedDays, eligible := pickupOfferingSelectedDays(item, careDays)
-	if !eligible {
-		return careplan.PickupOfferingMatch{}, false, nil
-	}
-	selections := pickupOfferingCandidateSelections(catalog, item, selectedDays)
-	direct, err := s.deps.Offerings.PreviewDirectOfferingAdjustment(ctx, careplan.DirectOfferingAdjustmentInput{
-		StudentID: input.StudentID, EffectiveFrom: input.EffectiveFrom,
-		Selections: selections, ExcludedAutoOfferingIDs: input.ExcludedAutoOfferingIDs,
-	})
-	if err != nil {
-		return careplan.PickupOfferingMatch{}, false, err
-	}
-	if direct == nil || !materializedPickupMatches(direct.MaterializedPickupTimes, proposed) {
-		return careplan.PickupOfferingMatch{}, false, nil
-	}
-	return careplan.PickupOfferingMatch{
-		OfferingID: item.OfferingID, Name: item.Name, SelectedDays: append([]string(nil), selectedDays...),
-		Selections: cloneOfferingSelections(selections),
-	}, true, nil
 }
 
 // preflightPickupOffering refuses a future switch while manual pickup rows

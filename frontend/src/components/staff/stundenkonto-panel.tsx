@@ -397,45 +397,31 @@ function AdjustmentModal({
       <div className="space-y-4">
         <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-500">{copy.hint}</p>
-        <div>
-          <label
-            htmlFor="adjustment-hours"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            {copy.amountLabel}
-          </label>
-          <Input
-            id="adjustment-hours"
-            name="minutes_delta"
-            error={formErrors.fieldError("minutes_delta")}
-            type="number"
-            min="0.25"
-            max="1000"
-            step="0.25"
-            controlSize="compact"
-            value={hours}
-            onChange={(e) => setHours(e.target.value)}
-            placeholder="z. B. 8"
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="adjustment-date"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Wirksam am
-          </label>
-          <ISODatePicker
-            id="adjustment-date"
-            error={formErrors.fieldError("effective_date")}
-            min={accountStartKey}
-            max={maxEffectiveDateKey}
-            value={effectiveDate}
-            onChange={setEffectiveDate}
-            calendarLayout="popover"
-            hideClearButton
-          />
-        </div>
+        <Input
+          label={copy.amountLabel}
+          id="adjustment-hours"
+          name="minutes_delta"
+          error={formErrors.fieldError("minutes_delta")}
+          type="number"
+          min="0.25"
+          max="1000"
+          step="0.25"
+          controlSize="compact"
+          value={hours}
+          onChange={(e) => setHours(e.target.value)}
+          placeholder="z. B. 8"
+        />
+        <ISODatePicker
+          label="Wirksam am"
+          id="adjustment-date"
+          error={formErrors.fieldError("effective_date")}
+          min={accountStartKey}
+          max={maxEffectiveDateKey}
+          value={effectiveDate}
+          onChange={setEffectiveDate}
+          calendarLayout="popover"
+          hideClearButton
+        />
         <NoteField
           note={note}
           onChange={setNote}
@@ -555,13 +541,8 @@ function ResetModal({
           </div>
         )}
         <div>
-          <label
-            htmlFor="reset-date"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Stichtag
-          </label>
           <ISODatePicker
+            label="Stichtag"
             id="reset-date"
             error={formErrors.fieldError("effective_date")}
             min={accountStartKey}
@@ -575,25 +556,18 @@ function ResetModal({
             Der Stichtag muss vor dem heutigen Tag liegen.
           </p>
         </div>
-        <div>
-          <label
-            htmlFor="reset-carryover"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Verbleibender Übertrag (Stunden)
-          </label>
-          <Input
-            id="reset-carryover"
-            name="carryover_minutes"
-            error={formErrors.fieldError("carryover_minutes")}
-            type="number"
-            min="0"
-            step="0.25"
-            controlSize="compact"
-            value={carryoverHours}
-            onChange={(e) => setCarryoverHours(e.target.value)}
-          />
-        </div>
+        <Input
+          label="Verbleibender Übertrag (Stunden)"
+          id="reset-carryover"
+          name="carryover_minutes"
+          error={formErrors.fieldError("carryover_minutes")}
+          type="number"
+          min="0"
+          step="0.25"
+          controlSize="compact"
+          value={carryoverHours}
+          onChange={(e) => setCarryoverHours(e.target.value)}
+        />
         <NoteField
           note={note}
           onChange={setNote}
@@ -717,13 +691,8 @@ function OpeningModal({
           </div>
         )}
         <div>
-          <label
-            htmlFor="opening-date"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Stichtag
-          </label>
           <ISODatePicker
+            label="Stichtag"
             id="opening-date"
             error={formErrors.fieldError("effective_date")}
             min={accountStartKey}
@@ -737,25 +706,18 @@ function OpeningModal({
             Der Stichtag muss vor dem heutigen Tag liegen.
           </p>
         </div>
-        <div>
-          <label
-            htmlFor="opening-balance"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Übernommener Saldo (Stunden)
-          </label>
-          <Input
-            id="opening-balance"
-            name="balance_minutes"
-            error={formErrors.fieldError("balance_minutes")}
-            type="text"
-            inputMode="decimal"
-            controlSize="compact"
-            value={openingHours}
-            onChange={(e) => setOpeningHours(e.target.value)}
-            placeholder="z. B. 12,5 oder -3"
-          />
-        </div>
+        <Input
+          label="Übernommener Saldo (Stunden)"
+          id="opening-balance"
+          name="balance_minutes"
+          error={formErrors.fieldError("balance_minutes")}
+          type="text"
+          inputMode="decimal"
+          controlSize="compact"
+          value={openingHours}
+          onChange={(e) => setOpeningHours(e.target.value)}
+          placeholder="z. B. 12,5 oder -3"
+        />
         <NoteField
           note={note}
           onChange={setNote}
@@ -819,23 +781,16 @@ function NoteField({
   readonly placeholder?: string;
 }) {
   return (
-    <div>
-      <label
-        htmlFor="adjustment-note"
-        className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-      >
-        Begründung (Pflicht)
-      </label>
-      <Textarea
-        id="adjustment-note"
-        name="note"
-        error={error}
-        value={note}
-        onChange={(e) => onChange(e.target.value)}
-        rows={2}
-        placeholder={placeholder}
-      />
-    </div>
+    <Textarea
+      label="Begründung (Pflicht)"
+      id="adjustment-note"
+      name="note"
+      error={error}
+      value={note}
+      onChange={(e) => onChange(e.target.value)}
+      rows={2}
+      placeholder={placeholder}
+    />
   );
 }
 

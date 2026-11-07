@@ -12,9 +12,10 @@ type requestCacheEntryKey struct {
 	settingKey string
 }
 
-// settingsRequestCache memoizes resolved setting values for the lifetime of a
-// single request context. Entries are keyed by (tenant_id, setting_key), so a
-// cache attached to a context that touches several tenants (operator flows,
+// settingsRequestCache holds the resolved school snapshot for the lifetime of
+// a single request context, plus requested Träger and notification/reminder
+// gates, which are loaded only on first use. Entries are keyed
+// by (tenant_id, setting_key), so a cache attached to a context that touches several tenants (operator flows,
 // *ForTenant resolves) can never serve one tenant's value to another.
 //
 // Consistency contract (see also the Lock* helpers in settings_service.go):

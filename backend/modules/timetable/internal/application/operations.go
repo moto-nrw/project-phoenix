@@ -36,7 +36,7 @@ func NewOperations(deps ports.OperationDependencies, caller ports.OperationCalle
 	}
 	if caller == nil || deps.Instances == nil || deps.InstanceStaff == nil || noParticipantRows(deps.Participants) || deps.Templates == nil ||
 		deps.Sessions == nil || deps.Supervisions == nil || deps.Visits == nil || deps.Attendance == nil ||
-		deps.Students == nil || deps.People == nil || deps.EducationGroups == nil || deps.Rooms == nil || deps.BlockMetadata == nil ||
+		deps.Students == nil || deps.People == nil || deps.CallerStaff == nil || deps.EducationGroups == nil || deps.Rooms == nil || deps.BlockMetadata == nil ||
 		deps.Settings == nil || deps.CareDays == nil || deps.Arrivals == nil || deps.Pickups == nil ||
 		deps.Lifecycle == nil || deps.NormalizeSchoolClass == nil {
 		return nil, errors.New("timetable operations: required dependency is nil")
@@ -81,6 +81,14 @@ func (s *operations) loadInstance(ctx context.Context, instanceID int64) (*sched
 func (s *operations) resolveStaffID(ctx context.Context, accountID int64) (int64, bool, error) {
 	if accountID <= 0 {
 		return 0, false, timetable.ErrTimetableOperationForbidden
+	}
+	// Only the verified acting account may reuse the caller identity. Other
+	// accounts and failed caller lookups keep the directory's result and error
+	// precedence. No additional memo is needed.
+	if s.deps.Session.Claims(ctx).AccountID == accountID {
+		if staffID, err := s.deps.CallerStaff.StaffID(ctx); err == nil {
+			return staffID, true, nil
+		}
 	}
 	person, err := s.deps.People.FindByAccountID(ctx, accountID)
 	if err != nil {

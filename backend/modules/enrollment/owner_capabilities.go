@@ -8,6 +8,7 @@ import (
 // SchemaQueries reads immutable versions, lineages and their references.
 type SchemaQueries interface {
 	Schema(ctx context.Context, id int64) (*FormSchema, error)
+	StudentExtraFieldSchemas(ctx context.Context, ids []int64) ([]SchemaVersionResult, error)
 	ActiveSchema(ctx context.Context) (*FormSchema, error)
 	SchemaVersions(ctx context.Context) ([]*FormSchema, error)
 	Schemas(ctx context.Context, ids []int64) ([]*FormSchema, error)

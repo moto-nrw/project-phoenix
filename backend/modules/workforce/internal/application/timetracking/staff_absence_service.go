@@ -344,7 +344,7 @@ type staffAbsenceService struct {
 	// snapshotRepo reads closed months (#1417); a rebooking inside one is
 	// blocked (#3258). Supplied by WithAbsenceMonthSnapshots; nil means no
 	// month counts as closed.
-	snapshotRepo adjustmentFreezeReader
+	snapshotRepo absenceMonthSnapshotReader
 	// logger is supplied by the factory (WithAbsenceLogger); nil falls back to
 	// slog.Default() via getLogger, like the other active services.
 	logger    *slog.Logger

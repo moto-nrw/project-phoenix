@@ -72,14 +72,9 @@ func (s *GuardianService) ReplacePhones(ctx context.Context, guardianID int64, p
 		if err != nil {
 			return err
 		}
-		for _, phone := range normalized {
-			_, insertStats, err := s.store.InsertPhone(txCtx, guardianID, phone)
-			stats.Add(insertStats)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
+		insertStats, err := s.store.InsertPhones(txCtx, guardianID, normalized)
+		stats.Add(insertStats)
+		return err
 	})
 }
 

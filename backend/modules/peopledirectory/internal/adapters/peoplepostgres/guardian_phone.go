@@ -285,6 +285,26 @@ func (r *guardianPhoneNumberRepository) CountByGuardianID(ctx context.Context, g
 	return int(count), nil
 }
 
+// CountAndNextPriority reads the phone-list facts together after the caller
+// has locked the owning guardian profile.
+func (r *guardianPhoneNumberRepository) CountAndNextPriority(ctx context.Context, guardianProfileID int64) (int, int, error) {
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	var count, maxPriority int
+	err = db.NewSelect().
+		Model((*users.GuardianPhoneNumber)(nil)).
+		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
+		ColumnExpr("COUNT(*), COALESCE(MAX(priority), 0)").
+		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
+		Scan(ctx, &count, &maxPriority)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to count guardian phone numbers: %w", err)
+	}
+	return count, maxPriority + 1, nil
+}
+
 // GetNextPriority returns the next priority value for a guardian's phone numbers
 func (r *guardianPhoneNumberRepository) GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error) {
 	var maxPriority int

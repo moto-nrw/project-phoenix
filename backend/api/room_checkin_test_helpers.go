@@ -39,6 +39,12 @@ type CheckinTestModule struct {
 }
 
 func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (CheckinTestModule, error) {
+	return NewCheckinWorkflowClockTestModule(db, unit, OptionalClock(clocks), clocks...)
+}
+
+// NewCheckinWorkflowClockTestModule keeps owner clocks fixed while a contract
+// test schedules cancellation at a device-scan workflow clock boundary.
+func NewCheckinWorkflowClockTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, workflowClock func() time.Time, clocks ...func() time.Time) (CheckinTestModule, error) {
 	module, err := NewActiveTestModule(db, unit, clocks...)
 	if err != nil {
 		return CheckinTestModule{}, err
@@ -66,7 +72,7 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Education:  moduleEducation.Education,
 		Pickups:    module.PickupSchedule,
 		Settings:   newDeviceScanSettings(moduleSettings.Settings),
-		Now:        OptionalClock(clocks),
+		Now:        workflowClock,
 		Logger:     logger,
 	})
 	return CheckinTestModule{DeviceScan: scan, Rosters: rosters}, nil

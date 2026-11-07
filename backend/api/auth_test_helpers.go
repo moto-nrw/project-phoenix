@@ -176,7 +176,7 @@ func WithAuthTestMFACapability(capability identityaccess.AccountMFA) AuthTestOpt
 // request's own origin, so every school subdomain works.
 var authTestRelyingParty = identityPorts.PasskeyDependencies{
 	RPID: "localhost", RPName: "moto",
-	TenantDomain: "localhost", OperatorFrontendURL: "http://operator.localhost",
+	TenantDomain: "localhost", OperatorFrontendURL: "http://operator.localhost", CatererFrontendURL: "http://caterer.localhost",
 }
 
 func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, options ...AuthTestOption) (AuthTestModule, error) {

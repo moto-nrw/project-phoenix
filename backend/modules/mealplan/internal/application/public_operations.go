@@ -175,10 +175,14 @@ func (s *Service) DailyList(ctx context.Context, date mealplan.Date) (mealplan.D
 	if err != nil {
 		return mealplan.DailyList{}, mealplan.ErrInvalidParticipation
 	}
-	list, err := s.dailyParticipants(ctx, parsed)
+	list, _, err := s.dailyParticipants(ctx, parsed, parsed, nil)
 	if err != nil {
 		return mealplan.DailyList{}, mapPublicError(err)
 	}
+	return publicDailyList(list), nil
+}
+
+func publicDailyList(list domain.DailyList) mealplan.DailyList {
 	result := mealplan.DailyList{Date: mealplan.Date(list.Date.String()), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Closed: list.Closed, Participants: make([]mealplan.DailyParticipant, 0, len(list.Participants))}
 	for _, participant := range list.Participants {
 		result.Participants = append(result.Participants, mealplan.DailyParticipant(participant))
@@ -186,7 +190,7 @@ func (s *Service) DailyList(ctx context.Context, date mealplan.Date) (mealplan.D
 	for _, other := range list.Others {
 		result.Others = append(result.Others, mealplan.DailyParticipant(other))
 	}
-	return result, nil
+	return result
 }
 
 func (s *Service) SettleOrders(ctx context.Context) error {
@@ -239,12 +243,22 @@ func (s *Service) WeeklyList(ctx context.Context, weekStart mealplan.Date) (meal
 	monday := date.StartOfISOWeek()
 	week := mealplan.WeeklyList{WeekStart: mealplan.Date(monday.String()), Days: make([]mealplan.DailyList, 0, 5)}
 	err = s.run(ctx, "read_weekly_participants", func(txCtx context.Context) (domain.OperationStats, error) {
+		var days *domain.CalendarDays
 		for offset := range 5 {
-			list, err := s.DailyList(txCtx, mealplan.Date(monday.AddDays(offset).String()))
-			if err != nil {
-				return domain.OperationStats{}, err
+			day, through := monday.AddDays(offset), monday.AddDays(4)
+			switch offset {
+			case 0:
+				// Finish Monday before reading any later day's calendar.
+				through = day
+			case 1:
+				days = nil
 			}
-			week.Days = append(week.Days, list)
+			list, loaded, err := s.dailyParticipants(txCtx, day, through, days)
+			if err != nil {
+				return domain.OperationStats{}, mapPublicError(err)
+			}
+			days = loaded
+			week.Days = append(week.Days, publicDailyList(list))
 		}
 		return domain.OperationStats{}, nil
 	})

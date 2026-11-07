@@ -67,45 +67,6 @@ func newClassDayWriteScope(settings classDayWriteScopeSettings) classdayCompose.
 	return ClassDayWriteScope{Settings: settings}
 }
 
-// ClassDaySlotListReader is the slice of the settings service the slot lists
-// read.
-type ClassDaySlotListReader interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveString(ctx context.Context, key string) (string, error)
-	// LockSlotListCutoffPairShared acquires the SHARED advisory lock guarding
-	// the Ganztag pickup-cutoff pair so both cutoffs come from one consistent
-	// snapshot (#1565 review pass 12).
-	LockSlotListCutoffPairShared(ctx context.Context) error
-}
-
-// ClassDaySlotListSettings resolves the slot lists' timetable flag and
-// Ganztag pickup cutoffs.
-type ClassDaySlotListSettings struct{ Settings ClassDaySlotListReader }
-
-func (b ClassDaySlotListSettings) TimetableEnabled(ctx context.Context) (bool, error) {
-	return b.Settings.ResolveBool(ctx, configModels.KeyTimetableEnabled)
-}
-
-// PickupCutoffs resolves both Ganztag cutoffs under the SHARED variant of the
-// advisory lock the settings writer takes exclusively. Without it the two
-// reads run as separate statements under READ COMMITTED, and an administrator
-// lowering BOTH boundaries through two individually valid writes could commit
-// between them and hand the reader an inverted pair (#1565 review pass 12).
-func (b ClassDaySlotListSettings) PickupCutoffs(ctx context.Context) (string, string, error) {
-	if err := b.Settings.LockSlotListCutoffPairShared(ctx); err != nil {
-		return "", "", err
-	}
-	short, err := b.Settings.ResolveString(ctx, configModels.KeySlotListShortDayCutoff)
-	if err != nil {
-		return "", "", fmt.Errorf("resolve short-day pickup cutoff: %w", err)
-	}
-	long, err := b.Settings.ResolveString(ctx, configModels.KeySlotListLongDayCutoff)
-	if err != nil {
-		return "", "", fmt.Errorf("resolve long-day pickup cutoff: %w", err)
-	}
-	return short, long, nil
-}
-
 // deviceScanSettingsReader is the slice of the settings service the device
 // scans read.
 type deviceScanSettingsReader interface {

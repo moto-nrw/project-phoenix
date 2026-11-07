@@ -874,21 +874,14 @@ function DateField({
   onChange: (value: string) => void;
 }) {
   return (
-    <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <ISODatePicker
-        id={id}
-        value={value}
-        min={min}
-        onChange={onChange}
-        calendarLayout="popover"
-        hideClearButton
-      />
-    </div>
+    <ISODatePicker
+      label={label}
+      id={id}
+      value={value}
+      min={min}
+      onChange={onChange}
+      calendarLayout="popover"
+      hideClearButton
+    />
   );
 }

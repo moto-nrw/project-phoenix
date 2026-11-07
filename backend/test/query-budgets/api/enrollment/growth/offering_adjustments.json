@@ -1,0 +1,6 @@
+{
+  "scenario": "api.enrollment.growth.offering_adjustments",
+  "max": 5,
+  "exact": true,
+  "description": "Positive mounted handler, all SQL including transaction envelope; real persistence and N3/N8 returned rows."
+}

@@ -88,7 +88,7 @@ func mountServeMiddleware(
 	router.Use(sessionAuth.Verifier())
 	// Every verified access token must still rest on a live refresh-token
 	// family, so logout ends it at once on every instance (#5194).
-	router.Use(sessiontoken.RequireLiveSession(accessSessionLiveness(sessions)))
+	router.Use(RequireLiveAccessSession(sessions))
 	// Classifies each path by module; TenantScopeMiddleware and
 	// SchoolScopeMiddleware refuse a module the bound school has not booked
 	// (#4893, #4895), ParentScopeMiddleware a parents portal none of the
@@ -106,6 +106,11 @@ func mountServeMiddleware(
 	router.Get("/analytics-policy", analytics.PolicyHandler(policy, analyticsRequestActor))
 	mountAnalyticsConsent(router, consent)
 	return sessionAuth, nil
+}
+
+// RequireLiveAccessSession constructs the production access-family gate.
+func RequireLiveAccessSession(sessions identityaccess.AccessSessions) func(http.Handler) http.Handler {
+	return sessiontoken.RequireLiveSession(accessSessionLiveness(sessions))
 }
 
 // accessSessionLiveness binds the per-request family check of the verifier

@@ -42,6 +42,14 @@ func (r *recordedPushes) all() []parentService.BillingDocumentPush {
 // Organisation & Tenancy and Identity & Access, with the pushes recorded.
 func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentNotices, *recordedPushes, *bun.DB) {
 	t.Helper()
+	portal, notices, pushes, db, _ := documentInboxWithMails(t)
+	return portal, notices, pushes, db
+}
+
+// documentInboxWithMails is documentInbox with the mails of the care
+// contracts' signature recorded (#4679).
+func documentInboxWithMails(t *testing.T) (*parentService.Portal, parentService.DocumentNotices, *recordedPushes, *bun.DB, *owners.CareContractTestMails) {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	people := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
@@ -50,6 +58,7 @@ func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentN
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	pushes := &recordedPushes{}
+	mails := &owners.CareContractTestMails{}
 	deps := parentportalcompose.Dependencies{
 		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
 		GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{},
@@ -57,11 +66,11 @@ func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentN
 		ChildRepo: repos.ParentChildReads(), PersonRepo: owners.NewParentPersonReads(people.Person),
 		GuardianProfileRepo: owners.NewParentGuardianProfileReads(people.GuardianProfile),
 		Logger:              slog.Default(), CarePlanPolicy: owners.NewParentCarePlanPolicy(),
-		BillingDocuments: owners.NewParentBillingDocuments(), ContractDocuments: owners.NewParentContractDocuments(), TraegerRuntime: owners.ParentPortalRuntime{},
+		BillingDocuments: owners.NewParentBillingDocuments(), ContractDocuments: owners.NewParentContractDocuments(owners.NewParentContractSigningForTests(mails)), TraegerRuntime: owners.ParentPortalRuntime{},
 		SchoolTraeger: owners.NewParentSchoolTraeger(organizations), ParentAccounts: owners.NewParentAccounts(identity),
 		DocumentNotifier: pushes,
 	}
-	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps), pushes, db
+	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps), pushes, db, mails
 }
 
 // inboxTraeger writes the invoices of one Träger as the Elternabrechnung
@@ -243,15 +252,27 @@ func TestDocumentInboxQueryBudget(t *testing.T) {
 	var organization int64
 	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
 	own := newInboxTraeger(t, db, organization)
-	for _, child := range []string{"Felix", "Mia", "Lena"} {
-		own.document(chain.Email, child, true)
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	created, smallStatements := 0, 0
+	for _, n := range []int{1, 3, 12} {
+		for created < n {
+			own.document(chain.Email, fmt.Sprintf("Kind-%02d", created), true)
+			created++
+		}
+		counter.Reset()
+		documents, err := portal.ListBillingDocuments(counter.Context(ctx), chain.AccountID, parentService.DocumentInboxLetters)
+		require.NoError(t, err)
+		assert.Len(t, documents, n)
+		assert.EqualValues(t, 1, counter.WriteRows(), "one read trail entry per inbox request, not per document")
+		t.Logf("billing documents N=%d total=%d", n, counter.Total())
+		querybudgets.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Queries())
+		if n == 1 {
+			smallStatements = counter.Total()
+		} else {
+			assert.Equal(t, smallStatements, counter.Total(), "document growth adds no roundtrips")
+		}
 	}
 
-	counter := testpkg.CaptureQueriesForContext(t, db)
-	documents, err := portal.ListBillingDocuments(counter.Context(ctx), chain.AccountID, parentService.DocumentInboxLetters)
-	require.NoError(t, err)
-	assert.Len(t, documents, 3)
-	querybudgets.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Queries())
 }
 
 // The contract inbox reads flat in the number of contracts: the account's
@@ -299,6 +320,10 @@ func inboxContract(t *testing.T, db *bun.DB, organization, school, studentID int
 			(?, ?, 'mon', 4, 'Ganztag', '16:30'), (?, ?, 'tue', 4, 'Ganztag', '16:30')`,
 		organization, version, organization, version, organization, version)
 	require.NoError(t, err)
+	// The contract party, as the intake writes it from the application.
+	_, err = db.ExecContext(ctx, `INSERT INTO care_contract.contract_parties (organization_id, contract_id, first_name, last_name, email)
+		VALUES (?, ?, 'Erika', 'Schneider', ?)`, organization, contract, sentTo)
+	require.NoError(t, err)
 	if sentTo == "" {
 		return contract
 	}
@@ -308,6 +333,10 @@ func inboxContract(t *testing.T, db *bun.DB, organization, school, studentID int
 	_, err = db.ExecContext(ctx, `INSERT INTO care_contract.contract_mailings (organization_id, contract_id, contract_document_id,
 			outbox_id, recipient_email) VALUES (?, ?, ?, ?, ?)`, organization, contract, document, testpkg.UniqueTestTenantID(t), sentTo)
 	require.NoError(t, err)
+	// The signing link a send makes, with the PDF and version it sent (#4679).
+	require.NoError(t, testpkg.WithinTraeger(testpkg.WithPackageTenantRuntime(ctx), organization, func(txCtx context.Context) error {
+		return owners.RecordCareContractSendForTests(txCtx, organization, contract)
+	}))
 	return contract
 }
 

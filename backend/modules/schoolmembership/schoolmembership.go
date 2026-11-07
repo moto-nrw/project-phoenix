@@ -99,6 +99,9 @@ type Teacher struct {
 	Role           string     `json:"role,omitempty"`
 	Qualifications string     `json:"qualifications,omitempty"`
 	DeletedAt      *time.Time `json:"-"`
+	// Staff is populated only by TeacherFilter.IncludeStaff. Retired or
+	// missing memberships leave it nil; teacher selection stays unchanged.
+	Staff *Staff `json:"-"`
 }
 
 func (t Teacher) IsDeleted() bool { return t.DeletedAt != nil }
@@ -210,6 +213,9 @@ type TeacherFilter struct {
 	RoleContains           string
 	HasQualifications      *bool
 	IncludeDeleted         bool
+	// IncludeStaff embeds live membership facts in the same owner read and
+	// retains the separate Workforce employment read, including its failures.
+	IncludeStaff bool
 }
 
 // ExternalCaregiverRecordFilter narrows a listing of external caregiver
