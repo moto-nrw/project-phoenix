@@ -12,6 +12,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { Pencil, Trash2, Send, Check } from "lucide-react";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -115,8 +116,6 @@ export default function OperatorAnnouncementsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [severityDropdownOpen, setSeverityDropdownOpen] = useState(false);
-  const severityDropdownRef = useRef<HTMLDivElement>(null);
 
   // SWR key is unconditional — OperatorAuthGuard already ensures
   // this page only renders when the session is authenticated.
@@ -286,20 +285,6 @@ export default function OperatorAnnouncementsPage() {
 
   const hasStaleTargets =
     staleOrgTargets.length > 0 || staleTenantTargets.length > 0;
-
-  // Close severity dropdown on click outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        severityDropdownRef.current &&
-        !severityDropdownRef.current.contains(event.target as Node)
-      ) {
-        setSeverityDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const openCreateForm = useCallback(() => {
     clearSaveError();
@@ -639,74 +624,20 @@ export default function OperatorAnnouncementsPage() {
               </div>
 
               {/* Severity */}
-              <div>
-                <span
-                  id="announcement-severity-label"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Dringlichkeit
-                </span>
-                <div
-                  className="relative"
-                  ref={severityDropdownRef}
-                  aria-labelledby="announcement-severity-label"
-                >
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSeverityDropdownOpen(!severityDropdownOpen)
-                    }
-                    className={`flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-all ${
-                      severityDropdownOpen
-                        ? "border-gray-300 bg-gray-50"
-                        : "hover:bg-gray-50"
-                    }`}
-                  >
-                    <span className="text-gray-900">
-                      {SEVERITY_LABELS[formData.severity]}
-                    </span>
-                    <svg
-                      className={`h-4 w-4 text-gray-400 transition-transform ${
-                        severityDropdownOpen ? "rotate-180" : ""
-                      }`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </button>
-                  {severityDropdownOpen && (
-                    <div className="moto-popover-surface absolute top-full left-0 z-[10001] mt-1 w-full overflow-hidden rounded-xl border py-1">
-                      {Object.entries(SEVERITY_LABELS).map(([value, label]) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => {
-                            setFormData((prev) => ({
-                              ...prev,
-                              severity: value as AnnouncementSeverity,
-                            }));
-                            setSeverityDropdownOpen(false);
-                          }}
-                          className={`flex w-full items-center px-4 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${
-                            formData.severity === value
-                              ? "bg-gray-50 font-medium text-gray-900"
-                              : "text-gray-700"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <CustomSelect
+                id="announcement-severity"
+                label="Dringlichkeit"
+                value={formData.severity}
+                options={Object.entries(SEVERITY_LABELS).map(
+                  ([value, label]) => ({ value, label }),
+                )}
+                onChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    severity: value as AnnouncementSeverity,
+                  }))
+                }
+              />
 
               {/* Version (only for release type) */}
               {formData.type === "release" && (

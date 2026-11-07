@@ -471,6 +471,9 @@ describe("OverflowMenu", () => {
       fireEvent.scroll(menu);
       expect(screen.getByRole("menu")).toBeInTheDocument();
 
+      // A page scroll carries the trigger along, which detaches the menu.
+      window.HTMLElement.prototype.getBoundingClientRect = () =>
+        ({ left: 600, top: 160 }) as DOMRect;
       fireEvent.scroll(window);
       expect(screen.queryByRole("menu")).toBeNull();
     } finally {
@@ -624,5 +627,123 @@ describe("OverflowMenu", () => {
     fireEvent.keyDown(entry, { key: "Enter" });
     expect(toggle).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("names an entry by its label and describes it by its line", () => {
+    render(
+      <OverflowMenu
+        items={[
+          {
+            label: "Einmaliger Termin",
+            description: "Findet nur an diesem Tag statt.",
+            onClick: vi.fn(),
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+
+    const entry = screen.getByRole("menuitem", { name: "Einmaliger Termin" });
+    expect(entry).toHaveAccessibleDescription(
+      "Findet nur an diesem Tag statt.",
+    );
+  });
+
+  it("draws the trigger as a kit button and keeps its menu semantics", () => {
+    render(
+      <OverflowMenu
+        ariaLabel="Neu anlegen"
+        triggerButton={{ variant: "primary", size: "md" }}
+        triggerContent="Neu"
+        items={[{ label: "Termin", onClick: vi.fn() }]}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Neu anlegen" });
+    expect(trigger).toHaveClass("bg-gray-900");
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+  });
+
+  it("marks the selected entry", () => {
+    render(
+      <OverflowMenu
+        items={[
+          { label: "Schule A", selected: true, onClick: vi.fn() },
+          { label: "Schule B", onClick: vi.fn() },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+
+    expect(screen.getByRole("menuitem", { name: "Schule A" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Schule A" }).querySelector("svg"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Schule B" }).querySelector("svg"),
+    ).toBeNull();
+  });
+
+  it.each(["Enter", " "])(
+    "returns focus to the trigger after an external link is activated with %s",
+    (key) => {
+      const onClick = vi.fn();
+      render(
+        <OverflowMenu
+          items={[
+            {
+              label: "Ziel",
+              href: "https://example.test/ziel",
+              external: true,
+              onClick,
+            },
+          ]}
+        />,
+      );
+      const trigger = screen.getByRole("button", { name: "Weitere Aktionen" });
+      fireEvent.click(trigger, { detail: 0 });
+      const item = screen.getByRole("menuitem", { name: "Ziel" });
+      expect(item).toHaveFocus();
+
+      fireEvent.keyDown(item, {
+        key,
+      });
+
+      expect(onClick).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    },
+  );
+
+  it("stays open when a scroll does not move the trigger", () => {
+    render(
+      <>
+        <div data-testid="grid" />
+        <OverflowMenu items={[{ label: "Eintrag", onClick: vi.fn() }]} />
+      </>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+
+    fireEvent.scroll(screen.getByTestId("grid"));
+    fireEvent.scroll(window);
+
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("closes when a scroll moves the trigger", () => {
+    render(<OverflowMenu items={[{ label: "Eintrag", onClick: vi.fn() }]} />);
+    const trigger = screen.getByRole("button", { name: "Weitere Aktionen" });
+    fireEvent.click(trigger);
+    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      left: 0,
+    } as DOMRect);
+
+    fireEvent.scroll(window);
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 });

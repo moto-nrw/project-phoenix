@@ -78,7 +78,7 @@ Don't design from imagination. The app's real screens are captured as images you
   - `kinderdetailansicht.webp` = child detail · `kindersuche.webp` = student search/list
   - `meine-gruppen.webp` = groups · `aktivitaeten.webp` = activities
   - `datenverwaltung.webp` = data admin · NFC kiosk = `nfc-*.webp`
-- **Component gallery (Storybook)** → https://moto-nrw.github.io/design-system/ (or `pnpm storybook` in the sibling `../design-system` repo → :6006; project-phoenix itself has no storybook script). Good for component anatomy and states. Caveat: it renders the `@moto-nrw/design-system` **package** components, NOT the ones we import; use it for anatomy, not as import targets.
+- **Component gallery** → https://moto-nrw.github.io/design-system/. Renders the **package** components, not ours: anatomy only.
 
 Match what you see: density, neutral grays, brand-green accents used sparingly, no decorative hero cards.
 
@@ -116,7 +116,8 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Icon tile (symbol on a grey or tinted square/circle) | `IconTile` (`size`, `shape`, `tone`); a concept: `ConceptIconTile` | `~/components/ui/icon-tile` |
 | Any card: page section with heading, explanation, actions, or a plain surface | `SectionCard`, the only card head: `concept`/`icon`/`leading`, `collapsible`, `flush`, `footer`, `padding="none"`, `loading`; `kicker`: ADR 0149 | `~/components/ui/section-card` |
 | Any other framed white container (list wrapper, inner card, skeleton) | the `moto-content-surface` utility + `rounded-2xl border` (inner cards keep `rounded-xl`); never `border-gray-200 bg-white` by hand | `globals.css` |
-| Floating menu / dropdown list / anchored popover panel | the `moto-popover-surface` utility + `rounded-xl border` (gray-200 frame, white, shadow-lg, no blur) — what `OverflowMenu`, `CustomSelect`, `DatePicker` use internally | `globals.css` |
+| Floating panel at a control, with content | `AnchoredPopover` — `header`, `footer`, `align`, `focusPanelOnOpen`, `swallowOutsideClick` | `~/components/ui/anchored-popover` |
+| Count on an icon or nav row | `NotificationBadge` — `tone`, `size` | `~/components/ui/notification-badge` |
 | Selectable row or tile (label around a Checkbox/Radio, mode-picker button, row with a selection state) | `ChoiceTile` — `as` = `label` (default) / `button` / `div`, `selected`, `disabled`, `tone` = `gray` `green` `blue`; padding via `className` | `~/components/ui/choice-tile` |
 | Label/value fields | `DataField` in a `dl`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
 | Select | `CustomSelect`, `MultiSelect`; own content: `ListboxDropdown` | `~/components/ui/<kebab-name>` |
@@ -142,14 +143,14 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Icon in a sidebar row (any portal) | `MotoNavIcon` with `scene` / `NavSceneIcon`: the glyph's animated scene; a glyph new to a sidebar needs a scene: `.claude/rules/sidebar-icon-scenes.md` | `~/components/ui/moto-nav-icon`, `~/components/ui/nav-scene-icon/nav-scene-icon` |
 | Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). | `~/components/ui/nav-link` |
 | Interner Link im Seiteninhalt | `NavigationLink` — meldet den Wechsel an die Portalhülle und verwirft die Meldung bei abgebrochenem Klick. `ButtonLink` nutzt dieselbe Meldung bei String-Zielen. Plain `next/link` bleibt richtig für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. | `~/components/ui/navigation-link` |
-| Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavLink`, `NavigationLink` und `ButtonLink` melden den ausstehenden Wechsel selbst (#2828). Nicht nachbauen und keine eigene Ladehülle über mehrere Seiten legen. | `~/components/ui/navigation-progress` |
+| Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavLink`, `NavigationLink` und `ButtonLink` melden den ausstehenden Wechsel selbst (#2828). Nicht nachbauen, keine eigene Ladehülle über mehrere Seiten. | `~/components/ui/navigation-progress` |
 | Overlay / side panel | `Drawer`, slide-over (`SlideOverContent size="md\|lg\|xl"`, `SlideOverHeader close`); levels: `Z_LAYER` (`overlay-styles`) | `~/components/ui/drawer`, `~/components/ui/slide-over` |
 | Sticky save bar | `StickyActionBar summary?` | `~/components/ui/sticky-action-bar` |
-| Multi-selection bar | `SelectionBar count label? actions onClear placement` | `~/components/ui/selection-bar` |
+| Selection bar | `SelectionBar count label? actions onClear placement` | `~/components/ui/selection-bar` |
 | Failed API call shown to the user | `useApiErrorDisplay` (toast), `useApiFormError` + `FormErrorAlert`, `useApiLoadError` + `LoadErrorAlert`; rules in `.claude/rules/error-path.md` | `~/contexts/ToastContext`, `~/components/ui/form-error-alert` |
 | List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header/PageHeaderWithSearch` |
 | Header nav tabs (sliding indicator, mobile dropdown) | `NavigationTabs` | `~/components/ui/page-header/NavigationTabs` |
-| Kebab / overflow action menu (every row action of a list item goes here; `bauart/no-row-action-buttons` fails a per-row `Button` named Bearbeiten/Löschen/Archivieren/…) | `OverflowMenu` | `~/components/ui/page-header/OverflowMenu` |
+| Kebab / overflow action menu (every row action of a list item goes here; `bauart/no-row-action-buttons` fails a per-row `Button` named Bearbeiten/Löschen/Archivieren/…); menu behind a text button | `OverflowMenu` — entry `description`, `selected`; `triggerButton` + `triggerContent` for a kit button, `wrapperClassName` | `~/components/ui/page-header/OverflowMenu` |
 | Filter toggle button | `FilterButton` | `~/components/ui/page-header/FilterButton` |
 | Stammdaten-Katalog einer Schule (Kategorien, Planungsspuren, Schichtarten, Abwesenheitsarten): Sammlung + Objektbearbeitung | `CatalogPage` auf einer eigenen Route unter `/database/…`; ein Formular, dem ein Eintrag fehlt, trägt nur die Auswahl und `CatalogManageLink`. Nie ein Slide-over, Modal oder Auswahlfeld — `bauart/no-manage-surface-in-overlay` fällt darauf (#3114). | `~/components/database/catalog/catalog-page`, `~/components/database/catalog/catalog-manage-link` |
 
@@ -279,7 +280,7 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 
 ## Kit gaps — extend the kit, don't inline a bespoke control
 
-Buttons, `Checkbox`, `OverflowMenu`, `StatusBadge`, `EmptyState`, `SegmentedControl` and the selects (no styled native `<select>`) all EXIST — see the table above. When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
+Buttons, `Checkbox`, `OverflowMenu`, `StatusBadge`, `EmptyState`, `SegmentedControl` and the selects (no styled native `<select>`) all EXIST — see the table above. A genuinely missing primitive goes into `frontend/src/components/ui/`, not inline; call it out in the PR description.
 
 ## Gotchas
 
@@ -304,7 +305,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 ## Detection
 
-**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on drift patterns, first these five — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-hand-rolled-surface` (unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element, also across conditional branches; use `moto-content-surface`, `moto-popover-surface`, `ChoiceTile` or a kit surface component — #2933), `ui-kit/no-rounded-3xl` (off-scale radius, `rounded-t-3xl` too), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes; a Checkbox inside a label-shaped `ChoiceTile` counts as labeled). These five are hard-zero. A deliberate non-card match (white pill) may stay behind `{/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- <reason> */}` with the reason in the PR description; no baseline. Test/stories files are exempt from the class-string rules.
+**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on drift patterns, first these five — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-hand-rolled-surface` (unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element, also across conditional branches; use `moto-content-surface`, `AnchoredPopover`, `ChoiceTile` or a kit surface component — #2933), `ui-kit/no-rounded-3xl` (off-scale radius, `rounded-t-3xl` too), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes; a Checkbox inside a label-shaped `ChoiceTile` counts as labeled). These five are hard-zero. A deliberate non-card match (white pill) may stay behind `{/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- <reason> */}` with the reason in the PR description; no baseline. Test/stories files are exempt from the class-string rules.
 `bauart/*` exempts only the parent portal (#5604). The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading outside the parent portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a portal page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline). `ui-kit/green-fill-white-text` (#5141, hard-zero) keeps text on opaque green surfaces white and on the dark fill steps. #5577: `no-dynamic-color-class`, `no-white-on-warm-fill` (white on orange only `-strong`). #5531: button ratchet, see [Buttons](#buttons). #5579: `no-shadcn-tokens`, `no-raw-z-index` (`z-[n]`). #5580: `no-select-override` (no look classes on selects, `DateRangePicker`). #5581: `no-important-override` (`!` on kit components, baseline), `no-section-card-bleed`. #5605: `no-control-height-override` (`h-8`/`h-9`/`!size-*`). #5582: `no-hand-rolled-icon-tile` (also in `ui/`). #5583: `no-shadow-kit-name` (no local name equal to a kit export). #5584 (hard-zero): `no-hand-rolled-pill`, `no-pill-dot`, `no-hex-alpha-tint`. #5596 (hard-zero): `no-hand-rolled-weekday-toggle` (`.map` over weekdays returning a checkbox label or pressed button), `no-hand-rolled-removable-chip` (chip with its own X), `no-hand-rolled-number-stepper` (minus/plus around a field). #5599: `no-hand-rolled-dropzone` (`onDrop`), `no-hand-rolled-copy-field` (framed `<code>`, `navigator.clipboard`). #5602: `no-hand-rolled-sticky-bar`, `no-arbitrary-slide-over-width`, `no-slide-over-row-override`. `ui-kit/no-raw-input` (#5217, hard-zero) fails a hand-built `<input>`/`<textarea>` except in the primitives of `RAW_INPUT_KIT_PRIMITIVES`; `type="hidden"` and `type="file"` stay native. A field with no kit counterpart (OTP grid) stays behind `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`. A form jumps to its first failed field only through `FormErrorAlert`; there is no second scroll hook.
 
 `ui-kit/no-radix-outside-kit` (#5604, hard-zero): `@radix-ui/*` only under `components/ui/`.
@@ -312,6 +313,8 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 `ui-kit/no-raw-table` (#5600, hard-zero): no `<table>` outside `ui/`.
 
 `ui-kit/no-kit-domain-import` (#5586, hard-zero): `components/ui/` imports no other component folder and calls no `fetch`/`useSWR*`; context comes through props and slots. Planning pieces live in `ui/planning/`. `no-hand-rolled-surface` applies in `ui/` too.
+
+`ui-kit/no-hand-rolled-menu` (#5601, hard-zero): `role="menu|menuitem*|listbox|option"` only in `ui/`; `ui-kit/no-hand-rolled-popover` (#5601, hard-zero): `moto-popover-surface` only in `ui/`.
 
 `ui-kit/no-own-spinner` (#5588, hard-zero): no `animate-spin` or icon-package spinner outside `ui/`. `bauart/no-own-skeleton` also fails `<Skeleton>` rows in an own surface and radius classes on it. The scaffold test fails visible loading text in `page.tsx`.
 

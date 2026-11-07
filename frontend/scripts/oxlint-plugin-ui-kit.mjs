@@ -27,7 +27,7 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     (`rounded-xl/2xl` + `border` + `bg-white`),
 //                                     in the kit except SURFACE_KIT_CONTROLS; use
 //                                     moto-content-surface (cards),
-//                                     moto-popover-surface (floating menus),
+//                                     AnchoredPopover or OverflowMenu (floating panels),
 //                                     ChoiceTile (selectable rows) or a kit
 //                                     surface component (issue #2933)
 //   ui-kit/no-rounded-3xl           — off-scale surface radius, also per
@@ -663,7 +663,7 @@ const noHandRolledSurface = {
     },
     messages: {
       handRolledSurface:
-        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), moto-popover-surface (floating menus), ChoiceTile (selectable rows and tiles) or a kit surface component (SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
+        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), AnchoredPopover or OverflowMenu (floating panels), ChoiceTile (selectable rows and tiles) or a kit surface component (SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
     },
     schema: [],
   },
@@ -885,7 +885,7 @@ const noDeadSurfaceUtility = {
           tokens: tokens.join(" "),
           surface: CONTENT_SURFACE_RE.test(text)
             ? "moto-content-surface"
-            : "moto-popover-surface",
+            : "AnchoredPopover",
         },
       });
     };
@@ -1138,7 +1138,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/enrollment/admin-enrollments-list.tsx",
   "src/components/enrollment/enrollment-form.tsx",
   "src/components/files/files-page.tsx",
-  "src/components/guardians/guardian-contact-actions.tsx",
   "src/components/guardians/guardian-list.tsx",
   "src/components/parent/calendar/parent-calendar-page.tsx",
   "src/components/parent/parent-meal-plan-page.tsx",
@@ -1167,7 +1166,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/ui/planning/coverage-indicator.tsx",
   "src/components/ui/location-badge.tsx",
   "src/components/ui/notification-badge.tsx",
-  "src/components/ui/page-header/FilterButton.tsx",
   "src/components/ui/page-header/OverflowMenu.tsx",
   "src/components/ui/planning/plan-block.tsx",
   "src/components/ui/planning/plan-legend.tsx",
@@ -1179,11 +1177,10 @@ src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@231
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
+src/components/dashboard/header/reminders-bell.tsx|text-[11px]@45
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/files/files-page.tsx|text-[11px]@180 text-[11px]@292
-src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@462
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
@@ -1197,11 +1194,11 @@ src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@371
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-[11px]@310
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
-src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
+src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
 src/components/timetable/instance-detail-modal.tsx|text-[11px]@1356 text-[11px]@1382 text-[11px]@1555 text-[10px]@1664 text-[11px]@1687
 src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
-src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@199 text-[10px]@215 text-[11px]@224 text-[10px]@266 text-[10px]@290 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
+src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[10px]@246 text-[11px]@255 text-[10px]@297 text-[10px]@321 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@411 text-[11px]@478
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
 src/components/timetable/substitution-slide-over.tsx|text-[11px]@742 text-[11px]@746
@@ -1211,8 +1208,7 @@ src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@456 text-[11px]@45
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[10px]@282
-src/components/ui/notification-badge.tsx|text-[10px]@15
-src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
+src/components/ui/notification-badge.tsx|text-[10px]@18
 src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
 src/components/ui/planning/plan-block.tsx|text-[11px]@154 text-[11px]@175
 src/components/ui/planning/plan-legend.tsx|text-[11px]@106
@@ -3589,6 +3585,78 @@ const noOwnSpinner = makeRatchetRule({
   }),
 });
 
+// Menüs und Popover (#5601): Rolle und schwebende Fläche gibt es nur im Kit,
+// dort hängen Tastaturbedienung, Portal und Lage am Bildschirmrand.
+
+const MENU_ROLE_RE =
+  /^(?:menu|menuitem|menuitemradio|menuitemcheckbox|listbox|option)$/;
+const HAND_POPOVER_CLASS_RE = /(?:^|[\s"'`])moto-popover-surface(?:$|[\s"'`])/;
+
+/** Alle Zeichenketten eines Attributwerts, auch hinter `?:` und `&&`. */
+function roleLiterals(node) {
+  if (!node) return [];
+  switch (node.type) {
+    case "Literal":
+      return typeof node.value === "string" ? [node.value] : [];
+    case "JSXExpressionContainer":
+      return roleLiterals(node.expression);
+    case "ConditionalExpression":
+      return [
+        ...roleLiterals(node.consequent),
+        ...roleLiterals(node.alternate),
+      ];
+    case "LogicalExpression":
+      return [...roleLiterals(node.left), ...roleLiterals(node.right)];
+    default:
+      return [];
+  }
+}
+
+const noHandRolledMenu = makeRatchetRule({
+  ruleName: "no-hand-rolled-menu",
+  description:
+    "Menus and listboxes come from OverflowMenu, CustomSelect or ListboxDropdown instead of own ARIA roles.",
+  message:
+    "Kein eigenes Menü: Aktionen über `OverflowMenu`, eine Auswahl über `CustomSelect` oder `ListboxDropdown` (#5601, .claude/rules/frontend-ui-kit.md).",
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/page-header/OverflowMenu.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ found }) => ({
+    JSXAttribute(node) {
+      if (node.name?.name !== "role") return;
+      if (roleLiterals(node.value).some((role) => MENU_ROLE_RE.test(role))) {
+        found(node);
+      }
+    },
+  }),
+});
+
+const noHandRolledPopover = makeRatchetRule({
+  ruleName: "no-hand-rolled-popover",
+  description:
+    "Floating panels anchored to a control come from AnchoredPopover or OverflowMenu.",
+  message:
+    "Keine eigene schwebende Fläche: `AnchoredPopover` für einen Rahmen mit Inhalt, `OverflowMenu` für Aktionen (#5601, .claude/rules/frontend-ui-kit.md).",
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/anchored-popover.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ found }) => ({
+    Literal(node) {
+      if (
+        typeof node.value === "string" &&
+        HAND_POPOVER_CLASS_RE.test(node.value)
+      ) {
+        found(node);
+      }
+    },
+    TemplateElement(node) {
+      if (HAND_POPOVER_CLASS_RE.test(node.value.raw)) found(node);
+    },
+  }),
+});
+
 // Eingabe-Bausteine (#5596): drei Muster, die es im Kit genau einmal gibt.
 
 /** Direkte JSX-Kinder, auch hinter `&&`, `?:`, Fragment und `{…}`. */
@@ -3854,9 +3922,11 @@ export default {
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
+    "no-hand-rolled-menu": noHandRolledMenu,
     "no-hand-rolled-number-stepper": noHandRolledNumberStepper,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
+    "no-hand-rolled-popover": noHandRolledPopover,
     "no-hand-rolled-pill": noHandRolledPill,
     "no-hand-rolled-portal-nav": noHandRolledPortalNav,
     "no-hand-rolled-removable-chip": noHandRolledRemovableChip,

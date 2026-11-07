@@ -119,7 +119,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [854, 887, 987, 1156],
+    lines: [827, 860, 960, 1141],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
@@ -231,7 +231,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [275],
+    lines: [306],
     reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder
@@ -239,20 +239,14 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [275],
+    lines: [306],
     reason:
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/announcements/page.tsx",
-    lines: [654],
-    reason: "Auslöser des Dringlichkeits-Felds, sieht aus wie ein Select",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/app/operator/announcements/page.tsx",
-    lines: [771, 919, 1012],
+    lines: [702, 850, 943],
     reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
   },
 ];
