@@ -168,7 +168,7 @@ export function MonthPlannerGrid({
                                 onClick: () => onInstanceClick(inst),
                               }
                             : {})}
-                          className={`pointer-events-auto flex min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-[11px] shadow-sm ${
+                          className={`pointer-events-auto flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-[11px] shadow-sm ${
                             isCancelled
                               ? "border-moto-red border-dashed text-gray-400 line-through"
                               : "border-gray-200 text-gray-700"
