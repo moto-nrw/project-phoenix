@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
@@ -395,9 +396,9 @@ function NotificationPreferencesSectionContent({
         <div className="space-y-5">
           {groups.map(({ group, label, items }) => (
             <div key={group}>
-              <h4 className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              <SectionLabel as="h4" className="mb-2">
                 {label}
-              </h4>
+              </SectionLabel>
               <div className="divide-y divide-gray-100">
                 {items.map((type) => (
                   <div

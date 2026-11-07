@@ -62,7 +62,6 @@ export default function RootPage() {
   return (
     <AuthShell
       eyebrow="Einrichtung auswählen"
-      eyebrowClassName="tracking-[0.08em] text-moto-green"
       title="Willkommen"
       subtitle="Wählen Sie Ihre Einrichtung aus."
       variant="tenant-select"

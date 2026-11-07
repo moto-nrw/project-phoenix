@@ -1200,7 +1200,7 @@ src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[1
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/files/files-page.tsx|text-[11px]@180 text-[11px]@287
+src/components/files/files-page.tsx|text-[11px]@181
 src/components/guardians/guardian-list.tsx|text-[10px]@466
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@716 text-[11px]@781
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
