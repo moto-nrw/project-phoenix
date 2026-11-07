@@ -17,7 +17,7 @@ import {
   PreviewFieldsSection,
   PreviewSection,
 } from "~/components/enrollment/form-field-builder";
-import { LegalBlocksSection } from "~/components/enrollment/enrollment-form-editor";
+import { LegalBlocksSection } from "~/components/enrollment/legal-blocks-section";
 import { AttachmentUploadContext } from "~/components/enrollment/attachment-editor";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";

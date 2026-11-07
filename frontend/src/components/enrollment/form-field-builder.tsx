@@ -55,6 +55,12 @@ import {
   type FormFieldType,
   type VisibilityCondition,
 } from "~/lib/enrollment-form-schema-api";
+import {
+  canAskPerChild,
+  canControlVisibility,
+  hasControllingType,
+  normalizeFieldKey,
+} from "~/lib/enrollment-form-field-rules";
 import { getStableObjectKey } from "~/lib/stable-object-key";
 
 export const fieldTypeLabels: Record<FormFieldType, string> = {
@@ -130,45 +136,8 @@ export function fieldErrorProps(
   } as const;
 }
 
-// Snake-case-ify a free-form label into a schema-safe field key.
-//
-// Implementation is character-loop based on purpose: the regex form
-// would need `+` / `*` quantifiers on character classes, which are the
-// shape static analysis flags as potentially super-linear under
-// backtracking. The patterns here aren't actually catastrophic (single
-// char classes, no overlapping alternation), but the loop has the same
-// O(n) cost and sidesteps the question. Inputs are also capped \u2014 admin
-// labels never legitimately exceed a few hundred chars.
-export function normalizeFieldKey(value: string): string {
-  const MAX_INPUT = 256;
-  const source = value
-    .slice(0, MAX_INPUT)
-    .trim()
-    .toLowerCase()
-    .normalize("NFD");
-
-  let out = "";
-  let pendingUnderscore = false;
-  for (let i = 0; i < source.length; i++) {
-    const code = source.charCodeAt(i);
-    // Combining diacritical marks introduced by NFD \u2014 skip.
-    if (code >= 0x0300 && code <= 0x036f) continue;
-    const isLower = code >= 0x61 && code <= 0x7a; // a-z
-    const isDigit = code >= 0x30 && code <= 0x39; // 0-9
-    if (isLower || isDigit) {
-      if (pendingUnderscore && out.length > 0) {
-        out += "_";
-      }
-      out += source[i];
-      pendingUnderscore = false;
-    } else {
-      // Any other character \u2192 collapse into a single underscore
-      // (deferred so we don't leave a trailing one).
-      pendingUnderscore = true;
-    }
-  }
-  return out;
-}
+// holiday-form-model.ts imports the key rule from here.
+export { normalizeFieldKey };
 
 function getRequiredHint(field: FormField): string {
   if (field.type === "boolean") {
@@ -345,9 +314,8 @@ export function FieldEditorRow({
       ),
   );
   // Signature of the allowed_times we last pushed up via onChange. Used to
-  // tell an *external* change (a schema/template switch reusing this row at
-  // the same index — the row is keyed by index, not field identity, so the
-  // component instance is not remounted) from a *self-induced* one (our own
+  // tell an *external* change (times written into this field from outside
+  // the row) from a *self-induced* one (our own
   // commit echoing back through field.allowed_times). Only the former resets
   // the local rows; the latter must not, or a half-filled empty row would be
   // wiped on every keystroke.
@@ -795,11 +763,11 @@ export function FieldEditorRow({
                   }
                   label="Pro Kind abfragen"
                   hint={
-                    field.type === "file"
-                      ? "Dateien gelten immer für die ganze Anmeldung."
-                      : "Für Fragen zum Kind, etwa zu Allergien oder zum Schwimmen. Die Frage erscheint dann für jedes angemeldete Kind."
+                    canAskPerChild(field)
+                      ? "Für Fragen zum Kind, etwa zu Allergien oder zum Schwimmen. Die Frage erscheint dann für jedes angemeldete Kind."
+                      : "Dateien gelten immer für die ganze Anmeldung."
                   }
-                  disabled={disabled || isTargetField || field.type === "file"}
+                  disabled={disabled || isTargetField || !canAskPerChild(field)}
                 />
                 {healthToggle ? (
                   <CheckboxCard
@@ -910,10 +878,7 @@ function ConditionEditor({
 
   const controllers = allFields.filter(
     (f, i) =>
-      i !== index &&
-      f.key.trim() !== "" &&
-      (f.type === "boolean" || f.type === "select") &&
-      (field.applies_to_child || !f.applies_to_child),
+      i !== index && f.key.trim() !== "" && canControlVisibility(f, field),
   );
 
   const sources: ConditionSource[] = [];
@@ -935,16 +900,11 @@ function ConditionEditor({
   if (!canEnable && !condition) {
     const hasQuestionWithoutText = allFields.some(
       (f, i) =>
-        i !== index &&
-        (f.type === "boolean" || f.type === "select") &&
-        (field.applies_to_child || !f.applies_to_child) &&
-        f.key.trim() === "",
+        i !== index && f.key.trim() === "" && canControlVisibility(f, field),
     );
     const hasChildQuestion = allFields.some(
       (f, i) =>
-        i !== index &&
-        (f.type === "boolean" || f.type === "select") &&
-        f.applies_to_child,
+        i !== index && hasControllingType(f) && Boolean(f.applies_to_child),
     );
     const description = hasQuestionWithoutText
       ? "Schreiben Sie zuerst den Fragetext der anderen Ja/Nein- oder Auswahlfrage. Diese Frage kann dann von deren Antwort abhängen."

@@ -29,7 +29,8 @@ export type FormFieldType =
 
 /**
  * Source of a field's visibility condition. Mirrors the backend
- * ConditionSource* constants in models/enrollment/form_schema.go.
+ * ConditionSource* constants in
+ * backend/modules/enrollment/form_schema_types.go.
  * - "field": another custom boolean/select field in the same schema
  * - "grade_level": the per-child core field target_grade_level
  * - "care_offering": the child's selected care offering IDs
@@ -56,7 +57,7 @@ export interface VisibilityCondition {
  * Reserved targets that link a form field to a downstream Stammdaten
  * column / association table. Empty string (or absent) keeps the
  * field as free custom_data only. Keep in sync with
- * backend/models/enrollment/form_schema.go ReservedTargets.
+ * backend/modules/enrollment/form_schema.go ReservedTargets.
  *
  * Photo consent and guardian phone number are NOT picker options:
  * the public base form already collects them (consent_flags.photo
@@ -157,6 +158,25 @@ interface FormFieldValidation {
 }
 
 export const MAX_ENROLLMENT_DOCUMENT_BYTES = 10 * 1024 * 1024;
+/** The document limit as the editor names it ("10 MB"). */
+export const MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL = `${MAX_ENROLLMENT_DOCUMENT_BYTES / (1024 * 1024)} MB`;
+
+/**
+ * Why a chosen file cannot become a form document (legal PDF or PDF
+ * attachment), or null. The backend checks the content again on upload.
+ */
+export function enrollmentDocumentProblem(
+  file: File,
+): "not_pdf" | "too_large" | null {
+  if (
+    file.type !== "application/pdf" &&
+    !file.name.toLowerCase().endsWith(".pdf")
+  ) {
+    return "not_pdf";
+  }
+  if (file.size > MAX_ENROLLMENT_DOCUMENT_BYTES) return "too_large";
+  return null;
+}
 
 export interface FormAttachment {
   label: string;
