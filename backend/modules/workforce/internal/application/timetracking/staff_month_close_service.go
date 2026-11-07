@@ -193,10 +193,21 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 	if err != nil {
 		return nil, err
 	}
+	// Every balance lock is held before the closed snapshots are read once,
+	// so the read sees each staff member's final state (#5821).
+	for _, staffID := range staffIDs {
+		if err := s.snapshotRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
+			return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
+		}
+	}
+	closedMonths, err := s.closedMonthsByStaff(ctx, staffIDs, key)
+	if err != nil {
+		return nil, err
+	}
 	result := &MonthCloseResult{Year: year, Month: month}
 	closedAt := time.Now()
 	for _, staffID := range staffIDs {
-		snapshot, alreadyClosed, err := s.closeStaffMonth(ctx, staffID, closedBy, key, trimmedReason, closedAt, payrollRules)
+		snapshot, alreadyClosed, err := s.closeStaffMonth(ctx, staffID, closedBy, key, trimmedReason, closedAt, payrollRules, closedMonths[staffID])
 		if err != nil {
 			return nil, err
 		}
@@ -221,10 +232,48 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 	return result, nil
 }
 
-// closeStaffMonth freezes one staff member's month. Staff without a schedule
-// or any recorded time get a zero row on purpose: "closed" has to be a
-// school-wide fact, otherwise a later card for that person would find no
-// snapshot and silently fall back to the full chain.
+// staffClosedMonths is what one staff member's active snapshots say about a
+// close of key: whether key itself is closed, and the latest closed month.
+type staffClosedMonths struct {
+	keyClosed bool
+	latest    *monthKey
+}
+
+// closedMonthsByStaff reads the active snapshots of all staff once and
+// derives, per staff member, what the two former LatestClosedMonth lookups
+// (up to key, and up to maxSnapshotYear) answered.
+func (s *staffMonthCloseService) closedMonthsByStaff(ctx context.Context, staffIDs []int64, key monthKey) (map[int64]staffClosedMonths, error) {
+	result := make(map[int64]staffClosedMonths, len(staffIDs))
+	if len(staffIDs) == 0 {
+		return result, nil
+	}
+	snapshots, err := s.snapshotRepo.ClosedMonthSnapshotsForStaff(ctx, staffIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing month snapshots: %w", err)
+	}
+	upperBound := monthKey{Year: maxSnapshotYear, Month: 12}
+	for _, snapshot := range snapshots {
+		month := monthKey{Year: snapshot.Year, Month: snapshot.Month}
+		if upperBound.before(month) {
+			continue
+		}
+		closed := result[snapshot.StaffID]
+		if month == key {
+			closed.keyClosed = true
+		}
+		if closed.latest == nil || closed.latest.before(month) {
+			closed.latest = &month
+		}
+		result[snapshot.StaffID] = closed
+	}
+	return result, nil
+}
+
+// closeStaffMonth freezes one staff member's month under the balance lock
+// CloseMonth holds. Staff without a schedule or any recorded time get a zero
+// row on purpose: "closed" has to be a school-wide fact, otherwise a later
+// card for that person would find no snapshot and silently fall back to the
+// full chain.
 func (s *staffMonthCloseService) closeStaffMonth(
 	ctx context.Context,
 	staffID, closedBy int64,
@@ -232,25 +281,15 @@ func (s *staffMonthCloseService) closeStaffMonth(
 	reason string,
 	closedAt time.Time,
 	payrollRules []byte,
+	closed staffClosedMonths,
 ) (*MonthSnapshot, bool, error) {
-	if err := s.snapshotRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
-		return nil, false, fmt.Errorf("failed to lock staff balance writes: %w", err)
-	}
-	existing, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, key.Year, key.Month)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to check existing month snapshot for staff %d: %w", staffID, err)
-	}
-	if existing != nil && existing.Year == key.Year && existing.Month == key.Month {
+	if closed.keyClosed {
 		return nil, true, nil
 	}
-	latest, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, maxSnapshotYear, 12)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to check later month snapshots for staff %d: %w", staffID, err)
-	}
-	if latest != nil && key.before(monthKey{Year: latest.Year, Month: latest.Month}) {
+	if closed.latest != nil && key.before(*closed.latest) {
 		return nil, false, fmt.Errorf(
 			"%w: %04d-%02d must be reopened first",
-			ErrLaterMonthClosed, latest.Year, latest.Month,
+			ErrLaterMonthClosed, closed.latest.Year, closed.latest.Month,
 		)
 	}
 	summary, err := s.monthService.GetMonthSummaryAtMonthEnd(ctx, staffID, key.Year, key.Month)
