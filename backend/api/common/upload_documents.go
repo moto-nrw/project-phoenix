@@ -3,6 +3,7 @@ package common
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -51,6 +52,10 @@ var (
 	pptxKind = ooxmlKind{extension: ".pptx", part: "ppt/presentation.xml", contentType: PptxContentType}
 )
 
+// maxMultipartMemory is the part of a multipart body held in memory; the
+// rest of a file goes to a temporary file.
+const maxMultipartMemory = 1 << 20
+
 // documentUploadKinds is what child and staff documents accept.
 var documentUploadKinds = []ooxmlKind{docxKind}
 
@@ -80,7 +85,14 @@ func ParseOfficeFileWithLimits(w http.ResponseWriter, r *http.Request, fieldName
 func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64, kinds []ooxmlKind, invalidMessage string) (*UploadedFile, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 
-	if err := r.ParseMultipartForm(maxBodySize); err != nil {
+	// Parts beyond the memory threshold spill to temporary files. The server
+	// cancels the request context once the handler returns; the files go
+	// then. net/http's own cleanup misses them, because routers parse a copy
+	// of the request (WithContext).
+	// The form is set even when the query string fails to parse.
+	err := r.ParseMultipartForm(min(maxBodySize, maxMultipartMemory))
+	removeMultipartFilesAfter(r)
+	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			return nil, uploadRefusal{code: CodeFilesFileTooLarge, text: "file too large"}
@@ -108,6 +120,14 @@ func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName stri
 		Filename:    header.Filename,
 		ContentType: contentType,
 	}, nil
+}
+
+// removeMultipartFilesAfter removes the temporary files of the parsed form
+// when the request context ends.
+func removeMultipartFilesAfter(r *http.Request) {
+	if form := r.MultipartForm; form != nil {
+		context.AfterFunc(r.Context(), func() { _ = form.RemoveAll() })
+	}
 }
 
 // detectDocumentContentType reads the first 512 bytes to detect the MIME
