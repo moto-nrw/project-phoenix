@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -105,11 +107,18 @@ func (ledgerDouble) ContractSignatureProofs(context.Context, []int64) (map[int64
 	return map[int64]carecontract.SignatureProof{}, nil
 }
 
-type tokenDouble struct{ next int }
+// tokenDouble issues tokens that stay unique across concurrent sends and
+// parallel tests sharing the database: the instant of the process and a
+// shared counter, 32 bytes each, so sha256Hex maps them one to one.
+type tokenDouble struct{}
 
-func (d *tokenDouble) NewToken() (string, string, error) {
-	d.next++
-	raw := fmt.Sprintf("token-%04d-of-the-signing-link", d.next)
+var (
+	tokenRun  = time.Now().UnixNano()
+	tokenNext atomic.Int64
+)
+
+func (*tokenDouble) NewToken() (string, string, error) {
+	raw := fmt.Sprintf("%016x%016x", tokenRun, tokenNext.Add(1))
 	return raw, sha256Hex([]byte(raw)), nil
 }
 
@@ -117,9 +126,14 @@ func (*tokenDouble) Fingerprint(raw string) string { return sha256Hex([]byte(raw
 
 // sha256Hex stands in for the root's SHA-256 fingerprint: a deterministic
 // digest of the same 64-hex shape, since the owner's tests may not import
-// crypto.
+// crypto. Up to 32 bytes it is the input itself, so distinct tokens never
+// collide; longer input (a PDF) folds into 32 bytes.
 func sha256Hex(data []byte) string {
 	var sum [32]byte
+	if len(data) <= len(sum) {
+		copy(sum[len(sum)-len(data):], data)
+		return hex.EncodeToString(sum[:])
+	}
 	for i, b := range data {
 		sum[i%len(sum)] ^= b
 		sum[(i*7+3)%len(sum)] += b + byte(i)
