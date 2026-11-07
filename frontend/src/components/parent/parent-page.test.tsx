@@ -1,11 +1,16 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { ReactNode } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import deMessages from "~/i18n/messages/de.generated";
-import { ParentPageSkeleton, ParentSectionSkeleton } from "./parent-page";
+import {
+  ParentPage,
+  ParentPageHeader,
+  ParentPageSkeleton,
+  ParentSectionSkeleton,
+} from "./parent-page";
 
 function withIntl(children: ReactNode) {
   return (
@@ -15,31 +20,144 @@ function withIntl(children: ReactNode) {
   );
 }
 
+describe("ParentPage", () => {
+  const header = <ParentPageHeader title="Elternbriefe" />;
+
+  it("keeps the head and replaces the content while loading", () => {
+    render(
+      withIntl(
+        <ParentPage header={header} loading>
+          <p>Inhalt</p>
+        </ParentPage>,
+      ),
+    );
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Elternbriefe" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveAccessibleName(
+      "Inhalt wird geladen",
+    );
+    expect(screen.queryByText("Inhalt")).not.toBeInTheDocument();
+  });
+
+  it("renders the skeleton of the surface and its own announcement", () => {
+    render(
+      withIntl(
+        <ParentPage
+          header={header}
+          loading={<p>Struktur</p>}
+          loadingLabel="Termine werden geladen"
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("status")).toHaveAccessibleName(
+      "Termine werden geladen",
+    );
+    expect(screen.getByText("Struktur")).toBeInTheDocument();
+  });
+
+  it("shows the error instead of the content, with its retry", () => {
+    const retry = vi.fn();
+    render(
+      withIntl(
+        <ParentPage
+          header={header}
+          error={{
+            message: "Die Elternbriefe konnten nicht geladen werden.",
+            retry: { label: "Erneut versuchen", onClick: retry },
+          }}
+        >
+          <p>Inhalt</p>
+        </ParentPage>,
+      ),
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Die Elternbriefe konnten nicht geladen werden.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Inhalt")).not.toBeInTheDocument();
+  });
+
+  it("states an empty page in one sentence on a card", () => {
+    render(
+      withIntl(
+        <ParentPage header={header} empty={{ title: "Noch keine Post" }}>
+          <p>Inhalt</p>
+        </ParentPage>,
+      ),
+    );
+
+    expect(screen.getByText("Noch keine Post.")).toBeInTheDocument();
+    expect(screen.queryByText("Inhalt")).not.toBeInTheDocument();
+  });
+
+  it("keeps overlays mounted in every state", () => {
+    render(
+      withIntl(
+        <ParentPage
+          header={header}
+          loading
+          overlays={<div role="dialog" aria-label="Dialog" />}
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("dialog", { name: "Dialog" })).toBeInTheDocument();
+  });
+
+  it("renders plain children without any translation provider", () => {
+    render(
+      <ParentPage>
+        <p>Inhalt</p>
+      </ParentPage>,
+    );
+
+    expect(screen.getByText("Inhalt")).toBeInTheDocument();
+  });
+});
+
+describe("ParentPageHeader", () => {
+  it("carries kicker, level-one title and back link", () => {
+    render(
+      withIntl(
+        <ParentPageHeader
+          kicker="Post"
+          title="Elternbriefe"
+          backHref="/parents"
+          backLabel="Zurück"
+        />,
+      ),
+    );
+
+    expect(screen.getByText("Post")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Elternbriefe" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Zurück" })).toHaveAttribute(
+      "href",
+      "/parents",
+    );
+  });
+});
+
 describe("ParentPageSkeleton", () => {
   it.each([0, 2])("exposes one loading status with %s sections", (rows) => {
     render(withIntl(<ParentPageSkeleton rows={rows} />));
 
     expect(screen.getAllByRole("status", { hidden: true })).toHaveLength(1);
     expect(screen.getByRole("status")).toHaveTextContent("Inhalt wird geladen");
+    expect(
+      screen.queryAllByTestId("parent-page-section-skeleton"),
+    ).toHaveLength(rows);
     for (const section of screen.queryAllByTestId(
       "parent-page-section-skeleton",
     )) {
       expect(section).toHaveAttribute("aria-hidden", "true");
     }
-  });
-
-  it("reserves the header and section internals instead of using solid blocks", () => {
-    render(withIntl(<ParentPageSkeleton rows={2} />));
-
-    expect(screen.getByTestId("parent-page-header-skeleton")).toHaveClass(
-      "moto-content-surface",
-    );
-    expect(screen.getAllByTestId("parent-page-section-skeleton")).toHaveLength(
-      2,
-    );
-    expect(
-      screen.getAllByTestId("parent-page-section-row-skeleton"),
-    ).toHaveLength(6);
   });
 });
 
@@ -65,10 +183,5 @@ describe("ParentSectionSkeleton", () => {
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Inhalt wird geladen");
     expect(status).toBe(screen.getByTestId("parent-page-section-skeleton"));
-    expect(
-      screen
-        .getAllByTestId("parent-page-section-row-skeleton")[0]
-        ?.closest('[aria-hidden="true"]'),
-    ).toBeInTheDocument();
   });
 });

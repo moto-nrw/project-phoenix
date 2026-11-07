@@ -56,9 +56,9 @@ import {
 import { Avatar } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
 import {
-  ParentVisibleBadge,
+  VisibilityBadge,
   ParentVisibilityLegend,
-} from "~/components/ui/parent-visible-badge";
+} from "~/components/ui/visibility-badge";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
@@ -964,7 +964,7 @@ export function PersonalInfoReadOnly({
                     )
                   }
                 />
-                <ParentVisibleBadge
+                <VisibilityBadge
                   compact
                   hint={PARENT_VISIBLE_HINTS.departure}
                 />
@@ -1021,7 +1021,7 @@ export function PersonalInfoReadOnly({
                     {student.health_info}
                   </span>
                   <span className="shrink-0">
-                    <ParentVisibleBadge
+                    <VisibilityBadge
                       compact
                       hint={PARENT_VISIBLE_HINTS.healthInfo}
                     />
@@ -1068,7 +1068,7 @@ function ParentVisibleValue({
   return (
     <span className="inline-flex items-center gap-1">
       {children}
-      <ParentVisibleBadge compact hint={hint} />
+      <VisibilityBadge compact hint={hint} />
     </span>
   );
 }

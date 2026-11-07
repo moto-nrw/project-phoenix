@@ -55,9 +55,7 @@ export function LanguageSwitcher({
       containerClassName="relative inline-block align-middle"
       containerStyle={{ visibility: hydrated ? "visible" : "hidden" }}
       size="compact"
-      className={`cursor-pointer px-2.5 leading-5 font-medium text-gray-700 ${
-        compact ? "max-w-[11rem]" : ""
-      }`}
+      className={compact ? "max-w-[11rem]" : undefined}
       menuAlign="end"
       renderTrigger={({ selectedLabel, open }) => (
         <>

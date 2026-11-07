@@ -33,7 +33,7 @@ import {
   defaultGuardianRoleForRelationshipType,
   guardianRoleOperationalDefaults,
 } from "~/components/guardians/guardian-relationship-fields";
-import { ParentVisibleBadge } from "~/components/ui/parent-visible-badge";
+import { VisibilityBadge } from "~/components/ui/visibility-badge";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
@@ -629,7 +629,7 @@ export default function GuardianFormModal({
                         >
                           Vorname
                         </FieldLabel>
-                        <ParentVisibleBadge
+                        <VisibilityBadge
                           compact
                           hint={PARENT_VISIBLE_HINTS.guardianName}
                         />
@@ -662,7 +662,7 @@ export default function GuardianFormModal({
                         >
                           Nachname
                         </FieldLabel>
-                        <ParentVisibleBadge
+                        <VisibilityBadge
                           compact
                           hint={PARENT_VISIBLE_HINTS.guardianName}
                         />
@@ -720,7 +720,7 @@ export default function GuardianFormModal({
                       />
                     </svg>
                     Kontaktdaten
-                    <ParentVisibleBadge
+                    <VisibilityBadge
                       hint={PARENT_VISIBLE_HINTS.guardianContact}
                     />
                   </h3>
@@ -908,7 +908,7 @@ export default function GuardianFormModal({
                       />
                     </svg>
                     Adresse
-                    <ParentVisibleBadge
+                    <VisibilityBadge
                       hint={PARENT_VISIBLE_HINTS.guardianContact}
                     />
                   </h3>

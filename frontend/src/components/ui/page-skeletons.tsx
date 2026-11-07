@@ -53,15 +53,6 @@ export function SkeletonRegion({
 }
 
 /**
- * Loading table for call sites without column definitions. Thin alias of
- * the colocated `DataTableSkeleton` in data-table.tsx, which shares its
- * class constants with the real DataTable — zero drift by construction.
- * Prefer `<DataTable isLoading>` whenever the columns exist: that renders
- * the real header labels.
- */
-export { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
-
-/**
  * Die Kopfkarte von `TenantPage` als Platzhalter: dieselbe Fläche, dieselben
  * Ränder, dieselbe Zeilenfolge (Titel, Statuszeile, optional Bedienzeile).
  * Jede Seite, die während des Ladens ihren Kopf zeigt, nimmt diese hier —

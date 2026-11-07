@@ -22,12 +22,17 @@ func (sl *SecurityLogger) getLogger() *slog.Logger {
 	return sl.logger
 }
 
-// NewSecurityLogger creates a new security logger
+// NewSecurityLogger creates a security logger that writes to the default logger.
 func NewSecurityLogger() *SecurityLogger {
+	return NewSecurityLoggerWith(slog.Default())
+}
+
+// NewSecurityLoggerWith creates a security logger that writes to logger.
+func NewSecurityLoggerWith(logger *slog.Logger) *SecurityLogger {
 	// Redact calendar-feed tokens: security events log r.URL.Path, which for a
 	// rate-limited /public/calendar/{token} request would otherwise capture the
 	// token (the feed's sole credential).
-	redacted := slog.New(NewFeedTokenRedactor(slog.Default().Handler()))
+	redacted := slog.New(NewFeedTokenRedactor(logger.Handler()))
 	return &SecurityLogger{logger: redacted.With("component", "security")}
 }
 

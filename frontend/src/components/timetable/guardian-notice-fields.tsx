@@ -14,6 +14,7 @@ import type {
   GuardianNoticeInput,
   GuardianNoticeReach,
 } from "~/lib/timetable-types";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "GuardianNoticeFields" });
 
@@ -191,12 +192,8 @@ export function GuardianNoticeFields({
   }
   if (!noticeApplies(reach) || !draft) return null;
 
-  const surface = compact
-    ? "space-y-2"
-    : "space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3";
-
-  return (
-    <div className={surface} data-testid="guardian-notice-fields">
+  const fields = (
+    <>
       <label
         htmlFor={checkboxId}
         className="flex cursor-pointer items-start gap-3"
@@ -246,6 +243,20 @@ export function GuardianNoticeFields({
           </p>
         </div>
       )}
+    </>
+  );
+
+  return compact ? (
+    <div className="space-y-2" data-testid="guardian-notice-fields">
+      {fields}
     </div>
+  ) : (
+    <InsetPanel
+      framed
+      className="space-y-3"
+      data-testid="guardian-notice-fields"
+    >
+      {fields}
+    </InsetPanel>
   );
 }

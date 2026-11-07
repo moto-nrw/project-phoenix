@@ -9,12 +9,9 @@ import { Input } from "~/components/ui/input";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { getSchoolYear } from "~/lib/student-helpers";
 
-import {
-  timetableMutedSurface,
-  timetableNestedSurface,
-} from "../timetable-style";
 import type { PersonOption } from "./form-model";
 import { foldForSearch } from "~/lib/search-fold";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const EMPTY_PROTECTED_VALUES: readonly string[] = [];
 
@@ -144,7 +141,7 @@ export function MultiSelectField({
   ).length;
 
   return (
-    <div className={`${timetableMutedSurface} flex flex-col gap-2 p-3`}>
+    <InsetPanel framed className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-semibold text-gray-700">{label}</span>
         <span className="text-[11px] text-gray-500">
@@ -269,7 +266,7 @@ export function MultiSelectField({
         )}
       </div>
 
-      <div className={`${timetableNestedSurface} max-h-72 overflow-y-auto p-2`}>
+      <InsetPanel tone="white" className="max-h-72 overflow-y-auto">
         {options.length === 0 ? (
           <EmptyState
             variant="compact"
@@ -324,7 +321,7 @@ export function MultiSelectField({
             })}
           </div>
         )}
-      </div>
-    </div>
+      </InsetPanel>
+    </InsetPanel>
   );
 }

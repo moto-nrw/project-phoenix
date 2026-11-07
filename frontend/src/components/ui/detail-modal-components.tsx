@@ -15,6 +15,7 @@ import {
   UsersThreeIcon,
 } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Data-field primitives live in data-field.tsx, so a kit card can
 // use them without loading the icon constants below (#5581).
@@ -45,32 +46,14 @@ interface InfoSectionProps {
   readonly accentColor?: AccentColor;
 }
 
-const bgColorClasses: Record<AccentColor, string> = {
-  blue: "bg-gray-50",
-  orange: "bg-gray-50",
-  indigo: "bg-gray-50",
-  purple: "bg-gray-50",
-  red: "bg-gray-50",
-  amber: "bg-gray-50",
-  green: "bg-gray-50",
-  gray: "bg-gray-50",
-};
-
 /**
  * Container component for information sections in detail modals.
  * Neutral surface (no accent-tinted backgrounds); the icon supplies its own
  * color (typically a MotoDuotoneIcon/MotoConceptIcon).
  */
-export function InfoSection({
-  title,
-  icon,
-  children,
-  accentColor = "gray",
-}: InfoSectionProps) {
+export function InfoSection({ title, icon, children }: InfoSectionProps) {
   return (
-    <div
-      className={`rounded-xl border border-gray-100 ${bgColorClasses[accentColor]} p-3 md:p-4`}
-    >
+    <InsetPanel framed padding="md">
       <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-3 md:text-sm">
         {icon ? (
           <span className="h-3.5 w-3.5 md:h-4 md:w-4">{icon}</span>
@@ -78,7 +61,7 @@ export function InfoSection({
         {title}
       </h3>
       {children}
-    </div>
+    </InsetPanel>
   );
 }
 

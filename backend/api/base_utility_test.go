@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
@@ -395,7 +396,7 @@ func mintRateLimitJWT(t *testing.T, tokenAuth *sessiontoken.TokenAuth, claims se
 	if len(claims.Roles) == 0 {
 		claims.Roles = []string{"user"}
 	}
-	token, err := tokenAuth.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(tokenAuth, claims)
 	require.NoError(t, err)
 	return token
 }
