@@ -553,3 +553,25 @@ func TestDecisionService_ApplyDueWeeklyPlans_ActivatesCompanionsTogether(t *test
 		})
 	}
 }
+
+// A plan stored without an author, because the reviewer had no staff
+// membership when approving, takes the reviewer's staff membership at the
+// start (#6043).
+func TestDecisionService_ApplyDueWeeklyPlans_ResolvesMissingAuthorFromReviewer(t *testing.T) {
+	t.Parallel()
+
+	r := setupFutureRenewal(t)
+	r.approve(t)
+	ctx := testpkg.Ctx(t)
+	_, err := r.env.db.NewUpdate().TableExpr("enrollment.request_children").
+		Set("weekly_plan_author = NULL").
+		Where("tenant_id = ? AND id = ?", testpkg.Tenant(t), r.childID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, r.applyDue(t, r.start))
+	rows, err := r.env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, r.studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, r.reviewerStaffID, rows[0].CreatedBy)
+}

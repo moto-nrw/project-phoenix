@@ -189,6 +189,11 @@ func (d *Decisions) applyWeeklyPlan(ctx context.Context, plan enrollmentNative.W
 		return false, fmt.Errorf("weekly plan: load request: %w", err)
 	}
 	// The tick is the system actor; the stored staff ID authors weekly rows.
+	// A plan stored without an author (the reviewer had no staff membership
+	// then) falls back to the reviewer as it is now.
+	if plan.AuthorStaffID == 0 && child.ReviewedBy != nil {
+		plan.AuthorStaffID = d.weeklyPlanAuthor(ctx, *child.ReviewedBy)
+	}
 	if err := d.applyPlannedWeeklyFields(ctx, request, child, student, 0, plan); err != nil {
 		return false, err
 	}
