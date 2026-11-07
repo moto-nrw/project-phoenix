@@ -281,7 +281,9 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 	for _, week := range offer.Weeks {
 		models := make([]HolidayRegistrationTimeModel, 0, len(week.TimeModels))
 		for _, model := range week.TimeModels {
-			models = append(models, HolidayRegistrationTimeModel(model))
+			models = append(models, HolidayRegistrationTimeModel{
+				ID: model.ID, Name: model.Name, StartsAt: model.StartsAt, EndsAt: model.EndsAt, PriceCents: model.PriceCents,
+			})
 		}
 		weeks = append(weeks, HolidayRegistrationWeek{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolName: names[week.HostSchoolID], TimeModels: models,

@@ -47,6 +47,9 @@ function fileResponse(backend: Response, request: NextRequest): Response {
     const value = backend.headers.get(name);
     if (value) headers.set(name, value);
   }
+  if (!headers.has("X-Content-Type-Options")) {
+    headers.set("X-Content-Type-Options", "nosniff");
+  }
   return new Response(backend.body, { status: backend.status, headers });
 }
 

@@ -18,6 +18,10 @@ import {
   problemResponse,
 } from "~/lib/api-response-error.server";
 import { captureBffException } from "~/lib/sentry-bff.server";
+import {
+  sendWithTokenRefresh,
+  type FreshSessionReader,
+} from "~/lib/token-refresh-retry.server";
 
 type JsonMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -52,6 +56,11 @@ export interface JsonProxyOptions {
   invalidJsonResponse?: (request: NextRequest) => Response;
   networkErrorResponse?: (error: unknown, request: NextRequest) => Response;
   includeEmptyBody?: boolean;
+  /**
+   * Repeat a backend 401 once with the refreshed session. Opt-in: a route
+   * that answers a refused credential (current password) with 401 must not
+   * send that credential twice.
+   */
   retryOn401?: boolean;
   onSuccess?: (response: Response) => Response | Promise<Response>;
   onBackendError?: (response: Response) => void;
@@ -61,14 +70,16 @@ const logger = createLogger({ component: "JsonBackendProxy" });
 
 /**
  * Execute transparent JSON proxy routes through one fetch/error-response path.
- * Exported for the portal wrappers that bind their own session (caterer).
+ * With `readFreshSession`, a backend 401 repeats the request once with the
+ * refreshed session's token. Exported for the portal wrappers that bind their
+ * own session (caterer) and for session transitions, which pass no reader.
  */
 export async function proxyJsonRequest(
   request: NextRequest,
   context: RouteContext | undefined,
   options: JsonProxyOptions,
   token?: string,
-  refreshToken?: () => Promise<string | undefined>,
+  readFreshSession?: FreshSessionReader,
 ): Promise<Response> {
   const {
     method,
@@ -162,11 +173,10 @@ export async function proxyJsonRequest(
         ? fetch(url.toString(), init)
         : fetch(url.toString());
     };
-    let response = await send(token);
-    if (response.status === 401 && token && refreshToken) {
-      const refreshed = await refreshToken();
-      if (refreshed && refreshed !== token) response = await send(refreshed);
-    }
+    const response =
+      token && readFreshSession
+        ? await sendWithTokenRefresh(token, send, readFreshSession)
+        : await send(token);
     if (!response.ok) {
       try {
         onBackendError?.(response);
@@ -212,9 +222,7 @@ export function createTenantJsonProxy(options: JsonProxyOptions) {
       context,
       options,
       session.user.token,
-      options.retryOn401
-        ? async () => (await uncachedAuth())?.user?.token
-        : undefined,
+      options.retryOn401 ? () => uncachedAuth() : undefined,
     );
   });
 }
@@ -249,10 +257,7 @@ export function createOperatorJsonProxy(options: JsonProxyOptions) {
         context,
         options,
         session.user.token,
-        async () => {
-          const refreshed = await uncachedOperatorAuth();
-          return refreshed?.user?.token;
-        },
+        () => uncachedOperatorAuth(),
       );
     },
   );

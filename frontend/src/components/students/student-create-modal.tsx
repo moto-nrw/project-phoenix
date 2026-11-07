@@ -648,15 +648,23 @@ export function StudentCreateModal({
 
               {mode === "list-entry" ? (
                 <div className="space-y-4">
-                  <div className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-3 text-xs leading-5 text-gray-700 md:p-4 md:text-sm">
-                    Für Kinder, die nicht im Ganztag sind: Der Eintrag besteht
-                    nur aus Name und Klasse und erscheint ausschließlich auf
-                    Klassenlisten und in der Klassenansicht (
-                    <span className="font-medium">Keine Betreuung</span>). Keine
-                    Anwesenheit, keine Betreuungsplanung, keine Kontaktdaten.
-                    Verwalten lässt sich die Liste über das Menü oben rechts
-                    unter <span className="font-medium">Klassenliste</span>.
-                  </div>
+                  <Alert
+                    type="info"
+                    announce="off"
+                    message={
+                      <>
+                        Für Kinder, die nicht im Ganztag sind: Der Eintrag
+                        besteht nur aus Name und Klasse und erscheint
+                        ausschließlich auf Klassenlisten und in der
+                        Klassenansicht (
+                        <span className="font-medium">Keine Betreuung</span>).
+                        Keine Anwesenheit, keine Betreuungsplanung, keine
+                        Kontaktdaten. Verwalten lässt sich die Liste über das
+                        Menü oben rechts unter{" "}
+                        <span className="font-medium">Klassenliste</span>.
+                      </>
+                    }
+                  />
                   <InsetPanel framed padding="md">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                       <div>

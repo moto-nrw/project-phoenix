@@ -474,6 +474,13 @@ export interface HolidayTimeModel {
   readonly startsAt: string;
   readonly endsAt: string;
   readonly priceCents: number;
+  /**
+   * No longer offered or bookable; the days booked on it keep it (#5994).
+   * Absent means not archived; a write sets it to archive for good.
+   */
+  readonly archived?: boolean;
+  /** Bookings name it, so it cannot be removed, only archived. Read only. */
+  readonly protected?: boolean;
 }
 
 /** A bookable week of a holiday period with the school that hosts it. */
@@ -512,6 +519,8 @@ interface BackendTimeModel {
   starts_at: string;
   ends_at: string;
   price_cents: number;
+  archived?: boolean;
+  protected?: boolean;
 }
 
 interface BackendWeek {
@@ -559,6 +568,8 @@ function holidayPeriodFromBackend(period: BackendHolidayPeriod): HolidayPeriod {
         startsAt: model.starts_at,
         endsAt: model.ends_at,
         priceCents: model.price_cents,
+        archived: model.archived ?? false,
+        protected: model.protected ?? false,
       })),
     })),
   };
@@ -582,6 +593,7 @@ function holidayPeriodToBackend(input: HolidayPeriodInput) {
         starts_at: model.startsAt,
         ends_at: model.endsAt,
         price_cents: model.priceCents,
+        archived: model.archived ?? false,
       })),
     })),
   };

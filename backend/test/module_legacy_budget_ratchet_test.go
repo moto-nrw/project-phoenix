@@ -229,7 +229,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // workflows/parentportal/compose (+1) add exactly 36 LOC.
 // ADR 0163: the office's decision of the parents' changes of
 // modules/carecontract/compose (+5) adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 13081
+const moduleComposeBudgetTotal = 13080
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -327,7 +327,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0156: the contract Soll port (+4).
-	"modules/studentpresence/compose":                 267,
+	"modules/studentpresence/compose":                 266,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
 	// Raised by ADR 0128: the student template days constructor (+5) and by
