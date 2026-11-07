@@ -353,7 +353,7 @@ function NoticeForm({
                     : t("summaryTermination", { date: date(endsOn) })
               }
             />
-            <div className="flex flex-col gap-3 sm:flex-row-reverse sm:items-center sm:justify-start">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button
                 type="submit"
                 variant="danger"
