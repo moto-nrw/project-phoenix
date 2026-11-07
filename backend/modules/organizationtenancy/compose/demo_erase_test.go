@@ -49,6 +49,10 @@ var visitorTraceCounts = map[string]string{
 		JOIN care_contract.contracts AS contract ON contract.id = outbox.related_entity_id
 		WHERE outbox.related_entity_type = 'care_contract' AND contract.school_id = ?0
 			AND outbox.recipient->>'name' = '` + visitorFull + `'`,
+	// The push of the sent contract (#5941) is the Träger's, named by the
+	// contract alone, and keeps the recipient's address in its payload.
+	"care contract push": `SELECT count(*) FROM platform.push_outbox
+		WHERE related_entity_type = 'care_contract_document' AND payload->>'recipient_email' = 'push-' || ?0 || '@example.org'`,
 	// The monthly invoice of the contract copies child, recipient and mail
 	// address (#4684) and outlives the contract. Its positions and the read
 	// in the run's trail name no one; careMonthRows counts them.
@@ -159,6 +163,12 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 			FROM document JOIN outbox ON outbox.contract_id = document.contract_id)
 		INSERT INTO care_contract.contract_events (organization_id, contract_id, school_id, account_id, action)
 		SELECT organization_id, id, ?0, ?3, 'send' FROM contract`,
+		// The send put the push „Neues Dokument vom Träger“ on the outbox
+		// (#5941), with the recipient's address in its payload.
+		`INSERT INTO platform.push_outbox (organization_id, kind, related_entity_type, related_entity_id, recipient, payload)
+		SELECT organization_id, 'care_contract_document', 'care_contract_document', id, '{"deferred":true}'::jsonb,
+			jsonb_build_object('organization_id', organization_id, 'contract_id', id, 'recipient_email', 'push-' || ?0 || '@example.org')
+		FROM care_contract.contracts WHERE school_id = ?0`,
 		// The Träger billed the contract for a month and read the run
 		// (#4684): invoice, position and the read in the trail.
 		`WITH contract AS (
