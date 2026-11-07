@@ -146,7 +146,7 @@ export default function EnrollPhasePickerPage() {
                           `/anmeldung/${encodeURIComponent(phase.id)}`,
                         )}
                         nativeAnchor
-                        className="flex flex-col gap-4 rounded-xl sm:flex-row sm:items-center sm:justify-between"
+                        className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">

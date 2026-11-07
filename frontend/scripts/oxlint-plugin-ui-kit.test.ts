@@ -764,6 +764,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     '<div className="rounded-md border bg-white px-3 py-2" />',
     '<div className="rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-lg" />',
     '<div className="rounded-lg border bg-white sm:rounded-2xl" />',
+    '<div className="sm:rounded-lg sm:border sm:bg-white sm:p-3" />',
     '<section className="space-y-3 rounded-md border border-gray-200 p-3" />',
     '<li className="rounded-xl border px-4 py-3" />',
     '<div className="rounded-lg border bg-transparent p-3" />',
@@ -799,6 +800,21 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
   });
 
+  it("counts a widened branch beside a reported legacy constant", async () => {
+    const result = await lintSource(
+      `const legacy = "rounded-xl border bg-white p-4";
+      const frame = "rounded-lg border p-3";
+      export const Probe = ({ legacyMode }: { legacyMode: boolean }) => (
+        <div className={legacyMode ? legacy : frame} />
+      );`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(
+      result.output.match(/ui-kit\(no-hand-rolled-surface\)/g),
+    ).toHaveLength(2);
+  });
+
   it.each([
     '<button type="button" className="rounded-lg border bg-white px-4 py-2" />',
     '<a href="/x" className="rounded-lg border bg-white px-4 py-2" />',
@@ -809,6 +825,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     '<div className="rounded-lg border border-gray-200 bg-gray-50 p-3" />',
     '<div className="rounded-lg border border-gray-200" />',
     '<div className="rounded-full border bg-white px-2 py-0.5" />',
+    '<div className="hover:rounded-lg hover:border hover:bg-white hover:p-3" />',
   ])(
     "leaves controls, kit surfaces and other shapes alone: %s",
     async (element) => {

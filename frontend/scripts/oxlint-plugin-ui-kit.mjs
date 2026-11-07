@@ -714,6 +714,8 @@ const SURFACE_KIT_CONTROLS = new Map([
 const SURFACE_WIDE_ROUNDED_RE = /^rounded-(?:md|lg|xl|2xl)$/;
 const SURFACE_FRAME_RE = /^border(?:-[1-9]\d*)?$/;
 const SURFACE_WHITE_FILL_RE = /^bg-white(?:\/\d+)?$/;
+const SURFACE_RESPONSIVE_VARIANT_RE =
+  /^(?:(?:max-)?(?:sm|md|lg|xl|2xl)|compact|min-\[[^\]]+\]|max-\[[^\]]+\])$/;
 const SURFACE_CONTROL_ELEMENTS = new Set([
   "a",
   "button",
@@ -731,6 +733,34 @@ const SURFACE_CONTROL_ELEMENTS = new Set([
 ]);
 
 function isWideSurfaceTokens(tokens) {
+  const baseTokens = [];
+  const responsiveTokens = new Map();
+  const stateTokens = [];
+  for (const token of tokens) {
+    const [variant, normalized] = token.split(/:(.+)/);
+    if (!normalized) {
+      baseTokens.push(token);
+      continue;
+    }
+    if (!SURFACE_RESPONSIVE_VARIANT_RE.test(variant)) {
+      stateTokens.push(token);
+      continue;
+    }
+    const variantTokens = responsiveTokens.get(variant) ?? [];
+    variantTokens.push(normalized);
+    responsiveTokens.set(variant, variantTokens);
+  }
+  return [
+    [...baseTokens, ...stateTokens],
+    ...[...responsiveTokens.values()].map((variantTokens) => [
+      ...baseTokens,
+      ...variantTokens,
+      ...stateTokens,
+    ]),
+  ].some(isWideSurfaceTokenGroup);
+}
+
+function isWideSurfaceTokenGroup(tokens) {
   if (!tokens.some((token) => SURFACE_WIDE_ROUNDED_RE.test(token))) {
     return false;
   }
@@ -745,33 +775,11 @@ function isWideSurfaceTokens(tokens) {
   }
   if (tokens.some((token) => SURFACE_WHITE_FILL_RE.test(token))) return true;
   const anyFill = tokens.some(
-    (token) => /(?:^|:)bg-/.test(token) && !/(?:^|:)bg-transparent$/.test(token),
+    (token) =>
+      /(?:^|:)bg-/.test(token) && !/(?:^|:)bg-transparent$/.test(token),
   );
   const padded = tokens.some((token) => /^p[xytblrse]?-\d/.test(token));
   return !anyFill && padded;
-}
-
-// Eine Konstante, deren Zeichenkette selbst die alte Kette ist, meldet der
-// Literal-Besucher schon an der Deklaration; ihre Verwendungen zählen nicht
-// noch einmal.
-function usesReportedSurfaceConstant(node, constants, sourceCode) {
-  let found = false;
-  const visit = (current) => {
-    if (found || !current || typeof current !== "object") return;
-    if (current.type === "Identifier") {
-      const init = constantInitializer(current, constants, sourceCode);
-      const value = init ? staticStringValue(init) : null;
-      if (typeof value === "string" && isSurfaceCombo(value)) found = true;
-      return;
-    }
-    for (const [key, value] of Object.entries(current)) {
-      if (key === "parent" || key === "loc" || key === "range") continue;
-      if (Array.isArray(value)) value.forEach(visit);
-      else if (value && typeof value === "object") visit(value);
-    }
-  };
-  visit(node);
-  return found;
 }
 
 /**
@@ -913,19 +921,11 @@ const noHandRolledSurface = {
           // in einer Konstante: dort nicht ein zweites Mal je Verwendung.
           const { literal, rendered } = renderedCombo(className.value);
           if (literal || rendered !== undefined) return;
-          if (
-            usesReportedSurfaceConstant(
-              className.value,
-              constants,
-              context.sourceCode,
-            )
-          ) {
-            return;
-          }
           const text = classText(
             className.value,
             constants,
             context.sourceCode,
+            { skipReportedSurfaceConstants: true },
           );
           if (isSurfaceCombo(text) || isWideSurfaceTokens(text.split(/\s+/))) {
             report({
@@ -2259,7 +2259,12 @@ function staticAttributeValue(attribute) {
  * `buttonClassName(…)` is the kit itself and contributes nothing here; its
  * className goes through no-button-override.
  */
-function classText(node, constants, sourceCode) {
+function classText(
+  node,
+  constants,
+  sourceCode,
+  { skipReportedSurfaceConstants = false } = {},
+) {
   const chunks = [];
   const visit = (current, depth) => {
     if (!current || typeof current !== "object") return;
@@ -2272,6 +2277,14 @@ function classText(node, constants, sourceCode) {
     }
     if (current.type === "Identifier" && depth < 2) {
       const init = constantInitializer(current, constants, sourceCode);
+      const value = staticStringValue(init);
+      if (
+        skipReportedSurfaceConstants &&
+        typeof value === "string" &&
+        isSurfaceCombo(value)
+      ) {
+        return;
+      }
       if (init) visit(init, depth + 1);
       return;
     }

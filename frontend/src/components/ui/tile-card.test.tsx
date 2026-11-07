@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { AnchorHTMLAttributes } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TileCard } from "./tile-card";
@@ -7,7 +8,7 @@ vi.mock("~/components/ui/navigation-link", () => ({
   default: ({
     children,
     ...props
-  }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+  }: AnchorHTMLAttributes<HTMLAnchorElement>) => (
     <a data-client-navigation="true" {...props}>
       {children}
     </a>
@@ -25,7 +26,7 @@ describe("TileCard nativeAnchor (#5594)", () => {
 
   it("rendert mit nativeAnchor ein schlichtes <a> für einen Dokumentwechsel", () => {
     render(
-      <TileCard href="/anmeldung/1" nativeAnchor className="rounded-xl">
+      <TileCard href="/anmeldung/1" nativeAnchor>
         Schuljahr
       </TileCard>,
     );
@@ -33,8 +34,7 @@ describe("TileCard nativeAnchor (#5594)", () => {
     const link = screen.getByRole("link", { name: "Schuljahr" });
     expect(link).toHaveAttribute("href", "/anmeldung/1");
     expect(link).not.toHaveAttribute("data-client-navigation");
-    expect(link).toHaveClass("moto-content-surface", "rounded-xl");
-    expect(link).not.toHaveClass("rounded-2xl");
+    expect(link).toHaveClass("moto-content-surface", "rounded-2xl");
   });
 
   it("bleibt ohne Ziel bei deaktivierter Kachel eine Schaltfläche", () => {
