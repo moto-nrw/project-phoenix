@@ -276,7 +276,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
                         ? String(item.target_grade_level)
                         : ""
                     }
-                    className="w-24"
+                    className="max-w-24"
                     disabled={busy}
                   />
                 </div>
