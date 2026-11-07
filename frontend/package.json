@@ -47,6 +47,7 @@
     "generate:help-index": "node scripts/generate-help-index.mjs",
     "ui-kit:button-baseline": "node scripts/ui-kit-button-baseline-update.mjs",
     "ui-kit:field-label-baseline": "node scripts/ui-kit-field-label-baseline-update.mjs",
+    "ui-kit:notice-baseline": "node scripts/ui-kit-notice-baseline-update.mjs",
     "ui-kit:inset-baseline": "node scripts/ui-kit-inset-baseline-update.mjs",
     "test:source-contracts": "node --test scripts/*.node-test.mjs",
     "test:bundle-policy": "node --test scripts/perf/*.node-test.mjs"
