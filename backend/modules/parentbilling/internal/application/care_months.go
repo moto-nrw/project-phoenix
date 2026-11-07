@@ -25,6 +25,9 @@ type CareStore interface {
 	ReplaceCarePrices(ctx context.Context, organizationID, accountID int64, list parentbilling.CarePriceList) error
 	DeleteCarePrices(ctx context.Context, organizationID, schoolID int64, validFrom calendar.Date) (int64, error)
 	CareBilledUntil(ctx context.Context, organizationID int64) (map[int64]calendar.Date, error)
+	// CareBilledPrices lists the months an issued invoice of the school
+	// billed per module and weekday.
+	CareBilledPrices(ctx context.Context, organizationID, schoolID int64) ([]parentbilling.CareBilledPrice, error)
 	// LockCareBilling holds the monthly billing of the Träger until the
 	// transaction ends.
 	LockCareBilling(ctx context.Context, organizationID int64) error
@@ -195,7 +198,7 @@ func (c *CareBilling) SaveCarePriceList(ctx context.Context, reviewer parentbill
 		}
 		return parentbilling.CareTariffs{}, validation.Errors{"school_id": errors.New("is no school of the Träger")}
 	}
-	if err := c.lockUnbilledMonth(ctx, reviewer.OrganizationID, list.SchoolID, list.ValidFrom); err != nil {
+	if err := c.keepBilledPrices(ctx, reviewer.OrganizationID, list.SchoolID, list.ValidFrom, list.Prices); err != nil {
 		return parentbilling.CareTariffs{}, err
 	}
 	if err := c.store.ReplaceCarePrices(ctx, reviewer.OrganizationID, reviewer.AccountID, list); err != nil {
@@ -219,7 +222,7 @@ func (c *CareBilling) DeleteCarePriceList(ctx context.Context, reviewer parentbi
 		}
 		return parentbilling.CareTariffs{}, parentbilling.ErrCareTariffNotFound
 	}
-	if err := c.lockUnbilledMonth(ctx, reviewer.OrganizationID, schoolID, validFrom); err != nil {
+	if err := c.keepBilledPrices(ctx, reviewer.OrganizationID, schoolID, validFrom, nil); err != nil {
 		return parentbilling.CareTariffs{}, err
 	}
 	deleted, err := c.store.DeleteCarePrices(ctx, reviewer.OrganizationID, schoolID, validFrom)
@@ -232,20 +235,54 @@ func (c *CareBilling) DeleteCarePriceList(ctx context.Context, reviewer parentbi
 	return c.CareTariffs(ctx, reviewer)
 }
 
-// lockUnbilledMonth holds the monthly billing and refuses a month an issued
-// invoice of the school already bills, or one before it.
-func (c *CareBilling) lockUnbilledMonth(ctx context.Context, organizationID, schoolID int64, month calendar.Date) error {
+// keepBilledPrices holds the monthly billing and refuses a change of the
+// price list of a school from validFrom on (replacement nil deletes it) that
+// would change a price an issued invoice billed: every module and weekday
+// billed in a month from validFrom on keeps its price. A booked weekday
+// without a price may still get one, also in a billed month, so a contract
+// a run left out can be billed by the next run of the month.
+func (c *CareBilling) keepBilledPrices(ctx context.Context, organizationID, schoolID int64, validFrom calendar.Date, replacement []parentbilling.CarePrice) error {
 	if err := c.store.LockCareBilling(ctx, organizationID); err != nil {
 		return fmt.Errorf("parent billing: hold the monthly billing: %w", err)
 	}
-	billed, err := c.store.CareBilledUntil(ctx, organizationID)
+	billed, err := c.store.CareBilledPrices(ctx, organizationID, schoolID)
 	if err != nil {
 		return err
 	}
-	if last, ok := billed[schoolID]; ok && !month.After(last) {
+	tariffs, err := c.store.CareTariffs(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	after := make([]parentbilling.CareTariff, 0, len(tariffs)+len(replacement))
+	for _, tariff := range tariffs {
+		if tariff.SchoolID != schoolID || tariff.ValidFrom != validFrom {
+			after = append(after, tariff)
+		}
+	}
+	for _, price := range replacement {
+		after = append(after, parentbilling.CareTariff{SchoolID: schoolID, CareOfferingID: price.CareOfferingID,
+			Weekday: price.Weekday, ValidFrom: validFrom, MonthlyCents: price.MonthlyCents})
+	}
+	if changesBilledPrice(schoolID, validFrom, billed, newPriceBook(tariffs), newPriceBook(after)) {
 		return parentbilling.ErrCareTariffMonthBilled
 	}
 	return nil
+}
+
+// changesBilledPrice reports a billed weekday whose price in its month
+// differs between the two price lists.
+func changesBilledPrice(schoolID int64, validFrom calendar.Date, billed []parentbilling.CareBilledPrice, before, after priceBook) bool {
+	for _, entry := range billed {
+		if entry.Month.Before(validFrom) {
+			continue
+		}
+		was, wasSet := before.on(schoolID, entry.CareOfferingID, entry.Weekday, entry.Month)
+		now, nowSet := after.on(schoolID, entry.CareOfferingID, entry.Weekday, entry.Month)
+		if wasSet != nowSet || was != now {
+			return true
+		}
+	}
+	return false
 }
 
 // normalizePriceList checks a price list: a school, the first day of a

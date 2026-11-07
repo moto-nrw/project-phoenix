@@ -207,6 +207,32 @@ func (s *Store) CareBilledUntil(ctx context.Context, organizationID int64) (map[
 	return billed, nil
 }
 
+// CareBilledPrices lists per module and weekday the months an issued
+// invoice of the school billed, from the weekdays of its positions.
+func (s *Store) CareBilledPrices(ctx context.Context, organizationID, schoolID int64) ([]parentbilling.CareBilledPrice, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		CareOfferingID int64         `bun:"care_offering_id"`
+		Weekday        string        `bun:"weekday"`
+		Month          calendar.Date `bun:"billing_month,type:date"`
+	}
+	if err := db.NewRaw(`SELECT DISTINCT p.care_offering_id, w.value->>'weekday' AS weekday, i.billing_month
+		FROM parent_billing.care_invoices AS i
+		JOIN parent_billing.care_invoice_positions AS p ON p.organization_id = i.organization_id AND p.invoice_id = i.id
+		CROSS JOIN LATERAL jsonb_array_elements(p.weekdays) AS w
+		WHERE i.organization_id = ? AND i.school_id = ?`, organizationID, schoolID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("read billed prices: %w", err)
+	}
+	billed := make([]parentbilling.CareBilledPrice, len(rows))
+	for i, row := range rows {
+		billed[i] = parentbilling.CareBilledPrice{CareOfferingID: row.CareOfferingID, Weekday: row.Weekday, Month: row.Month}
+	}
+	return billed, nil
+}
+
 // LockCareBilling holds the monthly billing of the Träger until the
 // transaction ends: a release and a change of the price list run one after
 // the other, so no price starts in a month a parallel release bills.

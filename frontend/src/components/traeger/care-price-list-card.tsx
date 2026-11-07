@@ -15,7 +15,6 @@ import {
   type PriceRow,
   WEEKDAY_LONG,
   WEEKDAY_SHORT,
-  addMonths,
   contractCountLabel,
   endsAtLabel,
   formatMonth,
@@ -110,8 +109,7 @@ export function CarePriceListCard({
   const weekdays = shownWeekdays(rows);
   const billedUntil = data.billedUntil[school.id];
   const gaps = rows.filter((row) => missingPrices(row).length > 0);
-  const deletable =
-    shownMonth !== "" && (!billedUntil || shownMonth > billedUntil);
+  const deletable = shownMonth !== "";
 
   const standLabel = (stand: string) => {
     const index = stands.indexOf(stand);
@@ -128,7 +126,7 @@ export function CarePriceListCard({
   const description = [
     stands.length === 0 ? "Noch keine Preise." : null,
     billedUntil
-      ? `Abgerechnet bis ${formatMonth(billedUntil)}. Neue Preise gelten frühestens ab ${formatMonth(addMonths(billedUntil, 1))}.`
+      ? `Abgerechnet bis ${formatMonth(billedUntil)}. Preise, mit denen schon abgerechnet ist, bleiben. Fehlende Preise können Sie ergänzen.`
       : null,
   ]
     .filter(Boolean)

@@ -797,7 +797,7 @@ export const ERROR_CATALOG = {
       "parent_billing.care_tariff_invalid":
         "Bitte prüfen Sie die Preise. Jeder Preis ist ein Betrag in Euro, nicht unter 0 €, und gilt ab dem 1. eines Monats.",
       "parent_billing.care_tariff_month_billed":
-        "Für diesen Monat gibt es schon Rechnungen. Neue Preise gelten frühestens ab dem nächsten Monat.",
+        "Mit diesem Preis ist schon eine Rechnung ausgestellt. Er bleibt für diesen Monat. Ändern Sie ihn ab einem späteren Monat.",
       "parent_billing.care_tariff_not_found":
         "Diese Preisliste gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.care_versions_overlap":

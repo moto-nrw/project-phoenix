@@ -333,3 +333,22 @@ func TestPriceListReadsTheBookedModulesOfTheYearBefore(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, [][2]string{{"2025-11-01", "2026-10-31"}, {"2026-11-01", "2027-11-01"}}, contracts.spans)
 }
+
+// TestBilledPricesNeverChange refuses only a change of a price an invoice
+// billed; a missing price may be added in a billed month.
+func TestBilledPricesNeverChange(t *testing.T) {
+	t.Parallel()
+	billed := []parentbilling.CareBilledPrice{{CareOfferingID: moduleUntil1400, Weekday: "mon", Month: day(t, january2027)}}
+	before := sjrTariffs(t)
+	added := append(sjrTariffs(t), price(t, schoolIspringen, moduleUntil1400, "Betreuung bis 14:00 Uhr", "sat", "2026-09-01", 900))
+	assert.False(t, changesBilledPrice(schoolIspringen, day(t, "2026-09-01"), billed, newPriceBook(before), newPriceBook(added)),
+		"a Saturday price changes no billed price")
+	changed := append(sjrTariffs(t), price(t, schoolIspringen, moduleUntil1400, "Betreuung bis 14:00 Uhr", "mon", "2027-01-01", 9900))
+	assert.True(t, changesBilledPrice(schoolIspringen, day(t, january2027), billed, newPriceBook(before), newPriceBook(changed)),
+		"a new Monday price from the billed month changes it")
+	assert.False(t, changesBilledPrice(schoolIspringen, day(t, "2027-02-01"), billed, newPriceBook(before), newPriceBook(changed)),
+		"a change after the billed month keeps it")
+	removed := sjrTariffs(t)[1:]
+	assert.True(t, changesBilledPrice(schoolIspringen, day(t, "2026-09-01"), billed, newPriceBook(before), newPriceBook(removed)),
+		"removing the billed Monday price changes it")
+}

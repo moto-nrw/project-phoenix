@@ -448,3 +448,38 @@ func TestHolidayAndMonthlyInvoicesNeverShareANumber(t *testing.T) {
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
 	require.Equal(t, http.StatusOK, rec.Code, "another pattern releases: %s", rec.Body.String())
 }
+
+// A run of the month leaves out a contract with a weekday without a price.
+// The price may still be added for that month, since no invoice billed that
+// weekday, and the next run of the month bills the contract.
+func TestCareMonthlyContractLeftOutForAMissingPriceIsBilledLater(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Monatsbeitrag Nachtrag")
+	school := f.office.schools[0]
+	careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	late := careContract(t, f.db, f.office.organization, school, "Noah", careMonth,
+		careService{"mon", careModuleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"}, careService{"sat", careModuleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"})
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	run := f.startRun(t, careMonth)
+	preview := f.run(t, run.ID)
+	require.Len(t, preview.Invoices, 1)
+	require.Len(t, preview.Unpriced, 1)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(preview))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// The billed Monday keeps its price; Saturday gets one from the same list.
+	withSaturday := carePriceList(school, "2029-09-01", 3200)
+	withSaturday["prices"] = append(withSaturday["prices"].([]map[string]any),
+		map[string]any{"care_offering_id": careModuleUntil1400, "module_name": "Betreuung bis 14:00 Uhr", "weekday": "sat", "monthly_cents": 900})
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, withSaturday)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3300))
+	assert.Equal(t, http.StatusConflict, rec.Code, "a billed price stays: %s", rec.Body.String())
+
+	second := f.run(t, f.startRun(t, careMonth).ID)
+	require.Len(t, second.Invoices, 1)
+	assert.Equal(t, late, second.Invoices[0].ContractID)
+	assert.Equal(t, int64(4100), second.Invoices[0].TotalCents, "32,00 € Monday and 9,00 € Saturday")
+	assert.Equal(t, 1, second.Billed)
+}

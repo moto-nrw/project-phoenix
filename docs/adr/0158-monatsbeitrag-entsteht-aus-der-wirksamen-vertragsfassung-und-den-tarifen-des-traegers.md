@@ -53,9 +53,11 @@ und #4681. Er führt keinen Owner ein und hält fest, was er in den Registern
    Anwesenheit.
 6. **Unveränderlich.** Rechnung und Positionen halten eine eigene Kopie von
    Kind, Schule, Empfänger und jedem Preis; derselbe Trigger wie ADR 0119
-   Punkt 7 lehnt jede Änderung ab. Ein Preis beginnt nie in einem Monat, den
-   eine Rechnung seiner Schule schon abrechnet (409
-   `parent_billing.care_tariff_month_billed`); Preispflege und Freigabe
+   Punkt 7 lehnt jede Änderung ab. Ein Preis, mit dem eine Rechnung einen
+   Wochentag eines Moduls abgerechnet hat, ändert sich für diesen Monat nie
+   (409 `parent_billing.care_tariff_month_billed`); ein fehlender Preis lässt
+   sich auch für einen abgerechneten Monat ergänzen, damit der nächste Lauf
+   des Monats das ausgelassene Kind abrechnet. Preispflege und Freigabe
    halten dieselbe Sperre.
 7. **Schulen.** Die Preisliste nennt die Schulen des Trägers über den Port
    `CareSchools`, den die Root an Organisation & Tenancy bindet. Ein Preis für

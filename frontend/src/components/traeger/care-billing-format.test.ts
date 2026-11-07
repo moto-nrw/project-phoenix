@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { CareTariffs } from "~/lib/traeger-care-billing-api";
 import {
   addMonths,
-  firstOpenMonth,
   formatMonth,
   missingPrices,
   monthOf,
@@ -120,11 +119,6 @@ describe("care price matrix", () => {
     expect(standAt(stands, "2027-03-01")).toBe("2027-02-01");
     expect(standAt(stands, "2026-01-01")).toBe("2026-09-01");
     expect(standAt([], "2026-01-01")).toBe("");
-  });
-
-  it("lets a new price start after the last billed month", () => {
-    expect(firstOpenMonth(data, "11", "2026-11-01")).toBe("2027-01-01");
-    expect(firstOpenMonth(data, "12", "2026-11-01")).toBe("2026-11-01");
   });
 
   it("lists weekdays in their order", () => {

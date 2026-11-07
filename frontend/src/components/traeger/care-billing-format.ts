@@ -220,19 +220,6 @@ export function missingPrices(row: PriceRow): CareWeekday[] {
   return row.bookedWeekdays.filter((day) => row.prices[day] === undefined);
 }
 
-/**
- * The first month a new price list of the school may start: the month
- * after the last billed one, or `current` when nothing is billed yet.
- */
-export function firstOpenMonth(
-  data: CareTariffs,
-  schoolId: string,
-  current: string,
-): string {
-  const billed = data.billedUntil[schoolId];
-  return billed ? addMonths(billed, 1) : current;
-}
-
 /** "1 Vertrag" / "12 Verträge". */
 export function contractCountLabel(count: number): string {
   return count === 1 ? "1 Vertrag" : `${count} Verträge`;

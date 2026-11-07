@@ -23,8 +23,8 @@ import (
 //     also with two releases at once: the release holds the run and the
 //     Träger's monthly billing until it commits.
 //   - An issued invoice keeps its own copy of every price and never
-//     changes; a price never starts in a month an invoice of its school
-//     already bills.
+//     changes; a price an issued invoice billed never changes for its
+//     month, while a booked weekday without a price may still get one.
 
 // ServiceCare is the service of the monthly care contribution: its own
 // number range next to the holiday care.
@@ -60,9 +60,9 @@ var (
 	// ErrCareVersionsOverlap reports two versions of one contract on one day;
 	// the run bills nothing of such a month.
 	ErrCareVersionsOverlap = errors.New("a contract has two versions in force on one day")
-	// ErrCareTariffMonthBilled reports a price that would start in a month an
-	// issued invoice of the school already bills.
-	ErrCareTariffMonthBilled = errors.New("an invoice of the school already bills this month")
+	// ErrCareTariffMonthBilled reports a change of a price an issued invoice
+	// already billed.
+	ErrCareTariffMonthBilled = errors.New("an issued invoice already billed this price")
 	// ErrCareTariffNotFound reports a price list that does not exist.
 	ErrCareTariffNotFound = errors.New("care tariff not found")
 )
@@ -109,6 +109,14 @@ type CareTariffs struct {
 	Modules     []CareModule            `json:"modules"`
 	Tariffs     []CareTariff            `json:"tariffs"`
 	BilledUntil map[int64]calendar.Date `json:"billed_until"`
+}
+
+// CareBilledPrice is a weekday of a module an issued invoice of a school
+// billed in a month; its price there never changes.
+type CareBilledPrice struct {
+	CareOfferingID int64
+	Weekday        string
+	Month          calendar.Date
 }
 
 // CarePrice is one price of a price list a school gets from a month on.

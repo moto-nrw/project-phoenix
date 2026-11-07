@@ -23,7 +23,6 @@ import {
   WEEKDAY_LONG,
   WEEKDAY_SHORT,
   endsAtLabel,
-  firstOpenMonth,
   formatMonth,
   monthsFromTo,
   priceRowsAt,
@@ -71,13 +70,10 @@ export function CarePriceListModal({
   const { clear: clearErrors } = formErrors;
   const { success } = useToast();
 
-  // A month no invoice bills yet may still get prices, up to a year back.
-  const earliest = addMonths(currentMonth, -MONTHS_BACK);
-  const openFrom = school
-    ? firstOpenMonth(data, school.id, earliest)
-    : currentMonth;
-  const firstMonth = openFrom > earliest ? openFrom : earliest;
-  const defaultMonth = firstMonth > currentMonth ? firstMonth : currentMonth;
+  // Prices may start up to a year back; a price an invoice already billed
+  // stays, which the save checks.
+  const firstMonth = addMonths(currentMonth, -MONTHS_BACK);
+  const defaultMonth = currentMonth;
   const lastMonth = addMonths(currentMonth, MONTHS_AHEAD);
   const months = useMemo(
     () => monthsFromTo(firstMonth, lastMonth),
