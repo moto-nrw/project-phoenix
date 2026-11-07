@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -59,19 +61,33 @@ func (r *Store) RecordSubmittedOfferingChoices(ctx context.Context, childID int6
 		if choice.TenantID != 0 && choice.TenantID != tenantID {
 			return fmt.Errorf("submitted offering choice tenant mismatch")
 		}
-		row := &submittedOfferingRow{TenantID: tenantID, RequestChildID: childID, CareOfferingID: choice.CareOfferingID, SelectedDays: choice.SelectedDays, Notes: choice.Notes}
-		if _, err := db.NewInsert().Model(row).
-			On("CONFLICT (tenant_id, request_child_id, care_offering_id) DO NOTHING").Exec(ctx); err != nil {
-			return fmt.Errorf("record submitted offering choice: %w", err)
+		if err := recordSubmittedOfferingChoice(ctx, db, tenantID, childID, choice); err != nil {
+			return err
 		}
-		var stored submittedOfferingRow
+	}
+	return nil
+}
+
+func recordSubmittedOfferingChoice(ctx context.Context, db bun.IDB, tenantID, childID int64, choice enrollment.SubmittedOfferingChoice) error {
+	row := &submittedOfferingRow{TenantID: tenantID, RequestChildID: childID, CareOfferingID: choice.CareOfferingID, SelectedDays: choice.SelectedDays, Notes: choice.Notes}
+	var stored submittedOfferingRow
+	err := db.NewInsert().Model(row).
+		On("CONFLICT (tenant_id, request_child_id, care_offering_id) DO NOTHING").
+		Returning("*").Scan(ctx, &stored)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("record submitted offering choice: %w", err)
+	}
+	// A conflicting retry returned no row. Read it after the conflict wait
+	// so immutability is checked against the committed winner, not a snapshot
+	// from before the INSERT.
+	if errors.Is(err, sql.ErrNoRows) {
 		if err := db.NewSelect().Model(&stored).
 			Where("tenant_id = ? AND request_child_id = ? AND care_offering_id = ?", tenantID, childID, choice.CareOfferingID).Scan(ctx); err != nil {
 			return fmt.Errorf("verify submitted offering retry: %w", err)
 		}
-		if !slices.Equal(stored.SelectedDays, choice.SelectedDays) || !sameSubmissionNotes(stored.Notes, choice.Notes) {
-			return enrollment.ErrSubmittedOfferingChoiceConflict
-		}
+	}
+	if !slices.Equal(stored.SelectedDays, choice.SelectedDays) || !sameSubmissionNotes(stored.Notes, choice.Notes) {
+		return enrollment.ErrSubmittedOfferingChoiceConflict
 	}
 	return nil
 }

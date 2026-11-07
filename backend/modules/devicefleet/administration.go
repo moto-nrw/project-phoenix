@@ -187,21 +187,22 @@ func (s *administration) UpdateDevice(ctx context.Context, device *Device) error
 // the edit named one, and returns the device as stored afterwards, including
 // the columns other flows wrote.
 func (s *administration) writeDeviceEdit(ctx context.Context, device *Device, editsStatus bool) (Device, error) {
-	columns := []string{"device_id", "device_type", "name", "registered_by_id"}
+	var status *DeviceStatus
 	if editsStatus {
-		columns = append(columns, "status")
+		value := DeviceStatus(device.Status)
+		status = &value
 	}
-	affected, err := s.devices.UpdateDeviceColumns(ctx, UpdateDevice{
+	updated, err := s.devices.ApplyDeviceEdit(ctx, DeviceEdit{
 		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
-		Status: DeviceStatus(device.Status), RegisteredByID: device.RegisteredByID,
-	}, columns)
+		RegisteredByID: device.RegisteredByID, Status: status,
+	})
+	if errors.Is(err, ErrDeviceNotFound) {
+		return Device{}, &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
+	}
 	if err != nil {
 		return Device{}, &AdministrationError{Op: "UpdateDevice", Err: err}
 	}
-	if affected == 0 {
-		return Device{}, &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
-	}
-	return s.findDevice(ctx, "UpdateDevice", device.ID)
+	return updated, nil
 }
 
 // findDevice loads one device by primary key for op and reports a missing

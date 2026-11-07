@@ -445,9 +445,9 @@ func (s *Store) insertDocuments(ctx context.Context, organizationID int64, run p
 	if len(documents) == 0 {
 		return nil, nil
 	}
-	rows := make([]documentRow, len(documents))
-	for i, document := range documents {
-		rows[i] = issuedDocumentRow(organizationID, run, year, first+int64(i), document)
+	rows, err := claimedDocumentRows(ctx, db, organizationID, run, year, first, documents)
+	if err != nil {
+		return nil, err
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
 		switch constraintOf(err) {
@@ -487,6 +487,24 @@ func (s *Store) insertDocuments(ctx context.Context, organizationID int64, run p
 		return nil, err
 	}
 	return ids, nil
+}
+
+// claimedDocumentRows builds the rows of the numbered documents and claims
+// their numbers: a monthly invoice of the same pattern must not carry one
+// of them (#4684).
+func claimedDocumentRows(ctx context.Context, db bun.IDB, organizationID int64, run parentbilling.BillingRun, year int, first int64,
+	documents []parentbilling.BillingDocument,
+) ([]documentRow, error) {
+	rows := make([]documentRow, len(documents))
+	numbers := make([]string, len(documents))
+	for i, document := range documents {
+		rows[i] = issuedDocumentRow(organizationID, run, year, first+int64(i), document)
+		numbers[i] = rows[i].Number
+	}
+	if err := claimInvoiceNumbers(ctx, db, organizationID, numbers, careNumbersTable); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 // MarkRunReleased closes a calculated run with its issue date and sums.

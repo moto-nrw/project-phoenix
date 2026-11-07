@@ -26,6 +26,8 @@ const { billingApi, masterApi, session, api } = vi.hoisted(() => ({
   billingApi: {
     fetchHolidayNumberRange: vi.fn(),
     saveHolidayNumberRange: vi.fn(),
+    fetchCareNumberRange: vi.fn(),
+    saveCareNumberRange: vi.fn(),
   },
   masterApi: {
     fetchTraegerMasterData: vi.fn(),
@@ -128,6 +130,11 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
       service: "holiday",
       pattern: "FE-{JJJJ}-{NNNN}",
       example: "FE-2026-0001",
+    });
+    billingApi.fetchCareNumberRange.mockResolvedValue({
+      service: "care",
+      pattern: "",
+      example: "",
     });
     masterApi.fetchTraegerMasterData.mockResolvedValue(MASTER_DATA);
   });
@@ -532,6 +539,12 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
       pattern: "R-{NNN}",
       example: "R-001",
     });
+    // The monthly care has its pattern, so only the holiday card asks.
+    billingApi.fetchCareNumberRange.mockResolvedValue({
+      service: "care",
+      pattern: "MB-{NNNN}",
+      example: "MB-0001",
+    });
     renderPage();
 
     expect(
@@ -550,6 +563,33 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
     await waitFor(() =>
       expect(billingApi.fetchHolidayNumberRange).toHaveBeenCalledTimes(2),
     );
+  });
+
+  it("keeps the number range of the monthly contribution apart (#4684)", async () => {
+    billingApi.saveCareNumberRange.mockResolvedValue({
+      service: "care",
+      pattern: "MB-{JJJJ}-{NNNN}",
+      example: "MB-2026-0001",
+    });
+    renderPage();
+
+    // The holiday range has its pattern; only the monthly one asks.
+    expect(
+      await screen.findByText("Rechnungsnummern der Monatsbeiträge"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Muster festlegen" }));
+    fireEvent.change(
+      await screen.findByLabelText("Muster der Rechnungsnummer"),
+      { target: { value: "MB-{JJJJ}-{NNNN}" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(billingApi.saveCareNumberRange).toHaveBeenCalledWith(
+        "MB-{JJJJ}-{NNNN}",
+      ),
+    );
+    expect(billingApi.saveHolidayNumberRange).not.toHaveBeenCalled();
   });
 
   it("adds a bank account and reads the master data again", async () => {

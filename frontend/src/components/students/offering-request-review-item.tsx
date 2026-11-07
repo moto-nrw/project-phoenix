@@ -42,6 +42,7 @@ import {
   previewOfferingChangeRequest,
 } from "~/lib/offering-request-review-api";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "OfferingRequestReviewItem" });
 
@@ -587,9 +588,7 @@ export function OfferingRequestReviewItem({
           <RequestWaitlistPlaces requestId={row.id} />
           {unchanged.length > 0 && (
             <div className="mt-3 border-t border-gray-200 pt-2">
-              <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Bleibt gebucht
-              </p>
+              <SectionLabel as="p">Bleibt gebucht</SectionLabel>
               {unchanged.map((line) => (
                 <p key={line.offering_id} className="text-sm text-gray-700">
                   <span className="text-xs text-gray-500">{line.label}: </span>
@@ -605,9 +604,7 @@ export function OfferingRequestReviewItem({
           )}
         </ReviewDiffPanel>
         <InsetPanel className="mt-3 space-y-2">
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Gültig ab
-          </p>
+          <SectionLabel as="p">Gültig ab</SectionLabel>
           {editingDate ? (
             <>
               <ISODatePicker
