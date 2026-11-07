@@ -381,6 +381,9 @@ type IntakeForms interface {
 	// LoadPublicCareOfferings is the offering-only projection of the public
 	// form load.
 	LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
+	// LoadPhasePreviewCareOfferings loads the effective form configuration and
+	// active offerings for staff, without public activity, audience or window gates.
+	LoadPhasePreviewCareOfferings(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)
 	// LoadManualEnrollmentBootstrap assembles the staff manual-enrollment
 	// form load.
 	LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)

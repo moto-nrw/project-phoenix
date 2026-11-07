@@ -839,3 +839,31 @@ export async function saveHolidayNumberRange(
     example: range.example,
   };
 }
+
+/** The number range of the monthly invoices (#4684); the pattern may be empty. */
+export async function fetchCareNumberRange(): Promise<NumberRange> {
+  const ranges = await traegerRequest<
+    { service: string; pattern: string; example: string }[] | null
+  >(NUMBER_RANGES_PATH);
+  const care = (ranges ?? []).find((range) => range.service === "care");
+  return {
+    service: "care",
+    pattern: care?.pattern ?? "",
+    example: care?.example ?? "",
+  };
+}
+
+export async function saveCareNumberRange(
+  pattern: string,
+): Promise<NumberRange> {
+  const range = await traegerRequest<{
+    service: string;
+    pattern: string;
+    example: string;
+  }>(`${NUMBER_RANGES_PATH}/care`, { method: "PUT", body: { pattern } });
+  return {
+    service: range.service,
+    pattern: range.pattern,
+    example: range.example,
+  };
+}

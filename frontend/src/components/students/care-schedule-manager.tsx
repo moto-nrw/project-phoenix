@@ -1487,9 +1487,7 @@ function AbsencePlaceholder({
     <div className="flex min-w-0 items-center gap-3 pr-8 text-left">
       <ConceptIconTile concept={concept} size="section" />
       <div className="min-w-0">
-        <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Status
-        </div>
+        <div className="text-xs text-gray-500">Status</div>
         <div className="text-sm leading-5 font-semibold text-gray-900">
           {isDeleting ? "Wird entfernt..." : label}
         </div>
@@ -1576,9 +1574,7 @@ function CareBoundaryRow({
           {boundary.icon}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {boundary.label}
-          </div>
+          <div className="text-xs text-gray-500">{boundary.label}</div>
           {/* Flex-wrapped rather than inline: the badge is taller than the 20px
               line box, so as an inline element it painted over the next line
               whenever the value wrapped ("Keine Abholung" in a day column). */}

@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.care_tariffs",
+  "max": 6,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/care-tariffs (#4684): the Träger\nbinding of the Träger transaction, the schools of the Träger\n(Organisation & Tenancy), the contract versions in force of the year\nbefore and of the year after the current month (Betreuungsvertrag, one\nstatement each), the prices and the last billed month per school. Flat in\nthe number of schools, contracts and prices."
+}
