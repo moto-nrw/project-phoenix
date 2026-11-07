@@ -4370,13 +4370,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (t careContractNoticeTemplates) NoticeTemplate(ctx context.Context, organizationID int64, kind string) (string, error) {\n\tkey := configModels.KeyCareContractTerminationConfirmation\n\tswitch kind {\n\tcase carecontract.NoticeWithdrawal:\n\t\tkey = configModels.KeyCareContractWithdrawalConfirmation\n\tcase carecontract.TerminationExtraordinary:\n\t\tkey = configModels.KeyCareContractExtraordinaryConfirmation\n\t}\n\ttexts, err := t.settings.TraegerTexts(ctx, organizationID, []string{key})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[key], nil\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/careContractNoticeTemplates.NoticeTemplate",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (s careContractReminderSettings) SignatureReminderDays(ctx context.Context, organizationID int64) (int, error) {\n\tvalues, err := s.settings.TraegerInts(ctx, organizationID, []string{configModels.KeyCareContractSignatureReminderDays})\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn values[configModels.KeyCareContractSignatureReminderDays], nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/careContractReminderSettings.SignatureReminderDays",

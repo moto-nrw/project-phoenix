@@ -62,6 +62,46 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "reason": "Reviewed read (#4682): the guardian relationships of the contract's accounts with their portal permissions, row-level in the school's tenant transaction the Betreuungsvertrag opens; decides whether the notice of a decided end may go to them. No owned-row mutation or locking read.",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListGuardianLinksByAccounts",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "reason": "Reviewed read (#4682): the guardian profiles of the contract's accounts for their address, in the school's tenant transaction; no owned-row mutation or locking read.",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListGuardiansByAccount",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "reason": "Reviewed read (#4682): the account addresses of the permitted guardians, restricted to the supplied account IDs; no mutation or locking read.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListAccountEmails",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "reason": "Pure value method (#4682): reports whether a guardian link grants parent_portal.enrollment.submit; no I/O.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianLink.HasPermission",
+      "target_owner": "people-directory"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticePost.EnqueueNoticeMail",
       "classification": "platform",
@@ -87,7 +127,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeTemplates.NoticeTemplate",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: reads the Träger's confirmation template of a withdrawal or termination (#4682).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: reads the Träger's confirmation template of a withdrawal or termination and the template of the notice of a decided end of an extraordinary termination (#4682).",
       "source_owner": "care-contract",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
