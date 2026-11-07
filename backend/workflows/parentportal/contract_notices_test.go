@@ -176,3 +176,35 @@ func TestParentsTerminateExtraordinarilyWithTheirReason(t *testing.T) {
 	assert.Equal(t, "gekuendigt", documents[0].ContractStatus)
 	assert.Nil(t, documents[0].EndsOn, "the inbox shows the open end")
 }
+
+// A contract the parents signed in the inbox (#4679) and then terminated or
+// withdrew (#4682) no longer opens its signing page: the page answers
+// ErrContractNotSignable, the confirmation page takes over. Red without the
+// status check of the page (InboxSigningView).
+func TestSigningPageClosesOnceTheContractEnded(t *testing.T) {
+	t.Parallel()
+	portal, db := noticePortal(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	signature := parentService.ContractSignatureInput{Method: "drawn", ImagePNG: signaturePNG(t), NoticeAcknowledged: true}
+
+	for _, declaration := range []parentService.ContractNoticeInput{
+		{Kind: "kuendigung", TerminationKind: "ordentlich"},
+		{Kind: "widerruf"},
+	} {
+		contract := inboxContract(t, db, organization, chain.TenantID, chain.StudentID, "Felix", chain.Email)
+		_, err := portal.SignContract(ctx, chain.AccountID, organization, contract, signature)
+		require.NoError(t, err, declaration.Kind)
+		_, err = portal.ContractSigningView(ctx, chain.AccountID, organization, contract)
+		require.NoError(t, err, "%s: a signed contract shows its signature", declaration.Kind)
+
+		done, err := portal.DeclareContractNotice(ctx, chain.AccountID, organization, contract, declaration)
+		require.NoError(t, err, declaration.Kind)
+		require.NotEqual(t, "aktiv", done.Status, declaration.Kind)
+		_, err = portal.ContractSigningView(ctx, chain.AccountID, organization, contract)
+		assert.ErrorIs(t, err, parentService.ErrContractNotSignable, "%s: the ended contract opens no signing page", declaration.Kind)
+	}
+}
