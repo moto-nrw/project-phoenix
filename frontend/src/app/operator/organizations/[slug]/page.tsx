@@ -29,6 +29,8 @@ import {
 } from "~/components/operator/entity-head";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
@@ -917,9 +919,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
           {(orgAccounts === undefined && !accountsLoading) ||
           accountsError ? null : !accountsLoading &&
             orgAccounts?.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-              Keine Konten für diesen Träger.
-            </div>
+            <SectionCard>
+              <EmptyState title="Keine Konten für diesen Träger." />
+            </SectionCard>
           ) : (
             <AccountsTable
               accounts={orgAccounts ?? []}
@@ -936,9 +938,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
           <LoadErrorAlert error={devicesLoadError} className="mb-4" />
           {(orgDevices === undefined && !devicesLoading) ||
           devicesError ? null : !devicesLoading && orgDevices?.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-              Keine Geräte für diesen Träger.
-            </div>
+            <SectionCard>
+              <EmptyState title="Keine Geräte für diesen Träger." />
+            </SectionCard>
           ) : (
             <DevicesTable
               devices={orgDevices ?? []}
@@ -957,9 +959,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
           <LoadErrorAlert error={personsLoadError} className="mb-4" />
           {(orgPersons === undefined && !personsLoading) ||
           personsError ? null : !personsLoading && orgPersons?.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-              Keine Personen für diesen Träger.
-            </div>
+            <SectionCard>
+              <EmptyState title="Keine Personen für diesen Träger." />
+            </SectionCard>
           ) : (
             <PersonsTable
               persons={orgPersons ?? []}
