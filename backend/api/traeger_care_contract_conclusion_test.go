@@ -406,3 +406,45 @@ func candidateAcceptanceIssue(t *testing.T, f careContractFixture) string {
 	require.Len(t, candidates, 1)
 	return candidates[0].AcceptanceIssue
 }
+
+// candidateMailBlock reads why the mail to the fixture child's parents would
+// stay back, as the candidates list gives it.
+func candidateMailBlock(t *testing.T, f careContractFixture) string {
+	t.Helper()
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodGet, "/traeger/contracts/candidates", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	candidates := decodeSchoolPortalData[[]carecontract.Candidate](t, rec.Body.Bytes())
+	require.Len(t, candidates, 1)
+	return candidates[0].MailBlock
+}
+
+// TestCareContractCandidatesNameTheHeldMailTheConclusionWaitsFor: a school
+// lists the parents' address after a failed mail. The conclusion holds the
+// child back on every run, and the candidates list says why, so the dialog
+// promises no contract it cannot send (#4680).
+func TestCareContractCandidatesNameTheHeldMailTheConclusionWaitsFor(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Gesperrte Adresse")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	recordCareContractAcceptance(t, f)
+	_, err := f.db.ExecContext(context.Background(), `INSERT INTO platform.email_suppressions (tenant_id, address, reason)
+  VALUES (?, 'erika.muster@example.org', 'failed')`, f.school)
+	require.NoError(t, err)
+	// The list names the hold whatever the school's way; the dialog shows it
+	// where the contract comes at the acceptance.
+	assert.Equal(t, carecontract.MailBlockAddress, candidateMailBlock(t, f))
+
+	setTraegerConclusionMode(t, f, carecontract.ModeOnAcceptance)
+	assert.Empty(t, candidateAcceptanceIssue(t, f), "the parents agreed")
+	assert.Equal(t, carecontract.MailBlockAddress, candidateMailBlock(t, f))
+	run := careContractConclusionRun(t, f)
+	assert.Empty(t, run.Concluded, "the conclusion waits for the address")
+	require.Len(t, run.Skipped, 1)
+	assert.Equal(t, carecontract.SkipMailBlocked, run.Skipped[0].Reason)
+	assert.Zero(t, careContractRows(t, f))
+
+	_, err = f.db.ExecContext(context.Background(), `DELETE FROM platform.email_suppressions WHERE tenant_id = ?`, f.school)
+	require.NoError(t, err)
+	assert.Empty(t, candidateMailBlock(t, f), "a cleared address holds nothing back")
+	assert.Len(t, careContractConclusionRun(t, f).Concluded, 1)
+}

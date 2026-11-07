@@ -77,7 +77,7 @@ func careContractPorts(organizations HolidayOrganizations, settings TraegerBrand
 		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications(securityruntime.Fingerprint)},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
 		Access:   careContractAccessLog{log: accessLog}, Runtime: careContractRuntime{},
-		Modes: careContractModes{settings: schoolSettings},
+		Modes: careContractModes{settings: schoolSettings}, Mail: careContractPost{delivery: delivery, outcomes: outcomes},
 	}
 }
 
@@ -368,6 +368,28 @@ func (p careContractPost) ContractMailBlock(ctx context.Context, organizationID 
 		provider = p.outcomes.ProviderEmailBlocks(ctx, []string{address})[deliveryContract.NormalizedEmailAddress(address)]
 	}
 	return string(deliveryContract.EmailSendBlockOf(mark, stopped, latest, provider)), nil
+}
+
+// ContractMailBlocks answers ContractMailBlock for the first mail to each
+// address, in one read: a candidate has no earlier mail whose outcome would
+// make the provider worth asking (#4680).
+func (p careContractPost) ContractMailBlocks(ctx context.Context, organizationID int64, addresses []string) (map[string]string, error) {
+	listed, stopped, err := p.outcomes.TraegerMailHoldsOf(ctx, organizationID, addresses)
+	if err != nil {
+		return nil, err
+	}
+	blocks := map[string]string{}
+	for _, address := range addresses {
+		key := deliveryContract.NormalizedEmailAddress(address)
+		mark := deliveryContract.EmailAddressMark("")
+		if listed[key] {
+			mark = deliveryContract.EmailMarkFailed
+		}
+		if block := deliveryContract.EmailSendBlockOf(mark, stopped[key], "", ""); block != "" {
+			blocks[address] = string(block)
+		}
+	}
+	return blocks, nil
 }
 
 func (p careContractPost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {

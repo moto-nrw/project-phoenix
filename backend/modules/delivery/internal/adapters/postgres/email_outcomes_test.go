@@ -555,3 +555,38 @@ func TestTraegerMailHoldsStayWithTheirTraeger(t *testing.T) {
 		return nil
 	}))
 }
+
+// The batch read answers every address exactly as the single read does, in one
+// statement, and keeps the addresses without a hold out (#4680).
+func TestTraegerMailHoldsOfAnswerLikeTheSingleRead(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, school).Scan(ctx, &organization))
+	stopped := testpkg.CreateTestGuardianProfile(t, db, "holds-batch-stopped")
+	stopGuardian(t, ctx, db, stopped.ID)
+	listedAddress := fmt.Sprintf("holds-batch-listed-%d@example.test", testpkg.UniqueTestTenantID(t))
+	_, err := db.ExecContext(ctx, `INSERT INTO platform.email_suppressions (tenant_id, address, reason) VALUES (?, ?, 'failed')`, school, listedAddress)
+	require.NoError(t, err)
+	free := fmt.Sprintf("holds-batch-free-%d@example.test", testpkg.UniqueTestTenantID(t))
+	addresses := []string{" " + strings.ToUpper(*stopped.Email) + " ", listedAddress, free}
+
+	require.NoError(t, tenant.WithinTraeger(ctx, organization, func(txCtx context.Context) error {
+		listed, held, err := store.TraegerMailHoldsOf(txCtx, organization, addresses)
+		require.NoError(t, err)
+		for _, address := range addresses {
+			singleListed, singleStopped, err := store.TraegerMailHolds(txCtx, organization, strings.ToLower(strings.TrimSpace(address)))
+			require.NoError(t, err)
+			key := strings.ToLower(strings.TrimSpace(address))
+			assert.Equal(t, singleListed, listed[key], address)
+			assert.Equal(t, singleStopped, held[key], address)
+		}
+		assert.True(t, held[strings.ToLower(*stopped.Email)])
+		assert.True(t, listed[listedAddress])
+		assert.NotContains(t, listed, free)
+		assert.NotContains(t, held, free)
+		return nil
+	}))
+}

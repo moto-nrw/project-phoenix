@@ -134,7 +134,7 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 	accesses := 0
 	school := schoolDouble{school: carecontract.School{ID: testpkg.UniqueTestTenantID(t), Name: "OGS Am Lindenhof"},
 		child: testpkg.UniqueTestTenantID(t), offering: testpkg.UniqueTestTenantID(t), accesses: &accesses}
-	intake := compose.NewIntake(compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: school})
+	intake := compose.NewIntake(compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: school, Mail: noMailBlocks{}})
 
 	shortLast := calendar.NewDate(2028, 1, 31)
 	candidates, err := intake.Candidates(ctx, reviewer, 0)
@@ -247,4 +247,11 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 		return contracts.DiscardContract(txCtx, reviewer, id)
 	})
 	require.ErrorIs(t, err, carecontract.ErrContractNotDraft)
+}
+
+// noMailBlocks holds no address back.
+type noMailBlocks struct{}
+
+func (noMailBlocks) ContractMailBlocks(context.Context, int64, []string) (map[string]string, error) {
+	return nil, nil
 }

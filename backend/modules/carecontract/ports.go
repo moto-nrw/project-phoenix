@@ -160,6 +160,13 @@ type MailState struct {
 	Outcome string
 }
 
+// MailBlocks reads, in the caller's Träger transaction, why a first contract
+// mail to each address would stay back now, in one read (#4680). The key is
+// the address as given; an address that would be sent has no key.
+type MailBlocks interface {
+	ContractMailBlocks(ctx context.Context, organizationID int64, addresses []string) (map[string]string, error)
+}
+
 // Post enqueues the mail of a contract in the caller's Träger transaction
 // and reads the state of its mails.
 type Post interface {

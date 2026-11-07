@@ -201,6 +201,34 @@ func (s *Store) TraegerMailHolds(ctx context.Context, organizationID int64, addr
 	return row.Listed, row.Stopped, nil
 }
 
+// TraegerMailHoldsOf implements ports.EmailOutcomeStore in the caller's Träger
+// transaction: TraegerMailHolds for every address in one read (#4680).
+func (s *Store) TraegerMailHoldsOf(ctx context.Context, organizationID int64, addresses []string) (map[string]bool, map[string]bool, error) {
+	listed, stopped := map[string]bool{}, map[string]bool{}
+	normalized := normalizedAddresses(addresses)
+	if len(normalized) == 0 {
+		return listed, stopped, nil
+	}
+	db, err := RequireTraegerDatabase(ctx, organizationID)
+	if err != nil {
+		return nil, nil, err
+	}
+	var rows []struct {
+		Address string `bun:"address"`
+		emailHoldsRow
+	}
+	if err := db.NewRaw(`SELECT given.address, holds.listed, holds.stopped
+		FROM unnest(ARRAY[?]::text[]) AS given(address)
+		CROSS JOIN LATERAL platform.delivery_traeger_email_holds(given.address) AS holds
+		WHERE holds.listed OR holds.stopped`, bun.List(normalized)).Scan(ctx, &rows); err != nil {
+		return nil, nil, fmt.Errorf("delivery postgres: read the holds of a Träger's addresses: %w", err)
+	}
+	for _, row := range rows {
+		listed[row.Address], stopped[row.Address] = row.Listed, row.Stopped
+	}
+	return listed, stopped, nil
+}
+
 // DeleteExpiredEmailDeliveryEvents implements ports.RetentionStore.
 func (s *Store) DeleteExpiredEmailDeliveryEvents(ctx context.Context, tenantID int64, before time.Time) (int, error) {
 	db, err := s.tenantDB(ctx, tenantID)

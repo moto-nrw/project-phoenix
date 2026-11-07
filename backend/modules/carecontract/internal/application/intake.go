@@ -32,6 +32,7 @@ type Intake struct {
 	access       carecontract.SchoolAccessLog
 	runtime      carecontract.Runtime
 	modes        carecontract.ConclusionModes
+	mail         carecontract.MailBlocks
 	today        func() calendar.Date
 }
 
@@ -43,6 +44,7 @@ type IntakePorts struct {
 	Access       carecontract.SchoolAccessLog
 	Runtime      carecontract.Runtime
 	Modes        carecontract.ConclusionModes
+	Mail         carecontract.MailBlocks
 }
 
 var _ carecontract.Intake = (*Intake)(nil)
@@ -50,11 +52,11 @@ var _ carecontract.Intake = (*Intake)(nil)
 // NewIntake builds the intake over the root-bound ports.
 func NewIntake(store Store, ports IntakePorts, today func() calendar.Date) *Intake {
 	if store == nil || ports.Schools == nil || ports.Applications == nil || ports.Bookings == nil || ports.Access == nil ||
-		ports.Runtime == nil || ports.Modes == nil || today == nil {
-		panic("care contract: the store, the schools, the applications, the bookings, the access log, the runtime, the conclusion modes and the clock are required")
+		ports.Runtime == nil || ports.Modes == nil || ports.Mail == nil || today == nil {
+		panic("care contract: the store, the schools, the applications, the bookings, the access log, the runtime, the conclusion modes, the mail blocks and the clock are required")
 	}
 	return &Intake{store: store, schools: ports.Schools, applications: ports.Applications, bookings: ports.Bookings,
-		access: ports.Access, runtime: ports.Runtime, modes: ports.Modes, today: today}
+		access: ports.Access, runtime: ports.Runtime, modes: ports.Modes, mail: ports.Mail, today: today}
 }
 
 // schoolRead is what the intake read in one school's tenant transaction.
@@ -79,23 +81,59 @@ func (in *Intake) Candidates(ctx context.Context, reviewer carecontract.Reviewer
 	if err != nil {
 		return nil, err
 	}
-	var existing map[ContractKey]bool
-	var rows []TemplateRow
+	var candidates []carecontract.Candidate
 	err = in.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
-		var err error
-		if existing, err = in.store.ContractKeys(txCtx, reviewer.OrganizationID, schoolIDs(schools)); err != nil {
+		existing, err := in.store.ContractKeys(txCtx, reviewer.OrganizationID, schoolIDs(schools))
+		if err != nil {
 			return err
 		}
-		rows, err = in.store.Templates(txCtx, reviewer.OrganizationID)
-		return err
+		rows, err := in.store.Templates(txCtx, reviewer.OrganizationID)
+		if err != nil {
+			return err
+		}
+		templates, changed := indexTemplates(rows)
+		candidates = collectCandidates(reads, existing, templates, changed, in.today())
+		return in.markHeldMail(txCtx, reviewer.OrganizationID, candidates)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("care contract: read contracts: %w", err)
 	}
-	templates, changed := indexTemplates(rows)
-	candidates := collectCandidates(reads, existing, templates, changed, in.today())
 	sortCandidates(candidates)
 	return candidates, nil
+}
+
+// markHeldMail names, for every child the conclusion at the acceptance
+// could conclude (conditions in place, the parents' agreement proven), why
+// the mail to the parents' address would stay back now (#4680). The
+// conclusion holds such a child back on every run, so the dialog must not
+// promise the contract. One read covers all addresses; the list does not know
+// a school's way (see ConclusionModes), so the dialog shows it where the
+// contract comes at the acceptance.
+func (in *Intake) markHeldMail(ctx context.Context, organizationID int64, candidates []carecontract.Candidate) error {
+	var addresses []string
+	for _, candidate := range candidates {
+		if concludable(candidate) {
+			addresses = append(addresses, candidate.GuardianEmail)
+		}
+	}
+	if len(addresses) == 0 {
+		return nil
+	}
+	blocks, err := in.mail.ContractMailBlocks(ctx, organizationID, addresses)
+	if err != nil {
+		return fmt.Errorf("care contract: read mail blocks: %w", err)
+	}
+	for i := range candidates {
+		if concludable(candidates[i]) {
+			candidates[i].MailBlock = blocks[candidates[i].GuardianEmail]
+		}
+	}
+	return nil
+}
+
+// concludable is a candidate the conclusion at the acceptance would send.
+func concludable(candidate carecontract.Candidate) bool {
+	return candidate.TemplateIssue == "" && candidate.AcceptanceIssue == "" && candidate.GuardianEmail != ""
 }
 
 // collectCandidates keeps every accepted application child with booked care
