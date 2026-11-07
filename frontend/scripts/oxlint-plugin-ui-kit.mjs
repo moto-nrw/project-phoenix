@@ -1215,15 +1215,15 @@ src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1358 text-[11px]@1383 text-[11px]@1536 text-[10px]@1645 text-[11px]@1666
-src/components/timetable/month-planner-grid.tsx|text-[11px]@64 text-[11px]@140 text-[11px]@149 text-[11px]@170 text-[9px]@201 text-[10px]@235
-src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@178 text-[10px]@245 text-[11px]@254 text-[10px]@296 text-[10px]@320 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
-src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@410 text-[11px]@473
-src/components/timetable/substitution-person-card.tsx|text-[11px]@58 text-[11px]@337 text-[11px]@344 text-[11px]@351 text-[11px]@359 text-[11px]@371
-src/components/timetable/substitution-slide-over.tsx|text-[11px]@743 text-[11px]@747
-src/components/timetable/template-card.tsx|text-[11px]@128 text-[10px]@198
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1388 text-[11px]@1541 text-[11px]@1669
+src/components/timetable/month-planner-grid.tsx|text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[10px]@237
+src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[11px]@255 text-[10px]@321 text-[11px]@398 text-[11px]@405
+src/components/timetable/staff-pool-slide-over.tsx|text-[11px]@482
+src/components/timetable/substitution-person-card.tsx|text-[11px]@59 text-[11px]@338 text-[11px]@345 text-[11px]@352 text-[11px]@360
+src/components/timetable/substitution-slide-over.tsx|text-[11px]@744
+src/components/timetable/template-card.tsx|text-[10px]@198
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@352 text-[11px]@392 text-[11px]@399 text-[11px]@420 text-[11px]@426
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@455 text-[11px]@455 text-[11px]@460 text-[10px]@483 text-[10px]@518 text-[11px]@518
+src/components/timetable/weekly-calendar-grid.tsx|text-[11px]@460 text-[10px]@483 text-[10px]@518 text-[11px]@518
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[10px]@282

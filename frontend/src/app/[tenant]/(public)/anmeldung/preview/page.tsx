@@ -219,10 +219,7 @@ function EnrollmentPreviewPageContent() {
                 label="Zurück zu den Anmeldeformularen"
               />
             )}
-            <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
-              {phaseId ? "Vorschau der Anmeldephase" : "Formularvorschau"}
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+            <h1 className="mt-6 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
               {previewTitle}
             </h1>
             <div className="mt-4">
@@ -271,13 +268,10 @@ function EnrollmentPreviewPageContent() {
 
         <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
           <section className="moto-content-surface rounded-2xl border p-5">
-            <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
-              Vorschau
-            </p>
             {loading ? (
-              <Skeleton className="mt-2 h-7 w-40" />
+              <Skeleton className="h-7 w-40" />
             ) : (
-              <h2 className="mt-2 text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-gray-900">
                 {previewStatus.label}
               </h2>
             )}
