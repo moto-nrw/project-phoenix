@@ -44,14 +44,16 @@ type occupancyBookings struct {
 
 func newOccupancyBookings(t *testing.T, db *bun.DB, school int64) occupancyBookings {
 	t.Helper()
-	today := calendar.TodayDate()
-	return newOccupancyBookingsInPhase(t, db, school, today.AddDays(-30), today.AddDays(300), true)
+	return newOccupancyBookingsInPhase(t, db, school, -30, 300, true)
 }
 
-// newOccupancyBookingsInPhase books in a phase with the given service period
-// (both days inclusive) and activity.
-func newOccupancyBookingsInPhase(t *testing.T, db *bun.DB, school int64, start, end calendar.Date, active bool) occupancyBookings {
+// newOccupancyBookingsInPhase books in a phase whose service period runs
+// from today plus startDays to today plus endDays (both inclusive). The API
+// counts on the real day, so the period follows it.
+func newOccupancyBookingsInPhase(t *testing.T, db *bun.DB, school int64, startDays, endDays int, active bool) occupancyBookings {
 	t.Helper()
+	today := calendar.TodayDate()
+	start, end := today.AddDays(startDays), today.AddDays(endDays)
 	var phase int64
 	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.phases
 		(tenant_id, name, kind, service_start_date, service_end_date, care_overflow_mode, care_offering_selection_mode, is_active)
@@ -205,7 +207,6 @@ func TestTraegerOccupancyListsRunningOfferingsWithoutBooking(t *testing.T) {
 	school := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Am Teich")
 	foreignOrganization := traegerOrganization(t, db, "Träger Fremd Frei", true)
 	foreign := testpkg.CreateTestSchoolInOrganization(t, db, foreignOrganization, "OGS Fremd Frei")
-	today := calendar.TodayDate()
 	child := testpkg.CreateTestStudentForTenant(t, db, school, "Mia", "Teich", "1a")
 
 	running := newOccupancyBookings(t, db, school)
@@ -216,10 +217,10 @@ func TestTraegerOccupancyListsRunningOfferingsWithoutBooking(t *testing.T) {
 	inactive := running.offering("Ruhendes Angebot", true, 5)
 	_, err := db.ExecContext(context.Background(), `UPDATE enrollment.care_offerings SET is_active = false WHERE id = ?`, inactive)
 	require.NoError(t, err)
-	newOccupancyBookingsInPhase(t, db, school, today.AddDays(-200), today.AddDays(-1), true).offering("Beendetes Angebot", true, 8)
-	newOccupancyBookingsInPhase(t, db, school, today.AddDays(1), today.AddDays(200), true).offering("Künftiges Angebot", true, 8)
-	newOccupancyBookingsInPhase(t, db, school, today.AddDays(-30), today.AddDays(30), false).offering("Angebot ruhender Phase", true, 8)
-	newOccupancyBookingsInPhase(t, db, school, today, today, true).offering("Tagesangebot", true, 4)
+	newOccupancyBookingsInPhase(t, db, school, -200, -1, true).offering("Beendetes Angebot", true, 8)
+	newOccupancyBookingsInPhase(t, db, school, 1, 200, true).offering("Künftiges Angebot", true, 8)
+	newOccupancyBookingsInPhase(t, db, school, -30, 30, false).offering("Angebot ruhender Phase", true, 8)
+	newOccupancyBookingsInPhase(t, db, school, 0, 0, true).offering("Tagesangebot", true, 4)
 	newOccupancyBookings(t, db, foreign).offering("Fremdes freies Angebot", true, 10)
 
 	office := traegerAccount(t, db, password)
@@ -232,16 +233,16 @@ func TestTraegerOccupancyListsRunningOfferingsWithoutBooking(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "Fremdes freies Angebot", "no offering of another Träger")
 	teich := occupancyOf(t, decodeSchoolPortalData[traegerview.Occupancy](t, rec.Body.Bytes()), school)
 	ten, one, four := 10, 1, 4
-	var day int64
+	var oneDay int64
 	for _, form := range teich.CareForms {
 		if form.Name == "Tagesangebot" {
-			day = form.ID
+			oneDay = form.ID
 		}
 	}
 	assert.Equal(t, []traegerview.OccupancyCareForm{
 		{ID: full, Name: "Kurzbetreuung", Children: 1, Capacity: &one},
 		{ID: empty, Name: "Nachmittagsbetreuung", Children: 0, Capacity: &ten},
-		{ID: day, Name: "Tagesangebot", Children: 0, Capacity: &four},
+		{ID: oneDay, Name: "Tagesangebot", Children: 0, Capacity: &four},
 	}, teich.CareForms, "running offerings without a booking count 0 children; ended, future, inactive and lunch offerings do not appear")
 	assert.Zero(t, teich.WithoutCareForm)
 
