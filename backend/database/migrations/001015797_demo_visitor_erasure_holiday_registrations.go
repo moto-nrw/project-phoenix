@@ -14,7 +14,7 @@ func init() {
 		Version:     demoVisitorErasureHolidayRegistrationsVersion,
 		Description: "Demo-Besuch löschen: Ferienanmeldungen mit einem Kind der Demo-Schule entfernen",
 		DependsOn: []string{
-			careContractAmendmentsVersion,          // the last migration before this one
+			careContractSignaturesVersion,          // the last migration before this one
 			holidayRegistrationsVersion,            // the tables it deletes from
 			demoVisitorErasureCareContractsVersion, // the function this one replaces
 		},
