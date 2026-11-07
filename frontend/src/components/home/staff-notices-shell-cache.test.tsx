@@ -50,7 +50,7 @@ vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => path,
 }));
 vi.mock("~/components/home/home-card", () => ({
-  HOME_CARD_BODY: "",
+  HomeCard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   HomeCardIcon: () => null,
 }));
 vi.mock("~/components/home/home-card-rows", () => ({
@@ -62,9 +62,6 @@ vi.mock("~/components/home/home-card-rows", () => ({
     shown: items,
     hidden: 0,
   }),
-}));
-vi.mock("~/components/ui/section-card", () => ({
-  SectionCard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 // Wie die echte Liste: nach der Kenntnisnahme den Eintrag neu laden und das
 // Ereignis für die Zähler senden.

@@ -155,6 +155,7 @@ import { createLogger } from "~/lib/logger";
 import { errorStatus } from "~/lib/expected-failure";
 import { IconTile } from "~/components/ui/icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
@@ -2687,7 +2688,12 @@ function EditSessionModal({
                   {/* Felder zur Einordnung im Formular-Slide-over, kein
                       Detailbaum: nur DataField, kein DataGrid
                       (bauart/one-detail-per-type, #3115). */}
-                  <dl className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2">
+                  <InsetPanel
+                    as="dl"
+                    framed
+                    padding="md"
+                    className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                  >
                     <DataField label="Zeitraum">
                       {absence.dateStart} bis {absence.dateEnd}
                     </DataField>
@@ -2699,7 +2705,7 @@ function EditSessionModal({
                         {absence.note}
                       </DataField>
                     )}
-                  </dl>
+                  </InsetPanel>
                 </div>
               ) : (
                 <>

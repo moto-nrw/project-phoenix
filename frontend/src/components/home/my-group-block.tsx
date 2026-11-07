@@ -3,11 +3,10 @@
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListRow } from "~/components/ui/list-row";
-import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton, SkeletonRows } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import {
   HomeCardLink,
   HomeMoreRow,
@@ -96,11 +95,9 @@ export function MyGroupBlock() {
     : null;
 
   return (
-    <SectionCard
+    <HomeCard
       title="Meine Gruppe heute"
       leading={<HomeCardIcon concept={groupsConcept} />}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       inlineActions
       actions={
         <HomeCardLink href={href} label="Meine Gruppe heute: zur Gruppe">
@@ -186,7 +183,7 @@ export function MyGroupBlock() {
           </>
         );
       })()}
-    </SectionCard>
+    </HomeCard>
   );
 }
 
