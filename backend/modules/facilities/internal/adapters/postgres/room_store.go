@@ -231,42 +231,56 @@ func (s *Store) List(ctx context.Context, filter facilities.RoomFilter) ([]facil
 	return result, stats, nil
 }
 
+// pagedRoomRow carries the filtered total next to each row of the page.
+type pagedRoomRow struct {
+	roomRow `bun:",extend"`
+	Total   int `bun:"room_total,scanonly"`
+}
+
+// ListPage reads the page and the filtered total in one statement, so both
+// come from one READ COMMITTED snapshot (#5888, decision E2: one early shared
+// read may replace the former separate count and page reads; the listing
+// takes no lock). Only a page past the end, which carries no row to read the
+// total from, counts separately.
 func (s *Store) ListPage(ctx context.Context, filter facilities.RoomFilter, offset, limit int) ([]facilities.Room, int, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, 0, domain.OperationStats{}, err
 	}
-	rows := []roomRow{}
+	rows := []pagedRoomRow{}
 	query := roomSelect(db, &rows).
+		ColumnExpr(`?TableColumns`).
+		ColumnExpr(`COUNT(*) OVER () AS room_total`).
 		Where(`"room".tenant_id = ?`, tenantID).
 		OrderExpr(`"room".name ASC, "room".id ASC`)
-	countQuery := db.NewSelect().
-		TableExpr(`facilities.rooms AS "room"`).
-		ColumnExpr("COUNT(*)").
-		Where(`"room".tenant_id = ?`, tenantID)
 	query, empty := applyRoomListFilter(query, filter)
-	countQuery, countEmpty := applyRoomListFilter(countQuery, filter)
-	if empty || countEmpty {
+	if empty {
 		return []facilities.Room{}, 0, domain.OperationStats{}, nil
 	}
-	stats := domain.OperationStats{}
+	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	var total int
-	stats.Queries++
-	if err := countQuery.Scan(ctx, &total); err != nil {
-		stats.StatementDuration = time.Since(started)
-		return nil, 0, stats, fmt.Errorf("facilities postgres: count rooms: %w", err)
-	}
-	query = query.Offset(int64(offset)).Limit(int64(limit))
-	stats.Queries++
-	if err := query.Scan(ctx); err != nil {
+	if err := query.Offset(int64(offset)).Limit(int64(limit)).Scan(ctx); err != nil {
 		stats.StatementDuration = time.Since(started)
 		return nil, 0, stats, fmt.Errorf("facilities postgres: list room page: %w", err)
+	}
+	total := 0
+	if len(rows) > 0 {
+		total = rows[0].Total
+	} else if offset > 0 {
+		countQuery, _ := applyRoomListFilter(db.NewSelect().
+			TableExpr(`facilities.rooms AS "room"`).
+			ColumnExpr("COUNT(*)").
+			Where(`"room".tenant_id = ?`, tenantID), filter)
+		stats.Queries++
+		if err := countQuery.Scan(ctx, &total); err != nil {
+			stats.StatementDuration = time.Since(started)
+			return nil, 0, stats, fmt.Errorf("facilities postgres: count rooms: %w", err)
+		}
 	}
 	stats.StatementDuration = time.Since(started)
 	result := make([]facilities.Room, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, toDomain(row))
+		result = append(result, toDomain(row.roomRow))
 	}
 	stats.Rows = int64(len(result))
 	return result, total, stats, nil
