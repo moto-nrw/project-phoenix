@@ -18,6 +18,7 @@ import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { devicesConfig } from "~/components/database/configs/devices.config";
 import { Alert } from "~/components/ui/alert";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { DatabaseForm } from "~/components/database/database-form";
@@ -259,11 +260,11 @@ function DeviceStammdatenTab({
           </DataField>
           <DataField label="Standort">{device.room_name ?? "–"}</DataField>
           <DataField label="Status">
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getDeviceStatusColor(device.status)}`}
-            >
-              {getDeviceStatusDisplayName(device.status)}
-            </span>
+            <StatusColorBadge
+              compact
+              label={getDeviceStatusDisplayName(device.status)}
+              color={getDeviceStatusColor(device.status)}
+            />
           </DataField>
         </DataGrid>
       </InfoSection>

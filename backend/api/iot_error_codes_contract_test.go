@@ -55,6 +55,20 @@ func checkIoTErrorCodes(t *testing.T, api *goldenRuntime) {
 		assertIoTRefusal(t, response, http.StatusUnauthorized, "iot.device_api_key_format_invalid", "invalid API key format - use Bearer token", "device-only route")
 	})
 
+	// A school the operator switched inactive admits no kiosk, like staff
+	// login and refresh refuse it; the kiosk already knows the code.
+	t.Run("device of an inactive school", func(t *testing.T) {
+		schoolID := testpkg.OwnTenant(t)
+		apiKey := *testpkg.CreateTestDevice(t, db, "codes-inactive-school").APIKey
+		_, err := db.NewRaw("UPDATE platform.schools SET active = false WHERE id = ?", schoolID).Exec(context.Background())
+		require.NoError(t, err)
+
+		response := iotCodeRequest(t, api, http.MethodPost, "/api/iot/checkin", "Bearer "+apiKey, pin, map[string]any{"student_rfid": "TAG", "action": "checkin"})
+		assertIoTRefusal(t, response, http.StatusForbidden, "iot.device_inactive", "device is not active", "inactive school")
+		response = iotCodeRequest(t, api, http.MethodPost, "/api/iot/error-reports", "Bearer "+apiKey, "", nil)
+		assertIoTRefusal(t, response, http.StatusForbidden, "iot.device_inactive", "device is not active", "inactive school, device-only route")
+	})
+
 	t.Run("kiosk refusals", func(t *testing.T) {
 		authorization := "Bearer " + *testpkg.CreateTestDevice(t, db, "codes-kiosk").APIKey
 

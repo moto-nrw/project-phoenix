@@ -9,6 +9,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
+import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { AUDIENCE_LABELS } from "~/lib/staff-notices-api";
@@ -309,24 +310,12 @@ export function StaffNoticeModal({
           <span className="mb-1 block text-sm font-medium text-gray-700">
             Wochentage
           </span>
-          <div className="flex flex-wrap gap-2">
-            {WEEKDAYS.map((day) => {
-              const selected = form.weekdays.includes(day.value);
-              return (
-                <Button
-                  key={day.value}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => toggleWeekday(day.value)}
-                  variant={selected ? "primary" : "outline"}
-                  size="compact"
-                  className="w-11"
-                >
-                  {day.label}
-                </Button>
-              );
-            })}
-          </div>
+          <WeekdayToggleGroup
+            ariaLabel="Wochentage"
+            days={WEEKDAYS}
+            value={form.weekdays}
+            onToggle={toggleWeekday}
+          />
           <p className="mt-1 text-xs text-gray-500">
             Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums.
           </p>

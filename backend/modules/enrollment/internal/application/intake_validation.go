@@ -235,7 +235,7 @@ func ensureRequiredConsentFlags(flags map[string]any, legalBlocks []enrollment.L
 // filtered consent flags into the append-only evidence entry of the request
 // (Art. 5 Abs. 2, Art. 7 Abs. 1 DSGVO). It is the only reliable record of the
 // wording the family saw and the answers it gave at that moment.
-func legalBlocksSnapshotEntry(blocks []enrollment.LegalBlock, flags map[string]any, at time.Time, fingerprint Fingerprint) (LegalBlocksSnapshotEntry, error) {
+func legalBlocksSnapshotEntry(blocks []enrollment.LegalBlock, flags map[string]any, forms snapshotForms, at time.Time, fingerprint Fingerprint) (LegalBlocksSnapshotEntry, error) {
 	snapshot := make([]LegalBlockSnapshot, 0, len(blocks))
 	for _, block := range blocks {
 		checksum := ""
@@ -256,7 +256,22 @@ func legalBlocksSnapshotEntry(blocks []enrollment.LegalBlock, flags map[string]a
 	if err != nil {
 		return LegalBlocksSnapshotEntry{}, err
 	}
-	return LegalBlocksSnapshotEntry{SnapshotAt: at, Blocks: snapshot, ConsentFlags: frozenFlags}, nil
+	return LegalBlocksSnapshotEntry{SnapshotAt: at, Blocks: snapshot, ConsentFlags: frozenFlags,
+		FormSchemaID: forms.stored, DisplayedFormSchemaID: forms.displayed}, nil
+}
+
+// snapshotForms names the form version in force and the one the parent's
+// form showed (#4680).
+type snapshotForms struct {
+	stored, displayed int64
+}
+
+// formsOf is the version in force, without one zero, and the shown one.
+func formsOf(schema *enrollment.FormSchema, displayed int64) snapshotForms {
+	if schema == nil {
+		return snapshotForms{displayed: displayed}
+	}
+	return snapshotForms{stored: schema.ID, displayed: displayed}
 }
 
 // normalizeSubmissionForCapabilities drops the grade and class when the grade

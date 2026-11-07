@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/uptrace/bun"
 
 	"github.com/stretchr/testify/require"
@@ -56,7 +56,7 @@ func TestLockTenantGradeTransitions(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = tx.Rollback() }()
 
-		require.NoError(t, lock.LockRecurrenceWritesThenGradeTransitions(tenant.WithTransactionForTest(tenantCtx, &tx)))
+		require.NoError(t, lock.LockRecurrenceWritesThenGradeTransitions(tenanttest.WithTransaction(tenantCtx, &tx)))
 	})
 }
 

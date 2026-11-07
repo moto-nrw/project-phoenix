@@ -25,11 +25,17 @@ type providerBlockOutcomes struct {
 	realEmailOutcomes
 }
 
-// ProviderEmailBlocks answers from the test's record.
-func (providerBlockOutcomes) ProviderEmailBlocks(_ context.Context, addresses []string) map[string]deliveryContract.EmailProviderBlock {
+// ProviderEmailBlocks answers from the test's record, within the budget Delivery
+// applies. A request that shares one keeps sharing it here.
+func (providerBlockOutcomes) ProviderEmailBlocks(ctx context.Context, addresses []string) map[string]deliveryContract.EmailProviderBlock {
 	blocks := make(map[string]deliveryContract.EmailProviderBlock, len(addresses))
+	budget := deliveryContract.ProviderBlockBudgetOf(ctx)
 	for _, address := range addresses {
 		key := deliveryContract.NormalizedEmailAddress(address)
+		if budget.Attempt(ctx, func(context.Context) error { return nil }) != nil {
+			blocks[key] = deliveryContract.EmailProviderBlockUnreadable
+			continue
+		}
 		testProviderAsked.Store(key, true)
 		blocks[key] = deliveryContract.EmailProviderBlockNone
 		if block, ok := testProviderBlocks.Load(key); ok {

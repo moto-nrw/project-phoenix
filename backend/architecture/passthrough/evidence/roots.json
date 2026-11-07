@@ -1626,6 +1626,27 @@
     },
     {
       "build": "production",
+      "evidence": "func (l traegerDocumentAccessLog) RecordAccess(ctx context.Context, access organizationtenancy.TraegerDocumentAccess) error {\n\tnow := time.Now()\n\treturn l.log.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.AccountID, ActorRole: traegerAccessActorRole, ResourceType: auditModels.ResourceTypeTraegerDocumentDownload, RangeStart: now, RangeEnd: now, Metadata: map[string]any{\"channel\": \"traeger_portal\", \"organization_id\": access.OrganizationID, \"document_id\": access.DocumentID}})\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerDocumentAccessLog.RecordAccess",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (l traegerDocumentDownloadLedger) RecordDownload(ctx context.Context, download organizationtenancy.TraegerDocumentDownload) error {\n\treturn l.command.Append(ctx, \u0026auditModels.TraegerDocumentDownload{OrganizationID: download.OrganizationID, DocumentID: download.DocumentID, ActorAccountID: download.AccountID, ClientIP: download.ClientIP, UserAgent: download.UserAgent})\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerDocumentDownloadLedger.RecordDownload",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g traegerDocumentGroups) SchoolGroups(ctx context.Context) ([]organizationtenancy.TraegerDocumentGroup, error) {\n\tgroups, err := g.groups.ListGroups(ctx, traegerDocumentGroupLimit)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]organizationtenancy.TraegerDocumentGroup, 0, len(groups))\n\tfor _, group := range groups {\n\t\tresult = append(result, organizationtenancy.TraegerDocumentGroup{ID: group.ID, Name: group.Name})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerDocumentGroups.SchoolGroups",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (g traegerGroupNames) GroupsByTenant(ctx context.Context, schools []int64) (map[int64][]traegerview.NamedGroup, error) {\n\tgroups, err := g.groups.GroupsByTenant(ctx, schools)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64][]traegerview.NamedGroup, len(groups))\n\tfor school, named := range groups {\n\t\tfor _, group := range named {\n\t\t\tresult[school] = append(result[school], traegerview.NamedGroup{ID: group.ID, Name: group.Name})\n\t\t}\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/traegerGroupNames.GroupsByTenant",
@@ -6312,6 +6333,20 @@
       "evidence": "func (r parentPhaseReads) ListEnrollable(ctx context.Context, accountID int64) ([]*parentportal.EnrollablePhase, error) {\n\trows, err := r.source.ListEnrollable(ctx, accountID)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tout := make([]*parentportal.EnrollablePhase, len(rows))\n\tfor i, row := range rows {\n\t\tif row != nil {\n\t\t\tvalue := parentportal.EnrollablePhase(*row)\n\t\t\tout[i] = \u0026value\n\t\t}\n\t}\n\treturn out, err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentPhaseReads.ListEnrollable",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d parentSharedDocuments) ListSharedDocuments(ctx context.Context, organizationID int64, reader parentportal.SharedDocumentReader) ([]parentportal.SharedDocument, error) {\n\tfound, err := d.documents.ParentDocuments(ctx, organizationID, organizationtenancy.TraegerDocumentParent(reader))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tdocuments := make([]parentportal.SharedDocument, len(found))\n\tfor i, document := range found {\n\t\tdocuments[i] = parentportal.SharedDocument{ID: document.ID, OrganizationID: organizationID, Title: document.Title, FileName: document.FileName, ContentType: document.ContentType, SizeBytes: document.SizeBytes, ReleasedAt: document.ReleasedAt}\n\t}\n\treturn documents, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentSharedDocuments.ListSharedDocuments",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d parentSharedDocuments) SharedDocumentFile(ctx context.Context, organizationID, documentID int64, reader parentportal.SharedDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.documents.OpenParentDocument(ctx, organizationID, documentID, organizationtenancy.TraegerDocumentParent(reader))\n\tif errors.Is(err, organizationtenancy.ErrTraegerDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrSharedDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile{Filename: file.FileName, ContentType: file.ContentType, Data: file.Data}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentSharedDocuments.SharedDocumentFile",
       "owner": "roots"
     },
     {

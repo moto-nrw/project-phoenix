@@ -69,6 +69,12 @@ type LegalBlocksSnapshotEntry struct {
 	SnapshotAt   time.Time            `json:"snapshot_at"`
 	Blocks       []LegalBlockSnapshot `json:"blocks"`
 	ConsentFlags json.RawMessage      `json:"consent_flags"`
+	// FormSchemaID is the form version whose legal blocks the entry holds;
+	// DisplayedFormSchemaID the version the parent's form showed (#4680).
+	// They differ when the school published a new version while the form
+	// was open.
+	FormSchemaID          int64 `json:"form_schema_id,omitempty"`
+	DisplayedFormSchemaID int64 `json:"displayed_form_schema_id,omitempty"`
 }
 
 // RequestStatus values - derived, not stored. Documented here as the

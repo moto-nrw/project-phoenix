@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +28,7 @@ func TestArrivalScheduleSignalReachesOnlyItsSchoolAcrossAPIs(t *testing.T) {
 	localB := &realtime.Client{Channel: make(chan realtime.Event, 4)}
 	api1.Register(localA, 17, nil)
 	api1.Register(localB, 29, nil)
-	ctx, commit := tenant.WithAfterCommitHooksForTest(tenant.WithTenantID(context.Background(), 17))
+	ctx, commit := tenanttest.WithAfterCommitHooks(tenant.WithTenantID(context.Background(), 17))
 	compose.QueueArrivalScheduleChanged(ctx, api1, nil)
 	require.Empty(t, localA.Channel, "no local event before commit")
 	require.Empty(t, schoolA.Channel, "no remote event before commit")

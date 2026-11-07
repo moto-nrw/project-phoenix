@@ -135,3 +135,66 @@ groups:
           service: email-delivery
           severity: warning
         isPaused: false
+      - uid: email-delivery-fallback-request-ended
+        title: Security mail fallback request ended
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: >-
+                sum(count_over_time({env="prod",service="server"} |= "security mail fallback request ended" | json | msg="security mail fallback request ended" [15m])) or vector(0)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Eine Sicherheitsmail wartete auf den Notweg, der nicht mehr eingerichtet ist.
+          description: Die Mail ist endgültig fehlgeschlagen. EMAIL_FALLBACK_* prüfen. Die Person muss den Vorgang neu starten.
+          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
+        labels:
+          env: prod
+          issue: "5957"
+          service: email-delivery
+          severity: critical
+        isPaused: false

@@ -46,6 +46,8 @@ func seedConclusionEnrollment(rt *Runtime) error {
 				"guardian_first_name": "Miriam", "guardian_last_name": "Berger",
 				"guardian_email": scopedEmail("miriam.berger@example.test", rt.FixedSeeder.accountScope),
 				"consent_flags":  map[string]bool{"data_processing": true, "care_contract": true},
+				// The page reports the form version it showed.
+				"form_schema_id": schemaID,
 				"children": []map[string]any{{
 					"first_name": "Tilda", "last_name": "Berger", "date_of_birth": "2019-05-14", "target_grade_level": 1,
 					"offering_ids":  []int64{offeringID},

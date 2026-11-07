@@ -94,6 +94,13 @@ func renderEmailWebhookFailure(w http.ResponseWriter, r *http.Request, err error
 		apiCommon.RenderExpectedUnavailable(w, r, errors.New("the webhook is not configured"), apiCommon.CodeGeneralUnavailable)
 		return
 	}
+	if errors.Is(err, emailWebhooksHTTP.ErrBodyUnreadable) {
+		// The sender's connection broke off or timed out. The provider retries the
+		// 503; if that keeps failing, it turns the webhook off and the alarm goes.
+		slog.Default().WarnContext(r.Context(), "email webhook body could not be read")
+		apiCommon.RenderExpectedUnavailable(w, r, emailWebhooksHTTP.ErrBodyUnreadable, apiCommon.CodeGeneralUnavailable)
+		return
+	}
 	apiCommon.RenderError(w, r, apiCommon.RenderWithRules(err, emailWebhookFailureRules, apiCommon.ErrorInternalServerRenderer("the webhook delivery could not be stored")))
 }
 

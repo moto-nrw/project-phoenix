@@ -15,7 +15,7 @@ import (
 )
 
 // The versions of a contract over time (#4681). The effective versions
-// (wirksam, abgeloest) form one timeline; the migration 1.15.775 keeps them
+// (wirksam, abgeloest) form one timeline; the migration 1.15.782 keeps them
 // apart. A version holds from its effective date to the day before the next
 // effective version starts, or to its own end.
 
@@ -140,7 +140,7 @@ func effectiveTimelines(ctx context.Context, db bun.IDB, organizationID int64, i
 // wirksam version it follows becomes abgeloest, or the version starting on
 // its day becomes ersetzt, or, before a planned version, nothing changes. A
 // stepped version that is no longer in its status is ErrVersionMoved, so a
-// concurrent run adds nothing twice. The triggers of 1.15.775 refuse an
+// concurrent run adds nothing twice. The triggers of 1.15.782 refuse an
 // overlap and a version in the past.
 func (Store) InsertVersion(ctx context.Context, organizationID, contractID int64, step ports.VersionStep, version carecontract.Version) (int64, error) {
 	db, err := traegerDB(ctx, organizationID)

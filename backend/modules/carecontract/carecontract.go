@@ -195,6 +195,11 @@ type Candidate struct {
 	Services        []Service     `json:"services"`
 	EffectiveFrom   calendar.Date `json:"effective_from"`
 	TemplateIssue   string        `json:"template_issue"`
+	// MailBlock names, for a child the conclusion at the acceptance (Weg b)
+	// could conclude, why the mail to the parents' address would stay back
+	// now (#4680): MailBlockStopped or MailBlockAddress. The contract then
+	// waits until the school corrects or clears the address.
+	MailBlock string `json:"mail_block,omitempty"`
 }
 
 // CreateResult answers a creation of several drafts: the created contracts

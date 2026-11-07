@@ -51,6 +51,7 @@ func TestSeedConclusionSubmitsConditionsBeforeApproval(t *testing.T) {
 					require.Len(t, children, 1)
 					assert.NotContains(t, children[0].(map[string]any), "custom_data")
 					assert.Equal(t, true, body["consent_flags"].(map[string]any)["care_contract"])
+					assert.Equal(t, float64(81), body["form_schema_id"], "the submission names the form version it showed")
 					assert.NotContains(t, body, "legal_blocks_snapshot")
 					if refuseSubmission {
 						w.WriteHeader(400)

@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp/sftptest"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -122,7 +123,7 @@ func TestCrashAfterCommitSettlesUnknownWithoutReupload(t *testing.T) {
 			module, err := newModule(Dependencies{DB: db, Settings: staticSettings(server, dir), Keys: testSettingKeys()},
 				sftp.WithAddressPolicy(inspectingPolicy{beforeConnect: func() { connects++; panic("crash before upload") }}))
 			require.NoError(t, err)
-			commandCtx, _ := tenant.WithAfterCommitHooksForTest(ctx)
+			commandCtx, _ := tenanttest.WithAfterCommitHooks(ctx)
 			if where == "before_claim" {
 				commandCtx = tenant.WithUnitOfWorkObserver(commandCtx, func(event tenant.UnitOfWorkEvent) {
 					if event.Kind == tenant.UnitOfWorkTransaction && event.Result == tenant.UnitOfWorkCommitted {

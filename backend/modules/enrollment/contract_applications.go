@@ -67,7 +67,11 @@ func ContractAcceptances(raw json.RawMessage, source string, acceptedAt *time.Ti
 		return nil
 	}
 	entry := entries[len(entries)-1]
-	if entry.SnapshotAt.IsZero() || entry.SnapshotAt.After(*acceptedAt) {
+	// The parent's form must have shown the version whose texts the entry
+	// holds; a form opened before the school published a new version proves
+	// no agreement to the new wording (#4680).
+	if entry.SnapshotAt.IsZero() || entry.SnapshotAt.After(*acceptedAt) ||
+		entry.FormSchemaID == 0 || entry.DisplayedFormSchemaID != entry.FormSchemaID {
 		return nil
 	}
 	var flags map[string]bool
@@ -84,7 +88,7 @@ func ContractAcceptances(raw json.RawMessage, source string, acceptedAt *time.Ti
 }
 
 func contractAcceptance(block LegalBlockSnapshot, flags map[string]bool, at time.Time, fingerprint func([]byte) string) (ContractAcceptance, bool) {
-	if block.Kind != LegalBlockKindTerms || !block.Required || !flags[block.Key] || block.Text == "" || len(block.Attachments) > 0 {
+	if block.Kind != LegalBlockKindTerms || block.Source != LegalBlockSourceCustom || !block.Required || !flags[block.Key] || block.Text == "" || len(block.Attachments) > 0 {
 		return ContractAcceptance{}, false
 	}
 	checksum := fingerprint([]byte(block.Text))

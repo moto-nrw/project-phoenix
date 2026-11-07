@@ -49,6 +49,9 @@ func (p *waitingPost) EnqueueContractMail(context.Context, carecontract.Contract
 	return p.next, nil
 }
 
+// ShareMailBlockLimit shares nothing: no provider is asked.
+func (p *waitingPost) ShareMailBlockLimit(ctx context.Context) context.Context { return ctx }
+
 // ContractMailBlock holds no address back.
 func (p *waitingPost) ContractMailBlock(context.Context, int64, string, string) (string, error) {
 	return "", nil
@@ -91,7 +94,7 @@ func TestConcurrentSendsOfOneDraftLetExactlyOneTransitionWin(t *testing.T) {
 	school := schoolDouble{school: carecontract.School{ID: testpkg.UniqueTestTenantID(t), Name: "OGS Am Lindenhof"},
 		child: testpkg.UniqueTestTenantID(t), offering: testpkg.UniqueTestTenantID(t), accesses: &accesses}
 	intake := compose.NewIntake(compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school,
-		Runtime: runtimeDouble{}, Modes: school})
+		Runtime: runtimeDouble{}, Modes: school, Mail: noMailBlocks{}})
 	terms := carecontract.TemplateInput{TermKind: carecontract.TermOpenEnded, NoticeMonths: 1, NoticeTo: carecontract.NoticeMonthEnd}
 	for _, offering := range []int64{school.offering, school.offering + 1, school.offering + 2} {
 		_, err := intake.SaveTemplate(ctx, reviewer, school.school.ID, offering, terms)

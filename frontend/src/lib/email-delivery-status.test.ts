@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  correctedAddressCopy,
   guardianAddressNextStep,
   mailStatusCopy,
 } from "./email-delivery-status";
@@ -98,5 +99,18 @@ describe("mailStatusCopy", () => {
   it("does not blame the address for a mail the stop held back", () => {
     expect(mailStatusCopy("held_by_stop")?.explanation).toMatch(/gestoppt/);
     expect(mailStatusCopy("held_by_stop")?.explanation).not.toMatch(/Adresse/);
+  });
+});
+
+describe("correctedAddressCopy", () => {
+  it("only speaks for a refusal", () => {
+    expect(correctedAddressCopy("unsubscribed")?.explanation).toContain(
+      "neue Adresse",
+    );
+    expect(correctedAddressCopy("complained")?.explanation).toContain(
+      "neue Adresse",
+    );
+    expect(correctedAddressCopy("undeliverable")).toBeNull();
+    expect(correctedAddressCopy("")).toBeNull();
   });
 });

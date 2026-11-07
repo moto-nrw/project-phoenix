@@ -682,7 +682,7 @@ describe("StaffCalendarPage", () => {
 
       fireEvent.click(screen.getByLabelText("Wiederholung"));
       fireEvent.click(screen.getByRole("option", { name: "Wöchentlich" }));
-      fireEvent.click(screen.getByLabelText("Mo"));
+      fireEvent.click(screen.getByRole("button", { name: "Mo" }));
       fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
 
       await waitFor(() =>

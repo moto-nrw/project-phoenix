@@ -4,6 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import type { ReactNode } from "react";
 import { Avatar } from "~/components/ui/avatar";
 import { IconTile } from "~/components/ui/icon-tile";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 /**
  * `avatar` accepts either:
@@ -58,10 +59,7 @@ export function DatabaseDetailHeader({
         <div className="mt-0.5 truncate text-sm text-gray-500">{subtitle}</div>
       </div>
       {warning ? (
-        <div className="text-moto-orange bg-moto-orange-soft flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold">
-          <AlertTriangle className="h-3 w-3" aria-hidden />
-          {warning}
-        </div>
+        <StatusBadge tone="orange" icon={AlertTriangle} label={warning} wrap />
       ) : null}
       {actions ? (
         <div className="flex items-center gap-2">{actions}</div>

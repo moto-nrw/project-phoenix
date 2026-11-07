@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const careContractAmendmentsVersion = "1.15.775"
+const careContractAmendmentsVersion = "1.15.782"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

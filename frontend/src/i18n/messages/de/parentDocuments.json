@@ -1,6 +1,6 @@
 {
   "title": "Dokumente",
-  "description": "Hier finden Sie Schreiben und Verträge, die Ihnen der Träger geschickt hat. Zum Beispiel die Bestätigung der Ferienbetreuung.",
+  "description": "Hier finden Sie Schreiben, Verträge und Dokumente Ihres Trägers. Zum Beispiel die Bestätigung der Ferienbetreuung oder eine Hausordnung.",
   "emptyTitle": "Noch keine Dokumente",
   "emptyDescription": "Schickt Ihnen der Träger ein Schreiben, finden Sie es hier. Sie bekommen es auch per Mail.",
   "confirmationLetter": "Bestätigungsschreiben {period}",
@@ -21,5 +21,11 @@
   "lettersErrorObject": "die Briefe",
   "contractsErrorObject": "die Betreuungsverträge",
   "replaced": "Ersetzt",
-  "replacedNote": "Diese Fassung gilt nicht mehr. Ab {date} gilt eine neue Fassung. Sie enthält Ihre bestätigten Änderungen. Die neue Fassung bekommen Sie vom Träger."
+  "replacedNote": "Diese Fassung gilt nicht mehr. Ab {date} gilt eine neue Fassung. Sie enthält Ihre bestätigten Änderungen. Die neue Fassung bekommen Sie vom Träger.",
+  "sharedSender": "Vom Träger für Eltern freigegeben: {traeger}",
+  "file": "Datei",
+  "releasedAt": "Freigegeben am",
+  "downloadFile": "Herunterladen",
+  "sharedErrorObject": "die Dokumente des Trägers",
+  "image": "Bild"
 }
