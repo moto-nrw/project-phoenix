@@ -189,7 +189,12 @@ func validateLoadedAvailabilityRules(offerings []*offeringContract.CareOfferingR
 func (s *Intake) LoadPhasePreviewCareOfferings(ctx context.Context, phaseID int64) (*enrollmentNative.PublicFormBootstrapData, error) {
 	return s.assemblePublicBootstrap(ctx,
 		func(ctx context.Context) (*enrollmentNative.Phase, error) {
-			return s.intakePhase(ctx, phaseID)
+			phase, err := s.intakePhase(ctx, phaseID)
+			if err != nil {
+				return nil, err
+			}
+			narrowOfferedClassesToEligibleForForm(phase)
+			return phase, nil
 		},
 		publicBootstrapOptions{})
 }

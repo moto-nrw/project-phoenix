@@ -64,6 +64,7 @@ func TestEnrollmentPhasePreviewEffectiveConfiguration(t *testing.T) {
 			ctx := testpkg.Ctx(t)
 			for key, value := range map[string]bool{
 				settingKeyCollectGradeLevel:    collectGrade,
+				settingKeyEnrollmentEnabled:    collectGrade,
 				settingKeyCollectSchoolClass:   true,
 				settingKeyCareOfferingsEnabled: false,
 			} {
@@ -83,11 +84,15 @@ func TestEnrollmentPhasePreviewEffectiveConfiguration(t *testing.T) {
 			raw, _ := growthGET(t, f.router(t), counter, f.token, fmt.Sprintf("/schema/preview?base=1&phaseId=%d", phase.ID))
 			var preview enrollmenthttp.SchemaPreviewBootstrapResponse
 			require.NoError(t, json.Unmarshal(raw, &preview))
+			var flags map[string]any
+			require.NoError(t, json.Unmarshal(raw, &flags))
+			require.Equal(t, collectGrade, flags["enrollment_enabled"])
 			require.NotNil(t, preview.PhaseOfferings)
 			config := preview.PhaseOfferings
 			require.Equal(t, collectGrade, config.CollectGradeLevel)
 			require.Equal(t, collectGrade, config.SchoolClass.Collect)
-			require.Equal(t, []string{"2a", "2b"}, config.SchoolClass.AvailableClasses)
+			require.Equal(t, []string{"2b"}, config.SchoolClass.AvailableClasses)
+			require.Equal(t, []int{2}, config.EligibleGradeLevels)
 			require.True(t, config.SchoolClass.Require)
 			require.False(t, config.CareOfferingsEnabled)
 			require.Empty(t, config.Offerings)

@@ -212,6 +212,7 @@ describe("EnrollmentPreviewPage", () => {
       schema,
       assigned_phase_count: 1,
       active_assigned_phase_count: 0,
+      enrollment_enabled: true,
       phase_offerings: {
         offerings: [
           offering({ id: "3", name: "Früh", sort_order: 0 }),
@@ -280,6 +281,7 @@ describe("EnrollmentPreviewPage", () => {
     mocks.search = new URLSearchParams("phaseId=13");
     mocks.listPhases.mockResolvedValue([phase({ form_schema_id: null })]);
     mocks.fetchEnrollmentPreviewBootstrap.mockResolvedValue({
+      enrollment_enabled: true,
       phase_offerings: {
         offerings: [],
         care_offering_selection_mode: "optional",
@@ -303,11 +305,6 @@ describe("EnrollmentPreviewPage", () => {
 
   it.each([
     {
-      state: "invitation-only",
-      overrides: { audience: "linked_parents" },
-      hint: "Nur mit Einladungslink erreichbar.",
-    },
-    {
       state: "not yet open",
       overrides: {
         enrollment_open_at: new Date(
@@ -327,6 +324,7 @@ describe("EnrollmentPreviewPage", () => {
       mocks.search = new URLSearchParams("phaseId=13");
       mocks.listPhases.mockResolvedValue([phase(overrides)]);
       mocks.fetchEnrollmentPreviewBootstrap.mockResolvedValue({
+        enrollment_enabled: true,
         phase_offerings: {
           offerings: [],
           care_offering_selection_mode: "optional",
@@ -357,6 +355,7 @@ describe("EnrollmentPreviewPage", () => {
       }),
     ]);
     mocks.fetchEnrollmentPreviewBootstrap.mockResolvedValue({
+      enrollment_enabled: true,
       phase_offerings: {
         offerings: [],
         care_offering_selection_mode: "optional",
@@ -376,4 +375,101 @@ describe("EnrollmentPreviewPage", () => {
       (await screen.findAllByText("Eltern erreichen diese Phase")).length,
     ).toBeGreaterThan(0);
   });
+  it.each(["existing_students", "linked_parents"])(
+    "describes portal access and availability independently for %s",
+    async (audience) => {
+      const cases = [
+        { overrides: {}, reason: null },
+        { overrides: { is_active: false }, reason: "Aktivieren" },
+        {
+          overrides: {
+            enrollment_open_at: new Date(
+              TEST_CLOCK_INSTANT.getTime() + 60_000,
+            ).toISOString(),
+          },
+          reason: "erst ab der Öffnung",
+        },
+        {
+          overrides: { enrollment_close_at: TEST_CLOCK_INSTANT.toISOString() },
+          reason: "Anmeldefenster ist geschlossen",
+        },
+      ];
+      for (const { overrides, reason } of cases) {
+        mocks.search = new URLSearchParams("phaseId=13");
+        mocks.listPhases.mockResolvedValue([phase({ audience, ...overrides })]);
+        mocks.fetchEnrollmentPreviewBootstrap.mockResolvedValue({
+          schema,
+          enrollment_enabled: true,
+          phase_offerings: {
+            offerings: [],
+            care_offering_selection_mode: "optional",
+            eligible_grade_levels: [],
+          },
+        });
+        const { unmount } = render(<EnrollmentPreviewPage />);
+        expect(
+          await screen.findByText(
+            "Die Anmeldung läuft über das Elternportal.",
+            { exact: false },
+          ),
+        ).toBeVisible();
+        expect(
+          screen.getByText("Der öffentliche Link öffnet diese Phase nicht.", {
+            exact: false,
+          }),
+        ).toBeVisible();
+        expect(
+          screen.queryByText("Nur mit Einladungslink erreichbar."),
+        ).not.toBeInTheDocument();
+        if (reason) {
+          expect(screen.getByText(reason, { exact: false })).toBeVisible();
+          expect(
+            screen.getAllByText("Eltern erreichen diese Phase noch nicht"),
+          ).toHaveLength(2);
+        } else {
+          expect(
+            screen.getAllByText("Über das Elternportal erreichbar"),
+          ).toHaveLength(2);
+        }
+        unmount();
+      }
+    },
+  );
+
+  it.each(["open", "existing_students", "linked_parents"])(
+    "keeps a %s preview available but blocks reachability when school enrollment is off",
+    async (audience) => {
+      mocks.search = new URLSearchParams("phaseId=13");
+      mocks.listPhases.mockResolvedValue([phase({ audience })]);
+      mocks.fetchEnrollmentPreviewBootstrap.mockResolvedValue({
+        schema,
+        enrollment_enabled: false,
+        phase_offerings: {
+          offerings: [],
+          care_offering_selection_mode: "optional",
+          eligible_grade_levels: [],
+        },
+      });
+      await renderPage();
+      expect(
+        await screen.findByText(
+          "Die Online-Anmeldung ist für diese Schule ausgeschaltet.",
+          { exact: false },
+        ),
+      ).toBeVisible();
+      expect(
+        screen.getByText(
+          "Schalten Sie unter „Einstellungen“ > „Anmeldung“ die „Online-Anmeldung“ ein.",
+          { exact: false },
+        ),
+      ).toBeVisible();
+      expect(
+        screen.getAllByText("Eltern erreichen diese Phase noch nicht"),
+      ).toHaveLength(2);
+      expect(screen.getByText("Elternformular")).toBeVisible();
+      expect(
+        screen.queryByText("Eltern melden sich über den Link der Phase an."),
+      ).not.toBeInTheDocument();
+    },
+  );
 });

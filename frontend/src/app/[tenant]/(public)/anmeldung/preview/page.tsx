@@ -63,6 +63,7 @@ function EnrollmentPreviewPageContent() {
   // The phases using this template, for the links to their parents' view.
   // null: the list could not be loaded; the page then names the menu path.
   const [assignedPhases, setAssignedPhases] = useState<Phase[] | null>([]);
+  const [enrollmentEnabled, setEnrollmentEnabled] = useState(false);
   const [previewPhase, setPreviewPhase] = useState<Phase | null>(null);
   const [previewOfferings, setPreviewOfferings] =
     useState<PreviewCareOfferings>();
@@ -92,10 +93,13 @@ function EnrollmentPreviewPageContent() {
           : { base: true, phaseId: id },
       );
       if (cancelled) return;
+      const config = result.phase_offerings;
+      if (!config || typeof result.enrollment_enabled !== "boolean") {
+        throw new Error("Phase preview configuration is missing");
+      }
       setPreviewPhase(phase);
       setSchema(result.schema);
-      const config = result.phase_offerings;
-      if (!config) throw new Error("Phase preview configuration is missing");
+      setEnrollmentEnabled(result.enrollment_enabled);
       setPreviewOfferings({
         offerings: config.offerings,
         careOfferingSelectionMode: config.care_offering_selection_mode,
@@ -169,7 +173,7 @@ function EnrollmentPreviewPageContent() {
   }, [schema]);
 
   const previewStatus = previewPhase
-    ? phasePreviewStatus(previewPhase)
+    ? phasePreviewStatus(previewPhase, enrollmentEnabled)
     : activeAssignedPhaseCount > 0
       ? {
           label: "Aktiv in Anmeldephase",
@@ -316,13 +320,14 @@ function phaseCount(count: number, adjective = ""): string {
   return `${count} ${adjective}Anmeldephase${count === 1 ? "" : "n"}`;
 }
 
-// Match the public form's audience, activity and half-open window gates.
-function parentViewUnavailableReason(phase: Phase, now: number): string | null {
-  if (
-    phase.audience === "existing_students" ||
-    phase.audience === "linked_parents"
-  ) {
-    return "Nur mit Einladungslink erreichbar.";
+// Activity and window gates apply to both the public link and parent portal.
+function parentViewUnavailableReason(
+  phase: Phase,
+  now: number,
+  enrollmentEnabled: boolean,
+): string | null {
+  if (!enrollmentEnabled) {
+    return "Die Online-Anmeldung ist für diese Schule ausgeschaltet. Schalten Sie unter „Einstellungen“ > „Anmeldung“ die „Online-Anmeldung“ ein.";
   }
   if (!phase.is_active) {
     return "Wählen Sie unter Anmeldephasen bei dieser Phase „Aktivieren“.";
@@ -339,22 +344,38 @@ function parentViewUnavailableReason(phase: Phase, now: number): string | null {
   return null;
 }
 
-function phasePreviewStatus(phase: Phase): {
+function phasePreviewStatus(
+  phase: Phase,
+  enrollmentEnabled: boolean,
+): {
   label: string;
   hint: string;
   tone: "green" | "gray";
 } {
-  const reason = parentViewUnavailableReason(phase, Date.now());
+  const reason = parentViewUnavailableReason(
+    phase,
+    Date.now(),
+    enrollmentEnabled,
+  );
+  const usesParentPortal =
+    phase.audience === "existing_students" ||
+    phase.audience === "linked_parents";
+  const portalHint =
+    "Die Anmeldung läuft über das Elternportal. Dort sehen Eltern nur Phasen für ihre Kinder. Der öffentliche Link öffnet diese Phase nicht.";
   if (reason === null) {
     return {
-      label: "Eltern erreichen diese Phase",
-      hint: "Eltern melden sich über den Link der Phase an.",
+      label: usesParentPortal
+        ? "Über das Elternportal erreichbar"
+        : "Eltern erreichen diese Phase",
+      hint: usesParentPortal
+        ? portalHint
+        : "Eltern melden sich über den Link der Phase an.",
       tone: "green",
     };
   }
   return {
     label: "Eltern erreichen diese Phase noch nicht",
-    hint: reason,
+    hint: usesParentPortal ? `${reason} ${portalHint}` : reason,
     tone: "gray",
   };
 }

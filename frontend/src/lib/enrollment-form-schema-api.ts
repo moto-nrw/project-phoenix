@@ -365,6 +365,8 @@ export function schemaToPublicFormSchema(schema: FormSchema): PublicFormSchema {
 }
 
 export interface EnrollmentPreviewBootstrap {
+  /** Effective tenant gate, present for phase previews only. */
+  enrollment_enabled?: boolean;
   phase_offerings?: Pick<
     PublicEnrollmentBootstrap,
     | "offerings"

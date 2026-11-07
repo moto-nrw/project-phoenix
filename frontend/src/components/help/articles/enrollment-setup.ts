@@ -45,15 +45,16 @@ export function enrollmentSetupTopic(): HelpTopic {
       {
         title: "Die Anmeldung öffnen",
         steps: [
+          "Schalten Sie unter `Einstellungen` > `Anmeldung` die `Online-Anmeldung` ein.",
           "Öffnen Sie `Anmeldephasen`.",
           "Öffnen Sie bei der Phase das Menü mit den drei Punkten.",
           "Wählen Sie `Aktivieren`.",
-          "Kopieren Sie den Link der Phase und geben Sie ihn an die Eltern.",
+          "Hat das Menü `Elternlink kopieren`? Geben Sie diesen Link an die Eltern. Sonst läuft die Anmeldung über das Elternportal.",
         ],
       },
     ],
     result:
-      "Eltern können sich über den Link anmelden. Eingänge sehen Sie im `Überblick`.",
+      "Eltern melden sich über den Link oder im Elternportal an. Eingänge sehen Sie im `Überblick`.",
     notes: [
       "Über `Elternansicht öffnen` sehen Sie das Formular so wie die Eltern.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",

@@ -129,6 +129,7 @@ type PublicFormSchemaResponse struct {
 }
 
 type SchemaPreviewBootstrapResponse struct {
+	EnrollmentEnabled        *bool                        `json:"enrollment_enabled,omitempty"`
 	PhaseOfferings           *PublicCareOfferingsResponse `json:"phase_offerings,omitempty"`
 	Schema                   *FormSchemaResponse          `json:"schema"`
 	AssignedPhaseCount       int                          `json:"assigned_phase_count"`
@@ -161,9 +162,10 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 	}
 
 	var (
-		phaseOfferings *PublicCareOfferingsResponse
-		schema         *capability.FormSchema
-		phases         []*capability.Phase
+		enrollmentEnabled *bool
+		phaseOfferings    *PublicCareOfferingsResponse
+		schema            *capability.FormSchema
+		phases            []*capability.Phase
 	)
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		if schemaID > 0 {
@@ -178,6 +180,8 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 			if loadErr != nil {
 				return loadErr
 			}
+			enabled := rs.RequestService.IsEnrollmentEnabled(ctx)
+			enrollmentEnabled = &enabled
 			capabilities := data.EffectiveCapabilities
 			items := make([]CareOfferingResponse, 0, len(data.Offerings))
 			for _, offering := range data.Offerings {
@@ -218,6 +222,7 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 	assigned, active := countAssignedPreviewPhases(phases, schema)
 	common.Respond(w, r, http.StatusOK, SchemaPreviewBootstrapResponse{
 		Schema:                   schemaOut,
+		EnrollmentEnabled:        enrollmentEnabled,
 		PhaseOfferings:           phaseOfferings,
 		AssignedPhaseCount:       assigned,
 		ActiveAssignedPhaseCount: active,
