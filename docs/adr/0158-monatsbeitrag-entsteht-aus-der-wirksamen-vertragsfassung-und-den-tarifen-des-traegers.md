@@ -101,4 +101,4 @@ und #4681. Er führt keinen Owner ein und hält fest, was er in den Registern
 - Query-Budgets `api.traeger.care_billing_runs` (2, exact) und
   `api.traeger.care_tariffs` (5, exact).
 - Datenlebenszyklus und Aufbewahrung: je fünf Einträge.
-- Migration `1.15.790`.
+- Migration `1.15.789`.
