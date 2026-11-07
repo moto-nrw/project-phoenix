@@ -25,7 +25,7 @@ func (d *Directory) AllBirthdays(ctx context.Context) ([]StaffBirthday, error) {
 // staffBirthdays projects live staff with a stored birth date. days nil means
 // every stored birthday; otherwise only the annually recurring days are kept.
 func (d *Directory) staffBirthdays(ctx context.Context, days []MonthDay, applyOptOut bool) ([]StaffBirthday, error) {
-	values, err := d.listStaff(ctx, schoolmembership.StaffFilter{})
+	values, err := d.listStaff(ctx, schoolmembership.StaffFilter{MembershipOnly: !applyOptOut})
 	if err != nil {
 		return nil, err
 	}

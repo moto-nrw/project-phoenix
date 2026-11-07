@@ -197,7 +197,7 @@ export function InviteContent() {
         brand={<OperatorBrand />}
         formMaxWidth="max-w-[31rem]"
       >
-        <Loading fullPage={false} />
+        <Loading />
       </AuthShell>
     );
   }

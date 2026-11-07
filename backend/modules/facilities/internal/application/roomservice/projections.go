@@ -142,7 +142,7 @@ func roomSupervisorNames(
 	if len(staffIDs) == 0 {
 		return map[int64]*string{}, nil
 	}
-	staff, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, IncludeDeleted: true})
+	staff, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, IncludeDeleted: true, MembershipOnly: true})
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +257,7 @@ func historyNames(ctx context.Context, rows []facilitiesModule.RoomSessionFact, 
 
 func historySupervisorNames(ctx context.Context, rows []facilitiesModule.RoomSessionFact, staffIDs []int64, membership schoolmembership.Query, persons peopledirectory.Query) (map[int64]string, error) {
 	supervisorNames := map[int64]string{}
-	staff, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, IncludeDeleted: true})
+	staff, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, IncludeDeleted: true, MembershipOnly: true})
 	if err != nil {
 		return nil, err
 	}

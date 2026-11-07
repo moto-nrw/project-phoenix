@@ -271,7 +271,7 @@ function RoleStammdatenTab({
   const saveErrors = useApiFormError();
 
   if (loading) {
-    return <Loading fullPage={false} message="Rollendaten werden geladen..." />;
+    return <Loading message="Rollendaten werden geladen..." />;
   }
 
   // Ohne Detail fehlen die Berechtigungen: keine „0 Berechtigungen“ zeigen.

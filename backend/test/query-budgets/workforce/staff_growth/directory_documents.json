@@ -1,6 +1,6 @@
 {
   "scenario": "workforce.staff_growth.directory_documents",
-  "max": 17,
+  "max": 15,
   "exact": true,
   "description": "Measured full composed directory request with tenant transaction; positive N=3/N=8, fixtures outside capture."
 }

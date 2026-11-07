@@ -271,7 +271,7 @@ function InviteContent() {
   }, [load]);
 
   if (loading) {
-    return <Loading fullPage={false} message="Einladung wird geprüft …" />;
+    return <Loading message="Einladung wird geprüft …" />;
   }
   if (invitationLoad.error || !invitation) {
     return (
@@ -286,7 +286,7 @@ function InviteContent() {
 export default function TraegerInvitePage() {
   return (
     <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-      <Suspense fallback={<Loading fullPage={false} message="Laden …" />}>
+      <Suspense fallback={<Loading message="Laden …" />}>
         <InviteContent />
       </Suspense>
     </AuthShell>

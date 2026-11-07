@@ -506,6 +506,16 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0153",
+      "id": "workflows/parentportal/internal/care/Service.ContractNoticeOptions",
+      "reason": "Workflow step (#4682): it resolves the children whose relationship grants parent_portal.enrollment.submit, the Träger and the account's address, and runs the read in that Träger's transaction."
+    },
+    {
+      "decision": "0153",
+      "id": "workflows/parentportal/internal/care/Service.DeclareContractNotice",
+      "reason": "Workflow step (#4682): it resolves the children whose relationship grants parent_portal.enrollment.submit, the Träger and the account's address, and runs the declaration in that Träger's transaction."
+    },
+    {
       "decision": "0090",
       "id": "workflows/parentportal/internal/care/Service.RequireCareRunningForUpdate",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

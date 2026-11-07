@@ -1,8 +1,10 @@
 GET /parent/me/documents
 GET /parent/me/documents/contracts
 GET /parent/me/documents/shared
+GET /parent/me/documents/{organizationId}/contracts/{contractId}/notice
 GET /parent/me/documents/{organizationId}/contracts/{contractId}/pdf
 GET /parent/me/documents/{organizationId}/contracts/{contractId}/signing
 GET /parent/me/documents/{organizationId}/shared/{documentId}/file
 GET /parent/me/documents/{organizationId}/{documentId}/pdf
+POST /parent/me/documents/{organizationId}/contracts/{contractId}/notice
 POST /parent/me/documents/{organizationId}/contracts/{contractId}/sign

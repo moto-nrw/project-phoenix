@@ -37,6 +37,11 @@ type BillingDocumentResponse struct {
 	SignedAt       *time.Time `json:"signed_at,omitempty"`
 	// Replaced marks a contract version replaced by a later change (#4681).
 	Replaced bool `json:"replaced"`
+	// EndsOn is the last day of a terminated contract (#4682).
+	EndsOn *timezone.Date `json:"ends_on,omitempty"`
+	// CanEndContract tells that the account may withdraw or terminate the
+	// contract: its relationship to the child grants the right (#4682).
+	CanEndContract bool `json:"can_end_contract,omitempty"`
 }
 
 // listBillingDocuments answers the letters in the inbox of the account.
@@ -69,6 +74,7 @@ func (rs *Resource) respondInbox(w http.ResponseWriter, r *http.Request, inbox p
 			ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil, IssuedOn: document.IssuedOn,
 			TotalCents: document.TotalCents, ChildNames: document.ChildNames, SentAt: document.SentAt,
 			ContractStatus: document.ContractStatus, SignedAt: document.SignedAt, CanSign: document.CanSign, Replaced: document.Replaced,
+			EndsOn: document.EndsOn, CanEndContract: document.CanEndContract,
 		}
 	}
 	common.Respond(w, r, http.StatusOK, out, "Documents retrieved")

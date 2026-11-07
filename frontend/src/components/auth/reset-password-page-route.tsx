@@ -6,7 +6,7 @@ import { Loading } from "~/components/ui/loading";
 
 export function ResetPasswordPageRoute() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={<Loading />}>
       <ResetPasswordPageContent />
     </Suspense>
   );

@@ -373,7 +373,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p TimetablePeople) StaffPersonID(ctx context.Context, staffID int64) (int64, error) {\n\tstaff, err := p.persons.StaffRows().FindByID(ctx, staffID)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\tif staff == nil || staff.ID == 0 {\n\t\treturn 0, nil\n\t}\n\treturn staff.PersonID, nil\n}",
+      "evidence": "func (p TimetablePeople) StaffPersonID(ctx context.Context, staffID int64) (int64, error) {\n\tstaff, err := p.persons.StaffRows().FindMembershipByID(ctx, staffID)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\tif staff == nil || staff.ID == 0 {\n\t\treturn 0, nil\n\t}\n\treturn staff.PersonID, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/TimetablePeople.StaffPersonID",
       "owner": "roots"
@@ -2865,7 +2865,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (d ParentStaffMembers) List(ctx context.Context, tenantIDs []int64) ([]recordports.StaffMember, error) {\n\tmembers, err := d.Membership.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: tenantIDs})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]recordports.StaffMember, 0, len(members))\n\tfor _, member := range members {\n\t\tresult = append(result, recordports.StaffMember{TenantID: member.TenantID, PersonID: member.PersonID})\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (d ParentStaffMembers) List(ctx context.Context, tenantIDs []int64) ([]recordports.StaffMember, error) {\n\tmembers, err := d.Membership.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: tenantIDs, MembershipOnly: true})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]recordports.StaffMember, 0, len(members))\n\tfor _, member := range members {\n\t\tresult = append(result, recordports.StaffMember{TenantID: member.TenantID, PersonID: member.PersonID})\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/ParentStaffMembers.List",
       "owner": "roots"
@@ -4345,6 +4345,20 @@
       "evidence": "func (s callerStructure) TeacherGroupIDs(ctx context.Context, teacherID int64) ([]int64, error) {\n\tgroups, err := s.groups.ListGroupsByTeacher(ctx, teacherID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tids := make([]int64, 0, len(groups))\n\tfor _, group := range groups {\n\t\tids = append(ids, group.ID)\n\t}\n\treturn ids, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/callerStructure.TeacherGroupIDs",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p careContractNoticePost) NoticeDeliveries(ctx context.Context, organizationID, contractID int64) ([]carecontract.NoticeDelivery, error) {\n\tstatuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID, deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvar deliveries []carecontract.NoticeDelivery\n\tfor _, status := range statuses {\n\t\tif status.DeliveryState == deliveryContract.DeliveryDelivered \u0026\u0026 status.DeliveryStateAt != nil {\n\t\t\tdeliveries = append(deliveries, carecontract.NoticeDelivery{OutboxID: status.ID, ProvidedAt: *status.DeliveryStateAt})\n\t\t}\n\t}\n\treturn deliveries, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/careContractNoticePost.NoticeDeliveries",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t careContractNoticeTemplates) NoticeTemplate(ctx context.Context, organizationID int64, kind string) (string, error) {\n\tkey := configModels.KeyCareContractTerminationConfirmation\n\tswitch kind {\n\tcase carecontract.NoticeWithdrawal:\n\t\tkey = configModels.KeyCareContractWithdrawalConfirmation\n\tcase carecontract.TerminationExtraordinary:\n\t\tkey = configModels.KeyCareContractExtraordinaryConfirmation\n\t}\n\ttexts, err := t.settings.TraegerTexts(ctx, organizationID, []string{key})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[key], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/careContractNoticeTemplates.NoticeTemplate",
       "owner": "roots"
     },
     {
@@ -6295,7 +6309,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (d parentContractDocuments) ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.inbox.InboxContractDocument(ctx, organizationID, contractID, carecontract.InboxReader(reader))\n\tif errors.Is(err, carecontract.ErrInboxDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile(file), nil\n}",
+      "evidence": "func (d parentContractDocuments) ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.inbox.InboxContractDocument(ctx, organizationID, contractID, carecontract.InboxReader(reader))\n\tif errors.Is(err, carecontract.ErrInboxDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile{Filename: file.Filename, ContentType: file.ContentType, Data: file.Data}, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentContractDocuments.ContractDocumentFile",
       "owner": "roots"
@@ -6312,6 +6326,20 @@
       "evidence": "func (d parentContractDocuments) SignContract(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader, input parentportal.ContractSignatureInput) (parentportal.ContractSigningView, error) {\n\tview, err := d.signing.SignInInbox(ctx, organizationID, contractID, carecontract.InboxReader(reader), carecontract.SignatureInput(input))\n\treturn parentSigningView(view, err)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentContractDocuments.SignContract",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (n parentContractNotices) ContractNoticeOptions(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.ContractNoticeOptions, error) {\n\toptions, err := n.notices.ParentNoticeOptions(ctx, organizationID, contractID, carecontract.InboxReader(reader))\n\treturn parentNoticeOptions(options), parentNoticeError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentContractNotices.ContractNoticeOptions",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (n parentContractNotices) DeclareContractNotice(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader, traeger string, input parentportal.ContractNoticeInput) (parentportal.ContractNoticeOptions, error) {\n\toptions, err := n.notices.ParentDeclareNotice(ctx, organizationID, contractID, carecontract.InboxReader(reader), traeger, carecontract.NoticeInput{Kind: input.Kind, TerminationKind: input.TerminationKind, Reason: input.Reason, ExpectedEndsOn: input.ExpectedEndsOn})\n\treturn parentNoticeOptions(options), parentNoticeError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentContractNotices.DeclareContractNotice",
       "owner": "roots"
     },
     {
@@ -7135,7 +7163,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s staffAdminSubjects) OffboardedStaffIDs(ctx context.Context) ([]int64, error) {\n\tmembers, err := s.membership.ListStaff(ctx, schoolmembership.StaffFilter{IncludeDeleted: true})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\toffboarded := make([]int64, 0, len(members))\n\tfor _, member := range members {\n\t\tif member.IsDeleted() {\n\t\t\toffboarded = append(offboarded, member.ID)\n\t\t}\n\t}\n\treturn offboarded, nil\n}",
+      "evidence": "func (s staffAdminSubjects) OffboardedStaffIDs(ctx context.Context) ([]int64, error) {\n\tmembers, err := s.membership.ListStaff(ctx, schoolmembership.StaffFilter{IncludeDeleted: true, MembershipOnly: true})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\toffboarded := make([]int64, 0, len(members))\n\tfor _, member := range members {\n\t\tif member.IsDeleted() {\n\t\t\toffboarded = append(offboarded, member.ID)\n\t\t}\n\t}\n\treturn offboarded, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/staffAdminSubjects.OffboardedStaffIDs",
       "owner": "roots"
@@ -7275,14 +7303,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (c staffDirectoryCapability) StaffByID(ctx context.Context, staffID int64) (*workforceModule.StaffProfile, error) {\n\tstaff, err := c.people.StaffRows().FindByID(ctx, staffID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn publicStaffProfile(staff), nil\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/staffDirectoryCapability.StaffByID",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (c staffDirectoryCapability) StaffByPersonID(ctx context.Context, personID int64) (*workforceModule.StaffProfile, error) {\n\tstaff, err := c.people.StaffRows().FindByPersonID(ctx, personID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn publicStaffProfile(staff), nil\n}",
+      "evidence": "func (c staffDirectoryCapability) StaffByPersonID(ctx context.Context, personID int64) (*workforceModule.StaffProfile, error) {\n\tstaff, err := c.people.StaffRows().FindMembershipByPersonID(ctx, personID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn publicStaffProfile(staff), nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/staffDirectoryCapability.StaffByPersonID",
       "owner": "roots"

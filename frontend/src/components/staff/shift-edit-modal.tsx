@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -28,7 +29,6 @@ import {
   type CalendarPeriod,
 } from "~/lib/calendar-period-helpers";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   copyStableObjectKey,
@@ -1069,9 +1069,12 @@ export function ShiftEditModal({
             {seriesNotice ? (
               <div className="space-y-3 text-sm">
                 <p className="text-gray-700">Die Serie wurde gespeichert.</p>
-                <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
-                  {seriesNotice}
-                </p>
+                <Alert
+                  type="warning"
+                  size="compact"
+                  announce="off"
+                  message={seriesNotice}
+                />
               </div>
             ) : (
               <div ref={formRef} className="space-y-4 text-sm">
@@ -1184,16 +1187,12 @@ export function ShiftEditModal({
                   </Field>
                 )}
                 {isReplacementRow && (
-                  <p
-                    className="rounded-md px-3 py-2 text-xs"
-                    style={{
-                      backgroundColor: `${LOCATION_COLORS.OTHER_ROOM}14`,
-                      color: LOCATION_COLORS.OTHER_ROOM,
-                    }}
-                  >
-                    Diese Schicht ist eine Vertretung für eine ausgefallene
-                    Schicht.
-                  </p>
+                  <Alert
+                    type="info"
+                    size="compact"
+                    announce="off"
+                    message="Diese Schicht ist eine Vertretung für eine ausgefallene Schicht."
+                  />
                 )}
                 {seriesEditOpen && seriesRule && (
                   <div className="space-y-3 rounded-md border border-gray-200 p-3">
@@ -1258,15 +1257,12 @@ export function ShiftEditModal({
                     {/* Say it before the save fails: a segment whose last day has
                     arrived has nothing left for the re-plan to change (#2028). */}
                     {!seriesHasRemainingOccurrence && (
-                      <p
-                        className="rounded-md px-3 py-2 text-xs"
-                        style={{
-                          backgroundColor: `${LOCATION_COLORS.SCHOOLYARD}14`,
-                          color: LOCATION_COLORS.SCHOOLYARD,
-                        }}
-                      >
-                        {seriesNoOccurrenceMessage}
-                      </p>
+                      <Alert
+                        type="warning"
+                        size="compact"
+                        announce="off"
+                        message={seriesNoOccurrenceMessage}
+                      />
                     )}
                   </div>
                 )}
@@ -1411,11 +1407,12 @@ export function ShiftEditModal({
                           {periodsLoad.error ? (
                             <LoadErrorAlert error={periodsLoad.error} />
                           ) : periods !== null && periodOptions.length === 0 ? (
-                            <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
-                              Kein aktiver Kalenderzeitraum vorhanden. Bitte
-                              zuerst unter Planung → Kalenderzeiträume einen
-                              Zeitraum anlegen.
-                            </p>
+                            <Alert
+                              type="warning"
+                              size="compact"
+                              announce="off"
+                              message="Kein aktiver Kalenderzeitraum vorhanden. Bitte zuerst unter Planung → Kalenderzeiträume einen Zeitraum anlegen."
+                            />
                           ) : (
                             <CustomSelect
                               value={periodId}

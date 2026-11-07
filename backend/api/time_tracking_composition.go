@@ -122,7 +122,7 @@ func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, absen
 	if err != nil {
 		panic(err)
 	}
-	qualifications, err := workforceCompose.NewQualifications(db.Pool(), owners.NewQualificationStaff(qualificationStaffRows), workforceModule.QualificationReminderPorts{}, nil)
+	qualifications, err := workforceCompose.NewQualifications(db.Pool(), owners.NewQualificationStaff(qualificationStaffRows, true), workforceModule.QualificationReminderPorts{}, nil)
 	if err != nil {
 		panic(err)
 	}

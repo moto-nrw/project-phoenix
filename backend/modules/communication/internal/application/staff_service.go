@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 type service struct {
@@ -78,13 +80,16 @@ func (s *service) List(ctx context.Context, includeInactive bool) ([]*StaffParen
 	return rows, nil
 }
 
-func (s *service) Get(ctx context.Context, id int64) (*StaffParentAnnouncement, error) {
+func (s *service) Get(ctx context.Context, id int64, read ...communication.ParentAnnouncementRead) (*StaffParentAnnouncement, error) {
 	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: get: %w", err)
 	}
 	if a == nil || isSurveyCarrier(a) {
 		return nil, ErrNotFound
+	}
+	if len(read) > 0 && read[0] == communication.ParentAnnouncementHeaderOnly {
+		return a, nil
 	}
 	targets, err := s.repo.ListTargets(ctx, id)
 	if err != nil {

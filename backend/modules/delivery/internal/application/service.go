@@ -284,8 +284,8 @@ func intentStatuses(transport deliveryContract.Transport, rows []domain.Intent) 
 			ID: row.ID, IdempotencyKey: row.IdempotencyKey, Transport: transport, State: deliveryContract.State(row.Status), Attempts: row.Attempts,
 			LastError: row.LastError, ProviderResult: providerResult, NextAttemptAt: row.NextRetryAt,
 			SentAt: row.SentAt, DeadLetterAt: row.DeadLetterAt, CancelledAt: row.CancelledAt,
-			DeliveryState: row.DeliveryState,
-			Outcome:       intentOutcome(transport, row),
+			DeliveryState: row.DeliveryState, DeliveryStateAt: row.DeliveryStateAt,
+			Outcome: intentOutcome(transport, row),
 		})
 	}
 	return statuses, nil
