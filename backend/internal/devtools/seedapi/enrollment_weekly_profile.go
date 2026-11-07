@@ -105,7 +105,7 @@ func seedWeeklyProfileContents(ctx context.Context, rt *Runtime, child *Seeder) 
 	if err := verifyWeeklyProfilePhase(rt, phaseID, schemaID); err != nil {
 		return nil, err
 	}
-	offering := seedCareOffering{key: "wochenangebot", name: "Nachmittagsbetreuung", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, countsAsCare: true, pickupTime: "16:00", sort: 10}
+	offering := seedCareOffering{key: "wochenangebot", name: "Nachmittagsbetreuung", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, countsAsCare: true, pickupTime: "16:00", capacity: intPtr(20), sort: 10}
 	raw, err := rt.Client.Post("/api/enrollment/care-offerings", careOfferingSeedBody(offering, phaseID))
 	if err != nil {
 		return nil, err
