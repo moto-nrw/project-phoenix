@@ -34,7 +34,7 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 	sort.Strings(want)
 	wantTraeger := []string{
 		config.KeyBrandingFooterText, config.KeyBrandingLetterheadText, config.KeyBrandingPrimaryColor,
-		config.KeyParentBillingCostTakeoverOrder, config.KeyParentBillingDebtorNumberOnConfirm,
+		config.KeyParentBillingCareMonthChange, config.KeyParentBillingCostTakeoverOrder, config.KeyParentBillingDebtorNumberOnConfirm,
 		config.KeyParentBillingPaymentText, config.KeyParentBillingSiblingRank,
 		config.KeyTraegerAlertChildrenPerStaff, config.KeyTraegerAlertOpenEnrollments, config.KeyTraegerAlertSickPercent,
 	}

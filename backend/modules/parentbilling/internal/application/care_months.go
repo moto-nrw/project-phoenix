@@ -1,0 +1,439 @@
+package application
+
+import (
+	"cmp"
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+
+	validation "github.com/go-ozzo/ozzo-validation"
+
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// careModuleHorizon is how far ahead the price list looks for booked
+// modules: a year, within the span the contract owner answers.
+const careModuleHorizon = 365
+
+// CareStore persists the price list, the monthly runs and their invoices
+// of a Träger in its Träger transaction.
+type CareStore interface {
+	CareTariffs(ctx context.Context, organizationID int64) ([]parentbilling.CareTariff, error)
+	ReplaceCarePrices(ctx context.Context, organizationID, accountID int64, list parentbilling.CarePriceList) error
+	DeleteCarePrices(ctx context.Context, organizationID, schoolID int64, validFrom calendar.Date) (int64, error)
+	CareBilledUntil(ctx context.Context, organizationID int64) (map[int64]calendar.Date, error)
+	// LockCareBilling holds the monthly billing of the Träger until the
+	// transaction ends.
+	LockCareBilling(ctx context.Context, organizationID int64) error
+	ListCareRuns(ctx context.Context, organizationID int64) ([]parentbilling.CareRun, error)
+	// InsertCareRun reports a second calculated run of a month as
+	// ErrCareRunOpen.
+	InsertCareRun(ctx context.Context, organizationID, accountID int64, month calendar.Date) (parentbilling.CareRun, error)
+	CareRun(ctx context.Context, organizationID, runID int64, lock bool) (parentbilling.CareRun, error)
+	InvoicedContracts(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]bool, error)
+	InsertCareRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
+	HolidayNumbersTaken(ctx context.Context, organizationID int64, numbers []string) (bool, error)
+	IssueCareInvoices(ctx context.Context, organizationID int64, run parentbilling.CareRun, rule string, year int, first int64, invoices []parentbilling.CareInvoice) error
+	MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string) (parentbilling.CareRun, error)
+	CareRunInvoices(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareInvoice, error)
+	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
+	ReserveNumbers(ctx context.Context, organizationID int64, service string, year, count int) (int64, error)
+}
+
+// CareBilling serves parentbilling.CareBilling. The contract versions and
+// their parties come from the Betreuungsvertrag through the root-bound
+// port, the month rule from the settings of the Träger; the prices, runs
+// and invoices are the owner's own rows.
+type CareBilling struct {
+	store     CareStore
+	contracts parentbilling.CareContracts
+	settings  parentbilling.CareBillingSettings
+	today     func() calendar.Date
+}
+
+var _ parentbilling.CareBilling = (*CareBilling)(nil)
+
+// NewCareBilling builds the monthly billing. today is the issue date of a
+// release and the start of the price list's look ahead.
+func NewCareBilling(store CareStore, contracts parentbilling.CareContracts, settings parentbilling.CareBillingSettings, today func() calendar.Date) *CareBilling {
+	if store == nil || contracts == nil || settings == nil || today == nil {
+		panic("parent billing: the store, the care contracts, the settings and the clock are required")
+	}
+	return &CareBilling{store: store, contracts: contracts, settings: settings, today: today}
+}
+
+// CareTariffs reads the price list with the modules the contracts book
+// from this month on.
+func (c *CareBilling) CareTariffs(ctx context.Context, reviewer parentbilling.HolidayReviewer) (parentbilling.CareTariffs, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return parentbilling.CareTariffs{}, err
+	}
+	from := firstOfMonth(c.today())
+	versions, err := c.contracts.VersionsInForce(ctx, reviewer.OrganizationID, from, from.AddDays(careModuleHorizon))
+	if err != nil {
+		return parentbilling.CareTariffs{}, fmt.Errorf("parent billing: read the booked modules: %w", err)
+	}
+	tariffs, err := c.store.CareTariffs(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.CareTariffs{}, err
+	}
+	billed, err := c.store.CareBilledUntil(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.CareTariffs{}, err
+	}
+	return parentbilling.CareTariffs{Modules: careModules(versions, tariffs), Tariffs: withValidity(tariffs), BilledUntil: billed}, nil
+}
+
+// careModules lists the modules the versions book and those the price
+// list names, by school and module. Counts and weekdays come from the
+// versions only.
+func careModules(versions []parentbilling.CareContractVersion, tariffs []parentbilling.CareTariff) []parentbilling.CareModule {
+	type key struct{ school, offering int64 }
+	modules := map[key]*parentbilling.CareModule{}
+	contracts := map[key]map[int64]bool{}
+	ensure := func(k key, schoolName, moduleName string) *parentbilling.CareModule {
+		module, ok := modules[k]
+		if !ok {
+			module = &parentbilling.CareModule{SchoolID: k.school, SchoolName: schoolName, CareOfferingID: k.offering,
+				ModuleName: moduleName, BookedWeekdays: []string{}}
+			modules[k] = module
+			contracts[k] = map[int64]bool{}
+		}
+		return module
+	}
+	for _, version := range versions {
+		for _, service := range version.Services {
+			k := key{version.SchoolID, service.CareOfferingID}
+			module := ensure(k, version.SchoolName, service.ModuleName)
+			if module.EndsAt == "" {
+				module.EndsAt = service.EndsAt
+			}
+			if !slices.Contains(module.BookedWeekdays, service.Weekday) {
+				module.BookedWeekdays = append(module.BookedWeekdays, service.Weekday)
+			}
+			contracts[k][version.ContractID] = true
+		}
+	}
+	for _, tariff := range tariffs {
+		ensure(key{tariff.SchoolID, tariff.CareOfferingID}, "", tariff.ModuleName)
+	}
+	result := make([]parentbilling.CareModule, 0, len(modules))
+	for k, module := range modules {
+		module.ContractCount = len(contracts[k])
+		slices.SortFunc(module.BookedWeekdays, func(a, b string) int { return cmp.Compare(weekdayOrder[a], weekdayOrder[b]) })
+		result = append(result, *module)
+	}
+	slices.SortFunc(result, func(a, b parentbilling.CareModule) int {
+		return cmp.Or(cmp.Compare(a.SchoolID, b.SchoolID), cmp.Compare(a.EndsAt, b.EndsAt), cmp.Compare(a.ModuleName, b.ModuleName))
+	})
+	return result
+}
+
+// SaveCarePriceList sets the prices of a school from a month on. A month an
+// issued invoice of the school already bills keeps its prices: the list
+// starts after it.
+func (c *CareBilling) SaveCarePriceList(ctx context.Context, reviewer parentbilling.HolidayReviewer, list parentbilling.CarePriceList) (parentbilling.CareTariffs, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return parentbilling.CareTariffs{}, err
+	}
+	list, err := normalizePriceList(list)
+	if err != nil {
+		return parentbilling.CareTariffs{}, err
+	}
+	if err := c.lockUnbilledMonth(ctx, reviewer.OrganizationID, list.SchoolID, list.ValidFrom); err != nil {
+		return parentbilling.CareTariffs{}, err
+	}
+	if err := c.store.ReplaceCarePrices(ctx, reviewer.OrganizationID, reviewer.AccountID, list); err != nil {
+		return parentbilling.CareTariffs{}, err
+	}
+	return c.CareTariffs(ctx, reviewer)
+}
+
+// DeleteCarePriceList removes the prices of a school that start on a month
+// no invoice bills yet.
+func (c *CareBilling) DeleteCarePriceList(ctx context.Context, reviewer parentbilling.HolidayReviewer, schoolID int64, validFrom calendar.Date) (parentbilling.CareTariffs, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return parentbilling.CareTariffs{}, err
+	}
+	if schoolID <= 0 || !isMonthStart(validFrom) {
+		return parentbilling.CareTariffs{}, parentbilling.ErrCareTariffNotFound
+	}
+	if err := c.lockUnbilledMonth(ctx, reviewer.OrganizationID, schoolID, validFrom); err != nil {
+		return parentbilling.CareTariffs{}, err
+	}
+	deleted, err := c.store.DeleteCarePrices(ctx, reviewer.OrganizationID, schoolID, validFrom)
+	if err != nil {
+		return parentbilling.CareTariffs{}, err
+	}
+	if deleted == 0 {
+		return parentbilling.CareTariffs{}, parentbilling.ErrCareTariffNotFound
+	}
+	return c.CareTariffs(ctx, reviewer)
+}
+
+// lockUnbilledMonth holds the monthly billing and refuses a month an issued
+// invoice of the school already bills, or one before it.
+func (c *CareBilling) lockUnbilledMonth(ctx context.Context, organizationID, schoolID int64, month calendar.Date) error {
+	if err := c.store.LockCareBilling(ctx, organizationID); err != nil {
+		return fmt.Errorf("parent billing: hold the monthly billing: %w", err)
+	}
+	billed, err := c.store.CareBilledUntil(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	if last, ok := billed[schoolID]; ok && !month.After(last) {
+		return parentbilling.ErrCareTariffMonthBilled
+	}
+	return nil
+}
+
+// normalizePriceList checks a price list: a school, the first day of a
+// month, known weekdays, one price per module and weekday, amounts in cent.
+func normalizePriceList(list parentbilling.CarePriceList) (parentbilling.CarePriceList, error) {
+	errs := validation.Errors{}
+	if list.SchoolID <= 0 {
+		errs["school_id"] = errors.New("is required")
+	}
+	if !isMonthStart(list.ValidFrom) {
+		errs["valid_from"] = errors.New("must be the first day of a month")
+	}
+	seen := map[priceKey]bool{}
+	for i, price := range list.Prices {
+		key := priceKey{offeringID: price.CareOfferingID, weekday: price.Weekday}
+		switch {
+		case price.CareOfferingID <= 0 || weekdayOrder[price.Weekday] == 0:
+			errs["prices"] = errors.New("needs a module and a weekday")
+		case seen[key]:
+			errs["prices"] = errors.New("names a module and weekday twice")
+		case price.MonthlyCents < 0 || price.MonthlyCents > parentbilling.MaxMonthlyPriceCents:
+			errs["prices"] = errors.New("must be amounts in cent, not negative")
+		case len([]rune(price.ModuleName)) == 0:
+			errs["prices"] = errors.New("needs the name of the module")
+		}
+		seen[key] = true
+		list.Prices[i] = price
+	}
+	if len(errs) > 0 {
+		return list, errs
+	}
+	return list, nil
+}
+
+// ListCareRuns lists the monthly runs, the latest month first. The list
+// carries no personal data.
+func (c *CareBilling) ListCareRuns(ctx context.Context, organizationID int64) ([]parentbilling.CareRun, error) {
+	if organizationID <= 0 {
+		return nil, errTraegerRequired
+	}
+	return c.store.ListCareRuns(ctx, organizationID)
+}
+
+// StartCareRun starts a calculated run of a month. A month has at most one
+// calculated run.
+func (c *CareBilling) StartCareRun(ctx context.Context, reviewer parentbilling.HolidayReviewer, month calendar.Date) (parentbilling.CareRun, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return parentbilling.CareRun{}, err
+	}
+	if !isMonthStart(month) {
+		return parentbilling.CareRun{}, validation.Errors{"billing_month": errors.New("must be the first day of a month")}
+	}
+	run, err := c.store.InsertCareRun(ctx, reviewer.OrganizationID, reviewer.AccountID, month)
+	if err != nil {
+		return parentbilling.CareRun{}, err
+	}
+	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventCreate, nil); err != nil {
+		return parentbilling.CareRun{}, fmt.Errorf("parent billing: record care run: %w", err)
+	}
+	return run, nil
+}
+
+// CareRun shows a run with the preview of today or its issued invoices and
+// records the read.
+func (c *CareBilling) CareRun(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID int64) (parentbilling.CareRunDetail, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	if runID <= 0 {
+		return parentbilling.CareRunDetail{}, parentbilling.ErrCareRunNotFound
+	}
+	run, err := c.store.CareRun(ctx, reviewer.OrganizationID, runID, false)
+	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	detail, err := c.detail(ctx, reviewer, run)
+	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRead,
+		map[string]any{"contract_ids": shownContracts(detail)}); err != nil {
+		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record care run read: %w", err)
+	}
+	return detail, nil
+}
+
+// ReleaseCareRun issues the invoices of the preview, numbered from the
+// number range of the monthly care without a gap, and closes the run. It
+// holds the run and the monthly billing of the Träger, so a parallel
+// release waits and then finds the run released. The caller rolls back
+// when this fails.
+func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID int64, release parentbilling.BillingRelease) (parentbilling.CareRunDetail, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	if runID <= 0 {
+		return parentbilling.CareRunDetail{}, parentbilling.ErrCareRunNotFound
+	}
+	if err := c.store.LockCareBilling(ctx, reviewer.OrganizationID); err != nil {
+		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: hold the monthly billing: %w", err)
+	}
+	run, err := c.store.CareRun(ctx, reviewer.OrganizationID, runID, true)
+	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	if run.Status != parentbilling.RunCalculated {
+		return parentbilling.CareRunDetail{}, parentbilling.ErrBillingRunReleased
+	}
+	pattern, err := numberPatternOf(ctx, c.store, reviewer.OrganizationID, parentbilling.ServiceCare)
+	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	rule, month, err := c.preview(ctx, reviewer.OrganizationID, run)
+	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	if len(month.invoices) == 0 {
+		return parentbilling.CareRunDetail{}, parentbilling.ErrBillingRunEmpty
+	}
+	if len(month.invoices) != release.DocumentCount || month.total() != release.TotalCents {
+		return parentbilling.CareRunDetail{}, parentbilling.ErrBillingRunChanged
+	}
+	if err := c.issue(ctx, reviewer.OrganizationID, run, rule, pattern, month.invoices); err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	released, err := c.store.MarkCareRunReleased(ctx, reviewer.OrganizationID, run.ID, *month.invoices[0].IssuedOn,
+		len(month.invoices), month.total(), rule)
+	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRelease,
+		map[string]any{"document_count": len(month.invoices), "total_cents": month.total(), "month_rule": rule}); err != nil {
+		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record care release: %w", err)
+	}
+	return c.detail(ctx, reviewer, released)
+}
+
+// issue numbers the invoices from the counter of the issue year and stores
+// them. A number a holiday document already carries is
+// ErrInvoiceNumberTaken.
+func (c *CareBilling) issue(ctx context.Context, organizationID int64, run parentbilling.CareRun, rule, pattern string, invoices []parentbilling.CareInvoice) error {
+	issuedOn := c.today()
+	year := numberYear(pattern, issuedOn.Year())
+	first, err := c.store.ReserveNumbers(ctx, organizationID, parentbilling.ServiceCare, year, len(invoices))
+	if err != nil {
+		return fmt.Errorf("parent billing: reserve invoice numbers: %w", err)
+	}
+	numbers := make([]string, len(invoices))
+	for i := range invoices {
+		invoices[i].Number = formatInvoiceNumber(pattern, issuedOn.Year(), first+int64(i))
+		invoices[i].IssuedOn = &issuedOn
+		numbers[i] = invoices[i].Number
+	}
+	taken, err := c.store.HolidayNumbersTaken(ctx, organizationID, numbers)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return parentbilling.ErrInvoiceNumberTaken
+	}
+	return c.store.IssueCareInvoices(ctx, organizationID, run, rule, year, first, invoices)
+}
+
+// preview computes the draft invoices of a calculated run with the rule of
+// the Träger now.
+func (c *CareBilling) preview(ctx context.Context, organizationID int64, run parentbilling.CareRun) (string, careMonth, error) {
+	rule, err := c.settings.CareMonthRule(ctx, organizationID)
+	if err != nil {
+		return "", careMonth{}, fmt.Errorf("parent billing: read the month rule: %w", err)
+	}
+	if rule != parentbilling.MonthRuleVersionOnFirst && rule != parentbilling.MonthRuleProRata {
+		return "", careMonth{}, fmt.Errorf("parent billing: unknown month rule %q", rule)
+	}
+	versions, err := c.contracts.VersionsInForce(ctx, organizationID, run.BillingMonth, monthEnd(run.BillingMonth))
+	if err != nil {
+		return "", careMonth{}, fmt.Errorf("parent billing: read the contract versions: %w", err)
+	}
+	tariffs, err := c.store.CareTariffs(ctx, organizationID)
+	if err != nil {
+		return "", careMonth{}, err
+	}
+	invoiced, err := c.store.InvoicedContracts(ctx, organizationID, run.BillingMonth)
+	if err != nil {
+		return "", careMonth{}, err
+	}
+	recipients, err := c.contracts.Recipients(ctx, organizationID, versionContracts(versions))
+	if err != nil {
+		return "", careMonth{}, fmt.Errorf("parent billing: read the contract parties: %w", err)
+	}
+	month, err := buildCareMonth(careMonthInput{month: run.BillingMonth, rule: rule, versions: versions, tariffs: tariffs,
+		invoiced: invoiced, recipients: recipients})
+	return rule, month, err
+}
+
+// detail is the run with its preview or its issued invoices and the number
+// range the release uses.
+func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.CareRun) (parentbilling.CareRunDetail, error) {
+	detail := parentbilling.CareRunDetail{CareRun: run, Unpriced: []parentbilling.CareUnpriced{}}
+	if run.Status == parentbilling.RunReleased {
+		invoices, err := c.store.CareRunInvoices(ctx, reviewer.OrganizationID, run.ID)
+		if err != nil {
+			return parentbilling.CareRunDetail{}, err
+		}
+		detail.Invoices = invoices
+	} else {
+		rule, month, err := c.preview(ctx, reviewer.OrganizationID, run)
+		if err != nil {
+			return parentbilling.CareRunDetail{}, err
+		}
+		detail.MonthRule, detail.Invoices, detail.Unpriced, detail.Billed = rule, month.invoices, month.unpriced, month.billed
+	}
+	for _, invoice := range detail.Invoices {
+		detail.PreviewCount++
+		detail.PreviewCents += invoice.TotalCents
+	}
+	pattern, err := numberPatternOf(ctx, c.store, reviewer.OrganizationID, parentbilling.ServiceCare)
+	switch {
+	case errors.Is(err, parentbilling.ErrNumberRangeMissing):
+	case err != nil:
+		return parentbilling.CareRunDetail{}, err
+	default:
+		detail.NumberPattern, detail.NumberRangeSet = pattern, true
+	}
+	return detail, nil
+}
+
+func versionContracts(versions []parentbilling.CareContractVersion) []int64 {
+	ids := []int64{}
+	for _, version := range versions {
+		if !slices.Contains(ids, version.ContractID) {
+			ids = append(ids, version.ContractID)
+		}
+	}
+	return ids
+}
+
+// shownContracts names the contracts whose child a detail shows: on an
+// invoice or without a price.
+func shownContracts(detail parentbilling.CareRunDetail) []int64 {
+	ids := []int64{}
+	for _, invoice := range detail.Invoices {
+		ids = append(ids, invoice.ContractID)
+	}
+	for _, unpriced := range detail.Unpriced {
+		if !slices.Contains(ids, unpriced.ContractID) {
+			ids = append(ids, unpriced.ContractID)
+		}
+	}
+	return ids
+}

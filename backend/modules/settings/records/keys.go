@@ -797,3 +797,9 @@ const KeyParentBillingSiblingRank = "parent_billing.sibling_rank"
 // left after the sibling discount or the full price (#5664). Only the Träger
 // sets it (LevelTraeger).
 const KeyParentBillingCostTakeoverOrder = "parent_billing.cost_takeover_order"
+
+// KeyParentBillingCareMonthChange says how the monthly run bills a month in
+// which the contract version changes, starts or ends (#4684): the full
+// month by the version on the first day, or every version for its days.
+// Only the Träger sets it (LevelTraeger).
+const KeyParentBillingCareMonthChange = "parent_billing.care_month_change"

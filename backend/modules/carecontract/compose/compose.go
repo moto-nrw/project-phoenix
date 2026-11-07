@@ -27,6 +27,11 @@ func NewContractVersions() carecontract.ContractVersions {
 	return application.NewVersions(postgres.NewStore())
 }
 
+// NewContractParties reads the parties of contracts for the billing (#4684) in the caller's Träger unit.
+func NewContractParties() carecontract.ContractParties {
+	return application.NewParties(postgres.NewStore())
+}
+
 // NewIntake builds the creation of contracts from the accepted applications and the offerings' templates.
 func NewIntake(ports IntakePorts) carecontract.Intake {
 	return application.NewIntake(postgres.NewStore(), ports, calendar.TodayDate)
