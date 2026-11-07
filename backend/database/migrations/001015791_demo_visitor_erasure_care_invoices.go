@@ -27,7 +27,9 @@ func init() {
 // recipient and mail address and outlives the contract, so nothing removes
 // it with the school; its positions go by cascade. A read in the trail of a
 // monthly run names the contracts it showed and goes with them, before the
-// contracts do. The run and its other events name no one and stay.
+// contracts do. The run and its other events name no one and stay. The
+// erasure holds the monthly billing of each Träger like a release does, so
+// a release under way cannot insert an invoice after the cleanup.
 //
 // The rest of the function is unchanged.
 const demoVisitorErasureCareInvoicesUpSQL = `
@@ -209,6 +211,15 @@ const demoVisitorErasureCareInvoicesUpSQL = `
 					-- every contract of it goes with what hangs on it by cascade.
 					-- Send holds this row lock until its mail and event commit. Take
 					-- it before cleanup so those copies cannot arrive after it.
+					-- A release of a monthly run holds the monthly billing of its
+					-- Träger before it reads the contracts (#4684). Take the same
+					-- lock first: a release under way defers the order, and a later
+					-- release reads the contracts after they are gone, so no invoice
+					-- with the visitor's name arrives after this cleanup.
+					PERFORM pg_advisory_xact_lock(hashtextextended('parent_billing.care_billing:' || traeger.organization_id::text, 0))
+					FROM (SELECT DISTINCT school.organization_id FROM platform.schools AS school
+						WHERE school.id = ANY (hidden_schools) AND school.organization_id IS NOT NULL
+						ORDER BY school.organization_id) AS traeger;
 					PERFORM 1 FROM care_contract.contracts AS contract
 					WHERE contract.school_id = ANY (hidden_schools)
 					ORDER BY contract.id

@@ -404,6 +404,65 @@ func TestCareMonthDuplicateContractsAreHeldForReview(t *testing.T) {
 	assert.Empty(t, month.duplicates)
 }
 
+// TestCareMonthFullMonthHoldsContractsThatFollowEachOther compares what
+// the run bills, not the days a contract holds (Betragsregel 1): under the
+// full month a contract that ends on the 15th and one that starts on the
+// 16th both bill the whole month, so Monday until 14:00 cost 64,00 €
+// instead of 32,00 €. Pro rata each bills only its own days, so both are
+// billed once.
+func TestCareMonthFullMonthHoldsContractsThatFollowEachOther(t *testing.T) {
+	t.Parallel()
+	before := sjrVersion(t, contractMia, schoolIspringen, 1, january2027, "2027-01-15",
+		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
+	after := sjrVersion(t, contractNoah, schoolIspringen, 1, "2027-01-16", januaryLastDay2027,
+		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
+	after.StudentID = before.StudentID
+	versions := []parentbilling.CareContractVersion{before, after}
+
+	month, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
+		versions: versions, tariffs: sjrTariffs(t)})
+	require.NoError(t, err)
+	assert.Empty(t, month.invoices, "not twice the whole month")
+	require.Len(t, month.duplicates, 1)
+	assert.Equal(t, "mon", month.duplicates[0].Weekday)
+
+	month, err = buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleProRata,
+		versions: versions, tariffs: sjrTariffs(t)})
+	require.NoError(t, err)
+	assert.Empty(t, month.duplicates)
+	assert.Equal(t, int64(3200), month.total(), "the two halves make one month")
+}
+
+// TestCareMonthChildWithAndWithoutRecordIsOneChild matches a contract
+// linked to the child record with one that is not by name and date of
+// birth (Betragsregel 1): before, the keys student:… and name:… never met
+// and the child paid twice.
+func TestCareMonthChildWithAndWithoutRecordIsOneChild(t *testing.T) {
+	t.Parallel()
+	birth := day(t, "2019-03-04")
+	linked := sjrVersion(t, contractMia, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
+	unlinked := sjrVersion(t, contractNoah, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
+	linked.ChildBirthDate, unlinked.ChildBirthDate = &birth, &birth
+	unlinked.StudentID = nil
+	unlinked.ChildFirstName, unlinked.ChildLastName = " mia", "BEISPIEL "
+	month, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
+		versions: []parentbilling.CareContractVersion{linked, unlinked}, tariffs: sjrTariffs(t)})
+	require.NoError(t, err)
+	assert.Empty(t, month.invoices)
+	require.Len(t, month.duplicates, 1)
+
+	// Two different records stay two children, even with the same name.
+	other := *linked.StudentID + 1
+	unlinked.StudentID = &other
+	month, err = buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
+		versions: []parentbilling.CareContractVersion{linked, unlinked}, tariffs: sjrTariffs(t)})
+	require.NoError(t, err)
+	assert.Empty(t, month.duplicates)
+	assert.Len(t, month.invoices, 2)
+}
+
 // TestCareMonthContractsOfOneChildWithoutOverlapAreBilled bills one child's
 // contracts that share no module and day: the early care of one contract
 // and the afternoon of another, or the modules of two schools.

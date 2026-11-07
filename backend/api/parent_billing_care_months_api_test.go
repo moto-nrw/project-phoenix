@@ -653,3 +653,34 @@ func TestCarePriceChangeWaitsForARelease(t *testing.T) {
 	<-done
 	assert.Equal(t, http.StatusConflict, code, "the billed Monday keeps 32,00 €")
 }
+
+// The account that started a released run can be deleted: the run keeps
+// everything else and loses only the reference (ON DELETE SET NULL), while
+// any other change of the released run stays refused.
+func TestReleasedCareRunOutlivesTheAccountThatStartedIt(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Monatsbeitrag Konto gelöscht")
+	ctx := context.Background()
+	starter := testpkg.CreateTestAccount(t, f.db, fmt.Sprintf("starter-%d@example.org", testpkg.UniqueTestTenantID(t)))
+	var runID int64
+	require.NoError(t, f.db.NewRaw(`INSERT INTO parent_billing.care_runs (organization_id, billing_month, status, released_at,
+			issued_on, document_count, total_cents, month_rule, created_by_account_id)
+		VALUES (?, ?::date, 'released', NOW(), ?::date, 1, 3200, 'version_on_first', ?) RETURNING id`,
+		f.office.organization, careMonth, careMonth, starter.ID).Scan(ctx, &runID))
+
+	_, err := f.db.NewRaw(`DELETE FROM auth.accounts WHERE id = ?`, starter.ID).Exec(ctx)
+	require.NoError(t, err, "deleting the account clears the reference")
+	var run struct {
+		CreatedBy  *int64 `bun:"created_by_account_id"`
+		TotalCents int64  `bun:"total_cents"`
+	}
+	require.NoError(t, f.db.NewRaw(`SELECT created_by_account_id, total_cents FROM parent_billing.care_runs WHERE id = ?`, runID).
+		Scan(ctx, &run))
+	assert.Nil(t, run.CreatedBy)
+	assert.Equal(t, int64(3200), run.TotalCents)
+
+	_, err = f.db.NewRaw(`UPDATE parent_billing.care_runs SET total_cents = 1 WHERE id = ?`, runID).Exec(ctx)
+	require.Error(t, err, "the sum of a released run never changes")
+	_, err = f.db.NewRaw(`UPDATE parent_billing.care_runs SET created_by_account_id = NULL, total_cents = 1 WHERE id = ?`, runID).Exec(ctx)
+	require.Error(t, err, "clearing the account does not open the other fields")
+}

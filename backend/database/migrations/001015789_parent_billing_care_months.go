@@ -174,10 +174,25 @@ CREATE TRIGGER refuse_parent_billing_care_invoice_change
 CREATE TRIGGER refuse_parent_billing_care_invoice_position_change
 	BEFORE UPDATE ON parent_billing.care_invoice_positions
 	FOR EACH ROW EXECUTE FUNCTION parent_billing.refuse_issued_change();
+-- A released run never changes, except that deleting the account that
+-- started it clears created_by_account_id (ON DELETE SET NULL); the
+-- erasure of an account must not fail on a released run.
+CREATE FUNCTION parent_billing.refuse_released_care_run_change() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+	IF NEW.created_by_account_id IS NULL
+		AND to_jsonb(NEW) - 'created_by_account_id' = to_jsonb(OLD) - 'created_by_account_id' THEN
+		RETURN NEW;
+	END IF;
+	RAISE EXCEPTION 'an issued invoice of the Elternabrechnung never changes (%)', TG_TABLE_NAME
+		USING ERRCODE = '55000';
+END;
+$$;
+REVOKE ALL ON FUNCTION parent_billing.refuse_released_care_run_change() FROM PUBLIC;
 CREATE TRIGGER refuse_parent_billing_released_care_run_change
 	BEFORE UPDATE ON parent_billing.care_runs
 	FOR EACH ROW WHEN (OLD.status = 'released')
-	EXECUTE FUNCTION parent_billing.refuse_issued_change();
+	EXECUTE FUNCTION parent_billing.refuse_released_care_run_change();
 
 ALTER TABLE parent_billing.care_tariffs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parent_billing.care_tariffs FORCE ROW LEVEL SECURITY;
@@ -221,6 +236,7 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA parent_billing TO phoenix_admin;
 const parentBillingCareMonthsDownSQL = `
 DROP TABLE IF EXISTS parent_billing.care_invoice_positions, parent_billing.care_invoices,
 	parent_billing.care_run_events, parent_billing.care_runs, parent_billing.care_tariffs;
+DROP FUNCTION IF EXISTS parent_billing.refuse_released_care_run_change();
 DELETE FROM parent_billing.number_range_counters WHERE service = 'care';
 DELETE FROM parent_billing.number_ranges WHERE service = 'care';
 ALTER TABLE parent_billing.number_ranges DROP CONSTRAINT chk_number_ranges_service;
