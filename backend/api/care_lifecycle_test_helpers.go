@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"time"
 
 	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
 
@@ -18,6 +19,7 @@ import (
 
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -27,7 +29,9 @@ type CareLifecycleTestModule struct {
 	CareLifecycle careplan.CareLifecycle
 }
 
-func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (CareLifecycleTestModule, peoplePorts.StudentAuditService, error) {
+// An optional clock pins the lifecycle's today to the suite's pinned day,
+// as the care participation decides past days against it (#6041).
+func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (CareLifecycleTestModule, peoplePorts.StudentAuditService, error) {
 	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return CareLifecycleTestModule{}, nil, err
@@ -51,6 +55,7 @@ func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.Unit
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 		},
+		Today: calendar.CalendarDateClock(clocks...),
 	})
 	if err != nil {
 		return CareLifecycleTestModule{}, nil, err

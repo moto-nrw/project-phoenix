@@ -422,11 +422,11 @@ func ParticipationBoundaries(students map[int64]CareStudent, pending map[int64]c
 }
 
 // ParticipatingOn applies the boundaries to one day. Actual presence always
-// wins; otherwise a graduate and a pending child before its scheduled care
-// start (#6041) do not take part.
+// wins; otherwise a graduate and a pending child still waiting for its
+// scheduled care start (#6041, AwaitsCareStartOn) do not take part.
 func ParticipatingOn(
 	studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date,
-	on calendar.Date, actuallyPresent map[int64]bool,
+	on, today calendar.Date, actuallyPresent map[int64]bool,
 ) map[int64]bool {
 	participating := make(map[int64]bool, len(studentIDs))
 	for _, id := range studentIDs {
@@ -438,7 +438,7 @@ func ParticipatingOn(
 		}
 	}
 	for id, student := range students {
-		if !actuallyPresent[id] && (student.IsAlumnus() || student.AwaitsCareStartOn(on)) {
+		if !actuallyPresent[id] && (student.IsAlumnus() || student.AwaitsCareStartOn(on, today)) {
 			delete(participating, id)
 		}
 	}
@@ -451,11 +451,11 @@ func ParticipatingOn(
 // findable for the school to prepare it (#6041).
 func AdministrativelyVisibleOn(
 	studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date,
-	on calendar.Date, retained map[int64]bool,
+	on, today calendar.Date, retained map[int64]bool,
 ) map[int64]bool {
-	visible := ParticipatingOn(studentIDs, students, boundaries, on, retained)
+	visible := ParticipatingOn(studentIDs, students, boundaries, on, today, retained)
 	for _, id := range studentIDs {
-		if students[id].AwaitsCareStartOn(on) {
+		if students[id].AwaitsCareStartOn(on, today) {
 			visible[id] = true
 		}
 	}
@@ -464,11 +464,12 @@ func AdministrativelyVisibleOn(
 
 // HistoricalParticipationOn retains alumni before a recorded departure.
 // An alumnus with no dated boundary cannot be placed in a historical period,
-// and no child takes part before its scheduled care start.
-func HistoricalParticipationOn(studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date, on calendar.Date) map[int64]bool {
-	participating := ParticipatingOn(studentIDs, students, boundaries, on, nil)
+// and a dated end does not pull a child that still waits for its care start
+// into care from today on; past days keep their participation.
+func HistoricalParticipationOn(studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date, on, today calendar.Date) map[int64]bool {
+	participating := ParticipatingOn(studentIDs, students, boundaries, on, today, nil)
 	for _, id := range studentIDs {
-		if students[id].AwaitsCareStartOn(on) {
+		if students[id].AwaitsCareStartOn(on, today) {
 			continue
 		}
 		if boundary, known := boundaries[id]; known && on.Before(boundary) {

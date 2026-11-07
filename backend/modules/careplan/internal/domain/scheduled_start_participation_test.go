@@ -32,22 +32,23 @@ func TestParticipationWaitsForScheduledStart(t *testing.T) {
 	}
 	ids := []int64{scheduled, immediate, renewed, pendingOverdue, pendingUndated}
 	boundaries := ParticipationBoundaries(students, nil)
+	const today calendar.Date = "2026-11-07"
 
-	november := ParticipatingOn(ids, students, boundaries, "2026-11-07", nil)
+	november := ParticipatingOn(ids, students, boundaries, today, today, nil)
 	assert.False(t, november[scheduled], "a scheduled child does not count before its care start")
 	assert.True(t, november[immediate], "an immediately activated child keeps counting")
 	assert.True(t, november[renewed], "a running renewal keeps counting")
 	assert.True(t, november[pendingOverdue], "a start already reached counts before the hourly activation")
 	assert.True(t, november[pendingUndated], "a pending child without a start date is not hidden")
 
-	assert.False(t, ParticipatingOn(ids, students, boundaries, start.AddDays(-1), nil)[scheduled],
+	assert.False(t, ParticipatingOn(ids, students, boundaries, start.AddDays(-1), today, nil)[scheduled],
 		"the day before the start does not count")
-	assert.True(t, ParticipatingOn(ids, students, boundaries, start, nil)[scheduled],
+	assert.True(t, ParticipatingOn(ids, students, boundaries, start, today, nil)[scheduled],
 		"the start day counts")
-	assert.True(t, ParticipatingOn(ids, students, boundaries, start.AddDays(30), nil)[scheduled],
+	assert.True(t, ParticipatingOn(ids, students, boundaries, start.AddDays(30), today, nil)[scheduled],
 		"a planning day after the start counts")
 
-	present := ParticipatingOn(ids, students, boundaries, "2026-11-07", map[int64]bool{scheduled: true})
+	present := ParticipatingOn(ids, students, boundaries, today, today, map[int64]bool{scheduled: true})
 	assert.True(t, present[scheduled], "actual presence always wins")
 }
 
@@ -71,7 +72,7 @@ func TestAdministrativeVisibilityKeepsAScheduledChild(t *testing.T) {
 	}
 	ids := []int64{scheduled, endedChild, alumnus, retainedEnded}
 	boundaries := ParticipationBoundaries(students, nil)
-	visible := AdministrativelyVisibleOn(ids, students, boundaries, "2026-11-07", map[int64]bool{retainedEnded: true})
+	visible := AdministrativelyVisibleOn(ids, students, boundaries, "2026-11-07", "2026-11-07", map[int64]bool{retainedEnded: true})
 	assert.True(t, visible[scheduled], "the administrative list keeps a child before its care start")
 	assert.False(t, visible[endedChild], "an ended care stays out")
 	assert.False(t, visible[alumnus])
@@ -90,9 +91,36 @@ func TestHistoricalParticipationWaitsForScheduledStart(t *testing.T) {
 	}
 	ids := []int64{scheduled}
 	boundaries := ParticipationBoundaries(students, nil)
-	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, "2026-11-07")[scheduled],
+	const today calendar.Date = "2026-11-07"
+	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, today, today)[scheduled],
 		"a dated end does not pull a child into care before its start")
-	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, start)[scheduled])
-	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, until.AddDays(1))[scheduled],
+	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, start, today)[scheduled])
+	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, until.AddDays(1), today)[scheduled],
 		"the end boundary still applies")
+}
+
+// The school schedules a return (#6041 review): care ran until 6 November and
+// restarts on 3 February. The resumption stores the child as pending with the
+// new start and no end, like a new child, so a past day cannot tell the two
+// apart. Past days keep their participation; from today on the child waits.
+func TestParticipationKeepsThePastOfAScheduledReturn(t *testing.T) {
+	t.Parallel()
+	restart := calendar.Date("2027-02-03")
+	const returning int64 = 9
+	students := map[int64]CareStudent{
+		returning: {Status: careplan.StudentStatusPending, EnrolledFrom: &restart},
+	}
+	ids := []int64{returning}
+	boundaries := ParticipationBoundaries(students, nil)
+	const today calendar.Date = "2026-11-07"
+	const cared calendar.Date = "2026-11-05"
+	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, cared, today)[returning],
+		"a report keeps the care before the scheduled return")
+	assert.True(t, ParticipatingOn(ids, students, boundaries, cared, today, nil)[returning],
+		"a past day of a running reader keeps the child too")
+	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, today, today)[returning],
+		"from today on the child waits for its new start")
+	assert.False(t, ParticipatingOn(ids, students, boundaries, today, today, nil)[returning])
+	assert.False(t, ParticipatingOn(ids, students, boundaries, restart.AddDays(-1), today, nil)[returning])
+	assert.True(t, ParticipatingOn(ids, students, boundaries, restart, today, nil)[returning])
 }

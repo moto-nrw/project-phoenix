@@ -13,17 +13,24 @@ import (
 )
 
 func (s *CareLifecycle) inUnitParticipatingStudentIDs(ctx context.Context, studentIDs []int64, on calendar.Date, actuallyPresent map[int64]bool) (map[int64]bool, error) {
-	if actuallyPresent == nil && on == calendar.TodayDate() {
+	today := s.today()
+	if actuallyPresent == nil && on == today {
 		var err error
 		if actuallyPresent, err = s.findOpenPresence(ctx, studentIDs); err != nil {
 			return nil, err
 		}
 	}
+	return s.participatingOn(ctx, studentIDs, on, today, actuallyPresent)
+}
+
+// participatingOn decides one day against the caller's today, which ends the
+// wait for a scheduled care start on past days (domain.AwaitsCareStartOn).
+func (s *CareLifecycle) participatingOn(ctx context.Context, studentIDs []int64, on, today calendar.Date, actuallyPresent map[int64]bool) (map[int64]bool, error) {
 	students, boundaries, err := s.participationFacts(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
-	return domain.ParticipatingOn(studentIDs, students, boundaries, on, actuallyPresent), nil
+	return domain.ParticipatingOn(studentIDs, students, boundaries, on, today, actuallyPresent), nil
 }
 
 func (s *CareLifecycle) inUnitResolveListParticipation(ctx context.Context, studentIDs []int64, on, today calendar.Date, includePending bool) (*careplan.CareParticipationResolution, error) {
@@ -44,9 +51,9 @@ func (s *CareLifecycle) inUnitResolveListParticipation(ctx context.Context, stud
 	var participating map[int64]bool
 	var err error
 	if includePending {
-		participating, err = s.administrativelyVisibleStudentIDs(ctx, candidates, on, present)
+		participating, err = s.administrativelyVisibleStudentIDs(ctx, candidates, on, today, present)
 	} else {
-		participating, err = s.ParticipatingStudentIDs(ctx, candidates, on, present)
+		participating, err = s.participatingOn(ctx, candidates, on, today, present)
 	}
 	if err != nil {
 		return nil, err
@@ -62,8 +69,9 @@ func (s *CareLifecycle) inUnitParticipatingStudentIDsByDate(ctx context.Context,
 		return nil, err
 	}
 	result := make(map[calendar.Date]map[int64]bool)
+	today := s.today()
 	for day := from; !day.After(to); day = day.AddDays(1) {
-		result[day] = domain.ParticipatingOn(studentIDs, students, boundaries, day, nil)
+		result[day] = domain.ParticipatingOn(studentIDs, students, boundaries, day, today, nil)
 	}
 	return result, nil
 }
@@ -71,7 +79,7 @@ func (s *CareLifecycle) inUnitParticipatingStudentIDsByDate(ctx context.Context,
 // administrativelyVisibleStudentIDs keeps a child with a pending withdrawal
 // task in the administrative lists until the task is resolved, and a child
 // scheduled for a later care start before that start (#6041).
-func (s *CareLifecycle) administrativelyVisibleStudentIDs(ctx context.Context, studentIDs []int64, on calendar.Date, actuallyPresent map[int64]bool) (map[int64]bool, error) {
+func (s *CareLifecycle) administrativelyVisibleStudentIDs(ctx context.Context, studentIDs []int64, on, today calendar.Date, actuallyPresent map[int64]bool) (map[int64]bool, error) {
 	retained, err := s.records.ListPendingWithdrawalStudentIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, fmt.Errorf("care lifecycle: list pending care withdrawal student ids: %w", err)
@@ -85,7 +93,7 @@ func (s *CareLifecycle) administrativelyVisibleStudentIDs(ctx context.Context, s
 	if err != nil {
 		return nil, err
 	}
-	return domain.AdministrativelyVisibleOn(studentIDs, students, boundaries, on, retained), nil
+	return domain.AdministrativelyVisibleOn(studentIDs, students, boundaries, on, today, retained), nil
 }
 
 // participationFacts reads the children and their first day without
@@ -166,8 +174,9 @@ func (s *CareLifecycle) inUnitHistoricalParticipatingStudentIDsByDate(ctx contex
 		return nil, err
 	}
 	result := make(map[calendar.Date]map[int64]bool)
+	today := s.today()
 	for day := from; !day.After(to); day = day.AddDays(1) {
-		result[day] = domain.HistoricalParticipationOn(studentIDs, students, boundaries, day)
+		result[day] = domain.HistoricalParticipationOn(studentIDs, students, boundaries, day, today)
 	}
 	return result, nil
 }
