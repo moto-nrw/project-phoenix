@@ -5,6 +5,7 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Download wie im OGS-Portal (#3430), mit der Sitzung von moto schule.
 
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import {
   schoolAuth,
   uncachedSchoolAuth,
@@ -51,13 +52,9 @@ async function GETHandler(
       cache: "no-store",
     });
 
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedSchoolAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
-    }
-  }
+  const upstream = await sendWithTokenRefresh(token, makeRequest, () =>
+    uncachedSchoolAuth(),
+  );
 
   if (!upstream.ok) {
     logger.warn("school_declaration_export_proxy_non_ok", {

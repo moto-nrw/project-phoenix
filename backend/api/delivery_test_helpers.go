@@ -135,7 +135,7 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	preferences, err := deliveryCompose.NewTenantPreferenceService(unit, NewNotificationConsentTestStore(db), settings.Settings, db.Pool(), members, securityruntime.HasPermission)
+	preferences, err := deliveryCompose.NewTenantPreferenceService(unit, NewNotificationConsentTestStore(db), owners.DeliveryPreferenceSettings(settings.Settings), db.Pool(), members, securityruntime.HasPermission)
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}

@@ -3,6 +3,7 @@
 import { Repeat } from "lucide-react";
 
 import { CatalogManageLink } from "~/components/database/catalog/catalog-manage-link";
+import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { RequiredMark } from "~/components/ui/field-label";
@@ -412,18 +413,20 @@ export function StepTermin({
       ) : (
         <>
           {form.seriesNotes.trim() !== "" && (
-            <div className="border-moto-blue/30 bg-moto-blue/10 rounded-lg border p-3">
-              <div className="text-moto-blue flex items-center gap-1.5 text-xs font-medium">
-                <Repeat className="h-3.5 w-3.5" aria-hidden="true" />
-                Wochennotiz der Terminreihe
-              </div>
-              <p className="mt-1 text-sm whitespace-pre-wrap text-gray-700">
-                {form.seriesNotes}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                Wird über den Regeltermin gepflegt und gilt für alle Termine.
-              </p>
-            </div>
+            <Alert
+              type="info"
+              announce="off"
+              icon={<Repeat className="h-4 w-4" />}
+              title="Wochennotiz der Terminreihe"
+              message={
+                <span className="whitespace-pre-wrap">{form.seriesNotes}</span>
+              }
+              details={
+                <p className="mt-1 text-xs">
+                  Wird über den Regeltermin gepflegt und gilt für alle Termine.
+                </p>
+              }
+            />
           )}
           <Field label="Tagesnotiz" htmlFor="event_notes">
             <Textarea

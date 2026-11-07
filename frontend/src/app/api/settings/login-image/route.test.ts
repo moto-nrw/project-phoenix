@@ -162,6 +162,8 @@ describe("POST /api/settings/login-image", () => {
       .mockResolvedValueOnce({
         ok: false,
         status: 401,
+        text: async () => "",
+        headers: new Headers(),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -324,6 +326,8 @@ describe("GET /api/settings/login-image", () => {
       .mockResolvedValueOnce({
         ok: false,
         status: 401,
+        text: async () => "",
+        headers: new Headers(),
       })
       .mockResolvedValueOnce({
         ok: true,
