@@ -57,14 +57,18 @@ und #4681. Er führt keinen Owner ein und hält fest, was er in den Registern
    eine Rechnung seiner Schule schon abrechnet (409
    `parent_billing.care_tariff_month_billed`); Preispflege und Freigabe
    halten dieselbe Sperre.
-7. **Empfänger.** Die Rechnung geht an die erste Vertragspartei mit
+7. **Schulen.** Die Preisliste nennt die Schulen des Trägers über den Port
+   `CareSchools`, den die Root an Organisation & Tenancy bindet. Ein Preis für
+   eine Schule eines anderen Trägers wird abgelehnt (400
+   `parent_billing.care_tariff_invalid`).
+8. **Empfänger.** Die Rechnung geht an die erste Vertragspartei mit
    E-Mail-Adresse, sonst an die erste. Abweichende Zahler und Bündelung
    kommen mit #4689.
-8. **Zugriffsprotokoll und Recht.** Routen unter `/traeger/care-tariffs` und
+9. **Zugriffsprotokoll und Recht.** Routen unter `/traeger/care-tariffs` und
    `/traeger/care-billing-runs` verlangen das Träger-Recht „Abrechnung“ und
    laufen in der Träger-Transaktion. Jedes Lesen eines Laufs schreibt
    `parent_billing.care_run_events` mit Konto und den gezeigten Verträgen.
-9. **Abgrenzung.** Prüfphase mit Standortwahl, Rechnungsdatum, Ausschluss
+10. **Abgrenzung.** Prüfphase mit Standortwahl, Rechnungsdatum, Ausschluss
    und Prüfexport (#5916), Senden und Druck der Schreiben, Empfänger und
    Zahlungsweg (#4689) sowie Ermäßigungen und Geschwister (#4685) bauen auf
    diesen Rechnungen auf und sind nicht Teil dieser Entscheidung.
@@ -84,15 +88,17 @@ und #4681. Er führt keinen Owner ein und hält fest, was er in den Registern
 
 - `policy.json`: fünf `data_objects` mit `write_owner` `parent-billing`; keine
   neue Regel, kein neues Paket.
-- `command-effects`: drei geprüfte Abfragen (Fassungen, Empfänger,
-  Monatsregel).
+- `command-effects`: geprüfte Abfragen der Fassungen und Empfänger
+  (Betreuungsvertrag), der Schulen des Trägers (Organisation & Tenancy) und
+  der Monatsregel (Settings).
 - `passthrough`: `CareBilling.ListCareRuns` und die Root-Übersetzungen
-  `parentBillingSettings.CareMonthRule` und
-  `parentBillingCareContracts.Recipients`.
+  `parentBillingSettings.CareMonthRule`,
+  `parentBillingCareContracts.Recipients` und
+  `parentBillingCareSchools.TraegerSchools`.
 - Budgets: `modules/parentbilling/compose` 50 → 55 Zeilen
   (`moduleComposeBudgetTotal` 12946 → 12951) und `modules/parentbilling`
   6 → 7 Durchreichungen (`modulePassthroughOwnerBudgetTotal` 1409 → 1410).
 - Query-Budgets `api.traeger.care_billing_runs` (2, exact) und
-  `api.traeger.care_tariffs` (4, exact).
+  `api.traeger.care_tariffs` (5, exact).
 - Datenlebenszyklus und Aufbewahrung: je fünf Einträge.
 - Migration `1.15.788`.

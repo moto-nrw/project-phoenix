@@ -161,6 +161,30 @@
       "target_owner": "care-contract"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareSchools.TraegerSchools",
+      "binding_digest": "fa291431eb1763425369a6c59f5f6e90",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareSchools.TraegerSchools",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareSchools.TraegerSchools",
+      "binding_digest": "8ea4ae3fa68fbe8c70727195198c4a0a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareSchools.TraegerSchools",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareSchools.TraegerSchools",
+      "binding_digest": "4449b29522aaf9d93eac9d4cb79b8c88",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareSchools.TraegerSchools",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
       "binding_digest": "e4e8a4e182c95b65aee0af7bee7b381f",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.ConfirmedHolidayRegistrations",

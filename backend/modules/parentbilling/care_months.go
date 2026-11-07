@@ -47,6 +47,8 @@ const (
 const (
 	// MaxMonthlyPriceCents caps a monthly price at one million euro.
 	MaxMonthlyPriceCents = 100_000_000
+	// MaxModuleNameLength is the longest name of a module a price copies.
+	MaxModuleNameLength = 200
 )
 
 var (
@@ -93,10 +95,17 @@ type CareTariff struct {
 	CreatedAt      time.Time      `json:"created_at"`
 }
 
-// CareTariffs is the price list of a Träger: the modules its contracts
-// book and every price. BilledUntil names per school the last month an
-// issued invoice bills; a new price starts after it.
+// CareSchool is a school of the Träger by its name.
+type CareSchool struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+// CareTariffs is the price list of a Träger: its schools, the modules its
+// contracts book and every price. BilledUntil names per school the last
+// month an issued invoice bills; a new price starts after it.
 type CareTariffs struct {
+	Schools     []CareSchool            `json:"schools"`
 	Modules     []CareModule            `json:"modules"`
 	Tariffs     []CareTariff            `json:"tariffs"`
 	BilledUntil map[int64]calendar.Date `json:"billed_until"`
@@ -246,6 +255,12 @@ type CareContracts interface {
 	// Recipients names per contract the party its invoice goes to: the
 	// first party with an e-mail address, else the first party.
 	Recipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]CareRecipient, error)
+}
+
+// CareSchools lists the schools of the Träger that are not deleted, by
+// name. The root binds it to Organisation & Tenancy.
+type CareSchools interface {
+	TraegerSchools(ctx context.Context, organizationID int64) ([]CareSchool, error)
 }
 
 // CareBillingSettings is the Träger's choice for a month in which a

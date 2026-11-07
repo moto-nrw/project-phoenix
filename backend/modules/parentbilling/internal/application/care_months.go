@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
@@ -48,6 +49,7 @@ type CareStore interface {
 type CareBilling struct {
 	store     CareStore
 	contracts parentbilling.CareContracts
+	schools   parentbilling.CareSchools
 	settings  parentbilling.CareBillingSettings
 	today     func() calendar.Date
 }
@@ -56,18 +58,24 @@ var _ parentbilling.CareBilling = (*CareBilling)(nil)
 
 // NewCareBilling builds the monthly billing. today is the issue date of a
 // release and the start of the price list's look ahead.
-func NewCareBilling(store CareStore, contracts parentbilling.CareContracts, settings parentbilling.CareBillingSettings, today func() calendar.Date) *CareBilling {
-	if store == nil || contracts == nil || settings == nil || today == nil {
-		panic("parent billing: the store, the care contracts, the settings and the clock are required")
+func NewCareBilling(store CareStore, contracts parentbilling.CareContracts, schools parentbilling.CareSchools,
+	settings parentbilling.CareBillingSettings, today func() calendar.Date,
+) *CareBilling {
+	if store == nil || contracts == nil || schools == nil || settings == nil || today == nil {
+		panic("parent billing: the store, the care contracts, the schools, the settings and the clock are required")
 	}
-	return &CareBilling{store: store, contracts: contracts, settings: settings, today: today}
+	return &CareBilling{store: store, contracts: contracts, schools: schools, settings: settings, today: today}
 }
 
-// CareTariffs reads the price list with the modules the contracts book
-// from this month on.
+// CareTariffs reads the price list with the schools of the Träger and the
+// modules the contracts book from this month on.
 func (c *CareBilling) CareTariffs(ctx context.Context, reviewer parentbilling.HolidayReviewer) (parentbilling.CareTariffs, error) {
 	if err := validReviewer(reviewer); err != nil {
 		return parentbilling.CareTariffs{}, err
+	}
+	schools, err := c.schools.TraegerSchools(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.CareTariffs{}, fmt.Errorf("parent billing: read the schools: %w", err)
 	}
 	from := firstOfMonth(c.today())
 	versions, err := c.contracts.VersionsInForce(ctx, reviewer.OrganizationID, from, from.AddDays(careModuleHorizon))
@@ -82,7 +90,31 @@ func (c *CareBilling) CareTariffs(ctx context.Context, reviewer parentbilling.Ho
 	if err != nil {
 		return parentbilling.CareTariffs{}, err
 	}
-	return parentbilling.CareTariffs{Modules: careModules(versions, tariffs), Tariffs: withValidity(tariffs), BilledUntil: billed}, nil
+	modules := careModules(versions, tariffs)
+	names := map[int64]string{}
+	for _, school := range schools {
+		names[school.ID] = school.Name
+	}
+	for i := range modules {
+		if modules[i].SchoolName == "" {
+			modules[i].SchoolName = names[modules[i].SchoolID]
+		}
+	}
+	return parentbilling.CareTariffs{Schools: schools, Modules: modules, Tariffs: withValidity(tariffs), BilledUntil: billed}, nil
+}
+
+// ownSchool reports whether the school belongs to the Träger.
+func (c *CareBilling) ownSchool(ctx context.Context, organizationID, schoolID int64) (bool, error) {
+	schools, err := c.schools.TraegerSchools(ctx, organizationID)
+	if err != nil {
+		return false, fmt.Errorf("parent billing: read the schools: %w", err)
+	}
+	for _, school := range schools {
+		if school.ID == schoolID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // careModules lists the modules the versions book and those the price
@@ -141,6 +173,12 @@ func (c *CareBilling) SaveCarePriceList(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.CareTariffs{}, err
 	}
+	if own, err := c.ownSchool(ctx, reviewer.OrganizationID, list.SchoolID); err != nil || !own {
+		if err != nil {
+			return parentbilling.CareTariffs{}, err
+		}
+		return parentbilling.CareTariffs{}, validation.Errors{"school_id": errors.New("is no school of the Träger")}
+	}
 	if err := c.lockUnbilledMonth(ctx, reviewer.OrganizationID, list.SchoolID, list.ValidFrom); err != nil {
 		return parentbilling.CareTariffs{}, err
 	}
@@ -157,6 +195,12 @@ func (c *CareBilling) DeleteCarePriceList(ctx context.Context, reviewer parentbi
 		return parentbilling.CareTariffs{}, err
 	}
 	if schoolID <= 0 || !isMonthStart(validFrom) {
+		return parentbilling.CareTariffs{}, parentbilling.ErrCareTariffNotFound
+	}
+	if own, err := c.ownSchool(ctx, reviewer.OrganizationID, schoolID); err != nil || !own {
+		if err != nil {
+			return parentbilling.CareTariffs{}, err
+		}
 		return parentbilling.CareTariffs{}, parentbilling.ErrCareTariffNotFound
 	}
 	if err := c.lockUnbilledMonth(ctx, reviewer.OrganizationID, schoolID, validFrom); err != nil {
@@ -208,10 +252,11 @@ func normalizePriceList(list parentbilling.CarePriceList) (parentbilling.CarePri
 			errs["prices"] = errors.New("names a module and weekday twice")
 		case price.MonthlyCents < 0 || price.MonthlyCents > parentbilling.MaxMonthlyPriceCents:
 			errs["prices"] = errors.New("must be amounts in cent, not negative")
-		case len([]rune(price.ModuleName)) == 0:
+		case strings.TrimSpace(price.ModuleName) == "" || len([]rune(price.ModuleName)) > parentbilling.MaxModuleNameLength:
 			errs["prices"] = errors.New("needs the name of the module")
 		}
 		seen[key] = true
+		price.ModuleName = strings.TrimSpace(price.ModuleName)
 		list.Prices[i] = price
 	}
 	if len(errs) > 0 {

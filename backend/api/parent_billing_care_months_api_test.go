@@ -367,6 +367,16 @@ func TestCarePriceListIsCheckedBeforeItIsSaved(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "parent_billing.care_run_invalid")
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodDelete, careTariffsPath+fmt.Sprintf("/%d/2029-09-01", school), nil)
 	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+
+	// A school of another Träger gets no price of this Träger.
+	foreign := newTraegerOffice(t, f.db, f.traeger, "Träger Monatsbeitrag Preise Fremd", identityaccess.TraegerRoleBilling)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(foreign.schools[0], "2029-09-01", 3200))
+	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "parent_billing.care_tariff_invalid")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careTariffsPath, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "OGS Nord", "the price list names the schools of the Träger")
+	assert.NotContains(t, rec.Body.String(), "Preise Fremd", "and no school of another Träger")
 }
 
 // The list of the monthly runs and the price list read the same statements

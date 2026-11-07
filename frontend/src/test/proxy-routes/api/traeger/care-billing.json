@@ -1,0 +1,19 @@
+{
+  "api/traeger/care-billing-runs": [
+    "GET traeger /traeger/care-billing-runs",
+    "POST traeger /traeger/care-billing-runs"
+  ],
+  "api/traeger/care-billing-runs/[id]": [
+    "GET traeger /traeger/care-billing-runs/id%2F1"
+  ],
+  "api/traeger/care-billing-runs/[id]/release": [
+    "POST traeger /traeger/care-billing-runs/id%2F1/release"
+  ],
+  "api/traeger/care-tariffs": [
+    "GET traeger /traeger/care-tariffs",
+    "PUT traeger /traeger/care-tariffs"
+  ],
+  "api/traeger/care-tariffs/[schoolId]/[validFrom]": [
+    "DELETE traeger /traeger/care-tariffs/schoolId%2F1/validFrom%2F1"
+  ]
+}

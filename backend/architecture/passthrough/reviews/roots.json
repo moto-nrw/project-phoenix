@@ -826,6 +826,11 @@
       "reason": "ADR 0158 (#4684): Consumer-port adapter of the Elternabrechnung's care contract port; it translates the Betreuungsvertrag's chosen invoice recipient per contract into the port's recipient."
     },
     {
+      "decision": "0158",
+      "id": "api/parentBillingCareSchools.TraegerSchools",
+      "reason": "ADR 0158 (#4684): Consumer-port adapter of the Elternabrechnung's schools port; it lists the schools of the Träger at Organisation \u0026 Tenancy without the deleted ones and translates them into the port's schools by name."
+    },
+    {
       "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.CancelHolidayRegistration",
       "reason": "ADR 0115 addendum (#5662): Consumer-port adapter of the Elternabrechnung's holiday registrations; it cancels through Enrollment's review in the caller's Träger transaction, so the Elternabrechnung computes the sibling group again in the same unit, and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."

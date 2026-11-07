@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -54,7 +56,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	families := parentBillingHTTP.NewBillingFamilyResource(parentBillingCompose.NewBillingFamilies(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
-	care := NewCareBillingHTTP(settings)
+	care := NewCareBillingHTTP(organizations, settings)
 	root.Mount("/traeger/care-tariffs", care.TariffRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-billing-runs", care.RunRouter(ProtectedTraegerRoutes))
 }
@@ -63,10 +65,32 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 // (#4684) to the right "Abrechnung", to the versions in force and the
 // parties of the Betreuungsvertrag in the caller's Träger transaction, and
 // to the Träger's month rule.
-func NewCareBillingHTTP(settings TraegerBrandingSettings) *parentBillingHTTP.CareBillingResource {
+func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings) *parentBillingHTTP.CareBillingResource {
 	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
-	return parentBillingHTTP.NewCareBillingResource(parentBillingCompose.NewCareBilling(contracts, parentBillingSettings{settings: settings}),
+	return parentBillingHTTP.NewCareBillingResource(parentBillingCompose.NewCareBilling(contracts,
+		parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings}),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+}
+
+// parentBillingCareSchools lists the schools of the Träger at Organisation
+// & Tenancy that are not deleted, by name, for the price list (#4684).
+type parentBillingCareSchools struct {
+	organizations HolidayOrganizations
+}
+
+func (s parentBillingCareSchools) TraegerSchools(ctx context.Context, organizationID int64) ([]parentbilling.CareSchool, error) {
+	schools, err := s.organizations.ListSchoolsByOrganization(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]parentbilling.CareSchool, 0, len(schools))
+	for _, school := range schools {
+		if !school.IsDeleted() {
+			result = append(result, parentbilling.CareSchool{ID: school.ID, Name: school.Name})
+		}
+	}
+	slices.SortFunc(result, func(a, b parentbilling.CareSchool) int { return strings.Compare(a.Name, b.Name) })
+	return result, nil
 }
 
 // parentBillingCareContracts translates the Betreuungsvertrag's versions in
