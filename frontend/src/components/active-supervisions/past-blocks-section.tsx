@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { ListRow } from "~/components/ui/list-row";
 import {
   useCallback,
@@ -299,9 +300,10 @@ function PastBlockCard({
                     </p>
                   ) : null}
                   {roster.rows.length === 0 ? (
-                    <p className="text-sm text-gray-600">
-                      Keine Kinder eingeplant.
-                    </p>
+                    <EmptyState
+                      variant="compact"
+                      description="Keine Kinder eingeplant."
+                    />
                   ) : (
                     <>
                       {roster.pickupTimesLoaded === false &&

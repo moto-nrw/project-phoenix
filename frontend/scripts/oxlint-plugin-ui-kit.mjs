@@ -76,6 +76,9 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //   ui-kit/no-white-on-warm-fill    — no white text on orange (SCHOOLYARD) or
 //                                     amber (WARNING) fills
 //
+// ui-kit/no-hand-rolled-empty-state (#5597, hard-zero): a dashed, centered box
+// outside ui/ is a hand-built placeholder; use EmptyState variant="dashed".
+//
 // Two more keep uploads and copyable values on the kit (#5599), hard-zero:
 //
 //   ui-kit/no-hand-rolled-dropzone  — no onDrop outside ui/dropzone.tsx; use
@@ -1181,7 +1184,7 @@ src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@231
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/dashboard/header/reminders-bell.tsx|text-[11px]@45
+src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/files/files-page.tsx|text-[11px]@180 text-[11px]@287
@@ -1196,14 +1199,14 @@ src/components/students/planned-status-days-modal.tsx|text-[10px]@935 text-[11px
 src/components/students/school-checkin-fab.tsx|text-[10px]@200
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@371
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-[11px]@310
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@150 text-[11px]@315
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1355 text-[11px]@1380 text-[11px]@1553 text-[10px]@1662 text-[11px]@1685
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1355 text-[11px]@1380 text-[11px]@1547 text-[10px]@1656 text-[11px]@1679
 src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[10px]@246 text-[11px]@255 text-[10px]@297 text-[10px]@321 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
-src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@411 text-[11px]@478
+src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@412 text-[11px]@481
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
 src/components/timetable/substitution-slide-over.tsx|text-[11px]@743 text-[11px]@747
 src/components/timetable/template-card.tsx|text-[11px]@131 text-[10px]@201
@@ -4093,6 +4096,225 @@ const noHandRolledDropzone = {
   },
 };
 
+// ui-kit/no-hand-rolled-empty-state (#5597). Gestrichelt und zentriert ist der
+// Leer-Platzhalter; der kommt aus EmptyState. Die übrigen gestrichelten Flächen
+// (Vorschau eines Upload-Felds, vorgemerkte Termine) sind nicht zentriert.
+const noHandRolledEmptyState = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-built dashed empty states; use EmptyState variant=dashed.",
+    },
+    messages: {
+      handRolled:
+        'Ein gestrichelter Leerzustand kommt aus dem Kit: EmptyState variant="dashed" aus ~/components/ui/empty-state (#5597).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key.startsWith("src/components/ui/")) {
+      return {};
+    }
+    const sourceCode = context.sourceCode ?? context.getSourceCode?.();
+    const DASHED = 1;
+    const CENTERED = 2;
+    const DASHED_AND_CENTERED = DASHED | CENTERED;
+    const emptyStateClassPath = (text) => {
+      const classes = text.split(/\s+/);
+      return (
+        (classes.includes("border-dashed") ? DASHED : 0) |
+        (classes.includes("text-center") ? CENTERED : 0)
+      );
+    };
+    const isDashedAndCentered = (text) =>
+      emptyStateClassPath(text) === DASHED_AND_CENTERED;
+    const combineClassPaths = (left, right) =>
+      new Set(
+        [...left].flatMap((leftPath) =>
+          [...right].map((rightPath) => leftPath | rightPath),
+        ),
+      );
+    const eitherClassPaths = (left, right) => new Set([...left, ...right]);
+    const collectObjectClassPaths = (node) => {
+      let paths = new Set([0]);
+      const conditions = new Map();
+
+      for (const property of node.properties) {
+        if (property.type !== "Property" || property.computed) continue;
+        const keyPaths = collectClassPaths(property.key);
+        if (
+          property.value.type === "Literal" ||
+          (property.value.type === "Identifier" &&
+            property.value.name === "undefined")
+        ) {
+          if (property.value.value) {
+            paths = combineClassPaths(paths, keyPaths);
+          }
+          continue;
+        }
+
+        const negated =
+          property.value.type === "UnaryExpression" &&
+          property.value.operator === "!";
+        const condition = negated ? property.value.argument : property.value;
+        const conditionText = sourceCode?.getText(condition);
+        if (conditionText == null || conditionText === "") continue;
+        const variants = conditions.get(conditionText) ?? {
+          whenFalse: new Set([0]),
+          whenTrue: new Set([0]),
+        };
+        variants[negated ? "whenFalse" : "whenTrue"] = combineClassPaths(
+          variants[negated ? "whenFalse" : "whenTrue"],
+          keyPaths,
+        );
+        conditions.set(conditionText, variants);
+      }
+
+      for (const { whenFalse, whenTrue } of conditions.values()) {
+        paths = combineClassPaths(paths, eitherClassPaths(whenFalse, whenTrue));
+      }
+      return paths;
+    };
+    const collectClassPaths = (node, seenVariables = new Set()) => {
+      if (node == null || typeof node !== "object") return new Set([0]);
+      if (node.type === "Literal" && typeof node.value === "string") {
+        return new Set([emptyStateClassPath(node.value)]);
+      }
+      if (node.type === "TemplateElement") {
+        return new Set([emptyStateClassPath(node.value.raw)]);
+      }
+      switch (node.type) {
+        case "JSXExpressionContainer":
+        case "ChainExpression":
+        case "TSAsExpression":
+        case "TSTypeAssertion":
+        case "TypeCastExpression":
+          return collectClassPaths(node.expression);
+        case "Identifier": {
+          const variable = findVariable(sourceCode, node);
+          if (!variable || seenVariables.has(variable)) return new Set([0]);
+
+          const nextSeenVariables = new Set(seenVariables);
+          nextSeenVariables.add(variable);
+          let paths = new Set();
+          for (const definition of variable.defs) {
+            if (
+              definition.type !== "Variable" ||
+              definition.node.type !== "VariableDeclarator" ||
+              definition.parent?.kind !== "const" ||
+              !definition.node.init
+            ) {
+              continue;
+            }
+            paths = eitherClassPaths(
+              paths,
+              collectClassPaths(definition.node.init, nextSeenVariables),
+            );
+          }
+          return paths.size > 0 ? paths : new Set([0]);
+        }
+        case "ConditionalExpression":
+          return eitherClassPaths(
+            collectClassPaths(node.consequent),
+            collectClassPaths(node.alternate),
+          );
+        case "LogicalExpression":
+          return node.operator === "&&"
+            ? eitherClassPaths(new Set([0]), collectClassPaths(node.right))
+            : eitherClassPaths(
+                collectClassPaths(node.left),
+                collectClassPaths(node.right),
+              );
+        case "TemplateLiteral":
+          return node.quasis.reduce(
+            (paths, quasi, index) =>
+              combineClassPaths(
+                combineClassPaths(paths, collectClassPaths(quasi)),
+                node.expressions[index] == null
+                  ? new Set([0])
+                  : collectClassPaths(node.expressions[index]),
+              ),
+            new Set([0]),
+          );
+        case "CallExpression":
+          return node.arguments.reduce(
+            (paths, argument) =>
+              combineClassPaths(paths, collectClassPaths(argument)),
+            new Set([0]),
+          );
+        case "ArrayExpression":
+          return node.elements.reduce(
+            (paths, element) =>
+              combineClassPaths(paths, collectClassPaths(element)),
+            new Set([0]),
+          );
+        case "SpreadElement":
+        case "MemberExpression":
+          return collectClassPaths(node.argument ?? node.object);
+        case "TaggedTemplateExpression":
+          return collectClassPaths(node.quasi);
+        case "BinaryExpression":
+          return node.operator === "+"
+            ? combineClassPaths(
+                collectClassPaths(node.left),
+                collectClassPaths(node.right),
+              )
+            : new Set([0]);
+        case "ObjectExpression":
+          return collectObjectClassPaths(node);
+        default:
+          return new Set([0]);
+      }
+    };
+    const belongsToClassNameAttribute = (node) => {
+      let parent = node.parent;
+      while (parent != null) {
+        if (parent.type === "JSXAttribute") {
+          return parent.name?.name === "className";
+        }
+        parent = parent.parent;
+      }
+      return false;
+    };
+    return {
+      // Über alle Teile des className-Ausdrucks, auch Template und cn()-Argumente.
+      JSXAttribute(node) {
+        if (node.name?.name !== "className") return;
+        if (
+          [...collectClassPaths(node.value)].some(
+            (path) => path === DASHED_AND_CENTERED,
+          )
+        ) {
+          context.report({ node, messageId: "handRolled" });
+        }
+      },
+      // Eine Klassenkette in einer Konstante.
+      Literal(node) {
+        if (
+          typeof node.value === "string" &&
+          !belongsToClassNameAttribute(node) &&
+          isDashedAndCentered(node.value)
+        ) {
+          context.report({ node, messageId: "handRolled" });
+        }
+      },
+      TemplateLiteral(node) {
+        if (
+          !belongsToClassNameAttribute(node) &&
+          [...collectClassPaths(node)].some(
+            (path) => path === DASHED_AND_CENTERED,
+          )
+        ) {
+          context.report({ node, messageId: "handRolled" });
+        }
+      },
+    };
+  },
+};
+
 const noHandRolledCopyField = {
   meta: {
     type: "problem",
@@ -4153,6 +4375,7 @@ export default {
     "no-own-spinner": noOwnSpinner,
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
+    "no-hand-rolled-empty-state": noHandRolledEmptyState,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-field-label": noHandRolledFieldLabel,
     "no-hand-rolled-menu": noHandRolledMenu,

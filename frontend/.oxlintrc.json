@@ -79,6 +79,7 @@
     "ui-kit/no-hand-rolled-pill": "error",
     "ui-kit/no-hand-rolled-portal-nav": "error",
     "ui-kit/no-hand-rolled-dropzone": "error",
+    "ui-kit/no-hand-rolled-empty-state": "error",
     "ui-kit/no-hand-rolled-copy-field": "error",
     "ui-kit/no-own-spinner": "error",
     "ui-kit/no-hand-rolled-menu": "error",

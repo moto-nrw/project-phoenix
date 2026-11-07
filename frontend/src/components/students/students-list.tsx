@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { AlertCircle } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { DatabaseListItem } from "~/components/database/database-list-item";
@@ -361,9 +362,7 @@ export function StudentsList({
           renderItem={renderItem}
           keyFor={keyForStudent}
           emptyState={
-            <div className="text-center text-sm text-gray-500">
-              Keine Kinder gefunden.
-            </div>
+            <EmptyState variant="compact" title="Keine Kinder gefunden." />
           }
         />
       </DatabaseListLayout>

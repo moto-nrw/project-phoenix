@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { Check } from "lucide-react";
 import { useState } from "react";
 
@@ -79,9 +80,11 @@ export function PlanningTrackSelect({
       className="w-full"
       emptyState={
         <li role="presentation">
-          <p className="px-3 py-4 text-center text-sm text-gray-500">
-            Keine Planungsspur gefunden.
-          </p>
+          <EmptyState
+            variant="compact"
+            title="Keine Planungsspur gefunden."
+            className="px-3"
+          />
         </li>
       }
       renderTrigger={({ open }) => (

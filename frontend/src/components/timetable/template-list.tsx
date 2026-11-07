@@ -9,7 +9,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { RosterDeviation } from "~/lib/roster-deviation";
 import { TemplateCard } from "./template-card";
 import type { TimetableTemplate } from "~/lib/timetable-types";
-import { timetableSurface, timetableSurfacePadded } from "./timetable-style";
+import { timetableSurfacePadded } from "./timetable-style";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
@@ -64,33 +64,32 @@ export function TemplateList({
 
   if (templates.length === 0) {
     return (
-      <div className={`${timetableSurface} border-dashed px-6`}>
-        <EmptyState
-          icon={
-            <ConceptIconTile
-              concept={carePlanConcept}
-              size="page"
-              shape="round"
-            />
-          }
-          title="Keine Regeltermine in diesem Zeitraum"
-          description="Regeltermine sind wiederkehrende Termine, zum Beispiel Mensa jeden Montag oder Lernzeit alle zwei Wochen."
-          action={
-            canManage ? (
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                onClick={onCreate}
-                className="gap-2"
-              >
-                <Plus className="h-5 w-5 stroke-[2.5]" aria-hidden />
-                Regeltermin anlegen
-              </Button>
-            ) : undefined
-          }
-        />
-      </div>
+      <EmptyState
+        variant="dashed"
+        icon={
+          <ConceptIconTile
+            concept={carePlanConcept}
+            size="page"
+            shape="round"
+          />
+        }
+        title="Keine Regeltermine in diesem Zeitraum"
+        description="Regeltermine sind wiederkehrende Termine, zum Beispiel Mensa jeden Montag oder Lernzeit alle zwei Wochen."
+        action={
+          canManage ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={onCreate}
+              className="gap-2"
+            >
+              <Plus className="h-5 w-5 stroke-[2.5]" aria-hidden />
+              Regeltermin anlegen
+            </Button>
+          ) : undefined
+        }
+      />
     );
   }
 

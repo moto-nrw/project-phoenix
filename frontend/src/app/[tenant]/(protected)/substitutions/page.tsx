@@ -315,7 +315,7 @@ function LabeledSelect({
   name,
   label,
   value,
-  invalid,
+  error,
   onChange,
   options,
 }: Readonly<{
@@ -324,33 +324,24 @@ function LabeledSelect({
   name: string;
   label: string;
   value: string;
-  invalid: boolean;
+  error: string | undefined;
   onChange: (value: string) => void;
   options: Array<{ id: string; name: string }>;
 }>) {
   return (
-    <div>
-      <label
-        id={`${id}-label`}
-        htmlFor={id}
-        className="mb-2 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <CustomSelect
-        id={id}
-        name={name}
-        invalid={invalid}
-        ariaLabelledBy={`${id}-label`}
-        value={value}
-        onChange={onChange}
-        placeholder={`${label} auswählen...`}
-        options={options.map((option) => ({
-          value: option.id,
-          label: option.name,
-        }))}
-      />
-    </div>
+    <CustomSelect
+      id={id}
+      name={name}
+      label={label}
+      error={error}
+      value={value}
+      onChange={onChange}
+      placeholder={`${label} auswählen...`}
+      options={options.map((option) => ({
+        value: option.id,
+        label: option.name,
+      }))}
+    />
   );
 }
 
@@ -373,23 +364,16 @@ function LabeledDate({
   onChange: (value: string) => void;
 }>) {
   return (
-    <div>
-      <label
-        htmlFor={id}
-        className="mb-2 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <Input
-        id={id}
-        name={name}
-        error={error}
-        type="date"
-        min={min}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </div>
+    <Input
+      id={id}
+      name={name}
+      label={label}
+      error={error}
+      type="date"
+      min={min}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
   );
 }
 
@@ -446,7 +430,7 @@ function AssignmentFields(props: AssignmentFieldsProps) {
         name="group_id"
         label="Gruppe"
         value={values.groupId}
-        invalid={Boolean(fieldError("group_id"))}
+        error={fieldError("group_id")}
         onChange={setters.group}
         options={overview.groups}
       />
@@ -455,7 +439,7 @@ function AssignmentFields(props: AssignmentFieldsProps) {
         name="target_staff_id"
         label="Betreuungskraft"
         value={values.staffId}
-        invalid={Boolean(fieldError("target_staff_id"))}
+        error={fieldError("target_staff_id")}
         onChange={setters.staff}
         options={overview.targets.map((target) => ({
           id: target.id,
