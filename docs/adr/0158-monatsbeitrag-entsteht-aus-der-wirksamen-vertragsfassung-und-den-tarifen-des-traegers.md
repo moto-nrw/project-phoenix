@@ -72,9 +72,14 @@ und #4681. Er führt keinen Owner ein und hält fest, was er in den Registern
    `parent_billing.care_run_events` mit Konto und den gezeigten Verträgen.
 10. **Betragsregeln.** Ein gebuchter Wochentag eines Moduls zählt je Kind
    und Monat höchstens einmal. Buchen zwei aktive Verträge desselben Kindes
-   (Schülerakte, sonst Name und Geburtsdatum) dasselbe Modul am selben Tag,
-   rechnet der Lauf keinen von beiden ab und zeigt sie als „Doppelter
-   Vertrag – bitte prüfen“. Ein Modul, das über alle Fassungen des Monats
+   (Schülerakte; fehlt sie bei einem, Name und Geburtsdatum) dasselbe Modul
+   an einem Tag, den der Lauf für beide abrechnet, rechnet er keinen von
+   beiden ab und zeigt sie als „Doppelter Vertrag – bitte prüfen“. Ein
+   Duplikat hält die Abrechnung des Trägers nicht auf: Die Freigabe stellt
+   die Rechnungen der übrigen Kinder aus und nennt die Zahl der Kinder mit
+   Duplikat; der freigegebene Lauf zeigt sie unter „Nicht abgerechnet –
+   Doppelter Vertrag“. Ist das Duplikat behoben, rechnet ein späterer Lauf
+   des Monats das Kind ab, wie ein Kind, dem ein Preis fehlte. Ein Modul, das über alle Fassungen des Monats
    gleich bleibt, ist eine Position zum vollen Monatspreis; geteilte
    Positionen ergeben zusammen den Betrag des Moduls auf den Cent (größter
    Rest). Die Demo-Löschung (ADR 0062) entfernt Monatsrechnungen und die
