@@ -605,7 +605,8 @@ if (!TRAEGER_HOSTNAME) {
 /** Paths the Träger subdomain serves (without /traeger prefix): the login,
  * the reset link (#5149), the holiday periods (#4659), the invitation link,
  * which opens /invite (#4650), the settings area (#4652, #5685), the billing
- * runs (#4668), the care contracts (#4678), the view of one school (#5686),
+ * runs (#4668), the care contracts (#4678), the overruns of the booked care
+ * at /zeitvergleich (#4683), the view of one school (#5686),
  * the dashboard over all schools at /uebersicht (#4674), the
  * Stichtagszahlen (#4673) and the shared documents (#4692). The school list
  * itself lives at the root ("/" →
@@ -619,6 +620,7 @@ const TRAEGER_PUBLIC_PATHS = [
   "/einstellungen",
   "/abrechnung",
   "/vertraege",
+  "/zeitvergleich",
   "/schulen",
   "/uebersicht",
   "/stichtagszahlen",

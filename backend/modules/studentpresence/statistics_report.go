@@ -204,7 +204,9 @@ type StatisticsReports interface {
 	ReportForExport(ctx context.Context, filters StatisticsFilters, actor StatisticsActor, format string) (*StatisticsReport, error)
 	// StudentCareTimes compares one child's booked care time with the
 	// attendance per day (#4774).
-	StudentCareTimes(ctx context.Context, studentID int64, from, to calendar.Date) (*StudentCareTimes, error)
+	// The read records one data-access log row per actor, child and window
+	// (deduplicated for 15 min), like the overrun list (ADR 0088 section 7).
+	StudentCareTimes(ctx context.Context, studentID int64, from, to calendar.Date, actor StatisticsActor) (*StudentCareTimes, error)
 	// CareTimeOverruns lists the children with overruns in the window and
 	// records one data-access log row per actor and window (deduplicated
 	// for 15 min).
