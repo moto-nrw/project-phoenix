@@ -59,6 +59,9 @@ func NewNotifications(deps NotificationDependencies) *Notifications {
 	if deps.Branding == nil {
 		panic("enrollment notifications: mail branding is required")
 	}
+	if deps.Settings == nil {
+		panic("enrollment notifications: settings are required")
+	}
 	return &Notifications{deps: deps}
 }
 
@@ -71,9 +74,6 @@ func (n *Notifications) SchoolBrand(ctx context.Context, tenantID int64, baseURL
 	brand := enrollment.MailBrand{MotoLogoURL: motoLogoURL}
 	if tenantID == 0 {
 		return brand, nil
-	}
-	if n.deps.Settings == nil {
-		return enrollment.MailBrand{}, fmt.Errorf("mail brand: settings are not configured")
 	}
 	term, err := n.deps.Settings.CareFacilityTerm(ctx)
 	if err != nil {

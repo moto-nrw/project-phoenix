@@ -270,12 +270,12 @@ func TestSchoolBrandPropagatesTheTermReadFailure(t *testing.T) {
 	_, err := newNotificationsForTest(NotificationDependencies{Schools: schoolDirectoryStub{school: school}, Settings: notificationSettingsStub{termErr: errors.New("db down")}}).SchoolBrand(context.Background(), 3, "")
 	require.ErrorContains(t, err, "db down")
 
-	unwired := NewNotifications(NotificationDependencies{
-		Schools:  schoolDirectoryStub{school: school},
-		Branding: func(string, string) (string, string) { return "", "" },
+	require.PanicsWithValue(t, "enrollment notifications: settings are required", func() {
+		NewNotifications(NotificationDependencies{
+			Schools:  schoolDirectoryStub{school: school},
+			Branding: func(string, string) (string, string) { return "", "" },
+		})
 	})
-	_, err = unwired.SchoolBrand(context.Background(), 3, "")
-	require.ErrorContains(t, err, "settings")
 }
 
 // schoolLoginImageURL extracts the school's brand logo URL from the JSON
