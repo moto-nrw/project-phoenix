@@ -388,7 +388,7 @@ func (s *arrivalScheduleService) CreateOrReclaimException(
 	staffID int64,
 	resolveStaffID func() (int64, error),
 ) (*careplan.ArrivalException, error) {
-	return s.createOrReclaimException(
+	return s.createOrReclaimOne(
 		ctx,
 		studentID,
 		date,
@@ -407,10 +407,41 @@ func (s *arrivalScheduleService) CreateOrReclaimExceptionForClass(
 	ctx context.Context, schoolClass string, studentID int64, date calendar.Date,
 	arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error),
 ) (*careplan.ArrivalException, error) {
+	authorize, err := s.classStudentCheck(schoolClass, date)
+	if err != nil {
+		return nil, err
+	}
+	return s.createOrReclaimOne(ctx, studentID, date, arrivalTime, reason, staffID, resolveStaffID, func(txCtx context.Context) error {
+		return authorize(txCtx, studentID)
+	})
+}
+
+// CreateOrReclaimExceptionsForClass runs the class command for several
+// children in one unit of work (#5824), child by child as single commands
+// would: the first refusal or failure ends the report.
+func (s *arrivalScheduleService) CreateOrReclaimExceptionsForClass(
+	ctx context.Context, schoolClass string, studentIDs []int64, date calendar.Date,
+	arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error),
+) error {
+	authorize, err := s.classStudentCheck(schoolClass, date)
+	if err != nil {
+		return err
+	}
+	_, err = s.createOrReclaimException(ctx, exceptionBatch{
+		studentIDs: studentIDs, date: date, value: arrivalTime, reason: reason, staffID: staffID,
+		resolveStaffID: resolveStaffID, authorize: authorize,
+	})
+	return err
+}
+
+// classStudentCheck authorizes the current student row of a school-class
+// write under the student lock.
+func (s *arrivalScheduleService) classStudentCheck(schoolClass string, date calendar.Date) (func(context.Context, int64) error, error) {
 	if s.students == nil || strings.TrimSpace(schoolClass) == "" {
 		return nil, errors.New("class arrival exception: students and school class are required")
 	}
-	return s.createOrReclaimException(ctx, studentID, date, arrivalTime, reason, staffID, resolveStaffID, func(txCtx context.Context) error {
+	filter := careplan.ArrivalScheduleBulkFilter{SchoolClass: strings.TrimSpace(schoolClass)}
+	return func(txCtx context.Context, studentID int64) error {
 		student, err := s.students.LockByID(txCtx, studentID, date)
 		if err != nil {
 			return err
@@ -418,8 +449,8 @@ func (s *arrivalScheduleService) CreateOrReclaimExceptionForClass(
 		if student.Alumnus || student.CareEnded {
 			return careplan.ErrBulkStudentNotFound
 		}
-		return validateLockedArrivalStudent(txCtx, student, careplan.ArrivalScheduleBulkFilter{SchoolClass: strings.TrimSpace(schoolClass)})
-	})
+		return validateLockedArrivalStudent(txCtx, student, filter)
+	}, nil
 }
 
 func (s *arrivalScheduleService) UpdateException(
