@@ -74,6 +74,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.LetterMailBlocks",
+      "binding_digest": "9c6239aa2bd721a7b0eb0c427b38f0b0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.LetterMailBlocks",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Read",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.LetterMailBlocks",
       "binding_digest": "e95333bfdfd563ce77bfd08d9e6f075c",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.LetterMailBlocks",
       "source_owner": "parent-billing",
