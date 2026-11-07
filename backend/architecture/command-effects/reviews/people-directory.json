@@ -13473,7 +13473,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListRosterWithStaffAndPerson",
-      "reason": "Kiosk roster reads School Membership teacher/live-staff facts in one statement via ListTeachers(IncludeStaff), preserving the separate Workforce employment read and People person read. No writes, locks, scope switches or detached work.",
+      "reason": "E1 #5860: Kiosk roster requests IncludeStaff plus MembershipOnly. Same teacher/live-member selection and person hydration; unused Employment is omitted. Query-only, no writes, locks or changed device/tenant authorization.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListTeachers",
       "target_owner": "school-membership"
@@ -13483,7 +13483,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListRosterWithStaffAndPerson",
-      "reason": "Kiosk roster reads School Membership teacher/live-staff facts in one statement via ListTeachers(IncludeStaff), preserving the separate Workforce employment read and People person read. No writes, locks, scope switches or detached work.",
+      "reason": "E1 #5860: Kiosk roster requests IncludeStaff plus MembershipOnly. Same teacher/live-member selection and person hydration; unused Employment is omitted. Query-only, no writes, locks or changed device/tenant authorization.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListTeachers",
       "target_owner": "school-membership"
