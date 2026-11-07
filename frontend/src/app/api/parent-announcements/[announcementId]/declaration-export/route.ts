@@ -3,12 +3,10 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Erklärungen (#3430): den Nachweisbericht als PDF oder den Verlauf als CSV
 // herunterladen. Beide Dateien erzeugt das Backend.
 //
-// Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen. Spiegelt
-// den Download-Proxy der Anhänge: JWT serverseitig setzen, bei 401 einmal
-// erneuern, Body mit Content-Type und Content-Disposition unverändert
-// durchreichen.
+// Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen.
 
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
@@ -50,13 +48,9 @@ async function GETHandler(
       cache: "no-store",
     });
 
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
-    }
-  }
+  const upstream = await sendWithTokenRefresh(token, makeRequest, () =>
+    uncachedAuth(),
+  );
 
   if (!upstream.ok) {
     logger.warn("declaration_export_proxy_non_ok", {

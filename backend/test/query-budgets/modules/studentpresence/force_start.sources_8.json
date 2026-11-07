@@ -1,6 +1,6 @@
 {
   "scenario": "modules.studentpresence.force_start.sources_8",
-  "max": 289,
+  "max": 268,
   "exact": false,
   "description": "Complete force-start service, eight source groups with distinct supervisors and active visits; includes tenant unit and all writes."
 }

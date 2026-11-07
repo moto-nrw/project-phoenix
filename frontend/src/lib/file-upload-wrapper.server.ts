@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { problemResponse } from "./api-response-error.server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "../server/auth";
-import { sendWithTokenRefresh } from "./token-refresh-retry.server";
+import { executeWithTokenRefresh } from "./token-refresh-retry.server";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
 import { handleApiError } from "./api-helpers.server";
@@ -199,7 +199,10 @@ export async function parseBoundedMultipartFormData(
 }
 
 /**
- * Wrapper function for handling file upload API routes
+ * Tenant file upload route: authenticates, bounds and validates the
+ * multipart body, then runs the handler, once more with the refreshed
+ * session's token after it throws a backend 401. The handler builds its
+ * outgoing form on each run, so the retry sends the same files again.
  */
 export function createFileUploadHandler<T>(
   handler: (
@@ -259,20 +262,18 @@ export function createFileUploadHandler<T>(
           throw validationError;
         }
 
-        const data = await handler(
+        return await executeWithTokenRefresh(
           request,
-          formData,
           session.user.token,
-          safeParams,
+          (token) => handler(request, formData, token, safeParams),
+          (data) =>
+            NextResponse.json<ApiResponse<T>>(
+              typeof data === "object" && data !== null && "success" in data
+                ? (data as unknown as ApiResponse<T>)
+                : { success: true, message: "Success", data },
+            ),
+          () => uncachedAuth(),
         );
-
-        // Wrap the response in ApiResponse format if it's not already
-        const response: ApiResponse<T> =
-          typeof data === "object" && data !== null && "success" in data
-            ? (data as unknown as ApiResponse<T>)
-            : { success: true, message: "Success", data };
-
-        return NextResponse.json(response);
       } catch (error) {
         if (error instanceof FileValidationError) {
           return fileValidationProblemResponse(error, request);
@@ -295,10 +296,8 @@ interface FileForwardOptions extends FileUploadOptions {
 }
 
 /**
- * Tenant upload proxy: validates the file, forwards it with the listed fields
- * and the client identity, and repeats the upload once with a refreshed
- * session after a 401. The form is rebuilt from the in-memory file so the
- * retry can send it again. Answers the backend's `data`.
+ * Tenant upload proxy: validates the file and forwards it with the listed
+ * fields and the client identity. Answers the backend's `data`.
  */
 export function proxyFileUpload(
   endpoint: ProxyEndpoint,
@@ -314,14 +313,10 @@ export function proxyFileUpload(
           "files.file_missing",
         );
       }
-      const bytes = await file.arrayBuffer();
-      options.verify?.(bytes);
+      options.verify?.(await file.arrayBuffer());
 
       const forwarded = new FormData();
-      forwarded.append(
-        options.file,
-        new File([bytes], file.name, { type: file.type }),
-      );
+      forwarded.append(options.file, file);
       for (const name of options.fields ?? []) {
         const value = formData.get(name);
         if (typeof value !== "string" || value === "") {
@@ -341,20 +336,16 @@ export function proxyFileUpload(
       }
 
       const path = typeof endpoint === "string" ? endpoint : endpoint(params);
-      const send = (bearer: string) =>
-        fetch(`${getServerApiUrl()}${path}`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${bearer}`,
-            ...clientIdentityHeaders(request.headers),
-          },
-          body: forwarded,
-          cache: "no-store",
-        });
+      const response = await fetch(`${getServerApiUrl()}${path}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...clientIdentityHeaders(request.headers),
+        },
+        body: forwarded,
+        cache: "no-store",
+      });
 
-      const response = await sendWithTokenRefresh(token, send, () =>
-        uncachedAuth(),
-      );
       if (!response.ok) throw await backendResponseError(response);
       return ((await response.json()) as { data?: unknown }).data;
     },

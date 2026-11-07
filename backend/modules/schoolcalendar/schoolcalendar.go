@@ -317,6 +317,7 @@ type Capability interface {
 type Days interface {
 	Capability
 	NonWorkingDayQuery
+	CareCalendarQuery
 }
 
 func IsValidPeriodType(t string) bool {

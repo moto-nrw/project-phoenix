@@ -45,9 +45,13 @@ describe("SessionWarning", () => {
       <SessionWarning isExpired={true} variant="desktop" />,
     );
 
-    const warning = container.querySelector('[class~="border-moto-red/20"]');
+    // Expired session is an orange warning Alert, not an error (#6071).
+    const warning = container.querySelector('[class~="border-moto-orange/20"]');
     expect(warning).toBeInTheDocument();
-    expect(warning).toHaveClass("bg-moto-red-soft");
+    expect(warning).toHaveClass("bg-moto-orange-soft");
+    expect(warning).toHaveTextContent(
+      "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+    );
   });
 
   it("mobile variant has proper icon color", () => {
@@ -55,7 +59,7 @@ describe("SessionWarning", () => {
       <SessionWarning isExpired={true} variant="mobile" />,
     );
 
-    const iconContainer = container.querySelector(".text-moto-red");
+    const iconContainer = container.querySelector(".text-moto-orange-strong");
     expect(iconContainer).toBeInTheDocument();
   });
 });

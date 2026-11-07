@@ -26,7 +26,10 @@ func preferenceScheduleExpected(t *testing.T, pair preferenceGatePair, schedule 
 		}
 		if row["key"] == pair.secondType {
 			row["enabled"] = true
-			row["available"] = schedule != "stable_old"
+			// One shared gate read (#5699, decision E2): a pair committed
+			// after it is visible on neither gate, so between_reads shows the
+			// old pair like stable_old instead of mixing old and new.
+			row["available"] = schedule == "stable_new"
 		}
 	}
 	body, err := json.Marshal(map[string]any{"status": "success", "message": "Notification preferences retrieved successfully", "data": map[string]any{"tenant_enabled": true, "types": rows}})

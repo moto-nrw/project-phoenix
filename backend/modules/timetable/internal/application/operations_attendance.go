@@ -43,11 +43,15 @@ func (s *operations) checkInStudents(ctx context.Context, accountID int64, isAdm
 	if inst.Status != scheduleModels.InstanceStatusActive || inst.ActiveGroupID == nil {
 		return nil, timetable.WithCode(fmt.Errorf("%w: instance is not active", timetable.ErrTimetableOperationConflict), timetable.CodeInstanceNotActive)
 	}
+	reads, err := s.loadCheckInReads(ctx, inst, instanceID, studentIDs)
+	if err != nil {
+		return nil, err
+	}
 	now := s.now()
 	openedVisit := false
 	var movedFrom *string
 	for _, studentID := range studentIDs {
-		outcome, err := s.checkInOneStudent(ctx, staffID, inst, instanceID, studentID, now)
+		outcome, err := s.checkInOneStudent(ctx, staffID, inst, instanceID, studentID, now, reads)
 		if err != nil {
 			return nil, err
 		}
@@ -82,14 +86,23 @@ type checkInOutcome struct {
 }
 
 // checkInOneStudent applies the check-in of one child to an admitted running
-// block.
-func (s *operations) checkInOneStudent(ctx context.Context, staffID int64, inst *scheduleModels.ActivityInstance, instanceID, studentID int64, now time.Time) (checkInOutcome, error) {
-	if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
-		return checkInOutcome{}, err
-	}
-	current, err := s.currentVisit(ctx, studentID)
-	if err != nil {
-		return checkInOutcome{}, err
+// block. The child's first check-in in the request uses the batch's shared
+// reads; a repeated one reads fresh.
+func (s *operations) checkInOneStudent(ctx context.Context, staffID int64, inst *scheduleModels.ActivityInstance, instanceID, studentID int64, now time.Time, reads *checkInReads) (checkInOutcome, error) {
+	var current *studentpresence.Visit
+	if reads.take(studentID) {
+		if err := reads.requireRosterStudent(studentID); err != nil {
+			return checkInOutcome{}, err
+		}
+		current = reads.open[studentID]
+	} else {
+		if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
+			return checkInOutcome{}, err
+		}
+		var err error
+		if current, err = s.currentVisit(ctx, studentID); err != nil {
+			return checkInOutcome{}, err
+		}
 	}
 	if current != nil {
 		movedFrom, err := s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)

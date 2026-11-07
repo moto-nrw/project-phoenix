@@ -5,6 +5,7 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // sehen darf, prüft das Backend; es protokolliert jeden Export.
 
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import {
   schoolAuth,
   uncachedSchoolAuth,
@@ -55,13 +56,9 @@ async function GETHandler(request: NextRequest) {
       cache: "no-store",
     });
 
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedSchoolAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
-    }
-  }
+  const upstream = await sendWithTokenRefresh(token, makeRequest, () =>
+    uncachedSchoolAuth(),
+  );
 
   if (!upstream.ok) {
     logger.warn("school_absence_list_export_proxy_non_ok", {
