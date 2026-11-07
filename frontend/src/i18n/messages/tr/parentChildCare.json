@@ -29,7 +29,8 @@
     "reasonRequiredError": "Lütfen OGS için kısa bir not girin.",
     "requestSentTitle": "Talep gönderildi",
     "requestSentBody": "OGS devamsızlığı henüz onaylamadı. O zamana kadar çocuğunuz bekleniyor sayılır.",
-    "errorObject": "devamsızlık bildirimi"
+    "errorObject": "devamsızlık bildirimi",
+    "submitting": "Bildiriliyor …"
   },
   "summary": {
     "none": "Mazeret bildirimi yok",
@@ -93,7 +94,9 @@
     "modeStaffSet": "OGS bu gün için teslim alma şeklini zaten belirledi: {mode}.",
     "pendingMode": "Yeni teslim alma şekli: {to}",
     "statusApprovedChange": "Onaylandı, değişiklik uygulandı.",
-    "errorStaffConflictGeneric": "OGS bu gün için zaten bir değişiklik girdi. Lütfen ekiple iletişime geçin."
+    "errorStaffConflictGeneric": "OGS bu gün için zaten bir değişiklik girdi. Lütfen ekiple iletişime geçin.",
+    "submitting": "Gönderiliyor …",
+    "savingEdit": "Kaydediliyor …"
   },
   "actions": {
     "sick": {

@@ -43,6 +43,10 @@ func (NoEmailOutcomes) TraegerMailHolds(context.Context, int64, string) (bool, b
 	return false, false, nil
 }
 
+func (NoEmailOutcomes) TraegerMailHoldsOf(context.Context, int64, []string) (map[string]bool, map[string]bool, error) {
+	return nil, nil, nil
+}
+
 func (NoEmailOutcomes) ProviderEmailBlocks(context.Context, []string) map[string]deliveryContract.EmailProviderBlock {
 	return nil
 }

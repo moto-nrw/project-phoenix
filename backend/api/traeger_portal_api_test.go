@@ -90,7 +90,9 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 	})
 	require.NoError(t, err)
 	mountParentBillingRoutes(router, organizations, settings, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, testHealthCipher(), slog.Default())
-	mountCareContractRoutes(router, organizations, settings, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, audit.DataAccessLog)
+	schoolSettings, err := owners.NewSettingsTestModule(database, unit)
+	require.NoError(t, err)
+	mountCareContractRoutes(router, organizations, settings, schoolSettings.Settings, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, audit.DataAccessLog)
 	return testpkg.SessionVerifier(router)
 }
 

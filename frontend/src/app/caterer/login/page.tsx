@@ -41,6 +41,7 @@ import {
   isPasskeySupported,
   loginWithPasskey,
 } from "~/lib/passkey-api";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "CatererLoginPage" });
 
@@ -240,10 +241,7 @@ function LoginForm() {
             onCancel={backToCredentials}
           />
         ) : isCheckingAuth ? (
-          <div className="flex flex-col items-center gap-4 py-12">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-            <p className="text-sm text-gray-500">Anmeldung wird geprüft …</p>
-          </div>
+          <Loading fullPage={false} message="Anmeldung wird geprüft …" />
         ) : (
           <form
             ref={formRef}
@@ -366,10 +364,7 @@ export default function CatererLoginPage() {
     <Suspense
       fallback={
         <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-          <div className="flex flex-col items-center gap-4 py-8">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-            <p className="text-sm text-gray-500">Wird geladen …</p>
-          </div>
+          <Loading fullPage={false} message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >

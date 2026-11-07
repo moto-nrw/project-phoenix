@@ -28,6 +28,7 @@ const (
 	ActionSend     = ports.ActionSend
 	ActionDiscard  = ports.ActionDiscard
 	ActionTemplate = ports.ActionTemplate
+	ActionConclude = ports.ActionConclude
 )
 
 // LetterRenderer lays out a contract letter as a PDF.

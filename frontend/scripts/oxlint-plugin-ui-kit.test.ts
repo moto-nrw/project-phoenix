@@ -1824,7 +1824,130 @@ describe.concurrent("ui-kit/no-hand-rolled-pill", () => {
   });
 });
 
+// #5584 Abschlussrunde: auch `div` und Klassen aus erkennbar statischen Quellen.
+describe.concurrent(
+  "ui-kit/no-hand-rolled-pill, div und statische Quellen",
+  () => {
+    const RULE = "ui-kit(no-hand-rolled-pill)";
+
+    it("fails a div pill", async () => {
+      const result = await lintSource(
+        `export const Probe = () => (
+        <div className="bg-moto-orange-soft flex items-center gap-1.5 rounded-full px-3 py-1 text-xs">Achtung</div>
+      );`,
+        "src/components/probe.tsx",
+      );
+
+      expect(result.output).toContain(RULE);
+    });
+
+    it("accepts a hint box, a brand surface and a tooltip on a div", async () => {
+      const result = await lintSource(
+        `export const Probe = () => (
+        <>
+          <div className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">Hinweis in ganzer Breite</div>
+          <div className="w-fit rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">Kurzer Hinweis</div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/85 px-3 py-1.5 text-xs shadow-sm backdrop-blur-sm">Für Schulen</div>
+          <div role="tooltip" className="inline-block rounded-md bg-gray-900 px-2 py-1 text-xs text-white">Hilfe</div>
+        </>
+      );`,
+        "src/components/probe.tsx",
+      );
+
+      expect(result.output).not.toContain(RULE);
+    });
+
+    it("finds a surface in a helper or table declared below the element", async () => {
+      const result = await lintSource(
+        `export const Probe = ({ status }: { status: string }) => (
+        <>
+          <span className={\`rounded-full px-2 py-1 text-xs \${statusClass(status)}\`}>Status</span>
+          <span className={\`rounded-full px-2 py-1 text-xs \${TONES[status]}\`}>Status</span>
+        </>
+      );
+      function statusClass(status: string) {
+        return status === "aktiv" ? "bg-moto-green-soft" : "bg-gray-100";
+      }
+      const TONES: Record<string, string> = { aktiv: "bg-moto-green-soft" };`,
+        "src/components/probe.tsx",
+      );
+
+      expect(
+        result.output.match(/ui-kit\(no-hand-rolled-pill\)/g),
+      ).toHaveLength(2);
+    });
+
+    it("finds a surface in an exported helper of another module", () => {
+      const root = mkdtempSync(join(tmpdir(), "pill-import-"));
+      temporaryDirectories.push(root);
+      mkdirSync(join(root, "src/lib"), { recursive: true });
+      mkdirSync(join(root, "src/components"), { recursive: true });
+      writeFileSync(
+        join(root, "src/lib/tones.ts"),
+        `export function statusClass(status: string) {
+  return \`font-medium \${status === "aktiv" ? "bg-moto-green-soft" : "bg-gray-100"}\`;
+}
+export function statusName(status: string) {
+  return status === "aktiv" ? "Aktiv" : "Inaktiv";
+}
+async function other() {
+  return "bg-moto-red-soft";
+}
+void other;`,
+      );
+      const lintProbeFile = (name: string, helper: string) => {
+        const path = join(root, "src/components", name);
+        writeFileSync(
+          path,
+          `import { ${helper} } from "~/lib/tones";
+        export const Probe = ({ status }: { status: string }) => (
+          <span className={\`rounded-full px-2 py-1 text-xs \${${helper}(status)}\`}>Status</span>
+        );`,
+        );
+        return spawnSync(
+          resolve("node_modules/.bin/oxlint"),
+          ["-c", resolve(".oxlintrc.json"), path],
+          { encoding: "utf8" },
+        ).stdout;
+      };
+
+      expect(lintProbeFile("surface.tsx", "statusClass")).toContain(
+        "no-hand-rolled-pill",
+      );
+      // Der andere Export desselben Moduls trägt keine Fläche bei.
+      expect(lintProbeFile("name.tsx", "statusName")).not.toContain(
+        "no-hand-rolled-pill",
+      );
+    });
+
+    it("stays silent on classes it cannot resolve statically (known limit)", async () => {
+      const result = await lintSource(
+        `export const Probe = ({ toneClass }: { toneClass: string }) => (
+        <span className={\`rounded-full px-2 py-1 text-xs \${toneClass}\`}>Status</span>
+      );`,
+        "src/components/probe.tsx",
+      );
+
+      expect(result.output).not.toContain(RULE);
+    });
+  },
+);
+
 describe.concurrent("ui-kit/no-pill-dot", () => {
+  it("fails a dot inside a div pill", async () => {
+    const result = await lintSource(
+      `export const Probe = () => (
+        <div className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs">
+          <span className="h-1.5 w-1.5 rounded-full bg-gray-400" aria-hidden />
+          Keine Lücken
+        </div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-pill-dot)");
+  });
+
   it("fails a dot inside a pill (#2476)", async () => {
     const result = await lintSource(
       `function Probe() {
@@ -2281,6 +2404,79 @@ describe.concurrent(
     });
   },
 );
+
+describe.concurrent("ui-kit/no-own-spinner (#5588)", () => {
+  it.each([
+    [
+      "a border spinner",
+      `<div className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />`,
+    ],
+    [
+      "animate-spin on an icon",
+      `<svg className="h-4 w-4 animate-spin text-white" />`,
+    ],
+    [
+      "a computed class",
+      `<span className={\`h-3 w-3 animate-spin \${tone}\`} />`,
+    ],
+  ])("fails %s", async (_name, element) => {
+    const result = await lintSource(
+      `function Probe({ tone }: { tone: string }) {
+        void tone;
+        return ${element};
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-own-spinner");
+  });
+
+  it.each([
+    ["lucide-react", "Loader2"],
+    ["lucide-react", "LoaderCircle"],
+    ["@phosphor-icons/react/ssr", "CircleNotchIcon"],
+  ])("fails the %s icon %s", async (source, name) => {
+    const result = await lintSource(
+      `import { ${name} } from "${source}";
+      void ${name};`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-own-spinner");
+  });
+
+  it("accepts the kit pieces, other icons and the kit folder", async () => {
+    const accepted = await lintSource(
+      `import { Check } from "lucide-react";
+      import { SpinnerIcon } from "~/components/ui/icons";
+      import { Loading } from "~/components/ui/loading";
+      function Probe() {
+        return (
+          <>
+            <SpinnerIcon className="h-4 w-4" />
+            <Loading fullPage={false} message="Wird geladen" />
+            <Check className="h-4 w-4" />
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const kit = await lintSource(
+      `function Probe() {
+        return <svg className="h-4 w-4 animate-spin" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(accepted.output).not.toContain("no-own-spinner");
+    expect(kit.output).not.toContain("no-own-spinner");
+  });
+});
 
 describe.concurrent("ui-kit Eingabe-Bausteine (#5596)", () => {
   it.each([

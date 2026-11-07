@@ -39,6 +39,7 @@ import {
 } from "~/lib/parent-messages-api";
 import { createLogger } from "~/lib/logger";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "NewMessageModal" });
 
@@ -367,9 +368,7 @@ export function NewMessageModal({
               <p className="text-sm font-medium text-gray-700">Eltern wählen</p>
               <FormErrorAlert message={openError.error} />
               {guardiansLoading || guardiansErrorPending ? (
-                <p className="py-3 text-center text-sm text-gray-500">
-                  Lädt...
-                </p>
+                <Loading fullPage={false} message="Eltern werden geladen …" />
               ) : guardiansFailed ? (
                 <LoadErrorAlert error={guardiansError.error} />
               ) : guardians.length === 0 ? (

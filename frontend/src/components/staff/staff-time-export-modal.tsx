@@ -25,6 +25,7 @@ import {
   type TransferOutcome,
 } from "~/lib/sftp-export-api";
 import { createLogger } from "~/lib/logger";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "StaffTimeExportModal" });
 
@@ -120,7 +121,7 @@ function DatevReportPanel({
     );
   }
   if (state.status === "idle" || state.status === "loading") {
-    return <p className="text-sm text-gray-500">Bericht wird geladen …</p>;
+    return <Loading fullPage={false} message="Bericht wird geladen …" />;
   }
   const { report } = state;
   return (

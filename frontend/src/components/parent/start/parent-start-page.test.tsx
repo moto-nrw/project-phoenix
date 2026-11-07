@@ -185,6 +185,13 @@ describe("ParentStartPage", () => {
     expect(
       screen.getByTestId("parent-start-child-skeleton"),
     ).toBeInTheDocument();
+    const childSkeleton = screen.getByTestId("parent-start-child-skeleton");
+    expect(
+      childSkeleton.querySelectorAll(".animate-pulse.rounded-xl"),
+    ).toHaveLength(1);
+    expect(
+      childSkeleton.querySelectorAll(".animate-pulse.rounded-lg"),
+    ).toHaveLength(2);
     expect(
       screen.queryByTestId("parent-start-child-action-skeleton"),
     ).not.toBeInTheDocument();

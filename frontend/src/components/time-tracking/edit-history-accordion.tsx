@@ -6,6 +6,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import type { WorkSessionEdit } from "~/lib/time-tracking-helpers";
 import { formatTime } from "~/lib/time-tracking-helpers";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 // Renders the audit trail for a single work session. Used by both the
 // MA self-service /time-tracking page and the admin staff detail view —
@@ -64,7 +65,7 @@ export function EditHistoryAccordion({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-3">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-transparent" />
+        <SpinnerIcon className="h-4 w-4 text-gray-400" />
         <span className="ml-2 text-xs text-gray-400">Laden...</span>
       </div>
     );

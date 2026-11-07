@@ -62,8 +62,9 @@ func TestSeedEnrollmentAnswersMatchTheScopeOfTheirQuestion(t *testing.T) {
 	}
 }
 
-// Only the two forms above are created by the seeder; a new one needs its
-// own case in the scope test.
+// The contract form has no custom questions or answers; its scope is checked
+// on the wire by TestSeedConclusionSubmitsConditionsBeforeApproval. Every
+// other new form needs its own case in the scope test above.
 func TestSeedCreatesOnlyTheFormsTheAnswerScopeTestCovers(t *testing.T) {
 	t.Parallel()
 
@@ -81,7 +82,7 @@ func TestSeedCreatesOnlyTheFormsTheAnswerScopeTestCovers(t *testing.T) {
 		}
 	}
 	sort.Strings(creators)
-	assert.Equal(t, []string{"parent_enrollment.go", "seed_enrollment_signature.go"}, creators)
+	assert.Equal(t, []string{"parent_enrollment.go", "seed_care_contract_enrollment.go", "seed_enrollment_signature.go"}, creators)
 }
 
 // seedQuestionKeysByScope splits the answer-collecting questions of a form

@@ -1236,9 +1236,9 @@ function TenantPageBody({
         >
           {loading === true ? (
             <>
-              <Skeleton className="h-24 w-full rounded-2xl" />
-              <Skeleton className="h-24 w-full rounded-2xl" />
-              <Skeleton className="h-24 w-full rounded-2xl" />
+              <Skeleton shape="card" className="h-24 w-full" />
+              <Skeleton shape="card" className="h-24 w-full" />
+              <Skeleton shape="card" className="h-24 w-full" />
             </>
           ) : (
             loading

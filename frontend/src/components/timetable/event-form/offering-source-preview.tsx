@@ -16,6 +16,7 @@ import type { FormErrorInput } from "~/components/ui/form-error";
 
 import { OfferingPreviewList } from "../offering-preview-list";
 import type { EventFormState } from "./form-model";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 /** The source rule as the editor would save it. */
 function formOfferingSelection(form: EventFormState): OfferingSelection {
@@ -126,7 +127,10 @@ function PreviewPanel({
           : "Das ändert sich an der Kinderliste"}
       </p>
       {loading ? (
-        <p className="text-xs text-gray-600">Die Vorschau wird geladen.</p>
+        <p className="flex items-center gap-2 text-xs text-gray-600">
+          <SpinnerIcon className="h-3 w-3" />
+          Die Vorschau wird geladen.
+        </p>
       ) : null}
       <LoadErrorAlert error={error} />
       {preview && !loading ? (

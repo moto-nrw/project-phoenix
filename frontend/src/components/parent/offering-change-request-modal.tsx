@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Loader2 } from "lucide-react";
 
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
@@ -447,13 +446,12 @@ export function OfferingChangeRequestModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 sm:w-auto"
+              className="w-full sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={submitting || loading || !catalog || emptyCatalog}
+              isLoading={submitting}
+              loadingText={t("careOfferingsModal.submitting")}
             >
-              {submitting && (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              )}
               {editRequestId
                 ? t("careOfferingsModal.saveEdit")
                 : t("careOfferingsModal.submit")}
@@ -477,8 +475,8 @@ export function OfferingChangeRequestModal({
 
           {loading && (
             <div className="space-y-2">
-              <Skeleton className="h-16 rounded-xl" />
-              <Skeleton className="h-16 rounded-xl" />
+              <Skeleton shape="inner" className="h-16" />
+              <Skeleton shape="inner" className="h-16" />
             </div>
           )}
 

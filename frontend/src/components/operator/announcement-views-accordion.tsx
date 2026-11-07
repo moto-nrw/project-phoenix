@@ -9,6 +9,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSWRAuth } from "~/lib/swr";
 import { operatorAnnouncementKeys } from "~/lib/swr/portal-keys";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { Loading } from "~/components/ui/loading";
 
 interface AnnouncementViewsAccordionProps {
   readonly announcementId: string;
@@ -87,9 +88,7 @@ export function AnnouncementViewsAccordion({
         <div className="overflow-hidden">
           <div className="pb-3">
             {/* Loading state */}
-            {isLoading && (
-              <p className="py-2 text-xs text-gray-400">Laden...</p>
-            )}
+            {isLoading && <Loading fullPage={false} message="Laden..." />}
 
             {/* Error */}
             <LoadErrorAlert

@@ -1,7 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { SkeletonRegion, TenantPageHeaderSkeleton } from "./page-skeletons";
+import {
+  ChoiceTileListSkeleton,
+  HistorySkeleton,
+  SkeletonRegion,
+  TenantPageHeaderSkeleton,
+} from "./page-skeletons";
 
 describe("SkeletonRegion", () => {
   it("shows its loading shape immediately without an invisible transition", () => {
@@ -38,5 +43,27 @@ describe("TenantPageHeaderSkeleton", () => {
 
     expect(container.querySelectorAll(".animate-pulse")).toHaveLength(2);
     expect(container.querySelector(".h-8.w-8")).toBeInTheDocument();
+  });
+});
+
+describe("HistorySkeleton", () => {
+  it("mirrors a grouped history with separate detail cards", () => {
+    const { container } = render(<HistorySkeleton />);
+
+    expect(
+      container.querySelectorAll(".moto-content-surface.rounded-xl"),
+    ).toHaveLength(2);
+    expect(container.querySelectorAll(".border-t")).toHaveLength(2);
+  });
+});
+
+describe("ChoiceTileListSkeleton", () => {
+  it("mirrors separate choice rows with an action slot", () => {
+    const { container } = render(<ChoiceTileListSkeleton rows={2} avatar />);
+
+    expect(container.querySelectorAll(".rounded-xl.border")).toHaveLength(2);
+    expect(container.querySelectorAll(".h-8.w-16")).toHaveLength(2);
+    expect(container.querySelectorAll(".h-8.w-8.rounded-full")).toHaveLength(2);
+    expect(container.querySelector(".divide-y")).not.toBeInTheDocument();
   });
 });

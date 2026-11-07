@@ -29,7 +29,8 @@
     "reasonRequiredError": "Shkruani një njoftim të shkurtër për OGS-në.",
     "requestSentTitle": "Kërkesa u dërgua",
     "requestSentBody": "OGS-ja duhet ta konfirmojë mungesën. Deri atëherë, fëmija juaj pritet të vijë.",
-    "errorObject": "njoftimi i mungesës"
+    "errorObject": "njoftimi i mungesës",
+    "submitting": "Po raportohet …"
   },
   "summary": {
     "none": "Asnjë mungesë",
@@ -93,7 +94,9 @@
     "modeStaffSet": "OGS-ja e ka caktuar tashmë mënyrën e marrjes për këtë ditë: {mode}.",
     "pendingMode": "Mënyra e re e marrjes: {to}",
     "statusApprovedChange": "U konfirmua, ndryshimi u ruajt.",
-    "errorStaffConflictGeneric": "OGS-ja ka regjistruar tashmë një ndryshim për këtë ditë. Ju lutemi kontaktoni ekipin."
+    "errorStaffConflictGeneric": "OGS-ja ka regjistruar tashmë një ndryshim për këtë ditë. Ju lutemi kontaktoni ekipin.",
+    "submitting": "Po dërgohet …",
+    "savingEdit": "Po ruhet …"
   },
   "actions": {
     "sick": {

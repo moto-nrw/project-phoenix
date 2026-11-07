@@ -421,6 +421,8 @@ func TestTheLetterStatusAndTheClaimAgree(t *testing.T) {
 		{"given up", "dead_letter", nil, "smtp refused", "failed", true},
 		{"withheld by the provider", "sent", "suppressed", nil, "failed", true},
 		{"accepted", "sent", nil, nil, "sent", false},
+		{"unsubscribed, same address", "sent", "unsubscribed", nil, "sent", false},
+		{"complained, same address", "sent", "complained", nil, "sent", false},
 	} {
 		related := int64(8400 + index)
 		address := fmt.Sprintf("claim-%d-%d@example.com", index, testpkg.UniqueTestTenantID(t))
@@ -442,6 +444,99 @@ func TestTheLetterStatusAndTheClaimAgree(t *testing.T) {
 			require.NoError(t, err, test.name)
 			assert.Equal(t, test.claims, claimed, test.name)
 			return nil
+		})
+	}
+}
+
+// After an unsubscribe or a complaint a new mail goes to a corrected, other address,
+// and never to the same one, however it is spelled. Both come from real events (#5957).
+func TestALetterAfterARefusalOnlyGoesToACorrectedAddress(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	for index, refusal := range []struct {
+		state   domain.EmailDeliveryState
+		outcome deliveryContract.EmailOutcome
+		mark    deliveryContract.EmailAddressMark
+	}{
+		{domain.EmailDeliveryUnsubscribed, deliveryContract.EmailUnsubscribed, ""},
+		{domain.EmailDeliveryComplained, deliveryContract.EmailComplained, deliveryContract.EmailMarkComplained},
+	} {
+		t.Run(string(refusal.state), func(t *testing.T) {
+			school := testpkg.OwnTenant(t)
+			related := int64(8600 + index)
+			guardian := testpkg.CreateTestGuardianProfile(t, db, "letter-refused-"+string(refusal.state))
+			old := strings.ToLower(*guardian.Email)
+			key := "letter-refused-" + string(refusal.state)
+			mail := relatedMail(t, db, store, ctx, school, key, old, related)
+			var delivery int64
+			require.NoError(t, db.NewRaw(`INSERT INTO platform.delivery_email_deliveries
+				(tenant_id, related_entity_type, related_entity_id, outbox_id, guardian_profile_id, recipient_email, reachability)
+				VALUES (?, 'parent_announcement', ?, ?, ?, ?, 'ok') RETURNING id`, school, related, mail, guardian.ID, old).Scan(ctx, &delivery))
+			_, err := db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW(), related_entity_type = 'parent_announcement' WHERE id = ?`, mail)
+			require.NoError(t, err)
+			_, err = store.RecordEmailDeliveryEvent(ctx, eventAt(eventMailToken(t, db, mail), "refused", refusal.state, time.Now()))
+			require.NoError(t, err)
+			status := func() deliveryContract.EmailDeliveryStatus {
+				t.Helper()
+				var rows []deliveryContract.EmailDeliveryStatus
+				inSchool(t, ctx, db, school, func(txCtx context.Context) error {
+					var err error
+					rows, err = store.EmailDeliveryStatuses(txCtx, school, "parent_announcement", related)
+					return err
+				})
+				require.Len(t, rows, 1)
+				return rows[0]
+			}
+			claim := func() bool {
+				t.Helper()
+				var claimed bool
+				inSchool(t, ctx, db, school, func(txCtx context.Context) error {
+					var err error
+					claimed, err = store.ClaimFailedEmailDelivery(txCtx, school, delivery)
+					return err
+				})
+				return claimed
+			}
+			setAddress := func(address string) {
+				t.Helper()
+				_, err := db.ExecContext(ctx, `UPDATE users.guardian_profiles SET email = ? WHERE id = ?`, address, guardian.ID)
+				require.NoError(t, err)
+			}
+
+			row := status()
+			assert.Equal(t, "sent", row.EmailStatus, "the same address offers no new mail")
+			assert.Equal(t, refusal.outcome, row.Outcome)
+			assert.Equal(t, refusal.mark, row.AddressMark)
+			assert.False(t, claim(), "the same address takes no new mail")
+
+			setAddress(strings.ToUpper(old))
+			assert.Equal(t, "sent", status().EmailStatus, "another spelling is the same address")
+			assert.False(t, claim())
+
+			next := "neu-" + old
+			setAddress(next)
+			row = status()
+			assert.Equal(t, "failed", row.EmailStatus, "the corrected address can be mailed")
+			assert.Equal(t, refusal.outcome, row.Outcome, "the old mail keeps its result")
+			require.NotNil(t, row.RecipientEmail)
+			assert.Equal(t, next, *row.RecipientEmail)
+			require.NotNil(t, row.MailedTo)
+			assert.Equal(t, old, *row.MailedTo)
+			assert.Empty(t, row.AddressMark, "the mark stays with the old address")
+			assert.False(t, row.CurrentAddressRefused, "this address refused nothing yet")
+			assert.True(t, claim(), "the status and the claim agree")
+
+			// The mail to the new address comes back, and someone restores the old one:
+			// the old refusal still counts for it, whatever the last mail's result says.
+			second := relatedMail(t, db, store, ctx, school, key+"-second", next, related)
+			_, err = db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW(), delivery_state = 'failed', delivery_state_at = NOW(), related_entity_type = 'parent_announcement' WHERE id = ?`, second)
+			require.NoError(t, err)
+			_, err = db.ExecContext(ctx, `UPDATE platform.delivery_email_deliveries SET outbox_id = ? WHERE id = ?`, second, delivery)
+			require.NoError(t, err)
+			setAddress(old)
+			row = status()
+			assert.True(t, row.CurrentAddressRefused, "a mail of this letter to the address was refused")
 		})
 	}
 }
@@ -552,6 +647,41 @@ func TestTraegerMailHoldsStayWithTheirTraeger(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, listed, "another Träger learns nothing")
 		assert.False(t, stopped)
+		return nil
+	}))
+}
+
+// The batch read answers every address exactly as the single read does, in one
+// statement, and keeps the addresses without a hold out (#4680).
+func TestTraegerMailHoldsOfAnswerLikeTheSingleRead(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, school).Scan(ctx, &organization))
+	stopped := testpkg.CreateTestGuardianProfile(t, db, "holds-batch-stopped")
+	stopGuardian(t, ctx, db, stopped.ID)
+	listedAddress := fmt.Sprintf("holds-batch-listed-%d@example.test", testpkg.UniqueTestTenantID(t))
+	_, err := db.ExecContext(ctx, `INSERT INTO platform.email_suppressions (tenant_id, address, reason) VALUES (?, ?, 'failed')`, school, listedAddress)
+	require.NoError(t, err)
+	free := fmt.Sprintf("holds-batch-free-%d@example.test", testpkg.UniqueTestTenantID(t))
+	addresses := []string{" " + strings.ToUpper(*stopped.Email) + " ", listedAddress, free}
+
+	require.NoError(t, tenant.WithinTraeger(ctx, organization, func(txCtx context.Context) error {
+		listed, held, err := store.TraegerMailHoldsOf(txCtx, organization, addresses)
+		require.NoError(t, err)
+		for _, address := range addresses {
+			singleListed, singleStopped, err := store.TraegerMailHolds(txCtx, organization, strings.ToLower(strings.TrimSpace(address)))
+			require.NoError(t, err)
+			key := strings.ToLower(strings.TrimSpace(address))
+			assert.Equal(t, singleListed, listed[key], address)
+			assert.Equal(t, singleStopped, held[key], address)
+		}
+		assert.True(t, held[strings.ToLower(*stopped.Email)])
+		assert.True(t, listed[listedAddress])
+		assert.NotContains(t, listed, free)
+		assert.NotContains(t, held, free)
 		return nil
 	}))
 }

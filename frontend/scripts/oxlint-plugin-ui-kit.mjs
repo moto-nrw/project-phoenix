@@ -80,6 +80,13 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     navigator.clipboard outside the kit and
 //                                     useClipboardCopy; use CopyField
 //
+// One more keeps waiting indicators on the kit (#5588), hard-zero:
+//
+//   ui-kit/no-own-spinner           — no `animate-spin` and no spinner icon
+//                                     from an icon package outside
+//                                     src/components/ui/; use Loading,
+//                                     SpinnerIcon or Button isLoading
+//
 // One more keeps form fields on the kit (#5217):
 //
 //   ui-kit/no-kit-domain-import     — files in components/ui import no other
@@ -109,7 +116,7 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 // Three more keep one pill (#5584, hard-zero):
 //
-//   ui-kit/no-hand-rolled-pill      — tinted `span` pills outside StatusBadge
+//   ui-kit/no-hand-rolled-pill      — tinted `span`/`div` pills outside StatusBadge
 //   ui-kit/no-pill-dot              — a dot inside a pill (#2476)
 //   ui-kit/no-hex-alpha-tint        — `${color}1A` tints in a pill's style
 //
@@ -1177,15 +1184,15 @@ src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@58
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
 src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
-src/components/students/school-checkin-fab.tsx|text-[10px]@199
-src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
+src/components/students/school-checkin-fab.tsx|text-[10px]@200
+src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@119 text-[10px]@140 text-[10px]@151
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@374
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@529
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-[11px]@310
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1359 text-[11px]@1385 text-[11px]@1561 text-[10px]@1670 text-[11px]@1693
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1360 text-[11px]@1386 text-[11px]@1559 text-[10px]@1668 text-[11px]@1691
 src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@199 text-[10px]@215 text-[11px]@224 text-[10px]@266 text-[10px]@290 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@471
@@ -2060,6 +2067,7 @@ function makeRatchetRule({
   countEnv = "UI_KIT_BUTTON_RATCHET",
   kitFile = BUTTON_KIT_FILE,
   exemptDir = null,
+  followStaticClassSources = false,
 }) {
   return {
     meta: {
@@ -2096,6 +2104,9 @@ function makeRatchetRule({
             if (statement.type === "ImportDeclaration") {
               buttonRatchetImports(statement, bindings);
             }
+          }
+          if (followStaticClassSources) {
+            collectStaticClassSources(node, constants, context);
           }
         },
         VariableDeclarator(node) {
@@ -2377,14 +2388,113 @@ function hasHexAlphaTemplate(node) {
   return false;
 }
 
+// A hint box and a pill share their classes on a `div`. Only a pill sizes to
+// its label: fully round, or inline. A blur marks a glass surface such as the
+// brand chips in auth-shell, not a status.
+const DIV_PILL_INLINE_RE = /^(?:inline-flex|inline-block)$/;
+const GLASS_SURFACE_RE = /^backdrop-blur(?:-|$)/;
+
+function isDivPill(text) {
+  const tokens = pillTokens(text);
+  return (
+    (tokens.includes("rounded-full") ||
+      tokens.some((token) => DIV_PILL_INLINE_RE.test(token))) &&
+    !tokens.some((token) => GLASS_SURFACE_RE.test(token))
+  );
+}
+
 function pillClassText(node, textOf) {
-  if (jsxName(node.name) !== "span") return null;
+  const name = jsxName(node.name);
+  if (name !== "span" && name !== "div") return null;
   if (staticAttributeValue(jsxAttribute(node, "role")) === "tooltip")
     return null;
   const className = jsxAttribute(node, "className");
   if (!className?.value) return null;
   const text = textOf(className.value);
-  return isPillShape(text) ? text : null;
+  if (!isPillShape(text)) return null;
+  return name === "span" || isDivPill(text) ? text : null;
+}
+
+// Static sources of a pill's classes beyond a `const` above the element:
+// declarations further down the file and exported helpers or lookup tables of
+// another module (`getDeviceStatusColor(status)`). A helper's own strings count;
+// a table it reads from elsewhere in its module does not.
+const CLASS_MODULE_EXTENSIONS = [".ts", ".tsx", "/index.ts", "/index.tsx"];
+const classModuleCache = new Map();
+
+function readClassModule(path) {
+  if (!classModuleCache.has(path)) {
+    let source = null;
+    for (const extension of CLASS_MODULE_EXTENSIONS) {
+      try {
+        source = readFileSync(path + extension, "utf8");
+        break;
+      } catch {
+        // Next candidate; a module outside the project stays unresolved.
+      }
+    }
+    classModuleCache.set(path, source);
+  }
+  return classModuleCache.get(path);
+}
+
+function resolveClassModule(specifier, filePath) {
+  if (specifier.startsWith("~/") || specifier.startsWith("@/")) {
+    const root = filePath.lastIndexOf("/src/");
+    return root === -1
+      ? null
+      : `${filePath.slice(0, root)}/src/${specifier.slice(2)}`;
+  }
+  return specifier.startsWith(".")
+    ? normalize(join(dirname(filePath), specifier))
+    : null;
+}
+
+function exportedStrings(source, name) {
+  const start = new RegExp(
+    String.raw`^export (?:async )?(?:function|const) ${name}\b`,
+    "m",
+  ).exec(source);
+  if (!start) return null;
+  const rest = source.slice(start.index + start[0].length);
+  // Formatted code: the declaration ends at the next line in column 0.
+  const end = rest.search(/\n\S/);
+  const declaration = end === -1 ? rest : rest.slice(0, end);
+  return (declaration.match(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g) ?? [])
+    .join(" ")
+    .replaceAll(/["'`]/g, " ");
+}
+
+function collectStaticClassSources(program, constants, context) {
+  const filePath = String(
+    context.physicalFilename ?? context.filename ?? "",
+  ).replaceAll("\\", "/");
+  for (const statement of program.body) {
+    const declaration =
+      statement.type === "ExportNamedDeclaration"
+        ? statement.declaration
+        : statement;
+    if (declaration?.type === "FunctionDeclaration" && declaration.id) {
+      constants.set(declaration.id.name, declaration);
+    }
+    if (declaration?.type === "VariableDeclaration") {
+      for (const { id, init } of declaration.declarations) {
+        if (id.type === "Identifier" && init) constants.set(id.name, init);
+      }
+    }
+    if (statement.type !== "ImportDeclaration") continue;
+    const path = resolveClassModule(String(statement.source.value), filePath);
+    const source = path === null ? null : readClassModule(path);
+    if (source === null) continue;
+    for (const specifier of statement.specifiers) {
+      if (specifier.type !== "ImportSpecifier") continue;
+      const imported = specifier.imported.name ?? specifier.imported.value;
+      const value = exportedStrings(source, imported);
+      if (value) {
+        constants.set(specifier.local.name, { type: "Literal", value });
+      }
+    }
+  }
 }
 
 // Hard-zero: der Bestand ist abgebaut, jede neue Stelle schlägt fehl.
@@ -2394,13 +2504,14 @@ function makePillRule(options) {
     baselines: {},
     allowlist: [],
     kitFile: PILL_KIT_FILE,
+    followStaticClassSources: true,
   });
 }
 
 const noHandRolledPill = makePillRule({
   ruleName: "no-hand-rolled-pill",
   description:
-    "Build status pills from StatusBadge, StatusColorBadge or DataTableStatusBadge instead of a hand-styled span.",
+    "Build status pills from StatusBadge, StatusColorBadge or DataTableStatusBadge instead of a hand-styled span or div.",
   message:
     "Keine eigene Pille: StatusBadge (Töne blue, green, orange, red, gray, purple, cyan, outline; size xs für dichte Raster) oder StatusColorBadge (Farbe aus LOCATION_COLORS, amber über LOCATION_COLORS.WARNING) nehmen (#5584, .claude/rules/frontend-ui-kit.md).",
   detect: ({ classText: textOf, found, constants }) => ({
@@ -3139,6 +3250,47 @@ const noShadowKitName = {
   },
 };
 
+// ui-kit/no-own-spinner (#5588).
+
+const SPIN_CLASS_RE = /(?:^|[\s"'`:])animate-spin(?:$|[\s"'`])/;
+const ICON_PACKAGE_RE = /^(?:lucide-react|@phosphor-icons\/)/;
+const SPINNER_ICON_RE =
+  /^(?:Loader(?:2|Circle|Pinwheel)?(?:Icon)?|CircleNotch(?:Icon)?|Spinner(?:Gap|Ball)?(?:Icon)?)$/;
+
+const noOwnSpinner = makeRatchetRule({
+  ruleName: "no-own-spinner",
+  description:
+    "Waiting indicators come from Loading, SpinnerIcon or Button isLoading instead of an own spinner.",
+  message:
+    "Kein eigener Spinner: `Loading` für einen ganzen Bereich, `SpinnerIcon` neben Text oder im Symbolknopf, `Button isLoading loadingText=…` im Knopf (#5588, .claude/rules/frontend-ui-kit.md).",
+  // Hard-zero: der Bestand ist abgebaut, jede neue Stelle schlägt fehl.
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/icons.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ found }) => ({
+    ImportDeclaration(node) {
+      if (!ICON_PACKAGE_RE.test(String(node.source.value))) return;
+      for (const specifier of node.specifiers) {
+        if (
+          specifier.type === "ImportSpecifier" &&
+          SPINNER_ICON_RE.test(specifier.imported.name)
+        ) {
+          found(specifier);
+        }
+      }
+    },
+    Literal(node) {
+      if (typeof node.value === "string" && SPIN_CLASS_RE.test(node.value)) {
+        found(node);
+      }
+    },
+    TemplateElement(node) {
+      if (SPIN_CLASS_RE.test(node.value.raw)) found(node);
+    },
+  }),
+});
+
 // Eingabe-Bausteine (#5596): drei Muster, die es im Kit genau einmal gibt.
 
 /** Direkte JSX-Kinder, auch hinter `&&`, `?:`, Fragment und `{…}`. */
@@ -3400,6 +3552,7 @@ export default {
     "no-grey-button-fill": noGreyButtonFill,
     "no-hand-rolled-button": noHandRolledButton,
     "no-hand-rolled-copy-field": noHandRolledCopyField,
+    "no-own-spinner": noOwnSpinner,
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,

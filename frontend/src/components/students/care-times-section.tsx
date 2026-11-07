@@ -77,7 +77,14 @@ const COLUMNS: DataTableColumn<CareTimeDay>[] = [
   {
     key: "planned",
     header: "Gebucht",
-    render: (day) => formatClockSpan(day.planned_start, day.planned_end),
+    render: (day) => (
+      <span className="inline-flex flex-col">
+        <span>{formatClockSpan(day.planned_start, day.planned_end)}</span>
+        {day.planned_source === "contract" ? (
+          <span className="text-xs text-gray-500">laut Vertrag</span>
+        ) : null}
+      </span>
+    ),
   },
   {
     key: "actual",
@@ -89,7 +96,14 @@ const COLUMNS: DataTableColumn<CareTimeDay>[] = [
     header: "Abweichung",
     align: "right",
     render: (day) => (
-      <span className="tabular-nums">
+      <span
+        className="tabular-nums"
+        style={
+          day.overrun
+            ? { color: getAccessibleTextColor(LOCATION_COLORS.DANGER) }
+            : undefined
+        }
+      >
         {formatDeviation(day.deviation_minutes)}
       </span>
     ),
@@ -181,7 +195,7 @@ export function StudentCareTimesSection({
   return (
     <SectionCard
       title="Soll und Ist"
-      description={`Gebucht ist die hinterlegte Betreuungszeit. Tatsächlich ist die Zeit von der ersten Anmeldung bis zur letzten Abmeldung. Zeit im Unterricht steht als Hinweis in der Zeile und wird nicht abgezogen. Mehr als ${tolerance} Minuten früher oder später zählt als Überschreitung, ebenso ein Tag ohne Buchung.`}
+      description={`Gebucht ist die hinterlegte Betreuungszeit, mit Vertrag die Zeit laut Vertrag. Tatsächlich ist die Zeit von der ersten Anmeldung bis zur letzten Abmeldung. Zeit im Unterricht steht als Hinweis in der Zeile und wird nicht abgezogen. Mehr als ${tolerance} Minuten früher oder später zählt als Überschreitung, ebenso ein Tag ohne Buchung.`}
       actions={
         <DateRangePicker
           value={range}
@@ -209,7 +223,7 @@ export function StudentCareTimesSection({
                 style={{
                   color:
                     summary.overrun_count > 0
-                      ? getAccessibleTextColor(LOCATION_COLORS.SCHOOLYARD)
+                      ? getAccessibleTextColor(LOCATION_COLORS.DANGER)
                       : undefined,
                 }}
               >

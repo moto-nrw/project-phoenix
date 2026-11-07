@@ -43,6 +43,10 @@ var (
 	// ErrRecipientRejected refines ErrPermanentRejection: the server refused
 	// this address.
 	ErrRecipientRejected = errors.New("mail server rejected the recipient permanently")
+	// ErrFallbackRemoved marks a security mail that waits for the fallback in a
+	// deployment that no longer has one. Its provider already gave up on it, so
+	// the request ends here.
+	ErrFallbackRemoved = errors.New("the security fallback was requested but is not configured")
 )
 
 // Message struct holds all parts of a specific email Message.

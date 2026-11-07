@@ -307,7 +307,7 @@ function NotificationPreferencesSectionContent({
       }
       actions={
         isParentPortal && loading ? (
-          <Skeleton className="h-9 w-28 rounded-lg" />
+          <Skeleton shape="control" className="h-9 w-28" />
         ) : isParentPortal && types.length > 0 ? (
           allEnabled ? (
             <span
@@ -384,7 +384,7 @@ function NotificationPreferencesSectionContent({
                       <Skeleton className="h-4 w-40 max-w-2/3" />
                       <Skeleton className="h-3 w-64 max-w-full" />
                     </div>
-                    <Skeleton className="h-6 w-11 shrink-0 rounded-full" />
+                    <Skeleton shape="round" className="h-6 w-11 shrink-0" />
                   </div>
                 ))}
               </div>

@@ -426,6 +426,11 @@
       "reason": "ADR 0153 (#4678): Consumer-port adapter that reads the school's offerings through Care Plan and translates them into the Betreuungsvertrag's offerings."
     },
     {
+      "decision": "0153",
+      "id": "api/careContractModes.ConclusionMode",
+      "reason": "ADR 0153 (#4680): Consumer-port adapter that resolves care_contract.conclusion_mode of the school through the settings and refuses any value the Betreuungsvertrag does not know."
+    },
+    {
       "decision": "0090",
       "id": "api/careContractPost.ContractMailStates",
       "reason": "#5934: Consumer-port adapter of the contract's post; it names Delivery's outcome of each mail in the contract's words."
@@ -2366,9 +2371,9 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
-      "decision": "0090",
+      "decision": "0156",
       "id": "roots/owners/StatisticsAuditLog.RecordStatisticsAccess",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; the entry now carries the child of a single-child read (#4683, ADR 0156); semantic form review pending."
     },
     {
       "decision": "0090",

@@ -17,13 +17,13 @@ export function TeamThreadSkeleton({
     >
       {header && (
         <div className="mb-4 space-y-2">
-          <Skeleton className="h-5 w-40 rounded-full" />
+          <Skeleton shape="round" className="h-5 w-40" />
         </div>
       )}
       <div className="space-y-3">
-        <Skeleton className="h-14 w-3/5 rounded-2xl" />
-        <Skeleton className="ml-auto h-14 w-2/5 rounded-2xl" />
-        <Skeleton className="h-14 w-1/2 rounded-2xl" />
+        <Skeleton shape="card" className="h-14 w-3/5" />
+        <Skeleton shape="card" className="ml-auto h-14 w-2/5" />
+        <Skeleton shape="card" className="h-14 w-1/2" />
       </div>
     </div>
   );
