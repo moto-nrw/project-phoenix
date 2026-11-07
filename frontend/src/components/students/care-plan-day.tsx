@@ -12,6 +12,7 @@
  * care-plan-helpers.ts from data the student detail page already holds.
  */
 
+import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Ban, Check, LogIn, LogOut } from "lucide-react";
@@ -84,23 +85,22 @@ function buildTimeline(day: CarePlanDay): TimelineItem[] {
 }
 
 function DeviationBanner({ deviation }: { readonly deviation: DayDeviation }) {
-  const color = DEVIATION_COLORS[deviation.kind];
   return (
-    <div
-      className="mb-3 rounded-lg border px-3 py-2 text-sm font-semibold"
-      style={{
-        borderColor: `${color}40`,
-        backgroundColor: `${color}14`,
-        color,
-      }}
-    >
-      {deviation.label}
-      {deviation.note ? (
-        <span className="ml-1 font-normal text-gray-600">
-          · {deviation.note}
-        </span>
-      ) : null}
-    </div>
+    <Alert
+      type="info"
+      size="compact"
+      announce="off"
+      color={DEVIATION_COLORS[deviation.kind]}
+      className="mb-3"
+      message={
+        <>
+          <span className="font-semibold">{deviation.label}</span>
+          {deviation.note ? (
+            <span className="ml-1 text-gray-600">· {deviation.note}</span>
+          ) : null}
+        </>
+      }
+    />
   );
 }
 
@@ -229,21 +229,20 @@ function FreeCareBandRow({
  */
 function AbsenceNotice({ reason }: { readonly reason?: string }) {
   return (
-    <div
-      className="rounded-lg border px-3 py-2 text-sm"
-      style={{
-        borderColor: `${LOCATION_COLORS.NOT_ARRIVAL}33`,
-        backgroundColor: `${LOCATION_COLORS.NOT_ARRIVAL}14`,
-      }}
-    >
-      <span
-        className="font-semibold"
-        style={{ color: LOCATION_COLORS.NOT_ARRIVAL }}
-      >
-        Kommt heute nicht
-      </span>
-      {reason ? <span className="ml-1 text-gray-600">· {reason}</span> : null}
-    </div>
+    <Alert
+      type="info"
+      size="compact"
+      announce="off"
+      color={LOCATION_COLORS.NOT_ARRIVAL}
+      message={
+        <>
+          <span className="font-semibold">Kommt heute nicht</span>
+          {reason ? (
+            <span className="ml-1 text-gray-600">· {reason}</span>
+          ) : null}
+        </>
+      }
+    />
   );
 }
 

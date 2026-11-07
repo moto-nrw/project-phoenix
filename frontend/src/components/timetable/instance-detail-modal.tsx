@@ -93,7 +93,6 @@ import {
 } from "~/lib/timetable-helpers";
 import {
   instanceStatusTone,
-  timetableDangerPanel,
   timetableNestedSurface,
   type TimetableTone,
 } from "./timetable-style";
@@ -1075,17 +1074,24 @@ export function InstanceDetailModal({
               )}
             </div>
             {instance.conflictWarnings.length > 0 && (
-              <div className={timetableDangerPanel}>
-                <div className="text-moto-red-strong flex items-center gap-2 text-xs font-bold">
-                  <TriangleAlert className="h-4 w-4" />
-                  {instance.conflictWarnings.length} Konflikt(e)
-                </div>
-                <ul className="text-moto-red-strong mt-1 space-y-0.5 text-xs">
-                  {instance.conflictWarnings.map((warning) => (
-                    <li key={warning.message}>• {warning.message}</li>
-                  ))}
-                </ul>
-              </div>
+              <Alert
+                type="warning"
+                size="compact"
+                announce="off"
+                icon={<TriangleAlert className="h-4 w-4" aria-hidden="true" />}
+                message={
+                  <>
+                    <p className="font-semibold">
+                      {instance.conflictWarnings.length} Konflikt(e)
+                    </p>
+                    <ul className="mt-1 space-y-0.5">
+                      {instance.conflictWarnings.map((warning) => (
+                        <li key={warning.message}>• {warning.message}</li>
+                      ))}
+                    </ul>
+                  </>
+                }
+              />
             )}
 
             <StatsRow instance={instance} />

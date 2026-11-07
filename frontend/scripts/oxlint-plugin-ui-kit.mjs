@@ -11,6 +11,7 @@ import {
   fieldLabelBaseline,
 } from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
+import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -1182,7 +1183,7 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
-src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@231
+src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
@@ -1203,7 +1204,7 @@ src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@150 text-
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1355 text-[11px]@1380 text-[11px]@1547 text-[10px]@1656 text-[11px]@1679
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1361 text-[11px]@1386 text-[11px]@1553 text-[10px]@1662 text-[11px]@1685
 src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[10px]@246 text-[11px]@255 text-[10px]@297 text-[10px]@321 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@412 text-[11px]@481
@@ -3403,6 +3404,60 @@ const noHandRolledFieldLabel = makeRatchetRule({
   }),
 });
 
+// ui-kit/no-hand-rolled-notice (#5591) — ein getönter Hinweiskasten kommt aus
+// `Alert`. Fund: ein Block (`div`, `p`, Liste, `section`, `aside`, `details`)
+// mit Rundung, Innenabstand, getöntem Rand `border-moto-<Ton>/N` und Fläche
+// desselben Tons (`bg-moto-<Ton>-soft` oder `bg-moto-<Ton>/N`). Kein Fund:
+// Pillen (`rounded-full`), Bedienelemente (Knopf, Link, Label), Inline-Text.
+// Start mit shrink-only Baseline je Datei, Abbau je Bereich in Sub-Issues.
+const NOTICE_TAGS = new Set([
+  "div",
+  "p",
+  "ul",
+  "ol",
+  "section",
+  "aside",
+  "details",
+]);
+const NOTICE_BORDER_RE = /^border-moto-([a-z]+)\/\d+$/;
+const NOTICE_FILL_RE = /^bg-moto-([a-z]+)(?:-soft(?:\/\d+)?|\/\d+)$/;
+const NOTICE_PADDING_RE = /^p[xy]?-\d/;
+const NOTICE_ROUNDED_RE = /^rounded(?:-(?:sm|md|lg|xl|2xl))?$/;
+
+function isHandRolledNotice(utilities) {
+  if (!utilities.some((token) => NOTICE_ROUNDED_RE.test(token))) return false;
+  if (!utilities.some((token) => NOTICE_PADDING_RE.test(token))) return false;
+  const borderHues = new Set(
+    utilities.flatMap((token) => token.match(NOTICE_BORDER_RE)?.[1] ?? []),
+  );
+  return utilities.some((token) => {
+    const hue = token.match(NOTICE_FILL_RE)?.[1];
+    return hue !== undefined && borderHues.has(hue);
+  });
+}
+
+const noHandRolledNotice = makeRatchetRule({
+  ruleName: "no-hand-rolled-notice",
+  description:
+    "Build tinted notice boxes from Alert instead of styling a bordered, tinted block by hand.",
+  message:
+    'Kein eigener Hinweiskasten: Alert aus ~/components/ui/alert (`type`, für Hinweise in Feldern `size="compact"`, Standortfarbe über `color`). Warnhinweise sind orange über `type="warning"` (#5591, .claude/rules/frontend-ui-kit.md).',
+  baselines: noticeBaseline,
+  allowlist: noticeAllowlist,
+  countEnv: "UI_KIT_NOTICE_RATCHET",
+  kitFile: "src/components/ui/alert.tsx",
+  detect: ({ classText: textOf, found }) => ({
+    JSXOpeningElement(node) {
+      if (!NOTICE_TAGS.has(jsxName(node.name))) return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      if (isHandRolledNotice(classUtilities(textOf(className.value)))) {
+        found(node);
+      }
+    },
+  }),
+});
+
 // ui-kit/no-arbitrary-slide-over-width — ein Slide-over nimmt seine Breite aus
 // `size` (#5602). Freie Breiten waren acht verschiedene Werte für drei Größen.
 const noArbitrarySlideOverWidth = {
@@ -4379,6 +4434,7 @@ export default {
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-field-label": noHandRolledFieldLabel,
     "no-hand-rolled-menu": noHandRolledMenu,
+    "no-hand-rolled-notice": noHandRolledNotice,
     "no-hand-rolled-number-stepper": noHandRolledNumberStepper,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,

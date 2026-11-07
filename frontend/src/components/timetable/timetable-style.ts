@@ -11,9 +11,6 @@ export const timetableNestedSurface = "moto-content-surface rounded-xl border";
 export const timetableMutedSurface =
   "rounded-xl border border-gray-200 bg-gray-50/70";
 
-export const timetableDangerPanel =
-  "rounded-xl border border-moto-red/20 bg-moto-red/5 p-3";
-
 /** Readable dark-amber text pairing with white/gray-50 backgrounds. */
 export const timetableWarningText = "text-moto-amber-strong";
 

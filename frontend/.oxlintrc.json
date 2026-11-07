@@ -96,6 +96,7 @@
     "ui-kit/no-tiny-text": "error",
     "ui-kit/no-hand-rolled-sticky-bar": "error",
     "ui-kit/no-hand-rolled-field-label": "error",
+    "ui-kit/no-hand-rolled-notice": "error",
     "ui-kit/no-arbitrary-slide-over-width": "error",
     "ui-kit/no-slide-over-row-override": "error",
     "no-restricted-imports": [

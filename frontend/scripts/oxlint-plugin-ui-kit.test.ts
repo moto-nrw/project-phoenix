@@ -19,6 +19,7 @@ import {
 } from "./ui-kit-button-baseline.mjs";
 import { fieldLabelBaseline } from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
+import { noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 import {
   lintSource as lintProbe,
   removeProbeDirectories,
@@ -2541,6 +2542,76 @@ describe("ui-kit/no-hand-rolled-field-label baseline is current (#5589)", () => 
     const result = spawnSync(
       process.execPath,
       [resolve("scripts/ui-kit-field-label-baseline-update.mjs"), "--check"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+  }, 120_000);
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-notice (#5591)", () => {
+  const RULE = "ui-kit(no-hand-rolled-notice)";
+
+  it.each([
+    '<div className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-xs">A</div>',
+    '<p className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-3">A</p>',
+    '<ul className="border-moto-red/20 bg-moto-red-soft/50 rounded-2xl border p-4"><li>A</li></ul>',
+    '<section className="border-moto-orange/30 bg-moto-orange-soft mt-6 rounded-lg border-2 p-4">A</section>',
+  ])("reports %s", async (element) => {
+    const { output } = await lintSource(
+      `export const Probe = () => ${element};`,
+      "src/components/probe-notice.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it.each([
+    '<div className="border-moto-green/40 bg-moto-green/10 rounded-full border px-2 py-0.5">Pille</div>',
+    '<div className="border-moto-blue/30 bg-moto-red-soft rounded-lg border p-3">Zwei Töne</div>',
+    '<div className="bg-moto-amber/10 rounded-lg p-3">Ohne Rand</div>',
+    '<div className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border">Ohne Abstand</div>',
+    '<span className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border px-2">Inline</span>',
+  ])("accepts %s", async (element) => {
+    const { output } = await lintSource(
+      `export const Probe = () => ${element};`,
+      "src/components/probe-notice.tsx",
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  it("allows the tinted box in the Alert itself", async () => {
+    const { output } = await lintSource(
+      'export const Probe = () => <div className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border p-3">A</div>;',
+      "src/components/ui/alert.tsx",
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  it("fails one finding more than a file's baseline", async () => {
+    const [file, allowed] = Object.entries(
+      noticeBaseline["no-hand-rolled-notice"]!,
+    )[0]!;
+    const boxes = Array.from(
+      { length: allowed + 1 },
+      (_, index) =>
+        `<div key="${index}" className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border p-3">A</div>`,
+    ).join("");
+    const result = await lintSource(
+      `export const Probe = () => <>${boxes}</>;`,
+      file,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+});
+
+describe("ui-kit/no-hand-rolled-notice baseline is current (#5591)", () => {
+  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken.
+  it("records exactly the findings each file still has", () => {
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/ui-kit-notice-baseline-update.mjs"), "--check"],
       { encoding: "utf8" },
     );
 

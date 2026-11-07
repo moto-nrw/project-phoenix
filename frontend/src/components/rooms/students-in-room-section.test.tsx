@@ -132,9 +132,14 @@ vi.mock("~/components/ui/button", () => ({
 }));
 
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message }: { message: string }) => (
-    <div role="alert">{message}</div>
-  ),
+  // Wie das echte Alert: `announce="polite"` ist eine Statusmeldung.
+  Alert: ({
+    message,
+    announce,
+  }: {
+    message: React.ReactNode;
+    announce?: "assertive" | "polite" | "off";
+  }) => <div role={announce === "polite" ? "status" : "alert"}>{message}</div>,
 }));
 
 // Loading widget is no longer used here (replaced with a content-shaped
