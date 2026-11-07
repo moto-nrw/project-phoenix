@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ func legacyRefreshToken(t *testing.T, refresh string) string {
 		legacy.TenantID = int64(tenantID)
 	}
 	legacy.ExpiresAt = int64(claims["exp"].(float64))
-	token, err := auth.CreateRefreshJWT(legacy)
+	token, err := tokentest.CreateRefreshJWT(auth, legacy)
 	require.NoError(t, err)
 	_, hasFamily := decodePreviewTokenPayload(t, token)["family_id"]
 	require.False(t, hasFamily, "the legacy token carries no lineage claims")

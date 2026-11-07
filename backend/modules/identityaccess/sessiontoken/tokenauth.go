@@ -54,10 +54,6 @@ func (a *TokenAuth) Verifier() func(http.Handler) http.Handler {
 // middleware gives — the staff-view preview end call (#2893) proves with it
 // which preview token the admin actually held.
 func (a *TokenAuth) ParseAccessJWT(tokenString string) (*AppClaims, error) {
-	return a.parseAccessJWT(tokenString, false)
-}
-
-func (a *TokenAuth) parseAccessJWT(tokenString string, allowExpired bool) (*AppClaims, error) {
 	jwtToken, err := a.JwtAuth.Decode(tokenString)
 	if err != nil {
 		return nil, err
@@ -74,7 +70,7 @@ func (a *TokenAuth) parseAccessJWT(tokenString string, allowExpired bool) (*AppC
 		return nil, err
 	}
 	claims.ExpiresAt = expiryFromClaims(raw)
-	if !allowExpired && claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
+	if claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
 		return nil, errors.New("access token expired")
 	}
 	return &claims, nil

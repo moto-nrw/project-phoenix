@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -24,7 +25,7 @@ func checkTraegerScopeMatrix(t *testing.T, apiInstance *goldenRuntime) {
 	tokenAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
 	mint := func(claims sessiontoken.AppClaims) string {
-		token, err := tokenAuth.CreateJWT(claims)
+		token, err := tokentest.CreateJWT(tokenAuth, claims)
 		require.NoError(t, err)
 		return token
 	}
