@@ -18,7 +18,7 @@ import (
 // The monthly contribution of the care contract (#4684): the price list,
 // the monthly runs, their trail and the issued invoices. The request role
 // inserts and reads invoices, positions and events and never changes them;
-// a released run never changes (trigger of 1.15.786).
+// a released run never changes (trigger of 1.15.788).
 
 const (
 	// openCareRunIndex keeps a month to one calculated run.
