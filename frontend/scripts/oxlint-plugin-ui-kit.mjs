@@ -894,48 +894,84 @@ const noHandRolledSurface = {
           data: { match: "rounded-xl/2xl … border … bg-white" },
         });
       };
-      const isReportedSurfaceConstant = (value, seenVariables = new Set()) => {
-        if (value?.type === "JSXExpressionContainer") {
-          return isReportedSurfaceConstant(value.expression, seenVariables);
-        }
-        if (value?.type !== "Identifier") return false;
-        const variable = findVariable(context.sourceCode, value);
-        if (!variable || seenVariables.has(variable)) return false;
-        seenVariables.add(variable);
-        for (const definition of variable.defs) {
+      const surfaceComboKey = (text) => text.trim().replace(/\s+/g, " ");
+      // Literal-/Template- und konstante cn()-Treffer melden sich schon an
+      // ihrer Definition. Die Verwendungen einer Konstanten dürfen diese
+      // alte Kette nicht nochmals melden, wohl aber einen anderen, erweiterten
+      // Zweig derselben className-Expression.
+      const separatelyReportedSurfaceCombos = (
+        value,
+        seenVariables = new Set(),
+        seenNodes = new WeakSet(),
+      ) => {
+        const reported = new Set();
+        const collect = (node) => {
+          if (!node || typeof node !== "object" || seenNodes.has(node)) return;
+          seenNodes.add(node);
           if (
-            definition.type !== "Variable" ||
-            definition.node.type !== "VariableDeclarator" ||
-            definition.parent?.kind !== "const" ||
-            !definition.node.init
-          )
-            continue;
-          const initializer = definition.node.init;
-          if (isSurfaceCombo(staticStringValue(initializer) ?? "")) return true;
-          if (initializer.type === "CallExpression") {
-            const combinations = classCombinations(
-              initializer,
-              new WeakSet(),
-              context.sourceCode,
-            );
-            if (combinations?.some(isSurfaceCombo)) return true;
+            node.type === "JSXExpressionContainer" ||
+            node.type === "ChainExpression" ||
+            node.type === "TSAsExpression" ||
+            node.type === "TSTypeAssertion" ||
+            node.type === "TypeCastExpression"
+          ) {
+            collect(node.expression);
+            return;
           }
-          if (isReportedSurfaceConstant(initializer, seenVariables)) return true;
-        }
-        return false;
-      };
-      const renderedCombo = (value) => {
-        const chunks = [];
-        collectStaticStrings(value, chunks);
-        if (chunks.some((chunk) => isSurfaceCombo(chunk))) {
-          return { literal: true };
-        }
-        const combos = classCombinations(
-          value,
-          new WeakSet(),
-          context.sourceCode,
-        ) ?? [chunks.join(" ")];
-        return { rendered: combos.find((combo) => isSurfaceCombo(combo)) };
+          if (node.type === "Literal" && typeof node.value === "string") {
+            if (isSurfaceCombo(node.value)) {
+              reported.add(surfaceComboKey(node.value));
+            }
+            return;
+          }
+          if (node.type === "TemplateLiteral") {
+            for (const quasi of node.quasis) {
+              if (isSurfaceCombo(quasi.value.raw)) {
+                reported.add(surfaceComboKey(quasi.value.raw));
+              }
+            }
+            return;
+          }
+          if (node.type === "Identifier") {
+            const variable = findVariable(context.sourceCode, node);
+            if (!variable || seenVariables.has(variable)) return;
+            seenVariables.add(variable);
+            for (const definition of variable.defs) {
+              if (
+                definition.type !== "Variable" ||
+                definition.node.type !== "VariableDeclarator" ||
+                definition.parent?.kind !== "const" ||
+                !definition.node.init
+              )
+                continue;
+              const initializer = definition.node.init;
+              if (initializer.type === "CallExpression") {
+                const combinations = classCombinations(
+                  initializer,
+                  new WeakSet(),
+                  context.sourceCode,
+                );
+                for (const combo of combinations ?? []) {
+                  if (isSurfaceCombo(combo))
+                    reported.add(surfaceComboKey(combo));
+                }
+              }
+              collect(initializer);
+            }
+            return;
+          }
+          if (node.type === "ConditionalExpression") {
+            collect(node.consequent);
+            collect(node.alternate);
+            return;
+          }
+          if (node.type === "LogicalExpression") {
+            collect(node.left);
+            collect(node.right);
+          }
+        };
+        collect(value);
+        return reported;
       };
 
       return {
@@ -970,31 +1006,38 @@ const noHandRolledSurface = {
             node.name.name !== "className"
           )
             return;
-          if (isReportedSurfaceConstant(node.value)) return;
-          const { literal, rendered } = renderedCombo(node.value);
-          if (literal) return; // already reported by the Literal/TemplateLiteral visitors
-          if (rendered !== undefined) check(node.parent ?? node, rendered);
+          const chunks = [];
+          collectStaticStrings(node.value, chunks);
+          if (chunks.some(isSurfaceCombo)) return;
+          const reported = separatelyReportedSurfaceCombos(node.value);
+          const combinations = classCombinations(
+            node.value,
+            new WeakSet(),
+            context.sourceCode,
+          ) ?? [chunks.join(" ")];
+          for (const combo of new Set(combinations)) {
+            if (
+              isSurfaceCombo(combo) &&
+              !reported.has(surfaceComboKey(combo))
+            ) {
+              check(node.parent ?? node, combo);
+            }
+          }
         },
         JSXOpeningElement(node) {
           if (!widened) return;
           if (SURFACE_CONTROL_ELEMENTS.has(jsxName(node.name) ?? "")) return;
           const className = jsxAttribute(node, "className");
           if (!className?.value) return;
-          // Die alte Kette meldet schon der Literal-/Attribut-Besucher, auch
-          // in einer Konstante: dort nicht ein zweites Mal je Verwendung.
-          const { literal, rendered } = renderedCombo(className.value);
-          if (literal || rendered !== undefined) return;
           const combinations = classCombinations(
             className.value,
             new WeakSet(),
             context.sourceCode,
-            new Set(),
-            { skipReportedSurfaceConstants: true },
           );
           if (
             combinations?.some(
               (combo) =>
-                isSurfaceCombo(combo) ||
+                !isSurfaceCombo(combo) &&
                 isWideSurfaceTokens(combo.split(/\s+/)),
             )
           ) {

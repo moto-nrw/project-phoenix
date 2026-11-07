@@ -801,7 +801,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
   });
 
-  it("counts a widened branch beside a reported legacy constant", async () => {
+  it("reports distinct legacy and widened branches in one className expression", async () => {
     const result = await lintSource(
       `const legacy = "rounded-xl border bg-white p-4";
       const frame = "rounded-lg border p-3";
@@ -813,7 +813,12 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
 
     expect(
       result.output.match(/ui-kit\(no-hand-rolled-surface\)/g),
+      result.output,
     ).toHaveLength(2);
+    expect(result.output).toContain("rounded-xl/2xl … border … bg-white");
+    expect(result.output).toContain(
+      "rounded-md…2xl … border … bg-white(/NN) oder Rahmen mit Polster",
+    );
   });
 
   it("does not join mutually exclusive class branches", async () => {
