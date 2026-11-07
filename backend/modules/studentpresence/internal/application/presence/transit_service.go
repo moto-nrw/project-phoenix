@@ -177,12 +177,13 @@ func (s *service) assignStudentsInTransit(ctx context.Context, targetGroup *port
 		}
 	}
 
+	guard := s.transitVisitGuard(ctx, studentIDs, inTransit)
 	for _, studentID := range studentIDs {
 		if !inTransit[studentID] {
 			result.Skipped = append(result.Skipped, TransitAssignSkipped{StudentID: studentID, Reason: TransitSkipNotInTransit})
 			continue
 		}
-		assigned, err := s.assignTransitStudent(ctx, targetGroup.ID, studentID)
+		assigned, err := s.assignTransitStudent(ctx, targetGroup.ID, studentID, guard)
 		if err != nil {
 			return err
 		}
@@ -197,7 +198,7 @@ func (s *service) assignStudentsInTransit(ctx context.Context, targetGroup *port
 
 // assignTransitStudent opens the visit; false means the child got a visit
 // concurrently and is no longer in transit.
-func (s *service) assignTransitStudent(ctx context.Context, targetGroupID, studentID int64) (bool, error) {
+func (s *service) assignTransitStudent(ctx context.Context, targetGroupID, studentID int64, guard *moveVisitGuard) (bool, error) {
 	visit := &studentpresence.Visit{
 		StudentID:     studentID,
 		ActiveGroupID: targetGroupID,
@@ -208,13 +209,38 @@ func (s *service) assignTransitStudent(ctx context.Context, targetGroupID, stude
 	// group row — the opposite order. Re-acquiring the student lock here
 	// would deadlock against a concurrent check-in of the same student.
 	// Attendance is already open (checked above), so nothing is lost.
-	if err := s.createVisitWithoutAttendanceMutation(ctx, visit); err != nil {
+	if err := s.createMoveVisit(ctx, visit, guard); err != nil {
 		if errors.Is(err, ErrStudentAlreadyActive) {
 			return false, nil
 		}
 		return false, err
 	}
 	return true, nil
+}
+
+// transitVisitGuard reads the education groups of the children about to get
+// a visit in one statement, for their visit events (#5848). A failed read
+// leaves each visit to look its child's group up itself, as before.
+func (s *service) transitVisitGuard(ctx context.Context, studentIDs []int64, inTransit map[int64]bool) *moveVisitGuard {
+	guard := &moveVisitGuard{}
+	if s.Broadcaster == nil || s.EducationGroupRepo == nil {
+		return guard
+	}
+	ids := make([]int64, 0, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if inTransit[studentID] {
+			ids = append(ids, studentID)
+		}
+	}
+	if len(ids) == 0 {
+		return guard
+	}
+	groups, err := s.EducationGroupRepo.StudentGroupIDs(ctx, ids)
+	if err != nil {
+		return guard
+	}
+	guard.groups, guard.groupsKnown = groups, true
+	return guard
 }
 
 func countTrue(values map[int64]bool) int {

@@ -8,7 +8,6 @@ import {
 } from "./ui-kit-button-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
-import { insetBaseline } from "./ui-kit-inset-baseline.mjs";
 import { uppercaseLabelBaseline } from "./ui-kit-uppercase-label-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
@@ -1195,7 +1194,7 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
+src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@226 text-[11px]@275
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
@@ -3954,7 +3953,14 @@ const noUppercaseLabel = makeRatchetRule({
 // `InsetPanel`. Fund: ein Element mit Radius, `bg-gray-50` und Polster, auch über
 // Ternär-Zweige und lokale Konstanten hinweg. Ein Knopf oder Link ist keine Fläche.
 // Zweiter Fund: eine Flächen-Klassenkette in einer Modul-Konstante; dort entstand
-// das nächste Mini-Kit. Start mit shrink-only Baseline, Abbau je Bereich in Sub-Issues.
+// das nächste Mini-Kit. Hard-zero seit dem Abbau der Baseline.
+// Eltern-Ausnahmen aus #2619: Kinderkarten, Kinderwahl und Startseite des
+// Elternportals behalten ihre Flächen. Nie anfassen, auch nicht für das Kit.
+const INSET_PARENT_EXCEPTIONS = [
+  "src/components/parent/child/child-day-card.tsx",
+  "src/components/parent/child/child-switcher.tsx",
+  "src/components/parent/start/parent-start-page.tsx",
+];
 const INSET_ACTION_ELEMENTS = new Set([
   "a",
   "button",
@@ -3998,11 +4004,11 @@ const noHandRolledInset = makeRatchetRule({
     "Inner surfaces come from InsetPanel; surface class chains do not live in module constants.",
   message:
     "Keine eigene Innenfläche: `InsetPanel` (`tone`, `framed`, `dashed`, `padding`, `as`) aus ~/components/ui/inset-panel, Flächenklassen nicht in einer Modul-Konstante (#5592, .claude/rules/frontend-ui-kit.md).",
-  baselines: insetBaseline,
+  baselines: {},
   allowlist: [],
-  countEnv: "UI_KIT_INSET_RATCHET",
   kitFile: "src/components/ui/inset-panel.tsx",
   exemptDir: UI_KIT_DIR,
+  exemptFiles: INSET_PARENT_EXCEPTIONS,
   // E2E-Dateien halten Selektoren als Konstanten, keine Oberfläche.
   onlySrc: true,
   detect: ({ classText, found }) => ({

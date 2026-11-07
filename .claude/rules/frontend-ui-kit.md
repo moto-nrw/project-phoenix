@@ -324,7 +324,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-arbitrary-shadow`, `no-hand-rolled-list-row`, `no-hand-rolled-framed-list` (#5593, hard-zero): no `shadow-[…]`, hand-built list row or framed list outside `ui/`. `ui-kit/no-hand-rolled-nav-row` (#5593, shrink-only): no full-width row with an arrow; use `ListRowLink`.
 
-`ui-kit/no-hand-rolled-inset` (#5592, shrink-only, `pnpm run ui-kit:inset-baseline`): radius + `bg-gray-50` + padding, and surface chains in module constants.
+`ui-kit/no-hand-rolled-inset` (#5592, hard-zero): radius + `bg-gray-50` + padding, and surface chains in module constants. Three #2619 parent files are exempt by path.
 
 `ui-kit/no-raw-table` (#5600, hard-zero): no `<table>` outside `ui/`.
 
