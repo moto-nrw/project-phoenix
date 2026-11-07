@@ -18,7 +18,6 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
@@ -268,32 +267,20 @@ export default function SchoolParentLettersPage() {
                         versuchen.
                       </p>
                     ) : null}
-                    <label htmlFor="parent-letter-class" className="block">
-                      <span className="mb-2 block text-sm font-medium text-gray-700">
-                        Klasse
-                      </span>
-                      <CustomSelect
-                        id="parent-letter-class"
-                        name="school_class"
-                        ariaLabel="Klasse"
-                        value={draft.schoolClass}
-                        placeholder="Klasse wählen"
-                        onChange={(next) => update({ schoolClass: next })}
-                        disabled={fieldsDisabled}
-                        invalid={!!classError}
-                        ariaDescribedBy={
-                          classError ? "parent-letter-class-error" : undefined
-                        }
-                        options={classes.map((schoolClass) => ({
-                          value: schoolClass,
-                          label: schoolClassLabel(schoolClass),
-                        }))}
-                      />
-                      <FieldErrorHint
-                        id="parent-letter-class-error"
-                        message={classError}
-                      />
-                    </label>
+                    <CustomSelect
+                      id="parent-letter-class"
+                      name="school_class"
+                      label="Klasse"
+                      value={draft.schoolClass}
+                      placeholder="Klasse wählen"
+                      onChange={(next) => update({ schoolClass: next })}
+                      disabled={fieldsDisabled}
+                      error={classError}
+                      options={classes.map((schoolClass) => ({
+                        value: schoolClass,
+                        label: schoolClassLabel(schoolClass),
+                      }))}
+                    />
 
                     <Input
                       label="Betreff"

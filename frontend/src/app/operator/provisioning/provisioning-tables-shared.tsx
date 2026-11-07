@@ -42,32 +42,18 @@ export function OrgSchoolFilter({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
       <div className="flex-1">
-        <label
-          id={`filter-${idPrefix}-org-label`}
-          htmlFor={`filter-${idPrefix}-org`}
-          className="mb-1 block text-xs font-medium text-gray-500"
-        >
-          Träger
-        </label>
         <CustomSelect
           id={`filter-${idPrefix}-org`}
-          ariaLabelledBy={`filter-${idPrefix}-org-label`}
+          label="Träger"
           value={filterOrgId}
           options={orgOptions}
           onChange={onOrgChange}
         />
       </div>
       <div className="flex-1">
-        <label
-          id={`filter-${idPrefix}-school-label`}
-          htmlFor={`filter-${idPrefix}-school`}
-          className="mb-1 block text-xs font-medium text-gray-500"
-        >
-          Schule
-        </label>
         <CustomSelect
           id={`filter-${idPrefix}-school`}
-          ariaLabelledBy={`filter-${idPrefix}-school-label`}
+          label="Schule"
           value={selectedSchool?.id ?? ""}
           options={schoolOptions}
           onChange={onSchoolChange}
