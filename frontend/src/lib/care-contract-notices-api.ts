@@ -20,9 +20,14 @@ const officePath = (id: string) =>
 
 export async function fetchContractNoticeOptions(
   id: string,
+  receivedOn?: string,
 ): Promise<ContractNoticeOptions> {
   return noticeOptionsFromBackend(
-    await traegerRequest<BackendNoticeOptions>(officePath(id)),
+    await traegerRequest<BackendNoticeOptions>(
+      receivedOn
+        ? `${officePath(id)}?${new URLSearchParams({ received_on: receivedOn })}`
+        : officePath(id),
+    ),
   );
 }
 

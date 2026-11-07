@@ -64,6 +64,7 @@ func newNoticeFixture(t *testing.T, name string, now time.Time) noticeFixture {
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	race := newRaceFixture(t, name)
+	race.contracts.clock = Clock{Now: func() time.Time { return race.conclusion.At }}
 	require.NoError(t, testpkg.WithinTraeger(race.ctx, race.org, func(txCtx context.Context) error {
 		if _, err := race.db.NewUpdate().Table("care_contract.contract_versions").Set("effective_from = ?", calendar.NewDate(2026, 9, 1)).
 			Where("contract_id = ?", race.contract).Exec(txCtx); err != nil {
@@ -232,7 +233,7 @@ func TestWithdrawalOnlyWithinThePeriod(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		options, err = f.notices.options(txCtx, f.org, record)
+		options, err = f.notices.options(txCtx, f.org, record, f.notices.today())
 		return err
 	}))
 	assert.Nil(t, options.WithdrawalUntil, "the page offers no withdrawal after the period")
@@ -272,4 +273,69 @@ func TestDeclarationNeedsAnActiveContractAndAValidDay(t *testing.T) {
 	special.TerminationKind = carecontract.TerminationSpecial
 	require.ErrorIs(t, testpkg.WithinTraeger(f.ctx, f.org, f.declare(special)), carecontract.ErrSpecialTerminationClosed)
 	assert.Equal(t, carecontract.StatusActive, f.state(t).status)
+}
+
+func TestDelayedConclusionStartsWithdrawalAtNoticeProvision(t *testing.T) {
+	t.Parallel()
+	f := newRaceFixture(t, "Träger verspäteter Abschluss")
+	provided := time.Date(2026, 12, 1, 10, 0, 0, 0, time.UTC)
+	f.contracts.clock = Clock{Now: func() time.Time { return provided }}
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, f.conclude))
+	var informed *time.Time
+	require.NoError(t, f.db.NewRaw(`SELECT withdrawal_informed_at FROM care_contract.contracts WHERE id = ?`, f.contract).Scan(f.ctx, &informed))
+	require.NotNil(t, informed)
+	assert.WithinDuration(t, provided, *informed, time.Second)
+	assert.Equal(t, new(calendar.NewDate(2026, 12, 15)), withdrawalUntil(&f.conclusion, informed))
+}
+
+// deliveredRacePost reports the first send as complete so the conclusion
+// can reuse the legacy PDF rather than rejecting a still-pending mail.
+type deliveredRacePost struct{ *racePost }
+
+func (p deliveredRacePost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {
+	states, err := p.racePost.ContractMailStates(ctx, organizationID, contractID)
+	for i := range states {
+		states[i].State = carecontract.MailSent
+	}
+	return states, err
+}
+
+func TestLegacyFrozenDocumentDoesNotClaimWithdrawalNotice(t *testing.T) {
+	t.Parallel()
+	f := newRaceFixture(t, "Träger altes PDF")
+	f.contracts.post = deliveredRacePost{f.contracts.post.(*racePost)}
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(ctx context.Context) error {
+		return f.contracts.send(ctx, f.reviewer, f.contract, "")
+	}))
+	// A pre-migration sent PDF has no notice-provision evidence.
+	_, err := f.db.ExecContext(f.ctx, `UPDATE care_contract.contracts SET withdrawal_informed_at = NULL WHERE id = ?`, f.contract)
+	require.NoError(t, err)
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, f.conclude))
+	var informed *time.Time
+	require.NoError(t, f.db.NewRaw(`SELECT withdrawal_informed_at FROM care_contract.contracts WHERE id = ?`, f.contract).Scan(f.ctx, &informed))
+	assert.Nil(t, informed, "conclusion and resend of an old PDF prove no notice provision")
+	assert.Equal(t, new(calendar.NewDate(2027, 11, 20)), withdrawalUntil(&f.conclusion, informed))
+}
+
+func TestOfficeOptionsUseTheReceiptDay(t *testing.T) {
+	t.Parallel()
+	today := time.Date(2027, 1, 5, 10, 0, 0, 0, time.UTC)
+	f := newNoticeFixture(t, "Träger älterer Eingang", today)
+	// One-month notice: in November the half-year ends earlier than July;
+	// in January that special end is no longer earlier than the ordinary end.
+	_, err := f.db.ExecContext(f.ctx, `UPDATE care_contract.contract_versions SET notice_to = 'school_year_end', special_termination = true WHERE contract_id = ?`, f.contract)
+	require.NoError(t, err)
+	now, err := f.notices.NoticeOptions(f.ctx, f.reviewer, f.contract, "")
+	require.NoError(t, err)
+	assert.Nil(t, now.WithdrawalUntil)
+	assert.Nil(t, now.SpecialEndsOn)
+	earlier, err := f.notices.NoticeOptions(f.ctx, f.reviewer, f.contract, calendar.NewDate(2026, 11, 10))
+	require.NoError(t, err)
+	assert.Equal(t, new(calendar.NewDate(2026, 11, 20)), earlier.WithdrawalUntil)
+	assert.Equal(t, new(calendar.NewDate(2027, 1, 31)), earlier.SpecialEndsOn)
+	for _, day := range []calendar.Date{calendar.NewDate(2026, 11, 5), calendar.NewDate(2027, 1, 6)} {
+		_, err := f.notices.NoticeOptions(f.ctx, f.reviewer, f.contract, day)
+		var invalid *carecontract.ValidationError
+		assert.ErrorAs(t, err, &invalid)
+	}
 }

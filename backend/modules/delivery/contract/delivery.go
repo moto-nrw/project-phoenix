@@ -300,6 +300,7 @@ var parentMailTemplates = map[string]bool{
 	"appointment_cancelled":              true,
 	"appointment_reminder":               true,
 	"care_contract":                      true,
+	"care_contract_notice":               true,
 }
 
 // IsParentMail reports whether a mail template goes to parents.

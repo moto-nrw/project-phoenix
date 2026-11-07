@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // concludeStore records the writes of the transition; every other method of
@@ -155,4 +156,22 @@ func TestAcceptanceTextBindsEveryTemplateCondition(t *testing.T) {
 	}
 	terms.ContractPartner = ""
 	assert.Empty(t, acceptanceText(terms), "the letterhead fallback is not part of the accepted conditions")
+}
+
+func TestManualDraftKeepsEarlyStartConsent(t *testing.T) {
+	t.Parallel()
+	accepted := time.Date(2026, 11, 6, 9, 0, 0, 0, time.UTC)
+	read := schoolRead{school: carecontract.School{ID: 7},
+		offerings: map[int64]carecontract.Offering{3: {ID: 3, Name: "Ganztag"}},
+		applications: []carecontract.Application{{RequestChildID: 9, AcceptedAt: &accepted,
+			Bookings:    []carecontract.Booking{{CareOfferingID: 3, Days: []string{"mon"}}},
+			Acceptances: []carecontract.AcceptedText{{Text: EarlyStartText, SHA256: "proof", SubmittedAt: accepted.Add(-time.Hour)}},
+		}},
+	}
+	draft, reason := (&Intake{}).draft(carecontract.CandidateKey{SchoolID: 7, RequestChildID: 9}, []schoolRead{read},
+		templateIndex{{7, 3}: {TermKind: carecontract.TermOpenEnded, NoticeTo: carecontract.NoticeMonthEnd}},
+		map[ContractKey]bool{}, calendar.NewDate(2026, 11, 6))
+	require.Empty(t, reason)
+	assert.True(t, draft.EarlyStart, "manual drafts retain the parents' voluntary consent")
+	assert.Contains(t, withdrawalBlocks(ContractRecord{EarlyStart: draft.EarlyStart}, "Träger")[1].Text, "ausdrücklich verlangt")
 }

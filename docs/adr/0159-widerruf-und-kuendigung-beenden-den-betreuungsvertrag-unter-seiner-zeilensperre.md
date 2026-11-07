@@ -41,9 +41,11 @@ Ergänzung in #4682. Keine Rechtsberatung.
    Vorlage. Die Widerrufsfrist ist gesetzlich und keine Einstellung.
 4. **Belehrung im PDF.** Jedes Vertrags-PDF trägt ab dieser Änderung die
    Widerrufsbelehrung und die Angabe, ob die Eltern den Beginn vor Ende der
-   Frist verlangt haben. Ein Trigger setzt beim Abschluss
-   `withdrawal_informed_at`. Ältere Verträge haben die längere Frist; ein
-   früher auf Papier geschlossener Vertrag keine.
+   Frist verlangt haben. Der erste Versand eines neu erzeugten PDFs setzt
+   `withdrawal_informed_at`, unabhängig vom historischen Abschlussdatum.
+   Die Frist beginnt frühestens mit diesem Versand. Bereits eingefrorene
+   PDFs ohne Belehrungsnachweis behalten die längere Frist; ein früher auf
+   Papier geschlossener Vertrag hat keine.
 5. **Bestätigung in Textform.** Die Texte sind Träger-Einstellungen
    (`care_contract.termination_confirmation`,
    `care_contract.withdrawal_confirmation`, ADR 0086, kein Env-Fallback). Der

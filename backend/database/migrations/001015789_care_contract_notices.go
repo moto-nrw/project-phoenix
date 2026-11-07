@@ -29,8 +29,8 @@ func init() {
 //     (§ 355 BGB). The contract is undone from its start and holds on no day.
 //   - withdrawal_informed_at is when the parents received the withdrawal
 //     notice on a durable medium: every contract PDF carries it from this
-//     migration on, so a trigger sets it to concluded_at when a contract
-//     becomes aktiv. Contracts concluded before keep NULL: their period
+//     migration on. The first send of a newly generated PDF records it
+//     independently of concluded_at. Previously frozen PDFs keep NULL: their period
 //     ends 12 months and 14 days after the conclusion (§ 356 Abs. 3 BGB),
 //     a paper contract signed at the office has none. early_start_requested records the
 //     parents' express wish that care begins within the period (§ 356 Abs. 4,
@@ -56,21 +56,7 @@ COMMENT ON COLUMN care_contract.contracts.withdrawal_informed_at IS
 	'When the parents received the withdrawal notice with the contract PDF (§ 356 Abs. 3 BGB, #4682).';
 COMMENT ON COLUMN care_contract.contracts.early_start_requested IS
 	'The parents asked in the application that care begins within the withdrawal period (§ 356 Abs. 4 BGB, #4682).';
-GRANT UPDATE (ends_on) ON care_contract.contracts TO phoenix_tenant;
-
-CREATE OR REPLACE FUNCTION care_contract.mark_withdrawal_informed() RETURNS trigger
-LANGUAGE plpgsql AS $$
-BEGIN
-	IF NEW.status = 'aktiv' AND OLD.status IS DISTINCT FROM 'aktiv' AND NEW.concluded_at IS NOT NULL
-		AND NEW.withdrawal_informed_at IS NULL THEN
-		NEW.withdrawal_informed_at := NEW.concluded_at;
-	END IF;
-	RETURN NEW;
-END;
-$$;
-CREATE TRIGGER mark_care_contract_withdrawal_informed
-	BEFORE UPDATE OF status ON care_contract.contracts
-	FOR EACH ROW EXECUTE FUNCTION care_contract.mark_withdrawal_informed();
+GRANT UPDATE (ends_on, withdrawal_informed_at) ON care_contract.contracts TO phoenix_tenant;
 
 CREATE TABLE care_contract.contract_notices (
 	id BIGSERIAL PRIMARY KEY,
@@ -93,9 +79,24 @@ CREATE TABLE care_contract.contract_notices (
 		(kind = 'kuendigung' AND notice_kind IS NOT NULL AND notice_kind IN ('ordentlich', 'sonderkuendigung') AND ends_on IS NOT NULL)
 		OR (kind = 'widerruf' AND notice_kind IS NULL AND ends_on IS NULL)),
 	CONSTRAINT chk_contract_notices_channel CHECK (channel IN ('eltern_app', 'traeger_buero')),
-	CONSTRAINT chk_contract_notices_account CHECK (channel <> 'eltern_app' OR account_id IS NOT NULL),
 	CONSTRAINT chk_contract_notices_text CHECK (BTRIM(confirmation_text) <> '' AND char_length(confirmation_text) <= 8000)
 );
+-- Require attribution when a parent declaration is created, but allow
+-- ON DELETE SET NULL to retain it after the account is hard-deleted.
+CREATE FUNCTION care_contract.require_notice_account() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+ IF NEW.channel = 'eltern_app' AND NEW.account_id IS NULL THEN
+  RAISE EXCEPTION 'a parent declaration requires an account'
+   USING ERRCODE = '23514', CONSTRAINT = 'chk_contract_notices_account';
+ END IF;
+ RETURN NEW;
+END;
+$$;
+CREATE TRIGGER require_care_contract_notice_account
+ BEFORE INSERT ON care_contract.contract_notices
+ FOR EACH ROW EXECUTE FUNCTION care_contract.require_notice_account();
+
 CREATE INDEX idx_contract_notices_contract ON care_contract.contract_notices (organization_id, contract_id);
 COMMENT ON TABLE care_contract.contract_notices IS
 	'Every withdrawal and termination of a care contract with its confirmation as sent (#4682).';
@@ -120,13 +121,12 @@ ALTER TABLE care_contract.contract_events ADD CONSTRAINT chk_contract_events_act
 // careContractNoticesDownSQL returns the ended contracts to aktiv; their
 // declarations go with the table.
 const careContractNoticesDownSQL = `
-DROP TRIGGER IF EXISTS mark_care_contract_withdrawal_informed ON care_contract.contracts;
-DROP FUNCTION IF EXISTS care_contract.mark_withdrawal_informed();
 DELETE FROM care_contract.contract_events WHERE action IN ('terminate', 'withdraw');
 ALTER TABLE care_contract.contract_events DROP CONSTRAINT chk_contract_events_action;
 ALTER TABLE care_contract.contract_events ADD CONSTRAINT chk_contract_events_action
 	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'conclude', 'sign', 'remind'));
 DROP TABLE IF EXISTS care_contract.contract_notices;
+DROP FUNCTION IF EXISTS care_contract.require_notice_account();
 ALTER TABLE care_contract.contracts DROP CONSTRAINT IF EXISTS chk_contracts_terminated;
 ALTER TABLE care_contract.contracts DROP CONSTRAINT IF EXISTS chk_contracts_notice_concluded;
 UPDATE care_contract.contracts SET status = 'aktiv' WHERE status IN ('gekuendigt', 'widerrufen');

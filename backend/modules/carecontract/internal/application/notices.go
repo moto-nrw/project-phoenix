@@ -84,9 +84,9 @@ type declaration struct {
 	traeger string
 }
 
-// NoticeOptions reads what can be declared on a contract today and records
-// the read in the trail and in the access log of the contract's school.
-func (n *Notices) NoticeOptions(ctx context.Context, reviewer carecontract.Reviewer, contractID int64) (carecontract.NoticeOptions, error) {
+// NoticeOptions reads the choices on receivedOn (today when omitted),
+// recording the read in the trail and the school's access log.
+func (n *Notices) NoticeOptions(ctx context.Context, reviewer carecontract.Reviewer, contractID int64, receivedOn calendar.Date) (carecontract.NoticeOptions, error) {
 	if err := checkReviewer(reviewer); err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
@@ -101,7 +101,13 @@ func (n *Notices) NoticeOptions(ctx context.Context, reviewer carecontract.Revie
 			return err
 		}
 		schoolID = record.Summary.SchoolID
-		if options, err = n.options(txCtx, reviewer.OrganizationID, record); err != nil {
+		day := n.today()
+		if !receivedOn.IsZero() && record.Concluded != nil {
+			if day, err = n.receivedOn(record, receivedOn); err != nil {
+				return err
+			}
+		}
+		if options, err = n.options(txCtx, reviewer.OrganizationID, record, day); err != nil {
 			return err
 		}
 		return n.trail(txCtx, reviewer.OrganizationID, reviewer.AccountID, record, ActionRead, map[string]any{"view": "notice_options"})
@@ -144,7 +150,7 @@ func (n *Notices) ParentNoticeOptions(ctx context.Context, organizationID, contr
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
-	options, err := n.options(ctx, organizationID, record)
+	options, err := n.options(ctx, organizationID, record, n.today())
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
@@ -217,7 +223,7 @@ func (n *Notices) declare(ctx context.Context, d declaration) (carecontract.Noti
 	if notice.Kind == carecontract.NoticeTermination {
 		record.Summary.Status = carecontract.StatusTerminated
 	}
-	return n.options(ctx, d.organizationID, record)
+	return n.options(ctx, d.organizationID, record, n.today())
 }
 
 // newNotice checks the declaration against the contract and dates it.
@@ -318,9 +324,9 @@ func (n *Notices) confirm(ctx context.Context, record ContractRecord, d declarat
 	return n.trail(ctx, d.organizationID, d.accountID, record, action, details)
 }
 
-// options is what can be declared on the contract today, or the declaration
-// made.
-func (n *Notices) options(ctx context.Context, organizationID int64, record ContractRecord) (carecontract.NoticeOptions, error) {
+// options calculates declaration choices on the receipt day, or returns
+// the declaration already made.
+func (n *Notices) options(ctx context.Context, organizationID int64, record ContractRecord, day calendar.Date) (carecontract.NoticeOptions, error) {
 	state, err := n.notices.NoticeState(ctx, organizationID, record.Summary.ID)
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
@@ -334,10 +340,9 @@ func (n *Notices) options(ctx context.Context, organizationID int64, record Cont
 	if record.Summary.Status != carecontract.StatusActive || record.Concluded == nil {
 		return options, nil
 	}
-	today := n.today()
-	ordinary, special := noticeDates(record.Version.Terms, today, state.ContractEnd)
+	ordinary, special := noticeDates(record.Version.Terms, day, state.ContractEnd)
 	options.OrdinaryEndsOn, options.SpecialEndsOn = &ordinary, special
-	if until := withdrawalUntil(record.Concluded, state.InformedAt); until != nil && !today.After(*until) {
+	if until := withdrawalUntil(record.Concluded, state.InformedAt); until != nil && !day.After(*until) {
 		options.WithdrawalUntil = until
 	}
 	return options, nil

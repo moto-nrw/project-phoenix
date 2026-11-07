@@ -247,9 +247,56 @@ function RecordNoticeModal({
   const form = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(form);
   const { success } = useToast();
-  const withdrawalOpen = options.withdrawalUntil !== null;
+  const [datedOptions, setDatedOptions] = useState<{
+    receivedOn: string;
+    options: ContractNoticeOptions;
+  } | null>(null);
+  const [retry, setRetry] = useState(0);
+  const {
+    error: optionsError,
+    show: showOptionsError,
+    clear: clearOptionsError,
+  } = useApiLoadError();
+  const choices =
+    datedOptions?.receivedOn === receivedOn ? datedOptions.options : null;
+  const withdrawalOpen = choices?.withdrawalUntil != null;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let current = true;
+    setDatedOptions(null);
+    clearOptionsError();
+    void fetchContractNoticeOptions(contractId, receivedOn)
+      .then((next) => {
+        if (!current) return;
+        setDatedOptions({ receivedOn, options: next });
+        if (!next.withdrawalUntil) setKind("kuendigung");
+        if (!next.specialEndsOn) setTerminationKind("ordentlich");
+      })
+      .catch(async (err: unknown) => {
+        if (!current) return;
+        logger.error("traeger_care_contract_notice_options_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        await showOptionsError(err, {
+          object: "die Kündigung",
+          retry: () => setRetry((value) => value + 1),
+        });
+      });
+    return () => {
+      current = false;
+    };
+  }, [
+    isOpen,
+    contractId,
+    receivedOn,
+    retry,
+    clearOptionsError,
+    showOptionsError,
+  ]);
 
   const submit = async () => {
+    if (!choices || optionsError) return;
     formErrors.clear();
     setSaving(true);
     try {
@@ -301,6 +348,7 @@ function RecordNoticeModal({
             form="care-contract-notice-form"
             variant="primary"
             size="md"
+            disabled={!choices || Boolean(optionsError)}
             isLoading={saving}
             loadingText="Wird eingetragen …"
           >
@@ -322,82 +370,6 @@ function RecordNoticeModal({
         <p className="text-sm text-gray-600">
           {options.childName} · {options.modules} · {options.schoolName}
         </p>
-        {withdrawalOpen ? (
-          <SegmentedControl<NoticeKind>
-            ariaLabel="Was haben die Eltern erklärt?"
-            fullWidth
-            value={kind}
-            onChange={setKind}
-            items={[
-              { value: "kuendigung", label: "Kündigung" },
-              { value: "widerruf", label: "Widerruf" },
-            ]}
-          />
-        ) : (
-          <p className="text-sm text-gray-600">
-            Ein Widerruf ist nicht mehr möglich. Die Eltern können kündigen.
-          </p>
-        )}
-        {kind === "kuendigung" ? (
-          <fieldset className="space-y-2">
-            <legend className="mb-2 text-sm font-medium text-gray-900">
-              Zu welchem Termin?
-            </legend>
-            <ChoiceTile
-              selected={terminationKind === "ordentlich"}
-              className="p-3"
-            >
-              <Radio
-                name="termination_kind"
-                value="ordentlich"
-                checked={terminationKind === "ordentlich"}
-                onChange={() => setTerminationKind("ordentlich")}
-              />
-              <span className="min-w-0">
-                <span className="block text-gray-900">
-                  Nächster Termin
-                  {options.ordinaryEndsOn
-                    ? `: ${formatDate(options.ordinaryEndsOn)}`
-                    : ""}
-                </span>
-                <span className="block font-normal text-gray-500">
-                  {options.terms}
-                </span>
-              </span>
-            </ChoiceTile>
-            {options.specialEndsOn ? (
-              <ChoiceTile
-                selected={terminationKind === "sonderkuendigung"}
-                className="p-3"
-              >
-                <Radio
-                  name="termination_kind"
-                  value="sonderkuendigung"
-                  checked={terminationKind === "sonderkuendigung"}
-                  onChange={() => setTerminationKind("sonderkuendigung")}
-                />
-                <span className="min-w-0">
-                  <span className="block text-gray-900">
-                    Sonderkündigung zum Halbjahr:{" "}
-                    {formatDate(options.specialEndsOn)}
-                  </span>
-                  <span className="block font-normal text-gray-500">
-                    Nur, wenn ein Grund aus dem Vertrag vorliegt.
-                  </span>
-                </span>
-              </ChoiceTile>
-            ) : null}
-            <p className="text-sm text-gray-500">
-              Die Daten gelten für einen Eingang heute. Mit einem früheren
-              Eingangstag rechnet moto den Termin neu.
-            </p>
-          </fieldset>
-        ) : (
-          <Alert
-            type="info"
-            message={`Der Vertrag wird vom ersten Tag an aufgehoben. Möglich bis ${formatDate(options.withdrawalUntil ?? "")}.`}
-          />
-        )}
         <div className="space-y-1.5">
           <FieldLabel htmlFor="care-contract-notice-received" required>
             Eingegangen am
@@ -406,7 +378,11 @@ function RecordNoticeModal({
             id="care-contract-notice-received"
             name="received_on"
             value={parseISODate(receivedOn)}
-            onChange={(date) => setReceivedOn(date ? toISODate(date) : today)}
+            onChange={(date) => {
+              setKind("kuendigung");
+              setTerminationKind("ordentlich");
+              setReceivedOn(date ? toISODate(date) : today);
+            }}
             maxDate={parseISODate(today)}
             minDate={parseISODate(berlinTodayISO(new Date(concludedAt)))}
             hideClearButton
@@ -414,6 +390,89 @@ function RecordNoticeModal({
             invalid={Boolean(formErrors.fieldError("received_on"))}
           />
         </div>
+        {optionsError ? <LoadErrorAlert error={optionsError} /> : null}
+        {choices ? (
+          <>
+            {withdrawalOpen ? (
+              <SegmentedControl<NoticeKind>
+                ariaLabel="Was haben die Eltern erklärt?"
+                fullWidth
+                value={kind}
+                onChange={setKind}
+                items={[
+                  { value: "kuendigung", label: "Kündigung" },
+                  { value: "widerruf", label: "Widerruf" },
+                ]}
+              />
+            ) : (
+              <p className="text-sm text-gray-600">
+                Ein Widerruf ist nicht mehr möglich. Die Eltern können kündigen.
+              </p>
+            )}
+            {kind === "kuendigung" ? (
+              <fieldset className="space-y-2">
+                <legend className="mb-2 text-sm font-medium text-gray-900">
+                  Zu welchem Termin?
+                </legend>
+                <ChoiceTile
+                  selected={terminationKind === "ordentlich"}
+                  className="p-3"
+                >
+                  <Radio
+                    name="termination_kind"
+                    value="ordentlich"
+                    checked={terminationKind === "ordentlich"}
+                    onChange={() => setTerminationKind("ordentlich")}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-gray-900">
+                      Nächster Termin
+                      {choices.ordinaryEndsOn
+                        ? `: ${formatDate(choices.ordinaryEndsOn)}`
+                        : ""}
+                    </span>
+                    <span className="block font-normal text-gray-500">
+                      {options.terms}
+                    </span>
+                  </span>
+                </ChoiceTile>
+                {choices.specialEndsOn ? (
+                  <ChoiceTile
+                    selected={terminationKind === "sonderkuendigung"}
+                    className="p-3"
+                  >
+                    <Radio
+                      name="termination_kind"
+                      value="sonderkuendigung"
+                      checked={terminationKind === "sonderkuendigung"}
+                      onChange={() => setTerminationKind("sonderkuendigung")}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-gray-900">
+                        Sonderkündigung zum Halbjahr:{" "}
+                        {formatDate(choices.specialEndsOn)}
+                      </span>
+                      <span className="block font-normal text-gray-500">
+                        Nur, wenn ein Grund aus dem Vertrag vorliegt.
+                      </span>
+                    </span>
+                  </ChoiceTile>
+                ) : null}
+                <p className="text-sm text-gray-500">
+                  Die Termine gelten für den gewählten Eingangstag.
+                </p>
+              </fieldset>
+            ) : (
+              <Alert
+                type="info"
+                message={`Der Vertrag wird vom ersten Tag an aufgehoben. Möglich bis ${formatDate(choices.withdrawalUntil ?? "")}.`}
+              />
+            )}
+          </>
+        ) : !optionsError ? (
+          <p className="text-sm text-gray-500">Termine werden geladen …</p>
+        ) : null}
+
         <Alert
           type="warning"
           message="Die Eltern bekommen sofort eine Bestätigung per E-Mail. Das lässt sich nicht rückgängig machen."

@@ -56,8 +56,8 @@ func TestCareContractNoticesKeepTheirTraegerAndTheirStates(t *testing.T) {
 	require.NoError(t, as(own, fmt.Sprintf(`UPDATE care_contract.contracts SET status = 'aktiv', concluded_at = NOW(),
 		conclusion_method = 'mit_anmeldung' WHERE id = %d`, active)))
 	var informed bool
-	require.NoError(t, db.NewRaw(`SELECT withdrawal_informed_at = concluded_at FROM care_contract.contracts WHERE id = ?`, active).Scan(ctx, &informed))
-	assert.True(t, informed, "the conclusion records the withdrawal notice of its PDF")
+	require.NoError(t, db.NewRaw(`SELECT withdrawal_informed_at IS NULL FROM care_contract.contracts WHERE id = ?`, active).Scan(ctx, &informed))
+	assert.True(t, informed, "conclusion alone proves no notice provision")
 
 	assert.ErrorContains(t, as(own, fmt.Sprintf(`UPDATE care_contract.contracts SET status = 'gekuendigt' WHERE id = %d`, active)),
 		"chk_contracts_terminated", "a terminated contract names its last day")
@@ -95,4 +95,28 @@ func TestCareContractNoticesKeepTheirTraegerAndTheirStates(t *testing.T) {
 	}
 	assert.Equal(t, 1, count(own))
 	assert.Zero(t, count(other), "RLS keeps the declarations with their Träger")
+}
+
+func TestParentContractNoticeSurvivesHardAccountDeletion(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+		Name: "Träger aufbewahrte Erklärung", Slug: fmt.Sprintf("notice-retained-%d", testpkg.UniqueTestTenantID(t)),
+	}).ID
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	account := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("notice-%d@test.local", testpkg.UniqueTestTenantID(t)), testpkg.NewTestPassword())
+	school := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Erklärung")
+	var contract, notice int64
+	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id)
+  VALUES (?, ?, ?) RETURNING id`, organization, school, testpkg.UniqueTestTenantID(t)).Scan(ctx, &contract))
+	insert := `INSERT INTO care_contract.contract_notices (organization_id, contract_id, kind, channel, account_id,
+  declared_at, received_on, recipient_email, confirmation_text) VALUES (?, ?, 'widerruf', 'eltern_app', ?, NOW(), '2026-11-07', 'eltern@example.org', 'Bestätigung') RETURNING id`
+	assert.Error(t, db.NewRaw(insert, organization, contract, nil).Scan(ctx, &notice), "new parent declarations require attribution")
+	require.NoError(t, db.NewRaw(insert, organization, contract, account.ID).Scan(ctx, &notice))
+	_, err := db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
+	require.NoError(t, err, "account deletion must not delete or invalidate the retained declaration")
+	var retained bool
+	require.NoError(t, db.NewRaw(`SELECT account_id IS NULL AND confirmation_text = 'Bestätigung' FROM care_contract.contract_notices WHERE id = ?`, notice).Scan(ctx, &retained))
+	assert.True(t, retained)
 }

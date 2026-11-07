@@ -171,7 +171,7 @@ type NoticePost interface {
 // parents' in the Träger transaction of the contract's Träger, after the
 // parents portal checked the relationships (reader.Children).
 type Notices interface {
-	NoticeOptions(ctx context.Context, reviewer Reviewer, contractID int64) (NoticeOptions, error)
+	NoticeOptions(ctx context.Context, reviewer Reviewer, contractID int64, receivedOn calendar.Date) (NoticeOptions, error)
 	DeclareNotice(ctx context.Context, reviewer Reviewer, contractID int64, input NoticeInput) (NoticeOptions, error)
 	ParentNoticeOptions(ctx context.Context, organizationID, contractID int64, reader InboxReader) (NoticeOptions, error)
 	// ParentDeclareNotice confirms in the name traeger, the Träger the

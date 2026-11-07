@@ -257,15 +257,17 @@ func (Store) InsertMailing(ctx context.Context, organizationID, accountID, contr
 	return nil
 }
 
-// MarkSent moves a draft to versendet.
+// MarkSent moves a draft to versendet and records provision of the notice
+// in its newly generated PDF. Re-sending a previously frozen PDF never
+// invents provision evidence or restarts the withdrawal period.
 func (Store) MarkSent(ctx context.Context, organizationID, contractID int64, at time.Time) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
 	}
-	result, err := db.ExecContext(ctx, `UPDATE care_contract.contracts SET status = ?, sent_at = ?
+	result, err := db.ExecContext(ctx, `UPDATE care_contract.contracts SET status = ?, sent_at = ?, withdrawal_informed_at = ?
 		WHERE organization_id = ? AND id = ? AND status = ?`,
-		carecontract.StatusSent, at, organizationID, contractID, carecontract.StatusDraft)
+		carecontract.StatusSent, at, at, organizationID, contractID, carecontract.StatusDraft)
 	if err != nil {
 		return fmt.Errorf("care contract postgres: mark sent: %w", err)
 	}

@@ -147,4 +147,11 @@ func TestCareContractNoticeNeedsTheRightStaysWithItsTraegerAndIsAudited(t *testi
 	assert.Equal(t, 1, terminations, "the declaration under the office account")
 	assert.Equal(t, 1, reads, "the read of the notice page")
 	assert.Equal(t, 1, accessLogs, "the read in the access log of the school")
+
+	rec = traegerJSON(t, f.traeger, token, http.MethodGet, path+"?received_on="+concludedOn.String(), nil)
+	assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	for _, day := range []string{"2026-02-30", "2099-01-01", concludedOn.AddDays(-1).String()} {
+		rec = traegerJSON(t, f.traeger, token, http.MethodGet, path+"?received_on="+day, nil)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "%s: %s", day, rec.Body.String())
+	}
 }

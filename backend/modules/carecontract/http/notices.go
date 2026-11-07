@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // NoticeResource serves /traeger/contract-notices (#4682): the Träger-Büro
@@ -47,7 +48,15 @@ func (rs *NoticeResource) options(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	options, err := rs.notices.NoticeOptions(r.Context(), reviewer, id)
+	var receivedOn calendar.Date
+	if raw := r.URL.Query().Get("received_on"); raw != "" {
+		var err error
+		if receivedOn, err = calendar.ParseDate(raw); err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+	}
+	options, err := rs.notices.NoticeOptions(r.Context(), reviewer, id, receivedOn)
 	if err != nil {
 		RenderNoticeError(w, r, err)
 		return

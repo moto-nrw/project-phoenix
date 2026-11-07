@@ -89,7 +89,6 @@ func (c *Conclusions) conclusionDraft(key carecontract.CandidateKey, reads []sch
 	if reason != "" {
 		return draft, reason
 	}
-	draft.EarlyStart = earlyStartRequested(draft)
 	return draft, acceptanceIssue(draft, changed.since(key.SchoolID, draftOfferings(draft)))
 }
 
