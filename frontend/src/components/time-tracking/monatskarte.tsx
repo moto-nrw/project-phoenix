@@ -203,7 +203,7 @@ export function Monatskarte({
   return (
     <SectionCard
       title={`Monatskarte ${monthLabel(summary.year, summary.month)}`}
-      titleClassName="text-sm"
+      titleSize="sm"
       headingLevel={3}
       actions={
         <>

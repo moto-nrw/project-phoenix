@@ -45,11 +45,7 @@ export function ParentSection({
           ) : undefined
         }
         headingLevel={level}
-        titleClassName={
-          prominent
-            ? "flex min-h-9 items-center text-xl leading-tight tracking-tight sm:min-h-10"
-            : undefined
-        }
+        titleSize={prominent ? "lg" : "md"}
         bodyClassName="mt-5 space-y-5"
       >
         {children}

@@ -1544,6 +1544,69 @@ describe.concurrent("ui-kit/no-control-height-override", () => {
   });
 });
 
+describe.concurrent("Kit-Varianten aus #5606", () => {
+  it("reports look classes on tabs and allows layout", async () => {
+    const result = await lintSource(`
+      import { TabsList, TabsTrigger } from "~/components/ui/tabs";
+      export function Probe() {
+        return <TabsList className="mt-2 w-full justify-start">
+          <TabsTrigger value="a" className="min-h-16 rounded-lg text-base" />
+          <TabsTrigger value="b" className="flex-1" />
+        </TabsList>;
+      }
+    `);
+
+    expect(result.output.match(/ui-kit\(no-tabs-override\)/g)).toHaveLength(1);
+  });
+
+  it("reports a text size in titleClassName and allows other classes", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      export function Probe() {
+        return <>
+          <SectionCard title="A" titleClassName="text-xl" />
+          <SectionCard title="B" titleClassName="font-medium text-gray-600" />
+        </>;
+      }
+    `);
+
+    expect(
+      result.output.match(/ui-kit\(no-section-card-title-size\)/g),
+    ).toHaveLength(1);
+  });
+
+  it("reports a card on EmptyState and allows spacing", async () => {
+    const result = await lintSource(`
+      import { EmptyState } from "~/components/ui/empty-state";
+      export function Probe() {
+        return <>
+          <EmptyState title="A" className="moto-content-surface rounded-2xl border" />
+          <EmptyState title="B" className="py-0" />
+        </>;
+      }
+    `);
+
+    expect(
+      result.output.match(/ui-kit\(no-empty-state-surface\)/g),
+    ).toHaveLength(1);
+  });
+
+  it("reports initials in a tinted circle and allows other text", async () => {
+    const result = await lintSource(`
+      export function Probe({ first, label }: { first: string; label: string }) {
+        return <>
+          <span className="size-11 rounded-full bg-gray-100">{initials(first)}</span>
+          <span className="rounded-full bg-gray-100 px-2">{label}</span>
+        </>;
+      }
+    `);
+
+    expect(
+      result.output.match(/ui-kit\(no-hand-rolled-avatar\)/g),
+    ).toHaveLength(1);
+  });
+});
+
 describe.concurrent("ui-kit/no-select-override", () => {
   it("reports frame, fill, height and radius classes on kit selects", async () => {
     const result = await lintSource(`
