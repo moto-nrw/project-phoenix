@@ -2,7 +2,8 @@ import type { NextRequest } from "next/server";
 import { problemResponse } from "./api-response-error.server";
 import { NextResponse } from "next/server";
 import { auth } from "../server/auth";
-import { sendWithTokenRefresh } from "./tenant-token-retry.server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
+import { uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
 import { handleApiError } from "./api-helpers.server";
@@ -352,7 +353,9 @@ export function proxyFileUpload(
           cache: "no-store",
         });
 
-      const response = await sendWithTokenRefresh(token, send);
+      const response = await sendWithTokenRefresh(token, send, () =>
+        uncachedAuth(),
+      );
       if (!response.ok) throw await backendResponseError(response);
       return ((await response.json()) as { data?: unknown }).data;
     },
