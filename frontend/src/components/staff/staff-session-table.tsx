@@ -1152,7 +1152,10 @@ export function StaffSessionTable({
       .map((block, blockIndex) => ({
         key: `${row.key}-audit-${block.id ?? blockIndex}`,
         content: (
-          <>
+          // Auf dem Telefon ist die Tabelle breiter als der Bildschirm. Die
+          // Historie bleibt im sichtbaren Ausschnitt, sonst stehen Bearbeiter
+          // und Knopf rechts außerhalb.
+          <div className="max-md:sticky max-md:left-3 max-md:w-[calc(100vw-5.75rem)]">
             {row.hasMultipleBlocks && (
               <p className="mb-1 text-xs font-medium text-gray-500">
                 {`Block ${row.daySessions.indexOf(block) + 1}${
@@ -1174,7 +1177,7 @@ export function StaffSessionTable({
                 isAdminView ? () => editBlock(block, row.absence) : undefined
               }
             />
-          </>
+          </div>
         ),
       }));
     return [...blockRows, ...auditRows];
