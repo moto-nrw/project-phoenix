@@ -731,11 +731,15 @@ const SURFACE_FRAME_RE = /^border(?:-[1-9]\d*)?$/;
 const SURFACE_WHITE_FILL_RE = /^bg-white(?:\/[1-9]\d*)?$/;
 const SURFACE_RESPONSIVE_VARIANT_RE =
   /^(?:(?:max-)?(?:sm|md|lg|xl|2xl)|compact|min-\[[^\]]+\]|max-\[[^\]]+\])$/;
-const SURFACE_BREAKPOINTS = ["sm", "md", "lg", "xl", "2xl"];
-const SURFACE_STANDARD_RESPONSIVE_VARIANTS = new Set([
-  ...SURFACE_BREAKPOINTS,
-  ...SURFACE_BREAKPOINTS.map((breakpoint) => `max-${breakpoint}`),
+const SURFACE_BREAKPOINT_VALUES = new Map([
+  ["sm", 640],
+  ["md", 768],
+  ["lg", 1024],
+  ["xl", 1280],
+  ["2xl", 1536],
 ]);
+const SURFACE_ARBITRARY_BREAKPOINT_RE =
+  /^(min|max)-\[(\d+(?:\.\d+)?)(?:px|rem|em)\]$/;
 const SURFACE_CONTROL_ELEMENTS = new Set([
   "a",
   "button",
@@ -752,6 +756,22 @@ const SURFACE_CONTROL_ELEMENTS = new Set([
   "ChoiceTile",
 ]);
 
+function surfaceResponsiveRange(variant) {
+  const min = SURFACE_BREAKPOINT_VALUES.get(variant);
+  if (min !== undefined) return { min };
+
+  const max = variant.startsWith("max-")
+    ? SURFACE_BREAKPOINT_VALUES.get(variant.slice(4))
+    : undefined;
+  if (max !== undefined) return { max };
+
+  const arbitrary = SURFACE_ARBITRARY_BREAKPOINT_RE.exec(variant);
+  if (!arbitrary) return null;
+  const [, direction, value, unit] = arbitrary;
+  const pixels = Number(value) * (unit === "px" ? 1 : 16);
+  return direction === "min" ? { min: pixels } : { max: pixels };
+}
+
 function isWideSurfaceTokens(tokens) {
   const baseTokens = [];
   const responsiveTokens = new Map();
@@ -767,15 +787,22 @@ function isWideSurfaceTokens(tokens) {
     responsiveTokens.set(variant, variantTokens);
   }
   const states = [];
-  for (let range = 0; range <= SURFACE_BREAKPOINTS.length; range++) {
+  const rangedVariants = [];
+  const bounds = new Set([0]);
+  for (const [variant, variantTokens] of responsiveTokens) {
+    const range = surfaceResponsiveRange(variant);
+    if (!range) continue;
+    rangedVariants.push([range, variantTokens]);
+    bounds.add(range.min ?? range.max);
+  }
+  for (const width of [...bounds].sort((left, right) => left - right)) {
     const state = [...baseTokens];
-    for (let index = 0; index < SURFACE_BREAKPOINTS.length; index++) {
-      const breakpoint = SURFACE_BREAKPOINTS[index];
-      if (index < range) {
-        state.push(...(responsiveTokens.get(breakpoint) ?? []));
-      }
-      if (index >= range) {
-        state.push(...(responsiveTokens.get(`max-${breakpoint}`) ?? []));
+    for (const [range, variantTokens] of rangedVariants) {
+      if (
+        (range.min === undefined || width >= range.min) &&
+        (range.max === undefined || width < range.max)
+      ) {
+        state.push(...variantTokens);
       }
     }
     states.push(state);
@@ -783,15 +810,12 @@ function isWideSurfaceTokens(tokens) {
     // `compact` starts at `md` and can also match short wide screens. Its
     // width range overlaps the md+ states, where it needs to be checked with
     // both min- and max-breakpoint variants.
-    if (range > SURFACE_BREAKPOINTS.indexOf("md")) {
+    if (width >= SURFACE_BREAKPOINT_VALUES.get("md")) {
       states.push([...state, ...(responsiveTokens.get("compact") ?? [])]);
     }
   }
   for (const [variant, variantTokens] of responsiveTokens) {
-    if (
-      SURFACE_STANDARD_RESPONSIVE_VARIANTS.has(variant) ||
-      variant === "compact"
-    ) {
+    if (surfaceResponsiveRange(variant) || variant === "compact") {
       continue;
     }
     states.push([...baseTokens, ...variantTokens]);
