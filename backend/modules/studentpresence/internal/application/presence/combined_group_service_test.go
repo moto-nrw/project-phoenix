@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -754,7 +754,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		tx, err := db.BeginTx(txCtx, nil)
 		require.NoError(t, err)
 		defer func() { _ = tx.Rollback() }()
-		txCtx = tenant.WithTransactionForTest(txCtx, &tx)
+		txCtx = tenanttest.WithTransaction(txCtx, &tx)
 
 		err = service.CreateCombinedGroupWithGroups(txCtx, combinedGroup, []int64{activeGroup1.ID, activeGroup2.ID})
 
@@ -784,7 +784,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		txCtx := testpkg.Ctx(t)
 		tx, err := db.BeginTx(txCtx, nil)
 		require.NoError(t, err)
-		txCtx = tenant.WithTransactionForTest(txCtx, &tx)
+		txCtx = tenanttest.WithTransaction(txCtx, &tx)
 
 		err = service.CreateCombinedGroupWithGroups(txCtx, combinedGroup, []int64{activeGroup.ID, 99999999})
 

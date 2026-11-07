@@ -11,7 +11,7 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,7 +100,7 @@ func TestNotifyDefersDeliveryUntilCommit(t *testing.T) {
 
 	channel := &recordingChannel{name: "recording"}
 	svc := notifications.NewService(enabledSettings(true), nil, channel)
-	ctx, commit := tenant.WithAfterCommitHooksForTest(context.Background())
+	ctx, commit := tenanttest.WithAfterCommitHooks(context.Background())
 
 	event := tenantEvent(41)
 	event.Data = map[string]string{"reminder_id": "123"}

@@ -8,8 +8,6 @@ import (
 
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	"github.com/moto-nrw/project-phoenix/api"
@@ -54,10 +52,10 @@ func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Porta
 
 // seedCareCancellationNotice publishes a system-authored notice aimed at one
 // child, the shape PublishCareCancellation writes.
-func seedCareCancellationNotice(t *testing.T, ctx context.Context, repo api.ParentAnnouncementFixtures, createdBy, tenantID, studentID int64) *communication.ParentAnnouncementFixture {
+func seedCareCancellationNotice(t *testing.T, ctx context.Context, repo api.ParentAnnouncementFixtures, createdBy, tenantID, studentID int64) *api.ParentAnnouncementFixture {
 	t.Helper()
 	kind := "care_cancellation"
-	a := &communication.ParentAnnouncementFixture{
+	a := &api.ParentAnnouncementFixture{
 		Title:      "Betreuung am Dienstag entfällt",
 		Body:       "Die Betreuung am Dienstag von 14:00 bis 15:30 fällt aus.",
 		Priority:   "important",
@@ -68,7 +66,7 @@ func seedCareCancellationNotice(t *testing.T, ctx context.Context, repo api.Pare
 	a.TenantID = tenantID
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.Create, a))
 	id := studentID
-	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), repo.ReplaceTargets, tenantID, a.ID, []*communication.ParentAnnouncementTargetFixture{
+	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), repo.ReplaceTargets, tenantID, a.ID, []*api.ParentAnnouncementTargetFixture{
 		{TargetType: "student", TargetRefID: &id},
 	}))
 	now := time.Now().Add(-time.Minute)

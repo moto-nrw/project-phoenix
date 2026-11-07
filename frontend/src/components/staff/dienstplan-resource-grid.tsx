@@ -57,7 +57,7 @@ import { roomsConcept } from "~/lib/concepts/rooms";
 import { sickConcept } from "~/lib/concepts/sick";
 import { staffPlanConcept } from "~/lib/concepts/staffPlan";
 import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
-import { StatusDot } from "~/components/ui/status-dot";
+import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
 
 // Week matrix built on the generic kit ResourceGrid: rows are staff, columns
 // the weekdays Mo–Fr. All domain-to-block mapping lives here in the screen
@@ -719,36 +719,16 @@ export function DienstplanResourceGrid({
               {columns.map((column, index) => {
                 const isSelected = index === safeMobileDayIndex;
                 return (
-                  <button
+                  <PlanningDayChip
                     key={column.key}
-                    type="button"
+                    stacked
+                    weekdayLabel={column.label}
+                    dateLabel={column.sublabel ?? ""}
+                    selected={isSelected}
                     onClick={() => setMobileDayIndex(index)}
-                    aria-pressed={isSelected}
-                    className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                      isSelected
-                        ? "bg-gray-900 text-white"
-                        : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    <span
-                      className={`text-[10px] font-medium tracking-wide uppercase ${
-                        isSelected ? "text-white/80" : "text-gray-500"
-                      }`}
-                    >
-                      {column.label}
-                    </span>
-                    <span className="text-sm font-semibold tabular-nums">
-                      {column.sublabel}
-                    </span>
-                    {column.headerNote}
-                    {column.isCurrent && !isSelected && (
-                      <StatusDot
-                        className="bg-moto-red"
-                        size="xs"
-                        label="heute"
-                      />
-                    )}
-                  </button>
+                    marker={column.headerNote}
+                    today={column.isCurrent}
+                  />
                 );
               })}
             </div>

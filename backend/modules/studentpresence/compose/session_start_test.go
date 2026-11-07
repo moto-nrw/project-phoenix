@@ -7,6 +7,7 @@ import (
 
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -36,12 +37,12 @@ func TestSessionStartLocker_ReleasesLockOnRollback(t *testing.T) {
 	holder, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
 	runtimeCtx := tenant.WithUnitOfWork(testpkg.Ctx(t), testpkg.TenantRuntime(t, db))
-	holderCtx := tenant.WithTransactionForTest(runtimeCtx, &holder)
+	holderCtx := tenanttest.WithTransaction(runtimeCtx, &holder)
 	require.NoError(t, locker.LockSessionStart(holderCtx, activityID))
 
 	waiter, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
-	waiterCtx, cancel := context.WithTimeout(tenant.WithTransactionForTest(runtimeCtx, &waiter), 2*time.Second)
+	waiterCtx, cancel := context.WithTimeout(tenanttest.WithTransaction(runtimeCtx, &waiter), 2*time.Second)
 	defer cancel()
 	result := make(chan error, 1)
 	go func() { result <- locker.LockSessionStart(waiterCtx, activityID) }()
@@ -71,7 +72,7 @@ func TestSessionStartLocker_ReturnsDatabaseFailure(t *testing.T) {
 	tx, err := db.BeginTx(testpkg.Ctx(t), nil)
 	require.NoError(t, err)
 	require.NoError(t, tx.Rollback())
-	ctx := tenant.WithTransactionForTest(tenant.WithUnitOfWork(testpkg.Ctx(t), testpkg.TenantRuntime(t, db)), &tx)
+	ctx := tenanttest.WithTransaction(tenant.WithUnitOfWork(testpkg.Ctx(t), testpkg.TenantRuntime(t, db)), &tx)
 
 	err = locker.LockSessionStart(ctx, activity.ID)
 	require.Error(t, err)

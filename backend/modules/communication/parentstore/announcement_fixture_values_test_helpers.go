@@ -1,8 +1,16 @@
 //go:build testhooks
 
-package communication
+package parentstore
 
-import "time"
+import (
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+)
+
+// The announcement construction values live in this already tagged store
+// package, not in the Communication public package, so that package compiles
+// identically with and without testhooks (#5985).
 
 // ParentAnnouncementFixture is the complete announcement construction value
 // used by workflow integration suites. The root binds it to the real store.
@@ -31,7 +39,7 @@ type ParentAnnouncementFixture struct {
 	ReminderSentAt          *time.Time
 	Targets                 []*ParentAnnouncementTargetFixture
 	Options                 []*ParentAnnouncementOptionFixture
-	Declaration             ParentDeclarationSettings
+	Declaration             communication.ParentDeclarationSettings
 }
 
 // ParentAnnouncementTargetFixture is one persisted audience target.

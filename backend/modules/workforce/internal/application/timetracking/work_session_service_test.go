@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -765,7 +766,7 @@ func TestWSCheckInAnnouncesTimeTrackingChange(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	broadcaster := &recordingTimeTrackingPublisher{}
 	svc.broadcaster = broadcaster
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 
@@ -3624,7 +3625,7 @@ func TestWSUpdateScheduleAnnouncesTimeTrackingChange(t *testing.T) {
 	svc.staffRepo = &wsStaffAccessMock{
 		BindFn: func(context.Context, StaffScheduleBinding) error { return nil },
 	}
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 

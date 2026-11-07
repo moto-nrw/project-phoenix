@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,7 +151,7 @@ func TestModuleRejectsAmbientTenantTransactionWithoutTenantContext(t *testing.T)
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 
 	err := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(_ context.Context, tx bun.Tx) error {
-		_, err := module.FindRoom(tenant.WithTransactionForTest(context.Background(), tx), room.ID)
+		_, err := module.FindRoom(tenanttest.WithTransaction(context.Background(), tx), room.ID)
 		require.ErrorIs(t, err, tenant.ErrTenantRequired)
 		return nil
 	})

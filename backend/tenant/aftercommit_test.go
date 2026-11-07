@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,7 +13,7 @@ func TestHasAfterCommitHooks(t *testing.T) {
 	t.Parallel()
 
 	assert.False(t, tenant.HasAfterCommitHooks(context.Background()))
-	ctx, drain := tenant.WithAfterCommitHooksForTest(context.Background())
+	ctx, drain := tenanttest.WithAfterCommitHooks(context.Background())
 	assert.True(t, tenant.HasAfterCommitHooks(ctx))
 	drain()
 }

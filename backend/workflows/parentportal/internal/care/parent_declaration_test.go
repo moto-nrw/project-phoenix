@@ -35,7 +35,7 @@ type declarationSetup struct {
 	chain        testpkg.ParentChain
 	seedCtx      context.Context
 	ctx          context.Context
-	announcement *communication.ParentAnnouncementFixture
+	announcement *api.ParentAnnouncementFixture
 	version      *parentportal.DeclarationVersion
 }
 
@@ -50,7 +50,7 @@ func newDeclarationSetup(t *testing.T, settings communication.ParentDeclarationS
 		ctx:     testpkg.WithTestTenantRuntime(t, context.Background()),
 	}
 	setup.announcement, setup.version = seedDeclaration(t, setup.seedCtx, setup.repo, chain.AccountID, chain.TenantID,
-		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "student", TargetRefID: &chain.StudentID}},
+		[]*api.ParentAnnouncementTargetFixture{{TargetType: "student", TargetRefID: &chain.StudentID}},
 		settings, deadline)
 	return setup
 }
@@ -59,10 +59,10 @@ func newDeclarationSetup(t *testing.T, settings communication.ParentDeclarationS
 // version, the state the staff publish leaves behind.
 func seedDeclaration(
 	t *testing.T, ctx context.Context, repo api.ParentAnnouncementFixtures, createdBy, tenantID int64,
-	targets []*communication.ParentAnnouncementTargetFixture, settings communication.ParentDeclarationSettings, deadline *time.Time,
-) (*communication.ParentAnnouncementFixture, *parentportal.DeclarationVersion) {
+	targets []*api.ParentAnnouncementTargetFixture, settings communication.ParentDeclarationSettings, deadline *time.Time,
+) (*api.ParentAnnouncementFixture, *parentportal.DeclarationVersion) {
 	t.Helper()
-	a := &communication.ParentAnnouncementFixture{
+	a := &api.ParentAnnouncementFixture{
 		Title:            "Ausflug in den Zoo",
 		Body:             "Wir fahren am Freitag mit dem Bus in den Zoo.",
 		Priority:         "info",
@@ -81,7 +81,7 @@ func seedDeclaration(
 	return a, version
 }
 
-func freezeTestVersion(t *testing.T, ctx context.Context, repo api.ParentAnnouncementFixtures, a *communication.ParentAnnouncementFixture, number int) *parentportal.DeclarationVersion {
+func freezeTestVersion(t *testing.T, ctx context.Context, repo api.ParentAnnouncementFixtures, a *api.ParentAnnouncementFixture, number int) *parentportal.DeclarationVersion {
 	t.Helper()
 	version := &parentportal.DeclarationVersion{
 		TenantID: a.TenantID, AnnouncementID: a.ID, VersionNo: number, Title: a.Title,
@@ -260,7 +260,7 @@ func TestDeclaration_ForeignChildAndForeignSchoolAreNotFound(t *testing.T) {
 	foreignTenant, _ := testpkg.CreateTestTenant(t, s.db)
 	foreignCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), foreignTenant)
 	foreign, foreignVersion := seedDeclaration(t, foreignCtx, s.repo, s.chain.AccountID, foreignTenant,
-		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}},
+		[]*api.ParentAnnouncementTargetFixture{{TargetType: "school_all"}},
 		consent(communication.DeclarationSignersAny, false, false), nil)
 	_, _, err = s.svc.SubmitDeclaration(s.ctx, s.chain.AccountID, foreign.ID, parentportal.DeclarationInput{
 		StudentID: s.chain.StudentID, VersionID: foreignVersion.ID, Action: parentportal.DeclarationActionAgreed,
@@ -335,7 +335,7 @@ func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing
 	require.NoError(t, err)
 
 	announcement, version := seedDeclaration(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID,
-		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "activity_group", TargetRefID: &group.ID}},
+		[]*api.ParentAnnouncementTargetFixture{{TargetType: "activity_group", TargetRefID: &group.ID}},
 		consent(communication.DeclarationSignersAny, true, false), nil)
 	_, created, err := svc.SubmitDeclaration(ctx, chain.AccountID, announcement.ID, parentportal.DeclarationInput{
 		StudentID: chain.StudentID, VersionID: version.ID, Action: parentportal.DeclarationActionAgreed,

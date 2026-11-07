@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -106,6 +107,50 @@ func (p calendarCalDAVPolicy) Enabled(ctx context.Context) (bool, error) {
 
 func (p calendarCalDAVPolicy) EnabledForTenant(ctx context.Context, tenantID int64) (bool, error) {
 	return p.settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyCalendarCalDAVEnabled)
+}
+
+// CalendarBookingSettings resolves settings of several schools in one read
+// and joins an ambient administrative transaction.
+type CalendarBookingSettings interface {
+	ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*configModels.SettingsSnapshot, error)
+}
+
+// BindCalendarElternAppBookings binds the calendar's Eltern-App bookings to
+// the module switch, read for all schools at once through settings.
+func BindCalendarElternAppBookings(cfg calendarCompose.Config, settings CalendarBookingSettings) calendarCompose.Config {
+	if settings == nil {
+		panic("calendar Eltern-App bookings: settings reader is required")
+	}
+	module, ok := settingsValues.LookupModule(settingsValues.ModuleElternApp)
+	if !ok {
+		panic("calendar Eltern-App bookings: module Eltern-App is not registered")
+	}
+	cfg.ElternAppBookings = calendarElternAppBookings{settings: settings, key: module.SettingKey}
+	return cfg
+}
+
+// calendarElternAppBookings maps each school's resolved module switch into
+// the calendar's terms; a school settings did not answer stays out.
+type calendarElternAppBookings struct {
+	settings CalendarBookingSettings
+	key      string
+}
+
+func (b calendarElternAppBookings) ElternAppBooked(ctx context.Context, tenantIDs []int64) (map[int64]bool, error) {
+	snapshots, err := b.settings.ResolveManyForTenants(ctx, tenantIDs, []string{b.key})
+	if err != nil {
+		return nil, err
+	}
+	booked := make(map[int64]bool, len(snapshots))
+	for tenantID, snapshot := range snapshots {
+		if snapshot == nil {
+			continue
+		}
+		if booked[tenantID], err = snapshot.Bool(b.key); err != nil {
+			return nil, err
+		}
+	}
+	return booked, nil
 }
 
 func calendarPushSuppressed(err error) bool {

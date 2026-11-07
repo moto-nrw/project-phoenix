@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -28,14 +28,14 @@ func TestGroupSupervisionLocksRequireTransactionAndReleaseOnRollback(t *testing.
 	holder, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
 	defer func() { _ = holder.Rollback() }()
-	rows, err := module.QueryGroupSupervisions(tenant.WithTransactionForTest(ctx, &holder), filter)
+	rows, err := module.QueryGroupSupervisions(tenanttest.WithTransaction(ctx, &holder), filter)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	require.Equal(t, supervision.ID, rows[0].ID)
 	waiter, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
 	defer func() { _ = waiter.Rollback() }()
-	waitCtx, cancel := context.WithTimeout(tenant.WithTransactionForTest(ctx, &waiter), 3*time.Second)
+	waitCtx, cancel := context.WithTimeout(tenanttest.WithTransaction(ctx, &waiter), 3*time.Second)
 	defer cancel()
 	completed := make(chan error, 1)
 	go func() {

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -99,7 +99,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	require.Len(t, recipientMasterData.PendingChanges, 1)
 	assert.Equal(t, request.ID, recipientMasterData.PendingChanges[0].ID)
 
-	protectionOn := &peopledirectory.FamilyProtectionFixture{
+	protectionOn := &parentfixture.FamilyProtectionFixture{
 		StudentID: author.StudentID, Enabled: true, Reason: "Schutzfall", ActorAccountID: author.AccountID,
 	}
 	protectionOn.TenantID = author.TenantID
@@ -108,7 +108,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	require.NoError(t, err)
 	assert.Empty(t, recipientRows)
 
-	protectionOff := &peopledirectory.FamilyProtectionFixture{
+	protectionOff := &parentfixture.FamilyProtectionFixture{
 		StudentID: author.StudentID, Enabled: false, Reason: "Schutz aufgehoben", ActorAccountID: author.AccountID,
 	}
 	protectionOff.TenantID = author.TenantID
