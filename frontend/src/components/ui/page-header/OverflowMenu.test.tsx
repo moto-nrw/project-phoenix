@@ -471,6 +471,9 @@ describe("OverflowMenu", () => {
       fireEvent.scroll(menu);
       expect(screen.getByRole("menu")).toBeInTheDocument();
 
+      // A page scroll carries the trigger along, which detaches the menu.
+      window.HTMLElement.prototype.getBoundingClientRect = () =>
+        ({ left: 600, top: 160 }) as DOMRect;
       fireEvent.scroll(window);
       expect(screen.queryByRole("menu")).toBeNull();
     } finally {
@@ -696,6 +699,35 @@ describe("OverflowMenu", () => {
     });
 
     expect(onClick).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("stays open when a scroll does not move the trigger", () => {
+    render(
+      <>
+        <div data-testid="grid" />
+        <OverflowMenu items={[{ label: "Eintrag", onClick: vi.fn() }]} />
+      </>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+
+    fireEvent.scroll(screen.getByTestId("grid"));
+    fireEvent.scroll(window);
+
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("closes when a scroll moves the trigger", () => {
+    render(<OverflowMenu items={[{ label: "Eintrag", onClick: vi.fn() }]} />);
+    const trigger = screen.getByRole("button", { name: "Weitere Aktionen" });
+    fireEvent.click(trigger);
+    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      left: 0,
+    } as DOMRect);
+
+    fireEvent.scroll(window);
+
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 });

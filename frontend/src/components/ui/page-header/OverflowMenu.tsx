@@ -205,6 +205,7 @@ export function OverflowMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const focusOnOpenRef = useRef(false);
+  const openAnchorRef = useRef<{ top: number; left: number } | null>(null);
   const menuId = useId();
   // Menus normally stay inside a slide-over's focus scope. A scrollable
   // AnchoredPopover instead passes an owner ID, so its menu can escape the
@@ -233,15 +234,21 @@ export function OverflowMenu({
       }
     };
     const onReflow = (event: Event) => {
-      // A viewport-bounded menu scrolls internally. That scroll bubbles through
-      // the capture listener on window and must not close the menu itself.
-      const target = event.target;
-      if (
-        event.type === "scroll" &&
-        target instanceof Node &&
-        menuRef.current?.contains(target)
-      ) {
-        return;
+      // Only a scroll that moves the trigger detaches the menu from it. A
+      // viewport-bounded menu scrolling internally does not, nor does a scroll
+      // area beside the trigger, such as a planning grid that scrolls to the
+      // current time after loading.
+      if (event.type === "scroll") {
+        const rect = triggerRef.current?.getBoundingClientRect();
+        const anchor = openAnchorRef.current;
+        if (
+          rect &&
+          anchor &&
+          rect.top === anchor.top &&
+          rect.left === anchor.left
+        ) {
+          return;
+        }
       }
       setIsOpen(false);
     };
@@ -290,6 +297,7 @@ export function OverflowMenu({
           ? null
           : nextPortalContainer.getBoundingClientRect();
       const rect = trigger.getBoundingClientRect();
+      openAnchorRef.current = { top: rect.top, left: rect.left };
       const gap = 4; // matches the old mt-1
       const viewportInset = 8;
       // Vertical anchoring: below the trigger by default, flipped ABOVE it when
