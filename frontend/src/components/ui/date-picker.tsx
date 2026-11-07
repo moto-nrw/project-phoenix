@@ -764,11 +764,13 @@ export function ISODatePicker({
   readonly labels?: DatePickerLabels;
 }) {
   const errorId = error && rest.id ? `${rest.id}-error` : undefined;
+  const describedBy =
+    [rest.ariaDescribedBy, errorId].filter(Boolean).join(" ") || undefined;
   const picker = (
     <DatePicker
       {...rest}
       invalid={rest.invalid ?? Boolean(error)}
-      ariaDescribedBy={rest.ariaDescribedBy ?? errorId}
+      ariaDescribedBy={describedBy}
       value={toDateOrNull(value)}
       defaultMonth={toDateOrNull(defaultMonth) ?? undefined}
       minDate={toDateOrNull(min) ?? undefined}

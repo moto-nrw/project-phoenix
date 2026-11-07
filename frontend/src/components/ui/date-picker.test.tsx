@@ -976,6 +976,25 @@ describe("ISODateInput", () => {
 });
 
 describe("ISODatePicker name", () => {
+  it("links an external hint and its own error", () => {
+    render(
+      <ISODatePicker
+        id="closing-day-start"
+        value=""
+        onChange={() => undefined}
+        ariaDescribedBy="closing-day-start-hint"
+        error="Bitte wählen Sie ein Datum."
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Datum auswählen" }),
+    ).toHaveAttribute(
+      "aria-describedby",
+      "closing-day-start-hint closing-day-start-error",
+    );
+  });
+
   it("carries the value under the field name for server field errors", () => {
     const { container } = render(
       <ISODatePicker

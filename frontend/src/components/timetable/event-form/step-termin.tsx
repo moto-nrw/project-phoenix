@@ -381,7 +381,11 @@ export function StepTermin({
         >
           <ISODatePicker
             id="event_series_start"
-            ariaDescribedBy="event_series_start_hint"
+            ariaDescribedBy={
+              fieldErrors.seriesStartDate
+                ? "event_series_start_hint event_series_start_error"
+                : "event_series_start_hint"
+            }
             controlSize="md"
             value={form.seriesStartDate}
             min={seriesStartEdit.min}
