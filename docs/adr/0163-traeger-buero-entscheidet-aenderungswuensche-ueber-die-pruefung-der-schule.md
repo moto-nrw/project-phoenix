@@ -45,7 +45,8 @@ und [ADR 0067](0067-principle-owners-meet-through-contracts-and-write-together-i
    Entscheidung des Träger-Büros. Nur diese Markierung gibt der
    Prüfungsreichweite die ganze Schule; der Schlüssel ist privat in der Root.
    Care Plan prüft zusätzlich unter der Antragssperre, dass der Antrag zum
-   Kind des Vertrags gehört (`OfferingChangeDecisionInput.StudentID`).
+   Kind und zur Anmeldung des Vertrags gehört
+   (`OfferingChangeDecisionInput.StudentID` und `RequestChildID`).
 4. **Kein doppeltes Freigeben.** Schule und Büro sperren dieselbe Antragszeile.
    Wer die Sperre als Zweiter bekommt, sieht einen entschiedenen Antrag und
    bekommt den Fehlercode `students.change_request_not_pending`; nur eine
@@ -69,3 +70,22 @@ und [ADR 0067](0067-principle-owners-meet-through-contracts-and-write-together-i
 - Ein vollständiger Abmeldewunsch bleibt eine Kündigung (#4682). Das Büro kann
   ihn hier nur ablehnen; das Freigeben verlangt die Bestätigung der
   Komplett-Abmeldung, die nur die Schule gibt.
+
+## Prüfnachweis der Befehlsbindungen
+
+- `SchoolChangeRequests.DecideChange` nimmt weiter an Care Plans geschütztem
+  `Decide` teil (Leaf-Befehl nach ADR 0067). Kind und Anmeldung werden unter
+  derselben Antragssperre geprüft. Der Port reicht die berechneten Folgen für
+  Regeltermine und Abholzeiten zurück; er koordiniert keine weiteren Schreibwege.
+- `PendingChanges` liest den Antrag derselben Anmeldung. Für ein bestätigtes
+  Datum nutzt es Care Plans nicht schreibendes `PreviewDecision` samt Vergleich.
+  Versionsbildung und Buchung bleiben beim bestehenden Entscheidungsweg.
+- Die Bindung von `SchoolAccessLog.RecordAccess` ergänzt nur die Ressourcenart
+  der Vertragsänderungen. Der Audit-Eintrag bleibt in der Schul-Transaktion.
+- Die geänderten Care-Plan-Prüfungsbindungen unterscheiden den privaten
+  Träger-Kontext von der unveränderten Reichweite der Schule. Der Kontext wird
+  erst nach Prüfung von Vertragsrecht, Träger und Vertragsschule gesetzt.
+  Die bekannten unaufgelösten Test-Callables bleiben als solche erfasst;
+  weder ihre Klassifikation noch eine Architekturregel wird erweitert.
+- Die Cross-Owner-Tests beziehen fremde Vertragswerte über den typisierten
+  Test-Einstieg in `api`, nicht durch einen Import des fremden Owners.

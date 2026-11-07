@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -39,7 +40,7 @@ var _ carecontract.SchoolChangeRequests = CareContractChangeRequests{}
 
 // PendingChanges lists the child's open change with its diff and the last
 // decision, and whether an approval needs a reason at this school.
-func (b CareContractChangeRequests) PendingChanges(ctx context.Context, studentID int64) ([]carecontract.ChangeRequest, *carecontract.ChangeOutcome, bool, error) {
+func (b CareContractChangeRequests) PendingChanges(ctx context.Context, studentID, requestChildID int64, effectiveFrom *calendar.Date) ([]carecontract.ChangeRequest, *carecontract.ChangeOutcome, bool, error) {
 	view, err := b.Changes.GetForStudent(ctx, studentID)
 	if err != nil {
 		return nil, nil, false, err
@@ -52,7 +53,14 @@ func (b CareContractChangeRequests) PendingChanges(ctx context.Context, studentI
 	if view == nil {
 		return pending, nil, reasonRequired, nil
 	}
-	if view.Request != nil {
+	if view.Request != nil && view.Request.RequestChildID == requestChildID {
+		if effectiveFrom != nil {
+			preview, previewErr := b.Changes.PreviewDecision(withTraegerChangeReview(ctx), view.Request.ID, nil, effectiveFrom)
+			if previewErr != nil {
+				return nil, nil, false, careContractChangeError(previewErr)
+			}
+			view.Diff = preview.Diff
+		}
 		request, mapErr := careContractChangeRequest(*view.Request, view.Diff)
 		if mapErr != nil {
 			return nil, nil, false, mapErr
@@ -60,7 +68,7 @@ func (b CareContractChangeRequests) PendingChanges(ctx context.Context, studentI
 		pending = append(pending, request)
 	}
 	var last *carecontract.ChangeOutcome
-	if decision := view.LastDecision; decision != nil {
+	if decision := view.LastDecision; decision != nil && decision.RequestChildID == requestChildID {
 		last = &carecontract.ChangeOutcome{
 			Approved: decision.Status == careplan.OfferingChangeApproved, DecidedAt: decision.DecidedAt,
 			EffectiveFrom: decision.EffectiveFrom, Reason: decision.Reason,
@@ -73,20 +81,26 @@ func (b CareContractChangeRequests) PendingChanges(ctx context.Context, studentI
 // reach of the Träger-Büro: every child of the school. The caller checked
 // the right and that the school belongs to the Träger; Care Plan checks
 // that the request is the child's.
-func (b CareContractChangeRequests) DecideChange(ctx context.Context, decision carecontract.ChangeDecision) error {
+func (b CareContractChangeRequests) DecideChange(ctx context.Context, decision carecontract.ChangeDecision) (*carecontract.ChangeImpact, error) {
 	// The school's reason policy holds for the office as for the school.
 	policy, err := b.Settings.ResolveString(ctx, careContractChangeSettingReasonPolicy)
 	if err != nil {
-		return fmt.Errorf("care contract changes: resolve reason policy: %w", err)
+		return nil, fmt.Errorf("care contract changes: resolve reason policy: %w", err)
 	}
 	reasonRequired := parentrequests.ReasonRequired(policy, parentrequests.ReasonSideStaff)
-	_, err = b.Changes.Decide(withTraegerChangeReview(ctx), careplan.OfferingChangeDecisionInput{
-		RequestID: decision.RequestID, StudentID: decision.StudentID, Approve: decision.Approve,
+	impact, err := b.Changes.Decide(withTraegerChangeReview(ctx), careplan.OfferingChangeDecisionInput{
+		RequestID: decision.RequestID, RequestChildID: decision.RequestChildID, StudentID: decision.StudentID, Approve: decision.Approve,
 		Reason: decision.Reason, ReviewedBy: decision.AccountID, ActorRole: careContractChangeActorRole,
 		EffectiveFrom: decision.EffectiveFrom, ExpectedVersion: decision.ExpectedVersion,
 		ReasonRequired: reasonRequired,
 	})
-	return careContractChangeError(err)
+	if err != nil {
+		return nil, careContractChangeError(err)
+	}
+	if !decision.Approve {
+		return nil, nil
+	}
+	return careContractChangeImpact(impact), nil
 }
 
 func (b CareContractChangeRequests) reasonRequired(ctx context.Context) (bool, error) {
@@ -186,4 +200,27 @@ func withTraegerChangeReview(ctx context.Context) context.Context {
 func traegerChangeReview(ctx context.Context) bool {
 	marked, _ := ctx.Value(traegerChangeReviewKey{}).(bool)
 	return marked
+}
+
+func careContractChangeImpact(impact careplan.RosterImpact) *carecontract.ChangeImpact {
+	result := &carecontract.ChangeImpact{EffectiveFrom: impact.EffectiveFrom}
+	for _, template := range impact.Adjusted {
+		result.Adjusted = append(result.Adjusted, carecontract.ChangeAdjustedTemplate{
+			TemplateID: strconv.FormatInt(template.TemplateID, 10), Name: template.Name,
+			RemovedWeekdays: template.RemovedWeekdays, AddedWeekdays: template.AddedWeekdays,
+		})
+	}
+	for _, template := range impact.NotAdjusted {
+		result.NotAdjusted = append(result.NotAdjusted, carecontract.ChangeManualTemplate{
+			TemplateID: strconv.FormatInt(template.TemplateID, 10), Name: template.Name,
+			Weekdays: template.Weekdays, ViaTarget: template.ViaTarget, Until: template.Until,
+		})
+	}
+	for _, override := range impact.PickupOverrides {
+		result.PickupOverrides = append(result.PickupOverrides, carecontract.ChangePickupOverride{
+			Weekday: override.Weekday, Date: override.Date, StoredTime: override.StoredTime,
+			BookedTime: override.BookedTime, ResetNow: override.ResetNow,
+		})
+	}
+	return result
 }

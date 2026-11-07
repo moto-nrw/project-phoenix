@@ -6,6 +6,12 @@
  * in care-contract-changes-api.ts.
  */
 
+import {
+  mapRosterImpact,
+  type RosterImpact,
+  type RosterImpactWire,
+} from "./roster-impact";
+import type { OfferingRequestDiffLine } from "./offering-request-review-api";
 import type { Weekday } from "./traeger-care-contracts-api";
 
 type ChangeModuleState = "added" | "removed" | "changed" | "unchanged";
@@ -47,6 +53,7 @@ export interface ContractChanges {
   readonly lastDecision: ContractChangeOutcome | null;
   /** The school asks for a reason on an approval too. */
   readonly reasonRequired: boolean;
+  readonly rosterImpact?: RosterImpact | null;
 }
 
 export interface ContractChangeDecision {
@@ -85,6 +92,7 @@ export interface BackendContractChanges {
     reason: string;
   } | null;
   reason_required: boolean;
+  roster_impact?: RosterImpactWire | null;
 }
 
 export function contractChangesFromBackend(
@@ -93,6 +101,7 @@ export function contractChangesFromBackend(
   return {
     decidable: data.decidable,
     reasonRequired: data.reason_required,
+    rosterImpact: mapRosterImpact(data.roster_impact),
     pending: (data.pending ?? []).map((request) => ({
       id: String(request.id),
       version: request.version,
@@ -128,58 +137,35 @@ export function decisionBody(decision: ContractChangeDecision) {
   };
 }
 
-/** What happens to one module on one weekday with the change. */
-export type ChangeDayState = "kept" | "added" | "removed" | "none";
-
-export interface ChangeWeekRow {
-  readonly careOfferingId: string;
-  readonly moduleName: string;
-  readonly days: readonly {
-    readonly weekday: Weekday;
-    readonly state: ChangeDayState;
-  }[];
-}
-
-const WEEK: readonly Weekday[] = [
-  "mon",
-  "tue",
-  "wed",
-  "thu",
-  "fri",
-  "sat",
-  "sun",
-];
-
-/**
- * The week of a change, module by module: Monday to Friday always, the
- * weekend only when a module books it before or after.
- */
-export function changeWeek(lines: readonly ContractChangeLine[]): {
-  readonly weekdays: readonly Weekday[];
-  readonly rows: readonly ChangeWeekRow[];
-} {
-  const weekend = new Set(
-    lines.flatMap((line) => [...line.beforeDays, ...line.afterDays]),
-  );
-  const weekdays = WEEK.filter(
-    (weekday, index) => index < 5 || weekend.has(weekday),
-  );
-  const rows = lines.map((line) => ({
-    careOfferingId: line.careOfferingId,
-    moduleName: line.moduleName,
-    days: weekdays.map((weekday) => {
-      const before = line.beforeDays.includes(weekday);
-      const after = line.afterDays.includes(weekday);
-      const state: ChangeDayState =
-        before && after
-          ? "kept"
-          : after
-            ? "added"
-            : before
-              ? "removed"
-              : "none";
-      return { weekday, state };
-    }),
-  }));
-  return { weekdays, rows };
+/** Match the existing review presentation, including modules with fixed days. */
+export function contractChangeReview(request: ContractChangeRequest) {
+  const dayLabels: Record<Weekday, string> = {
+    mon: "Mo",
+    tue: "Di",
+    wed: "Mi",
+    thu: "Do",
+    fri: "Fr",
+    sat: "Sa",
+    sun: "So",
+  };
+  const booked = (days: readonly Weekday[]) =>
+    days.length
+      ? days.map((day) => dayLabels[day]).join(", ")
+      : "Gebucht (feste Tage)";
+  const diff: OfferingRequestDiffLine[] = request.lines
+    .filter((line) => line.state !== "unchanged")
+    .map((line) => ({
+      offering_id: line.careOfferingId,
+      label: line.moduleName,
+      old: line.state === "added" ? "Nicht gebucht" : booked(line.beforeDays),
+      new: line.state === "removed" ? "Nicht gebucht" : booked(line.afterDays),
+    }));
+  const unchanged = request.lines
+    .filter((line) => line.state === "unchanged")
+    .map((line) => ({
+      offering_id: line.careOfferingId,
+      label: line.moduleName,
+      days: booked(line.afterDays),
+    }));
+  return { id: request.id, diff, unchanged, note: request.parentNote };
 }

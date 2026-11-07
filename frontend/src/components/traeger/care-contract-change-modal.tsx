@@ -3,7 +3,7 @@
 // Änderungswunsch freigeben oder ablehnen (#5979). Die Karte
 // „Änderungswunsch der Eltern“ lädt das Formular erst beim Öffnen.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -15,7 +15,13 @@ import type {
   ContractChangeRequest,
   ContractChanges,
 } from "~/lib/care-contract-changes";
-import { decideContractChange } from "~/lib/care-contract-changes-api";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
+import { OfferingRequestChanges } from "~/components/students/offering-request-review-item";
+import { contractChangeReview } from "~/lib/care-contract-changes";
+import {
+  decideContractChange,
+  fetchContractChanges,
+} from "~/lib/care-contract-changes-api";
 import {
   berlinTodayISO,
   formatDate,
@@ -41,6 +47,7 @@ export function DecideChangeModal({
   approve,
   reasonRequired,
   onDecided,
+  onConflict,
 }: Readonly<{
   isOpen: boolean;
   onClose: () => void;
@@ -50,7 +57,13 @@ export function DecideChangeModal({
   /** The school asks for a reason on an approval too. */
   reasonRequired: boolean;
   onDecided: (next: ContractChanges) => void;
+  onConflict: () => void;
 }>) {
+  const [previewAttempt, setPreviewAttempt] = useState(0);
+  const [preview, setPreview] = useState<{
+    date: string;
+    request: ContractChangeRequest;
+  } | null>(null);
   const today = berlinTodayISO();
   // A wish for a day that has passed takes effect today at the earliest.
   const [effectiveFrom, setEffectiveFrom] = useState(
@@ -62,9 +75,53 @@ export function DecideChangeModal({
   const form = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(form);
   const { success } = useToast();
+  const { show: showFormError, clear: clearFormError } = formErrors;
+  useEffect(() => {
+    if (!approve || !effectiveFrom) return;
+    let active = true;
+    setPreview(null);
+    clearFormError();
+    void fetchContractChanges(contractId, effectiveFrom)
+      .then((next) => {
+        if (!active) return;
+        const current = next.pending.find((item) => item.id === request.id);
+        if (
+          !next.decidable ||
+          !current ||
+          current.version !== request.version
+        ) {
+          onConflict();
+          return;
+        }
+        setPreview({ date: effectiveFrom, request: current });
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        if (isChangedRequest(err)) onConflict();
+        else
+          void showFormError(err, {
+            object: "die Vorschau",
+            retry: () => setPreviewAttempt((attempt) => attempt + 1),
+          });
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    previewAttempt,
+    approve,
+    contractId,
+    effectiveFrom,
+    request.id,
+    request.version,
+    clearFormError,
+    showFormError,
+    onConflict,
+  ]);
   const needsReason = !approve || reasonRequired;
   const ready =
-    (!needsReason || reason.trim() !== "") && (!approve || effectiveFrom);
+    (!needsReason || reason.trim() !== "") &&
+    (!approve || (effectiveFrom && preview?.date === effectiveFrom));
 
   const submit = async () => {
     if (savingRef.current || !ready) return;
@@ -88,7 +145,8 @@ export function DecideChangeModal({
       logger.error("traeger_care_contract_change_decide_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "der Änderungswunsch" });
+      if (isChangedRequest(err)) onConflict();
+      else void formErrors.show(err, { object: "der Änderungswunsch" });
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -148,15 +206,31 @@ export function DecideChangeModal({
               id="care-contract-change-effective-from"
               name="effective_from"
               value={effectiveFrom ? parseISODate(effectiveFrom) : undefined}
-              onChange={(date) => setEffectiveFrom(date ? toISODate(date) : "")}
+              onChange={(date) => {
+                setPreview(null);
+                setEffectiveFrom(date ? toISODate(date) : "");
+              }}
               minDate={parseISODate(today)}
               required
+              disabled={saving}
               invalid={Boolean(formErrors.fieldError("effective_from"))}
             />
             <p className="text-sm text-gray-500">
               {`Die Eltern wünschen ${formatDate(request.effectiveFrom)}.`}
             </p>
           </div>
+        ) : null}
+        {approve &&
+        effectiveFrom &&
+        preview?.date !== effectiveFrom &&
+        !formErrors.error ? (
+          <Alert
+            type="info"
+            message="Die Änderungen werden für dieses Datum geprüft."
+          />
+        ) : null}
+        {approve && preview?.date === effectiveFrom ? (
+          <OfferingRequestChanges row={contractChangeReview(preview.request)} />
         ) : null}
         <Textarea
           id="care-contract-change-reason"
@@ -185,5 +259,15 @@ export function DecideChangeModal({
         />
       </form>
     </FormModal>
+  );
+}
+
+function isChangedRequest(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false;
+  const code = wireErrorCode(error.code);
+  return (
+    code === "students.change_request_stale" ||
+    code === "students.change_request_not_pending" ||
+    code === "care_contract.change_not_found"
   );
 }

@@ -20,6 +20,8 @@ import (
 // change; it records what the office decided.
 type changeSchool struct {
 	request   int64
+	readChild int64
+	impact    *carecontract.ChangeImpact
 	schools   []carecontract.School
 	decisions []carecontract.ChangeDecision
 	accesses  []carecontract.SchoolAccess
@@ -29,13 +31,14 @@ func (s *changeSchool) TraegerSchools(context.Context, int64) ([]carecontract.Sc
 	return s.schools, nil
 }
 
-func (s *changeSchool) PendingChanges(context.Context, int64) ([]carecontract.ChangeRequest, *carecontract.ChangeOutcome, bool, error) {
+func (s *changeSchool) PendingChanges(_ context.Context, _ int64, childID int64, _ *calendar.Date) ([]carecontract.ChangeRequest, *carecontract.ChangeOutcome, bool, error) {
+	s.readChild = childID
 	return []carecontract.ChangeRequest{{ID: s.request, EffectiveFrom: calendar.NewDate(2100, 3, 1)}}, nil, false, nil
 }
 
-func (s *changeSchool) DecideChange(_ context.Context, decision carecontract.ChangeDecision) error {
+func (s *changeSchool) DecideChange(_ context.Context, decision carecontract.ChangeDecision) (*carecontract.ChangeImpact, error) {
 	s.decisions = append(s.decisions, decision)
-	return nil
+	return s.impact, nil
 }
 
 func (s *changeSchool) RecordAccess(_ context.Context, access carecontract.SchoolAccess) error {
@@ -69,6 +72,7 @@ type changeFixture struct {
 	foreign      int64
 	school       carecontract.School
 	student      int64
+	child        int64
 	contract     int64
 	request      int64
 }
@@ -85,10 +89,10 @@ func newChangeFixture(t *testing.T, status string) changeFixture {
 		return organization
 	}
 	f := changeFixture{db: db, organization: newTraeger("Träger Änderungswunsch"), foreign: newTraeger("Träger Änderungswunsch Fremd"),
-		school: carecontract.School{ID: testpkg.UniqueTestTenantID(t), Name: "OGS Am Lindenhof"}, student: testpkg.UniqueTestTenantID(t), request: testpkg.UniqueTestTenantID(t)}
+		school: carecontract.School{ID: testpkg.UniqueTestTenantID(t), Name: "OGS Am Lindenhof"}, student: testpkg.UniqueTestTenantID(t), request: testpkg.UniqueTestTenantID(t), child: testpkg.UniqueTestTenantID(t)}
 	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, student_id,
 			status, sent_at, concluded_at, conclusion_method) VALUES (?, ?, ?, ?, ?, NOW(), NOW(), 'mit_anmeldung') RETURNING id`,
-		f.organization, f.school.ID, testpkg.UniqueTestTenantID(t), f.student, status).Scan(ctx, &f.contract))
+		f.organization, f.school.ID, f.child, f.student, status).Scan(ctx, &f.contract))
 	return f
 }
 
@@ -111,11 +115,14 @@ func TestTheOfficeDecidesOnlyForAnActiveContractOfItsOwnTraegerBelowRLS(t *testi
 	account := testpkg.CreateTestAccountWithPassword(t, f.db, fmt.Sprintf("wunsch-%d@test.local", testpkg.UniqueTestTenantID(t)), testpkg.NewTestPassword())
 	own := carecontract.Reviewer{OrganizationID: f.organization, AccountID: account.ID}
 
-	school := &changeSchool{request: f.request, schools: []carecontract.School{f.school}}
+	school := &changeSchool{request: f.request, schools: []carecontract.School{f.school}, impact: &carecontract.ChangeImpact{EffectiveFrom: *approval().EffectiveFrom}}
 	result, err := f.changes(school).DecideContractChange(ctx, own, f.contract, f.request, approval())
 	require.NoError(t, err)
 	require.Len(t, school.decisions, 1)
 	assert.Equal(t, f.student, school.decisions[0].StudentID, "the decision names the contract's child")
+	assert.Equal(t, f.child, school.decisions[0].RequestChildID)
+	assert.Equal(t, f.child, school.readChild)
+	assert.Equal(t, school.impact, result.RosterImpact)
 	assert.Equal(t, f.request, school.decisions[0].RequestID)
 	assert.Equal(t, account.ID, school.decisions[0].AccountID)
 	assert.Equal(t, "v1", school.decisions[0].ExpectedVersion)
@@ -129,7 +136,7 @@ func TestTheOfficeDecidesOnlyForAnActiveContractOfItsOwnTraegerBelowRLS(t *testi
 	school = &changeSchool{request: f.request, schools: []carecontract.School{f.school}}
 	_, err = f.changes(school).DecideContractChange(ctx, foreign, f.contract, f.request, approval())
 	require.ErrorIs(t, err, carecontract.ErrContractNotFound, "another Träger finds the contract without RLS neither")
-	_, err = f.changes(school).ContractChanges(ctx, foreign, f.contract)
+	_, err = f.changes(school).ContractChanges(ctx, foreign, f.contract, nil)
 	require.ErrorIs(t, err, carecontract.ErrContractNotFound)
 	assert.Empty(t, school.decisions)
 	assert.Empty(t, school.accesses)
@@ -137,7 +144,7 @@ func TestTheOfficeDecidesOnlyForAnActiveContractOfItsOwnTraegerBelowRLS(t *testi
 	moved := &changeSchool{request: f.request, schools: []carecontract.School{{ID: testpkg.UniqueTestTenantID(t), Name: "Andere OGS"}}}
 	_, err = f.changes(moved).DecideContractChange(ctx, own, f.contract, f.request, approval())
 	require.ErrorIs(t, err, carecontract.ErrSchoolOutsideTraeger, "a school of another Träger is not the office's to decide for")
-	_, err = f.changes(moved).ContractChanges(ctx, own, f.contract)
+	_, err = f.changes(moved).ContractChanges(ctx, own, f.contract, nil)
 	require.ErrorIs(t, err, carecontract.ErrSchoolOutsideTraeger)
 	assert.Empty(t, moved.decisions)
 	assert.Empty(t, moved.accesses)
@@ -155,7 +162,7 @@ func TestTheOfficeDoesNotDecideForAContractThatIsNotActive(t *testing.T) {
 	_, err := f.changes(school).DecideContractChange(context.Background(), own, f.contract, f.request, approval())
 	require.ErrorIs(t, err, carecontract.ErrContractNotActive)
 	assert.Empty(t, school.decisions)
-	read, err := f.changes(school).ContractChanges(context.Background(), own, f.contract)
+	read, err := f.changes(school).ContractChanges(context.Background(), own, f.contract, nil)
 	require.NoError(t, err)
 	assert.False(t, read.Decidable)
 }

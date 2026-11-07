@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ChangeStore reads the contract of a change (#5979).
@@ -42,7 +43,7 @@ func NewContractChanges(store ChangeStore, changePorts carecontract.ChangePorts)
 }
 
 // ContractChanges reads the open change of the contract's child.
-func (c *ContractChanges) ContractChanges(ctx context.Context, reviewer carecontract.Reviewer, contractID int64) (carecontract.ContractChanges, error) {
+func (c *ContractChanges) ContractChanges(ctx context.Context, reviewer carecontract.Reviewer, contractID int64, effectiveFrom *calendar.Date) (carecontract.ContractChanges, error) {
 	contract, err := c.contract(ctx, reviewer, contractID)
 	if err != nil {
 		return carecontract.ContractChanges{}, err
@@ -52,7 +53,7 @@ func (c *ContractChanges) ContractChanges(ctx context.Context, reviewer carecont
 		return result, nil
 	}
 	err = c.ports.Runtime.WithinSchool(ctx, contract.SchoolID, func(ctx context.Context) error {
-		read, readErr := c.read(ctx, contract, result.Decidable)
+		read, readErr := c.read(ctx, contract, result.Decidable, effectiveFrom)
 		if readErr != nil {
 			return readErr
 		}
@@ -88,16 +89,18 @@ func (c *ContractChanges) DecideContractChange(ctx context.Context, reviewer car
 	var result carecontract.ContractChanges
 	err = c.ports.Runtime.WithinSchool(ctx, contract.SchoolID, func(ctx context.Context) error {
 		input.Reason = strings.TrimSpace(input.Reason)
-		if decideErr := c.ports.Requests.DecideChange(ctx, carecontract.ChangeDecision{
-			ChangeDecisionInput: input, StudentID: contract.StudentID, RequestID: requestID, AccountID: reviewer.AccountID,
-		}); decideErr != nil {
+		impact, decideErr := c.ports.Requests.DecideChange(ctx, carecontract.ChangeDecision{
+			ChangeDecisionInput: input, StudentID: contract.StudentID, RequestChildID: contract.RequestChildID, RequestID: requestID, AccountID: reviewer.AccountID,
+		})
+		if decideErr != nil {
 			return decideErr
 		}
-		read, readErr := c.read(ctx, contract, true)
+		read, readErr := c.read(ctx, contract, true, nil)
 		if readErr != nil {
 			return readErr
 		}
 		result = read
+		result.RosterImpact = impact
 		return c.log(ctx, reviewer, contract, view, 1)
 	})
 	if err != nil {
@@ -148,8 +151,8 @@ func (c *ContractChanges) contract(ctx context.Context, reviewer carecontract.Re
 }
 
 // read lists the child's open change in the school transaction.
-func (c *ContractChanges) read(ctx context.Context, contract ports.ChangeContract, decidable bool) (carecontract.ContractChanges, error) {
-	pending, last, reasonRequired, err := c.ports.Requests.PendingChanges(ctx, contract.StudentID)
+func (c *ContractChanges) read(ctx context.Context, contract ports.ChangeContract, decidable bool, effectiveFrom *calendar.Date) (carecontract.ContractChanges, error) {
+	pending, last, reasonRequired, err := c.ports.Requests.PendingChanges(ctx, contract.StudentID, contract.RequestChildID, effectiveFrom)
 	if err != nil {
 		return carecontract.ContractChanges{}, err
 	}

@@ -19,12 +19,13 @@ func (Store) ChangeContract(ctx context.Context, organizationID, contractID int6
 		return ports.ChangeContract{}, err
 	}
 	var row struct {
-		ID        int64  `bun:"id"`
-		SchoolID  int64  `bun:"school_id"`
-		StudentID *int64 `bun:"student_id"`
-		Status    string `bun:"status"`
+		ID             int64  `bun:"id"`
+		SchoolID       int64  `bun:"school_id"`
+		RequestChildID int64  `bun:"request_child_id"`
+		StudentID      *int64 `bun:"student_id"`
+		Status         string `bun:"status"`
 	}
-	err = db.NewRaw(`SELECT id, school_id, student_id, status FROM care_contract.contracts
+	err = db.NewRaw(`SELECT id, school_id, request_child_id, student_id, status FROM care_contract.contracts
 		WHERE organization_id = ? AND id = ?`, organizationID, contractID).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.ChangeContract{}, carecontract.ErrContractNotFound
@@ -32,7 +33,7 @@ func (Store) ChangeContract(ctx context.Context, organizationID, contractID int6
 	if err != nil {
 		return ports.ChangeContract{}, fmt.Errorf("care contract postgres: read contract of a change: %w", err)
 	}
-	contract := ports.ChangeContract{ID: row.ID, SchoolID: row.SchoolID, Status: row.Status}
+	contract := ports.ChangeContract{ID: row.ID, SchoolID: row.SchoolID, Status: row.Status, RequestChildID: row.RequestChildID}
 	if row.StudentID != nil {
 		contract.StudentID = *row.StudentID
 	}

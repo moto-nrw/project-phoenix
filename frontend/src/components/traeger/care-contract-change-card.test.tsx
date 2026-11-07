@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render as renderPlain,
   screen,
@@ -9,7 +10,10 @@ import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
-import { changeWeek, type ContractChanges } from "~/lib/care-contract-changes";
+import {
+  contractChangeReview,
+  type ContractChanges,
+} from "~/lib/care-contract-changes";
 
 function render(ui: React.ReactElement) {
   return renderPlain(ui, { wrapper: ToastProvider });
@@ -20,11 +24,19 @@ const mocks = vi.hoisted(() => ({
   decideContractChange: vi.fn(),
 }));
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { permissions: ["admin:*"] } },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("~/lib/care-contract-changes-api", () => ({
   fetchContractChanges: mocks.fetchContractChanges,
   decideContractChange: mocks.decideContractChange,
 }));
 
+import { ApiError } from "~/lib/api-error";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 vi.mock("~/components/ui/date-picker", () => ({
   DatePicker: ({
@@ -72,30 +84,31 @@ const pending: ContractChanges = {
   ],
 };
 
-describe("changeWeek (#5979)", () => {
-  it("names each weekday of each module as kept, added, removed or free", () => {
-    const week = changeWeek(pending.pending[0]!.lines);
-    expect(week.weekdays).toEqual(["mon", "tue", "wed", "thu", "fri"]);
-    expect(week.rows[0]!.days.map((day) => day.state)).toEqual([
-      "kept",
-      "added",
-      "removed",
-      "none",
-      "none",
+describe("contractChangeReview", () => {
+  it("distinguishes fixed-day additions and removals without inventing weekdays", () => {
+    const row = contractChangeReview({
+      ...pending.pending[0]!,
+      lines: [
+        {
+          careOfferingId: "8",
+          moduleName: "Neu",
+          state: "added",
+          beforeDays: [],
+          afterDays: [],
+        },
+        {
+          careOfferingId: "9",
+          moduleName: "Alt",
+          state: "removed",
+          beforeDays: [],
+          afterDays: [],
+        },
+      ],
+    });
+    expect(row.diff.map((line) => [line.old, line.new])).toEqual([
+      ["Nicht gebucht", "Gebucht (feste Tage)"],
+      ["Gebucht (feste Tage)", "Nicht gebucht"],
     ]);
-  });
-
-  it("shows the weekend only when a module books it", () => {
-    const week = changeWeek([
-      {
-        careOfferingId: "8",
-        moduleName: "Ferien",
-        state: "added",
-        beforeDays: [],
-        afterDays: ["sat"],
-      },
-    ]);
-    expect(week.weekdays).toEqual(["mon", "tue", "wed", "thu", "fri", "sat"]);
   });
 });
 
@@ -104,19 +117,17 @@ describe("CareContractChangeCard (#5979)", () => {
     vi.clearAllMocks();
   });
 
-  it("shows the parents' change day by day with both decisions", async () => {
+  it("shows the shared module comparison with both decisions", async () => {
     mocks.fetchContractChanges.mockResolvedValue(pending);
     render(<CareContractChangeCard contractId="25" onDecided={vi.fn()} />);
 
     expect(await screen.findByText("05.10.2026")).toBeInTheDocument();
     expect(screen.getByText("Wartet auf Entscheidung")).toBeInTheDocument();
-    const week = screen.getByRole("list", { name: "Änderung je Wochentag" });
-    expect(within(week).getByText("Offene Ganztagsschule")).toBeInTheDocument();
-    expect(within(week).getByText("Montag: bleibt")).toBeInTheDocument();
-    expect(within(week).getByText("Dienstag: kommt dazu")).toBeInTheDocument();
-    expect(within(week).getByText("Mittwoch: fällt weg")).toBeInTheDocument();
+    expect(screen.getByText("Offene Ganztagsschule:")).toBeInTheDocument();
+    expect(screen.getByText("Mo, Mi")).toBeInTheDocument();
+    expect(screen.getByText("Mo, Di")).toBeInTheDocument();
     expect(
-      screen.getByText("Ab Oktober arbeite ich dienstags länger."),
+      screen.getByText(/Ab Oktober arbeite ich dienstags länger./),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Freigeben" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Ablehnen" })).toBeEnabled();
@@ -132,6 +143,11 @@ describe("CareContractChangeCard (#5979)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Freigeben" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByLabelText(/Gilt ab/)).toHaveValue("2026-10-05");
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Freigeben" }),
+      ).toBeEnabled(),
+    );
     fireEvent.click(within(dialog).getByRole("button", { name: "Freigeben" }));
 
     await waitFor(() =>
@@ -206,5 +222,146 @@ describe("CareContractChangeCard (#5979)", () => {
     expect(
       screen.getByRole("heading", { name: "Änderungswunsch der Eltern" }),
     ).toBeInTheDocument();
+  });
+
+  it("requires the selected date's preview before approving", async () => {
+    let resolvePreview!: (changes: ContractChanges) => void;
+    mocks.fetchContractChanges
+      .mockResolvedValueOnce(pending)
+      .mockImplementation(
+        () =>
+          new Promise<ContractChanges>((resolve) => {
+            resolvePreview = resolve;
+          }),
+      );
+    mocks.decideContractChange.mockResolvedValue({ ...pending, pending: [] });
+    render(<CareContractChangeCard contractId="25" onDecided={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Freigeben" }));
+    const dialog = await screen.findByRole("dialog");
+    const approve = within(dialog).getByRole("button", { name: "Freigeben" });
+    expect(approve).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText(/Gilt ab/), {
+      target: { value: "2026-11-02" },
+    });
+    await waitFor(() =>
+      expect(mocks.fetchContractChanges).toHaveBeenLastCalledWith(
+        "25",
+        "2026-11-02",
+      ),
+    );
+    expect(approve).toBeDisabled();
+    await act(async () =>
+      resolvePreview({
+        ...pending,
+        pending: [
+          {
+            ...pending.pending[0]!,
+            lines: [
+              {
+                ...pending.pending[0]!.lines[0]!,
+                beforeDays: ["thu"],
+                afterDays: ["fri"],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(await within(dialog).findByText("Do")).toBeInTheDocument();
+    expect(within(dialog).getByText("Fr")).toBeInTheDocument();
+    await waitFor(() => expect(approve).toBeEnabled());
+    fireEvent.click(approve);
+    await waitFor(() =>
+      expect(mocks.decideContractChange).toHaveBeenCalledWith(
+        "25",
+        "41",
+        expect.objectContaining({ effectiveFrom: "2026-11-02" }),
+      ),
+    );
+  });
+
+  it.each([
+    "students.change_request_stale",
+    "students.change_request_not_pending",
+  ])("refreshes and dismisses an obsolete form on %s", async (code) => {
+    mocks.fetchContractChanges.mockResolvedValue(pending);
+    mocks.decideContractChange.mockRejectedValueOnce(
+      new ApiError("conflict", 409, { code }),
+    );
+    render(<CareContractChangeCard contractId="25" onDecided={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Ablehnen" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText(/Begründung/), {
+      target: { value: "Kein Platz." },
+    });
+    mocks.fetchContractChanges.mockResolvedValue({
+      ...pending,
+      pending: [{ ...pending.pending[0]!, version: "v-42" }],
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Ablehnen" }));
+    await waitFor(() =>
+      expect(mocks.fetchContractChanges).toHaveBeenCalledTimes(2),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Ablehnen" }));
+    const reopened = await screen.findByRole("dialog");
+    fireEvent.change(within(reopened).getByLabelText(/Begründung/), {
+      target: { value: "Kein Platz." },
+    });
+    mocks.decideContractChange.mockResolvedValue({ ...pending, pending: [] });
+    fireEvent.click(within(reopened).getByRole("button", { name: "Ablehnen" }));
+    await waitFor(() =>
+      expect(mocks.decideContractChange).toHaveBeenLastCalledWith(
+        "25",
+        "41",
+        expect.objectContaining({ expectedVersion: "v-42" }),
+      ),
+    );
+  });
+
+  it("keeps manual planning and pickup consequences visible for school follow-up", async () => {
+    mocks.fetchContractChanges.mockResolvedValue(pending);
+    mocks.decideContractChange.mockResolvedValue({
+      ...pending,
+      pending: [],
+      rosterImpact: {
+        effectiveFrom: "2026-10-05",
+        adjusted: [],
+        notAdjusted: [
+          {
+            templateId: "12",
+            name: "Handgruppe",
+            weekdays: [2],
+            viaTarget: false,
+            until: null,
+          },
+        ],
+        pickupOverrides: [
+          {
+            weekday: 2,
+            date: "2026-10-06",
+            storedTime: "15:00",
+            bookedTime: "16:00",
+            resetNow: true,
+          },
+        ],
+      },
+    });
+    render(<CareContractChangeCard contractId="25" onDecided={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Freigeben" }));
+    const dialog = await screen.findByRole("dialog");
+    const approve = within(dialog).getByRole("button", { name: "Freigeben" });
+    await waitFor(() => expect(approve).toBeEnabled());
+    fireEvent.click(approve);
+    expect(
+      await screen.findByText(/Hinweise an die Schule/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Handgruppe/)).toBeInTheDocument();
+    expect(screen.getByText(/eingetragen 15:00 Uhr/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Im Betreuungsplan ansehen/ }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -43,6 +43,7 @@ export interface CarePlanImpactProgress {
 }
 
 interface CarePlanImpactProps {
+  readonly schoolFollowUp?: boolean;
   readonly impact: RosterImpact;
   readonly progress?: CarePlanImpactProgress;
   readonly onProgress?: (progress: CarePlanImpactProgress) => void;
@@ -66,9 +67,11 @@ export function CarePlanImpact({
   childName,
   progress,
   onProgress,
+  schoolFollowUp = false,
 }: CarePlanImpactProps) {
   const { data: session } = useSession();
-  const canManage = hasPermission(session, "schedules:manage");
+  const canManage =
+    !schoolFollowUp && hasPermission(session, "schedules:manage");
   const canRemove = studentId !== undefined && canManage;
   const firstRemovableDay = earliestRemovalDay(
     impact.effectiveFrom,
@@ -125,6 +128,7 @@ export function CarePlanImpact({
   );
   // Ohne Recht fehlt an einem Eintrag eine Aktion, die andere sehen würden.
   const actionMissing =
+    !schoolFollowUp &&
     !canManage &&
     impact.notAdjusted.some(
       (template) => template.viaTarget || studentId !== undefined,
@@ -179,7 +183,8 @@ export function CarePlanImpact({
         <PickupOverrides
           overrides={impact.pickupOverrides}
           effectiveFrom={impact.effectiveFrom}
-          studentId={studentId}
+          studentId={schoolFollowUp ? undefined : studentId}
+          schoolFollowUp={schoolFollowUp}
           done={resetWeekdays}
           onReset={markReset}
         />
@@ -211,7 +216,11 @@ export function CarePlanImpact({
       {impact.notAdjusted.length > 0 ? (
         <SectionCard
           title="Nicht angepasst, weil von Hand gepflegt"
-          description="Hier steht das Kind weiter im Plan. Prüfen Sie, ob das so bleiben soll."
+          description={
+            schoolFollowUp
+              ? "Hier steht das Kind weiter im Plan. Die Schule muss prüfen, ob das so bleiben soll."
+              : "Hier steht das Kind weiter im Plan. Prüfen Sie, ob das so bleiben soll."
+          }
           headingLevel={5}
           titleSize="sm"
           titleClassName="font-medium text-gray-600"
@@ -240,6 +249,7 @@ export function CarePlanImpact({
                   canRemove && gapEndsAfter(template.until, firstRemovableDay)
                 }
                 canConnect={canManage}
+                showPlanLink={!schoolFollowUp}
                 onRemove={setTarget}
                 planLink={planLink}
                 connectLink={connectLink(template.templateId)}
@@ -296,6 +306,7 @@ function ManualTemplateEntry({
   onRemove,
   planLink,
   connectLink,
+  showPlanLink,
 }: Readonly<{
   template: ManualRosterTemplate;
   removed: boolean;
@@ -304,12 +315,13 @@ function ManualTemplateEntry({
   onRemove: (template: ManualRosterTemplate) => void;
   planLink: string;
   connectLink: string;
+  showPlanLink: boolean;
 }>) {
   const about = `„${template.name}“`;
   return (
     <li className="flex flex-col gap-2 py-3 text-sm text-gray-700 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
       <div className="min-w-0">
-        <p>
+        <p className="wrap-anywhere">
           <span className="font-medium text-gray-900">{template.name}</span>,{" "}
           {formatWeekdayAdverbs(template.weekdays)}
           {template.until
@@ -345,14 +357,16 @@ function ManualTemplateEntry({
             Dort auch entfernen
           </Button>
         ) : null}
-        <ButtonLink
-          href={planLink}
-          variant="surface"
-          size="compact"
-          aria-label={`Im Betreuungsplan ansehen: ${about}`}
-        >
-          Im Betreuungsplan ansehen
-        </ButtonLink>
+        {showPlanLink ? (
+          <ButtonLink
+            href={planLink}
+            variant="surface"
+            size="compact"
+            aria-label={`Im Betreuungsplan ansehen: ${about}`}
+          >
+            Im Betreuungsplan ansehen
+          </ButtonLink>
+        ) : null}
       </div>
     </li>
   );
@@ -369,10 +383,12 @@ function PickupOverrides({
   studentId,
   done,
   onReset,
+  schoolFollowUp,
 }: Readonly<{
   overrides: readonly PickupOverride[];
   effectiveFrom: string;
   studentId?: string;
+  schoolFollowUp?: boolean;
   done: ReadonlySet<number>;
   onReset: (weekday: number) => void;
 }>) {
@@ -474,8 +490,10 @@ function PickupOverrides({
           {capitalize(
             formatWeekdayAdverbs(later.map((override) => override.weekday)),
           )}{" "}
-          gilt die eingetragene Zeit bis zum genannten Tag weiter. Ab diesem Tag
-          setzen Sie sie unter „Betreuungszeiten“ zurück.
+          gilt die eingetragene Zeit bis zum genannten Tag weiter. Ab diesem Tag{" "}
+          {schoolFollowUp
+            ? "setzt die Schule sie unter „Betreuungszeiten“ zurück."
+            : "setzen Sie sie unter „Betreuungszeiten“ zurück."}
         </p>
       ) : null}
       {studentId !== undefined && !canReset && resettable.length > 0 ? (

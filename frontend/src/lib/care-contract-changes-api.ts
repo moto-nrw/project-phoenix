@@ -17,9 +17,12 @@ const changesPath = (contractId: string) =>
 
 export async function fetchContractChanges(
   contractId: string,
+  effectiveFrom?: string,
 ): Promise<ContractChanges> {
   return contractChangesFromBackend(
-    await traegerRequest<BackendContractChanges>(changesPath(contractId)),
+    await traegerRequest<BackendContractChanges>(
+      `${changesPath(contractId)}${effectiveFrom ? `?effective_from=${encodeURIComponent(effectiveFrom)}` : ""}`,
+    ),
   );
 }
 

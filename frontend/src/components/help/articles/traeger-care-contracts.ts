@@ -103,8 +103,8 @@ export function traegerCareContractsTopic(): HelpTopic {
         steps: [
           "Die Eltern beantragen in der Eltern-App andere Tage oder Module. Sie oder die Schule entscheiden.",
           "Wählen Sie in der Liste das Kind. Rechts steht die Karte `Änderungswunsch der Eltern`.",
-          "Je Modul sehen Sie die Wochentage: Haken bleibt, Plus kommt dazu, Minus fällt weg.",
-          "Wählen Sie `Freigeben`. Prüfen Sie `Gilt ab` und wählen Sie noch einmal `Freigeben`.",
+          "Je Modul sehen Sie die bisherige und die gewünschte Buchung. Bei festen Tagen steht dort `Gebucht (feste Tage)`.",
+          "Wählen Sie `Freigeben`. Prüfen Sie `Gilt ab` und die angezeigten Änderungen. Wählen Sie noch einmal `Freigeben`.",
           "Oder wählen Sie `Ablehnen`. Schreiben Sie eine Begründung für die Eltern und wählen Sie `Ablehnen`.",
           "Die Eltern bekommen eine Nachricht in der Eltern-App.",
         ],
@@ -158,6 +158,7 @@ export function traegerCareContractsTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Bei einem Änderungswunsch fehlt `Freigeben`? Die Eltern melden damit die ganze Betreuung ab. Das ist eine Kündigung. Tragen Sie sie unter `Vertrag beenden` ein, oder lehnen Sie den Wunsch ab.",
+      "Nach der Freigabe bleiben Regeltermine oder Abholzeiten unverändert? Geben Sie die angezeigten Hinweise an die Schule weiter. Die Schule muss sie prüfen.",
       "Die Karte `Änderungswunsch der Eltern` fehlt? Sie steht nur bei aktiven Verträgen.",
       "`Kündigung eintragen` fehlt? Der Vertrag ist noch nicht abgeschlossen oder schon beendet. Einen Entwurf oder versendeten Vertrag verwerfen Sie oder lassen ihn liegen.",
       "Ein Brief kam nach der Widerrufsfrist an? Entscheidend ist der Absende-Tag. Tragen Sie ihn bei `Abgesendet am` ein.",

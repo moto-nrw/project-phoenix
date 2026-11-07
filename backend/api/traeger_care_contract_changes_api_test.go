@@ -42,7 +42,11 @@ func (r *officeChangeReview) GetForStudent(_ context.Context, studentID int64) (
 
 func (r *officeChangeReview) Decide(_ context.Context, input careplan.OfferingChangeDecisionInput) (careplan.RosterImpact, error) {
 	r.decided = append(r.decided, input)
-	return careplan.RosterImpact{}, nil
+	impact := careplan.RosterImpact{}
+	if input.EffectiveFrom != nil {
+		impact.EffectiveFrom = *input.EffectiveFrom
+	}
+	return impact, nil
 }
 
 // careContractChangeRouter mounts /traeger/contract-changes as the serving
@@ -95,7 +99,7 @@ func TestTraegerOfficeDecidesTheParentsChangeOnlyWithTheRightAndForItsOwnTraeger
 			status, sent_at, concluded_at, conclusion_method) VALUES (?, ?, ?, ?, 'aktiv', NOW(), NOW(), 'mit_anmeldung') RETURNING id`,
 		f.office.organization, f.school, f.child, student).Scan(ctx, &contract))
 	review := &officeChangeReview{pending: careplan.OfferingChangeRequest{
-		ID: testpkg.UniqueTestTenantID(t), StudentID: student, EffectiveFrom: "2100-03-01", Status: careplan.OfferingChangePending,
+		ID: testpkg.UniqueTestTenantID(t), StudentID: student, RequestChildID: f.child, EffectiveFrom: "2100-03-01", Status: careplan.OfferingChangePending,
 		CreatedAt: time.Date(2099, 12, 1, 9, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2099, 12, 1, 9, 0, 0, 0, time.UTC),
 	}}
 	router := careContractChangeRouter(t, testpkg.SetupTestDB(t), review)
@@ -119,6 +123,7 @@ func TestTraegerOfficeDecidesTheParentsChangeOnlyWithTheRightAndForItsOwnTraeger
 	require.Len(t, review.decided, 1)
 	decided := review.decided[0]
 	assert.Equal(t, student, decided.StudentID, "Care Plan checks the request against the contract's child")
+	assert.Equal(t, f.child, decided.RequestChildID, "Care Plan checks the contract enrollment under its request lock")
 	assert.Equal(t, review.pending.ID, decided.RequestID)
 	assert.True(t, decided.Approve)
 	require.NotNil(t, decided.EffectiveFrom)

@@ -67,7 +67,8 @@ type ContractChanges struct {
 	LastDecision *ChangeOutcome  `json:"last_decision"`
 	// ReasonRequired tells that the school asks for a reason on an approval
 	// too; a rejection always needs one.
-	ReasonRequired bool `json:"reason_required"`
+	ReasonRequired bool          `json:"reason_required"`
+	RosterImpact   *ChangeImpact `json:"roster_impact,omitempty"`
 }
 
 // ChangeDecisionInput is the office's decision of one request. An approval
@@ -84,7 +85,7 @@ type ChangeDecisionInput struct {
 type ContractChangeDecisions interface {
 	// ContractChanges reads the open change of the contract's child. It
 	// writes the read into the access log of the school.
-	ContractChanges(ctx context.Context, reviewer Reviewer, contractID int64) (ContractChanges, error)
+	ContractChanges(ctx context.Context, reviewer Reviewer, contractID int64, effectiveFrom *calendar.Date) (ContractChanges, error)
 	// DecideContractChange approves or rejects the request in the school's
 	// tenant transaction and returns the changes as they stand afterwards.
 	DecideContractChange(ctx context.Context, reviewer Reviewer, contractID, requestID int64, input ChangeDecisionInput) (ContractChanges, error)
@@ -94,17 +95,18 @@ type ContractChangeDecisions interface {
 // the contract names and the acting account of the Träger-Büro.
 type ChangeDecision struct {
 	ChangeDecisionInput
-	StudentID int64
-	RequestID int64
-	AccountID int64
+	StudentID      int64
+	RequestChildID int64
+	RequestID      int64
+	AccountID      int64
 }
 
 // SchoolChangeRequests reads and decides the parents' changes of one child
 // in the tenant transaction of its school, which the caller holds (Care
 // Plan). Pending lists the open requests and the last decision.
 type SchoolChangeRequests interface {
-	PendingChanges(ctx context.Context, studentID int64) ([]ChangeRequest, *ChangeOutcome, bool, error)
-	DecideChange(ctx context.Context, decision ChangeDecision) error
+	PendingChanges(ctx context.Context, studentID, requestChildID int64, effectiveFrom *calendar.Date) ([]ChangeRequest, *ChangeOutcome, bool, error)
+	DecideChange(ctx context.Context, decision ChangeDecision) (*ChangeImpact, error)
 }
 
 // ChangePorts are the ports the root binds for the office's decision: the

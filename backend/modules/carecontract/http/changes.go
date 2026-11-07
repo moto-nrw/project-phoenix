@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ChangeResource serves /traeger/contract-changes (#5979): the Träger-Büro
@@ -46,7 +47,16 @@ func (rs *ChangeResource) list(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	changes, err := rs.changes.ContractChanges(r.Context(), reviewer, id)
+	var effectiveFrom *calendar.Date
+	if value := r.URL.Query().Get("effective_from"); value != "" {
+		date, err := calendar.ParseDate(value)
+		if err != nil {
+			RenderChangeError(w, r, carecontract.ErrChangeInvalid)
+			return
+		}
+		effectiveFrom = &date
+	}
+	changes, err := rs.changes.ContractChanges(r.Context(), reviewer, id, effectiveFrom)
 	if err != nil {
 		RenderChangeError(w, r, err)
 		return

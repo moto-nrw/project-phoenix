@@ -44,6 +44,7 @@ import {
 import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "OfferingRequestReviewItem" });
+const NO_EXCLUDED_OFFERINGS: readonly string[] = [];
 
 // Gründe, aus denen die Anfrage so nicht umsetzbar ist. Sie ändern sich nicht
 // von selbst: erneut klicken hilft nicht, es braucht ein anderes Datum, eine
@@ -400,19 +401,6 @@ export function OfferingRequestReviewItem({
     await chooseDate(row.effective_from);
   };
 
-  const unchanged = row.unchanged ?? [];
-  const previewByOffering = new Map(
-    preview?.map((selection) => [selection.offering_id, selection]),
-  );
-  const removed = new Set(
-    row.diff
-      .filter((entry) => {
-        const selection = previewByOffering.get(entry.offering_id);
-        return selection?.removed && selection.new !== entry.new;
-      })
-      .map((entry) => entry.offering_id),
-  );
-
   const fullWithdrawal = row.full_withdrawal === true;
   const withdrawalConfirmation = fullWithdrawal || confirmationRequired;
 
@@ -500,110 +488,14 @@ export function OfferingRequestReviewItem({
         </div>
       )}
       <div className="sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,17rem)] sm:items-start sm:gap-x-3">
-        <ReviewDiffPanel title="Änderungen">
-          {row.diff.length === 0 && (
-            <span className="text-sm text-gray-500">–</span>
-          )}
-          {row.diff.map((entry) => {
-            const previewSelection = previewByOffering.get(entry.offering_id);
-            const isExcluded = excluded.includes(entry.offering_id);
-            const isRemoved = removed.has(entry.offering_id);
-            const cascaded = isRemoved && !isExcluded;
-            const previewChanged =
-              previewSelection !== undefined &&
-              previewSelection.new !== entry.new;
-            const displayedNew = previewSelection?.new ?? entry.new;
-            return (
-              <div
-                key={entry.offering_id}
-                className={`text-sm ${isRemoved ? "opacity-50" : ""}`}
-              >
-                <span className="text-xs text-gray-500">{entry.label}: </span>
-                {/* Eine Kursanfrage sieht sonst aus wie jede andere
-                    Angebotsänderung (#3075). Das Mitarbeiterportal ist
-                    deutsch und lädt die Eltern-Texte nicht: der Schlüssel
-                    stand dort roh im Badge (#4767). */}
-                {entry.is_course && <StatusBadge tone="green" label="Kurs" />}
-                {entry.automatic && (
-                  <StatusBadge tone="blue" label="Automatisch mitgebucht" />
-                )}
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="text-gray-400 line-through">
-                    {entry.old}
-                  </span>
-                  <span className="text-gray-400" aria-hidden="true">
-                    →
-                  </span>
-                  <span
-                    className={
-                      isRemoved
-                        ? "font-medium text-gray-500 line-through"
-                        : "font-medium text-gray-900"
-                    }
-                  >
-                    {displayedNew}
-                  </span>
-                </div>
-                {entry.automatic &&
-                  !previewChanged &&
-                  !cascaded &&
-                  !isExcluded && (
-                    <p className="mt-0.5 text-xs text-gray-500">
-                      {automaticHint(entry)}
-                    </p>
-                  )}
-                {cascaded && (
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    Entfällt, weil{" "}
-                    {`„${cascadeSourceName(entry, row.diff, removed)}“`} nicht
-                    mitgebucht wird.
-                  </p>
-                )}
-                {entry.optoutable && !cascaded && (
-                  <label
-                    htmlFor={`mitbuchen-${row.id}-${entry.offering_id}`}
-                    className="mt-1 flex w-fit cursor-pointer items-center gap-2 text-xs text-gray-700"
-                  >
-                    <Checkbox
-                      id={`mitbuchen-${row.id}-${entry.offering_id}`}
-                      checked={!isExcluded}
-                      onChange={() => {
-                        void toggleExcluded(entry.offering_id);
-                      }}
-                      disabled={busy}
-                      aria-label={`${entry.label} automatisch mitbuchen`}
-                    />
-                    Automatisch mitbuchen
-                  </label>
-                )}
-                {isExcluded && (
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    Die Mitbuchungs-Regel gilt für diese Anfrage nicht.
-                  </p>
-                )}
-              </div>
-            );
-          })}
-          <RequestWaitlistPlaces requestId={row.id} />
-          {unchanged.length > 0 && (
-            <div className="mt-3 border-t border-gray-200 pt-2">
-              <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Bleibt gebucht
-              </p>
-              {unchanged.map((line) => (
-                <p key={line.offering_id} className="text-sm text-gray-700">
-                  <span className="text-xs text-gray-500">{line.label}: </span>
-                  {line.days}
-                </p>
-              ))}
-            </div>
-          )}
-          {row.note && (
-            <p className="mt-2 text-xs text-gray-500">
-              Nachricht der Eltern: {row.note}
-            </p>
-          )}
-        </ReviewDiffPanel>
+        <OfferingRequestChanges
+          row={row}
+          preview={preview}
+          excluded={excluded}
+          busy={busy}
+          onToggleExcluded={toggleExcluded}
+          showWaitlist
+        />
         <InsetPanel className="mt-3 space-y-2">
           <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
             Gültig ab
@@ -734,5 +626,139 @@ export function OfferingRequestReviewItem({
         )}
       </ConfirmationModal>
     </RequestReviewCard>
+  );
+}
+
+/** Shared request comparison, used by school review and the contract office. */
+export function OfferingRequestChanges({
+  row,
+  preview,
+  excluded = NO_EXCLUDED_OFFERINGS,
+  busy = false,
+  onToggleExcluded,
+  showWaitlist = false,
+}: Readonly<{
+  row: Pick<StaffOfferingRequest, "id" | "diff" | "unchanged" | "note">;
+  preview?: readonly OfferingRequestPreviewSelection[];
+  excluded?: readonly string[];
+  busy?: boolean;
+  onToggleExcluded?: (offeringId: string) => Promise<void>;
+  showWaitlist?: boolean;
+}>) {
+  const unchanged = row.unchanged ?? [];
+  const previewByOffering = new Map(
+    preview?.map((selection) => [selection.offering_id, selection]),
+  );
+  const removed = new Set(
+    row.diff
+      .filter((entry) => {
+        const selection = previewByOffering.get(entry.offering_id);
+        return selection?.removed && selection.new !== entry.new;
+      })
+      .map((entry) => entry.offering_id),
+  );
+
+  return (
+    <ReviewDiffPanel title="Änderungen">
+      {row.diff.length === 0 && (
+        <span className="text-sm text-gray-500">–</span>
+      )}
+      {row.diff.map((entry) => {
+        const previewSelection = previewByOffering.get(entry.offering_id);
+        const isExcluded = excluded.includes(entry.offering_id);
+        const isRemoved = removed.has(entry.offering_id);
+        const cascaded = isRemoved && !isExcluded;
+        const previewChanged =
+          previewSelection !== undefined && previewSelection.new !== entry.new;
+        const displayedNew = previewSelection?.new ?? entry.new;
+        return (
+          <div
+            key={entry.offering_id}
+            className={`text-sm wrap-anywhere ${isRemoved ? "opacity-50" : ""}`}
+          >
+            <span className="text-xs text-gray-500">{entry.label}: </span>
+            {/* Eine Kursanfrage sieht sonst aus wie jede andere
+                    Angebotsänderung (#3075). Das Mitarbeiterportal ist
+                    deutsch und lädt die Eltern-Texte nicht: der Schlüssel
+                    stand dort roh im Badge (#4767). */}
+            {entry.is_course && <StatusBadge tone="green" label="Kurs" />}
+            {entry.automatic && (
+              <StatusBadge tone="blue" label="Automatisch mitgebucht" />
+            )}
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="text-gray-400 line-through">{entry.old}</span>
+              <span className="text-gray-400" aria-hidden="true">
+                →
+              </span>
+              <span
+                className={
+                  isRemoved
+                    ? "font-medium text-gray-500 line-through"
+                    : "font-medium text-gray-900"
+                }
+              >
+                {displayedNew}
+              </span>
+            </div>
+            {entry.automatic && !previewChanged && !cascaded && !isExcluded && (
+              <p className="mt-0.5 text-xs text-gray-500">
+                {automaticHint(entry)}
+              </p>
+            )}
+            {cascaded && (
+              <p className="mt-0.5 text-xs text-gray-500">
+                Entfällt, weil{" "}
+                {`„${cascadeSourceName(entry, row.diff, removed)}“`} nicht
+                mitgebucht wird.
+              </p>
+            )}
+            {entry.optoutable && onToggleExcluded && !cascaded && (
+              <label
+                htmlFor={`mitbuchen-${row.id}-${entry.offering_id}`}
+                className="mt-1 flex w-fit cursor-pointer items-center gap-2 text-xs text-gray-700"
+              >
+                <Checkbox
+                  id={`mitbuchen-${row.id}-${entry.offering_id}`}
+                  checked={!isExcluded}
+                  onChange={() => {
+                    void onToggleExcluded?.(entry.offering_id);
+                  }}
+                  disabled={busy}
+                  aria-label={`${entry.label} automatisch mitbuchen`}
+                />
+                Automatisch mitbuchen
+              </label>
+            )}
+            {isExcluded && (
+              <p className="mt-0.5 text-xs text-gray-500">
+                Die Mitbuchungs-Regel gilt für diese Anfrage nicht.
+              </p>
+            )}
+          </div>
+        );
+      })}
+      {showWaitlist && <RequestWaitlistPlaces requestId={row.id} />}
+      {unchanged.length > 0 && (
+        <div className="mt-3 border-t border-gray-200 pt-2">
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            Bleibt gebucht
+          </p>
+          {unchanged.map((line) => (
+            <p
+              key={line.offering_id}
+              className="text-sm wrap-anywhere text-gray-700"
+            >
+              <span className="text-xs text-gray-500">{line.label}: </span>
+              {line.days}
+            </p>
+          ))}
+        </div>
+      )}
+      {row.note && (
+        <p className="mt-2 text-xs wrap-anywhere whitespace-pre-line text-gray-500">
+          Nachricht der Eltern: {row.note}
+        </p>
+      )}
+    </ReviewDiffPanel>
   );
 }

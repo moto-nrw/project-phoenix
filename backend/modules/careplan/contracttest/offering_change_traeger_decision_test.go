@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -64,10 +64,11 @@ func (f traegerDecisionFixture) school(ctx context.Context) error {
 // traeger decides as the Träger-Büro's route does, for the given child.
 func (f traegerDecisionFixture) traeger(ctx context.Context, studentID int64) error {
 	day := f.fx.switchDate
-	return f.office.DecideChange(ctx, carecontract.ChangeDecision{
-		ChangeDecisionInput: carecontract.ChangeDecisionInput{Approve: true, EffectiveFrom: &day},
-		StudentID:           studentID, RequestID: f.request, AccountID: f.env.creatorID,
+	_, err := f.office.DecideChange(ctx, api.ContractChangeDecisionForTest{
+		ChangeDecisionInput: api.ContractChangeDecisionInputForTest{Approve: true, EffectiveFrom: &day},
+		StudentID:           studentID, RequestChildID: f.fx.childID, RequestID: f.request, AccountID: f.env.creatorID,
 	})
+	return err
 }
 
 // bookings answers the child's bookings with the offerings named by their
@@ -157,7 +158,7 @@ func TestTraegerDecisionOfAnotherChildsRequestChangesNothing(t *testing.T) {
 	err := inTraegerDecisionTx(t, testpkg.Ctx(t), env.db, func(ctx context.Context) error {
 		return f.traeger(ctx, other.studentID)
 	})
-	require.ErrorIs(t, err, carecontract.ErrChangeNotFound)
+	require.ErrorIs(t, err, api.ContractChangeNotFoundForTest())
 	assert.Equal(t, careplan.OfferingChangePending, f.status(t))
 	assert.Equal(t, before, f.bookings(t))
 }
@@ -213,4 +214,72 @@ func TestSchoolAndTraegerApprovingAtOnceApplyTheChangeOnce(t *testing.T) {
 			assert.Equal(t, 1, news, "the switch is booked once")
 		})
 	}
+}
+
+// Another enrollment of the same child must neither appear nor be decided
+// from this contract. The enrollment pin is independent of the student pin.
+func TestTraegerChangeRequiresTheContractsEnrollment(t *testing.T) {
+	t.Parallel()
+	env := setupDecisionTest(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	f := newTraegerDecisionFixture(t, env, svc, "Anmeldung")
+	other := setupOfferingChangeFixture(t, env, "AndereAnmeldung")
+	_, err := env.db.NewRaw(`UPDATE enrollment.request_children SET created_student_id = ?
+  WHERE tenant_id = ? AND id = ?`, f.fx.studentID, testpkg.Tenant(t), other.childID).Exec(context.Background())
+	require.NoError(t, err)
+	before := f.bookings(t)
+	require.NoError(t, inTraegerDecisionTx(t, testpkg.Ctx(t), env.db, func(ctx context.Context) error {
+		pending, _, _, err := f.office.PendingChanges(ctx, f.fx.studentID, other.childID, nil)
+		require.NoError(t, err)
+		assert.Empty(t, pending)
+		pending, _, _, err = f.office.PendingChanges(ctx, f.fx.studentID, f.fx.childID, nil)
+		require.NoError(t, err)
+		require.Len(t, pending, 1)
+		assert.Equal(t, f.request, pending[0].ID)
+		return nil
+	}))
+	err = inTraegerDecisionTx(t, testpkg.Ctx(t), env.db, func(ctx context.Context) error {
+		_, err := f.office.DecideChange(ctx, api.ContractChangeDecisionForTest{
+			ChangeDecisionInput: api.ContractChangeDecisionInputForTest{Approve: true, EffectiveFrom: &f.fx.switchDate},
+			StudentID:           f.fx.studentID, RequestChildID: other.childID, RequestID: f.request, AccountID: env.creatorID,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, api.ContractChangeNotFoundForTest())
+	assert.Equal(t, careplan.OfferingChangePending, f.status(t))
+	assert.Equal(t, before, f.bookings(t))
+}
+
+func TestTraegerChangePreviewUsesTheConfirmedDate(t *testing.T) {
+	t.Parallel()
+	env := setupDecisionTest(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	f := newTraegerDecisionFixture(t, env, svc, "Vorschautag")
+	later := f.fx.switchDate.AddDays(7)
+	_, err := env.db.NewRaw(`UPDATE enrollment.care_offering_bookings SET valid_until = ?
+  WHERE tenant_id = ? AND request_child_id = ? AND care_offering_id = ?`,
+		later, testpkg.Tenant(t), f.fx.childID, f.fx.oldOffering.ID).Exec(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, inTraegerDecisionTx(t, testpkg.Ctx(t), env.db, func(ctx context.Context) error {
+		initial, _, _, err := f.office.PendingChanges(ctx, f.fx.studentID, f.fx.childID, &f.fx.switchDate)
+		require.NoError(t, err)
+		require.Len(t, initial, 1)
+		assert.True(t, containsChangeOffering(initial[0].Lines, f.fx.oldOffering.ID), "the old booking still exists before its end")
+		preview, _, _, err := f.office.PendingChanges(ctx, f.fx.studentID, f.fx.childID, &later)
+		require.NoError(t, err)
+		require.Len(t, preview, 1)
+		assert.False(t, containsChangeOffering(preview[0].Lines, f.fx.oldOffering.ID), "the selected date's comparison must not show an expired booking")
+		assert.True(t, containsChangeOffering(preview[0].Lines, f.fx.newOffering.ID))
+		return nil
+	}))
+	assert.Equal(t, careplan.OfferingChangePending, f.status(t), "preview does not decide")
+}
+
+func containsChangeOffering(lines []api.ContractChangeLineForTest, offeringID int64) bool {
+	for _, line := range lines {
+		if line.CareOfferingID == offeringID {
+			return true
+		}
+	}
+	return false
 }
