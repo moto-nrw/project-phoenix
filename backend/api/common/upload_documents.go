@@ -88,14 +88,16 @@ func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName stri
 	// cancels the request context once the handler returns; the files go
 	// then. net/http's own cleanup misses them, because routers parse a copy
 	// of the request (WithContext).
-	if err := r.ParseMultipartForm(min(maxBodySize, maxMultipartMemory)); err != nil {
+	// The form is set even when the query string fails to parse.
+	err := r.ParseMultipartForm(min(maxBodySize, maxMultipartMemory))
+	removeMultipartFilesAfter(r)
+	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			return nil, uploadRefusal{code: CodeFilesFileTooLarge, text: "file too large"}
 		}
 		return nil, uploadRefusal{code: CodeFilesFileUnreadable, text: "cannot read upload"}
 	}
-	removeMultipartFilesAfter(r)
 
 	file, header, err := r.FormFile(fieldName)
 	if err != nil {
