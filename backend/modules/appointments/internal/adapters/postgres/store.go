@@ -355,24 +355,6 @@ func (s *Store) FindAppointmentRecipient(ctx context.Context, recipientID int64)
 	return appointmentRecipientToPublic(*row), stats, nil
 }
 
-func (s *Store) FindAppointmentRecipients(ctx context.Context, appointmentIDs []int64) ([]*appointments.AppointmentRecipient, domain.OperationStats, error) {
-	if len(appointmentIDs) == 0 {
-		return []*appointments.AppointmentRecipient{}, domain.OperationStats{}, nil
-	}
-	db, tenantID, err := s.databaseForTenant(ctx, "find appointment recipients")
-	if err != nil {
-		return nil, domain.OperationStats{}, err
-	}
-	rows := make([]appointmentRecipientRow, 0)
-	query := withTenant(db.NewSelect().Model(&rows).
-		ModelTableExpr(`calendar.appointment_recipients AS "appointment_recipient"`).
-		Where(`"appointment_recipient".appointment_id IN (?)`, bun.List(appointmentIDs)).
-		OrderExpr(`"appointment_recipient".appointment_id ASC, "appointment_recipient".recipient_type ASC, "appointment_recipient".id ASC`), "appointment_recipient", tenantID)
-	stats, err := scanAll(ctx, query, "find appointment recipients")
-	stats.Rows = int64(len(rows))
-	return appointmentRecipientsToPublic(rows), stats, err
-}
-
 func (s *Store) FindAppointmentRecipientStudents(ctx context.Context, recipientIDs []int64) ([]*appointments.AppointmentRecipientStudent, domain.OperationStats, error) {
 	if len(recipientIDs) == 0 {
 		return []*appointments.AppointmentRecipientStudent{}, domain.OperationStats{}, nil

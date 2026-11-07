@@ -273,35 +273,25 @@ export function GroupTransferModal({
             </section>
           )}
 
-          <div>
-            <label
-              id="transfer-user-select-label"
-              htmlFor="transfer-user-select"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Übergeben an:
-            </label>
-            <CustomSelect
-              id="transfer-user-select"
-              ariaLabelledBy="transfer-user-select-label"
-              value={selectedStaffId}
-              onChange={setSelectedStaffId}
-              options={[
-                { value: "", label: "Fachkraft auswählen..." },
-                ...availableUsers.map((user) => ({
-                  value: user.id,
-                  label: user.fullName,
-                })),
-              ]}
-              placeholder="Fachkraft auswählen..."
-            />
-            {availableUsers.length === 0 && !loadError && (
-              <p className="mt-2 text-sm text-gray-500">
-                Keine pädagogische Fachkraft verfügbar. Bitte wenden Sie sich an
-                die Verwaltung.
-              </p>
-            )}
-          </div>
+          <CustomSelect
+            id="transfer-user-select"
+            label="Übergeben an:"
+            hint={
+              availableUsers.length === 0 && !loadError
+                ? "Keine pädagogische Fachkraft verfügbar. Bitte wenden Sie sich an die Verwaltung."
+                : undefined
+            }
+            value={selectedStaffId}
+            onChange={setSelectedStaffId}
+            options={[
+              { value: "", label: "Fachkraft auswählen..." },
+              ...availableUsers.map((user) => ({
+                value: user.id,
+                label: user.fullName,
+              })),
+            ]}
+            placeholder="Fachkraft auswählen..."
+          />
         </div>
         <SlideOverFooter>{footer}</SlideOverFooter>
       </SlideOverContent>

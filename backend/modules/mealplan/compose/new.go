@@ -31,20 +31,20 @@ type Dependencies struct {
 		MealRegistrationEnabled(context.Context) (bool, error)
 		MealOrderingSettings(context.Context) (OrderingSettings, error)
 	}
-	Observe      func(Observation)
-	Now          func() time.Time
-	Participants mealplan.ParticipantFinder
-	StudentNames mealplan.StudentNameFinder
-	Calendar     mealplan.CalendarFinder
+	Observe         func(Observation)
+	Now             func() time.Time
+	Participants    mealplan.ParticipantFinder
+	ParticipantDays mealplan.ParticipantDaysFinder
+	StudentNames    mealplan.StudentNameFinder
+	Calendar        mealplan.CalendarFinder
 }
 
 func New(dependencies Dependencies) (mealplan.Capability, error) {
-	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil || dependencies.StudentNames == nil || dependencies.Calendar == nil {
+	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil || dependencies.ParticipantDays == nil || dependencies.StudentNames == nil || dependencies.Calendar == nil {
 		return nil, errors.New("meal plan compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.NewDatabase(tenant.TransactionFromContext, tenant.TenantFromContext))
-	service := application.New(store, application.NewParticipantDirectory(dependencies.Participants, dependencies.StudentNames), application.NewSchoolCalendar(dependencies.Calendar), dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
-	return service, nil
+	return application.New(store, application.NewParticipantDirectory(dependencies.Participants, dependencies.StudentNames, dependencies.ParticipantDays), application.NewSchoolCalendar(dependencies.Calendar), dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now), nil
 }
 
 // Settings are the meal plan's settings resolvers, bound at construction.

@@ -22,11 +22,11 @@ import (
 // booked care (#4681, Conclusion.AmendFromBookings); the count covers both.
 func CareContractConclusionJob(logger *slog.Logger) owners.CareContractConclusionBuilder {
 	return func(organizations organizationtenancy.Capability, settings owners.SettingsOwner,
-		delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) schedulerPorts.CareContractConclusion {
+		delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) schedulerPorts.CareContractConclusion {
 		if organizations == nil || settings.Traeger == nil || settings.Service == nil || delivery == nil || outcomes == nil || accessLog == nil {
 			panic("care contract conclusion: organizations, settings, delivery, the mail outcomes and the access log are required")
 		}
-		conclusion := NewCareContractConclusion(organizations, settings.Traeger, settings.Service, delivery, outcomes, accessLog)
+		conclusion := NewCareContractConclusion(organizations, settings.Traeger, settings.Service, delivery, outcomes, accessLog, parentsURL)
 		return func(ctx context.Context) (int, error) {
 			concluded, concludeErr := concludeEveryTraeger(ctx, organizations, conclusion, logger)
 			amended, amendErr := amendEveryTraeger(ctx, organizations, conclusion, logger)

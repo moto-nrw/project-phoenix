@@ -43,7 +43,7 @@ func TestRequestCacheSecondResolveIssuesNoRepoCall(t *testing.T) {
 	assert.Equal(t, 1, repo.findManyCalls)
 }
 
-func TestRequestCachePartialHitQueriesOnlyMissingKeys(t *testing.T) {
+func TestRequestCacheLoadsSchoolKeysTogether(t *testing.T) {
 	t.Parallel()
 	registry := setupTest(t)
 	registerTestSetting(registry, "test.first", config.FieldBoolean, false)
@@ -61,9 +61,9 @@ func TestRequestCachePartialHitQueriesOnlyMissingKeys(t *testing.T) {
 
 	snapshot, err := batch.ResolveMany(ctx, []string{"test.first", "test.second"})
 	require.NoError(t, err)
-	assert.Equal(t, 2, repo.findManyCalls, "only the missing key may trigger a repository query")
-	require.Len(t, repo.findManyKeys, 2)
-	assert.Equal(t, []string{"test.second"}, repo.findManyKeys[1], "cached keys must not be re-requested")
+	assert.Equal(t, 1, repo.findManyCalls, "the initial school snapshot also supplies the later key")
+	require.Len(t, repo.findManyKeys, 1)
+	assert.Equal(t, []string{"test.first", "test.second"}, repo.findManyKeys[0])
 
 	integer, err := snapshot.Int("test.second")
 	require.NoError(t, err)
@@ -134,6 +134,26 @@ func TestRequestCacheCachesUnmarshalError(t *testing.T) {
 	_, secondErr := svc.ResolveBool(ctx, "test.corrupt")
 	require.Error(t, secondErr)
 	assert.Equal(t, firstErr.Error(), secondErr.Error(), "the cached error must be identical")
+	assert.Equal(t, 1, repo.findManyCalls)
+}
+
+func TestRequestSnapshotDefersUnrequestedMalformedValues(t *testing.T) {
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.valid", config.FieldBoolean, true)
+	registerTestSetting(registry, "test.corrupt", config.FieldBoolean, false)
+	repo := newMockValueRepo()
+	corrupt := &config.SettingValue{SettingKey: "test.corrupt", Value: json.RawMessage(`{invalid`)}
+	corrupt.TenantID = 41
+	repo.values[repo.key(41, corrupt.SettingKey)] = corrupt
+	svc := createService(registry, repo, &mockAuditRepo{})
+	ctx := config.WithSettingsRequestCache(tenantCtx(41))
+
+	value, err := svc.ResolveBool(ctx, "test.valid")
+	require.NoError(t, err)
+	assert.True(t, value)
+	_, err = svc.ResolveBool(ctx, "test.corrupt")
+	require.Error(t, err, "a malformed setting must still fail when it is actually consumed")
 	assert.Equal(t, 1, repo.findManyCalls)
 }
 
@@ -293,7 +313,7 @@ func TestLockHelpersFlushTenantCache(t *testing.T) {
 			require.NoError(t, err)
 			_, err = svc.ResolveInt(ctx, "test.locked_b")
 			require.NoError(t, err)
-			require.Equal(t, 2, repo.findManyCalls)
+			require.Equal(t, 1, repo.findManyCalls)
 
 			// Taking the lock — even without an ambient transaction — must
 			// flush the whole tenant bucket (#1565/#1663 freshness barrier).
@@ -303,7 +323,7 @@ func TestLockHelpersFlushTenantCache(t *testing.T) {
 			require.NoError(t, err)
 			_, err = svc.ResolveInt(ctx, "test.locked_b")
 			require.NoError(t, err)
-			assert.Equal(t, 4, repo.findManyCalls, "post-lock reads must hit the repository again")
+			assert.Equal(t, 2, repo.findManyCalls, "the lock must force a fresh school snapshot")
 		})
 	}
 }

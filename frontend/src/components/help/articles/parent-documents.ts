@@ -2,8 +2,9 @@ import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
 /**
- * `/parents/documents` (#4671, #4678, #4692): Schreiben und Verträge des
- * Trägers und Dokumente, die der Träger für Eltern freigegeben hat.
+ * `/parents/documents` (#4671, #4678, #4679, #4692): Schreiben und Verträge
+ * des Trägers, den Betreuungsvertrag unterschreiben, und Dokumente, die der
+ * Träger für Eltern freigegeben hat.
  */
 export function parentDocumentsTopic(): HelpTopic {
   return {
@@ -15,17 +16,36 @@ export function parentDocumentsTopic(): HelpTopic {
     group: "nachrichten",
     audience: "parent",
     icon: "FileText",
-    steps: [
-      "Tippen Sie unten auf `Mehr`.",
-      "Wählen Sie `Dokumente`.",
-      "Wählen Sie beim Schreiben `Als PDF laden`. Bei einem freigegebenen Dokument wählen Sie `Herunterladen`.",
+    instructionGroups: [
+      {
+        title: "Ein Schreiben laden",
+        steps: [
+          "Tippen Sie unten auf `Mehr`.",
+          "Wählen Sie `Dokumente`.",
+          "Wählen Sie beim Schreiben `Als PDF laden`. Bei einem freigegebenen Dokument wählen Sie `Herunterladen`.",
+        ],
+      },
+      {
+        title: "Den Betreuungsvertrag unterschreiben",
+        description:
+          "Ein Vertrag mit `Wartet auf Ihre Unterschrift` braucht Ihre Unterschrift. Das geht auch über den Link in der Mail, ohne Konto.",
+        steps: [
+          "Wählen Sie beim Vertrag `Lesen und unterschreiben`.",
+          "Lesen Sie die gebuchte Betreuung und den Vertrag als PDF.",
+          "Lesen Sie die Widerrufsbelehrung. Setzen Sie den Haken bei `Ich habe die Widerrufsbelehrung gelesen.`",
+          "Soll die Betreuung schon vor dem Ende der Widerrufsfrist beginnen? Setzen Sie auch diesen Haken.",
+          "Unterschreiben Sie mit dem Finger oder tippen Sie Ihren Namen. Wählen Sie `Unterschrift bestätigen`.",
+          "Wählen Sie `Vertrag verbindlich unterschreiben`.",
+        ],
+      },
     ],
+    steps: [],
     result:
-      "Sie bekommen das Dokument auf Ihr Gerät. Sie können es speichern oder drucken.",
+      "Sie bekommen das Dokument auf Ihr Gerät. Sie können es speichern oder drucken. Nach der Unterschrift steht beim Vertrag `Unterschrieben`, und Sie bekommen eine Bestätigung mit dem Vertrag per Mail.",
     notes: [
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
-      "Steht im Vertrag `Vertragsschluss`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
+      "Steht beim Vertrag `Abgeschlossen` statt `Unterschrieben`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
       "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
       "Bei einem freigegebenen Dokument steht `Vom Träger für Eltern freigegeben`. Es gilt für alle Eltern, für die der Träger es freigegeben hat, zum Beispiel für eine Gruppe. Diese Dokumente kommen nicht per Mail.",
@@ -34,6 +54,8 @@ export function parentDocumentsTopic(): HelpTopic {
     troubleshootingDetails: [
       "Ein Schreiben fehlt? Hier liegt es nur, wenn es an die Mail-Adresse Ihres Kontos ging. Haben Sie bei der Anmeldung eine andere Adresse angegeben, bekommen Sie es nur per Mail.",
       "Statt der Liste steht, dass Ihnen die Berechtigung fehlt? Bitte fragen Sie die Schule.",
+      "Der Link in der Mail gilt nicht mehr? Er gilt nur einmal und 30 Tage. Unterschreiben Sie in der Eltern-App unter `Dokumente`. Oder fragen Sie beim Träger nach einem neuen Link.",
+      "Beim Vertrag fehlt `Lesen und unterschreiben`? Dann darf Ihr Konto für dieses Kind nicht unterschreiben. Bitte fragen Sie die Schule.",
       "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen oder das Dokument gelöscht.",
     ],
     related: [

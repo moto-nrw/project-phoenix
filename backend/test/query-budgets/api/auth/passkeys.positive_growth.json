@@ -1,0 +1,6 @@
+{
+  "scenario": "api.auth.passkeys.positive_growth",
+  "max": 4,
+  "exact": true,
+  "description": "GET /auth/passkeys/: route-sized protected resource with composed passkey flow, persisted JWT grants and tenant RLS; exact summaries of 3/8 independently created credentials, no secret fields. Host liveness excluded."
+}

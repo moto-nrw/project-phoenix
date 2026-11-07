@@ -335,26 +335,17 @@ export function CareExitModal({
                 max={completionLastCareDay ?? undefined}
                 required
               />
-              <div>
-                <label
-                  id="care-exit-reason-label"
-                  htmlFor="care-exit-reason"
-                  className="mb-2 block text-sm font-medium text-gray-700"
-                >
-                  Grund
-                </label>
-                <CustomSelect
-                  id="care-exit-reason"
-                  value={reason}
-                  options={REASON_OPTIONS}
-                  onChange={(value) => {
-                    setReason(value as CareExitReason | "");
-                    if (value !== "other") setNote("");
-                  }}
-                  ariaLabelledBy="care-exit-reason-label"
-                  required
-                />
-              </div>
+              <CustomSelect
+                label="Grund"
+                id="care-exit-reason"
+                value={reason}
+                options={REASON_OPTIONS}
+                onChange={(value) => {
+                  setReason(value as CareExitReason | "");
+                  if (value !== "other") setNote("");
+                }}
+                required
+              />
               {noteRequired ? (
                 <Input
                   id="care-exit-note"

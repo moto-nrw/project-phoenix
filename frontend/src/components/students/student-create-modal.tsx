@@ -663,7 +663,6 @@ export function StudentCreateModal({
                           htmlFor="list-entry-first-name"
                           required
                           invalid={Boolean(errors.fieldError("first_name"))}
-                          className="mb-1 text-xs md:text-sm"
                         >
                           Vorname
                         </FieldLabel>
@@ -683,7 +682,6 @@ export function StudentCreateModal({
                           htmlFor="list-entry-last-name"
                           required
                           invalid={Boolean(errors.fieldError("last_name"))}
-                          className="mb-1 text-xs md:text-sm"
                         >
                           Nachname
                         </FieldLabel>
@@ -703,7 +701,6 @@ export function StudentCreateModal({
                           htmlFor="list-entry-school-class"
                           required
                           invalid={Boolean(errors.fieldError("school_class"))}
-                          className="mb-1 text-xs md:text-sm"
                         >
                           Klasse
                         </FieldLabel>

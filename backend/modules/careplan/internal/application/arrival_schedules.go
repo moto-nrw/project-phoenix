@@ -109,16 +109,18 @@ func (s *arrivalScheduleService) projectedWeek(
 ) (map[int64]careplan.ArrivalWeek, error) {
 	out := make(map[int64]careplan.ArrivalWeek, len(studentIDs))
 	if s.baselines == nil {
+		if len(studentIDs) == 0 {
+			return out, nil
+		}
+		rows, err := s.loadSchedules(ctx, studentIDs)
+		if err != nil {
+			return nil, err
+		}
 		for _, studentID := range studentIDs {
-			rows, err := s.loadSchedules(ctx, studentID)
-			if err != nil {
-				return nil, err
-			}
-			week := make(careplan.ArrivalWeek, len(rows))
-			for _, row := range rows {
-				week[row.Weekday] = row
-			}
-			out[studentID] = week
+			out[studentID] = make(careplan.ArrivalWeek)
+		}
+		for _, row := range rows {
+			out[row.StudentID][row.Weekday] = row
 		}
 		return out, nil
 	}
@@ -523,13 +525,15 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDate(
 	if err != nil {
 		return nil, err
 	}
-	// The weekly plan the detail screen renders is the projected one, so the
-	// class time shows up where a child inherits it (#2414).
-	projected, err := s.projectedWeeklySchedules(ctx, []int64{studentID}, date)
-	if err != nil {
-		return nil, err
+	if s.baselines != nil {
+		// Project class times where a child inherits them (#2414). Without a
+		// baseline reader, data already holds the sorted stored week.
+		projected, err := s.projectedWeeklySchedules(ctx, []int64{studentID}, date)
+		if err != nil {
+			return nil, err
+		}
+		data.Schedules = projected
 	}
-	data.Schedules = projected
 	return &careplan.StudentArrivalData{
 		Schedules:  data.Schedules,
 		Exceptions: data.Exceptions,
@@ -553,7 +557,11 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
 		return nil, &careplan.ScheduleError{Op: "project arrival schedule range", Err: errors.New("arrival schedule range ends before it starts")}
 	}
 	if s.baselines == nil {
-		return s.GetStudentArrivalDataForDate(ctx, studentID, from)
+		return &careplan.StudentArrivalData{
+			Schedules:  data.Schedules,
+			Exceptions: data.Exceptions,
+			Notes:      data.Notes,
+		}, nil
 	}
 	projection, err := s.baselines.Project(ctx, []int64{studentID}, from, to)
 	if err != nil {

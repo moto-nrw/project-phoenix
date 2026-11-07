@@ -47,7 +47,7 @@ func NewWorkSessionTestModule(db transactionruntime.Database, unit tenant.UnitOf
 			WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
 			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
 		},
-		People: people, Holidays: noHolidays{},
+		People: people, Holidays: noHolidays{}, StatutoryHolidays: noHolidays{},
 		Events: owners.TimeTrackingEvents(realtime.NewHub(slog.Default())), Logger: slog.Default(),
 	})
 	if err != nil {

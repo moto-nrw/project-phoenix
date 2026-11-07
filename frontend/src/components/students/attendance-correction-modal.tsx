@@ -217,53 +217,31 @@ export function AttendanceCorrectionModal({
           Uhrzeit und dem Grund gespeichert.
         </p>
 
-        <div>
-          <label
-            id="correction-status-label"
-            htmlFor="correction-status"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Anwesenheit
-          </label>
-          <CustomSelect
-            id="correction-status"
-            value={status}
-            options={[...STATUS_OPTIONS]}
-            onChange={(nextStatus) => {
-              setStatus(nextStatus);
-              if (nextStatus === "expected") setSubstatus("");
-            }}
-            ariaLabelledBy="correction-status-label"
-          />
-        </div>
+        <CustomSelect
+          label="Anwesenheit"
+          id="correction-status"
+          value={status}
+          options={[...STATUS_OPTIONS]}
+          onChange={(nextStatus) => {
+            setStatus(nextStatus);
+            if (nextStatus === "expected") setSubstatus("");
+          }}
+        />
 
         <div>
-          <label
-            id="correction-substatus-label"
-            htmlFor="correction-substatus"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Hinweis
-          </label>
           <CustomSelect
+            label="Hinweis"
             id="correction-substatus"
             value={substatus}
             options={[...SUBSTATUS_OPTIONS]}
             onChange={setSubstatus}
-            ariaLabelledBy="correction-substatus-label"
-            ariaDescribedBy={
-              status === "expected" ? "correction-substatus-help" : undefined
+            hint={
+              status === "expected"
+                ? "Bei „Erwartet“ ist kein Hinweis möglich."
+                : undefined
             }
             disabled={status === "expected"}
           />
-          {status === "expected" ? (
-            <p
-              id="correction-substatus-help"
-              className="mt-1 text-xs text-gray-500"
-            >
-              Bei „Erwartet“ ist kein Hinweis möglich.
-            </p>
-          ) : null}
         </div>
 
         <Textarea

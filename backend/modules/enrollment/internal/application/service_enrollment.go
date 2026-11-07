@@ -26,6 +26,14 @@ func (m *Service) Schema(ctx context.Context, id int64) (*enrollment.FormSchema,
 	return m.store.Schema(ctx, id)
 }
 
+// StudentExtraFieldSchemas reads pinned versions in the caller's tenant unit.
+func (m *Service) StudentExtraFieldSchemas(ctx context.Context, ids []int64) ([]enrollment.SchemaVersionResult, error) {
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.store.StudentExtraFieldSchemas(ctx, ids)
+}
+
 // ActiveSchema returns the active form visible in the caller's tenant.
 func (m *Service) ActiveSchema(ctx context.Context) (*enrollment.FormSchema, error) {
 	if err := m.transactions.RequireTransaction(ctx); err != nil {

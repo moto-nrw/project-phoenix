@@ -39,6 +39,7 @@ type Presence interface {
 
 // Rooms is the part of the Facilities capability the scans use.
 type Rooms interface {
+	ListRoomsByID(context.Context, []int64) ([]facilities.Room, error)
 	FindRoom(context.Context, int64) (facilities.Room, error)
 	FindRoomByName(context.Context, string) (facilities.Room, error)
 	FindToiletRoom(context.Context, int64) (facilities.Room, error)

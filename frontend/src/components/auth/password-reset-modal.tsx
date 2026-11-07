@@ -299,12 +299,6 @@ export function PasswordResetModal({
               ) : null}
 
               <div className="text-left">
-                <label
-                  htmlFor="reset-email"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  {copy.emailLabel}
-                </label>
                 <Input
                   controlSize={inputControlSize}
                   id="reset-email"
@@ -315,7 +309,7 @@ export function PasswordResetModal({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full"
-                  label=""
+                  label={copy.emailLabel}
                   disabled={isLoading}
                   error={errorPath.fieldError("email")}
                 />

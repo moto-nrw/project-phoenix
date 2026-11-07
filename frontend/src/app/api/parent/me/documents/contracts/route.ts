@@ -13,6 +13,8 @@ interface BackendParentContractDocument {
   total_cents: number;
   child_names: string[];
   sent_at: string;
+  contract_status?: string;
+  signed_at?: string | null;
 }
 
 /**

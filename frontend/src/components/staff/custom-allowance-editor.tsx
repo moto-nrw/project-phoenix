@@ -7,6 +7,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { FieldLabel } from "~/components/ui/field-label";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -127,12 +128,9 @@ export function CustomAllowanceEditForm({
     >
       <FormErrorAlert message={formErrors.error} />
       <div>
-        <label
-          htmlFor={`allowance-days-${type.id}`}
-          className="mb-1 block text-sm font-medium text-gray-700"
-        >
+        <FieldLabel htmlFor={`allowance-days-${type.id}`}>
           Anspruch {year} in Tagen
-        </label>
+        </FieldLabel>
         <NumberStepper
           id={`allowance-days-${type.id}`}
           name="entitled_days"

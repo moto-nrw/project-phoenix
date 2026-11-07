@@ -19,6 +19,33 @@ func (s *Service) FindDevice(ctx context.Context, id int64) (devicefleet.Device,
 	return value, err
 }
 
+// DeviceRoomName resolves the fresh Facilities name of a trusted persisted
+// device, without re-reading iot.devices. Keep the read pipeline/error identity
+// of FindDevice; its tenant, live-row and room-owner guards still apply.
+func (s *Service) DeviceRoomName(ctx context.Context, device devicefleet.Device) (*string, error) {
+	if device.ID <= 0 {
+		return nil, s.reject("find_device", devicefleet.ErrInvalidDevice)
+	}
+	// Validate the existing unit before findDevice can open one. A persisted
+	// row is reusable only while the caller still holds its original write lock.
+	tenantID, err := s.deps.Tx.TenantID(ctx)
+	if err != nil {
+		return nil, s.reject("find_device", devicefleet.ErrTenantRequired)
+	}
+	// A missing or foreign room must not retain a caller's stale projection.
+	device.RoomName = nil
+	projected, err := s.findDevice(ctx, "find_device", true, func(txCtx context.Context) (devicefleet.Device, bool, domain.OperationStats, error) {
+		if tenantID <= 0 || device.TenantID != tenantID || device.ArchivedAt != nil {
+			return devicefleet.Device{}, false, domain.OperationStats{}, nil
+		}
+		return device, true, domain.OperationStats{}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return projected.RoomName, nil
+}
+
 func (s *Service) FindDeviceForUpdate(ctx context.Context, id int64) (devicefleet.Device, error) {
 	if id <= 0 {
 		return devicefleet.Device{}, s.reject("find_device_for_update", devicefleet.ErrInvalidDevice)
@@ -50,7 +77,7 @@ func (s *Service) FindDeviceByDeviceID(ctx context.Context, deviceID string) (de
 	return value, err
 }
 
-func (s *Service) FindDeviceByAPIKey(ctx context.Context, apiKey string) (devicefleet.Device, error) {
+func (s *Service) FindDeviceByAPIKey(ctx context.Context, apiKey string, schools ...devicefleet.DeviceCredentialSchoolCheck) (devicefleet.Device, error) {
 	if apiKey == "" {
 		return devicefleet.Device{}, s.reject("find_device_by_api_key", devicefleet.ErrInvalidDevice)
 	}
@@ -60,8 +87,15 @@ func (s *Service) FindDeviceByAPIKey(ctx context.Context, apiKey string) (device
 		value, err = s.findDevice(ctx, "find_device_by_api_key", false, func(ctx context.Context) (devicefleet.Device, bool, domain.OperationStats, error) {
 			return s.deps.Devices.FindByAPIKey(ctx, s.deps.APIKeys.Hash(apiKey))
 		})
-
-		return err
+		if err != nil || !value.IsActive() || value.TenantID <= 0 {
+			return err
+		}
+		for _, school := range schools {
+			if err := school.CheckDeviceSchool(ctx, value.TenantID); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	return value, publicError(err)
 }
@@ -137,3 +171,4 @@ func toPublicDisplay(value domain.Display) devicefleet.Display {
 }
 
 var _ devicefleet.Capability = (*Service)(nil)
+var _ devicefleet.CheckedDeviceHeartbeat = (*Service)(nil)

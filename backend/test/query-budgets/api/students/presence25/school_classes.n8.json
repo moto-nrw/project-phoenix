@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.presence25.school_classes.n8",
+  "max": 4,
+  "exact": true,
+  "description": "Full protected school-classes GET, positive N8; exact ordered class collection."
+}

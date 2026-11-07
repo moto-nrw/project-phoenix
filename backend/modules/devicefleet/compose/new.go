@@ -1,6 +1,5 @@
-// Package compose builds the Device Fleet owner from its adapters. It is the
-// only place that knows about Bun, the shared tenant runtime, and the
-// cross-owner sources the info-point dashboard reads.
+// Package compose builds the Device Fleet owner from its persistence and
+// transaction adapters and its cross-owner dashboard sources.
 package compose
 
 import (
@@ -15,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -113,7 +111,7 @@ func New(dependencies Dependencies) (devicefleet.Capability, error) {
 		Presence:  presence,
 		Dashboard: dashboard,
 		Tenants:   tenants,
-		Tx:        transaction{db: dependencies.DB},
+		Tx:        postgres.NewTransaction(dependencies.DB),
 		Tokens:    credentials.DisplayTokens{},
 		APIKeys:   credentials.DeviceKeys{Minter: dependencies.APIKeys},
 		Now:       ports.Clock(now),
@@ -121,18 +119,4 @@ func New(dependencies Dependencies) (devicefleet.Capability, error) {
 		Observe:   observe,
 	})
 	return service, nil
-}
-
-type transaction struct{ db *bun.DB }
-
-func (t transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	return postgres.TransactionRunWriteBinding(ctx, callback, tenant.WithinTenant)
-}
-
-func (t transaction) AdminScope(ctx context.Context, callback func(context.Context) error) error {
-	return postgres.TransactionAdminScopeBinding(ctx, callback, tenant.WithAdminTx, t.db)
-}
-
-func (t transaction) TenantScope(ctx context.Context, tenantID int64, callback func(context.Context) error) error {
-	return postgres.TransactionTenantScopeBinding(ctx, tenantID, callback, tenant.WithTenantTx, t.db)
 }

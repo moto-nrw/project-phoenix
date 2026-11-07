@@ -251,21 +251,13 @@ export function MealRegistrationChangeModal({
     >
       <div className="space-y-5">
         <p className="text-sm text-gray-600">{t("changeHint")}</p>
-        <div>
-          <span
-            id="meal-change-child-label"
-            className="mb-2 block text-sm font-medium text-gray-700"
-          >
-            {t("child")}
-          </span>
-          <CustomSelect
-            value={studentId}
-            options={options}
-            onChange={chooseChild}
-            ariaLabelledBy="meal-change-child-label"
-            placeholder={t("childPlaceholder")}
-          />
-        </div>
+        <CustomSelect
+          label={t("child")}
+          value={studentId}
+          options={options}
+          onChange={chooseChild}
+          placeholder={t("childPlaceholder")}
+        />
         <SegmentedControl<ChangeScope>
           items={[
             {

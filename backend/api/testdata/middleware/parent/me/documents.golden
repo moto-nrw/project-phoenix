@@ -6,5 +6,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /parent/me/documents/contracts
 	GET /parent/me/documents/shared
 	GET /parent/me/documents/{organizationId}/contracts/{contractId}/pdf
+	GET /parent/me/documents/{organizationId}/contracts/{contractId}/signing
 	GET /parent/me/documents/{organizationId}/shared/{documentId}/file
 	GET /parent/me/documents/{organizationId}/{documentId}/pdf
+	POST /parent/me/documents/{organizationId}/contracts/{contractId}/sign

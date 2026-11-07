@@ -341,6 +341,10 @@ type ContractDetail struct {
 	// DocumentFrozen tells that the PDF was rendered at the first send and
 	// no longer follows the template.
 	DocumentFrozen bool `json:"document_frozen"`
+	// Signature is the signature of the current version, nil until signed;
+	// Reminders the reminder mails while it waits (#4679, signature.go).
+	Signature *ContractSignature `json:"signature"`
+	Reminders []Reminder         `json:"reminders"`
 	// Versions are all versions of the contract, oldest first (#4681). The
 	// version above is the one in force today, else the next one.
 	Versions []Version `json:"versions"`
@@ -434,6 +438,8 @@ type InboxReader struct {
 	Email     string
 	// Children contains only permitted student IDs, grouped by school.
 	Children map[int64][]int64
+	// SigningChildren contains only children the workflow permits signing for.
+	SigningChildren map[int64][]int64
 }
 
 // InboxContract is one sent contract in the inbox of the parents portal.
@@ -444,6 +450,11 @@ type InboxContract struct {
 	SchoolName  string        `json:"school_name"`
 	SentAt      time.Time     `json:"sent_at"`
 	EffectiveOn calendar.Date `json:"effective_on"`
+	// Status and SignedAt tell the parents whether the contract waits for
+	// their signature (#4679).
+	CanSign  bool       `json:"can_sign"`
+	Status   string     `json:"status"`
+	SignedAt *time.Time `json:"signed_at"`
 	// Replaced tells that a change on the first day of the sent version
 	// replaced it (#4681): it holds on no day, and a changed version holds
 	// from EffectiveOn.
@@ -473,6 +484,19 @@ type ContractMail struct {
 	Filename       string `json:"filename"`
 	PDF            []byte `json:"pdf"`
 	IdempotencyKey string `json:"idempotency_key"`
+	// The signature of #4679 (signature.go): Purpose picks the mail
+	// (contract, reminder, confirmation), SigningURL is the one-time link
+	// with its last day, and a confirmation names the signature and carries
+	// the withdrawal notice.
+	Purpose          string   `json:"purpose,omitempty"`
+	SigningURL       string   `json:"signing_url,omitempty"`
+	LinkExpiresOn    string   `json:"link_expires_on,omitempty"`
+	SignedAt         string   `json:"signed_at,omitempty"`
+	SignerName       string   `json:"signer_name,omitempty"`
+	DocumentSHA256   string   `json:"document_sha256,omitempty"`
+	EarlyStart       bool     `json:"early_start,omitempty"`
+	WithdrawalEndsOn string   `json:"withdrawal_ends_on,omitempty"`
+	WithdrawalNotice []string `json:"withdrawal_notice,omitempty"`
 	// Concluded tells that the contract is concluded already (Weg b): the
 	// parents receive it for their records and sign nothing.
 	Concluded bool `json:"concluded,omitempty"`
@@ -494,7 +518,17 @@ type ContractMailContent struct {
 	TraegerName  string
 	ChildName    string
 	Modules      string
-	Concluded    bool
+	// The signature of #4679: the link of a contract or reminder mail, and
+	// what a confirmation names.
+	SigningURL       string
+	LinkExpiresOn    string
+	SignedAt         string
+	SignerName       string
+	DocumentSHA256   string
+	EarlyStart       bool
+	WithdrawalEndsOn string
+	WithdrawalNotice []string
+	Concluded        bool
 }
 
 // ContractMailRenderer renders the payload of a claimed contract mail.

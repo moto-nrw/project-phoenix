@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/common"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -40,4 +43,24 @@ func SettingsRequestCacheMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r.WithContext(WithSettingsRequestCacheForTests(r.Context())))
 	})
+}
+
+// TenantRequestEventForTests exposes only the request outcome fields owner
+// tests observe, without importing the Tenant Runtime HTTP implementation.
+type TenantRequestEventForTests struct {
+	Scope    string
+	TenantID int64
+	Status   int
+	Outcome  string
+}
+
+// NewTenantRequestObservedRouterForTests keeps the actual request observer
+// around a route-sized test router, with the same middleware/mount order.
+func NewTenantRequestObservedRouterForTests(next http.Handler, observe func(TenantRequestEventForTests)) chi.Router {
+	router := chi.NewRouter()
+	router.Use(common.TenantRequestObserverMiddleware(func(event common.TenantRequestEvent) {
+		observe(TenantRequestEventForTests{Scope: event.Scope, TenantID: event.TenantID, Status: event.Status, Outcome: event.Outcome})
+	}))
+	router.Mount("/", next)
+	return router
 }

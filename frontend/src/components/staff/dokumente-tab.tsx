@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { FileText, FileImage, File as FileIcon } from "lucide-react";
+import { FieldLabel } from "~/components/ui/field-label";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -292,12 +293,9 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
         {/* Upload row: category choice + drop zone */}
         <div className="mb-5 space-y-3">
           <div className="flex flex-wrap items-center gap-3">
-            <label
-              htmlFor="dokument-kategorie"
-              className="text-xs font-medium text-gray-600"
-            >
+            <FieldLabel htmlFor="dokument-kategorie" className="mb-0">
               Kategorie
-            </label>
+            </FieldLabel>
             <CustomSelect
               id="dokument-kategorie"
               value={effectiveUploadCategory ?? ""}
@@ -335,12 +333,9 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
           // passten auf Handy und Tablet nicht in die Karte, die Pillen
           // überlagerten sich und die letzten waren nicht erreichbar (#4975).
           <div className="mb-4 flex flex-wrap items-center gap-3">
-            <label
-              htmlFor="dokument-filter"
-              className="text-xs font-medium text-gray-600"
-            >
+            <FieldLabel htmlFor="dokument-filter" className="mb-0">
               Anzeigen
-            </label>
+            </FieldLabel>
             <CustomSelect
               id="dokument-filter"
               value={filter}

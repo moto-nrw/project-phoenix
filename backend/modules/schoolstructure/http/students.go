@@ -42,11 +42,21 @@ func (rs *Resource) getStudentCount(ctx context.Context, groupID int64) int {
 func (rs *Resource) buildStudentResponse(
 	ctx context.Context,
 	student peopledirectory.StudentRecord,
+	persons map[int64]peopledirectory.Person,
 	group *education.Group,
 	hasFullAccess bool,
 	locationSnapshot *studentpresence.StudentLocationSnapshot,
 ) *GroupStudentResponse {
-	person, err := rs.People.FindPerson(ctx, student.PersonID)
+	person, found := persons[student.PersonID]
+	var err error
+	// Keep the single-person fallback on batch failure and the account lookup's
+	// error semantics for linked identities. Normal child identities need no
+	// account enrichment and use the owner-scoped batch directly.
+	if persons == nil || person.AccountID != nil {
+		person, err = rs.People.FindPerson(ctx, student.PersonID)
+	} else if !found {
+		err = fmt.Errorf("person %d: %w", student.PersonID, peopledirectory.ErrPersonNotFound)
+	}
 	if err != nil {
 		slog.Default().Error("failed to get person data for student",
 			slog.Int64("student_id", student.ID),
@@ -105,8 +115,10 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	studentIDs := make([]int64, 0, len(students))
+	personIDs := make([]int64, 0, len(students))
 	for _, student := range students {
 		studentIDs = append(studentIDs, student.ID)
+		personIDs = append(personIDs, student.PersonID)
 	}
 
 	locationSnapshot, snapshotErr := studentpresence.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
@@ -116,10 +128,15 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		locationSnapshot = nil
 	}
 
+	persons, personErr := rs.People.ListPersonsByID(r.Context(), personIDs)
+	if personErr != nil {
+		persons = nil
+	}
+
 	// Build response with person data for each student
 	responses := make([]GroupStudentResponse, 0, len(students))
 	for _, student := range students {
-		response := rs.buildStudentResponse(r.Context(), student, group, canAccessFullDetails, locationSnapshot)
+		response := rs.buildStudentResponse(r.Context(), student, persons, group, canAccessFullDetails, locationSnapshot)
 		if response != nil {
 			responses = append(responses, *response)
 		}

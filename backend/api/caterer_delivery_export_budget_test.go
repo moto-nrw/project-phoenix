@@ -43,7 +43,13 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 	token, err := tokenAuth.CreateJWT(sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"caterer"}, Scope: tenant.ScopeCaterer, FamilyID: family})
 	require.NoError(t, err)
 
-	addSchool := func(children int) {
+	addChildren := func(school int64, children int) {
+		t.Helper()
+		for range children {
+			testpkg.CreateTestStudentForTenant(t, db, school, "Budget", "Kind", "2a")
+		}
+	}
+	addSchool := func(children int) int64 {
 		t.Helper()
 		school := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, school)
@@ -54,9 +60,8 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 		require.NoError(t, err)
 		_, err = db.ExecContext(ctx, `INSERT INTO auth.caterer_schools (caterer_id, tenant_id, delivery_address) VALUES (?, ?, 'Hof')`, catererID, school)
 		require.NoError(t, err)
-		for range children {
-			testpkg.CreateTestStudentForTenant(t, db, school, "Budget", "Kind", "2a")
-		}
+		addChildren(school, children)
+		return school
 	}
 
 	// A week far ahead: every day is open and lies after the supply started.
@@ -80,11 +85,23 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 		return response.Code, withoutSessionCheck(t, counter.Queries())
 	}
 
-	addSchool(1)
+	firstSchool := addSchool(1)
 	status, one := export(week)
 	require.Equal(t, http.StatusOK, status)
+	addChildren(firstSchool, 7)
+	status, moreChildren := export(week)
+	require.Equal(t, http.StatusOK, status)
+	assert.Len(t, moreChildren, len(one), "growing the same school from 1 to 8 children adds no statement")
+	querybudgets.AssertQueryBudget(t, "workflows.catererportal.delivery_export.one_school_week", moreChildren)
+
+	status, oneDay := export(fmt.Sprintf("/caterer/orders/export?from=%s&to=%s&format=csv", monday, monday))
+	require.Equal(t, http.StatusOK, status)
+	querybudgets.AssertQueryBudget(t, "workflows.catererportal.delivery_export.one_school_day", oneDay)
+	t.Logf("caterer delivery list: 1 school, 1 → 8 children: %d → %d statements; 1 day → 5 days: %d → %d", len(one), len(moreChildren), len(oneDay), len(moreChildren))
+
 	addSchool(3)
-	_, two := export(week)
+	status, two := export(week)
+	require.Equal(t, http.StatusOK, status)
 	addSchool(5)
 	status, three := export(week)
 	require.Equal(t, http.StatusOK, status)

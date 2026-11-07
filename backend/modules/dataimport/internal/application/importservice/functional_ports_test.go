@@ -2,6 +2,8 @@ package importpkg
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
 )
@@ -62,9 +64,20 @@ func (f GuardianDirectoryFuncs) ListGuardianPhones(arg0 context.Context, arg1 in
 func (f GuardianDirectoryFuncs) ListStudentGuardians(arg0 context.Context, arg1 int64) ([]ports.GuardianWithLink, error) {
 	return f.ListStudentGuardiansFunc(arg0, arg1)
 }
-func (f GuardianDirectoryFuncs) CreateGuardian(arg0 context.Context, arg1 ports.GuardianInput) (ports.Guardian, error) {
-	return f.CreateGuardianFunc(arg0, arg1)
+func (f GuardianDirectoryFuncs) CreateGuardian(ctx context.Context, input ports.GuardianInput) (ports.Guardian, error) {
+	if input.ReuseExistingByEmail && input.Email != nil && strings.TrimSpace(*input.Email) != "" {
+		guardian, err := f.FindGuardianByEmail(ctx, strings.TrimSpace(*input.Email))
+		if err == nil {
+			guardian.ReusedExisting = true
+			return guardian, nil
+		}
+		if !errors.Is(err, ports.ErrGuardianNotFound) {
+			return ports.Guardian{}, err
+		}
+	}
+	return f.CreateGuardianFunc(ctx, input)
 }
+
 func (f GuardianDirectoryFuncs) UpdateGuardian(arg0 context.Context, arg1 int64, arg2 ports.GuardianInput) error {
 	return f.UpdateGuardianFunc(arg0, arg1, arg2)
 }

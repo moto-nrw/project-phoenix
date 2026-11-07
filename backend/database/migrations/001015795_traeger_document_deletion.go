@@ -14,7 +14,7 @@ func init() {
 		Version:     traegerDocumentDeletionVersion,
 		Description: "Träger-Portal: Träger-Dokumente löschen (#5993)",
 		DependsOn: []string{
-			careContractAmendmentsVersion,   // the last migration before this one
+			careContractSignaturesVersion,   // the last migration before this one
 			traegerDocumentDownloadsVersion, // the download ledger the deletion keeps
 		},
 	})

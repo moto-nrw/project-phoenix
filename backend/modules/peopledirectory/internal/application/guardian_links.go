@@ -136,14 +136,16 @@ func (s *RetainedGuardianService) applyRolePreset(relationship *peopleValues.Gua
 
 // LinkGuardianToStudent creates a relationship between guardian and student
 func (s *RetainedGuardianService) LinkGuardianToStudent(ctx context.Context, req peoplePorts.StudentGuardianCreateRequest) (*peopleValues.GuardianRelationshipSnapshot, error) {
-	// Validate guardian profile exists
-	if _, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID); err != nil {
-		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
+	// A profile inserted by this caller in the ambient transaction cannot be
+	// deleted concurrently. Other profiles retain the guardian-before-child read.
+	if !s.createdGuardianExists(ctx, req.GuardianProfileID, req.CreatedGuardian) {
+		if _, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID); err != nil {
+			return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
+		}
 	}
 
-	// Validate student exists
-	if _, err := s.StudentRepo.FindByID(ctx, req.StudentID); err != nil {
-		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf("student not found: %w", err))
+	if err := s.validateGuardianLinkStudent(ctx, req); err != nil {
+		return nil, err
 	}
 
 	if s.RolePresets == nil {
@@ -190,6 +192,27 @@ func (s *RetainedGuardianService) LinkGuardianToStudent(ctx context.Context, req
 	// (who can pick up the child, who the emergency contact is) mutable only via
 	// that explicit endpoint, with no silent overwrite from a stray re-link.
 	return s.existingGuardianLink(ctx, req.StudentID, req.GuardianProfileID)
+}
+
+func (s *RetainedGuardianService) createdGuardianExists(ctx context.Context, guardianID int64, created *peopleValues.Guardian) bool {
+	return created != nil && !created.ReusedExisting && created.ID > 0 &&
+		created.ID == guardianID && created.TenantID == s.transactions.TenantID(ctx) &&
+		created.TenantID > 0 && (RepositoryRuntime{}).InTransaction(ctx)
+}
+
+// A child created in this transaction stays present until commit. Existing
+// children and invalid facts retain the scalar read, after the guardian.
+func (s *RetainedGuardianService) validateGuardianLinkStudent(ctx context.Context, req peoplePorts.StudentGuardianCreateRequest) error {
+	created := req.CreatedStudent
+	if created != nil && created.ID > 0 && created.ID == req.StudentID &&
+		created.TenantID > 0 && created.TenantID == s.transactions.TenantID(ctx) &&
+		(RepositoryRuntime{}).InTransaction(ctx) {
+		return nil
+	}
+	if _, err := s.StudentRepo.FindByID(ctx, req.StudentID); err != nil {
+		return guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf("student not found: %w", err))
+	}
+	return nil
 }
 
 // existingGuardianLink returns the stored link of the guardian to the student.

@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"time"
@@ -16,7 +15,6 @@ import (
 	careContractHTTP "github.com/moto-nrw/project-phoenix/modules/carecontract/http"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -28,7 +26,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // mountCareContractRoutes serves the Betreuungsvertrag (ADR 0088, ADR 0153,
@@ -36,10 +33,26 @@ import (
 // /traeger/contracts and the templates of the offerings at
 // /traeger/contract-templates.
 func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) {
-	resource := NewCareContractHTTP(organizations, settings, schoolSettings, delivery, outcomes, accessLog)
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) {
+	resource := NewCareContractHTTP(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL)
 	root.Mount("/traeger/contracts", resource.ContractRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/contract-templates", resource.TemplateRouter(ProtectedTraegerRoutes))
+	// The one-time link of a contract mail (#4679), without an account.
+	signing := careContractCompose.NewSigning(careContractSignaturePorts(organizations, settings, delivery, outcomes, parentsURL))
+	root.Mount("/public/care-contract-signing", careContractHTTP.NewSigningResource(signing).PublicRouter())
+}
+
+// careContractSignaturePorts binds the signature of a contract (#4679): the
+// Audit Platform's ledger at the Träger, the one-time link tokens with the
+// base of the parents portal, the name and letterhead of the Träger and
+// Delivery's outbox.
+func careContractSignaturePorts(organizations HolidayOrganizations, settings TraegerBrandingSettings,
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, parentsURL string) careContractCompose.SignaturePorts {
+	return careContractCompose.SignaturePorts{
+		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
+		Sender: owners.CareContractSender{Settings: settings},
+		Post:   owners.CareContractPost{Delivery: delivery, Outcomes: outcomes}, Runtime: owners.CareContractRuntime{},
+	}
 }
 
 // NewCareContractHTTP binds the Betreuungsvertrag's ports: the schools of
@@ -48,9 +61,10 @@ func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations
 // tenant transaction, the letterhead and the contract template to the
 // master data and the branding of the Träger, and the mail to Delivery.
 func NewCareContractHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) *careContractHTTP.Resource {
-	contractPorts, intakePorts := careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog)
-	return careContractHTTP.NewResource(careContractCompose.NewContracts(contractPorts), careContractCompose.NewIntake(intakePorts),
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) *careContractHTTP.Resource {
+	contractPorts, intakePorts := careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL)
+	paper := careContractCompose.NewPaperSignatures(contractPorts, careContractSignaturePorts(organizations, settings, delivery, outcomes, parentsURL))
+	return careContractHTTP.NewResource(careContractCompose.NewContracts(contractPorts), careContractCompose.NewIntake(intakePorts), paper,
 		common.RequiresPermission(identityaccess.TraegerRightContractsManage))
 }
 
@@ -59,25 +73,26 @@ func NewCareContractHTTP(organizations HolidayOrganizations, settings TraegerBra
 // the automatic contract reads, renders and sends exactly like the
 // Träger-Büro's.
 func NewCareContractConclusion(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) carecontract.Conclusion {
-	return careContractCompose.NewConclusion(careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog))
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) carecontract.Conclusion {
+	return careContractCompose.NewConclusion(careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL))
 }
 
 func careContractPorts(organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings CareContractSchoolSettings,
-	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) (careContractCompose.ContractPorts, careContractCompose.IntakePorts) {
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) (careContractCompose.ContractPorts, careContractCompose.IntakePorts) {
 	if schoolSettings == nil {
 		panic("care contract: the school settings are required")
 	}
 	letterheads := careContractLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
 		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
 	return careContractCompose.ContractPorts{
-		Letterheads: letterheads, Post: careContractPost{delivery: delivery, outcomes: outcomes},
-		Runtime: careContractRuntime{}, Access: careContractAccessLog{log: accessLog},
+		Letterheads: letterheads, Post: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes},
+		Runtime: owners.CareContractRuntime{}, Access: careContractAccessLog{log: accessLog},
+		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
 	}, careContractCompose.IntakePorts{
 		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications(securityruntime.Fingerprint)},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
-		Access:   careContractAccessLog{log: accessLog}, Runtime: careContractRuntime{},
-		Modes: careContractModes{settings: schoolSettings}, Mail: careContractPost{delivery: delivery, outcomes: outcomes},
+		Access:   careContractAccessLog{log: accessLog}, Runtime: owners.CareContractRuntime{},
+		Modes: careContractModes{settings: schoolSettings}, Mail: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes},
 	}
 }
 
@@ -132,22 +147,6 @@ func (s careContractSchools) TraegerSchools(ctx context.Context, organizationID 
 		return int(a.ID - b.ID)
 	})
 	return result, nil
-}
-
-// careContractRuntime opens a school's tenant transaction or the Träger
-// transaction, never both at once (ADR 0105).
-type careContractRuntime struct{}
-
-func (careContractRuntime) WithinSchool(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
-	school, err := tenant.NewTenantID(schoolID)
-	if err != nil {
-		return err
-	}
-	return tenant.WithinTenant(ctx, school, fn)
-}
-
-func (careContractRuntime) WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
-	return tenant.WithinTraeger(ctx, organizationID, fn)
 }
 
 // careContractApplications reads the accepted applications of a school
@@ -314,104 +313,4 @@ func (b careContractLetterheads) Letterhead(ctx context.Context, reviewer careco
 	}
 	head.Logo = logo.Data
 	return head, nil
-}
-
-// careContractPost binds the mail of a contract to Delivery: a mail of the
-// Träger (ADR 0110) in the caller's Träger transaction, the contract as its
-// related entity and the PDF in its payload (ADR 0123).
-type careContractPost struct {
-	delivery deliveryRuntime.Capability
-	outcomes deliveryRuntime.EmailOutcomes
-}
-
-func (p careContractPost) EnqueueContractMail(ctx context.Context, mail carecontract.ContractMail) (int64, error) {
-	payload, err := json.Marshal(mail)
-	if err != nil {
-		return 0, fmt.Errorf("contract mail payload: %w", err)
-	}
-	enqueued, err := p.delivery.EnqueueEmail(ctx, deliveryContract.EmailIntent{
-		OrganizationID: mail.OrganizationID, Template: carecontract.MailKindContract,
-		Recipient: deliveryContract.EmailRecipient{Address: mail.Recipient, Name: mail.GuardianName},
-		Payload:   payload, IdempotencyKey: mail.IdempotencyKey,
-		Related: deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: mail.ContractID},
-	})
-	if err != nil {
-		return 0, err
-	}
-	return enqueued.ID, nil
-}
-
-// contractMailState names Delivery's outcome in the contract's words. Only a mail
-// that left and did not come back counts as sent: an unsubscribe or a complaint is
-// no sent contract (#5934).
-func contractMailState(outcome deliveryContract.EmailOutcome) string {
-	switch outcome {
-	case deliveryContract.EmailQueued:
-		return carecontract.MailQueued
-	case deliveryContract.EmailAccepted, deliveryContract.EmailDelivered, deliveryContract.EmailDelayed, deliveryContract.EmailOverdue:
-		return carecontract.MailSent
-	case deliveryContract.EmailOutcomeUnknown:
-		return carecontract.MailUnknown
-	default:
-		return carecontract.MailFailed
-	}
-}
-
-// ContractMailBlock reads what would hold a mail to the address now: a stop or a
-// list of a school of the Träger, or the provider if the last mail to it left a block.
-func (p careContractPost) ContractMailBlock(ctx context.Context, organizationID int64, address, outcome string) (string, error) {
-	listed, stopped, err := p.outcomes.TraegerMailHolds(ctx, organizationID, address)
-	if err != nil {
-		return "", err
-	}
-	mark := deliveryContract.EmailAddressMark("")
-	if listed {
-		mark = deliveryContract.EmailMarkFailed
-	}
-	latest := deliveryContract.EmailOutcome(outcome)
-	var provider deliveryContract.EmailProviderBlock
-	if latest.HeldAtProvider() {
-		provider = p.outcomes.ProviderEmailBlocks(ctx, []string{address})[deliveryContract.NormalizedEmailAddress(address)]
-	}
-	return string(deliveryContract.EmailSendBlockOf(mark, stopped, latest, provider)), nil
-}
-
-// ContractMailBlocks answers ContractMailBlock for the first mail to each
-// address, in one read: a candidate has no earlier mail whose outcome would
-// make the provider worth asking (#4680).
-func (p careContractPost) ContractMailBlocks(ctx context.Context, organizationID int64, addresses []string) (map[string]string, error) {
-	listed, stopped, err := p.outcomes.TraegerMailHoldsOf(ctx, organizationID, addresses)
-	if err != nil {
-		return nil, err
-	}
-	blocks := map[string]string{}
-	for _, address := range addresses {
-		key := deliveryContract.NormalizedEmailAddress(address)
-		mark := deliveryContract.EmailAddressMark("")
-		if listed[key] {
-			mark = deliveryContract.EmailMarkFailed
-		}
-		if block := deliveryContract.EmailSendBlockOf(mark, stopped[key], "", ""); block != "" {
-			blocks[address] = string(block)
-		}
-	}
-	return blocks, nil
-}
-
-// ShareMailBlockLimit lets one request share the limits of the provider's read.
-func (careContractPost) ShareMailBlockLimit(ctx context.Context) context.Context {
-	return deliveryContract.WithProviderBlockBudget(ctx)
-}
-
-func (p careContractPost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {
-	statuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID,
-		deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})
-	if err != nil {
-		return nil, err
-	}
-	states := make([]carecontract.MailState, len(statuses))
-	for i, status := range statuses {
-		states[i] = carecontract.MailState{OutboxID: status.ID, State: contractMailState(status.Outcome), Outcome: string(status.Outcome)}
-	}
-	return states, nil
 }

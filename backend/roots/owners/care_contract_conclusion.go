@@ -9,6 +9,7 @@ import (
 // CareContractConclusionBuilder builds the Worker's conclusion of care
 // contracts at the acceptance (#4680) over the owners the standalone Worker
 // composes. The server root supplies it, where the Betreuungsvertrag's
-// ports are bound for its portal routes too.
+// ports are bound for its portal routes too. parentsURL is the base of the
+// parents portal the signing links of those ports point to (#4679).
 type CareContractConclusionBuilder func(organizations organizationtenancy.Capability, settings SettingsOwner,
-	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog DataAccessAppender) schedulerPorts.CareContractConclusion
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog DataAccessAppender, parentsURL string) schedulerPorts.CareContractConclusion

@@ -593,7 +593,7 @@ func (s *service) loadScheduleSections(ctx context.Context, projection *Projecti
 // loadPresenceSections projects the selected session and every released room
 // together. Student-specific reads therefore run once over their union.
 func (s *service) loadPresenceSections(ctx context.Context, projection *Projection, caller Caller, selectedGroupID *int64, openRooms openRoomInputs, staffID *int64, businessDay Date) error {
-	selectedRows, err := s.selectedGroupVisits(ctx, selectedGroupID)
+	selectedRows, err := s.selectedGroupVisits(ctx, selectedGroupID, openRooms)
 	if err != nil {
 		return err
 	}
@@ -730,17 +730,22 @@ func (s *service) loadTracking(ctx context.Context, studentIDs []int64) (Trackin
 	return TrackingIndicators{Labels: labels, Results: results}, nil
 }
 
-func (s *service) selectedGroupVisits(ctx context.Context, selectedGroupID *int64) ([]VisitRecord, error) {
+func (s *service) selectedGroupVisits(ctx context.Context, selectedGroupID *int64, openRooms openRoomInputs) ([]VisitRecord, error) {
 	selectedRows := make([]VisitRecord, 0)
-	if selectedGroupID != nil {
-		rows, err := s.deps.Presence.GroupVisits(ctx, *selectedGroupID)
+	if selectedGroupID == nil {
+		return selectedRows, nil
+	}
+	rows, loaded := openRooms.visitsOfSession(*selectedGroupID)
+	if !loaded {
+		var err error
+		rows, err = s.deps.Presence.GroupVisits(ctx, *selectedGroupID)
 		if err != nil {
 			return nil, fmt.Errorf("load group visits: %w", err)
 		}
-		for _, row := range rows {
-			if row.ExitTime == nil {
-				selectedRows = append(selectedRows, row)
-			}
+	}
+	for _, row := range rows {
+		if row.ExitTime == nil {
+			selectedRows = append(selectedRows, row)
 		}
 	}
 	return selectedRows, nil
