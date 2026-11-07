@@ -30,7 +30,9 @@ func init() {
 //     (§ 140 BGB).
 //
 // Either way the parents get a notice in Textform; end_notice_text is that
-// notice as sent, end_notice_outbox_id its mail. An end set before this
+// notice as sent, end_notice_outbox_id its mail. The text has no length
+// bound: the template is bounded, but its placeholders may repeat the
+// parents' reason, and the letter is kept exactly as sent. An end set before this
 // migration counts as festgelegt and has no notice. The columns hang on
 // contract_notices, which the demo erasure removes with its contract
 // (ON DELETE CASCADE); the mail is related to the contract as well.
@@ -50,7 +52,7 @@ ALTER TABLE care_contract.contract_notices
 		OR (end_decision IS NOT NULL AND end_decision IN ('festgelegt', 'umgedeutet') AND notice_kind IS NOT DISTINCT FROM 'ausserordentlich'
 			AND ends_on IS NOT NULL)),
 	ADD CONSTRAINT chk_contract_notices_end_notice_text CHECK (
-		end_notice_text IS NULL OR (BTRIM(end_notice_text) <> '' AND char_length(end_notice_text) <= 8000));
+		end_notice_text IS NULL OR BTRIM(end_notice_text) <> '');
 COMMENT ON COLUMN care_contract.contract_notices.end_decision IS
 	'How the Träger-Büro decided the end of an extraordinary termination: festgelegt or umgedeutet (ordinary termination, § 140 BGB) (#4682).';
 COMMENT ON COLUMN care_contract.contract_notices.end_notice_text IS
