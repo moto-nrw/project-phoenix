@@ -90,6 +90,7 @@ func careContractPorts(organizations HolidayOrganizations, settings TraegerBrand
 		Letterheads: letterheads, Post: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes},
 		Runtime: owners.CareContractRuntime{}, Access: careContractAccessLog{log: accessLog},
 		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
+		Notices: owners.CareContractDocumentNotices{Delivery: delivery},
 	}, careContractCompose.IntakePorts{
 		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications(securityruntime.Fingerprint)},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},

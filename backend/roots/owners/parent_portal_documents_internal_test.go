@@ -24,6 +24,16 @@ func (d *documentNoticesDouble) NotifyBillingDocument(_ context.Context, organiz
 	return nil
 }
 
+func (d *documentNoticesDouble) NotifyContractDocument(_ context.Context, organizationID, contractID int64, email string) error {
+	d.got = append(d.got, recordedDocumentNotice{organizationID, contractID, "contract:" + email})
+	return nil
+}
+
+func (d *documentNoticesDouble) NotifyTraegerDocumentRelease(_ context.Context, organizationID, releaseID int64) error {
+	d.got = append(d.got, recordedDocumentNotice{organizationID, releaseID, "release"})
+	return nil
+}
+
 func documentPushIntent(t *testing.T, organizationID, relatedID int64, notice parentbilling.BillingDocumentNotice) deliveryContract.ClaimedIntent {
 	t.Helper()
 	payload, err := json.Marshal(notice)
