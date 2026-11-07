@@ -529,23 +529,17 @@ export function PersonnelNumberFields({
 }) {
   const valid = personnelNumberValid(draft.personnelNumber);
   return (
-    <div>
-      <Input
-        id="personnel-number"
-        label="Personalnummer"
-        controlSize="compact"
-        value={draft.personnelNumber}
-        onChange={(e) => onChange({ personnelNumber: e.target.value })}
-        placeholder="z. B. 1023"
-        inputMode="numeric"
-        error={valid ? undefined : "Nur Ziffern, höchstens 9 Stellen."}
-      />
-      <p className="mt-1 text-xs text-gray-500">
-        Nur Ziffern. Leer lassen, um die Nummer zu entfernen. Die Nummer muss
-        der Personalnummer im Lohnsystem entsprechen und ist pro Schule
-        eindeutig.
-      </p>
-    </div>
+    <Input
+      id="personnel-number"
+      label="Personalnummer"
+      controlSize="compact"
+      value={draft.personnelNumber}
+      onChange={(e) => onChange({ personnelNumber: e.target.value })}
+      placeholder="z. B. 1023"
+      inputMode="numeric"
+      error={valid ? undefined : "Nur Ziffern, höchstens 9 Stellen."}
+      hint="Nur Ziffern. Leer lassen, um die Nummer zu entfernen. Die Nummer muss der Personalnummer im Lohnsystem entsprechen und ist pro Schule eindeutig."
+    />
   );
 }
 

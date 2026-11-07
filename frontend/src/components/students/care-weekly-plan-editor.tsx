@@ -8,6 +8,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import {
   completesOneDigitHour,
@@ -543,12 +544,9 @@ function WeeklyTimeField({
       {/* The column header names the field on wide screens; the label is
           only shown where the rows stack. It stays for screen readers, which
           do not associate the column header with the field. */}
-      <label
-        htmlFor={id}
-        className="mb-1 block text-xs font-medium text-gray-500 sm:sr-only"
-      >
+      <FieldLabel htmlFor={id} className="sm:sr-only">
         {label}
-      </label>
+      </FieldLabel>
       {/* A text field with the digit mask instead of the native time input
           (#3371): Safari fills an empty native field with the current time in
           grey, which reads like a stored value and has to be overwritten hour

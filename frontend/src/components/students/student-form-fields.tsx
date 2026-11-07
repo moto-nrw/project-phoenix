@@ -429,6 +429,7 @@ export function PrivacyConsentSection({
             min="1"
             max="31"
             error={retentionError}
+            hint="Daten werden nach dieser Zeit automatisch gelöscht (1-31 Tage)"
             value={formData.data_retention_days ?? ""}
             onChange={(e) => {
               const inputValue = e.target.value;
@@ -440,10 +441,6 @@ export function PrivacyConsentSection({
               }
             }}
           />
-
-          <p className="mt-1 text-xs text-gray-500">
-            Daten werden nach dieser Zeit automatisch gelöscht (1-31 Tage)
-          </p>
         </div>
       </div>
     </div>

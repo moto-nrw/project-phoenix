@@ -1019,10 +1019,8 @@ function CustomEditor({
           value={saveAsTemplateName}
           onChange={(e) => onSaveAsTemplateNameChange(e.target.value)}
           placeholder="z. B. Teilzeit 30h A/B"
+          hint="Leer lassen, um nur das Modell dieser Person zu ändern."
         />
-        <p className="mt-1 text-xs text-gray-500">
-          Leer lassen, um nur das Modell dieser Person zu ändern.
-        </p>
       </div>
     </div>
   );
