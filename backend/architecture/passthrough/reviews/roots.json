@@ -826,6 +826,16 @@
       "reason": "ADR 0115 addendum (#5627): Consumer-port adapter of the billing run's holiday registrations; it reads every registration of the period through Enrollment's review without a status filter, which checks the period of the Träger and records the read, keeps whether each has a proof of benefits for the list of a cost bearer, and translates Enrollment's refusals into the Elternabrechnung's vocabulary."
     },
     {
+      "decision": "0158",
+      "id": "api/parentBillingCareContracts.Recipients",
+      "reason": "ADR 0158 (#4684): Consumer-port adapter of the Elternabrechnung's care contract port; it translates the Betreuungsvertrag's chosen invoice recipient per contract into the port's recipient."
+    },
+    {
+      "decision": "0158",
+      "id": "api/parentBillingCareSchools.TraegerSchools",
+      "reason": "ADR 0158 (#4684): Consumer-port adapter of the Elternabrechnung's schools port; it lists the schools of the Träger at Organisation \u0026 Tenancy without the deleted ones and translates them into the port's schools by name."
+    },
+    {
       "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.CancelHolidayRegistration",
       "reason": "ADR 0115 addendum (#5662): Consumer-port adapter of the Elternabrechnung's holiday registrations; it cancels through Enrollment's review in the caller's Träger transaction, so the Elternabrechnung computes the sibling group again in the same unit, and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
@@ -879,6 +889,11 @@
       "decision": "0121",
       "id": "api/parentBillingSettings.AsksDebtorNumber",
       "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's settings port; it reads the Träger switch for the debtor number through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed switch into the port's answer."
+    },
+    {
+      "decision": "0158",
+      "id": "api/parentBillingSettings.CareMonthRule",
+      "reason": "ADR 0158 (#4684): Consumer-port adapter of the Elternabrechnung's settings port; it reads the month rule of the Träger through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's answer."
     },
     {
       "decision": "0115",
