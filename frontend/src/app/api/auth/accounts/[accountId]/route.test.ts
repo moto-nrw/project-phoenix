@@ -18,6 +18,7 @@ const { mockAuth, mockFetch } = vi.hoisted(() => ({
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 global.fetch = mockFetch as typeof fetch;

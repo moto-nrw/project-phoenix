@@ -1129,6 +1129,7 @@ describe("fetchWithRetry", () => {
 // Mock auth module for server-side tests
 vi.mock("../server/auth", () => ({
   auth: vi.fn(),
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 // ===== API FUNCTION TESTS (SERVER-SIDE) =====

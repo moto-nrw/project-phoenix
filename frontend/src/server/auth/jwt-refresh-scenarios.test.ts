@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { tenantAuthConfig as authConfig } from "./tenant-config";
-import { _resetRefreshState } from "./shared";
+import { _resetRefreshState } from "./token-refresh";
 import type { User } from "next-auth";
+import { createPortalAuthConfig } from "./portal-config";
+import { PORTALS } from "./portals";
+const authConfig = createPortalAuthConfig(PORTALS.tenant);
 
 // Mock ~/env
 vi.mock("~/env", () => ({

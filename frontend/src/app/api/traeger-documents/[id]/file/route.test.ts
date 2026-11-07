@@ -10,9 +10,7 @@ const { mockAuth, mockUncachedAuth, mockFetch } = vi.hoisted(() => ({
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
   uncachedAuth: mockUncachedAuth,
-}));
-vi.mock("~/server/auth/tenant-route", () => ({
-  withTenantAuth: <T>(handler: T) => handler,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",

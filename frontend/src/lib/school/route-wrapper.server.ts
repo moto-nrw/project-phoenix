@@ -1,7 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { schoolAuth, uncachedSchoolAuth } from "~/server/auth/school";
-import { withSchoolAuth } from "~/server/auth/school-route";
+import {
+  schoolAuth,
+  uncachedSchoolAuth,
+  withSchoolAuth,
+} from "~/server/auth/school";
 import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
 import { backendResponseError } from "../api-response-error.server";

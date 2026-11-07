@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { withOperatorAuth } from "~/server/auth/operator-route";
+import { withOperatorAuth } from "~/server/auth/operator";
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { handleApiError, problemResponse } from "../api-helpers.server";
 import { ApiResponseError } from "../api-response-error.server";

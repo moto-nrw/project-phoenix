@@ -40,17 +40,11 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "withPrivateDownloadNoStore",
   ],
   "~/server/auth": ["withTenantAuth"],
-  "~/server/auth/tenant-route": ["withTenantAuth"],
   "~/server/auth/operator": ["withOperatorAuth"],
   "~/server/auth/parent": ["withParentAuth"],
   "~/server/auth/school": ["withSchoolAuth"],
   "~/server/auth/caterer": ["withCatererAuth"],
   "~/server/auth/traeger": ["withTraegerAuth"],
-  "~/server/auth/operator-route": ["withOperatorAuth"],
-  "~/server/auth/parent-route": ["withParentAuth"],
-  "~/server/auth/school-route": ["withSchoolAuth"],
-  "~/server/auth/caterer-route": ["withCatererAuth"],
-  "~/server/auth/traeger-route": ["withTraegerAuth"],
   "~/lib/route-wrapper.server": [
     "createGetHandler",
     "createPostHandler",
@@ -402,7 +396,7 @@ describe("private download cache policy (#5119)", () => {
     const file = path.join(API_ROOT, "fixture/route.ts");
     for (const [module, name] of [
       ["~/lib/private-no-store", "withPrivateNoStore"],
-      ["~/server/auth/tenant-route", "withTenantAuth"],
+      ["~/server/auth", "withTenantAuth"],
     ]) {
       const text = `import { ${name} } from "${module}"; export const GET = ${name}(handler);`;
       expect(

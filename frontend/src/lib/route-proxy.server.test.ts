@@ -36,6 +36,7 @@ const {
 vi.mock("../server/auth", () => ({
   auth: mockAuth,
   uncachedAuth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("./api-helpers.server", async () => {

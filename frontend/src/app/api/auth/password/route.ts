@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { auth, withTenantAuth } from "~/server/auth";
 import {
   apiPost,
   handleApiError,

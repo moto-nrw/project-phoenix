@@ -31,6 +31,7 @@ const { mockAuth, mockApiGet, mockApiPost, mockApiPut, mockApiDelete } =
 vi.mock("../server/auth", () => ({
   auth: mockAuth,
   uncachedAuth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 // Mock api-helpers module

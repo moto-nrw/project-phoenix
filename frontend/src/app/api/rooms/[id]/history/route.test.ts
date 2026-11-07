@@ -18,6 +18,7 @@ const { mockAuth, mockApiGet } = vi.hoisted(() => ({
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 // Re-export the real ApiResponseError so route's `instanceof` check matches

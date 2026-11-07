@@ -21,6 +21,7 @@ interface SuccessResponse<T> {
 // Mock auth module
 vi.mock("../server/auth/index", () => ({
   auth: vi.fn(),
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 // Mock api-helpers module

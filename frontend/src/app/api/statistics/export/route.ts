@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { proxyStatisticsDownload } from "~/lib/statistics-download-proxy.server";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { withTenantAuth } from "~/server/auth";
 
 async function GETHandler(request: NextRequest) {
   return proxyStatisticsDownload(request, "/api/statistics/export", [

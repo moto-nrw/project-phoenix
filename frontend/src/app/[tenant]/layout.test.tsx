@@ -1,13 +1,13 @@
 import type { ReactElement } from "react";
 import { fireEvent, render as renderUi, screen } from "@testing-library/react";
-import type { TenantSessionSnapshot } from "~/lib/tenant-session-snapshot.server";
+import type { PortalSessionSnapshot } from "~/lib/portal-session-snapshot.server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { authMock, notFoundMock, readTenantSessionSnapshotMock } = vi.hoisted(
+const { authMock, notFoundMock, readPortalSessionSnapshotMock } = vi.hoisted(
   () => ({
     authMock: vi.fn(async () => null),
-    readTenantSessionSnapshotMock: vi.fn<
-      () => Promise<TenantSessionSnapshot | null>
+    readPortalSessionSnapshotMock: vi.fn<
+      () => Promise<PortalSessionSnapshot | null>
     >(async () => null),
     notFoundMock: vi.fn((): never => {
       throw new Error("NEXT_HTTP_ERROR_FALLBACK;404");
@@ -56,14 +56,15 @@ vi.mock("next/cache", () => ({
 
 vi.mock("~/server/auth", () => ({
   auth: authMock,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/lib/shell-bootstrap.server", () => ({
   loadShellBootstrap: vi.fn(),
 }));
 
-vi.mock("~/lib/tenant-session-snapshot.server", () => ({
-  readTenantSessionSnapshot: readTenantSessionSnapshotMock,
+vi.mock("~/lib/portal-session-snapshot.server", () => ({
+  readPortalSessionSnapshot: readPortalSessionSnapshotMock,
 }));
 
 vi.mock("~/env", () => ({
@@ -80,8 +81,8 @@ const navigation = await import("next/navigation");
 
 beforeEach(() => {
   authMock.mockClear();
-  readTenantSessionSnapshotMock.mockReset();
-  readTenantSessionSnapshotMock.mockResolvedValue(null);
+  readPortalSessionSnapshotMock.mockReset();
+  readPortalSessionSnapshotMock.mockResolvedValue(null);
   notFoundMock.mockClear();
   headersMock.mockClear();
   headersMock.mockImplementation(
@@ -205,7 +206,7 @@ describe("TenantLayout", () => {
           props: { href: `https://school-a.localhost:3000${target}` },
         });
         // Nothing of the school loads on the bare domain.
-        expect(readTenantSessionSnapshotMock).not.toHaveBeenCalled();
+        expect(readPortalSessionSnapshotMock).not.toHaveBeenCalled();
       },
     );
 
@@ -233,7 +234,7 @@ describe("TenantLayout", () => {
         });
 
         // Anker: die Schule lädt ihre Sitzung und ihr Gerüst.
-        expect(readTenantSessionSnapshotMock).toHaveBeenCalledOnce();
+        expect(readPortalSessionSnapshotMock).toHaveBeenCalledOnce();
         expect(result).not.toMatchObject({
           props: { href: expect.anything() },
         });
@@ -438,7 +439,7 @@ describe("TenantLayout", () => {
       expires: "2026-09-04T12:00:00.000Z",
       user: { id: "7", tenantId: 1 },
     };
-    readTenantSessionSnapshotMock.mockResolvedValue({
+    readPortalSessionSnapshotMock.mockResolvedValue({
       session,
       accessToken: "backend-access",
     });

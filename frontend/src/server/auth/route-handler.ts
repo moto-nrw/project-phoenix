@@ -18,7 +18,8 @@ import {
   gateSessionCookieWrites,
   takeJarSessionCookies,
 } from "./session-cookie-writes";
-import { withForcedSessionRenewal, type ServerSession } from "./shared";
+import type { ServerSession } from "./session-types";
+import { withForcedSessionRenewal } from "./token-refresh";
 
 export type ResponseRouteHandler<Context = RouteContext> = (
   request: NextRequest,

@@ -2,8 +2,11 @@ import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import type { NextRequest } from "next/server";
 import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 
-import { catererAuth, uncachedCatererAuth } from "~/server/auth/caterer";
-import { withCatererAuth } from "~/server/auth/caterer-route";
+import {
+  catererAuth,
+  uncachedCatererAuth,
+  withCatererAuth,
+} from "~/server/auth/caterer";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";

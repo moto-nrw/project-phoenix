@@ -1,7 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
-import { withParentAuth } from "~/server/auth/parent-route";
+import {
+  parentAuth,
+  uncachedParentAuth,
+  withParentAuth,
+} from "~/server/auth/parent";
 import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
 import { ApiResponseError } from "../api-response-error.server";

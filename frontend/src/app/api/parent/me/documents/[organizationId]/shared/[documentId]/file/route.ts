@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { parentDocumentPdfHandler } from "~/lib/parent-document-pdf.server";
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { withParentAuth } from "~/server/auth/parent-route";
+import { withParentAuth } from "~/server/auth/parent";
 
 // Dokumentenpostfach (#4692): ein Dokument, das der Träger für Eltern
 // freigegeben hat, mit dem Dateityp, den das Backend nennt.

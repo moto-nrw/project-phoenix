@@ -25,6 +25,7 @@ const { mockAuth, mockApiGet, mockApiPost, mockApiPut } = vi.hoisted(() => ({
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));

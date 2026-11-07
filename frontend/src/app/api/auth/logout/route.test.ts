@@ -14,12 +14,15 @@ interface ExtendedSession extends Session {
 // Mocks
 // ============================================================================
 
-const { mockAuth } = vi.hoisted(() => ({
+const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
+  mockUncachedAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  uncachedAuth: mockUncachedAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/env", () => ({
@@ -169,5 +172,57 @@ describe("POST /api/auth/logout", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(502);
+  });
+
+  // #5194: a refused refresh token may still belong to a live family that
+  // another tab rotated; the browser takes 401 as "nothing left to revoke".
+  describe("after the backend refused the refresh token", () => {
+    const refused = () =>
+      Response.json(
+        { status: 401, code: "general.permission" },
+        { status: 401 },
+      );
+    const renewedTo = (refreshToken: string) =>
+      mockUncachedAuth.mockResolvedValue({
+        ...defaultSession,
+        user: { ...defaultSession.user, refreshToken },
+      });
+
+    it("revokes with the renewed refresh token", async () => {
+      vi.mocked(global.fetch)
+        .mockResolvedValueOnce(refused())
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
+      renewedTo("test-refresh-renewed");
+
+      const response = await POST(createMockRequest("/api/auth/logout"));
+
+      expect(response.status).toBe(204);
+      const [, retry] = vi.mocked(global.fetch).mock.calls[1] as [
+        string,
+        RequestInit,
+      ];
+      expect((retry.headers as Record<string, string>).Authorization).toBe(
+        "Bearer test-refresh-renewed",
+      );
+    });
+
+    it("answers 503 while the renewal yields no new token", async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(refused());
+      renewedTo("test-refresh-token");
+
+      const response = await POST(createMockRequest("/api/auth/logout"));
+
+      expect(response.status).toBe(503);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("passes the 401 once the renewal ended the session", async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(refused());
+      renewedTo("");
+
+      const response = await POST(createMockRequest("/api/auth/logout"));
+
+      expect(response.status).toBe(401);
+    });
   });
 });

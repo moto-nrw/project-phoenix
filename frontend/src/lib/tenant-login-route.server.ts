@@ -1,5 +1,6 @@
 import "server-only";
 import { setTenantSession, withTenantSessionResponse } from "~/server/auth";
+import { PORTALS } from "~/server/auth/portals";
 import { createLoginRoute } from "./login-route.server";
 
 export function createTenantLoginRoute(
@@ -12,6 +13,7 @@ export function createTenantLoginRoute(
   return createLoginRoute(path, {
     withResponse: withTenantSessionResponse,
     setSession: setTenantSession,
+    logout: PORTALS.tenant.backend.logout,
     challenges: path === "/auth/login",
   });
 }

@@ -9,6 +9,7 @@ const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({

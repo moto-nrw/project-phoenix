@@ -5,7 +5,7 @@ import { ParentAuthGuard } from "./auth-guard";
 import { getLocale } from "next-intl/server";
 import { getParentAppMetadata } from "~/i18n/parent-app-metadata";
 import type { AppLocale } from "~/i18n/locales";
-import { readParentSessionSnapshot } from "~/lib/parent-session-snapshot.server";
+import { readPortalSessionSnapshot } from "~/lib/portal-session-snapshot.server";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -67,7 +67,7 @@ export default async function ParentLayout({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const session = await readParentSessionSnapshot();
+  const session = (await readPortalSessionSnapshot("parent"))?.session ?? null;
   return (
     <NextIntlClientProvider>
       <ParentProviders session={session}>

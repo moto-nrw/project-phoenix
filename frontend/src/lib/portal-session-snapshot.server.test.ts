@@ -15,14 +15,22 @@ const { familyState } = vi.hoisted(() => ({
 
 // #5399: a snapshot needs a family Identity & Access confirms live.
 vi.mock("~/server/auth/token-validation", () => ({
-  portalOfScope: (scope: unknown) => scope,
   sessionFamilyState: familyState,
 }));
 
-import { readCatererSessionSnapshot } from "./caterer-session-snapshot.server";
-import { readOperatorSessionSnapshot } from "./operator-session-snapshot.server";
-import { readSchoolSessionSnapshot } from "./school-session-snapshot.server";
-import { readTraegerSessionSnapshot } from "./traeger-session-snapshot.server";
+import {
+  readPortalSessionSnapshot,
+  type PortalKey,
+} from "./portal-session-snapshot.server";
+
+const snapshotOf = (key: PortalKey) => async (): Promise<Session | null> =>
+  (await readPortalSessionSnapshot(key))?.session ?? null;
+const readTenantSessionSnapshot = snapshotOf("tenant");
+const readParentSessionSnapshot = snapshotOf("parent");
+const readSchoolSessionSnapshot = snapshotOf("school");
+const readCatererSessionSnapshot = snapshotOf("caterer");
+const readOperatorSessionSnapshot = snapshotOf("operator");
+const readTraegerSessionSnapshot = snapshotOf("traeger");
 
 // The secret the setup-common env mock hands to every reader.
 const SECRET = "test-secret";
@@ -39,11 +47,32 @@ interface Portal {
   readonly read: () => Promise<Session | null>;
   readonly cookie: string;
   readonly scope: string;
+  /** Further scopes a session of this portal may carry. */
+  readonly alsoAccepts?: readonly string[];
+  /** The validation portal of the family check. */
+  readonly validation?: string;
   /** The claims a valid token of this portal carries beyond the account. */
   readonly bound: Record<string, unknown>;
 }
 
 const PORTALS: readonly Portal[] = [
+  {
+    name: "tenant",
+    read: readTenantSessionSnapshot,
+    cookie: TENANT_COOKIE,
+    scope: "",
+    // An Absprung out of the Träger portal opens a tenant session.
+    alsoAccepts: ["tenant", "org"],
+    validation: "tenant",
+    bound: { tenantId: 3 },
+  },
+  {
+    name: "parent",
+    read: readParentSessionSnapshot,
+    cookie: PARENT_COOKIE,
+    scope: "parent",
+    bound: {},
+  },
   {
     name: "school",
     read: readSchoolSessionSnapshot,
@@ -137,7 +166,7 @@ describe.each(PORTALS)("$name session snapshot", (portal) => {
       await expect(portal.read()).resolves.toBeNull();
       expect(familyState).toHaveBeenCalledWith(
         ACCESS_TOKEN_PARTS.join("."),
-        portal.scope,
+        portal.validation ?? portal.scope,
       );
     },
   );
@@ -212,16 +241,7 @@ describe.each(PORTALS)("$name session snapshot", (portal) => {
   });
 
   it("ignores every other portal's session cookie", async () => {
-    const foreign: Record<string, string> = {
-      [TENANT_COOKIE]: await cookieValue(
-        claimsFor(portal, { scope: "", tenantId: 3 }),
-        TENANT_COOKIE,
-      ),
-      [PARENT_COOKIE]: await cookieValue(
-        claimsFor(portal, { scope: "parent" }),
-        PARENT_COOKIE,
-      ),
-    };
+    const foreign: Record<string, string> = {};
     for (const other of PORTALS.filter((p) => p !== portal)) {
       foreign[other.cookie] = await cookieValue(claimsFor(other), other.cookie);
     }
@@ -232,15 +252,19 @@ describe.each(PORTALS)("$name session snapshot", (portal) => {
 
   it("does not decrypt another portal's cookie under its own name", async () => {
     sendCookies({
-      [portal.cookie]: await cookieValue(claimsFor(portal), TENANT_COOKIE),
+      [portal.cookie]: await cookieValue(
+        claimsFor(portal),
+        portal.cookie === TENANT_COOKIE ? PARENT_COOKIE : TENANT_COOKIE,
+      ),
     });
 
     await expect(portal.read()).resolves.toBeNull();
   });
 
   it("rejects a token of another scope under its own cookie", async () => {
-    for (const scope of ["", "parent", ...PORTALS.map((p) => p.scope)]) {
-      if (scope === portal.scope) continue;
+    for (const scope of PORTALS.map((p) => p.scope)) {
+      if (scope === portal.scope || portal.alsoAccepts?.includes(scope))
+        continue;
       await sendPortalCookie(portal, { scope });
 
       await expect(portal.read()).resolves.toBeNull();
@@ -271,7 +295,9 @@ describe.each(PORTALS)("$name session snapshot", (portal) => {
   });
 });
 
-const [school, caterer, operator, traeger] = PORTALS as [
+const [tenant, , school, caterer, operator, traeger] = PORTALS as [
+  Portal,
+  Portal,
   Portal,
   Portal,
   Portal,
@@ -279,6 +305,43 @@ const [school, caterer, operator, traeger] = PORTALS as [
 ];
 
 describe("portal-specific claims", () => {
+  it("requires the school of a tenant session", async () => {
+    await sendPortalCookie(tenant, { tenantId: undefined });
+
+    await expect(readTenantSessionSnapshot()).resolves.toBeNull();
+  });
+
+  it("keeps the tenant access token on the server for the shell preload", async () => {
+    await sendPortalCookie(tenant);
+
+    const snapshot = await readPortalSessionSnapshot("tenant");
+
+    expect(snapshot?.accessToken).toBe(ACCESS_TOKEN_PARTS.join("."));
+    expect(JSON.stringify(snapshot?.session)).not.toContain(
+      ACCESS_TOKEN_PARTS[1],
+    );
+  });
+
+  it("shows the first render what the session route answers (F3)", async () => {
+    // viaTraeger drives the shell's Träger mode, roleIsSystem the role label.
+    await sendPortalCookie(tenant, {
+      viaTraeger: true,
+      roleIsSystem: [true],
+      previewTargetAccountId: "9",
+      previewTargetName: "Pia Preview",
+    });
+
+    const session = await readTenantSessionSnapshot();
+
+    expect(session?.user).toMatchObject({
+      viaTraeger: true,
+      roleIsSystem: [true],
+      isPreview: true,
+      previewTargetName: "Pia Preview",
+      previewTargetAccountId: "9",
+    });
+  });
+
   it("requires the school a school token is bound to", async () => {
     await sendPortalCookie(school, { tenantId: undefined });
     await expect(readSchoolSessionSnapshot()).resolves.toBeNull();

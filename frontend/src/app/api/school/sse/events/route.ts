@@ -1,6 +1,5 @@
 import { type NextRequest } from "next/server";
-import { schoolAuth } from "~/server/auth/school";
-import { withSchoolAuth } from "~/server/auth/school-route";
+import { schoolAuth, withSchoolAuth } from "~/server/auth/school";
 import { createLogger } from "~/lib/logger";
 import { proxySSEStream } from "~/lib/sse-proxy.server";
 import { problemResponse } from "~/lib/api-helpers.server";

@@ -1,7 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { catererAuth, uncachedCatererAuth } from "~/server/auth/caterer";
-import { withCatererAuth } from "~/server/auth/caterer-route";
+import {
+  catererAuth,
+  uncachedCatererAuth,
+  withCatererAuth,
+} from "~/server/auth/caterer";
 import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
 import { backendResponseError } from "../api-response-error.server";

@@ -89,8 +89,8 @@ const PORTALS: ReadonlyArray<{
     route: () =>
       import("../operator/auth/[...nextauth]/route") as Promise<PortalRoute>,
     cookieName: async () =>
-      (await import("~/server/auth/operator-config")).operatorAuthConfig.cookies
-        .sessionToken.name,
+      (await import("~/server/auth/portals")).PORTALS.operator.cookieNames
+        .session,
   },
   {
     portal: "parent",
@@ -99,8 +99,8 @@ const PORTALS: ReadonlyArray<{
     route: () =>
       import("../parent/auth/[...nextauth]/route") as Promise<PortalRoute>,
     cookieName: async () =>
-      (await import("~/server/auth/parent-config")).parentAuthConfig.cookies
-        .sessionToken.name,
+      (await import("~/server/auth/portals")).PORTALS.parent.cookieNames
+        .session,
   },
   {
     portal: "school",
@@ -109,8 +109,8 @@ const PORTALS: ReadonlyArray<{
     route: () =>
       import("../school/auth/[...nextauth]/route") as Promise<PortalRoute>,
     cookieName: async () =>
-      (await import("~/server/auth/school-config")).schoolAuthConfig.cookies
-        .sessionToken.name,
+      (await import("~/server/auth/portals")).PORTALS.school.cookieNames
+        .session,
   },
   {
     portal: "caterer",
@@ -119,8 +119,8 @@ const PORTALS: ReadonlyArray<{
     route: () =>
       import("../caterer/auth/[...nextauth]/route") as Promise<PortalRoute>,
     cookieName: async () =>
-      (await import("~/server/auth/caterer-config")).catererAuthConfig.cookies
-        .sessionToken.name,
+      (await import("~/server/auth/portals")).PORTALS.caterer.cookieNames
+        .session,
   },
   {
     portal: "traeger",
@@ -129,8 +129,8 @@ const PORTALS: ReadonlyArray<{
     route: () =>
       import("../traeger/auth/[...nextauth]/route") as Promise<PortalRoute>,
     cookieName: async () =>
-      (await import("~/server/auth/traeger-config")).traegerAuthConfig.cookies
-        .sessionToken.name,
+      (await import("~/server/auth/portals")).PORTALS.traeger.cookieNames
+        .session,
   },
 ];
 

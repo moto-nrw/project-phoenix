@@ -9,13 +9,15 @@ import { problemResponse } from "~/lib/api-response-error.server";
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { withoutSessionCookies } from "~/server/auth/session-cookie-writes";
 import { createLogger } from "~/lib/logger";
+import { PORTALS, type PortalDescriptor } from "~/server/auth/portals";
 
 const logger = createLogger({ component: "LoginRoute" });
 
 interface LoginOptions {
   withResponse: (handler: ResponseRouteHandler) => ResponseRouteHandler;
   setSession: (token: string, refreshToken: string) => Promise<void>;
-  rollbackPath?: string;
+  /** Where a minted session that could not be installed is revoked. */
+  logout: PortalDescriptor["backend"]["logout"];
   envelope?: boolean;
   challenges?: boolean;
   organizations?: boolean;
@@ -49,7 +51,7 @@ export async function installLoginSession(
   request: NextRequest,
   data: Record<string, unknown>,
   setSession: LoginOptions["setSession"],
-  rollbackPath = "/auth/logout",
+  logout: LoginOptions["logout"] = PORTALS.tenant.backend.logout,
 ): Promise<Response | null> {
   if (
     typeof data.access_token !== "string" ||
@@ -61,12 +63,11 @@ export async function installLoginSession(
   try {
     await setSession(data.access_token, data.refresh_token);
   } catch {
-    // Operator logout authenticates the access token; /auth/logout uses refresh.
-    const rollbackToken =
-      rollbackPath === "/operator/auth/logout"
-        ? data.access_token
-        : data.refresh_token;
-    await revokeMintedSession(request, rollbackToken, rollbackPath);
+    await revokeMintedSession(
+      request,
+      logout.token === "access" ? data.access_token : data.refresh_token,
+      logout.path,
+    );
     return problemResponse(500, "Session creation failed", request);
   }
   return null;
@@ -173,7 +174,7 @@ export function createLoginRoute(path: string, options: LoginOptions) {
             request,
             data,
             options.setSession,
-            options.rollbackPath,
+            options.logout,
           );
           if (failure) return failure;
           response = json({ status: "authenticated" });

@@ -1,6 +1,5 @@
 import type { NextRequest } from "next/server";
-import { auth, setTenantSession } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { auth, setTenantSession, withTenantAuth } from "~/server/auth";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
 import { proxyJsonRequest } from "~/lib/backend-proxy-route.server";
 import { getServerApiUrl } from "~/lib/server-api-url";

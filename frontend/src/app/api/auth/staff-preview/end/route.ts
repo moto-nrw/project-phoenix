@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { createPublicJsonProxy } from "~/lib/backend-proxy-route.server";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 import type { ServerAuthRequest } from "~/server/auth/route-handler";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { withTenantAuth } from "~/server/auth";
 
 // The signed preview token is the credential, even after the browser's admin
 // session expires. The backend validates it and writes audit.

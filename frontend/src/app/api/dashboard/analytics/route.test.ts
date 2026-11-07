@@ -14,6 +14,7 @@ const { mockAuth, mockFetchDashboardAnalytics } = vi.hoisted(() => ({
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/lib/dashboard-api.server", () => ({

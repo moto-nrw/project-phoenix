@@ -12,6 +12,7 @@ const { mockParentAuth, mockUncachedParentAuth, mockAnalyticsHeaders } =
 vi.mock("~/server/auth/parent", () => ({
   parentAuth: mockParentAuth,
   uncachedParentAuth: mockUncachedParentAuth,
+  withParentAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",

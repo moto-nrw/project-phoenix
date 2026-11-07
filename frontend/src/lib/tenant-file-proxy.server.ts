@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server";
-import { auth, uncachedAuth } from "~/server/auth";
+import { auth, uncachedAuth, withTenantAuth } from "~/server/auth";
 import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
-import { withTenantAuth } from "~/server/auth/tenant-route";
 import { problemResponse } from "./api-response-error.server";
 import { forwardBackendResponse } from "./backend-proxy-response.server";
 import { clientIdentityHeaders } from "./client-headers.server";

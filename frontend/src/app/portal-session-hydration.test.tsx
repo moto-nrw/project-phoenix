@@ -33,22 +33,28 @@ const { passthrough, readers, auths } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("~/lib/school-session-snapshot.server", () => ({
-  readSchoolSessionSnapshot: readers.school,
+vi.mock("~/lib/portal-session-snapshot.server", () => ({
+  readPortalSessionSnapshot: async (key: keyof typeof readers) => {
+    const session = await readers[key]();
+    return session ? { session, accessToken: "server-only" } : null;
+  },
 }));
-vi.mock("~/lib/caterer-session-snapshot.server", () => ({
-  readCatererSessionSnapshot: readers.caterer,
+vi.mock("~/server/auth/school", () => ({
+  schoolAuth: auths.school,
+  withSchoolAuth: (handler: unknown) => handler,
 }));
-vi.mock("~/lib/operator-session-snapshot.server", () => ({
-  readOperatorSessionSnapshot: readers.operator,
+vi.mock("~/server/auth/caterer", () => ({
+  catererAuth: auths.caterer,
+  withCatererAuth: (handler: unknown) => handler,
 }));
-vi.mock("~/lib/traeger-session-snapshot.server", () => ({
-  readTraegerSessionSnapshot: readers.traeger,
+vi.mock("~/server/auth/operator", () => ({
+  operatorAuth: auths.operator,
+  withOperatorAuth: (handler: unknown) => handler,
 }));
-vi.mock("~/server/auth/school", () => ({ schoolAuth: auths.school }));
-vi.mock("~/server/auth/caterer", () => ({ catererAuth: auths.caterer }));
-vi.mock("~/server/auth/operator", () => ({ operatorAuth: auths.operator }));
-vi.mock("~/server/auth/traeger", () => ({ traegerAuth: auths.traeger }));
+vi.mock("~/server/auth/traeger", () => ({
+  traegerAuth: auths.traeger,
+  withTraegerAuth: (handler: unknown) => handler,
+}));
 
 vi.mock("~/components/analytics/portal-analytics-session", () => ({
   PortalAnalyticsSession: () => null,

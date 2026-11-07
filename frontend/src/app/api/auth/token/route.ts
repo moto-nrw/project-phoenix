@@ -1,12 +1,9 @@
 import type { NextRequest } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { auth, withTenantAuth } from "~/server/auth";
 import { createLogger } from "~/lib/logger";
 import { problemResponse } from "~/lib/api-helpers.server";
-import {
-  portalOfScope,
-  sessionFamilyState,
-} from "~/server/auth/token-validation";
+import { portalOfScope } from "~/server/auth/portals";
+import { sessionFamilyState } from "~/server/auth/token-validation";
 
 const logger = createLogger({ component: "AuthTokenRoute" });
 
@@ -29,7 +26,7 @@ async function POSTHandler(_request: NextRequest) {
     if (
       (await sessionFamilyState(
         session.user.token,
-        portalOfScope(session.user.scope),
+        portalOfScope(session.user.scope).validation,
       )) === "ended"
     ) {
       return problemResponse(401, "Session ended", _request);

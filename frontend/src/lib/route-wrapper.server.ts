@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "../server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { withTenantAuth } from "~/server/auth";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
 import { handleApiError } from "./api-helpers.server";
 import {

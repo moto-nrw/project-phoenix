@@ -1,8 +1,7 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import type { NextRequest } from "next/server";
 
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { auth, withTenantAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";

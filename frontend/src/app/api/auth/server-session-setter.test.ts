@@ -19,11 +19,11 @@ vi.mock("next/headers", () => ({
 vi.mock("~/server/auth/tenant-host-check", () => ({
   sessionTenantMismatchResponse: async () => null,
 }));
-vi.mock("~/server/auth/tenant-config", async () => {
+vi.mock("~/server/auth/portal-config", async () => {
   const { default: Credentials } =
     await import("next-auth/providers/credentials");
   return {
-    tenantAuthConfig: {
+    createPortalAuthConfig: () => ({
       secret: "synthetic-local-session-setter-test-secret",
       trustHost: true,
       session: { strategy: "jwt" },
@@ -36,7 +36,7 @@ vi.mock("~/server/auth/tenant-config", async () => {
               : null,
         }),
       ],
-    },
+    }),
   };
 });
 const { withTenantAuth, setTenantSession } = await import("~/server/auth");

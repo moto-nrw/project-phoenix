@@ -1,6 +1,5 @@
 import { type NextRequest } from "next/server";
-import { parentAuth } from "~/server/auth/parent";
-import { withParentAuth } from "~/server/auth/parent-route";
+import { parentAuth, withParentAuth } from "~/server/auth/parent";
 import { createLogger } from "~/lib/logger";
 import { proxySSEStream } from "~/lib/sse-proxy.server";
 import { problemResponse } from "~/lib/api-helpers.server";

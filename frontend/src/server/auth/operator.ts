@@ -1,42 +1,12 @@
-/**
- * Operator auth instance.
- *
- * Separate NextAuth instance with host-only cookies (no domain),
- * so the operator session is invisible to tenant subdomains.
- *
- * Import from "~/server/auth/operator" in operator-specific code.
- */
-
 import "server-only";
-import NextAuth from "next-auth";
+import { createPortalAuth } from "./portal-auth";
+import { PORTALS } from "./portals";
 
-import { operatorAuthConfig } from "./operator-config";
-import { createSessionWriter } from "./session-writer";
-import { createResponseAwareAuth } from "./route-handler";
-
-const {
-  auth: rawOperatorAuth,
-  handlers: operatorHandlers,
-  signIn,
-} = NextAuth(operatorAuthConfig);
-const {
+export const {
   auth: operatorAuth,
   uncachedAuth: uncachedOperatorAuth,
+  handlers: operatorHandlers,
   withAuthResponse: withOperatorAuth,
   withSessionResponse: withOperatorSessionResponse,
-  mutateSession,
-} = createResponseAwareAuth(rawOperatorAuth, "operator");
-
-export {
-  operatorAuth,
-  uncachedOperatorAuth,
-  operatorHandlers,
-  withOperatorAuth,
-};
-
-export const setOperatorSession = createSessionWriter(
-  mutateSession,
-  signIn,
-  "operator-credentials",
-);
-export { withOperatorSessionResponse };
+  setSession: setOperatorSession,
+} = createPortalAuth(PORTALS.operator);

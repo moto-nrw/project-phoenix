@@ -1,7 +1,10 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { type NextRequest } from "next/server";
-import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
-import { withParentAuth } from "~/server/auth/parent-route";
+import {
+  parentAuth,
+  uncachedParentAuth,
+  withParentAuth,
+} from "~/server/auth/parent";
 import { streamIcsDownload } from "~/lib/ics-download.server";
 import {
   createUnauthorizedResponse,

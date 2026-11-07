@@ -9,6 +9,7 @@ const { mockTraegerAuth, mockFetch } = vi.hoisted(() => ({
 vi.mock("~/server/auth/traeger", () => ({
   traegerAuth: mockTraegerAuth,
   uncachedTraegerAuth: mockTraegerAuth,
+  withTraegerAuth: (handler: unknown) => handler,
 }));
 
 import { POST } from "./route";

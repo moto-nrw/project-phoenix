@@ -2,33 +2,29 @@ import { withServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 vi.mock("./token-validation", () => ({ validateSessionToken: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { tenantAuthConfig as authConfig } from "./tenant-config";
-import { _resetRefreshState, _testHelpers } from "./shared";
-import { operatorAuthConfig } from "./operator-config";
-import { parentAuthConfig } from "./parent-config";
-import { schoolAuthConfig } from "./school-config";
-import { catererAuthConfig } from "./caterer-config";
+import { _resetRefreshState } from "./token-refresh";
+import { buildAuthUser, buildDisplayName, parseJwtPayload } from "./jwt-claims";
+import { parseDurationToMs } from "./session-lifetime";
+import { loginAtBackend } from "./backend-login";
 import type { User } from "next-auth";
+import { createPortalAuthConfig } from "./portal-config";
+import { PORTALS } from "./portals";
+const authConfig = createPortalAuthConfig(PORTALS.tenant);
+const operatorAuthConfig = createPortalAuthConfig(PORTALS.operator);
+const parentAuthConfig = createPortalAuthConfig(PORTALS.parent);
+const schoolAuthConfig = createPortalAuthConfig(PORTALS.school);
+const catererAuthConfig = createPortalAuthConfig(PORTALS.caterer);
 
 // Shared JWT token constants — decoded payloads documented inline
 // { id: 1, first_name: "John", last_name: "Doe", email: "john@example.com", roles: ["teacher"], is_admin: false }
 const TEACHER_JWT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJsYXN0X25hbWUiOiJEb2UiLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ0ZWFjaGVyIl0sImlzX2FkbWluIjpmYWxzZX0.test";
-// { id: 1, first_name: "John", last_name: "Doe", email: "john@example.com" } (no roles)
-const TEACHER_JWT_NO_ROLES =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJsYXN0X25hbWUiOiJEb2UiLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20ifQ.test";
 // { id: 123, first_name: "Test", last_name: "User", email: "test@example.com", roles: ["teacher"] }
 const INTERNAL_REFRESH_JWT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTIzLCJmaXJzdF9uYW1lIjoiVGVzdCIsImxhc3RfbmFtZSI6IlVzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ0ZWFjaGVyIl19.test";
-// { id: 1, first_name: "John", email: "john@example.com" } (no last_name, no roles)
-const TEACHER_JWT_MINIMAL =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20ifQ.test";
 // { id: 45, sub: "operator:45", username: "op@example.com", first_name: "Op", roles: ["operator"], permissions: [], scope: "platform", is_admin: false }
 const OPERATOR_JWT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwidXNlcm5hbWUiOiJvcEBleGFtcGxlLmNvbSIsImZpcnN0X25hbWUiOiJPcCIsInJvbGVzIjpbIm9wZXJhdG9yIl0sInBlcm1pc3Npb25zIjpbXSwic2NvcGUiOiJwbGF0Zm9ybSIsImlzX2FkbWluIjpmYWxzZX0.test";
-// { id: 45, sub: "operator:45", username: "op@example.com", first_name: "Op", roles: ["operator"], scope: "platform" }
-const OPERATOR_JWT_MINIMAL =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwidXNlcm5hbWUiOiJvcEBleGFtcGxlLmNvbSIsImZpcnN0X25hbWUiOiJPcCIsInJvbGVzIjpbIm9wZXJhdG9yIl0sInNjb3BlIjoicGxhdGZvcm0ifQ.test";
 // { id: 45, sub: "operator:45", email: "legacy-op@example.com", first_name: "Op", roles: ["operator"], scope: "platform" }
 const OPERATOR_JWT_EMAIL_ONLY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwiZW1haWwiOiJsZWdhY3ktb3BAZXhhbXBsZS5jb20iLCJmaXJzdF9uYW1lIjoiT3AiLCJyb2xlcyI6WyJvcGVyYXRvciJdLCJzY29wZSI6InBsYXRmb3JtIn0.test";
@@ -88,9 +84,9 @@ vi.mock("next/headers", () => ({
 // Mock fetch globally
 const mockFetch = vi.fn();
 
-// Shared helper: invoke JWT callback with test defaults
-function callJwt(token: Record<string, unknown>) {
-  return authConfig.callbacks?.jwt?.({
+// Shared helper: invoke a portal's JWT callback with test defaults
+function callJwt(token: Record<string, unknown>, config = authConfig) {
+  return config.callbacks.jwt({
     token,
     user: undefined as unknown as User,
     account: null,
@@ -845,27 +841,34 @@ describe("authConfig", () => {
     });
   });
 
+  // The backend reads the same env values with Go's time.ParseDuration;
+  // the frontend must accept and refuse exactly the same values.
   describe("parseDurationToMs", () => {
-    it("should parse hour durations", () => {
-      expect(_testHelpers.parseDurationToMs("1h")).toBe(3600000);
-      expect(_testHelpers.parseDurationToMs("12h")).toBe(43200000);
+    it.each([
+      ["15m", 15 * 60_000],
+      ["168h", 168 * 3_600_000],
+      ["1h30m", 90 * 60_000],
+      ["1.5h", 90 * 60_000],
+      ["90s", 90_000],
+      ["500ms", 500],
+      ["0", 0],
+    ])("reads %s as Go does", (value, ms) => {
+      expect(parseDurationToMs("AUTH_JWT_EXPIRY", value)).toBe(ms);
     });
 
-    it("should parse minute durations", () => {
-      expect(_testHelpers.parseDurationToMs("15m")).toBe(900000);
-      expect(_testHelpers.parseDurationToMs("30m")).toBe(1800000);
-    });
-
-    it("should return 12h default for invalid input", () => {
-      expect(_testHelpers.parseDurationToMs("invalid")).toBe(43200000);
-      expect(_testHelpers.parseDurationToMs("10s")).toBe(43200000);
-      expect(_testHelpers.parseDurationToMs("")).toBe(43200000);
-    });
+    it.each(["7d", "15", "garbage", "", "h", ".h", "1h 30m", "15M"])(
+      "fails fast on %j, which Go refuses too",
+      (value) => {
+        expect(() => parseDurationToMs("AUTH_JWT_EXPIRY", value)).toThrow(
+          /AUTH_JWT_EXPIRY/,
+        );
+      },
+    );
   });
 
   describe("parseJwtPayload", () => {
     it("should parse valid JWT payload", () => {
-      const payload = _testHelpers.parseJwtPayload(TEACHER_JWT);
+      const payload = parseJwtPayload(TEACHER_JWT);
 
       expect(payload).not.toBeNull();
       expect(payload?.id).toBe(1);
@@ -877,15 +880,13 @@ describe("authConfig", () => {
     });
 
     it("should return null for token with wrong number of parts", () => {
-      expect(_testHelpers.parseJwtPayload("not-a-jwt")).toBeNull();
-      expect(_testHelpers.parseJwtPayload("only.two")).toBeNull();
-      expect(_testHelpers.parseJwtPayload("a.b.c.d")).toBeNull();
+      expect(parseJwtPayload("not-a-jwt")).toBeNull();
+      expect(parseJwtPayload("only.two")).toBeNull();
+      expect(parseJwtPayload("a.b.c.d")).toBeNull();
     });
 
     it("should return null for invalid base64 payload", () => {
-      const result = _testHelpers.parseJwtPayload(
-        "header.!!!invalid!!!.signature",
-      );
+      const result = parseJwtPayload("header.!!!invalid!!!.signature");
       expect(result).toBeNull();
     });
   });
@@ -893,40 +894,34 @@ describe("authConfig", () => {
   describe("buildDisplayName", () => {
     it("should use first and last name when available", () => {
       const payload = { id: 1, first_name: "John", last_name: "Doe" };
-      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
-        "John Doe",
-      );
+      expect(buildDisplayName(payload, "john@example.com")).toBe("John Doe");
     });
 
     it("should use first name only when last name is missing", () => {
       const payload = { id: 1, first_name: "John" };
-      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
-        "John",
-      );
+      expect(buildDisplayName(payload, "john@example.com")).toBe("John");
     });
 
     it("should fall back to username", () => {
       const payload = { id: 1, username: "johnd" };
-      expect(_testHelpers.buildDisplayName(payload, "")).toBe("johnd");
+      expect(buildDisplayName(payload, "")).toBe("johnd");
     });
 
     it("should fall back to email", () => {
       const payload = { id: 1 };
-      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
+      expect(buildDisplayName(payload, "john@example.com")).toBe(
         "john@example.com",
       );
     });
 
     it("should fall back to ultimate fallback", () => {
       const payload = { id: 1 };
-      expect(_testHelpers.buildDisplayName(payload, "", "Unknown")).toBe(
-        "Unknown",
-      );
+      expect(buildDisplayName(payload, "", "Unknown")).toBe("Unknown");
     });
 
     it("should use default ultimate fallback", () => {
       const payload = { id: 1 };
-      expect(_testHelpers.buildDisplayName(payload, "")).toBe("User");
+      expect(buildDisplayName(payload, "")).toBe("User");
     });
   });
 
@@ -942,11 +937,12 @@ describe("authConfig", () => {
         is_admin: false,
       };
 
-      const user = _testHelpers.buildAuthUser(
+      const user = buildAuthUser(
         payload,
         "access-token",
         "refresh-token",
         "john@example.com",
+        PORTALS.tenant,
       );
 
       expect(user.id).toBe("1");
@@ -968,12 +964,12 @@ describe("authConfig", () => {
         is_admin: true,
       };
 
-      const user = _testHelpers.buildAuthUser(
+      const user = buildAuthUser(
         payload,
         "token",
         "refresh",
         "op@example.com",
-        "platform",
+        PORTALS.operator,
       );
 
       expect(user.roles).toEqual(["operator"]);
@@ -984,11 +980,12 @@ describe("authConfig", () => {
     it("should handle missing roles with empty array", () => {
       const payload = { id: 2, email: "test@example.com" };
 
-      const user = _testHelpers.buildAuthUser(
+      const user = buildAuthUser(
         payload,
         "token",
         "refresh",
         "test@example.com",
+        PORTALS.tenant,
       );
 
       expect(user.roles).toEqual([]);
@@ -1000,388 +997,159 @@ describe("authConfig", () => {
         roles: "not-an-array" as unknown as string[],
       };
 
-      const user = _testHelpers.buildAuthUser(
+      const user = buildAuthUser(
         payload,
         "token",
         "refresh",
         "test@example.com",
+        PORTALS.tenant,
       );
 
       expect(user.roles).toEqual([]);
     });
 
     it("preserves the system origin of each tenant role", () => {
-      const user = _testHelpers.buildAuthUser(
+      const user = buildAuthUser(
         { id: 4, roles: ["user", "user"], role_is_system: [true, false] },
         "token",
         "refresh",
         "test@example.com",
+        PORTALS.tenant,
       );
 
       expect(user.roleIsSystem).toEqual([true, false]);
     });
   });
 
-  describe("performOperatorLogin", () => {
-    it("should return tokens on successful login", async () => {
+  describe("loginAtBackend", () => {
+    const refused = (status: number, body: string) => ({
+      ok: false,
+      status,
+      text: async () => body,
+    });
+
+    it("unwraps an enveloped login answer", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           status: "success",
-          data: {
-            access_token: "op-access",
-            refresh_token: "op-refresh",
-            operator: { id: 1, email: "op@test.com", display_name: "Op" },
-          },
+          data: { access_token: "op-access", refresh_token: "op-refresh" },
         }),
       });
 
-      const result = await _testHelpers.performOperatorLogin(
-        "op@test.com",
-        "pass",
-        false,
+      const result = await loginAtBackend(
+        PORTALS.operator,
+        { email: "op@test.com", password: "pass" },
+        {},
       );
 
       expect(result).toEqual({
-        access_token: "op-access",
-        refresh_token: "op-refresh",
+        ok: true,
+        tokens: { access_token: "op-access", refresh_token: "op-refresh" },
       });
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://server:8080/operator/auth/login",
+        expect.objectContaining({ method: "POST" }),
+      );
     });
 
-    it("should return tokens with dev logging enabled", async () => {
+    it("reads a plain login answer", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          status: "success",
-          data: {
-            access_token: "op-access",
-            refresh_token: "op-refresh",
-            operator: { id: 1, email: "op@test.com", display_name: "Op" },
-          },
+          access_token: "teacher-access",
+          refresh_token: "teacher-refresh",
         }),
       });
 
-      const result = await _testHelpers.performOperatorLogin(
-        "op@test.com",
-        "pass",
-        true,
+      const result = await loginAtBackend(
+        PORTALS.tenant,
+        { email: "teacher@test.com", password: "pass" },
+        {},
       );
 
       expect(result).toEqual({
-        access_token: "op-access",
-        refresh_token: "op-refresh",
+        ok: true,
+        tokens: {
+          access_token: "teacher-access",
+          refresh_token: "teacher-refresh",
+        },
       });
     });
 
-    it("should return error status on HTTP error", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      });
-
-      const result = await _testHelpers.performOperatorLogin(
-        "op@test.com",
-        "wrong",
-        false,
-      );
-
-      expect(result).toEqual({
-        access_token: "",
-        refresh_token: "",
-        status: 401,
-      });
-    });
-
-    it("should return null on network error", async () => {
-      mockFetch.mockRejectedValueOnce(new Error("Network error"));
-
-      const result = await _testHelpers.performOperatorLogin(
-        "op@test.com",
-        "pass",
-        false,
-      );
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("performParentLogin", () => {
-    it("should return tokens on successful login", async () => {
+    it("reports the step an MFA-aware login still needs as a refusal", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          status: "success",
-          data: {
-            access_token: "parent-access",
-            refresh_token: "parent-refresh",
-          },
-        }),
+        status: 200,
+        json: async () => ({ status: "mfa_required", challenge_token: "c" }),
       });
 
-      const result = await _testHelpers.performParentLogin(
-        "parent@test.com",
-        "pass",
-        false,
+      const result = await loginAtBackend(
+        PORTALS.school,
+        { email: "teacher@test.com", password: "pass" },
+        {},
       );
 
-      expect(result).toEqual({
-        access_token: "parent-access",
-        refresh_token: "parent-refresh",
-      });
+      expect(result).toEqual({ ok: false, status: 200, code: "mfa_required" });
     });
 
-    it("should extract code from JSON error body on 401 account_inactive", async () => {
-      // This is the case the original bug missed: backend signals
-      // account_inactive distinct from invalid_credentials via the
-      // body code, but the old code path only read response.status
-      // and dropped the body entirely.
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () =>
+    it("passes the backend's code and status, never its body, back", async () => {
+      // The code tells an inactive account apart from a wrong password.
+      mockFetch.mockResolvedValueOnce(
+        refused(
+          401,
           JSON.stringify({
-            status: "error",
-            error: "account is inactive",
+            error: "account of parent@test.com is inactive",
             code: "identity.session_account_inactive",
           }),
-      });
+        ),
+      );
+      const warn = vi.spyOn(console, "warn");
 
-      const result = await _testHelpers.performParentLogin(
-        "disabled@test.com",
-        "correct",
-        false,
+      const result = await loginAtBackend(
+        PORTALS.parent,
+        { email: "parent@test.com", password: "pass" },
+        {},
       );
 
       expect(result).toEqual({
-        access_token: "",
-        refresh_token: "",
+        ok: false,
         status: 401,
         code: "identity.session_account_inactive",
       });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("parent@test.com");
     });
 
-    it("should extract code from JSON error body on 403 not_a_guardian", async () => {
-      // Staff-account-at-parent-portal. Frontend uses this code to
-      // mask the error as invalid_credentials at the UI layer, but
-      // the wire-level code MUST come through so future UX changes
-      // (e.g. unmasking for non-rate-limited cases) have something
-      // to switch on.
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 403,
-        text: async () =>
-          JSON.stringify({
-            status: "error",
-            error: "account is not a guardian at any school",
-            code: "care.not_a_guardian",
-          }),
-      });
-
-      const result = await _testHelpers.performParentLogin(
-        "staff@test.com",
-        "correct",
-        false,
+    it("leaves the code undefined for a body without one or without JSON", async () => {
+      mockFetch.mockResolvedValueOnce(
+        refused(401, JSON.stringify({ error: "invalid credentials" })),
       );
+      mockFetch.mockResolvedValueOnce(refused(502, "<html>Bad Gateway</html>"));
 
-      expect(result).toEqual({
-        access_token: "",
-        refresh_token: "",
-        status: 403,
-        code: "care.not_a_guardian",
-      });
+      for (const status of [401, 502]) {
+        const result = await loginAtBackend(
+          PORTALS.parent,
+          { email: "parent@test.com", password: "pass" },
+          {},
+        );
+        expect(result).toEqual({ ok: false, status, code: undefined });
+      }
     });
 
-    it("should leave code undefined when body has no code field", async () => {
-      // Defensive: if an older backend (pre-this-change) is hit, the
-      // body parses fine but has no `code`. Must not crash, must
-      // surface status so the provider can still pick rate_limited
-      // for 429s.
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () =>
-          JSON.stringify({ status: "error", error: "invalid credentials" }),
-      });
-
-      const result = await _testHelpers.performParentLogin(
-        "parent@test.com",
-        "wrong",
-        false,
-      );
-
-      expect(result).toEqual({
-        access_token: "",
-        refresh_token: "",
-        status: 401,
-        code: undefined,
-      });
-    });
-
-    it("should leave code undefined on non-JSON body", async () => {
-      // Gateway/proxy error pages return HTML or plaintext. JSON.parse
-      // would throw — the parse must be wrapped so the login still
-      // surfaces a usable status.
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 502,
-        text: async () => "<html>Bad Gateway</html>",
-      });
-
-      const result = await _testHelpers.performParentLogin(
-        "parent@test.com",
-        "pass",
-        false,
-      );
-
-      expect(result).toEqual({
-        access_token: "",
-        refresh_token: "",
-        status: 502,
-        code: undefined,
-      });
-    });
-
-    it("should return null on network error", async () => {
+    it("answers an unreachable or slow backend without tokens", async () => {
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-      const result = await _testHelpers.performParentLogin(
-        "parent@test.com",
-        "pass",
-        false,
+      const result = await loginAtBackend(
+        PORTALS.parent,
+        { email: "parent@test.com", password: "pass" },
+        {},
       );
 
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("performLogin", () => {
-    it("should return tokens on successful login", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "teacher-access",
-          refresh_token: "teacher-refresh",
-        }),
-      });
-
-      const result = await _testHelpers.performLogin(
-        "teacher@test.com",
-        "pass",
-        "",
-        false,
-      );
-
-      expect(result).toEqual({
-        access_token: "teacher-access",
-        refresh_token: "teacher-refresh",
-      });
-    });
-
-    it("should return tokens with dev logging enabled", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "teacher-access",
-          refresh_token: "teacher-refresh",
-        }),
-      });
-
-      const result = await _testHelpers.performLogin(
-        "teacher@test.com",
-        "pass",
-        "",
-        true,
-      );
-
-      expect(result).toEqual({
-        access_token: "teacher-access",
-        refresh_token: "teacher-refresh",
-      });
-    });
-
-    it("should return null on HTTP error", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Bad credentials",
-      });
-
-      const result = await _testHelpers.performLogin(
-        "teacher@test.com",
-        "wrong",
-        "",
-        false,
-      );
-
-      expect(result).toBeNull();
-    });
-
-    it("should return null on HTTP error with dev logging", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Bad credentials",
-      });
-
-      const result = await _testHelpers.performLogin(
-        "teacher@test.com",
-        "wrong",
-        "",
-        true,
-      );
-
-      expect(result).toBeNull();
-    });
-
-    it("forwards the browser's client IP and User-Agent to the backend login", async () => {
-      // The backend rate-limits logins per client IP; without the header it
-      // sees the frontend container and all staff share one bucket.
-      mockRequestHeaders.mockResolvedValue(
-        new Headers({
-          "user-agent": "Mozilla/5.0 Tablet",
-          "x-forwarded-for": "203.0.113.7",
-        }),
-      );
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "teacher-access",
-          refresh_token: "teacher-refresh",
-        }),
-      });
-
-      await _testHelpers.performLogin(
-        "teacher@test.com",
-        "pass",
-        "schule-a",
-        false,
-      );
-
+      expect(result).toEqual({ ok: false });
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/auth/login"),
-        expect.objectContaining({
-          method: "POST",
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 Tablet",
-            "X-Forwarded-For": "203.0.113.7",
-          }) as Record<string, string>,
-        }),
+        expect.any(String),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
-    });
-
-    it("should return null on network error", async () => {
-      mockFetch.mockRejectedValueOnce(new Error("Connection refused"));
-
-      const result = await _testHelpers.performLogin(
-        "teacher@test.com",
-        "pass",
-        "",
-        false,
-      );
-
-      expect(result).toBeNull();
     });
   });
 
@@ -1489,70 +1257,6 @@ describe("authConfig", () => {
       );
 
       expect(result).toBeNull();
-    });
-
-    describe("with dev mode", () => {
-      beforeEach(() => {
-        vi.stubEnv("NODE_ENV", "development");
-      });
-      afterEach(() => {
-        vi.unstubAllEnvs();
-      });
-
-      it("should log debug info on successful login", async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            access_token: TEACHER_JWT,
-            refresh_token: "refresh-token",
-          }),
-        });
-
-        const authorize = getTeacherAuthorize();
-        const result = await authorize(
-          { email: "john@example.com", password: "correct" },
-          new Request("http://localhost:3000"),
-        );
-
-        expect(result).not.toBeNull();
-        expect(result?.name).toBe("John Doe");
-      });
-
-      it("should log warning when token has no roles", async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            access_token: TEACHER_JWT_NO_ROLES,
-            refresh_token: "refresh-token",
-          }),
-        });
-
-        const authorize = getTeacherAuthorize();
-        const result = await authorize(
-          { email: "john@example.com", password: "correct" },
-          new Request("http://localhost:3000"),
-        );
-
-        expect(result).not.toBeNull();
-        expect(result?.roles).toEqual([]);
-      });
-
-      it("should handle internal refresh logging", async () => {
-        const authorize = getTeacherAuthorize();
-        const result = await withServerSessionMutation(() =>
-          authorize(
-            {
-              internalRefresh: "true",
-              token: TEACHER_JWT_MINIMAL,
-              refreshToken: "refresh-token",
-            },
-            new Request("http://localhost:3000"),
-          ),
-        );
-
-        expect(result).not.toBeNull();
-        expect(mockFetch).not.toHaveBeenCalled();
-      });
     });
   });
 
@@ -1764,60 +1468,6 @@ describe("authConfig", () => {
       );
 
       expect(result).toBeNull();
-    });
-
-    describe("with dev mode", () => {
-      beforeEach(() => {
-        vi.stubEnv("NODE_ENV", "development");
-      });
-      afterEach(() => {
-        vi.unstubAllEnvs();
-      });
-
-      it("should handle operator login logging", async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            status: "success",
-            data: {
-              access_token: OPERATOR_JWT_MINIMAL,
-              refresh_token: "op-refresh",
-              operator: {
-                id: 45,
-                email: "op@example.com",
-                display_name: "Op",
-              },
-            },
-          }),
-        });
-
-        const authorize = getOperatorAuthorize();
-        const result = await authorize(
-          { email: "op@example.com", password: "correct" },
-          new Request("http://localhost:3000"),
-        );
-
-        expect(result).not.toBeNull();
-        expect(result?.scope).toBe("platform");
-      });
-
-      it("should handle operator internal refresh logging", async () => {
-        const authorize = getOperatorAuthorize();
-        const result = await withServerSessionMutation(() =>
-          authorize(
-            {
-              internalRefresh: "true",
-              token: OPERATOR_JWT_MINIMAL,
-              refreshToken: "op-refresh",
-            },
-            new Request("http://localhost:3000"),
-          ),
-        );
-
-        expect(result).not.toBeNull();
-        expect(result?.scope).toBe("platform");
-        expect(mockFetch).not.toHaveBeenCalled();
-      });
     });
   });
 
@@ -2165,7 +1815,7 @@ describe("authConfig", () => {
   });
 
   describe("JWT callback - operator scope refresh", () => {
-    it("should use operator refresh URL and parse envelope response", async () => {
+    it("renews an operator session at the operator refresh URL and unwraps its envelope", async () => {
       const newOperatorRefreshToken = refreshJwt("new-op-refresh");
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -2177,14 +1827,17 @@ describe("authConfig", () => {
         }),
       });
 
-      const result = await callJwt({
-        id: "45",
-        token: "old-op-access",
-        refreshToken: "old-op-refresh",
-        tokenExpiry: Date.now() + 2 * 60 * 1000,
-        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
-        scope: "platform",
-      });
+      const result = await callJwt(
+        {
+          id: "45",
+          token: "old-op-access",
+          refreshToken: "old-op-refresh",
+          tokenExpiry: Date.now() + 2 * 60 * 1000,
+          refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+          scope: "platform",
+        },
+        operatorAuthConfig,
+      );
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/operator/auth/refresh"),
@@ -2192,53 +1845,6 @@ describe("authConfig", () => {
       );
       expect(result?.token).toBe("new-op-access");
       expect(result?.refreshToken).toBe(newOperatorRefreshToken);
-    });
-  });
-
-  describe("JWT callback - dev mode logging", () => {
-    beforeEach(() => {
-      vi.stubEnv("NODE_ENV", "development");
-    });
-    afterEach(() => {
-      vi.unstubAllEnvs();
-    });
-
-    it("should log during initial sign in", async () => {
-      const user = {
-        id: "123",
-        name: "Dev User",
-        email: "dev@example.com",
-        token: "dev-token",
-        refreshToken: "dev-refresh",
-        roles: ["teacher"],
-        firstName: "Dev",
-        isAdmin: false,
-      };
-
-      const result = await authConfig.callbacks?.jwt?.({
-        token: {},
-        user,
-        account: null,
-        profile: undefined,
-        trigger: "signIn",
-        isNewUser: false,
-        session: undefined,
-      });
-
-      expect(result?.id).toBe("123");
-      expect(result?.token).toBe("dev-token");
-    });
-
-    it("should log during token refresh", async () => {
-      const result = await callJwt({
-        id: "123",
-        token: "access",
-        refreshToken: "refresh",
-        tokenExpiry: Date.now() + 10 * 60 * 1000,
-        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
-      });
-
-      expect(result?.token).toBe("access");
     });
   });
 
@@ -2428,33 +2034,21 @@ describe("authConfig", () => {
       expect(authConfig.cookies?.sessionToken?.name).toBe(
         "moto-app-de.session-token",
       );
-      expect(authConfig.cookies?.sessionToken?.options.domain).toBe(
+      expect(authConfig.cookies?.sessionToken?.options?.domain).toBe(
         ".moto-app.de",
       );
       expect(authConfig.cookies?.callbackUrl?.name).toBe(
         "moto-app-de.callback-url",
       );
-      expect(authConfig.cookies?.callbackUrl?.options.domain).toBe(
+      expect(authConfig.cookies?.callbackUrl?.options?.domain).toBe(
         ".moto-app.de",
       );
       expect(authConfig.cookies?.csrfToken?.name).toBe(
         "moto-app-de.csrf-token",
       );
-      expect(authConfig.cookies?.csrfToken?.options.domain).toBe(
+      expect(authConfig.cookies?.csrfToken?.options?.domain).toBe(
         ".moto-app.de",
       );
-    });
-
-    it("should derive unique prefixes that prevent cross-environment collisions", () => {
-      // The bug: staging.moto-app.de is a subdomain of moto-app.de, so
-      // production cookies on .moto-app.de are sent to staging too.
-      // With derived names, production uses "moto-app-de.*" and staging
-      // would use "staging-moto-app-de.*" — no collision.
-      const prodPrefix = "moto-app.de".replace(/\./g, "-");
-      const stagingPrefix = "staging.moto-app.de".replace(/\./g, "-");
-      expect(prodPrefix).toBe("moto-app-de");
-      expect(stagingPrefix).toBe("staging-moto-app-de");
-      expect(prodPrefix).not.toBe(stagingPrefix);
     });
 
     it("should configure operator cookies as host-only with unique names", () => {
@@ -2532,18 +2126,6 @@ describe("authConfig", () => {
       expect(result?.token).toBe("");
       expect(result?.refreshToken).toBe("");
       expect(result?.isAdmin).toBeUndefined();
-    });
-  });
-
-  describe("events.signOut", () => {
-    it("resets refresh state on tenant sign out", () => {
-      expect(authConfig.events).toBeDefined();
-      authConfig.events.signOut();
-    });
-
-    it("resets refresh state on operator sign out", () => {
-      expect(operatorAuthConfig.events).toBeDefined();
-      operatorAuthConfig.events.signOut();
     });
   });
 });

@@ -1,5 +1,5 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { withTenantAuth } from "~/server/auth";
 import { createFileDownloadRoute } from "~/lib/export-proxy.server";
 
 /**

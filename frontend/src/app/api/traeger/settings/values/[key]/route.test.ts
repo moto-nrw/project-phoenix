@@ -10,6 +10,7 @@ const { mockTraegerAuth, mockUncachedAuth, mockFetch } = vi.hoisted(() => ({
 vi.mock("~/server/auth/traeger", () => ({
   traegerAuth: mockTraegerAuth,
   uncachedTraegerAuth: mockUncachedAuth,
+  withTraegerAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",

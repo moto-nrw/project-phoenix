@@ -1,4 +1,5 @@
 import "server-only";
+import { ALL_PORTALS } from "./portals";
 
 /**
  * Routes that must work while the cookie belongs to another school: the
@@ -30,10 +31,6 @@ export const MISMATCH_EXEMPT_PATHS: ReadonlySet<string> = new Set([
 export const ACCOUNT_CHECK_EXEMPT_PATHS: ReadonlySet<string> = new Set([
   "/api/logs",
   "/api/auth/token",
-  "/api/auth/logout",
-  "/api/operator/auth/logout",
-  "/api/parent/auth/logout",
-  "/api/school/auth/logout",
-  "/api/caterer/auth/logout",
-  "/api/traeger/auth/logout",
+  // Each portal's BFF logout route, app/api/…/auth/logout/route.ts.
+  ...ALL_PORTALS.map((portal) => `${portal.basePath}/logout`),
 ]);

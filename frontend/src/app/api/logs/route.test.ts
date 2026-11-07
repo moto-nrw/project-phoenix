@@ -3,7 +3,7 @@ vi.mock("~/server/auth/token-validation", () => ({
   validateSessionToken: vi.fn(),
 }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ServerSession } from "~/server/auth/shared";
+import type { ServerSession } from "~/server/auth/session-types";
 import { NextRequest } from "next/server";
 import { REDACTED_LOG_VALUE } from "~/lib/log-redaction";
 
@@ -11,7 +11,10 @@ const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ServerSession | null>>(),
 }));
 
-vi.mock("~/server/auth", () => ({ auth: mockAuth }));
+vi.mock("~/server/auth", () => ({
+  auth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
+}));
 
 const { POST } = await import("./route");
 

@@ -27,10 +27,12 @@ const { mockAuth, mockUncachedAuth, mockOperatorAuth, mockUncachedOperator } =
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
   uncachedAuth: mockUncachedAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockOperatorAuth,
   uncachedOperatorAuth: mockUncachedOperator,
+  withOperatorAuth: (handler: unknown) => handler,
 }));
 
 const BACKEND = "http://backend.test";

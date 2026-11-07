@@ -1,8 +1,11 @@
 import type { ErrorCode } from "../error-codes.generated";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { traegerAuth, uncachedTraegerAuth } from "~/server/auth/traeger";
-import { withTraegerAuth } from "~/server/auth/traeger-route";
+import {
+  traegerAuth,
+  uncachedTraegerAuth,
+  withTraegerAuth,
+} from "~/server/auth/traeger";
 import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
 import { forwardBackendResponse } from "../backend-proxy-response.server";

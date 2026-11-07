@@ -1,5 +1,5 @@
 import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { withTenantAuth } from "~/server/auth";
 import type { ServerAuthRequest } from "~/server/auth/route-handler";
 
 async function GETHandler(

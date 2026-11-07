@@ -2,13 +2,12 @@ import "server-only";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
 import type { JwtPayload } from "./jwt-payload";
-
-type Portal = "tenant" | "platform" | "parent" | "school" | "caterer" | "org";
+import { acceptsScope, type ValidationPortal } from "./portals";
 
 /** Only backend-verified claims may cross a client token-handoff boundary. */
 export async function validateSessionToken(
   accessToken: string,
-  portal: Portal,
+  portal: ValidationPortal,
   refreshToken?: string,
 ): Promise<JwtPayload | null> {
   if (
@@ -46,13 +45,7 @@ export async function validateSessionToken(
       claims.exp * 1000 <= Date.now()
     )
       return null;
-    const scope = claims.scope ?? "";
-    if (
-      portal === "tenant"
-        ? !["", "tenant", "org"].includes(scope)
-        : scope !== portal
-    )
-      return null;
+    if (!acceptsScope(portal, claims.scope)) return null;
     return claims;
   } catch {
     return null;
@@ -61,20 +54,6 @@ export async function validateSessionToken(
 
 /** live: the family backs the token; ended: revoked; unknown: no answer, or an expired token. */
 export type SessionFamilyState = "live" | "ended" | "unknown";
-
-/** The validation portal of a session's scope claim. */
-export function portalOfScope(scope: unknown): Portal {
-  switch (scope) {
-    case "platform":
-    case "parent":
-    case "school":
-    case "caterer":
-    case "org":
-      return scope;
-    default:
-      return "tenant";
-  }
-}
 
 /** The `exp` claim of an access token in seconds; null when unreadable. */
 function accessTokenExpiry(accessToken: string): number | null {
@@ -97,7 +76,7 @@ function accessTokenExpiry(accessToken: string): number | null {
  */
 export async function sessionFamilyState(
   accessToken: string,
-  portal: Portal,
+  portal: ValidationPortal,
 ): Promise<SessionFamilyState> {
   if (!accessToken || accessToken.length > 16000) return "ended";
   // Identity & Access rejects an expired token before it reads the family,

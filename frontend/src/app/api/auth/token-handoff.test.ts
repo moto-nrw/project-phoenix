@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import NextAuth from "next-auth";
 import { NextRequest } from "next/server";
-import { tenantAuthConfig } from "~/server/auth/tenant-config";
-import { operatorAuthConfig } from "~/server/auth/operator-config";
-import { parentAuthConfig } from "~/server/auth/parent-config";
-import { schoolAuthConfig } from "~/server/auth/school-config";
-import { catererAuthConfig } from "~/server/auth/caterer-config";
-import { traegerAuthConfig } from "~/server/auth/traeger-config";
 import { withServerSessionMutation } from "~/server/auth/session-mutation";
+import { createPortalAuthConfig } from "~/server/auth/portal-config";
+import { PORTALS } from "~/server/auth/portals";
+const tenantAuthConfig = createPortalAuthConfig(PORTALS.tenant);
+const operatorAuthConfig = createPortalAuthConfig(PORTALS.operator);
+const parentAuthConfig = createPortalAuthConfig(PORTALS.parent);
+const schoolAuthConfig = createPortalAuthConfig(PORTALS.school);
+const catererAuthConfig = createPortalAuthConfig(PORTALS.caterer);
+const traegerAuthConfig = createPortalAuthConfig(PORTALS.traeger);
 
 vi.mock("~/env", () => ({
   env: {

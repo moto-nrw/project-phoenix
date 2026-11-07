@@ -16,6 +16,7 @@ const {
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockOperatorAuth,
   uncachedOperatorAuth: mockUncachedOperatorAuth,
+  withOperatorAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({

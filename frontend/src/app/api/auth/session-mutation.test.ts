@@ -2,11 +2,12 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { encode } from "next-auth/jwt";
+import { PORTALS } from "~/server/auth/portals";
 import {
-  _resetRefreshState,
-  sharedJwtCallback,
-  sharedSessionCallback,
-} from "~/server/auth/shared";
+  createJwtCallback,
+  sessionCallback,
+} from "~/server/auth/session-callbacks";
+import { _resetRefreshState } from "~/server/auth/token-refresh";
 import { NextRequest } from "next/server";
 import { RequestCookies } from "next/dist/server/web/spec-extension/cookies";
 import {
@@ -223,7 +224,10 @@ describe("real Auth.js server actions under the response wrapper", () => {
     try {
       const instance = NextAuth({
         ...config,
-        callbacks: { jwt: sharedJwtCallback, session: sharedSessionCallback },
+        callbacks: {
+          jwt: createJwtCallback(PORTALS.tenant),
+          session: sessionCallback,
+        },
       });
       const helpers = createResponseAwareAuth(instance.auth, "tenant");
       const original = `authjs.session-token=${await encode({

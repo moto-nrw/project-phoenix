@@ -11,6 +11,7 @@ const { mockAuth, mockUncachedAuth, mockAnalyticsHeaders } = vi.hoisted(() => ({
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
   uncachedAuth: mockUncachedAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",

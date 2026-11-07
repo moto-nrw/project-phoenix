@@ -9,9 +9,7 @@ const { mockCatererAuth, mockFetch } = vi.hoisted(() => ({
 vi.mock("~/server/auth/caterer", () => ({
   catererAuth: mockCatererAuth,
   uncachedCatererAuth: mockCatererAuth,
-}));
-vi.mock("~/server/auth/caterer-route", () => ({
-  withCatererAuth: <T>(handler: T) => handler,
+  withCatererAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",

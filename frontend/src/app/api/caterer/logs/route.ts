@@ -4,8 +4,7 @@
  */
 
 import type { NextRequest } from "next/server";
-import { catererAuth } from "~/server/auth/caterer";
-import { withCatererAuth } from "~/server/auth/caterer-route";
+import { catererAuth, withCatererAuth } from "~/server/auth/caterer";
 import { ingestClientLogs } from "~/lib/client-log-ingest.server";
 
 async function POSTHandler(request: NextRequest) {

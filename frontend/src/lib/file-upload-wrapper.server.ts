@@ -3,7 +3,7 @@ import { problemResponse } from "./api-response-error.server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "../server/auth";
 import { executeWithTokenRefresh } from "./token-refresh-retry.server";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { withTenantAuth } from "~/server/auth";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
 import { handleApiError } from "./api-helpers.server";
 import { backendResponseError } from "./api-response-error.server";

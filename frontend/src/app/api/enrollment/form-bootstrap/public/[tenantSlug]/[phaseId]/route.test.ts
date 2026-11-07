@@ -11,6 +11,7 @@ vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", parentsHostname);
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({

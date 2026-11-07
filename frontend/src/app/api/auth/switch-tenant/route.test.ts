@@ -13,6 +13,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
   setTenantSession,
   setStaffPreviewSession,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 const { POST: switchTenant } = await import("./route");
 const { POST: startPreview } = await import("../staff-preview/route");

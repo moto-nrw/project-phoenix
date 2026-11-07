@@ -2,29 +2,11 @@
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 export { handleAuthFailure, refreshToken } from "./auth-failure";
 import { createLogger } from "~/lib/logger";
+import { parseRetryAfter } from "./retry-after";
 
 export type { ApiError } from "./api-error";
 
 const logger = createLogger({ component: "AuthAPI" });
-
-function parseRetryAfter(value: string | null): number | null {
-  if (!value) {
-    return null;
-  }
-
-  const numeric = Number(value);
-  if (!Number.isNaN(numeric)) {
-    return Math.max(0, Math.round(numeric));
-  }
-
-  const date = Date.parse(value);
-  if (!Number.isNaN(date)) {
-    const diffMs = date - Date.now();
-    return diffMs > 0 ? Math.ceil(diffMs / 1000) : 0;
-  }
-
-  return null;
-}
 
 export async function buildApiError(
   response: Response,

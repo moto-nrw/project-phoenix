@@ -3,7 +3,7 @@ vi.mock("~/server/auth/token-validation", () => ({
   validateSessionToken: vi.fn(),
 }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ServerSession } from "~/server/auth/shared";
+import type { ServerSession } from "~/server/auth/session-types";
 import { NextRequest } from "next/server";
 
 const { mockParentAuth, mockTenantAuth } = vi.hoisted(() => ({
@@ -11,8 +11,14 @@ const { mockParentAuth, mockTenantAuth } = vi.hoisted(() => ({
   mockTenantAuth: vi.fn<() => Promise<ServerSession | null>>(),
 }));
 
-vi.mock("~/server/auth/parent", () => ({ parentAuth: mockParentAuth }));
-vi.mock("~/server/auth", () => ({ auth: mockTenantAuth }));
+vi.mock("~/server/auth/parent", () => ({
+  parentAuth: mockParentAuth,
+  withParentAuth: (handler: unknown) => handler,
+}));
+vi.mock("~/server/auth", () => ({
+  auth: mockTenantAuth,
+  withTenantAuth: (handler: unknown) => handler,
+}));
 
 const { POST } = await import("./route");
 

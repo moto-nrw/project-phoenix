@@ -19,6 +19,7 @@ global.fetch = mockFetch;
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/env", () => ({

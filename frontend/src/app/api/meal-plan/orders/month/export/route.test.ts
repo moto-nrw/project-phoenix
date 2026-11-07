@@ -8,8 +8,6 @@ const { auth, refresh } = vi.hoisted(() => ({
 vi.mock("~/server/auth", () => ({
   auth,
   uncachedAuth: refresh,
-}));
-vi.mock("~/server/auth/tenant-route", () => ({
   withTenantAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/lib/server-api-url", () => ({

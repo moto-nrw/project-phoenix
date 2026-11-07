@@ -6,14 +6,20 @@ const { mockFetch, mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({ auth: mockAuth, uncachedAuth: mockAuth }));
+vi.mock("~/server/auth", () => ({
+  auth: mockAuth,
+  uncachedAuth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
+}));
 vi.mock("~/server/auth/parent", () => ({
   parentAuth: mockAuth,
   uncachedParentAuth: mockAuth,
+  withParentAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/server/auth/traeger", () => ({
   traegerAuth: mockAuth,
   uncachedTraegerAuth: mockAuth,
+  withTraegerAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/server/auth/school", () => ({
   schoolAuth: mockAuth,
@@ -23,17 +29,12 @@ vi.mock("~/server/auth/school", () => ({
 vi.mock("~/server/auth/caterer", () => ({
   catererAuth: mockAuth,
   uncachedCatererAuth: mockAuth,
+  withCatererAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockAuth,
   uncachedOperatorAuth: mockAuth,
   withOperatorAuth: <T>(handler: T) => handler,
-}));
-vi.mock("~/server/auth/school-route", () => ({
-  withSchoolAuth: <T>(handler: T) => handler,
-}));
-vi.mock("~/server/auth/caterer-route", () => ({
-  withCatererAuth: <T>(handler: T) => handler,
 }));
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",

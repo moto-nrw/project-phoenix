@@ -9,9 +9,6 @@ const { mockAuth, mockFetch } = vi.hoisted(() => ({
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockAuth,
   uncachedOperatorAuth: vi.fn(),
-}));
-
-vi.mock("~/server/auth/operator-route", () => ({
   withOperatorAuth: (handler: unknown) => handler,
 }));
 

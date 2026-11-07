@@ -19,6 +19,7 @@ const { mockAuth, mockApiDelete, mockApiGet } = vi.hoisted(() => ({
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/lib/api-helpers.server", async () => {

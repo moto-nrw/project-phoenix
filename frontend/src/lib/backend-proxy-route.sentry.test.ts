@@ -6,13 +6,16 @@ vi.mock("@sentry/nextjs", () => ({ captureException }));
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend.test",
 }));
-vi.mock("~/server/auth", () => ({ auth: vi.fn(), uncachedAuth: vi.fn() }));
-vi.mock("~/server/auth/tenant-route", () => ({ withTenantAuth: vi.fn() }));
+vi.mock("~/server/auth", () => ({
+  auth: vi.fn(),
+  uncachedAuth: vi.fn(),
+  withTenantAuth: (handler: unknown) => handler,
+}));
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: vi.fn(),
   uncachedOperatorAuth: vi.fn(),
+  withOperatorAuth: (handler: unknown) => handler,
 }));
-vi.mock("~/server/auth/operator-route", () => ({ withOperatorAuth: vi.fn() }));
 
 const { createPublicJsonProxy } = await import("./backend-proxy-route.server");
 const { handleApiError, ApiResponseError } =

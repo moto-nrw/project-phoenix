@@ -5,10 +5,6 @@ import { SESSION_ACCOUNT_HEADER } from "~/lib/session-account";
 
 // Every portal's route wrapper runs through its real response-aware Auth.js
 // handler here, so a wrapper that bypasses the account check fails (#5183).
-vi.unmock("~/server/auth/tenant-route");
-vi.unmock("~/server/auth/operator-route");
-vi.unmock("~/server/auth/parent-route");
-vi.unmock("~/server/auth/traeger-route");
 
 const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }));
 

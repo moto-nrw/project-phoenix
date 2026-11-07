@@ -11,10 +11,12 @@ const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockAuth,
   uncachedOperatorAuth: mockAuth,
+  withOperatorAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({

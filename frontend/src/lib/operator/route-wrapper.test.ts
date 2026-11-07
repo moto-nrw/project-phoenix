@@ -36,6 +36,7 @@ vi.mock("~/lib/backend-proxy-metrics", () => ({
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockAuth,
   uncachedOperatorAuth: mockAuth,
+  withOperatorAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/lib/client-headers.server", () => ({

@@ -23,16 +23,19 @@ vi.mock("~/lib/server-api-url", () => ({
 vi.mock("~/server/auth/parent", () => ({
   parentAuth: mockParentAuth,
   uncachedParentAuth: mockParentAuth,
+  withParentAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockOperatorAuth,
   uncachedOperatorAuth: mockOperatorAuth,
+  withOperatorAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/server/auth", () => ({
   auth: mockTenantAuth,
   uncachedAuth: mockTenantAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 global.fetch = mockFetch as unknown as typeof fetch;

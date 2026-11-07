@@ -9,9 +9,7 @@ const { mockSchoolAuth, mockFetch } = vi.hoisted(() => ({
 vi.mock("~/server/auth/school", () => ({
   schoolAuth: mockSchoolAuth,
   uncachedSchoolAuth: mockSchoolAuth,
-}));
-vi.mock("~/server/auth/school-route", () => ({
-  withSchoolAuth: <T>(handler: T) => handler,
+  withSchoolAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",

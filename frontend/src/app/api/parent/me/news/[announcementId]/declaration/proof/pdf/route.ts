@@ -10,8 +10,11 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import type { NextRequest } from "next/server";
 import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { NextResponse } from "next/server";
-import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
-import { withParentAuth } from "~/server/auth/parent-route";
+import {
+  parentAuth,
+  uncachedParentAuth,
+  withParentAuth,
+} from "~/server/auth/parent";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";

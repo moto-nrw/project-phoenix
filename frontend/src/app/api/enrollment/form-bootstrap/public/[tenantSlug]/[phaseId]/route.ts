@@ -1,8 +1,7 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { auth, withTenantAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";

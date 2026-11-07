@@ -10,10 +10,12 @@ vi.mock("~/lib/server-api-url", () => ({
 vi.mock("~/server/auth", () => ({
   setTenantSession: vi.fn(),
   withTenantSessionResponse: (handler: unknown) => handler,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 vi.mock("~/server/auth/parent", () => ({
   setParentSession: vi.fn(),
   withParentSessionResponse: (handler: unknown) => handler,
+  withParentAuth: (handler: unknown) => handler,
 }));
 const fetchMock = vi.fn();
 

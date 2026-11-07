@@ -4,8 +4,7 @@ import { NextResponse } from "next/server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { apiPut, handleApiError } from "~/lib/api-helpers.server";
 import { createPutHandler } from "~/lib/route-wrapper.server";
-import { auth, uncachedAuth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { auth, uncachedAuth, withTenantAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import {

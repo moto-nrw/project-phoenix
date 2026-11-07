@@ -7,8 +7,7 @@
  */
 
 import type { NextRequest } from "next/server";
-import { parentAuth } from "~/server/auth/parent";
-import { withParentAuth } from "~/server/auth/parent-route";
+import { parentAuth, withParentAuth } from "~/server/auth/parent";
 import { ingestClientLogs } from "~/lib/client-log-ingest.server";
 
 async function POSTHandler(request: NextRequest) {

@@ -94,15 +94,18 @@ const AUTH_ROUTES = [
   "src/app/api/traeger/auth/[...nextauth]/route.ts",
 ];
 
-/** The six portals' Auth.js instances. */
-const AUTH_INSTANCES = [
-  "src/server/auth/caterer.ts",
-  "src/server/auth/index.ts",
-  "src/server/auth/operator.ts",
-  "src/server/auth/parent.ts",
-  "src/server/auth/school.ts",
-  "src/server/auth/traeger.ts",
-];
+/** The one place that creates an Auth.js instance. */
+const AUTH_FACTORY = "src/server/auth/portal-auth.ts";
+
+/** The six portals' entry modules, each with its own Auth.js instance. */
+const AUTH_INSTANCES: Record<string, string> = {
+  "src/server/auth/caterer.ts": "caterer",
+  "src/server/auth/index.ts": "tenant",
+  "src/server/auth/operator.ts": "operator",
+  "src/server/auth/parent.ts": "parent",
+  "src/server/auth/school.ts": "school",
+  "src/server/auth/traeger.ts": "traeger",
+};
 
 describe("Auth.js actions", () => {
   const NAME = "parent.session-token";
@@ -207,32 +210,56 @@ describe("session cookie writers", () => {
   });
 
   it("keeps every Auth.js instance behind the response finalizer", () => {
-    expect(matching(/\bNextAuth\(/)).toEqual(AUTH_INSTANCES);
-    for (const file of AUTH_INSTANCES) {
-      const source = code(file);
-      const raw = /auth:\s*(\w+),/.exec(source)?.[1];
-      expect(raw, file).toBeDefined();
-      // The raw auth only feeds the finalizer; its handler overload writes
-      // cookies to its own response.
-      expect(
-        [...source.matchAll(new RegExp(`\\b${raw}\\b`, "g"))].length,
-        file,
-      ).toBe(2);
-      expect(source, file).toMatch(
-        new RegExp(`createResponseAwareAuth\\(${raw},`),
-      );
-      // Auth.js' server helpers write Next's cookie jar; only mutateSession
-      // may call them, and it hands their cookies to the exit.
-      expect(source, file).not.toMatch(/\bsignOut\b/);
-      for (const call of source.matchAll(/\b(signIn|unstable_update)\(/g))
-        expect(
-          source.slice(Math.max(0, call.index - 200), call.index),
-          file,
-        ).toMatch(/mutateSession\(|mutate\(/);
-    }
-    expect(code("src/server/auth/session-writer.ts")).toMatch(
-      /await mutate\(\s*\(\) =>\s*signIn\(/,
+    expect(matching(/\bNextAuth\(/)).toEqual([AUTH_FACTORY]);
+    const factory = code(AUTH_FACTORY);
+    expect(factory.match(/\bNextAuth\(/g)).toHaveLength(1);
+    const instance = /const (\w+) = NextAuth\(/.exec(factory)?.[1];
+    expect(instance).toBeDefined();
+    const uses = (member: string) => [
+      ...factory.matchAll(new RegExp(`\\b${instance}\\.${member}\\b`, "g")),
+    ];
+    // The instance never leaves the factory whole; of its members only the
+    // handlers (wrapped by the Auth.js routes) are handed out.
+    expect(factory).not.toMatch(
+      new RegExp(`(\\.\\.\\.|return |: |\\()${instance}\\b(?!\\.)`),
     );
+    expect(
+      [
+        ...new Set(
+          [...factory.matchAll(new RegExp(`\\b${instance}\\.(\\w+)`, "g"))].map(
+            ([, member]) => member,
+          ),
+        ),
+      ].sort(),
+    ).toEqual(["auth", "handlers", "signIn", "unstable_update"]);
+    // The raw auth only feeds the finalizer; its handler overload writes
+    // cookies to its own response.
+    expect(uses("auth")).toHaveLength(1);
+    expect(factory).toMatch(
+      new RegExp(`createResponseAwareAuth\\(\\s*${instance}\\.auth,`),
+    );
+    // Auth.js' server helpers write Next's cookie jar; only mutateSession
+    // may call them, and it hands their cookies to the exit.
+    expect(factory).not.toMatch(/\bsignOut\b/);
+    for (const member of ["signIn", "unstable_update"]) {
+      const calls = [
+        ...factory.matchAll(new RegExp(`\\b${instance}\\.${member}\\(`, "g")),
+      ];
+      expect(calls, member).toHaveLength(1);
+      for (const call of calls)
+        expect(
+          factory.slice(Math.max(0, call.index - 200), call.index),
+          member,
+        ).toMatch(/mutateSession\(/);
+    }
+    // One instance per portal, each in its own entry module.
+    expect(
+      matching(/\bcreatePortalAuth\(/).filter((file) => file !== AUTH_FACTORY),
+    ).toEqual(Object.keys(AUTH_INSTANCES).sort());
+    for (const [file, portal] of Object.entries(AUTH_INSTANCES))
+      expect(code(file).match(/\bcreatePortalAuth\([^)]*\)/g), file).toEqual([
+        `createPortalAuth(PORTALS.${portal})`,
+      ]);
     // Nobody else reaches the raw helpers.
     expect(
       matching(
@@ -353,18 +380,16 @@ describe("session cookie writers", () => {
       "installSessionCookieExit",
     ]);
     expect(lock).not.toMatch(/^export (?!function|const)/m);
-    // The six portals' Auth.js configs take their session cookie name from
-    // the lock, the one source of what the lock and the readers match.
+    // The portal table takes every session cookie name from the lock, the
+    // one source of what the lock and the readers match; the six Auth.js
+    // configs and the layout snapshot read it from the table.
     expect(
       matching(/\b(?:PORTAL_SESSION_COOKIE_NAMES|tenantSessionCookieName)\b/),
     ).toEqual([
+      // Auth.js' default name, for the tenant cookie on localhost.
+      "src/lib/portal-session-snapshot.server.ts",
       "src/lib/session-cookie-exit.server.ts",
-      "src/server/auth/caterer-config.ts",
-      "src/server/auth/operator-config.ts",
-      "src/server/auth/parent-config.ts",
-      "src/server/auth/school-config.ts",
-      "src/server/auth/tenant-config.ts",
-      "src/server/auth/traeger-config.ts",
+      "src/server/auth/portals.ts",
     ]);
     expect(isSessionCookieName(DEMO_TOKEN_COOKIE)).toBe(false);
     expect(
@@ -384,16 +409,12 @@ describe("session cookie writers", () => {
     expect(sources).toEqual([
       // The option sessionToken carries the access token, no cookie name.
       "src/lib/auth-proxy.server.ts",
-      // Layout snapshots read the session cookie by its configured name.
-      "src/lib/caterer-session-snapshot.server.ts",
-      "src/lib/operator-session-snapshot.server.ts",
-      "src/lib/parent-session-snapshot.server.ts",
-      "src/lib/school-session-snapshot.server.ts",
-      // The six portals' session cookie names (their configs take them from
-      // here), isSessionCookieName and isWrittenSessionCookieName, #5520.
+      // The six portals' session cookie names (the portal table takes them
+      // from here), isSessionCookieName and isWrittenSessionCookieName, #5520.
       "src/lib/session-cookie-exit.server.ts",
-      "src/lib/tenant-session-snapshot.server.ts",
-      "src/lib/traeger-session-snapshot.server.ts",
+      // The portal table derives each portal's callback and CSRF cookie
+      // names from its session cookie name.
+      "src/server/auth/portals.ts",
       // The gate's own grouping of session cookie chunks, unchanged.
       "src/server/auth/session-cookie-writes.ts",
       // The inventory's own pattern.
@@ -412,6 +433,9 @@ describe("session cookie writers", () => {
       "src/lib/auth-proxy.server.ts", // listed writer
       "src/lib/login-route.server.ts", // listed writer
       "src/lib/session-cookie-exit.server.ts", // the lock at the exit
+      // The portal table: names from the lock for the Auth.js configs and
+      // the layout snapshot, neither of which writes a cookie.
+      "src/server/auth/portals.ts",
       "src/server/auth/route-handler.ts", // listed writer
       "src/server/auth/session-cookie-writes.ts", // the exit
       "src/test/session-cookie-writers.ts", // the inventory's own pattern

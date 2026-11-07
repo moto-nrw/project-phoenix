@@ -1,5 +1,5 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { withTenantAuth } from "~/server/auth";
 import { createFileExportRoute } from "~/lib/export-proxy.server";
 
 // Printable Dienstplan week (#2079) — a file download, so it bypasses the

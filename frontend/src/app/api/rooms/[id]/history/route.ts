@@ -8,8 +8,7 @@ import {
 } from "~/lib/api-helpers.server";
 import { ApiResponseError } from "~/lib/api-response-error.server";
 import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { auth, withTenantAuth } from "~/server/auth";
 import { createLogger } from "~/lib/logger";
 import { ROOM_HISTORY_STATUS_FEATURE_DISABLED } from "~/lib/room-helpers";
 

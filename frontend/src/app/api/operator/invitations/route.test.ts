@@ -10,6 +10,7 @@ const { mockAuth, mockOperatorApiGet, mockUncachedAuth } = vi.hoisted(() => ({
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockAuth,
   uncachedOperatorAuth: mockUncachedAuth,
+  withOperatorAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/lib/operator/route-wrapper.server", async (importOriginal) => {

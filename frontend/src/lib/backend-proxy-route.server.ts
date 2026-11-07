@@ -1,6 +1,5 @@
 import type { NextRequest } from "next/server";
-import { auth, uncachedAuth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { auth, uncachedAuth, withTenantAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
@@ -10,8 +9,11 @@ import {
   clientIdentityHeaders,
   getClientForwardHeaders,
 } from "~/lib/client-headers.server";
-import { operatorAuth, uncachedOperatorAuth } from "~/server/auth/operator";
-import { withOperatorAuth } from "~/server/auth/operator-route";
+import {
+  operatorAuth,
+  uncachedOperatorAuth,
+  withOperatorAuth,
+} from "~/server/auth/operator";
 import { handleApiError } from "~/lib/api-helpers.server";
 import {
   ApiResponseError,

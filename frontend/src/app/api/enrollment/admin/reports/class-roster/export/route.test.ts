@@ -12,6 +12,7 @@ const { mockAuth, mockFetch, mockGetServerApiUrl, mockUncachedAuth } =
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
   uncachedAuth: mockUncachedAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({

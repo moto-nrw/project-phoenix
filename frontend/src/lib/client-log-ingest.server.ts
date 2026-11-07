@@ -13,7 +13,7 @@ import {
   problemResponse,
 } from "~/lib/api-response-error.server";
 import { parseRequestBody } from "~/lib/route-wrapper-utils.server";
-import type { ServerSession } from "~/server/auth/shared";
+import type { ServerSession } from "~/server/auth/session-types";
 import { validateSessionToken } from "~/server/auth/token-validation";
 import { redactSensitiveLogData } from "~/lib/log-redaction";
 

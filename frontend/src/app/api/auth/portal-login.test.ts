@@ -20,48 +20,18 @@ vi.mock("next/headers", () => ({
       cookie: state.cookie,
     }),
 }));
-vi.mock("~/server/auth/operator-config", async (original) => ({
-  operatorAuthConfig: {
-    ...(await original<typeof import("~/server/auth/operator-config")>())
-      .operatorAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
-vi.mock("~/server/auth/school-config", async (original) => ({
-  schoolAuthConfig: {
-    ...(await original<typeof import("~/server/auth/school-config")>())
-      .schoolAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
-vi.mock("~/server/auth/traeger-config", async (original) => ({
-  traegerAuthConfig: {
-    ...(await original<typeof import("~/server/auth/traeger-config")>())
-      .traegerAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
-vi.mock("~/server/auth/caterer-config", async (original) => ({
-  catererAuthConfig: {
-    ...(await original<typeof import("~/server/auth/caterer-config")>())
-      .catererAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
-vi.mock("~/server/auth/parent-config", async (original) => ({
-  parentAuthConfig: {
-    ...(await original<typeof import("~/server/auth/parent-config")>())
-      .parentAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
-vi.mock("~/server/auth/tenant-config", async (original) => ({
-  tenantAuthConfig: {
-    ...(await original<typeof import("~/server/auth/tenant-config")>())
-      .tenantAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
+vi.mock("~/server/auth/portal-config", async (original) => {
+  const { createPortalAuthConfig } =
+    await original<typeof import("~/server/auth/portal-config")>();
+  return {
+    createPortalAuthConfig: (
+      ...args: Parameters<typeof createPortalAuthConfig>
+    ) => ({
+      ...createPortalAuthConfig(...args),
+      secret: "synthetic-local-stage-three-session-secret",
+    }),
+  };
+});
 
 import { createPortalLoginRoute } from "~/lib/portal-login-route.server";
 import { POST as demo } from "../demo/access/sessions/route";

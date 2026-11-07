@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toBrowserSession, withBrowserSession } from "./browser-session";
-import type { ServerSession } from "./shared";
+import type { ServerSession } from "./session-types";
 
 const serverSession = (): ServerSession => ({
   expires: "2099-01-01T00:00:00.000Z",

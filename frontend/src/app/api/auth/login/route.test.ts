@@ -21,6 +21,7 @@ const { setTenantSession } = vi.hoisted(() => ({
 vi.mock("~/server/auth", () => ({
   setTenantSession,
   withTenantSessionResponse: (handler: unknown) => handler,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 const { POST } = await import("./route");

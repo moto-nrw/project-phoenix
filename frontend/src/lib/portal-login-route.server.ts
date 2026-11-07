@@ -4,6 +4,7 @@ import {
   setOperatorSession,
   withOperatorSessionResponse,
 } from "~/server/auth/operator";
+import { PORTALS, type BackendAuthStep } from "~/server/auth/portals";
 import {
   setSchoolSession,
   withSchoolSessionResponse,
@@ -21,7 +22,6 @@ const bindings = {
   operator: {
     withResponse: withOperatorSessionResponse,
     setSession: setOperatorSession,
-    rollbackPath: "/operator/auth/logout",
   },
   school: {
     withResponse: withSchoolSessionResponse,
@@ -37,21 +37,16 @@ const bindings = {
     setSession: setCatererSession,
   },
 };
+
 export function createPortalLoginRoute(
-  portal: keyof typeof bindings,
-  step: "login" | "mfa/verify" | "mfa/enroll/confirm" | "passkeys/login/verify",
+  key: keyof typeof bindings,
+  step: Exclude<BackendAuthStep, "refresh">,
 ) {
-  const path =
-    portal === "operator"
-      ? `/operator/auth/${step}`
-      : `/${portal}/auth/${step}`;
-  return createLoginRoute(path, {
-    ...bindings[portal],
-    // Operator passkey verification returns a plain LoginResponse; the
-    // caterer's second factor (#4497) answers plain JSON after its login.
-    envelope:
-      (portal === "caterer" && step === "login") ||
-      (portal === "operator" && step !== "passkeys/login/verify"),
+  const { backend } = PORTALS[key];
+  return createLoginRoute(`${backend.authPrefix}/${step}`, {
+    ...bindings[key],
+    logout: backend.logout,
+    envelope: (backend.enveloped as readonly BackendAuthStep[]).includes(step),
     challenges: step === "login",
   });
 }

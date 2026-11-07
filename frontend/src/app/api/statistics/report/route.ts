@@ -7,8 +7,7 @@ import {
   problemResponse,
 } from "~/lib/api-helpers.server";
 import { executeWithTokenRefresh } from "~/lib/token-refresh-retry.server";
-import { auth, uncachedAuth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { auth, uncachedAuth, withTenantAuth } from "~/server/auth";
 
 /**
  * Proxy for GET /api/statistics/report (Statistik, #2606).

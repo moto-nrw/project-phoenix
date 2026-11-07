@@ -10,6 +10,7 @@ const { mockHandlers } = vi.hoisted(() => ({
 
 vi.mock("~/server/auth", () => ({
   handlers: mockHandlers,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 // Import after mocks are set up

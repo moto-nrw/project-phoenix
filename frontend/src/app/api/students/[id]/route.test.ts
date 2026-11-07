@@ -22,6 +22,7 @@ const { mockAuth, mockApiGet, mockApiPut, mockApiDelete } = vi.hoisted(() => ({
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  withTenantAuth: (handler: unknown) => handler,
 }));
 
 // The real handleApiError: the consent marker test reads the forwarded envelope.

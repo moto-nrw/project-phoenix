@@ -1,7 +1,6 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { type NextRequest } from "next/server";
-import { auth, uncachedAuth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { auth, uncachedAuth, withTenantAuth } from "~/server/auth";
 import { streamIcsDownload } from "~/lib/ics-download.server";
 import {
   createUnauthorizedResponse,
