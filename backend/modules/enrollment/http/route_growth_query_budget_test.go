@@ -128,7 +128,10 @@ func TestEnrollmentCatalogRouteGrowthQueryBudget(t *testing.T) {
 			path := "/requests/" + submitted.Request.StatusToken + suffix
 			counter.Reset()
 			rec := httptest.NewRecorder()
-			router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+			// Production mounts the request-scoped settings cache router-wide
+			// (api/serve_middleware.go); the token pages count with it, so a
+			// further school setting costs no statement of its own (#6042).
+			api.RequestSettingsCacheMiddleware(router).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 			result[i] = counter.Queries()
 			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 			var body struct {

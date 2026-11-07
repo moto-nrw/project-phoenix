@@ -21,7 +21,7 @@
     "additionalGuardianLabel": "Dodatkowy opiekun {index}",
     "extraKicker": "Pytania dodatkowe",
     "extraTitle": "Dodatkowe informacje",
-    "extraDescription": "OGS potrzebuje tych informacji oprócz danych podstawowych. Pytania obowiązkowe są oznaczone gwiazdką.",
+    "extraDescription": "{careTerm} potrzebuje tych informacji oprócz danych podstawowych. Pytania obowiązkowe są oznaczone gwiazdką.",
     "childrenKicker": "Krok 2",
     "childrenTitle": "Dziecko lub dzieci",
     "childrenDescription": "Proszę podać każde dziecko osobno. Dla rodzeństwa mogą Państwo dodać dane kolejnego dziecka przyciskiem.",
@@ -103,7 +103,7 @@
     "exactlyOneHint": "Proszę wybrać dokładnie jedną ofertę dla tego dziecka.",
     "atLeastOneHint": "Proszę wybrać co najmniej jedną ofertę dla tego dziecka.",
     "optionalHint": "Proszę wybrać oferty dla tego dziecka.",
-    "reviewHint": "OGS sprawdzi wolne miejsca po wysłaniu. Uwaga: po zapisaniu na całodzienną opiekę dziecko ma zgodnie z przepisami o szkole całodziennej obowiązek obecności w wybranych godzinach.",
+    "reviewHint": "{careTerm} sprawdzi wolne miejsca po wysłaniu. Uwaga: po zapisaniu na całodzienną opiekę dziecko ma zgodnie z przepisami o szkole całodziennej obowiązek obecności w wybranych godzinach.",
     "requiredBadge": "Obowiązkowe",
     "automaticBadge": "automatycznie",
     "chooseExactlyOne": "Proszę wybrać dokładnie jedną ofertę.",
@@ -120,7 +120,7 @@
     "ruleAtMostOnePerDay": "Najwyżej jedna dziennie",
     "availabilitySelectionRemoved": "Po zmianie poziomu klasy niektóre oferty opieki nie są już dostępne. Powiązany wybór, dni opieki i automatyczne dodatkowe zapisy zostały usunięte.",
     "chooseGradeFirst": "Proszę najpierw wybrać klasę dziecka. Potem pojawią się tutaj pasujące oferty opieki.",
-    "noOfferingsForGrade": "Dla klasy {grade} nie ma pasujących ofert opieki. W razie pytań prosimy o kontakt z OGS."
+    "noOfferingsForGrade": "Dla klasy {grade} nie ma pasujących ofert opieki. W razie pytań prosimy o kontakt z {careTerm}."
   },
   "consent": {
     "agb": "Akceptuję regulamin szkoły.",
@@ -132,7 +132,7 @@
     "emailTitle": "Kontakt przez e-mail",
     "photoTitle": "Zgoda na zdjęcia"
   },
-  "captchaMisconfigured": "Zapis online nie jest teraz możliwy. Problem nie leży po Państwa stronie. Proszę skontaktować się z OGS.",
+  "captchaMisconfigured": "Zapis online nie jest teraz możliwy. Problem nie leży po Państwa stronie. Proszę skontaktować się z {careTerm}.",
   "structured": {
     "yes": "Tak",
     "no": "Nie",
@@ -231,7 +231,7 @@
     "care": "Zarezerwowane oferty",
     "noCare": "Nie zarezerwowano żadnych ofert.",
     "hint": "Zmiany dla dziecka {name} wprowadzają Państwo teraz w aplikacji dla rodziców.",
-    "noAccess": "Nie mogą Państwo korzystać z aplikacji dla rodziców? Proszę skontaktować się z OGS."
+    "noAccess": "Nie mogą Państwo korzystać z aplikacji dla rodziców? Proszę skontaktować się z {careTerm}."
   },
   "upload": {
     "errorObject": "plik",
@@ -266,7 +266,7 @@
     "emptyDrawing": "Podpisz się w polu.",
     "nameTooShort": "Wpisz swoje imię i nazwisko.",
     "title": "Podpis",
-    "description": "Prosimy podpisać zgłoszenie. Bez podpisu nie trafi ono do świetlicy.",
+    "description": "Prosimy podpisać zgłoszenie. Bez podpisu nie trafi ono do {careTerm}.",
     "required": "Prosimy podpisać zgłoszenie."
   }
 }

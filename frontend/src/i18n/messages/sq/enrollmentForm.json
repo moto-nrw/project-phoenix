@@ -23,7 +23,7 @@
     "additionalGuardianLabel": "Kujdestari {index}",
     "extraKicker": "Pyetje shtesë",
     "extraTitle": "Të dhëna të tjera",
-    "extraDescription": "OGS-ja ka nevojë për këto të dhëna shtesë krahas të dhënave bazë. Pyetjet e detyrueshme janë shënuar me yll.",
+    "extraDescription": "{careTerm}-ja ka nevojë për këto të dhëna shtesë krahas të dhënave bazë. Pyetjet e detyrueshme janë shënuar me yll.",
     "childrenDescription": "Regjistroni çdo fëmijë veçmas. Për motrat/vëllezërit mund të shtoni të dhëna të tjera fëmije me butonin.",
     "newStudentsOnlyNotice": "Kjo fazë regjistrimi është vetëm për fëmijë të rinj. Fëmijët tashmë të regjistruar në shkollë nuk mund të riregjistrohen këtu.",
     "consentDescription": "Ju lutemi lexoni me kujdes pëlqimet. Pëlqimet e detyrueshme duhet të zgjidhen aktivisht.",
@@ -113,7 +113,7 @@
     "exactlyOneHint": "Zgjidhni saktësisht një ofertë që dëshironi për këtë fëmijë.",
     "atLeastOneHint": "Zgjidhni të paktën një ofertë që dëshironi për këtë fëmijë.",
     "optionalHint": "Zgjidhni ofertat që dëshironi për këtë fëmijë.",
-    "reviewHint": "OGS-ja kontrollon vendet e lira pas dërgimit. Ju lutemi vini re: Me regjistrimin në ofertën e shkollës gjithëditore, fëmija juaj është i detyruar të marrë pjesë në oraret e regjistruara sipas rregullores për shkollën gjithëditore.",
+    "reviewHint": "{careTerm}-ja kontrollon vendet e lira pas dërgimit. Ju lutemi vini re: Me regjistrimin në ofertën e shkollës gjithëditore, fëmija juaj është i detyruar të marrë pjesë në oraret e regjistruara sipas rregullores për shkollën gjithëditore.",
     "requiredBadge": "E detyrueshme",
     "automaticBadge": "automatike",
     "chooseExactlyOne": "Ju lutemi zgjidhni saktësisht një ofertë.",
@@ -130,9 +130,9 @@
     "ruleAtMostOnePerDay": "Më së shumti një në ditë",
     "availabilitySelectionRemoved": "Disa oferta kujdesi nuk janë më të disponueshme për klasën e zgjedhur. Zgjedhjet, ditët dhe shtesat automatike u hoqën.",
     "chooseGradeFirst": "Zgjidhni fillimisht klasën e fëmijës suaj. Më pas do të shihni këtu ofertat e përshtatshme të kujdesit.",
-    "noOfferingsForGrade": "Për klasën {grade} nuk ka oferta të përshtatshme kujdesi. Për pyetje, ju lutemi kontaktoni OGS-në."
+    "noOfferingsForGrade": "Për klasën {grade} nuk ka oferta të përshtatshme kujdesi. Për pyetje, ju lutemi kontaktoni {careTerm}-në."
   },
-  "captchaMisconfigured": "Regjistrimi online nuk është i mundur tani. Nuk është faji juaj. Ju lutemi kontaktoni OGS-në.",
+  "captchaMisconfigured": "Regjistrimi online nuk është i mundur tani. Nuk është faji juaj. Ju lutemi kontaktoni {careTerm}-në.",
   "structured": {
     "yes": "Po",
     "no": "Jo",
@@ -231,7 +231,7 @@
     "care": "Ofertat e rezervuara",
     "noCare": "Asnjë ofertë e rezervuar.",
     "hint": "Ndryshimet për {name} tani bëhen përmes aplikacionit për prindër.",
-    "noAccess": "Nuk mund të hyni në aplikacionin për prindër? Ju lutemi kontaktoni OGS-në."
+    "noAccess": "Nuk mund të hyni në aplikacionin për prindër? Ju lutemi kontaktoni {careTerm}-në."
   },
   "upload": {
     "errorObject": "skedari",
@@ -266,7 +266,7 @@
     "emptyDrawing": "Ju lutemi nënshkruani në fushë.",
     "nameTooShort": "Ju lutemi shkruani emrin tuaj.",
     "title": "Nënshkrimi",
-    "description": "Ju lutemi nënshkruani regjistrimin. Pa nënshkrim ai nuk i dërgohet shkollës ditore.",
+    "description": "Ju lutemi nënshkruani regjistrimin. Pa nënshkrim ai nuk i dërgohet {careTerm}.",
     "required": "Ju lutemi nënshkruani regjistrimin."
   }
 }
