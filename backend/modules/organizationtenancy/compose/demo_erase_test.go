@@ -22,7 +22,9 @@ const (
 // visitor's name to (#4048), as SQL counting the rows of the school ?0 that
 // still hold it. The signed declarations of the parent are a seventh place;
 // they need a whole declaration of Communication, so the seed-smoke job
-// covers them with a real seed.
+// covers them with a real seed. The table a count reads first is its place;
+// TestVisitorTraceCountsCountEveryRowHoldingTheVisitor fails when a row
+// leaveVisitorTraces writes holds the name and no count reads it (#6015).
 var visitorTraceCounts = map[string]string{
 	"users.persons": `SELECT count(*) FROM users.persons
 		WHERE tenant_id = ?0 AND first_name = '` + visitorFirst + `' AND last_name = '` + visitorLast + `'`,
