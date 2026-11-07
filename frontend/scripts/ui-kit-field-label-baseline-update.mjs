@@ -2,6 +2,7 @@
 // Schreibt scripts/ui-kit-field-label-baseline.json neu (#5589). Nur nach dem
 // Abbau von Funden ausführen; die Baseline darf nur sinken. `--check` schreibt
 // nichts und meldet Abweichungen.
+import { fieldLabelAllowlist } from "./ui-kit-field-label-baseline.mjs";
 import { updateRatchetBaseline } from "./ui-kit-ratchet-baseline.mjs";
 
 updateRatchetBaseline({
@@ -9,6 +10,6 @@ updateRatchetBaseline({
   baselineFile: "ui-kit-field-label-baseline.json",
   pathEnv: "UI_KIT_FIELD_LABEL_BASELINE_PATH",
   countEnv: "UI_KIT_FIELD_LABEL_RATCHET",
-  allowlist: [],
+  allowlist: fieldLabelAllowlist,
   command: "pnpm run ui-kit:field-label-baseline",
 });

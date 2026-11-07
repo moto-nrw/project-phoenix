@@ -2335,6 +2335,8 @@ describe.concurrent("ui-kit/no-hand-rolled-field-label (#5589)", () => {
     '<label htmlFor="a" className="text-sm font-medium">A</label>',
     '<span className="mb-1.5 block text-sm font-medium text-gray-700">A</span>',
     '<label><span className="block text-sm font-medium">A</span><Input /></label>',
+    '<label><span className="text-xs font-medium text-gray-700">A</span><Input /></label>',
+    '<label className="flex flex-col gap-1 text-sm font-medium">A<Input /></label>',
   ])("reports %s", async (element) => {
     const { output } = await lintSource(
       `import { Input } from "~/components/ui/input";
@@ -2353,12 +2355,16 @@ describe.concurrent("ui-kit/no-hand-rolled-field-label (#5589)", () => {
     '<label htmlFor="a" className="rounded-lg border px-3 py-2 text-sm font-medium">Datei wählen</label>',
     '<span className="block text-sm font-medium text-gray-900">Name einer Zeile</span>',
     '<span className="mb-1 text-sm font-medium">Inline</span>',
+    '<label><Input /><span className="text-xs font-medium">Nach dem Feld</span></label>',
+    '<label className="flex"><span className="text-sm font-medium">A</span><Checkbox /></label>',
     '<label htmlFor="a" className="block text-sm text-gray-700">Ohne Gewicht</label>',
   ])("accepts %s", async (element) => {
     const { output } = await lintSource(
       `import { Checkbox } from "~/components/ui/checkbox";
+      import { Input } from "~/components/ui/input";
       export const Probe = () => ${element};
-      void Checkbox;`,
+      void Checkbox;
+      void Input;`,
       "src/components/probe-form.tsx",
     );
     expect(output).not.toContain(RULE);

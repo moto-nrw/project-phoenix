@@ -98,7 +98,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 |---|---|---|
 | Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
 | Text input | `Input`, multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
-| Field label, hint | `label`/`hint` prop of `Input`, `Textarea`, `CustomSelect`; else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
+| Field label, hint | `label`/`hint` prop of `Input`, `Textarea`, `CustomSelect` (`ISODatePicker`: `label`); else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group's `<legend>` ends in `RequiredMark`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
 | Checkbox | `Checkbox` — gray-900 checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
 | Consent or confirmation a person ticks (Einwilligung, „verbindlich“) | `ConsentCheckbox` — `required`, `error`, `action` for the legal text button; both public Anmeldungen use it | `~/components/ui/consent-checkbox` |
@@ -325,14 +325,9 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `moto-content-surface` and `moto-popover-surface` are unlayered CSS classes, so they beat every Tailwind utility on the same element for border color, background and shadow and ring; `ui-kit/no-dead-surface-utility` fails such utilities beside them (focus: `outline-2`, override: `!`). Never put `moto-content-surface` on an element that needs a tinted branch (`danger ? "border-moto-red/20 bg-moto-red/10" : …`) — put it in the neutral branch only. It also adds `backdrop-filter: blur(8px)`, which turns the element into the containing block for `position: fixed` descendants (kit `Modal` is portal-rendered and unaffected).
 
-```bash
-# Components imported from the design-system package — should be ZERO (tokens only)
-rg -n "from ['\"]@moto-nrw/design-system['\"]" frontend/src -g '*.tsx' -g '*.ts'
-```
-
 ## Mandatory visual check — do not skip
 
-For any change a school user would see, **run the app locally and look at the actual screen before calling the work done**. Use the `verify` / agent-browser flow against `{slug}.localhost:3000`, screenshot it, and compare it with the nearest canonical screen above.
+For any change a school user would see, **run the app locally and look at the actual screen before calling the work done**. Use the `verify` / agent-browser flow against `{slug}.localhost:3000`, screenshot it, and compare it with the nearest canonical screen above. If it doesn't sit naturally next to that screen, it isn't done.
 
 ## Design-review checklist
 
@@ -346,9 +341,8 @@ Apply before marking UI work complete or approving it:
 - [ ] No marketing-style hero / decorative cards — it reads as an operational school tool
 - [ ] Works on mobile
 - [ ] Dense enough for daily operational use (not airy / landing-page)
-- [ ] Mandatory visual check done
 - [ ] **Missverständnis-Check** passed and recorded in the PR description: every visible block explains its purpose in one sentence, nothing read-only looks clickable, preconditions are stated in the product, no two labels share a word stem without a visible boundary, copy follows `moto-einfache-sprache` — full checklist in `.claude/rules/verstaendlichkeit.md`
 
 ## When to deviate
 
-Only with explicit reviewer approval recorded in the PR description, citing this rule and the reason.
+Only with explicit reviewer approval recorded in the PR description, citing this rule and the reason. "It was faster to inline it" is not a reason — add the missing piece to the kit instead.

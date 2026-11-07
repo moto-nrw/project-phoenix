@@ -785,7 +785,15 @@ export function ISODatePicker({
 
   return (
     <div>
-      {label && <FieldLabel htmlFor={rest.id}>{label}</FieldLabel>}
+      {label && (
+        <FieldLabel
+          htmlFor={rest.id}
+          required={rest.required}
+          invalid={Boolean(error)}
+        >
+          {label}
+        </FieldLabel>
+      )}
       {picker}
       {error && (
         <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">

@@ -6,7 +6,10 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import { fieldLabelBaseline } from "./ui-kit-field-label-baseline.mjs";
+import {
+  fieldLabelAllowlist,
+  fieldLabelBaseline,
+} from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
@@ -3321,8 +3324,8 @@ const noHandRolledStickyBar = {
 
 // ui-kit/no-hand-rolled-field-label (#5589) — die Beschriftung eines Felds kommt
 // aus `FieldLabel` oder der `label`-Prop. Fund: `<label>` mit text-xs/text-sm und
-// font-medium/font-semibold, oder ein `<span>` dieser Art mit `block`, das über
-// dem Feld steht (`mb-*`) oder direkt in einem `<label>` sitzt. Kein Fund: Zeilen
+// font-medium/font-semibold, ein `<span>` dieser Art mit `block` und `mb-*` über
+// dem Feld, oder als erstes Kind oder mit `block` in einem `<label>`. Kein Fund: Zeilen
 // (Checkbox plus Text), `sr-only`, ein `<label>` in Knopfoptik (Datei wählen).
 // Start mit shrink-only Baseline je Datei, Abbau je Bereich in Sub-Issues.
 const FIELD_LABEL_SIZE = new Set(["text-xs", "text-sm"]);
@@ -3331,6 +3334,10 @@ const FIELD_LABEL_ROW_RE = /^(?:inline-)?(?:flex|grid)$/;
 const FIELD_LABEL_CONTROL_LOOK_RE = /^(?:p[xy]?-|border|bg-|rounded|ring)/;
 
 function isFieldLabelRow(utilities) {
+  // Eine gestapelte Beschriftung (`flex flex-col`) ist keine Zeile.
+  if (utilities.includes("flex-col") && !utilities.includes("flex-row")) {
+    return false;
+  }
   return utilities.some((token) => FIELD_LABEL_ROW_RE.test(token));
 }
 
@@ -3350,7 +3357,7 @@ const noHandRolledFieldLabel = makeRatchetRule({
   message:
     "Keine eigene Feldbeschriftung: `label`-Prop von Input, Textarea oder CustomSelect, sonst FieldLabel aus ~/components/ui/field-label. Immer normal geschrieben, nie in Versalien (#5589, .claude/rules/frontend-ui-kit.md).",
   baselines: fieldLabelBaseline,
-  allowlist: [],
+  allowlist: fieldLabelAllowlist,
   countEnv: "UI_KIT_FIELD_LABEL_RATCHET",
   kitFile: "src/components/ui/field-label.tsx",
   detect: ({ classText: textOf, found }) => ({
@@ -3373,19 +3380,22 @@ const noHandRolledFieldLabel = makeRatchetRule({
         found(node);
         return;
       }
-      if (!utilities.includes("block")) return;
-      if (utilities.some((token) => token.startsWith("mb-"))) {
+      const isBlock = utilities.includes("block");
+      if (isBlock && utilities.some((token) => token.startsWith("mb-"))) {
         found(node);
         return;
       }
       const parent = parentJsxElement(node);
-      if (parent && jsxName(parent.name) === "label") {
-        const parentClass = jsxAttribute(parent, "className");
-        const parentUtilities = parentClass?.value
-          ? classUtilities(textOf(parentClass.value))
-          : [];
-        if (!isFieldLabelRow(parentUtilities)) found(node);
-      }
+      if (!parent || jsxName(parent.name) !== "label") return;
+      const firstChild = node.parent.parent.children.find(
+        (child) => child.type === "JSXElement",
+      );
+      if (!isBlock && firstChild !== node.parent) return;
+      const parentClass = jsxAttribute(parent, "className");
+      const parentUtilities = parentClass?.value
+        ? classUtilities(textOf(parentClass.value))
+        : [];
+      if (!isFieldLabelRow(parentUtilities)) found(node);
     },
   }),
 });
