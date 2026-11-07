@@ -10706,7 +10706,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsAuditLog.RecordStatisticsAccess",
-      "binding_digest": "923de25dbd83f554748701b08d27a297",
+      "binding_digest": "a0a50add9be6d50c158baab5629b7ee1",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsAccessLog.RecordStatisticsAccess",
       "source_owner": "student-presence",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLog.SetMetadata",
@@ -10714,7 +10714,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsAuditLog.RecordStatisticsAccess",
-      "binding_digest": "3f011d4ff207d78711a41f8cbb0d6176",
+      "binding_digest": "411908c0342f0231638f780dff3aa076",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsAccessLog.RecordStatisticsAccess",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
@@ -10742,6 +10742,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsRetention.OccupancyRetentionDays",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.OccupancyRetentionDays",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.PrefetchCareTimeSettings",
+      "binding_digest": "48e3439d6d309abb62cfcb5599ad812f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsRetention.PrefetchCareTimeSettings",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.PrefetchCareTimeSettings",
       "target_owner": "settings-platform"
     },
     {

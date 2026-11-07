@@ -14592,7 +14592,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsAccessLog.RecordStatisticsAccess",
-      "reason": "Read-only newly exposed target: student-presence reaches modules/auditlog/records.DataAccessLog.SetMetadata (audit-platform) through roots/owners.StatisticsAuditLog.RecordStatisticsAccess. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/auditlog/records.DataAccessLog.SetMetadata (audit-platform) through roots/owners.StatisticsAuditLog.RecordStatisticsAccess. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Since #4683 the entry carries the child of a read of one child's care times (StudentID, ADR 0088 section 7).",
       "source_owner": "student-presence",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLog.SetMetadata",
       "target_owner": "audit-platform"
@@ -14603,7 +14603,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsAccessLog.RecordStatisticsAccess",
-      "reason": "Platform protocol participation (mutation): student-presence reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.StatisticsAuditLog.RecordStatisticsAccess. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): student-presence reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.StatisticsAuditLog.RecordStatisticsAccess. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the entry carries the child of a read of one child's care times (StudentID, ADR 0088 section 7).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
       "target_owner": "audit-platform"
@@ -14636,6 +14636,16 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings.StatisticsRetention.OccupancyRetentionDays: resolves the status day and the attendance retention windows of the tenant in one settings read (#4683, ADR 0156).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.OccupancyRetentionDays",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.PrefetchCareTimeSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsRetention.PrefetchCareTimeSettings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings.StatisticsRetention.PrefetchCareTimeSettings: reads the settings Soll und Ist resolves in one statement and carries the snapshot in the context (#4683, ADR 0156).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.PrefetchCareTimeSettings",
       "target_owner": "settings-platform"
     },
     {
