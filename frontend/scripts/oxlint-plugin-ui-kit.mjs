@@ -752,30 +752,26 @@ const SURFACE_CONTROL_ELEMENTS = new Set([
 function isWideSurfaceTokens(tokens) {
   const baseTokens = [];
   const responsiveTokens = new Map();
-  const stateTokens = [];
   for (const token of tokens) {
     const [variant, normalized] = token.split(/:(.+)/);
     if (!normalized) {
       baseTokens.push(token);
       continue;
     }
-    if (!SURFACE_RESPONSIVE_VARIANT_RE.test(variant)) {
-      stateTokens.push(token);
-      continue;
-    }
+    if (!SURFACE_RESPONSIVE_VARIANT_RE.test(variant)) continue;
     const variantTokens = responsiveTokens.get(variant) ?? [];
     variantTokens.push(normalized);
     responsiveTokens.set(variant, variantTokens);
   }
-  const states = [[...baseTokens, ...stateTokens]];
+  const states = [baseTokens];
   const cumulativeTokens = [...baseTokens];
   for (const breakpoint of SURFACE_BREAKPOINTS) {
     cumulativeTokens.push(...(responsiveTokens.get(breakpoint) ?? []));
-    states.push([...cumulativeTokens, ...stateTokens]);
+    states.push([...cumulativeTokens]);
     responsiveTokens.delete(breakpoint);
   }
   for (const variantTokens of responsiveTokens.values()) {
-    states.push([...baseTokens, ...variantTokens, ...stateTokens]);
+    states.push([...baseTokens, ...variantTokens]);
   }
   return states.some(isWideSurfaceTokenGroup);
 }

@@ -735,7 +735,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     expect(output).not.toContain("no-hand-rolled-surface");
   });
 
-  it("ignores prefixed tokens, frameless borders and translucent fills", async () => {
+  it("ignores unsupported variants, frameless borders and translucent fills", async () => {
     const result = await lintSource(
       `
       function Probe() {
@@ -743,7 +743,6 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
           <div className="rounded-xl border-0 bg-white px-4 ring-1" />
           <div className="rounded-xl border-none bg-white p-4" />
           <div className="rounded-2xl border-b bg-white p-4" />
-          <div className="rounded-xl border focus:bg-white p-4" />
           <div className="flex gap-4 print:rounded-2xl print:border print:bg-white" />
         </>;
       }
@@ -769,6 +768,8 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     '<section className="space-y-3 rounded-md border border-gray-200 p-3" />',
     '<li className="rounded-xl border px-4 py-3" />',
     '<div className="rounded-lg border bg-transparent p-3" />',
+    '<div className="rounded-lg border p-4 hover:bg-gray-50" />',
+    '<div className="rounded-lg border p-4 focus:bg-white" />',
   ])("reports the widened surface %s outside the kit", async (element) => {
     const result = await lintSource(
       `export const Probe = () => ${element};`,
