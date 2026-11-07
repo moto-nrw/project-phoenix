@@ -78,7 +78,7 @@ func (c *Contracts) signatureOf(ctx context.Context, organizationID int64, recor
 	if err != nil {
 		return carecontract.ContractSignature{}, err
 	}
-	document, err := c.store.CurrentDocument(ctx, organizationID, record.Summary.ID)
+	document, err := c.store.CurrentDocument(ctx, organizationID, record.Summary.ID, record.Version.ID)
 	if err != nil {
 		return carecontract.ContractSignature{}, err
 	}

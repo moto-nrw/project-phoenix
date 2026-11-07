@@ -50,7 +50,7 @@ func (s *Signatures) RecordPaperSignature(ctx context.Context, reviewer carecont
 			return err
 		}
 	}
-	document, err := s.store.CurrentDocument(ctx, reviewer.OrganizationID, contractID)
+	document, err := s.store.CurrentDocument(ctx, reviewer.OrganizationID, contractID, record.Version.ID)
 	if err != nil {
 		return err
 	}

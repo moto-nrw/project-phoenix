@@ -272,7 +272,7 @@ function ParentDocumentCard({
                 tone="green"
               />
             ) : (
-              <StatusBadge label={t("signed")} tone="green" />
+              <StatusBadge label={t("concluded")} tone="green" />
             )}
           </DataField>
         ) : null}

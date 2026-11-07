@@ -19,8 +19,8 @@ import (
 
 var _ ports.SignatureStore = (*Store)(nil)
 
-// CurrentDocument reads the frozen PDF of the contract's current version.
-func (Store) CurrentDocument(ctx context.Context, organizationID, contractID int64) (ports.StoredDocument, error) {
+// CurrentDocument reads the frozen PDF of the selected contract version.
+func (Store) CurrentDocument(ctx context.Context, organizationID, contractID, versionID int64) (ports.StoredDocument, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return ports.StoredDocument{}, err
@@ -34,10 +34,8 @@ func (Store) CurrentDocument(ctx context.Context, organizationID, contractID int
 	}
 	err = db.NewRaw(`SELECT d.id, d.contract_version_id, d.pdf_sha256, d.filename, d.pdf
 		FROM care_contract.contract_documents AS d
-		WHERE d.organization_id = ? AND d.contract_id = ? AND d.contract_version_id = (
-			SELECT v.id FROM care_contract.contract_versions AS v WHERE v.organization_id = d.organization_id
-				AND v.contract_id = d.contract_id ORDER BY v.version_number DESC LIMIT 1)`,
-		organizationID, contractID).Scan(ctx, &row)
+		WHERE d.organization_id = ? AND d.contract_id = ? AND d.contract_version_id = ?`,
+		organizationID, contractID, versionID).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.StoredDocument{}, carecontract.ErrContractNotSignable
 	}
@@ -228,8 +226,9 @@ func (Store) Reminders(ctx context.Context, organizationID, contractID int64) ([
 
 // DueReminders lists the sent contracts without signature whose last mail
 // or reminder was sent before lastContactBefore and that have fewer than
-// maxReminders reminders, with the address of their last mail.
-func (Store) DueReminders(ctx context.Context, organizationID int64, lastContactBefore time.Time, maxReminders int) ([]ports.ReminderCandidate, error) {
+// maxReminders reminders, with the address of their last mail. A nonzero
+// contractID restricts the query to that contract for revalidation under its lock.
+func (Store) DueReminders(ctx context.Context, organizationID, contractID int64, lastContactBefore time.Time, maxReminders int) ([]ports.ReminderCandidate, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
@@ -246,9 +245,9 @@ func (Store) DueReminders(ctx context.Context, organizationID int64, lastContact
 			ORDER BY cm.sent_at DESC, cm.id DESC LIMIT 1) AS m ON true
 		JOIN LATERAL (SELECT COUNT(*)::int AS sent, MAX(cr.sent_at) AS last FROM care_contract.contract_reminders AS cr
 			WHERE cr.organization_id = c.organization_id AND cr.contract_id = c.id) AS r ON true
-		WHERE c.organization_id = ? AND c.status = ? AND r.sent < ?
+		WHERE c.organization_id = ? AND (? = 0 OR c.id = ?) AND c.status = ? AND r.sent < ?
 			AND GREATEST(m.sent_at, COALESCE(r.last, m.sent_at)) <= ?
-		ORDER BY c.id`, organizationID, carecontract.StatusSent, maxReminders, lastContactBefore).Scan(ctx, &rows); err != nil {
+		ORDER BY c.id`, organizationID, contractID, contractID, carecontract.StatusSent, maxReminders, lastContactBefore).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read due reminders: %w", err)
 	}
 	candidates := make([]ports.ReminderCandidate, len(rows))

@@ -85,7 +85,7 @@ type ReminderCandidate struct {
 // SignatureStore persists the signatures, links and reminders of the
 // contracts of a Träger in its Träger transaction.
 type SignatureStore interface {
-	CurrentDocument(ctx context.Context, organizationID, contractID int64) (StoredDocument, error)
+	CurrentDocument(ctx context.Context, organizationID, contractID, versionID int64) (StoredDocument, error)
 	InsertSigningLink(ctx context.Context, organizationID, contractID, documentID int64, tokenSHA256 string, expiresAt time.Time) error
 	SigningLink(ctx context.Context, organizationID int64, tokenSHA256 string) (SigningLinkRecord, error)
 	UseSigningLink(ctx context.Context, organizationID, linkID int64, at time.Time) error
@@ -93,7 +93,7 @@ type SignatureStore interface {
 	Signature(ctx context.Context, organizationID, contractID, versionID int64) (*StoredSignature, error)
 	PaperDocument(ctx context.Context, organizationID, contractID int64) (carecontract.File, error)
 	Reminders(ctx context.Context, organizationID, contractID int64) ([]carecontract.Reminder, error)
-	DueReminders(ctx context.Context, organizationID int64, lastContactBefore time.Time, maxReminders int) ([]ReminderCandidate, error)
+	DueReminders(ctx context.Context, organizationID, contractID int64, lastContactBefore time.Time, maxReminders int) ([]ReminderCandidate, error)
 	InsertReminder(ctx context.Context, organizationID, contractID int64, number int, outboxID int64, recipient string) error
 	InboxContractAddressed(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (bool, error)
 }

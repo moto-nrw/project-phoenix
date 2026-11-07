@@ -101,7 +101,7 @@ func (s *Signatures) openLink(ctx context.Context, organizationID int64, token s
 	if err != nil {
 		return linkTarget{}, err
 	}
-	document, err := s.store.CurrentDocument(ctx, organizationID, link.ContractID)
+	document, err := s.store.CurrentDocument(ctx, organizationID, link.ContractID, record.Version.ID)
 	if errors.Is(err, carecontract.ErrContractNotSignable) {
 		return linkTarget{}, carecontract.ErrSigningLinkInvalid
 	}
@@ -248,7 +248,7 @@ func (s *Signatures) inboxContract(ctx context.Context, organizationID, contract
 	if err != nil {
 		return ContractRecord{}, StoredDocument{}, err
 	}
-	document, err := s.store.CurrentDocument(ctx, organizationID, contractID)
+	document, err := s.store.CurrentDocument(ctx, organizationID, contractID, record.Version.ID)
 	if errors.Is(err, carecontract.ErrContractNotSignable) {
 		return ContractRecord{}, StoredDocument{}, carecontract.ErrInboxDocumentNotFound
 	}

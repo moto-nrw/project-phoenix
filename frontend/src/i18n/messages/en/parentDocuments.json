@@ -30,6 +30,7 @@
   "image": "Image",
   "awaitingSignature": "Waiting for your signature",
   "signed": "Signed",
+  "concluded": "Concluded",
   "signNow": "Read and sign",
   "signedAt": "Signed on",
   "status": "Status"

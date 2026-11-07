@@ -30,7 +30,7 @@ func (s signingErrorStore) Contract(context.Context, int64, int64, bool) (Contra
 	}
 	return ContractRecord{Summary: carecontract.ContractSummary{Status: carecontract.StatusSent}}, nil
 }
-func (s signingErrorStore) CurrentDocument(context.Context, int64, int64) (StoredDocument, error) {
+func (s signingErrorStore) CurrentDocument(context.Context, int64, int64, int64) (StoredDocument, error) {
 	if s.stage == "document" {
 		return StoredDocument{}, s.failure
 	}

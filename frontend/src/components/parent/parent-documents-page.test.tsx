@@ -274,6 +274,32 @@ describe("ParentDocumentsPage", () => {
     },
   );
 
+  it("distinguishes a concluded contract without a signature", async () => {
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [
+        {
+          ...letter,
+          kind: "care_contract",
+          contract_status: "aktiv",
+          signed_at: null,
+          can_sign: false,
+        },
+      ],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
+    render(<ParentDocumentsPage />);
+    expect(
+      await screen.findByRole("heading", { name: "Betreuungsvertrag" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Abgeschlossen")).toBeInTheDocument();
+    expect(screen.queryByText("Unterschrieben")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: deMessages.parentDocuments.signNow }),
+    ).not.toBeInTheDocument();
+  });
+
   it("marks a replaced contract version and names from when the new version applies (#4681)", async () => {
     const contract: ParentDocument = {
       ...letter,

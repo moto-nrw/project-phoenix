@@ -5,13 +5,7 @@
 // solange der Vertrag wartet, die Erinnerungen. Ein Vertrag, den die Eltern
 // auf Papier unterschrieben haben, wird hier mit seinem PDF erfasst.
 
-import {
-  Download,
-  FileSignature,
-  ShieldAlert,
-  ShieldCheck,
-  Upload,
-} from "lucide-react";
+import { Download, FileSignature, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useState } from "react";
 
@@ -76,13 +70,19 @@ export function CareContractSignatureCard({
         description={
           signature
             ? "So haben die Eltern den Vertrag unterschrieben."
-            : contract.status === "versendet"
-              ? "Die Eltern unterschreiben in der Eltern-App oder über den Link in der Mail."
-              : "Nach dem Senden können die Eltern online unterschreiben."
+            : contract.concluded
+              ? contract.concluded.method === "mit_anmeldung"
+                ? "Der Vertrag ist bereits mit der Annahme der Anmeldung abgeschlossen."
+                : "Der Vertrag ist bereits abgeschlossen."
+              : contract.status === "versendet"
+                ? "Die Eltern unterschreiben in der Eltern-App oder über den Link in der Mail."
+                : "Nach dem Senden können die Eltern online unterschreiben."
         }
         titleBadge={
           signature ? (
             <StatusBadge label="Unterschrieben" tone="green" />
+          ) : contract.concluded ? (
+            <StatusBadge label="Abgeschlossen" tone="green" />
           ) : contract.status === "versendet" ? (
             <StatusBadge label="Wartet auf Eltern" tone="orange" />
           ) : null
@@ -142,12 +142,6 @@ function SignatureDetails({
 
   return (
     <div className="space-y-4">
-      {signature.intact ? null : (
-        <Alert
-          type="warning"
-          message="Die Prüfsumme der Unterschrift stimmt nicht mehr. Der gespeicherte Nachweis wurde verändert. Bitte melden Sie das dem moto-Team."
-        />
-      )}
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_14rem]">
         <DataGrid columns={1}>
           <DataField label="Unterschrieben von">
@@ -203,26 +197,24 @@ function SignatureDetails({
           </figure>
         ) : null}
       </div>
-      <div className="flex items-start gap-2 rounded-xl bg-gray-50 px-3 py-2.5 text-xs text-gray-600">
-        {signature.intact ? (
-          <ShieldCheck
-            className="text-moto-green-strong mt-0.5 h-4 w-4 shrink-0"
-            aria-hidden="true"
-          />
-        ) : (
-          <ShieldAlert
-            className="text-moto-red-strong mt-0.5 h-4 w-4 shrink-0"
-            aria-hidden="true"
-          />
-        )}
-        <span className="min-w-0">
-          {signature.intact ? "Prüfsumme stimmt" : "Prüfsumme stimmt nicht"}.
-          Unterschriebenes PDF (SHA-256):{" "}
-          <span className="font-mono break-all">
-            {signature.documentSha256}
-          </span>
-        </span>
-      </div>
+      <Alert
+        type={signature.intact ? "success" : "warning"}
+        title={signature.intact ? "Prüfsumme stimmt" : "Prüfsumme stimmt nicht"}
+        message={
+          signature.intact
+            ? "Das unterschriebene PDF passt zum gespeicherten Nachweis."
+            : "Der gespeicherte Nachweis wurde verändert. Melden Sie das dem moto-Team."
+        }
+        className="[&>div]:min-w-0"
+        details={
+          <p className="mt-2 text-xs">
+            Unterschriebenes PDF (SHA-256):{" "}
+            <span className="font-mono break-all">
+              {signature.documentSha256}
+            </span>
+          </p>
+        }
+      />
     </div>
   );
 }
@@ -230,7 +222,17 @@ function SignatureDetails({
 function WaitingDetails({
   contract,
 }: Readonly<{ contract: CareContractDetail }>) {
-  if (contract.status !== "versendet") {
+  if (contract.concluded) {
+    return (
+      <p className="text-sm text-gray-600">
+        Eine weitere Unterschrift ist nicht nötig.
+      </p>
+    );
+  }
+  if (contract.status !== "entwurf" && contract.status !== "versendet") {
+    return null;
+  }
+  if (contract.status === "entwurf") {
     return (
       <p className="text-sm text-gray-600">
         Haben die Eltern schon auf Papier unterschrieben? Dann erfassen Sie den

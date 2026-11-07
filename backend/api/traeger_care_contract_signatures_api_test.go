@@ -440,3 +440,87 @@ func TestCareContractSignedOnPaperIsConcludedOnPaper(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
 	assertConcludedBySignature(t, f, draft, "papier")
 }
+
+// A planned amendment must not replace the PDF used to verify the signature
+// of the version currently shown in the contract detail.
+func TestCareContractSignatureSurvivesAFutureAmendment(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Geplante Änderung")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	contract, link := sentCareContract(t, f, f.child)
+	rec := publicSigning(t, f.traeger, http.MethodPost, link+"/sign",
+		map[string]any{"method": "drawn", "image_png": signatureImage(t), "withdrawal_notice_acknowledged": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	original := signedDetail(t, f, contract).Signature
+	require.NotNil(t, original)
+	require.True(t, original.Intact)
+
+	ctx := context.Background()
+	_, err := f.db.ExecContext(ctx, `UPDATE care_contract.contract_versions SET status = 'abgeloest' WHERE contract_id = ?`, contract)
+	require.NoError(t, err)
+	var version int64
+	require.NoError(t, f.db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id, contract_id, version_number,
+		status, effective_from, child_first_name, child_last_name, school_name, term_kind, notice_months, notice_to,
+		special_termination, special_termination_note, statute_required, statute_title, statute_url, contract_partner, source)
+		SELECT organization_id, contract_id, 2, 'wirksam', effective_from + INTERVAL '100 years', child_first_name,
+		child_last_name, school_name, term_kind, notice_months, notice_to, special_termination, special_termination_note,
+		statute_required, statute_title, statute_url, contract_partner, 'buchungsaenderung'
+		FROM care_contract.contract_versions WHERE contract_id = ? AND version_number = 1 RETURNING id`, contract).Scan(ctx, &version))
+	assert.Equal(t, original, signedDetail(t, f, contract).Signature, "a planned version without a PDF leaves the original evidence intact")
+
+	_, err = f.db.ExecContext(ctx, `INSERT INTO care_contract.contract_documents (organization_id, contract_id,
+		contract_version_id, template_version, filename, pdf) VALUES (?, ?, ?, 1, 'aenderung.pdf', ?)`,
+		f.office.organization, contract, version, []byte("%PDF-1.4 Geplante Änderung"))
+	require.NoError(t, err)
+	assert.Equal(t, original, signedDetail(t, f, contract).Signature, "a different planned PDF must not damage the original evidence")
+}
+
+// The sender is resolved after the candidate scan but before contract locks.
+// Commit a corrected mailing there to reproduce a resend winning that race.
+type reminderResendSender struct{ resend func() }
+
+func (s reminderResendSender) TraegerLetterhead(context.Context, int64) (string, error) {
+	s.resend()
+	return "Träger e.V.", nil
+}
+
+func TestCareContractRemindersRecheckMailingsAfterCandidateSelection(t *testing.T) {
+	t.Parallel()
+	for _, fresh := range []bool{true, false} {
+		t.Run(fmt.Sprintf("fresh=%t", fresh), func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			f := newCareContractFixture(t, "Träger Vertrag Erinnerung Adresskorrektur")
+			require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+			contract, _ := sentCareContract(t, f, f.child)
+			ctx := testpkg.WithPackageTenantRuntime(context.Background())
+			_, err := f.db.ExecContext(ctx, `UPDATE care_contract.contract_mailings SET sent_at = NOW() - INTERVAL '8 days' WHERE contract_id = ?`, contract)
+			require.NoError(t, err)
+			mails := &owners.CareContractTestMails{}
+			sender := reminderResendSender{resend: func() {
+				age := 8
+				if fresh {
+					age = 0
+				}
+				_, err := f.db.ExecContext(ctx, `INSERT INTO care_contract.contract_mailings (organization_id, contract_id,
+					contract_document_id, recipient_email, sent_at, outbox_id)
+					SELECT organization_id, contract_id, contract_document_id, 'corrected@example.org',
+					NOW() - make_interval(days => ?), ? FROM care_contract.contract_mailings WHERE contract_id = ?`, age, testpkg.UniqueTestTenantID(t), contract)
+				require.NoError(t, err)
+			}}
+			reminders := careContractCompose.NewReminders(careContractCompose.ReminderPorts{
+				Organizations: reminderTraeger{id: f.office.organization}, Settings: reminderDays{days: 7}, Sender: sender,
+				Post: mails, Runtime: owners.CareContractRuntime{}, Links: owners.CareContractLinks("http://parents.localhost:3000"),
+			})
+			require.NoError(t, reminders.RemindDue(ctx))
+			if fresh {
+				assert.Empty(t, mails.Purposes(), "a resend restarts the reminder interval")
+				assert.Empty(t, signedDetail(t, f, contract).Reminders)
+			} else {
+				assert.Equal(t, []string{carecontract.MailPurposeReminder}, mails.Purposes())
+				var recipient string
+				require.NoError(t, f.db.NewRaw(`SELECT recipient_email FROM care_contract.contract_reminders WHERE contract_id = ?`, contract).Scan(ctx, &recipient))
+				assert.Equal(t, "corrected@example.org", recipient, "use the mailing committed after the candidate scan")
+			}
+		})
+	}
+}

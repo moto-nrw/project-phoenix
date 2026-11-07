@@ -127,6 +127,65 @@ describe("TraegerVertragPage", () => {
     });
   });
 
+  it("does not ask for signatures on an acceptance-concluded contract", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "aktiv",
+      documentFrozen: true,
+      concluded: { method: "mit_anmeldung", at: "2026-09-01T08:00:00Z" },
+    });
+    renderPage();
+    expect(
+      await screen.findByText(
+        "Der Vertrag ist bereits mit der Annahme der Anmeldung abgeschlossen.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Eine weitere Unterschrift ist nicht nötig."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Papiervertrag erfassen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Dann erfassen Sie den/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Nach dem Senden können die Eltern online unterschreiben.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([true, false])(
+    "shows checksum integrity with the shared notice (intact=%s)",
+    async (intact) => {
+      api.fetchCareContract.mockResolvedValue({
+        ...DRAFT,
+        status: "aktiv",
+        documentFrozen: true,
+        signature: {
+          method: "drawn",
+          channel: "mail_link",
+          signerName: "Erika Muster",
+          signedAt: "2026-09-01T08:00:00Z",
+          signedOn: "2026-09-01",
+          documentSha256: "a".repeat(64),
+          earlyStartRequested: false,
+          withdrawalEndsOn: "2026-09-15",
+          imagePng: "",
+          paperFilename: "",
+          intact,
+        },
+      });
+      renderPage();
+      const checksum = await screen.findByText(
+        intact ? "Prüfsumme stimmt" : "Prüfsumme stimmt nicht",
+      );
+      expect(
+        checksum.closest(intact ? '[role="status"]' : '[role="alert"]'),
+      ).not.toBeNull();
+      expect(screen.getByText("a".repeat(64))).toBeInTheDocument();
+    },
+  );
+
   it("shows what the draft holds", async () => {
     renderPage();
 

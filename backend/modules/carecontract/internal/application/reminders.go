@@ -72,7 +72,8 @@ func (r *Reminders) remindTraeger(ctx context.Context, organizationID int64) err
 	if days <= 0 {
 		return nil
 	}
-	due, err := r.store.DueReminders(ctx, organizationID, now.Add(-time.Duration(days)*24*time.Hour), carecontract.MaxReminders)
+	lastContactBefore := now.Add(-time.Duration(days) * 24 * time.Hour)
+	due, err := r.store.DueReminders(ctx, organizationID, 0, lastContactBefore, carecontract.MaxReminders)
 	if err != nil || len(due) == 0 {
 		return err
 	}
@@ -81,14 +82,14 @@ func (r *Reminders) remindTraeger(ctx context.Context, organizationID int64) err
 		return fmt.Errorf("letterhead: %w", err)
 	}
 	for _, candidate := range due {
-		if err := r.remind(ctx, organizationID, firstLine(textLines(letterhead)), candidate); err != nil {
+		if err := r.remind(ctx, organizationID, firstLine(textLines(letterhead)), candidate, lastContactBefore); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *Reminders) remind(ctx context.Context, organizationID int64, traeger string, candidate ports.ReminderCandidate) error {
+func (r *Reminders) remind(ctx context.Context, organizationID int64, traeger string, candidate ports.ReminderCandidate, lastContactBefore time.Time) error {
 	record, err := r.store.Contract(ctx, organizationID, candidate.ContractID, true)
 	if err != nil {
 		return err
@@ -96,7 +97,14 @@ func (r *Reminders) remind(ctx context.Context, organizationID int64, traeger st
 	if record.Summary.Status != carecontract.StatusSent {
 		return nil
 	}
-	document, err := r.store.CurrentDocument(ctx, organizationID, candidate.ContractID)
+	// A resend or another reminder may have committed since candidate selection.
+	// Read the recipient, interval and reminder number again under the contract lock.
+	due, err := r.store.DueReminders(ctx, organizationID, candidate.ContractID, lastContactBefore, carecontract.MaxReminders)
+	if err != nil || len(due) == 0 {
+		return err
+	}
+	candidate = due[0]
+	document, err := r.store.CurrentDocument(ctx, organizationID, candidate.ContractID, record.Version.ID)
 	if err != nil {
 		return err
 	}

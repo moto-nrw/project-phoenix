@@ -30,6 +30,7 @@
   "image": "Resim",
   "awaitingSignature": "İmzanızı bekliyor",
   "signed": "İmzalandı",
+  "concluded": "Sözleşme tamamlandı",
   "signNow": "Oku ve imzala",
   "signedAt": "İmzalanma tarihi",
   "status": "Durum"
