@@ -47,7 +47,8 @@ ALTER TABLE care_contract.contract_notices
 	ADD CONSTRAINT chk_contract_notices_end_decision CHECK (
 		(end_decision IS NULL AND end_decided_at IS NULL AND end_notice_text IS NULL AND end_notice_outbox_id IS NULL
 			AND (notice_kind IS DISTINCT FROM 'ausserordentlich' OR ends_on IS NULL))
-		OR (end_decision IN ('festgelegt', 'umgedeutet') AND notice_kind IS NOT DISTINCT FROM 'ausserordentlich' AND ends_on IS NOT NULL)),
+		OR (end_decision IS NOT NULL AND end_decision IN ('festgelegt', 'umgedeutet') AND notice_kind IS NOT DISTINCT FROM 'ausserordentlich'
+			AND ends_on IS NOT NULL)),
 	ADD CONSTRAINT chk_contract_notices_end_notice_text CHECK (
 		end_notice_text IS NULL OR (BTRIM(end_notice_text) <> '' AND char_length(end_notice_text) <= 8000));
 COMMENT ON COLUMN care_contract.contract_notices.end_decision IS

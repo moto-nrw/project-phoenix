@@ -224,7 +224,9 @@ func (n *Notices) declare(ctx context.Context, d declaration) (carecontract.Noti
 	if notice.Kind == carecontract.NoticeTermination {
 		record.Summary.Status = carecontract.StatusTerminated
 	}
-	return n.options(ctx, d.organizationID, record, n.today(), false)
+	// The office reads what it decides next, such as the end an
+	// extraordinary termination would hold to as an ordinary one.
+	return n.options(ctx, d.organizationID, record, n.today(), d.channel == carecontract.NoticeChannelOffice)
 }
 
 // newNotice checks the declaration against the contract and dates it.
