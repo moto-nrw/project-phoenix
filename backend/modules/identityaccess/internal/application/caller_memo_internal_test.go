@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -199,4 +201,67 @@ func TestCallerContextLogger_FallsBackToDefault(t *testing.T) {
 	t.Parallel()
 
 	assert.NotNil(t, newCallerHarness(domain.Caller{}).build(t).logger())
+}
+
+func TestCallerSubstitutionFacetsShareCompleteRead(t *testing.T) {
+	t.Parallel()
+	for _, substitutionsFirst := range []bool{false, true} {
+		t.Run(fmt.Sprintf("substitutions_first_%t", substitutionsFirst), func(t *testing.T) {
+			h := memoHarness().withStaff()
+			h.structure.subs = map[int64]bool{11: true, 12: false}
+			c := h.build(t)
+			ctx := context.Background()
+			readSubstitutions := func() {
+				subs, err := c.SubstitutedGroupIDs(ctx)
+				require.NoError(t, err)
+				require.Equal(t, map[int64]bool{11: true}, subs)
+				delete(subs, 11)
+			}
+			if substitutionsFirst {
+				readSubstitutions()
+			}
+			groups, err := c.MyGroupIDs(ctx)
+			require.NoError(t, err)
+			require.ElementsMatch(t, []int64{11, 12}, groups)
+			readSubstitutions()
+			require.Equal(t, 1, h.structure.subsCalls)
+
+			c.invalidate(ctx)
+			h.structure.subs = map[int64]bool{13: false}
+			groups, err = c.MyGroupIDs(ctx)
+			require.NoError(t, err)
+			require.Equal(t, []int64{13}, groups)
+			subs, err := c.SubstitutedGroupIDs(ctx)
+			require.NoError(t, err)
+			require.Empty(t, subs)
+			require.Equal(t, 2, h.structure.subsCalls, "eviction must drop the complete substitution read")
+		})
+	}
+}
+
+func TestCallerSubstitutionFailureIsRetriedAcrossFacets(t *testing.T) {
+	t.Parallel()
+	h := memoHarness().withStaff()
+	h.membership.teacherID, h.membership.teacherFound = 14, true
+	h.structure.teacherGroups = []int64{15}
+	h.structure.subs = map[int64]bool{11: true}
+	h.structure.subsErr = errors.New("substitutions unavailable")
+	c := h.build(t)
+	ctx := context.Background()
+	groups, err := c.MyGroupIDs(ctx)
+	var partial *domain.CallerGroupsPartialError
+	require.ErrorAs(t, err, &partial)
+	require.Equal(t, []int64{15}, groups)
+	require.ErrorIs(t, partial.LastErr, h.structure.subsErr)
+	_, err = c.SubstitutedGroupIDs(ctx)
+	require.ErrorIs(t, err, h.structure.subsErr)
+
+	h.structure.subsErr = nil
+	subs, err := c.SubstitutedGroupIDs(ctx)
+	require.NoError(t, err)
+	require.Equal(t, map[int64]bool{11: true}, subs)
+	groups, err = c.MyGroupIDs(ctx)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []int64{11, 15}, groups)
+	require.Equal(t, 3, h.structure.subsCalls, "failed and partial reads must not populate the memo")
 }

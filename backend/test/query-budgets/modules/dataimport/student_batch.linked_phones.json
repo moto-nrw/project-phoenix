@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.student_batch.linked_phones",
+  "max": 25,
+  "exact": true,
+  "description": "One child update with 3 or 8 linked guardians reuses the existing ID-set phone hydration, with no relationship-count growth."
+}

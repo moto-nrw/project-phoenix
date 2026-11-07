@@ -239,20 +239,20 @@ func (s *Service) ListChildGuardians(ctx context.Context, accountID, studentID i
 	}
 	canEdit := child.HasPermission(GuardianPermissionGuardianEdit)
 	canManage := child.HasPermission(GuardianPermissionPickupManage)
-	// A school can disable the whole feature: when off, the list still shows
-	// guardians (read) but advertises no edit affordances, so the UI hides them.
-	if canEdit || canManage {
-		enabled, err := s.guardianManagementEnabled(ctx, child.TenantID)
-		if err != nil {
-			return nil, err
-		}
-		if !enabled {
-			canEdit = false
-			canManage = false
-		}
-	}
 	var out []*ChildGuardian
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+		// Resolve before the payload reads, on their existing tenant unit.
+		// A disabled feature keeps the list readable without edit affordances.
+		if canEdit || canManage {
+			enabled, err := s.guardianManagementEnabled(txCtx, child.TenantID)
+			if err != nil {
+				return err
+			}
+			if !enabled {
+				canEdit = false
+				canManage = false
+			}
+		}
 		var loadErr error
 		out, loadErr = s.loadChildGuardians(txCtx, child.TenantID, accountID, studentID, canEdit, canManage)
 		return loadErr

@@ -1,6 +1,7 @@
 package presenceprojectionhttp_test
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -38,19 +39,24 @@ func TestListStudentsPlanningTimesQueryBudget(t *testing.T) {
 		return time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
 	}
 
-	testpkg.CreateTestStudent(t, tc.db, "TimesBudget", "KindA", "TB1")
-	testpkg.CreateTestStudent(t, tc.db, "TimesBudget", "KindB", "TB1")
-
 	counter := testpkg.CaptureQueries(t, tc.db)
-
-	req := testutil.NewRequest("GET", "/?include_pickup_times=true&include_arrival_times=true&page_size=50", nil)
-	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
-
-	// Each bulk load must run exactly once per list request (#2098).
-	for _, table := range planningTimesTables {
-		queries := counter.Selects(table)
-		t.Logf("table %q: %d queries", table, len(queries))
-		querybudgets.AssertQueryBudget(t, "api.students.list.planning_times.per_table", queries)
+	created := 0
+	for _, n := range []int{1, 3, 12} {
+		for created < n {
+			testpkg.CreateTestStudent(t, tc.db, "TimesBudget", fmt.Sprintf("Kind-%02d", created), "TB1")
+			created++
+		}
+		counter.Reset()
+		req := testutil.NewRequest("GET", "/?include_pickup_times=true&include_arrival_times=true&page_size=50", nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+		require.Len(t, decodeStudentLocationsByID(t, rr.Body.Bytes()), n, "measure the expanded child roster")
+		t.Logf("planning times N=%d total=%d", n, counter.Total())
+		for _, table := range planningTimesTables {
+			queries := counter.Selects(table)
+			t.Logf("N=%d table %q: %d queries", n, table, len(queries))
+			querybudgets.AssertQueryBudget(t, "api.students.list.planning_times.per_table", queries)
+		}
+		require.Zero(t, counter.WriteRows())
 	}
 }

@@ -132,10 +132,10 @@ func mountPeopleRoutes(
 	emergency emergencysnapshot.Query, settings settingsCompose.SettingsService, guardianEmail GuardianEmailDelivery, guardianEmailLog guardianEmailAudit,
 ) {
 	tenant.Mount("/statistics", statisticsAPI.NewResource(reports.Statistics, statisticsHTTPRuntime(renderer), logger.With("handler", "statistics")).Router(ProtectedTenantRoutes))
-	tenant.Mount("/guardians", newGuardiansResource(persons, NewGuardianDirectoryRuntime(guardians, renderer, identity, caller.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), guardianEmail, guardianEmailLog, logger), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
+	tenant.Mount("/guardians", NewGuardiansResource(persons, NewGuardianDirectoryRuntime(guardians, renderer, identity, caller.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), guardianEmail, guardianEmailLog, logger), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
 	tenant.Mount("/feedback", newFeedbackResource(feedback).Router())
 	tenant.Mount("/meal-plan", newMealPlanResource(mealPlan, newMealPlanExportRenderer()).Router())
-	tenant.Mount("/users", newUsersResource(persons, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
+	tenant.Mount("/users", NewUsersResource(persons, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
 		_, _, found, err := identity.LookupRFIDCard(ctx, tagID)
 		return found, err
 	}).Router())

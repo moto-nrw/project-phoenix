@@ -290,21 +290,28 @@ var callerSentinels = [][2]error{
 // A context a use case wraps around such an error keeps its text, and
 // errors.Is/As reach the public error inside it.
 func mapCallerError(err error) error {
+	mapped, _ := mapCallerErrorChain(err)
+	return mapped
+}
+
+// Track translation explicitly: database errors can contain maps, so comparing
+// the original and mapped error interfaces can panic.
+func mapCallerErrorChain(err error) (error, bool) {
 	if err == nil {
-		return nil
+		return nil, false
 	}
 	if mapped, ok := mapCallerErrorValue(err); ok {
-		return mapped
+		return mapped, true
 	}
 	inner := errors.Unwrap(err)
 	if inner == nil {
-		return err
+		return err, false
 	}
-	mappedInner := mapCallerError(inner)
-	if mappedInner == inner {
-		return err
+	mappedInner, changed := mapCallerErrorChain(inner)
+	if !changed {
+		return err, false
 	}
-	return &mappedCallerError{text: err.Error(), cause: mappedInner}
+	return &mappedCallerError{text: err.Error(), cause: mappedInner}, true
 }
 
 // mapCallerErrorValue translates one of the application's caller-context

@@ -1,0 +1,6 @@
+{
+  "scenario": "api.staff_notices.list",
+  "max": 6,
+  "exact": true,
+  "description": "GET /api/staff-notices/: BEGIN, combined role/tenant set_config, all-notices SELECT, batched own acknowledgements, batched counts excluding the author, COMMIT. Measured at N=3 and N=8, guarded by the same exact contract and equality assertion. Full protected resource request, excluding outer server/session-family liveness; no gain or SQL floor claimed."
+}

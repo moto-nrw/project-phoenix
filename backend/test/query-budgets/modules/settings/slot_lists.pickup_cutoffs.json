@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.settings.slot_lists.pickup_cutoffs",
+  "max": 5,
+  "exact": true,
+  "description": "Real Settings list-cutoff capability with valid school overrides, ambient tenant transaction and existing shared pair lock, without/with request memo; full BEGIN/combined role+GUC/lock/one payload read/COMMIT and no writes. Not a full HTTP route or extra cold JWT authentication."
+}

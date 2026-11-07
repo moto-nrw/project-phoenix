@@ -1,0 +1,6 @@
+{
+  "scenario": "api.groups.presence20.supervisors.n3",
+  "max": 10,
+  "exact": true,
+  "description": "Production group resource, positive N3, complete tenant request SQL."
+}

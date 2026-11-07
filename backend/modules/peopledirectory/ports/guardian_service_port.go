@@ -20,12 +20,14 @@ type GuardianService interface {
 	AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []NewStudentGuardian) error
 	AddPhoneNumber(ctx context.Context, guardianID int64, req PhoneNumberCreateRequest) (*peopleValues.GuardianProfilePhoneSnapshot, error)
 	CreateGuardian(ctx context.Context, req GuardianCreateRequest) (*peopleValues.GuardianProfileSnapshot, error)
+	FindOrCreateGuardian(ctx context.Context, req GuardianCreateRequest) (*peopleValues.GuardianProfileSnapshot, bool, error)
 	DeleteGuardian(ctx context.Context, id int64, changedByAccountID int64) error
 	DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error
 	DeletePhoneNumber(ctx context.Context, phoneID int64) error
 	EvaluateGuardianDelete(ctx context.Context, guardianProfileID int64, force bool, isAdmin bool) (hasLinks bool, err error)
 	GetGuardianByID(ctx context.Context, id int64) (*peopleValues.GuardianProfileSnapshot, error)
 	GetGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error)
+	GetGuardianDeletePreviewImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error)
 	GetGuardianPaymentMasked(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string) (*GuardianPaymentMasked, error)
 	GetGuardianStudents(ctx context.Context, guardianProfileID int64) ([]*StudentWithRelationship, error)
 	GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*peopleValues.GuardianRelationshipSnapshot, error)

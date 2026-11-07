@@ -125,12 +125,12 @@ func buildTimetableDeviations(db transactionruntime.Database, env RootEnvironmen
 
 // BuildTimetableDay binds the retention sweep, the automatic start and end
 // of instances and the operational day over Care Plan's schedules. The
-// operational day resolves the acting account's staff ID through School
-// Membership alone (#2753).
+// operational day reuses the verified caller identity, falling back to the
+// person directory and School Membership without Workforce employment (#2753).
 func BuildTimetableDay(
 	env RootEnvironment, hub *realtime.Hub, lifecycle TimetableLifecycle, timetableOwner timetable.Capability, audit AuditOwner,
 	settings settingsCompose.BatchSettingsService, presence PresenceOwner, supervisions studentpresence.SupervisionRecords,
-	users peoplePorts.PersonDirectory, membership schoolmembership.Capability, active studentpresence.Presence, schedules CarePlanSchedules, session timetablePorts.RequestSession, withStaff func(context.Context, int64, int64) context.Context,
+	users peoplePorts.PersonDirectory, membership schoolmembership.Capability, active studentpresence.Presence, schedules CarePlanSchedules, session timetablePorts.RequestSession, callerStaff timetablePorts.OperationStaffIdentity, withStaff func(context.Context, int64, int64) context.Context,
 ) (TimetableLifecycle, error) {
 	cleanup, err := NewTimetableCleanup(timetableOwner, audit.Persistence.DataDeletion, audit.Persistence.DeviationEvent,
 		settings, env.Logger.With("service", "timetable-cleanup"), env.Now)
@@ -144,7 +144,7 @@ func BuildTimetableDay(
 		return TimetableLifecycle{}, fmt.Errorf("compose timetable auto start and end: %w", err)
 	}
 	operations, err := NewTimetableOperations(timetablePorts.OperationDependencies{
-		Session: session, PlanningTracks: timetableOwner, BlockMetadata: lifecycle.BlockMetadata,
+		Session: session, CallerStaff: callerStaff, PlanningTracks: timetableOwner, BlockMetadata: lifecycle.BlockMetadata,
 		Sessions: presence.SessionRecords, Supervisions: supervisions,
 		Visits: presence.Presence, People: TimetableOperationPeople{OperationPeople: NewTimetableOperationPeople(users), Membership: membership},
 		Lifecycle: arrivalTimetable.NewOperationLifecycle(lifecycle.Instances),

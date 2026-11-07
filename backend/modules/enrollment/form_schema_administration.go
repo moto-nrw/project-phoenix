@@ -23,6 +23,11 @@ type FormSchemaAdministration interface {
 	// already-submitted requests against their pinned version.
 	SchemaVersion(ctx context.Context, id int64) (*FormSchema, error)
 
+	// StudentExtraFieldSchemas reads the pinned versions for linked child
+	// answers as an ID set. Row errors remain attached to their ID so callers
+	// can apply child JSON and schema errors in request order.
+	StudentExtraFieldSchemas(ctx context.Context, ids []int64) ([]SchemaVersionResult, error)
+
 	// ListVersions returns all schema versions for the tenant in
 	// context, newest-first. Powers the admin "version history" view.
 	ListVersions(ctx context.Context) ([]*FormSchema, error)
@@ -73,6 +78,14 @@ type FormSchemaAdministration interface {
 	// the caller can distinguish rename infrastructure faults from
 	// publish validation errors.
 	PublishFormVersion(ctx context.Context, in PublishFormVersionInput) (*FormSchema, error)
+}
+
+// SchemaVersionResult keeps a version's decode failure separate from other
+// versions in the same read. Missing versions carry the scalar lookup error.
+type SchemaVersionResult struct {
+	ID     int64
+	Schema *FormSchema
+	Err    error
 }
 
 // PublishFormInput carries the fields for the create-or-update publish
