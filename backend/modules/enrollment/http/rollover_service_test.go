@@ -781,6 +781,12 @@ func (f *fakeApproveDecisionService) ApplyDueClassSwitches(context.Context, cale
 	return 0, nil
 }
 
+// ApplyDueWeeklyPlans is a no-op for the same reason: the stub plans no
+// weekly plan.
+func (f *fakeApproveDecisionService) ApplyDueWeeklyPlans(context.Context, calendar.Date) (int, error) {
+	return 0, nil
+}
+
 func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)

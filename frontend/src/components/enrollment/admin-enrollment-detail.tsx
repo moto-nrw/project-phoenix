@@ -768,6 +768,13 @@ function ChildInformationCard({
             Letzte Entscheidung: {formatDateTime(child.reviewed_at)}
           </p>
         ) : null}
+        {child.status === "approved" && child.weekly_plan_on ? (
+          <Alert
+            type="info"
+            announce="off"
+            message={`Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab ${formatPlainDate(child.weekly_plan_on)}. Bis dahin bleiben die bisherigen.`}
+          />
+        ) : null}
         <ChildOfferings
           offerings={child.offerings}
           upcomingOfferings={child.upcoming_offerings}

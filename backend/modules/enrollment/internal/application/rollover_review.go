@@ -247,6 +247,11 @@ func (s *Rollovers) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*enr
 	if err != nil {
 		return summary, fmt.Errorf("rollover deadline: apply class switches: %w", err)
 	}
+	applied, err = s.deps.Decisions.ApplyDueWeeklyPlans(ctx, calendar.DateFromTime(asOf))
+	summary.WeeklyPlansApplied = applied
+	if err != nil {
+		return summary, fmt.Errorf("rollover deadline: apply weekly plans: %w", err)
+	}
 	return summary, nil
 }
 

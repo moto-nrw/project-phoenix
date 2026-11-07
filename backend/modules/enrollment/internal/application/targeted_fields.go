@@ -28,7 +28,11 @@ type targetedFieldSyncOptions struct {
 	// renewal of a student that already carries consent from a previous year —
 	// without it a guardian who withdraws photo or email-contact consent on the
 	// renewal form stays recorded as consenting (#1663). Implied by Replace.
-	ReplaceConsent         bool
+	ReplaceConsent bool
+	// Scope limits the dispatch to part of the form: a renewal approved
+	// before its care starts applies the weekly plan only at the start
+	// (#6043). The zero value dispatches every target.
+	Scope                  targetedFieldScope
 	PreviousSnapshot       map[string]any
 	KeepGuardianProfileIDs map[int64]bool
 }
@@ -136,7 +140,7 @@ func (r *targetedFieldSync) dispatchFields(fields []enrollment.FormField) {
 	}
 	for i := range fields {
 		field := fields[i]
-		if field.Target == "" {
+		if !r.dispatches(field.Target) {
 			continue
 		}
 		raw := fieldRaws[i]
@@ -148,6 +152,11 @@ func (r *targetedFieldSync) dispatchFields(fields []enrollment.FormField) {
 		}
 		r.dispatchField(field, raw)
 	}
+}
+
+// dispatches reports whether this run writes the target.
+func (r *targetedFieldSync) dispatches(target string) bool {
+	return target != "" && r.options.Scope.includes(target)
 }
 
 func (r *targetedFieldSync) dispatchField(field enrollment.FormField, raw any) {
@@ -392,7 +401,7 @@ func (r *targetedFieldSync) finishPickupSchedule() {
 // request_child carries no fresh parent submission, so there is no newly
 // submitted phone number and no profile to enrich.
 func (r *targetedFieldSync) applyGuardianPhone() {
-	if r.request.GuardianPhone == nil || r.guardian == nil {
+	if r.request.GuardianPhone == nil || r.guardian == nil || r.options.Scope == weeklyPlanOnly {
 		return
 	}
 	if err := r.d.createGuardianPhoneNumber(r.ctx, r.guardian.ID, *r.request.GuardianPhone); err != nil {
@@ -429,7 +438,7 @@ func (r *targetedFieldSync) applyExplicitDeparture() {
 // no "Mit anderem Kind" day. Capped server-side (the column is unbounded
 // TEXT).
 func (r *targetedFieldSync) applyCompanionNote() {
-	if r.child == nil || r.child.CustomData == nil ||
+	if r.child == nil || r.child.CustomData == nil || r.options.Scope == withoutWeeklyPlan ||
 		!r.student.AllowedDepartureModes.HasMode(departure.DepartureAccompanied) {
 		return
 	}
