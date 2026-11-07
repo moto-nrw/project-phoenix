@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +30,9 @@ func TestSignedContractIsWithdrawnAndTakesNoFurtherSignature(t *testing.T) {
 	rec := publicSigning(t, f.traeger, http.MethodPost, link+"/sign", map[string]any{"method": "drawn",
 		"image_png": signatureImage(t), "withdrawal_notice_acknowledged": true, "early_start_requested": true})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	signedOn := calendar.DateFromTime(time.Now())
+	// The signature concluded the contract; its Berlin day is the day of
+	// the signature, read from the row rather than the wall clock.
+	signedOn := concludedOn(t, f, contract)
 
 	path := "/traeger/contract-notices/" + strconv.FormatInt(contract, 10)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, path, nil)
@@ -82,7 +83,7 @@ func TestPaperContractIsTerminatedAndTakesNoFurtherSignature(t *testing.T) {
 	assert.Equal(t, carecontract.StatusActive, options.Status, "the paper contract concluded it")
 	require.NotNil(t, options.OrdinaryEndsOn)
 
-	today := calendar.DateFromTime(time.Now()).String()
+	today := concludedOn(t, f, contract).String()
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, path, map[string]any{"kind": "kuendigung",
 		"termination_kind": "ordentlich", "received_on": today})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -136,9 +137,19 @@ func TestWithdrawnContractClosesTheLinkOfItsMail(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	require.NotNil(t, decodeSchoolPortalData[noticeOptionsBody](t, rec.Body.Bytes()).WithdrawalUntil, "the delivered notice opens the period")
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, path, map[string]any{"kind": "widerruf",
-		"received_on": calendar.DateFromTime(time.Now()).String()})
+		"received_on": concludedOn(t, f, contract).String()})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, carecontract.StatusWithdrawn, decodeSchoolPortalData[noticeOptionsBody](t, rec.Body.Bytes()).Status)
 
 	assertLinkClosed(t, f, link, "withdrawn")
+}
+
+// concludedOn is the Berlin day the contract was concluded, read from its
+// row: the day a received declaration may carry at the earliest.
+func concludedOn(t *testing.T, f careContractFixture, contract int64) calendar.Date {
+	t.Helper()
+	var day calendar.Date
+	require.NoError(t, f.db.NewRaw(`SELECT (concluded_at AT TIME ZONE 'Europe/Berlin')::date FROM care_contract.contracts WHERE id = ?`,
+		contract).Scan(context.Background(), &day))
+	return day
 }

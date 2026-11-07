@@ -426,20 +426,33 @@ func (n *Notices) noticeState(ctx context.Context, organizationID, contractID in
 	if err := n.signedNotice(ctx, organizationID, contractID, &state); err != nil {
 		return state, err
 	}
+	if err := n.deliveredNotice(ctx, organizationID, contractID, &state); err != nil {
+		return state, err
+	}
+	if state.InformedAt != nil && (recorded == nil || state.InformedAt.Before(*recorded)) {
+		err = n.store.MarkWithdrawalInformed(ctx, organizationID, contractID, *state.InformedAt)
+	}
+	return state, err
+}
+
+// deliveredNotice moves state.InformedAt to the earliest positive delivery
+// of a mail whose PDF carries the withdrawal notice; a queued or failed mail
+// proves nothing.
+func (n *Notices) deliveredNotice(ctx context.Context, organizationID, contractID int64, state *ports.NoticeState) error {
 	mailings, err := n.store.Mailings(ctx, organizationID, contractID)
 	if err != nil {
-		return state, err
+		return err
 	}
 	documents := make(map[int64]bool, len(mailings))
 	for _, mailing := range mailings {
 		documents[mailing.OutboxID] = mailing.WithdrawalNotice
 	}
 	if len(documents) == 0 {
-		return state, nil
+		return nil
 	}
 	deliveries, err := n.post.NoticeDeliveries(ctx, organizationID, contractID)
 	if err != nil {
-		return state, err
+		return err
 	}
 	for _, delivery := range deliveries {
 		if !documents[delivery.OutboxID] || delivery.ProvidedAt.IsZero() {
@@ -450,10 +463,7 @@ func (n *Notices) noticeState(ctx context.Context, organizationID, contractID in
 			state.InformedAt = &at
 		}
 	}
-	if state.InformedAt != nil && (recorded == nil || state.InformedAt.Before(*recorded)) {
-		err = n.store.MarkWithdrawalInformed(ctx, organizationID, contractID, *state.InformedAt)
-	}
-	return state, err
+	return nil
 }
 
 // signedNotice joins the online signature (#4679): the parents acknowledged
