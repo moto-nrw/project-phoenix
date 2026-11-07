@@ -109,7 +109,7 @@ func (s *ChangeRequests) loadApproval(ctx context.Context, row *ChangeRequest, i
 	if err := s.loadApprovalContext(ctx, run); err != nil {
 		return nil, err
 	}
-	run.eligibilityEnforced = !isTrustedEnrollmentSource(req.SubmissionSource) && !hasRolloverGeneratedChild(children)
+	run.eligibilityEnforced = storedRequestEligibility(req.SubmissionSource, children) != eligibilityNone
 	return run, nil
 }
 

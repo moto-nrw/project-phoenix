@@ -140,7 +140,7 @@ func (s *Intake) loadDraftPhase(ctx context.Context, draft *editDraft) error {
 	// The edit paths re-run the eligibility gates for an enforced draft, so
 	// its classes narrow to the eligible subset; an exempt draft keeps the
 	// full list and drops the grade restriction (#1663).
-	if isTrustedEnrollmentSource(draft.req.SubmissionSource) || hasRolloverGeneratedChild(draft.children) {
+	if storedRequestEligibility(draft.req.SubmissionSource, draft.children) == eligibilityNone {
 		clearGradeRestrictionForEligibilityExemptForm(phase)
 	} else {
 		narrowOfferedClassesToEligibleForForm(phase)

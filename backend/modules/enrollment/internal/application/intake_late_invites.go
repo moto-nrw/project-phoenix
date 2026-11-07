@@ -153,21 +153,20 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 	}, nil
 }
 
-// enforceRateLimit counts the attempt in the per-IP and per-email buckets of
-// the submission's tenant, in a transaction of its own so the count survives
-// a refused submission, and refuses once either crosses its threshold.
+// enforceRateLimit runs count in the tenant's transaction of its own, so the
+// count survives a refused submission or upload, and passes on its refusal.
 // Without a limiter the check is skipped.
-func (s *Intake) enforceRateLimit(ctx context.Context, req SubmitRequest) error {
-	if s.deps.RateLimits == nil || req.TenantID <= 0 {
+func (s *Intake) enforceRateLimit(ctx context.Context, tenantID int64, count func(context.Context) error) error {
+	if s.deps.RateLimits == nil || tenantID <= 0 {
 		return nil
 	}
 	if s.deps.Runtime.TenantTx == nil {
-		return s.enforceRateLimitBuckets(ctx, req)
+		return count(ctx)
 	}
 	var limitErr error
 	rateCtx := s.deps.Runtime.WithoutTransaction(ctx)
-	err := s.deps.Runtime.TenantTx(rateCtx, req.TenantID, func(txCtx context.Context) error {
-		limitErr = s.enforceRateLimitBuckets(txCtx, req)
+	err := s.deps.Runtime.TenantTx(rateCtx, tenantID, func(txCtx context.Context) error {
+		limitErr = count(txCtx)
 		if errors.Is(limitErr, enrollment.ErrRateLimited) {
 			return nil
 		}
@@ -182,10 +181,9 @@ func (s *Intake) enforceRateLimit(ctx context.Context, req SubmitRequest) error 
 	return nil
 }
 
-func (s *Intake) enforceRateLimitBuckets(ctx context.Context, req SubmitRequest) error {
-	if req.uploadAttempt {
-		return s.countUploadAttempt(ctx, req)
-	}
+// countSubmissionAttempt counts the submission in the per-IP and per-email
+// buckets and refuses once either crosses its threshold.
+func (s *Intake) countSubmissionAttempt(ctx context.Context, req SubmitRequest) error {
 	ip := strings.TrimSpace(req.RemoteIP)
 	email := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
 	if ip != "" {
