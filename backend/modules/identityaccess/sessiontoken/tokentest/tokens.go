@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/internal/testseam"
 )
 
 // GenTokenPair returns both an access token and a refresh token.
@@ -147,13 +148,30 @@ func ParseMFAChallengeJWT(a *sessiontoken.TokenAuth, tokenString string) (*sessi
 		return nil, err
 	}
 	var claims sessiontoken.MFAChallengeClaims
-	if err := claims.ParseClaims(raw); err != nil {
+	if err := ParseMFAChallengeClaims(&claims, raw); err != nil {
 		return nil, err
 	}
 	if claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
 		return nil, errors.New("challenge token expired")
 	}
 	return &claims, nil
+}
+
+// ParseMFAChallengeClaims fills c from a decoded challenge claim map. It
+// rejects maps that also carry mfa_enrollment_pending, lack account_id or
+// mfa_pending, or name an unknown scope.
+func ParseMFAChallengeClaims(c *sessiontoken.MFAChallengeClaims, claims map[string]any) error {
+	parsed, err := testseam.ParseMFAChallenge(claims)
+	if err != nil {
+		return err
+	}
+	c.AccountID = parsed.AccountID
+	c.TenantID = parsed.TenantID
+	c.ChallengeID = parsed.ChallengeID
+	c.Scope = parsed.Scope
+	c.ExpiresAt = parsed.ExpiresAt
+	c.MFAPending = true
+	return nil
 }
 
 // CreateMFAEnrollmentJWT mints a new MFA enrollment JWT with the given TTL.

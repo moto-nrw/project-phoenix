@@ -40,7 +40,7 @@ func TestMFAChallengeClaims_TenantRoundTrip(t *testing.T) {
 	}
 
 	var out sessiontoken.MFAChallengeClaims
-	require.NoError(t, out.ParseClaims(raw))
+	require.NoError(t, tokentest.ParseMFAChallengeClaims(&out, raw))
 	assert.Equal(t, int64(4242), out.AccountID)
 	assert.Equal(t, sessiontoken.MFAChallengeScopeTenant, out.Scope)
 	assert.Equal(t, int64(4242), out.TenantID)
@@ -73,7 +73,7 @@ func TestMFAChallengeClaims_PlatformRoundTrip(t *testing.T) {
 	}
 
 	var out sessiontoken.MFAChallengeClaims
-	require.NoError(t, out.ParseClaims(raw))
+	require.NoError(t, tokentest.ParseMFAChallengeClaims(&out, raw))
 	assert.Equal(t, sessiontoken.MFAChallengeScopePlatform, out.Scope)
 	assert.Equal(t, int64(0), out.TenantID, "platform tokens should not carry tenant_id")
 }
@@ -82,7 +82,7 @@ func TestMFAChallengeClaims_RejectsMissingAccountID(t *testing.T) {
 	t.Parallel()
 
 	var c sessiontoken.MFAChallengeClaims
-	err := c.ParseClaims(map[string]any{
+	err := tokentest.ParseMFAChallengeClaims(&c, map[string]any{
 		"mfa_pending": true,
 		"scope":       sessiontoken.MFAChallengeScopeTenant,
 	})
@@ -93,7 +93,7 @@ func TestMFAChallengeClaims_RejectsBadScope(t *testing.T) {
 	t.Parallel()
 
 	var c sessiontoken.MFAChallengeClaims
-	err := c.ParseClaims(map[string]any{
+	err := tokentest.ParseMFAChallengeClaims(&c, map[string]any{
 		"account_id":  float64(1),
 		"mfa_pending": true,
 		"scope":       "bogus",
@@ -105,7 +105,7 @@ func TestMFAChallengeClaims_RejectsNonPendingToken(t *testing.T) {
 	t.Parallel()
 
 	var c sessiontoken.MFAChallengeClaims
-	err := c.ParseClaims(map[string]any{
+	err := tokentest.ParseMFAChallengeClaims(&c, map[string]any{
 		"account_id":  float64(1),
 		"scope":       sessiontoken.MFAChallengeScopeTenant,
 		"mfa_pending": false,

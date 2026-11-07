@@ -87,7 +87,7 @@ func TestMFAChallengeClaims_ParseClaims_RejectsMFAEnrollmentPending(t *testing.T
 		"scope":                  sessiontoken.MFAChallengeScopeTenant,
 	}
 	var c sessiontoken.MFAChallengeClaims
-	err := c.ParseClaims(claims)
+	err := tokentest.ParseMFAChallengeClaims(&c, claims)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "pending-MFA-enrollment",
 		"challenge parser must reject tokens carrying the enrollment flag — symmetric to MFAEnrollmentClaims rejecting mfa_pending")

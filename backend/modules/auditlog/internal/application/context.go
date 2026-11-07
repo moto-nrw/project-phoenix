@@ -17,14 +17,13 @@ func ContextWithTransaction(ctx context.Context, transaction any) context.Contex
 	return auditModels.WithTransaction(ctx, transaction)
 }
 
-// TenantIDFromContext returns the tenant the Audit adapters read, or zero.
-// Only modules/auditlog/audittest calls it, so tests can observe the handoff;
-// production reads it in the Audit adapters themselves.
-func TenantIDFromContext(ctx context.Context) int64 {
-	return auditModels.TenantIDFromContext(ctx)
-}
-
-// TransactionFromContext returns the transaction the Audit adapters read.
-func TransactionFromContext(ctx context.Context) (any, bool) {
-	return auditModels.TransactionFromContext(ctx)
-}
+// The readers below let modules/auditlog/audittest observe the handoff;
+// production reads it in the Audit adapters themselves. They are values, not
+// functions, so the dead-code check sees them referenced from production
+// while modules/auditlog stays identical with and without testhooks (#5990).
+var (
+	// TenantIDFromContext returns the tenant the Audit adapters read, or zero.
+	TenantIDFromContext = auditModels.TenantIDFromContext
+	// TransactionFromContext returns the transaction the Audit adapters read.
+	TransactionFromContext = auditModels.TransactionFromContext
+)
