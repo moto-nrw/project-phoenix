@@ -32,7 +32,10 @@ type targetedFieldSyncOptions struct {
 	// Scope limits the dispatch to part of the form: a renewal approved
 	// before its care starts applies the weekly plan only at the start
 	// (#6043). The zero value dispatches every target.
-	Scope                  targetedFieldScope
+	Scope targetedFieldScope
+	// ScheduleAuthorStaffID names the author of the weekly rows the dispatch
+	// writes; 0 resolves the reviewing account's staff membership instead.
+	ScheduleAuthorStaffID  int64
 	PreviousSnapshot       map[string]any
 	KeepGuardianProfileIDs map[int64]bool
 }
@@ -294,7 +297,7 @@ func (r *targetedFieldSync) applyPickupScheduleField(target string, raw any) {
 	if raw == nil {
 		return
 	}
-	if err := r.d.dispatchWeekdaySchedule(r.ctx, raw, r.student.ID, r.reviewedBy, true); err != nil {
+	if err := r.d.dispatchWeekdaySchedule(r.ctx, raw, r.student.ID, r.scheduleAuthor(), true); err != nil {
 		r.fieldError(target, err)
 		return
 	}
@@ -337,7 +340,7 @@ func (r *targetedFieldSync) applyArrivalScheduleField(target string, raw any) {
 	if raw == nil {
 		return
 	}
-	if err := r.d.dispatchWeekdaySchedule(r.ctx, raw, r.student.ID, r.reviewedBy, false); err != nil {
+	if err := r.d.dispatchWeekdaySchedule(r.ctx, raw, r.student.ID, r.scheduleAuthor(), false); err != nil {
 		r.fieldError(target, err)
 	}
 }
@@ -370,6 +373,11 @@ func (r *targetedFieldSync) applyContactsField(field enrollment.FormField, raw a
 	if err := r.d.deleteRemovedStudentGuardianLinks(r.ctx, r.student.ID, oldContactIDs, keep, r.reviewedBy); err != nil {
 		r.errs = append(r.errs, fmt.Sprintf("%s: remove stale links: %v", field.Target, err))
 	}
+}
+
+// scheduleAuthor names who the weekly rows of this dispatch are written for.
+func (r *targetedFieldSync) scheduleAuthor() scheduleAuthor {
+	return scheduleAuthor{staffID: r.options.ScheduleAuthorStaffID, reviewerAccountID: r.reviewedBy}
 }
 
 // replaceSchedules: Replace implies schedule replacement; ReplaceSchedules

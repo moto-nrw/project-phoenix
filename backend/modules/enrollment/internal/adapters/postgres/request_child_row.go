@@ -43,6 +43,7 @@ type requestChildRow struct {
 	// methods, never through the RequestChild record.
 	WeeklyPlanOn       *enrollment.Date `bun:"weekly_plan_on,type:date"`
 	WeeklyPlanReplaces bool             `bun:"weekly_plan_replaces,notnull,default:false"`
+	WeeklyPlanAuthor   *int64           `bun:"weekly_plan_author"`
 }
 
 func (r requestChildRow) value() *enrollment.RequestChild {

@@ -22,12 +22,17 @@ func (r *Store) SetChildWeeklyPlan(ctx context.Context, requestChildID int64, pl
 		return err
 	}
 	var on *enrollment.Date
+	var author *int64
 	replaces := false
 	if plan != nil {
 		on, replaces = &plan.On, plan.Replace
+		if plan.AuthorStaffID > 0 {
+			author = &plan.AuthorStaffID
+		}
 	}
 	res, err := db.NewUpdate().TableExpr("enrollment.request_children").
-		Set("weekly_plan_on = ?", on).Set("weekly_plan_replaces = ?", replaces).Set("updated_at = ?", time.Now()).
+		Set("weekly_plan_on = ?", on).Set("weekly_plan_replaces = ?", replaces).Set("weekly_plan_author = ?", author).
+		Set("updated_at = ?", time.Now()).
 		Where("tenant_id = ? AND id = ?", tenantID, requestChildID).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to update request child weekly plan: %w", err)
@@ -54,7 +59,7 @@ func (r *Store) ChildWeeklyPlan(ctx context.Context, requestChildID int64) (*enr
 		return nil, err
 	}
 	var row requestChildRow
-	err = db.NewSelect().Model(&row).Column("id", "weekly_plan_on", "weekly_plan_replaces").
+	err = db.NewSelect().Model(&row).Column("id", "weekly_plan_on", "weekly_plan_replaces", "weekly_plan_author").
 		Where("request_child.tenant_id = ? AND request_child.id = ?", tenantID, requestChildID).
 		Where("request_child.weekly_plan_on IS NOT NULL").Scan(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -79,7 +84,7 @@ func (r *Store) DueWeeklyPlans(ctx context.Context, asOf enrollment.Date) ([]enr
 		return nil, err
 	}
 	var rows []requestChildRow
-	err = db.NewSelect().Model(&rows).Column("id", "weekly_plan_on", "weekly_plan_replaces").
+	err = db.NewSelect().Model(&rows).Column("id", "weekly_plan_on", "weekly_plan_replaces", "weekly_plan_author").
 		Where("request_child.tenant_id = ?", tenantID).
 		Where("request_child.weekly_plan_on IS NOT NULL AND request_child.weekly_plan_on <= ?", asOf).
 		OrderExpr("request_child.weekly_plan_on, request_child.id").Scan(ctx)
@@ -94,5 +99,9 @@ func (r *Store) DueWeeklyPlans(ctx context.Context, asOf enrollment.Date) ([]enr
 }
 
 func weeklyPlanFromRow(row *requestChildRow) enrollment.WeeklyPlan {
-	return enrollment.WeeklyPlan{RequestChildID: row.ID, On: *row.WeeklyPlanOn, Replace: row.WeeklyPlanReplaces}
+	plan := enrollment.WeeklyPlan{RequestChildID: row.ID, On: *row.WeeklyPlanOn, Replace: row.WeeklyPlanReplaces}
+	if row.WeeklyPlanAuthor != nil {
+		plan.AuthorStaffID = *row.WeeklyPlanAuthor
+	}
+	return plan
 }

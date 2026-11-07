@@ -119,6 +119,11 @@ type WeeklyPlan struct {
 	// without a value clears its target. Otherwise the start applies it as
 	// the approval of a renewal whose care has started does.
 	Replace bool
+	// AuthorStaffID is the staff member the applied weekly rows name as their
+	// author: the approving reviewer, or the last confirmed edit's actor.
+	// Resolved when the plan is stored, so the start does not depend on that
+	// account still existing. 0 when it could not be resolved.
+	AuthorStaffID int64
 }
 
 // DueClassSwitch is a planned class switch whose day has come, with the

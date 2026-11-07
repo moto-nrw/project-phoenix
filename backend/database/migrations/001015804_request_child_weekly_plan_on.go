@@ -26,12 +26,15 @@ func init() {
 // approved submission and clears the plan. weekly_plan_replaces records a
 // confirmed replacing edit before the start: the start then applies the
 // submission as the complete weekly plan, so a removed field clears it.
+// weekly_plan_author is the staff member the applied weekly rows name as
+// their author, resolved when the plan is stored.
 func requestChildWeeklyPlanOnUp(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, `
 			ALTER TABLE enrollment.request_children
 				ADD COLUMN IF NOT EXISTS weekly_plan_on DATE,
-				ADD COLUMN IF NOT EXISTS weekly_plan_replaces BOOLEAN NOT NULL DEFAULT FALSE;
+				ADD COLUMN IF NOT EXISTS weekly_plan_replaces BOOLEAN NOT NULL DEFAULT FALSE,
+				ADD COLUMN IF NOT EXISTS weekly_plan_author BIGINT;
 			CREATE INDEX IF NOT EXISTS idx_request_children_weekly_plan_on
 				ON enrollment.request_children (tenant_id, weekly_plan_on)
 				WHERE weekly_plan_on IS NOT NULL;
@@ -49,6 +52,7 @@ func requestChildWeeklyPlanOnDown(ctx context.Context, db *bun.DB) error {
 		if _, err := tx.ExecContext(ctx, `
 			DROP INDEX IF EXISTS enrollment.idx_request_children_weekly_plan_on;
 			ALTER TABLE enrollment.request_children
+				DROP COLUMN IF EXISTS weekly_plan_author,
 				DROP COLUMN IF EXISTS weekly_plan_replaces,
 				DROP COLUMN IF EXISTS weekly_plan_on;
 		`); err != nil {

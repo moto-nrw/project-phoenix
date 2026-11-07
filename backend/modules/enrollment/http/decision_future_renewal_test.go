@@ -8,9 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -24,6 +27,7 @@ type futureRenewal struct {
 	requestID         int64
 	childID           int64
 	reviewerAccountID int64
+	reviewerStaffID   int64
 	start             calendar.Date
 }
 
@@ -70,7 +74,7 @@ func setupFutureRenewal(t *testing.T) *futureRenewal {
 	testpkg.CreateTestArrivalSchedule(t, env.db, existing.ID, timetable.WeekdayMonday, author.ID, "")
 	testpkg.CreateTestArrivalSchedule(t, env.db, existing.ID, timetable.WeekdayThursday, author.ID, "")
 
-	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+	reviewerStaff, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
 	requestID, childID := submitOneChildWithCustomData(t, env, "februar-renewal@example.com", "Mara", "Februar", map[string]any{
 		"pickup_times":  map[string]any{"mon": "15:10"},
 		"arrival_times": map[string]any{"mon": "07:45"},
@@ -79,7 +83,10 @@ func setupFutureRenewal(t *testing.T) *futureRenewal {
 	})
 	matchChildToExistingStudent(t, env, childID, existing.ID)
 
-	return &futureRenewal{env: env, studentID: existing.ID, requestID: requestID, childID: childID, reviewerAccountID: reviewerAccountID, start: start}
+	return &futureRenewal{
+		env: env, studentID: existing.ID, requestID: requestID, childID: childID,
+		reviewerAccountID: reviewerAccountID, reviewerStaffID: reviewerStaff.ID, start: start,
+	}
 }
 
 func (r *futureRenewal) approve(t *testing.T) {
@@ -280,4 +287,120 @@ func TestDecisionService_ApplyDueWeeklyPlans_OmittedFieldKeepsRunningTarget(t *t
 	assert.Equal(t, map[int]string{timetable.WeekdayMonday: "15:10"}, r.pickups(t))
 	assert.Equal(t, []int{timetable.WeekdayMonday, timetable.WeekdayThursday}, r.careDays(t),
 		"the submission did not ask for care days, so the running ones stay")
+}
+
+func TestDecisionService_SyncApprovedChildData_AppliesDueWeeklyPlan(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name          string
+		replaceBefore bool
+		replaceNow    bool
+	}{
+		{name: "approval"},
+		{name: "earlier replacing edit", replaceBefore: true},
+		{name: "replacing edit when due", replaceNow: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			r := setupFutureRenewal(t)
+			r.approve(t)
+			ctx := testpkg.Ctx(t)
+			if tc.replaceBefore || tc.replaceNow {
+				child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
+				require.NoError(t, err)
+				delete(child.CustomData, "arrival_times")
+				child.CustomData["allowed_modes"] = nil
+				require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
+			}
+			if tc.replaceBefore {
+				_, err := changeRequestApplierForTest(t, r.env).SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
+					RequestID: r.requestID, ChildID: r.childID, ActorAccountID: r.reviewerAccountID, ReplaceTargetedData: true,
+				})
+				require.NoError(t, err)
+			}
+			// Make the stored plan due before the worker has run. The correction
+			// either keeps the submitted fields or replaces them explicitly.
+			plan, err := testpkg.TenantQuery1(t, ctx, r.env.db, r.env.repos.Enrollment().ChildWeeklyPlan, r.childID)
+			require.NoError(t, err)
+			require.NotNil(t, plan)
+			plan.On = enrollmentNative.Date(decisionTestToday)
+			require.NoError(t, testpkg.TenantCommand2(t, ctx, r.env.db, r.env.repos.Enrollment().SetChildWeeklyPlan, r.childID, plan))
+			_, err = changeRequestApplierForTest(t, r.env).SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
+				RequestID: r.requestID, ChildID: r.childID, ActorAccountID: r.reviewerAccountID, ReplaceTargetedData: tc.replaceNow,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, map[int]string{timetable.WeekdayMonday: "15:10"}, r.pickups(t), "the due plan removes the old Wednesday")
+			if tc.replaceBefore || tc.replaceNow {
+				assert.Empty(t, r.careDays(t), "the stored replacing edit clears removed care days")
+				assert.Empty(t, r.student(t).AllowedDepartureModes, "the stored replacing edit clears the removed Heimweg")
+			} else {
+				assert.Equal(t, []int{timetable.WeekdayMonday}, r.careDays(t))
+			}
+			child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
+			require.NoError(t, err)
+			assert.Nil(t, child.WeeklyPlanOn)
+			assert.Zero(t, r.applyDue(t, r.start), "the correction applied the plan once")
+		})
+	}
+}
+
+func TestDecisionService_ApplyDueWeeklyPlans_BroadcastsAfterSuccessfulApply(t *testing.T) {
+	t.Parallel()
+	r := setupFutureRenewal(t)
+	r.approve(t)
+	bc := testpkg.NewRecordingBroadcaster()
+	repos, care, _, schedules, _, _ := testRepositories(t, r.env.db)
+	studentEnrollment := testStudentEnrollment(r.env.db)
+	owner := newTestDecisions(enrollmentCompose.DecisionDependencies{
+		Requests: repos.Enrollment(), Children: repos.Enrollment(), Schemas: repos.Enrollment(),
+		People: owners.EnrollmentDecisionPeopleDirectory(
+			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, studentEnrollment,
+		),
+		StudentEnrollment: studentEnrollment,
+		Companions:        owners.EnrollmentDecisionCompanions(owners.NewStudentCompanionRepository(care.CarePlan), care.CarePlan.DeleteCompanionEdges),
+		PickupSchedules:   schedules.EnrollmentPickupSchedules(), ArrivalSchedules: schedules.EnrollmentArrivalSchedules(),
+		Broadcasts: owners.EnrollmentDecisionBroadcasts(bc),
+		Today:      func() calendar.Date { return r.start },
+	}, nil)
+	r.env.decision = newFlowDecisionService(owner)
+	ctx := testpkg.Ctx(t)
+	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, repos.Enrollment(), r.childID)
+	require.NoError(t, err)
+	child.CustomData["pickup_times"] = map[string]any{"mon": "25:99"}
+	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, repos.Enrollment(), child))
+	assert.Zero(t, r.applyDue(t, r.start))
+	assert.False(t, bc.HasEventType(realtime.EventStudentUpdated), "a rolled-back application stays silent")
+
+	child.CustomData["pickup_times"] = map[string]any{"mon": "15:10"}
+	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, repos.Enrollment(), child))
+	assert.Equal(t, 1, r.applyDue(t, r.start))
+	assert.True(t, bc.HasEventType(realtime.EventStudentUpdated), "ordinary plan activation refreshes open views")
+	assert.False(t, bc.HasEventType(realtime.EventStudentCompanionsChanged), "no companion link was trimmed")
+	bc.Reset()
+	assert.Zero(t, r.applyDue(t, r.start.AddDays(1)))
+	assert.False(t, bc.HasEventType(realtime.EventStudentUpdated), "a cleared plan emits no further update")
+}
+
+// The start names the approving staff member as the author of the weekly
+// rows even when the reviewing account is gone by then: the approval stores
+// the author with the plan instead of resolving the account at the start
+// (#6043).
+func TestDecisionService_ApplyDueWeeklyPlans_KeepsAuthorWithoutReviewerAccount(t *testing.T) {
+	t.Parallel()
+
+	r := setupFutureRenewal(t)
+	r.approve(t)
+	ctx := testpkg.Ctx(t)
+	_, err := r.env.db.NewUpdate().TableExpr("enrollment.request_children").
+		Set("reviewed_by = NULL").
+		Where("tenant_id = ? AND id = ?", testpkg.Tenant(t), r.childID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, r.applyDue(t, r.start))
+	rows, err := r.env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, r.studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, r.reviewerStaffID, rows[0].CreatedBy, "the stored approver authors the applied rows")
 }

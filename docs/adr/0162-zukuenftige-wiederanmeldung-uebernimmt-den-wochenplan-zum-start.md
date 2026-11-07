@@ -47,7 +47,13 @@ Begleitnotiz.
   (`weekly_plan_replaces`): Der Start übernimmt dann den ganzen Wochenplan, und
   ein entferntes Feld leert seinen Wert wie bei derselben Änderung sofort. Ist
   der Starttag schon da, der Lauf aber noch nicht, übernimmt die Änderung den
-  Plan selbst.
+  Plan selbst, mit denselben Regeln wie der Lauf, und schreibt danach ihre
+  übrigen Felder.
+- Als Urheber der neuen Wochenzeilen speichert der Plan die Mitarbeiterin, die
+  bestätigt hat, oder zuletzt geändert hat (`weekly_plan_author`). Der Start
+  hängt damit nicht davon ab, dass dieses Konto Monate später noch besteht.
+- Nach jeder Übernahme erfahren offene Ansichten über `student_updated` von
+  der Änderung.
 - Ein Kind ohne laufende Betreuung, eine schon begonnene Betreuung und neue
   Kinder bekommen den Wochenplan wie bisher sofort.
 
