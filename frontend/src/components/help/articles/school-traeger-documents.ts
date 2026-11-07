@@ -32,7 +32,7 @@ export function schoolTraegerDocumentsTopic(): HelpTopic {
       "Die Karte `Vom Träger` fehlt? Dann hat der Träger zurzeit nichts für Ihre Schule freigegeben. Oder Ihnen fehlt das Recht, die Dateien zu verwalten.",
     ],
     troubleshootingDetails: [
-      "Ein Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen. Fragen Sie beim Träger nach.",
+      "Ein Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen oder das Dokument gelöscht. Fragen Sie beim Träger nach.",
     ],
     related: [HELP_TOPICS.sharedFiles],
   };

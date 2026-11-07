@@ -1,4 +1,5 @@
 {
+  "api/traeger/documents/[id]": ["DELETE traeger /traeger/documents/id%2F1"],
   "api/traeger/documents/[id]/releases": [
     "POST traeger /traeger/documents/id%2F1/releases"
   ],

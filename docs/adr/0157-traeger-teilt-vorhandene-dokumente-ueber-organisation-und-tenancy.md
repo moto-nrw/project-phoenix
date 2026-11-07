@@ -57,15 +57,25 @@ ADR 0070).
    solange eine aktive Freigabe das Dokument dieser Schule zugänglich macht
    und die Schule noch zum Träger gehört (ADR 0084 §7, ADR 0088 §7). Ohne
    Freigabe gibt es keinen Eintrag bei einer Schule.
-7. **Rechte im Träger-Büro:** Lesen „Übersicht lesen“, Hochladen, Freigeben und
-   Zurücknehmen „Anmeldung verwalten“ (Verwaltung). Ein eigenes Recht wäre ein
+7. **Löschen** (#5993): Das Träger-Büro löscht ein Dokument mit dem Recht
+   „Anmeldung verwalten“. In einer Träger-Transaktion sperrt der Dienst die
+   Zeile des Dokuments, nimmt alle aktiven Freigaben mit dem handelnden Konto
+   zurück, entfernt die Datei (`content` wird NULL) und vermerkt
+   `deleted_at` und `deleted_by`. Die Zeile bleibt mit Titel und Dateiname,
+   weil Freigaben, Öffnungen und Downloads auf sie zeigen; eine Kaskade würde
+   diese Nachweise vor ihrer Frist löschen. Eine Freigabe sperrt die Zeile
+   `FOR SHARE`: Sie wartet auf ein gleichzeitiges Löschen und findet das
+   Dokument danach gelöscht. Ein Trigger lehnt Freigaben gelöschter Dokumente
+   ab, die Funktionen der Schulen und die Abfragen der Eltern übergehen sie.
+8. **Rechte im Träger-Büro:** Lesen „Übersicht lesen“, Hochladen, Freigeben,
+   Zurücknehmen und Löschen „Anmeldung verwalten“ (Verwaltung). Ein eigenes Recht wäre ein
    Nachtrag zu ADR 0084.
 
 ## Register
 
 - Compose-LOC: `modules/organizationtenancy/compose` +10 (die zwei
   Konstruktoren), `workflows/parentportal/compose` +1 (der Port), Summe +11.
-- Transaktionsgrenzen: fünf Träger-Transaktionen des Dienstes; die
+- Transaktionsgrenzen: fünf Träger-Transaktionen des Dienstes, mit dem Löschen (#5993) sechs; die
   Admin-Grenze des Postfachs zieht unverändert nach `inboxAccess` um.
 - Pass-through-Register: zwei Bindungen an der Wurzel
   (`parentSharedDocuments`) und eine Gruppen-Bindung.

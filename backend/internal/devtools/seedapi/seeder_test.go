@@ -215,11 +215,13 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	const schoolYearPhaseID, holidayPhaseID = 41, 42
 	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, schoolYearPhaseID, holidayPhaseID)
 	require.NoError(t, err)
-	require.Len(t, received, 6)
+	require.Len(t, received, 8)
 
 	expectedTimes := map[string]string{
 		"OGS Ganztag": "16:00", "Kurzbetreuung": "14:00", "Mittagessen": "", "Ferienbetreuung Herbst": "16:00",
 		"Fußball-AG": "", "Theater-AG": "",
+		// The care forms of the Träger's occupancy (#5977).
+		"Betreuung bis 15 Uhr": "15:00", "Spätbetreuung": "17:00",
 	}
 	for _, offering := range received {
 		expectedTime, ok := expectedTimes[offering.Name]

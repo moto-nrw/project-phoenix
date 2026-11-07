@@ -59,8 +59,20 @@ const OCCUPANCY: TraegerOccupancy = {
       ],
       withoutCareForm: 1,
       careForms: [
-        { id: "21", name: "OGS bis 16 Uhr", children: 8, capacity: 8 },
-        { id: "22", name: "Frühbetreuung", children: 2, capacity: null },
+        {
+          id: "21",
+          name: "OGS bis 16 Uhr",
+          children: 8,
+          capacity: 8,
+          active: true,
+        },
+        {
+          id: "22",
+          name: "Frühbetreuung",
+          children: 2,
+          capacity: null,
+          active: true,
+        },
       ],
     },
     {
@@ -74,7 +86,13 @@ const OCCUPANCY: TraegerOccupancy = {
       groups: [{ id: "13", name: "Füchse", children: 6 }],
       withoutCareForm: 0,
       careForms: [
-        { id: "23", name: "OGS bis 16 Uhr", children: 6, capacity: 10 },
+        {
+          id: "23",
+          name: "OGS bis 16 Uhr",
+          children: 6,
+          capacity: 10,
+          active: true,
+        },
       ],
     },
   ],
@@ -157,6 +175,110 @@ describe("TraegerOccupancyPage", () => {
     ).toHaveAttribute("href", "/traeger/schulen/2");
   });
 
+  it("shows the free places over all schools and per school", async () => {
+    mockFetchOccupancy.mockResolvedValue(OCCUPANCY);
+    renderPage();
+    await screen.findByText("14 von 16");
+
+    expect(screen.getByText("4 von 18")).toBeInTheDocument();
+    expect(
+      screen.getByText("In 2 Angeboten mit Platzgrenze. Ein Angebot ist voll."),
+    ).toBeInTheDocument();
+
+    const table = screen.getByRole("table");
+    const bach = rowOf(table, "OGS Am Bach");
+    expect(within(bach).getByText("1 voll")).toBeInTheDocument();
+    const linde = rowOf(table, "OGS Lindenweg");
+    expect(within(linde).getByText("4")).toBeInTheDocument();
+    expect(
+      within(linde).getByText("von 10", { exact: false }),
+    ).toBeInTheDocument();
+    expect(within(linde).queryByText(/voll$/)).not.toBeInTheDocument();
+  });
+
+  it("lists an offer without a booking with all its places free (#5977)", async () => {
+    const school = OCCUPANCY.schools[1]!;
+    mockFetchOccupancy.mockResolvedValue({
+      ...OCCUPANCY,
+      schools: [
+        {
+          ...school,
+          careForms: [
+            ...school.careForms,
+            {
+              id: "24",
+              name: "Betreuung bis 15 Uhr",
+              children: 0,
+              capacity: 12,
+              active: true,
+            },
+          ],
+        },
+      ],
+    });
+    renderPage();
+    expect(await screen.findByText("16 von 22")).toBeInTheDocument();
+
+    openTab("Betreuungsformen");
+    const table = await screen.findByRole("table");
+    const unbooked = rowOf(table, "Betreuung bis 15 Uhr");
+    expect(within(unbooked).getAllByRole("cell")[2]).toHaveTextContent(/^0$/);
+    expect(
+      within(unbooked).getByText("von 12", { exact: false }),
+    ).toBeInTheDocument();
+    expect(within(unbooked).getByText("12 frei")).toBeInTheDocument();
+  });
+
+  it("counts no free places for an offer the school no longer offers", async () => {
+    const school = OCCUPANCY.schools[1]!;
+    mockFetchOccupancy.mockResolvedValue({
+      ...OCCUPANCY,
+      schools: [
+        {
+          ...school,
+          careForms: [
+            ...school.careForms,
+            {
+              id: "26",
+              name: "Alte Betreuung",
+              children: 2,
+              capacity: 20,
+              active: false,
+            },
+          ],
+        },
+      ],
+    });
+    renderPage();
+    expect(await screen.findByText("4 von 10")).toBeInTheDocument();
+
+    openTab("Betreuungsformen");
+    const table = await screen.findByRole("table");
+    const retired = rowOf(table, "Alte Betreuung");
+    expect(
+      within(retired).getByText("von 20", { exact: false }),
+    ).toBeInTheDocument();
+    expect(within(retired).queryByText(/frei$/)).not.toBeInTheDocument();
+  });
+
+  it("explains an empty care form list", async () => {
+    const school = OCCUPANCY.schools[1]!;
+    mockFetchOccupancy.mockResolvedValue({
+      ...OCCUPANCY,
+      schools: [{ ...school, children: 0, groups: [], careForms: [] }],
+    });
+    renderPage();
+    await screen.findAllByText("0 von 0");
+    expect(
+      screen.getByText("Kein Angebot hat eine Platzgrenze."),
+    ).toBeInTheDocument();
+
+    openTab("Betreuungsformen");
+    expect(
+      (await screen.findAllByText("Heute läuft kein Betreuungsangebot")).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("lists every group with the children without a group", async () => {
     mockFetchOccupancy.mockResolvedValue(OCCUPANCY);
     renderPage();
@@ -206,9 +328,27 @@ describe("TraegerOccupancyPage", () => {
         {
           ...school,
           careForms: [
-            { id: "zero", name: "Keine Plätze", children: 2, capacity: 0 },
-            { id: "empty", name: "Leer", children: 0, capacity: 0 },
-            { id: "open", name: "Ohne Grenze", children: 2, capacity: null },
+            {
+              id: "zero",
+              name: "Keine Plätze",
+              children: 2,
+              capacity: 0,
+              active: true,
+            },
+            {
+              id: "empty",
+              name: "Leer",
+              children: 0,
+              capacity: 0,
+              active: true,
+            },
+            {
+              id: "open",
+              name: "Ohne Grenze",
+              children: 2,
+              capacity: null,
+              active: true,
+            },
           ],
         },
       ],

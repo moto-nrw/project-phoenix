@@ -1,6 +1,7 @@
 "use client";
 
 import { Alert } from "~/components/ui/alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -286,7 +287,11 @@ export function StepWiederholung({
                 <span className="text-xs font-semibold text-gray-700">
                   Planungszeitraum
                 </span>
-                <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
+                <InsetPanel
+                  framed
+                  padding="compact"
+                  className="flex h-10 items-center text-sm text-gray-600"
+                >
                   <span className="truncate">
                     Gilt in{" "}
                     <span className="font-semibold text-gray-800">
@@ -295,7 +300,7 @@ export function StepWiederholung({
                       )?.name ?? "dem aktuellen Planungszeitraum"}
                     </span>
                   </span>
-                </div>
+                </InsetPanel>
                 <FieldErrorHint
                   id="event-calendar-period-error"
                   message={fieldErrors.calendarPeriodId}

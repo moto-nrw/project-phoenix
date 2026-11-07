@@ -8,17 +8,19 @@ import "slices"
 // the Theater-AG, so the parents app keeps a full course whose request lands
 // on the waiting list (#3075). Before, the Fußball-AG stood at 0 of 12. The
 // holiday care belongs to its own holiday phase (#5139), so a school-year
-// enrollment does not book it.
+// enrollment does not book it. Four Ganztag children add the Spätbetreuung,
+// which fills its four places, so the Träger's occupancy shows a full care
+// form (#5977).
 var seedEnrollmentCourseBookings = map[string][]string{
-	"Zeynep Çelik":     {"ag-theater"},
+	"Zeynep Çelik":     {"ag-theater", "spaetbetreuung"},
 	"Emma Klein":       {"ag-theater"},
-	"Oskar Wolf":       {"ag-fussball"},
+	"Oskar Wolf":       {"ag-fussball", "spaetbetreuung"},
 	"Zofia Kowalczyk":  {"ag-fussball", "ag-theater"},
 	"Ben Hartmann":     {"ag-fussball"},
-	"Clara Neumann":    {"ag-fussball", "ag-theater"},
+	"Clara Neumann":    {"ag-fussball", "ag-theater", "spaetbetreuung"},
 	"Artem Kovalenko":  {"ag-fussball", "ag-theater"},
 	"Omar Al-Hassan":   {"ag-fussball"},
-	"Amelie Vogt":      {"ag-theater"},
+	"Amelie Vogt":      {"ag-theater", "spaetbetreuung"},
 	"Felix Kovac":      {"ag-fussball"},
 	"Hannah Schmitz":   {"ag-theater"},
 	"Viktor Reimer":    {"ag-fussball"},

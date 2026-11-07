@@ -5831,7 +5831,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Statt der Liste steht, dass Ihnen die Berechtigung fehlt? Bitte fragen Sie die Schule.",
       "Der Link in der Mail gilt nicht mehr? Er gilt nur einmal und 30 Tage. Unterschreiben Sie in der Eltern-App unter `Dokumente`. Oder fragen Sie beim Träger nach einem neuen Link.",
       "Beim Vertrag fehlt `Lesen und unterschreiben`? Dann darf Ihr Konto für dieses Kind nicht unterschreiben. Bitte fragen Sie die Schule.",
-      "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen.",
+      "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen oder das Dokument gelöscht.",
       "`Verträge hier kündigen` fehlt? Der Vertrag gilt noch nicht, oder er ist schon beendet. Oder Ihnen fehlt das Recht: Kündigen dürfen nur Eltern, die das Kind auch anmelden dürfen. Dann steht beim Vertrag ein Hinweis. Das Recht vergibt die Schule.",
     ],
     related: [
@@ -7466,7 +7466,7 @@ export const schoolTraegerDocumentsTopic =
         "Die Karte `Vom Träger` fehlt? Dann hat der Träger zurzeit nichts für Ihre Schule freigegeben. Oder Ihnen fehlt das Recht, die Dateien zu verwalten.",
       ],
       troubleshootingDetails: [
-        "Ein Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen. Fragen Sie beim Träger nach.",
+        "Ein Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen oder das Dokument gelöscht. Fragen Sie beim Träger nach.",
       ],
       related: [HELP_TOPICS.sharedFiles],
     };
@@ -11184,17 +11184,19 @@ export const traegerOccupancyTopic =
       icon: "ChartLine",
       steps: [
         "Wählen Sie in der Navigation `Belegung`.",
-        "Lesen Sie oben die Summe für alle Schulen.",
+        "Lesen Sie oben die Summe für alle Schulen und die freien Plätze.",
         "Wählen Sie einen Reiter: `Schulen`, `Gruppen` oder `Betreuungsformen`.",
         "Wählen Sie `Herunterladen` und dann `CSV`, um alle Zahlen als Tabelle zu speichern.",
       ],
       result:
-        "Sie sehen für jede Schule, wie viele Kinder in welcher Gruppe sind und welches Betreuungsangebot sie heute gebucht haben.",
+        "Sie sehen für jede Schule, wie viele Kinder in welcher Gruppe sind und welches Betreuungsangebot sie heute gebucht haben. Sie sehen auch, wo noch Plätze frei sind.",
       notes: [
         "Suchen Sie oben nach einer Schule oder einem Ort. Die Summe zählt dann nur diese Schulen.",
         "Es zählen dieselben Kinder wie bei der Stichtagszahl, aber von heute.",
         "Eine Betreuungsform ist ein Betreuungsangebot, das als Betreuung zählt, zum Beispiel „OGS bis 16 Uhr“. Mittagessen zählt nicht.",
+        "Unter `Betreuungsformen` steht jedes Angebot, das heute läuft. Auch eins, das noch niemand gebucht hat. Es hat dann 0 Kinder und alle Plätze frei.",
         "Unter `Betreuungsformen` stehen Angebote mit gleichem Namen an mehreren Schulen auch zusammengezählt.",
+        "`Freie Plätze` zählt nur Angebote, für die die Schule Plätze festgelegt hat.",
         "Sie sehen nur Zahlen, keine Namen von Kindern.",
       ],
       differences: [
@@ -11323,7 +11325,8 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
 
 /**
  * `/traeger/dokumente` (#4692): vorhandene Dokumente hochladen und für
- * Eltern oder Schulen freigeben; eine Freigabe zurücknehmen.
+ * Eltern oder Schulen freigeben; eine Freigabe zurücknehmen; ein Dokument
+ * löschen (#5993).
  */
 export const traegerSharedDocumentsTopic =
   function traegerSharedDocumentsTopic(): HelpTopic {
@@ -11370,17 +11373,29 @@ export const traegerSharedDocumentsTopic =
             "Bestätigen Sie mit `Ja, zurücknehmen` und dann `Zurücknehmen`.",
           ],
         },
+        {
+          title: "Dokument löschen",
+          description:
+            "Alle Freigaben enden dabei. Die Datei ist danach weg, auch für Sie.",
+          steps: [
+            "Öffnen Sie das Dokument.",
+            "Wählen Sie oben rechts das Menü mit den drei Punkten. Wählen Sie `Dokument löschen`.",
+            "Prüfen Sie, welche Freigaben enden.",
+            "Tippen Sie `LÖSCHEN` ein. Wählen Sie `Endgültig löschen`.",
+          ],
+        },
       ],
       steps: [],
       result:
-        "Eltern finden das Dokument in der Eltern-App unter `Dokumente`. Die OGS-Leitung findet es in moto unter `Dateien` bei `Vom Träger`. Nach dem Zurücknehmen sehen sie es sofort nicht mehr, außer eine andere Freigabe des Dokuments gilt auch für sie.",
+        "Eltern finden das Dokument in der Eltern-App unter `Dokumente`. Die OGS-Leitung findet es in moto unter `Dateien` bei `Vom Träger`. Nach dem Zurücknehmen sehen sie es sofort nicht mehr, außer eine andere Freigabe des Dokuments gilt auch für sie. Nach dem Löschen sieht es niemand mehr, auch nicht über einen gespeicherten Link.",
       notes: [
         "Ein Dokument kann mehrere Freigaben haben. Zum Beispiel für die Eltern einer Gruppe und für alle Schulen.",
         "Eine Freigabe für Eltern sieht auch die OGS-Leitung der Schule. So weiß sie, was die Eltern bekommen haben.",
         "Bei `Geöffnet` sehen Sie, wie oft Eltern und Schulen das Dokument geöffnet haben.",
+        "Auch nach dem Löschen bleibt im Nachweis, wer das Dokument wann freigegeben, geöffnet und gelöscht hat.",
       ],
       differences: [
-        "Sie sehen `Dokument hochladen` und `Freigeben` nicht? Ihnen fehlt die Rolle `Verwaltung`. Sie können die Dokumente nur ansehen.",
+        "Sie sehen `Dokument hochladen`, `Freigeben` und das Menü zum Löschen nicht? Ihnen fehlt die Rolle `Verwaltung`. Sie können die Dokumente nur ansehen.",
       ],
       troubleshootingDetails: [
         "moto nimmt die Datei nicht an? Prüfen Sie Art und Größe. Eine umbenannte Datei erkennt moto am Inhalt.",

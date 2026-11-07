@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -1082,26 +1081,6 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   );
 }
 
-function SelectField({
-  label,
-  id,
-  children,
-}: Readonly<{
-  label: string;
-  id: string;
-  children: ReactNode;
-}>) {
-  return (
-    <label
-      className="flex flex-col gap-1 text-sm font-medium text-gray-700"
-      htmlFor={id}
-    >
-      {label}
-      {children}
-    </label>
-  );
-}
-
 function ClassRosterExportPanel({
   schoolClassOptions,
   selectedSchoolClass,
@@ -1119,30 +1098,25 @@ function ClassRosterExportPanel({
     <section className="moto-content-surface relative z-10 rounded-2xl border p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0 md:w-72">
-          <SelectField
-            label="Klasse für Klassenliste"
+          <CustomSelect
             id="phase-class-roster-class"
-          >
-            <CustomSelect
-              id="phase-class-roster-class"
-              ariaLabel="Klasse für Klassenliste"
-              value={selectedSchoolClass}
-              onChange={onSelectedSchoolClassChange}
-              options={[
-                {
-                  value: ALL_VALUE,
-                  label:
-                    schoolClassOptions.length === 0
-                      ? "Keine Klassen"
-                      : "Alle Klassen",
-                },
-                ...schoolClassOptions.map((schoolClass) => ({
-                  value: schoolClass,
-                  label: schoolClass,
-                })),
-              ]}
-            />
-          </SelectField>
+            label="Klasse für Klassenliste"
+            value={selectedSchoolClass}
+            onChange={onSelectedSchoolClassChange}
+            options={[
+              {
+                value: ALL_VALUE,
+                label:
+                  schoolClassOptions.length === 0
+                    ? "Keine Klassen"
+                    : "Alle Klassen",
+              },
+              ...schoolClassOptions.map((schoolClass) => ({
+                value: schoolClass,
+                label: schoolClass,
+              })),
+            ]}
+          />
         </div>
 
         <ExportMenu

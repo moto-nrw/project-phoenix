@@ -2,6 +2,7 @@
 
 import { Plus, Search } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -611,7 +612,10 @@ export function SpontaneousActivityStart({
                 Weitere Betreuer
               </div>
               {staff.length > 0 ? (
-                <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2">
+                <InsetPanel
+                  framed
+                  className="grid max-h-44 gap-2 overflow-y-auto"
+                >
                   {staff.map((item) => {
                     const accountMark = item.isExternal
                       ? externalAccountMark(item.externalAccountStatus)
@@ -645,7 +649,7 @@ export function SpontaneousActivityStart({
                       </label>
                     );
                   })}
-                </div>
+                </InsetPanel>
               ) : null}
               {canCreateExternalCaregiver ? (
                 <ExternalCaregiverEntry

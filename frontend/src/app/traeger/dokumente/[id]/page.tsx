@@ -2,11 +2,16 @@
 
 // Ein Dokument des Trägers (#4692): für wen es freigegeben ist, eine neue
 // Freigabe und das Zurücknehmen einer Freigabe. Zurückgenommen sehen Eltern
-// und Schulen das Dokument sofort nicht mehr.
+// und Schulen das Dokument sofort nicht mehr. Das Menü im Kopf löscht das
+// Dokument mit allen Freigaben (#5993).
 
-import { DownloadSimpleIcon, ShareNetworkIcon } from "@phosphor-icons/react";
+import {
+  DownloadSimpleIcon,
+  ShareNetworkIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import { useSession } from "next-auth/react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   documentFileFacts,
@@ -23,7 +28,9 @@ import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { EmptyState } from "~/components/ui/empty-state";
+import { FramedList } from "~/components/ui/framed-list";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -40,6 +47,7 @@ import { formatBerlinDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
+  deleteTraegerDocument,
   downloadTraegerDocument,
   revokeTraegerDocumentRelease,
   type TraegerDocumentRelease,
@@ -48,11 +56,12 @@ import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerDocumentPage" });
 
-/** Das Recht, das Freigeben und Zurücknehmen öffnet (Verwaltung). */
+/** Das Recht, das Freigeben, Zurücknehmen und Löschen öffnet (Verwaltung). */
 const MANAGE_RIGHT = "traeger_enrollment:manage";
 
 export default function TraegerDocumentPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const id = params?.id ?? "";
   const { data: session } = useSession();
   const canManage = hasPermission(session ?? null, MANAGE_RIGHT);
@@ -66,10 +75,16 @@ export default function TraegerDocumentPage() {
   const { success } = useToast();
   const downloadErrors = useApiErrorDisplay();
   const revokeErrors = useApiFormError();
+  const deleteErrors = useApiFormError();
   const [releasing, setReleasing] = useState(false);
   const [pending, setPending] = useState<TraegerDocumentRelease | null>(null);
   const [revoking, setRevoking] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  // After a deletion the page leaves for the list; until it is gone it
+  // shows loading, never "Dieses Dokument gibt es nicht".
+  const [deleted, setDeleted] = useState(false);
 
   const document = data?.find((candidate) => candidate.id === id) ?? null;
   const names = useMemo(() => schoolNamesOf(schools ?? []), [schools]);
@@ -112,6 +127,27 @@ export default function TraegerDocumentPage() {
     }
   };
 
+  const remove = async () => {
+    if (!document) return;
+    setDeleting(true);
+    deleteErrors.clear();
+    try {
+      await deleteTraegerDocument(document.id);
+      success(`„${document.title}“ gelöscht.`);
+      setDeleted(true);
+      setConfirmingDelete(false);
+      router.replace(traegerPath("/traeger/dokumente"));
+      void mutate();
+    } catch (err) {
+      logger.error("traeger_document_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void deleteErrors.show(err, { object: "das Dokument" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <TenantPage
       title={document?.title ?? "Dokument"}
@@ -137,9 +173,9 @@ export default function TraegerDocumentPage() {
       }
       statsLoading={isLoading}
       error={loadError ?? schoolsError}
-      loading={(isLoading && !document) || schoolsPending}
+      loading={(isLoading && !document) || schoolsPending || deleted}
       empty={
-        missing
+        missing && !deleted
           ? {
               title: "Dieses Dokument gibt es nicht.",
               description:
@@ -173,6 +209,26 @@ export default function TraegerDocumentPage() {
                 <ShareNetworkIcon className="h-4 w-4" aria-hidden="true" />
                 Freigeben
               </Button>
+            )}
+            {/* Without the school names the dialog could not name the
+                schools that lose the document; the page shows their failed
+                load with a retry instead. */}
+            {canManage && schools !== null && (
+              <OverflowMenu
+                ariaLabel="Weitere Aktionen zum Dokument"
+                items={[
+                  {
+                    label: "Dokument löschen",
+                    description: "Alle Freigaben enden, die Datei ist weg.",
+                    icon: <TrashIcon className="size-4" aria-hidden="true" />,
+                    destructive: true,
+                    onClick: () => {
+                      deleteErrors.clear();
+                      setConfirmingDelete(true);
+                    },
+                  },
+                ]}
+              />
             )}
           </>
         ) : null
@@ -215,7 +271,8 @@ export default function TraegerDocumentPage() {
                         document.title,
                       )
                     : ""}{" "}
-                  Das Dokument selbst bleibt hier gespeichert.
+                  Das Dokument selbst bleibt hier gespeichert. Ganz löschen
+                  können Sie es über das Menü oben.
                 </>
               }
               confirmLabel="Zurücknehmen"
@@ -223,6 +280,80 @@ export default function TraegerDocumentPage() {
               gate={{ mode: "twoStep", firstStepLabel: "Ja, zurücknehmen" }}
               loading={revoking}
               error={revokeErrors.error}
+            />
+            <ConfirmDeleteModal
+              isOpen={confirmingDelete}
+              onClose={() => {
+                if (deleting) return;
+                deleteErrors.clear();
+                setConfirmingDelete(false);
+              }}
+              onConfirm={() => void remove()}
+              title="Dokument löschen?"
+              description={
+                <div className="space-y-3">
+                  <p>
+                    <span className="font-medium text-gray-900">
+                      „{document.title}“
+                    </span>{" "}
+                    wird gelöscht. Danach ist die Datei weg, auch hier im
+                    Träger-Büro.
+                  </p>
+                  {document.releases.length > 0 ? (
+                    <div className="space-y-2">
+                      <FramedList
+                        maxHeight="sm"
+                        header={
+                          <p className="text-sm font-medium text-gray-900">
+                            Diese Freigaben enden sofort
+                          </p>
+                        }
+                      >
+                        {document.releases.map((release) => (
+                          <li
+                            key={release.id}
+                            className="flex items-center gap-3 px-4 py-2.5"
+                          >
+                            <MotoConceptIcon
+                              concept={
+                                release.audience === "parents"
+                                  ? parentsConcept
+                                  : schoolsConcept
+                              }
+                              size={18}
+                              className="shrink-0"
+                            />
+                            <span className="min-w-0 text-sm text-gray-900">
+                              {releaseAudienceLabel(release, names)}
+                            </span>
+                          </li>
+                        ))}
+                      </FramedList>
+                      <p>
+                        Eltern und Schulen finden das Dokument dann nicht mehr.
+                        Auch ein gespeicherter Link öffnet es nicht mehr.
+                      </p>
+                    </div>
+                  ) : (
+                    <p>Das Dokument ist für niemanden freigegeben.</p>
+                  )}
+                  <p>
+                    Im Nachweis bleibt, wer es wann freigegeben, geöffnet und
+                    gelöscht hat.
+                  </p>
+                </div>
+              }
+              gate={{
+                mode: "textConfirm",
+                expected: "LÖSCHEN",
+                inputId: "confirm-delete-traeger-document",
+                label: "Tippen Sie zur Bestätigung LÖSCHEN ein:",
+                placeholder: "LÖSCHEN",
+              }}
+              confirmLabel="Endgültig löschen"
+              loadingLabel="Wird gelöscht …"
+              loading={deleting}
+              error={deleteErrors.error}
             />
           </>
         ) : null
