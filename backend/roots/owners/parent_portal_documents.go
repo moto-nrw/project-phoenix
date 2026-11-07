@@ -15,7 +15,6 @@ import (
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -284,8 +283,8 @@ func BuildParentDocumentNotices(
 		DocumentNotifier:    NewParentDocumentNotifier(notifications.Notifier, notifications.Preferences),
 		// The pushes of a sent contract and of a release (#5941).
 		TraegerRuntime: ParentPortalRuntime{}, StudentRepo: NewParentStudentReads(people.Students),
-		ContractInboxNotices: NewParentContractInboxNotices(careContractCompose.NewInboxNotices()),
-		ReleaseNotices:       NewParentReleaseNotices(organizationTenancyCompose.NewSharedTraegerDocuments()),
+		ContractInboxNotices: NewParentContractInboxNotices(),
+		ReleaseNotices:       NewParentReleaseNotices(),
 		ReleaseRecipients:    NewParentReleaseRecipients(organizations, NewParentGroupAudience(db)),
 		Logger:               env.Logger.With("service", "parent-document-notices"),
 	})

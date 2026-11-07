@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -23,8 +25,8 @@ type parentContractInboxNotices struct {
 }
 
 // NewParentContractInboxNotices binds the contract check of the push.
-func NewParentContractInboxNotices(inbox carecontract.InboxNotices) parentportal.ContractInboxNoticesPort {
-	return parentContractInboxNotices{inbox: inbox}
+func NewParentContractInboxNotices() parentportal.ContractInboxNoticesPort {
+	return parentContractInboxNotices{inbox: careContractCompose.NewInboxNotices()}
 }
 
 func (n parentContractInboxNotices) ContractNoticeTarget(ctx context.Context, organizationID, contractID int64, email string) (parentportal.ContractNoticeTarget, bool, error) {
@@ -38,8 +40,8 @@ type parentReleaseNotices struct {
 }
 
 // NewParentReleaseNotices binds the release checks of the push.
-func NewParentReleaseNotices(documents organizationtenancy.ParentTraegerDocumentNotices) parentportal.ReleaseNoticesPort {
-	return parentReleaseNotices{documents: documents}
+func NewParentReleaseNotices() parentportal.ReleaseNoticesPort {
+	return parentReleaseNotices{documents: organizationTenancyCompose.NewSharedTraegerDocuments()}
 }
 
 func (n parentReleaseNotices) ActiveParentRelease(ctx context.Context, organizationID, releaseID int64) (parentportal.ReleaseNoticeAudience, bool, error) {
