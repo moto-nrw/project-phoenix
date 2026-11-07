@@ -32,7 +32,7 @@ func NewCareContractChanges(organizations HolidayOrganizations, changes careplan
 	if changes == nil || schoolSettings == nil {
 		panic("care contract changes: the offering changes and the school settings are required")
 	}
-	return careContractCompose.NewContractChanges(careContractCompose.ChangePorts{
+	return careContractCompose.NewContractChanges(carecontract.ChangePorts{
 		Schools:  careContractSchools{organizations: organizations},
 		Requests: owners.CareContractChangeRequests{Changes: changes, Settings: schoolSettings},
 		Access:   careContractAccessLog{log: accessLog}, Runtime: owners.CareContractRuntime{},

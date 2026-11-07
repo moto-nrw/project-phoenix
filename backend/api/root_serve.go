@@ -570,10 +570,7 @@ func composeServeRoot(
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
 				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications, delivery.Runtime.Module, env.HealthData))
-			// The Träger-Büro decides the parents' changes through Care Plan's
-			// review of the school (#5979).
-			mountCareContractChangeRoutes(router, organizations, requests.OfferingChanges, settings.Service, audit.Persistence.DataAccessLog)
-			return errors.Join(mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, settings.Service, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, config.Turnstile, env.HealthData, reports.Statistics, env.Links.ParentsURL, logger), mountTraegerDocumentRoutes(router, tenant, db, organizations, audit.Persistence.DataAccessLog, audit.Command))
+			return errors.Join(mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, settings.Service, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, config.Turnstile, env.HealthData, reports.Statistics, requests.OfferingChanges, env.Links.ParentsURL, logger), mountTraegerDocumentRoutes(router, tenant, db, organizations, audit.Persistence.DataAccessLog, audit.Command))
 		},
 	)
 	if err != nil {

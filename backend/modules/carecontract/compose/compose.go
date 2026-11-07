@@ -27,6 +27,11 @@ func NewContractVersions() carecontract.ContractVersions {
 	return application.NewVersions(postgres.NewStore())
 }
 
+// NewContractChanges builds the office's decision of the parents' changes (#5979); it opens its own units.
+func NewContractChanges(ports carecontract.ChangePorts) carecontract.ContractChangeDecisions {
+	return application.NewContractChanges(postgres.NewStore(), ports)
+}
+
 // NewIntake builds the creation of contracts from the accepted applications and the offerings' templates.
 func NewIntake(ports IntakePorts) carecontract.Intake {
 	return application.NewIntake(postgres.NewStore(), ports, calendar.TodayDate)

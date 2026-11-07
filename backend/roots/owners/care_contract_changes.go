@@ -74,10 +74,12 @@ func (b CareContractChangeRequests) PendingChanges(ctx context.Context, studentI
 // the right and that the school belongs to the Träger; Care Plan checks
 // that the request is the child's.
 func (b CareContractChangeRequests) DecideChange(ctx context.Context, decision carecontract.ChangeDecision) error {
-	reasonRequired, err := b.reasonRequired(ctx)
+	// The school's reason policy holds for the office as for the school.
+	policy, err := b.Settings.ResolveString(ctx, careContractChangeSettingReasonPolicy)
 	if err != nil {
-		return err
+		return fmt.Errorf("care contract changes: resolve reason policy: %w", err)
 	}
+	reasonRequired := parentrequests.ReasonRequired(policy, parentrequests.ReasonSideStaff)
 	_, err = b.Changes.Decide(withTraegerChangeReview(ctx), careplan.OfferingChangeDecisionInput{
 		RequestID: decision.RequestID, StudentID: decision.StudentID, Approve: decision.Approve,
 		Reason: decision.Reason, ReviewedBy: decision.AccountID, ActorRole: careContractChangeActorRole,

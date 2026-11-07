@@ -20,16 +20,6 @@ const (
 	changeViewReject  = "contract_change_reject"
 )
 
-// ChangePorts are the root-bound ports of the office's decision: the
-// schools of the Träger, Care Plan's requests of the school, the school's
-// access log and the transactions.
-type ChangePorts struct {
-	Schools  carecontract.TraegerSchools
-	Requests carecontract.SchoolChangeRequests
-	Access   carecontract.SchoolAccessLog
-	Runtime  carecontract.Runtime
-}
-
 // ContractChanges serves carecontract.ContractChangeDecisions (#5979). It
 // reads the contract in the Träger transaction and decides in the tenant
 // transaction of the contract's school, after it checked that the school
@@ -38,13 +28,13 @@ type ChangePorts struct {
 // with the amendment of the Worker, under the contract lock.
 type ContractChanges struct {
 	store ChangeStore
-	ports ChangePorts
+	ports carecontract.ChangePorts
 }
 
 var _ carecontract.ContractChangeDecisions = (*ContractChanges)(nil)
 
 // NewContractChanges builds the office's decisions.
-func NewContractChanges(store ChangeStore, changePorts ChangePorts) *ContractChanges {
+func NewContractChanges(store ChangeStore, changePorts carecontract.ChangePorts) *ContractChanges {
 	if store == nil || changePorts.Schools == nil || changePorts.Requests == nil || changePorts.Access == nil || changePorts.Runtime == nil {
 		panic("care contract: the store, the schools, the change requests, the access log and the runtime are required")
 	}

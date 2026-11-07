@@ -107,6 +107,16 @@ type SchoolChangeRequests interface {
 	DecideChange(ctx context.Context, decision ChangeDecision) error
 }
 
+// ChangePorts are the ports the root binds for the office's decision: the
+// schools of the Träger, Care Plan's requests of the school, the school's
+// access log and the transactions.
+type ChangePorts struct {
+	Schools  TraegerSchools
+	Requests SchoolChangeRequests
+	Access   SchoolAccessLog
+	Runtime  Runtime
+}
+
 // SchoolAccessChanges is a read of the parents' changes of a contract's
 // child by the Träger-Büro (#5979).
 const SchoolAccessChanges = "contract_changes"
