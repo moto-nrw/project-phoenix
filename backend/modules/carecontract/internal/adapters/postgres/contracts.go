@@ -129,7 +129,8 @@ func (Store) Contract(ctx context.Context, organizationID, contractID int64, for
 	if err != nil {
 		return ports.ContractRecord{}, err
 	}
-	record := ports.ContractRecord{Summary: summary.summary(), Version: current, Parties: []carecontract.Party{}}
+	record := ports.ContractRecord{Summary: summary.summary(), Version: current, Parties: []carecontract.Party{},
+		Concluded: summary.concluded()}
 	for _, party := range parties {
 		record.Parties = append(record.Parties, carecontract.Party{
 			FirstName: party.FirstName, LastName: party.LastName, Email: party.Email, HasAccount: party.AccountID != nil,
@@ -178,7 +179,7 @@ func (Store) InsertDocument(ctx context.Context, organizationID, accountID int64
 	if err := db.NewRaw(`INSERT INTO care_contract.contract_documents (organization_id, contract_id, contract_version_id,
 			template_version, filename, pdf, created_by_account_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`, organizationID, record.Summary.ID, record.Version.ID, templateVersion,
-		file.Filename, file.Data, accountID).Scan(ctx, &id); err != nil {
+		file.Filename, file.Data, accountRef(accountID)).Scan(ctx, &id); err != nil {
 		return 0, fmt.Errorf("care contract postgres: insert document: %w", err)
 	}
 	return id, nil
@@ -219,7 +220,7 @@ func (Store) InsertMailing(ctx context.Context, organizationID, accountID, contr
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_mailings (organization_id, contract_id,
 			contract_document_id, outbox_id, recipient_email, sent_by_account_id) VALUES (?, ?, ?, ?, ?, ?)`,
-		organizationID, contractID, documentID, outboxID, recipient, accountID); err != nil {
+		organizationID, contractID, documentID, outboxID, recipient, accountRef(accountID)); err != nil {
 		return fmt.Errorf("care contract postgres: insert mailing: %w", err)
 	}
 	return nil

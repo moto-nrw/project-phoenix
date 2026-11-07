@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -31,8 +33,8 @@ import (
 // /traeger/contracts and the templates of the offerings at
 // /traeger/contract-templates.
 func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) {
-	resource := NewCareContractHTTP(organizations, settings, delivery, outcomes, accessLog, parentsURL)
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) {
+	resource := NewCareContractHTTP(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL)
 	root.Mount("/traeger/contracts", resource.ContractRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/contract-templates", resource.TemplateRouter(ProtectedTraegerRoutes))
 	// The one-time link of a contract mail (#4679), without an account.
@@ -59,22 +61,64 @@ func careContractSignaturePorts(organizations HolidayOrganizations, settings Tra
 // tenant transaction, the letterhead and the contract template to the
 // master data and the branding of the Träger, and the mail to Delivery.
 func NewCareContractHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) *careContractHTTP.Resource {
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) *careContractHTTP.Resource {
+	contractPorts, intakePorts := careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL)
+	paper := careContractCompose.NewPaperSignatures(contractPorts, careContractSignaturePorts(organizations, settings, delivery, outcomes, parentsURL))
+	return careContractHTTP.NewResource(careContractCompose.NewContracts(contractPorts), careContractCompose.NewIntake(intakePorts), paper,
+		common.RequiresPermission(identityaccess.TraegerRightContractsManage))
+}
+
+// NewCareContractConclusion builds the Worker's conclusion at the
+// acceptance (Weg b, #4680) over the same ports as the portal routes, so
+// the automatic contract reads, renders and sends exactly like the
+// Träger-Büro's.
+func NewCareContractConclusion(organizations HolidayOrganizations, settings TraegerBrandingSettings,
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) carecontract.Conclusion {
+	return careContractCompose.NewConclusion(careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL))
+}
+
+func careContractPorts(organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings CareContractSchoolSettings,
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) (careContractCompose.ContractPorts, careContractCompose.IntakePorts) {
+	if schoolSettings == nil {
+		panic("care contract: the school settings are required")
+	}
 	letterheads := careContractLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
 		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
-	contractPorts := careContractCompose.ContractPorts{
+	return careContractCompose.ContractPorts{
 		Letterheads: letterheads, Post: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes},
 		Runtime: owners.CareContractRuntime{}, Access: careContractAccessLog{log: accessLog},
 		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
-	}
-	contracts := careContractCompose.NewContracts(contractPorts)
-	paper := careContractCompose.NewPaperSignatures(contractPorts, careContractSignaturePorts(organizations, settings, delivery, outcomes, parentsURL))
-	intake := careContractCompose.NewIntake(careContractCompose.IntakePorts{
-		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications()},
+	}, careContractCompose.IntakePorts{
+		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications(securityruntime.Fingerprint)},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
 		Access:   careContractAccessLog{log: accessLog}, Runtime: owners.CareContractRuntime{},
-	})
-	return careContractHTTP.NewResource(contracts, intake, paper, common.RequiresPermission(identityaccess.TraegerRightContractsManage))
+		Modes: careContractModes{settings: schoolSettings}, Mail: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes},
+	}
+}
+
+// CareContractSchoolSettings resolves a setting of the school whose tenant
+// transaction the caller holds: its own value, else its Träger's, else the
+// default (ADR 0086).
+type CareContractSchoolSettings interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
+// careContractModes binds how a school concludes its contracts to the
+// setting care_contract.conclusion_mode (#4680). An unknown value is an
+// error, never the default: the registry admits only the two values.
+type careContractModes struct {
+	settings CareContractSchoolSettings
+}
+
+func (m careContractModes) ConclusionMode(ctx context.Context, _ int64) (string, error) {
+	mode, err := m.settings.ResolveString(ctx, configModels.KeyCareContractConclusionMode)
+	if err != nil {
+		return "", err
+	}
+	if mode != carecontract.ModeSendLater && mode != carecontract.ModeOnAcceptance {
+		return "", fmt.Errorf("care contract: unknown conclusion mode %q", mode)
+	}
+	return mode, nil
 }
 
 // careContractSchools lists the undeleted schools of the Träger.
@@ -119,12 +163,16 @@ func (a careContractApplications) AcceptedApplications(ctx context.Context, requ
 	result := make([]carecontract.Application, len(found))
 	for i, application := range found {
 		result[i] = carecontract.Application{
+			AcceptedAt:     application.AcceptedAt,
 			RequestChildID: application.RequestChildID, StudentID: application.StudentID,
 			ChildFirstName: application.ChildFirstName, ChildLastName: application.ChildLastName,
 			ChildBirthDate: application.ChildBirthDate, GuardianFirstName: application.GuardianFirstName,
 			GuardianLastName: application.GuardianLastName, GuardianEmail: application.GuardianEmail,
 			GuardianAccountID: application.GuardianAccountID, PhaseName: application.PhaseName,
 			ServiceStartDate: application.ServiceStartDate, ActivateOn: application.ActivateOn,
+		}
+		for _, proof := range application.Acceptances {
+			result[i].Acceptances = append(result[i].Acceptances, carecontract.AcceptedText{Key: proof.Key, Text: proof.Text, SHA256: proof.SHA256, SubmittedAt: proof.SubmittedAt})
 		}
 	}
 	return result, nil

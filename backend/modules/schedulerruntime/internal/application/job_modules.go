@@ -81,6 +81,9 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	// A planned staff exit is the staff administration of moto Basis
 	// (#4809).
 	"planned-staff-exits": jobScopeBasis,
+	// The care contract of an accepted application belongs to the Träger
+	// portal of moto Basis (#4680); it runs across all Träger, not per school.
+	"care-contract-conclusion": jobScopeBasis,
 	// The Nachweise of the staff are the personnel record of moto Basis
 	// (#4808).
 	"staff-qualification-reminders": jobScopeBasis,

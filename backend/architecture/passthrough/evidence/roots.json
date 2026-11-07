@@ -597,6 +597,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (m careContractModes) ConclusionMode(ctx context.Context, _ int64) (string, error) {\n\tmode, err := m.settings.ResolveString(ctx, configModels.KeyCareContractConclusionMode)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\tif mode != carecontract.ModeSendLater \u0026\u0026 mode != carecontract.ModeOnAcceptance {\n\t\treturn \"\", fmt.Errorf(\"care contract: unknown conclusion mode %q\", mode)\n\t}\n\treturn mode, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/careContractModes.ConclusionMode",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (r childQuotaStudentsReader) ChildQuotaUsage(ctx context.Context) (students.ChildQuotaUsage, bool, error) {\n\tusage, limited, err := r.usages.ChildQuotaUsage(ctx)\n\treturn students.ChildQuotaUsage{Booked: usage.Booked, Occupied: usage.Occupied}, limited, err\n}",
       "form": "unclassified-evidence",
       "id": "api/childQuotaStudentsReader.ChildQuotaUsage",

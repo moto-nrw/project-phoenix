@@ -18,6 +18,17 @@ type signingLink struct {
 	expiresOn string
 }
 
+// signingLinkFor makes the one-time link of a mail of record. Only a
+// contract that waits for the signature gets one (#4679); a contract
+// concluded at the acceptance (Weg b, #4680) or an active one sent again
+// needs none.
+func (c *Contracts) signingLinkFor(ctx context.Context, organizationID int64, record ContractRecord, documentID int64) (signingLink, error) {
+	if record.Concluded != nil || record.Summary.Status == carecontract.StatusActive {
+		return signingLink{}, nil
+	}
+	return c.newSigningLink(ctx, organizationID, record.Summary.ID, documentID)
+}
+
 // newSigningLink stores a new one-time link for the contract's frozen PDF
 // and answers its URL. Only the SHA-256 of the token is stored.
 func (c *Contracts) newSigningLink(ctx context.Context, organizationID, contractID, documentID int64) (signingLink, error) {

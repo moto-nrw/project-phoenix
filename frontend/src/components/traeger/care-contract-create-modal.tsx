@@ -26,6 +26,7 @@ import {
 } from "~/lib/traeger-care-contracts-api";
 import {
   TEMPLATE_ISSUE_LABELS,
+  TEMPLATE_ISSUE_REASONS,
   childName,
   formatModules,
   formatServiceDays,
@@ -177,7 +178,8 @@ export function CareContractCreateModal({
           Diese Kinder sind angenommen und haben Betreuung gebucht. moto
           übernimmt Kind, Eltern, Beginn und die Module je Wochentag aus der
           Anmeldung. Ein Vertrag umfasst alle Module eines Kindes. Sie prüfen
-          jeden Entwurf, bevor Sie ihn senden.
+          jeden Entwurf, bevor Sie ihn senden. Für „Entsteht bei der Annahme“
+          sind hier keine Entwürfe nötig.
         </p>
         {candidates.length === 0 ? (
           <EmptyState
@@ -244,11 +246,21 @@ export function CareContractCreateModal({
                       </span>
                       {candidate.templateIssue === null ? null : (
                         <StatusBadge
-                          tone="orange"
+                          tone={
+                            candidate.templateIssue === "conclusion_automatic"
+                              ? "green"
+                              : "orange"
+                          }
                           label={TEMPLATE_ISSUE_LABELS[candidate.templateIssue]}
                         />
                       )}
                     </span>
+                    {candidate.templateIssue !== null &&
+                    TEMPLATE_ISSUE_REASONS[candidate.templateIssue] ? (
+                      <span className="mt-0.5 block text-sm text-gray-700">
+                        {TEMPLATE_ISSUE_REASONS[candidate.templateIssue]}
+                      </span>
+                    ) : null}
                     <span className="mt-0.5 block text-sm text-gray-600">
                       {formatModules(moduleNames(candidate.services))} · ab{" "}
                       {formatDate(candidate.effectiveFrom)}

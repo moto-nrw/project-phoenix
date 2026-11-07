@@ -1,6 +1,14 @@
 {
   "entries": [
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractModes.ConclusionMode",
+      "binding_digest": "f6080717cd4005bac83e2b968e18441e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.ConclusionModes.ConclusionMode",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
       "binding_digest": "3cd0a03036d3f7035a48f3b28dc84759",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",
@@ -31,6 +39,14 @@
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractPost.ContractMailBlocks",
+      "binding_digest": "b866517fd3baa8efb8abf4c95b4bc631",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.MailBlocks.ContractMailBlocks",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.TraegerMailHoldsOf",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractPost.ContractMailBlock",
@@ -138,7 +154,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractApplications.AcceptedApplications",
-      "binding_digest": "9ec4176e839e544d6b8a503d3603eaf5",
+      "binding_digest": "48f19e0aeda80f180ab65a39893528f2",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.AcceptedApplications",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.AcceptedContractApplications",

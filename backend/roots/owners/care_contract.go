@@ -79,6 +79,28 @@ func (p CareContractPost) ContractMailBlock(ctx context.Context, organizationID 
 	return string(deliveryContract.EmailSendBlockOf(mark, stopped, latest, provider)), nil
 }
 
+// ContractMailBlocks answers ContractMailBlock for the first mail to each
+// address, in one read: a candidate has no earlier mail whose outcome would
+// make the provider worth asking (#4680).
+func (p CareContractPost) ContractMailBlocks(ctx context.Context, organizationID int64, addresses []string) (map[string]string, error) {
+	listed, stopped, err := p.Outcomes.TraegerMailHoldsOf(ctx, organizationID, addresses)
+	if err != nil {
+		return nil, err
+	}
+	blocks := map[string]string{}
+	for _, address := range addresses {
+		key := deliveryContract.NormalizedEmailAddress(address)
+		mark := deliveryContract.EmailAddressMark("")
+		if listed[key] {
+			mark = deliveryContract.EmailMarkFailed
+		}
+		if block := deliveryContract.EmailSendBlockOf(mark, stopped[key], "", ""); block != "" {
+			blocks[address] = string(block)
+		}
+	}
+	return blocks, nil
+}
+
 func (p CareContractPost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {
 	statuses, err := p.Delivery.TraegerEmailStatuses(ctx, organizationID,
 		deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})

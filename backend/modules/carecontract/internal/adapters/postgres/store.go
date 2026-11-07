@@ -159,7 +159,7 @@ func (Store) InsertContract(ctx context.Context, organizationID, accountID int64
 		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT (school_id, request_child_id) DO NOTHING
 		RETURNING id`, organizationID, contract.Key.SchoolID, contract.Key.RequestChildID,
-		contract.StudentID, accountID).Scan(ctx, &id)
+		contract.StudentID, accountRef(accountID)).Scan(ctx, &id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, carecontract.ErrContractExists
 	}
@@ -228,7 +228,7 @@ const moduleNamesSQL = `ARRAY(SELECT s.module_name FROM care_contract.contract_v
 
 // summarySQL reads a contract with its current version and its first
 // party; the filter follows.
-const summarySQL = `SELECT c.id, c.status, c.school_id, c.created_at, c.sent_at,
+const summarySQL = `SELECT c.id, c.status, c.school_id, c.created_at, c.sent_at, c.concluded_at, c.conclusion_method,
 	v.school_name, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.effective_from,
 	COALESCE(p.first_name || ' ' || p.last_name, '') AS party_name, COALESCE(p.email, '') AS party_email
 	FROM care_contract.contracts AS c
@@ -256,6 +256,8 @@ type summaryRow struct {
 	SchoolID       int64         `bun:"school_id"`
 	CreatedAt      time.Time     `bun:"created_at"`
 	SentAt         *time.Time    `bun:"sent_at"`
+	ConcludedAt    *time.Time    `bun:"concluded_at"`
+	Method         *string       `bun:"conclusion_method"`
 	SchoolName     string        `bun:"school_name"`
 	ChildFirstName string        `bun:"child_first_name"`
 	ChildLastName  string        `bun:"child_last_name"`
@@ -270,8 +272,24 @@ func (r summaryRow) summary() carecontract.ContractSummary {
 		ID: r.ID, Status: r.Status, SchoolID: r.SchoolID, SchoolName: r.SchoolName,
 		ChildFirstName: r.ChildFirstName, ChildLastName: r.ChildLastName, ModuleNames: nonNil(r.ModuleNames),
 		PartyName: strings.TrimSpace(r.PartyName), PartyEmail: r.PartyEmail, EffectiveFrom: r.EffectiveFrom,
-		CreatedAt: r.CreatedAt, SentAt: r.SentAt,
+		CreatedAt: r.CreatedAt, SentAt: r.SentAt, Concluded: r.concluded(),
 	}
+}
+
+func (r summaryRow) concluded() *carecontract.Concluded {
+	if r.ConcludedAt == nil || r.Method == nil {
+		return nil
+	}
+	return &carecontract.Concluded{Method: *r.Method, At: *r.ConcludedAt}
+}
+
+// accountRef is the acting account, or NULL for the automatic conclusion,
+// which acts for no account.
+func accountRef(accountID int64) *int64 {
+	if accountID <= 0 {
+		return nil
+	}
+	return &accountID
 }
 
 // ListContracts lists the contracts of the filter, newest first.
@@ -338,13 +356,13 @@ func (Store) InsertEvents(ctx context.Context, organizationID int64, events []po
 		return err
 	}
 	contractIDs, schoolIDs := make([]*int64, len(events)), make([]*int64, len(events))
-	accountIDs, actions, details := make([]int64, len(events)), make([]string, len(events)), make([]string, len(events))
+	accountIDs, actions, details := make([]*int64, len(events)), make([]string, len(events)), make([]string, len(events))
 	for i, event := range events {
 		encoded, err := json.Marshal(event.Details)
 		if err != nil {
 			return fmt.Errorf("care contract postgres: event details: %w", err)
 		}
-		contractIDs[i], schoolIDs[i], accountIDs[i], actions[i], details[i] = event.ContractID, event.SchoolID, event.AccountID, event.Action, string(encoded)
+		contractIDs[i], schoolIDs[i], accountIDs[i], actions[i], details[i] = event.ContractID, event.SchoolID, accountRef(event.AccountID), event.Action, string(encoded)
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_events
 			(organization_id, contract_id, school_id, account_id, action, details)

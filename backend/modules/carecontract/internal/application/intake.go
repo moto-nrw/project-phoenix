@@ -31,6 +31,8 @@ type Intake struct {
 	bookings     carecontract.SchoolBookings
 	access       carecontract.SchoolAccessLog
 	runtime      carecontract.Runtime
+	modes        carecontract.ConclusionModes
+	mail         carecontract.MailBlocks
 	today        func() calendar.Date
 }
 
@@ -41,6 +43,8 @@ type IntakePorts struct {
 	Bookings     carecontract.SchoolBookings
 	Access       carecontract.SchoolAccessLog
 	Runtime      carecontract.Runtime
+	Modes        carecontract.ConclusionModes
+	Mail         carecontract.MailBlocks
 }
 
 var _ carecontract.Intake = (*Intake)(nil)
@@ -48,15 +52,16 @@ var _ carecontract.Intake = (*Intake)(nil)
 // NewIntake builds the intake over the root-bound ports.
 func NewIntake(store Store, ports IntakePorts, today func() calendar.Date) *Intake {
 	if store == nil || ports.Schools == nil || ports.Applications == nil || ports.Bookings == nil || ports.Access == nil ||
-		ports.Runtime == nil || today == nil {
-		panic("care contract: the store, the schools, the applications, the bookings, the access log, the runtime and the clock are required")
+		ports.Runtime == nil || ports.Modes == nil || ports.Mail == nil || today == nil {
+		panic("care contract: the store, the schools, the applications, the bookings, the access log, the runtime, the conclusion modes, the mail blocks and the clock are required")
 	}
 	return &Intake{store: store, schools: ports.Schools, applications: ports.Applications, bookings: ports.Bookings,
-		access: ports.Access, runtime: ports.Runtime, today: today}
+		access: ports.Access, runtime: ports.Runtime, modes: ports.Modes, mail: ports.Mail, today: today}
 }
 
 // schoolRead is what the intake read in one school's tenant transaction.
 type schoolRead struct {
+	automatic    bool
 	school       carecontract.School
 	applications []carecontract.Application
 	offerings    map[int64]carecontract.Offering
@@ -76,27 +81,65 @@ func (in *Intake) Candidates(ctx context.Context, reviewer carecontract.Reviewer
 	if err != nil {
 		return nil, err
 	}
-	var existing map[ContractKey]bool
-	var templates templateIndex
+	var candidates []carecontract.Candidate
 	err = in.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
-		var err error
-		if existing, err = in.store.ContractKeys(txCtx, reviewer.OrganizationID, schoolIDs(schools)); err != nil {
+		existing, err := in.store.ContractKeys(txCtx, reviewer.OrganizationID, schoolIDs(schools))
+		if err != nil {
 			return err
 		}
-		templates, err = in.templateIndex(txCtx, reviewer.OrganizationID)
-		return err
+		rows, err := in.store.Templates(txCtx, reviewer.OrganizationID)
+		if err != nil {
+			return err
+		}
+		templates, changed := indexTemplates(rows)
+		candidates = collectCandidates(reads, existing, templates, changed, in.today())
+		return in.markHeldMail(txCtx, reviewer.OrganizationID, candidates)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("care contract: read contracts: %w", err)
 	}
-	candidates := collectCandidates(reads, existing, templates, in.today())
 	sortCandidates(candidates)
 	return candidates, nil
 }
 
+// markHeldMail names, for every child the conclusion at the acceptance
+// could conclude (conditions in place, the parents' agreement proven), why
+// the mail to the parents' address would stay back now (#4680). The
+// conclusion holds such a child back on every run, so the dialog must not
+// promise the contract. One read covers all addresses; the list does not know
+// a school's way (see ConclusionModes), so the dialog shows it where the
+// contract comes at the acceptance.
+func (in *Intake) markHeldMail(ctx context.Context, organizationID int64, candidates []carecontract.Candidate) error {
+	var addresses []string
+	for _, candidate := range candidates {
+		if concludable(candidate) {
+			addresses = append(addresses, candidate.GuardianEmail)
+		}
+	}
+	if len(addresses) == 0 {
+		return nil
+	}
+	blocks, err := in.mail.ContractMailBlocks(ctx, organizationID, addresses)
+	if err != nil {
+		return fmt.Errorf("care contract: read mail blocks: %w", err)
+	}
+	for i := range candidates {
+		if concludable(candidates[i]) {
+			candidates[i].MailBlock = blocks[candidates[i].GuardianEmail]
+		}
+	}
+	return nil
+}
+
+// concludable is a candidate the conclusion at the acceptance would send.
+func concludable(candidate carecontract.Candidate) bool {
+	return candidate.TemplateIssue == "" && candidate.AcceptanceIssue == "" && candidate.GuardianEmail != ""
+}
+
 // collectCandidates keeps every accepted application child with booked care
 // and no contract.
-func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templates templateIndex, today calendar.Date) []carecontract.Candidate {
+func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templates templateIndex, changed templateChanges,
+	today calendar.Date) []carecontract.Candidate {
 	candidates := []carecontract.Candidate{}
 	for _, read := range reads {
 		for _, application := range read.applications {
@@ -105,7 +148,7 @@ func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templa
 			if existing[key] || len(booked.services) == 0 {
 				continue
 			}
-			_, issue := templates.terms(read.school.ID, booked.offerings)
+			terms, issue := templates.terms(read.school.ID, booked.offerings)
 			candidates = append(candidates, carecontract.Candidate{
 				CandidateKey:   carecontract.CandidateKey{SchoolID: read.school.ID, RequestChildID: application.RequestChildID},
 				SchoolName:     read.school.Name,
@@ -116,6 +159,9 @@ func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templa
 				Services:      boundServices(booked.services, lastDay(booked.until)),
 				EffectiveFrom: booked.effectiveFrom(application, today),
 				TemplateIssue: issue,
+				AcceptanceIssue: acceptanceIssue(NewContract{AcceptedAt: application.AcceptedAt, Acceptances: application.Acceptances,
+					Version: carecontract.Version{Terms: terms}},
+					changed.since(read.school.ID, booked.offerings)),
 			})
 		}
 	}
@@ -221,6 +267,11 @@ func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templ
 	if !ok {
 		return NewContract{}, carecontract.SkipNotFound
 	}
+	if read.automatic {
+		// The school concludes at the acceptance: no manual draft may take
+		// the key the conclusion needs (#4680).
+		return NewContract{}, carecontract.SkipConclusionAutomatic
+	}
 	index := slices.IndexFunc(read.applications, func(a carecontract.Application) bool { return a.RequestChildID == key.RequestChildID })
 	if index < 0 {
 		return NewContract{}, carecontract.SkipNotFound
@@ -243,6 +294,7 @@ func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templ
 		Services: boundServices(booked.services, ends), PriceCents: booked.price, Terms: terms,
 	}
 	return NewContract{
+		AcceptedAt: application.AcceptedAt, Acceptances: application.Acceptances,
 		Key: contractKey, StudentID: application.StudentID, Version: version,
 		Party: NewParty{
 			FirstName: application.GuardianFirstName, LastName: application.GuardianLastName,
@@ -259,6 +311,33 @@ func draftOfferings(draft NewContract) []int64 {
 		}
 	}
 	return ids
+}
+
+// ConclusionModes tells for every school of the Träger how its contracts
+// come about (#4680): its own value, else the Träger's, else Weg a. It reads
+// a setting, no personal data, in each school's tenant transaction.
+func (in *Intake) ConclusionModes(ctx context.Context, reviewer carecontract.Reviewer) ([]carecontract.SchoolConclusion, error) {
+	if err := checkReviewer(reviewer); err != nil {
+		return nil, err
+	}
+	schools, err := in.schools.TraegerSchools(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return nil, fmt.Errorf("care contract: schools: %w", err)
+	}
+	result := make([]carecontract.SchoolConclusion, 0, len(schools))
+	for _, school := range schools {
+		var mode string
+		err := in.runtime.WithinSchool(ctx, school.ID, func(txCtx context.Context) error {
+			var err error
+			mode, err = in.modes.ConclusionMode(txCtx, school.ID)
+			return err
+		})
+		if err != nil {
+			return nil, fmt.Errorf("care contract: conclusion mode of school %d: %w", school.ID, err)
+		}
+		result = append(result, carecontract.SchoolConclusion{SchoolID: school.ID, SchoolName: school.Name, Mode: mode})
+	}
+	return result, nil
 }
 
 // Templates lists every offering of the Träger's schools with its template.
@@ -290,11 +369,11 @@ func (in *Intake) Templates(ctx context.Context, reviewer carecontract.Reviewer)
 	result := []carecontract.OfferingTemplate{}
 	for _, school := range schools {
 		for _, offering := range offerings[school.ID] {
-			item := offeringTemplate(school, offering, nil)
+			var found *carecontract.Template
 			if template, ok := byOffering[[2]int64{school.ID, offering.ID}]; ok {
-				item.Template = &template
+				found = &template
 			}
-			result = append(result, item)
+			result = append(result, offeringTemplate(school, offering, found))
 		}
 	}
 	sortTemplates(result)
@@ -406,24 +485,19 @@ func (in *Intake) readSchools(ctx context.Context, reviewer carecontract.Reviewe
 	for _, school := range schools {
 		read := schoolRead{school: school, offerings: map[int64]carecontract.Offering{}}
 		err := in.runtime.WithinSchool(ctx, school.ID, func(txCtx context.Context) error {
-			applications, err := in.acceptedApplications(txCtx, children[school.ID])
-			if err != nil {
+			if view == accessViewCreate {
+				mode, err := in.modes.ConclusionMode(txCtx, school.ID)
+				if err != nil {
+					return err
+				}
+				read.automatic = mode == carecontract.ModeOnAcceptance
+			}
+			if err := in.readSchool(txCtx, &read, children[school.ID]); err != nil || len(read.applications) == 0 {
 				return err
-			}
-			read.applications = applications
-			if len(applications) == 0 {
-				return nil
-			}
-			offerings, err := in.offerings(txCtx, bookedOfferingIDs(applications))
-			if err != nil {
-				return err
-			}
-			for _, offering := range offerings {
-				read.offerings[offering.ID] = offering
 			}
 			return in.access.RecordAccess(txCtx, carecontract.SchoolAccess{
 				OrganizationID: reviewer.OrganizationID, AccountID: reviewer.AccountID,
-				Data: carecontract.SchoolAccessApplications, View: view, Rows: len(applications),
+				Data: carecontract.SchoolAccessApplications, View: view, Rows: len(read.applications),
 			})
 		})
 		if err != nil {
@@ -432,6 +506,28 @@ func (in *Intake) readSchools(ctx context.Context, reviewer carecontract.Reviewe
 		reads = append(reads, read)
 	}
 	return reads, nil
+}
+
+// readSchool reads, in the school's tenant transaction the caller holds, its
+// accepted application children (all, or only requestChildIDs) with their
+// bookings and the offerings they book.
+func (in *Intake) readSchool(ctx context.Context, read *schoolRead, requestChildIDs []int64) error {
+	applications, err := in.acceptedApplications(ctx, requestChildIDs)
+	if err != nil {
+		return err
+	}
+	read.applications = applications
+	if len(applications) == 0 {
+		return nil
+	}
+	offerings, err := in.offerings(ctx, bookedOfferingIDs(applications))
+	if err != nil {
+		return err
+	}
+	for _, offering := range offerings {
+		read.offerings[offering.ID] = offering
+	}
+	return nil
 }
 
 // acceptedApplications reads the accepted application children with their
@@ -465,6 +561,17 @@ func (in *Intake) offerings(ctx context.Context, ids []int64) ([]carecontract.Of
 	return in.applications.NamePhases(ctx, offerings)
 }
 
+// indexTemplates holds the conditions of every offering and when they last
+// changed.
+func indexTemplates(rows []TemplateRow) (templateIndex, templateChanges) {
+	templates, changed := make(templateIndex, len(rows)), make(templateChanges, len(rows))
+	for _, row := range rows {
+		key := [2]int64{row.SchoolID, row.OfferingID}
+		templates[key], changed[key] = row.Template.TemplateInput, row.Template.UpdatedAt
+	}
+	return templates, changed
+}
+
 func (in *Intake) templateIndex(ctx context.Context, organizationID int64) (templateIndex, error) {
 	rows, err := in.store.Templates(ctx, organizationID)
 	if err != nil {
@@ -478,8 +585,13 @@ func (in *Intake) templateIndex(ctx context.Context, organizationID int64) (temp
 }
 
 func offeringTemplate(school carecontract.School, offering carecontract.Offering, template *carecontract.Template) carecontract.OfferingTemplate {
+	text := ""
+	if template != nil {
+		text = acceptanceText(template.TemplateInput)
+	}
 	return carecontract.OfferingTemplate{
-		SchoolID: school.ID, SchoolName: school.Name, OfferingID: offering.ID, OfferingName: offering.Name,
+		AcceptanceText: text,
+		SchoolID:       school.ID, SchoolName: school.Name, OfferingID: offering.ID, OfferingName: offering.Name,
 		PhaseName: offering.PhaseName, PriceCents: offering.PriceCents, Active: offering.Active, Template: template,
 	}
 }

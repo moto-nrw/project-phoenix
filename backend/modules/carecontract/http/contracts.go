@@ -44,6 +44,7 @@ func (rs *Resource) ContractRouter(protectedTraegerRoutes func(chi.Router, func(
 	protectedTraegerRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		open := r.With(rs.requireContract)
 		open.Get("/candidates", rs.candidates)
+		open.Get("/conclusion-modes", rs.conclusionModes)
 		open.Post("/", rs.create)
 		open.Get("/", rs.list)
 		open.Get("/{id}", rs.detail)
@@ -154,6 +155,21 @@ func (rs *Resource) candidates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, candidates, "Contract candidates retrieved successfully")
+}
+
+// conclusionModes tells for every school how its contracts come about
+// (#4680): at the acceptance or sent later by the Träger-Büro.
+func (rs *Resource) conclusionModes(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	modes, err := rs.intake.ConclusionModes(r.Context(), reviewer)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, modes, "Contract conclusion modes retrieved successfully")
 }
 
 // CreateRequest names the application children and offerings to create a

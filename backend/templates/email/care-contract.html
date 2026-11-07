@@ -8,6 +8,12 @@
 
     <p>im Anhang finden Sie den Betreuungsvertrag{{if .ChildName}} für <strong>{{.ChildName}}</strong>{{end}}{{if .Modules}} mit der Betreuung <strong>{{.Modules}}</strong>{{end}}.</p>
 
+    {{if .Concluded}}
+    <div class="highlight-box">
+        <p style="margin: 0; font-size: 14px;"><strong>Der Vertrag ist abgeschlossen.</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Ihre Anmeldung ist angenommen. Damit gilt der Vertrag. Sie müssen nichts unterschreiben. Bitte heben Sie den Vertrag gut auf. Stimmt etwas nicht? Dann melden Sie sich beim Träger.</p>
+    </div>
+    {{else}}
     <div class="highlight-box">
         <p style="margin: 0; font-size: 14px;"><strong>Was müssen Sie tun?</strong></p>
         <p style="margin: 8px 0 0 0; font-size: 14px;">Bitte lesen Sie den Vertrag in Ruhe. Prüfen Sie die gebuchte Betreuung je Wochentag, den Beginn und den Beitrag. Stimmt etwas nicht? Dann melden Sie sich beim Träger.</p>
@@ -17,6 +23,7 @@
     <div class="button-wrapper" style="text-align: center;">
         <a class="button" href="{{.SigningURL}}">Vertrag unterschreiben</a>
     </div>
+    {{end}}
 
     <p class="security-note">Der Link gilt einmal{{if .LinkExpiresOn}} und bis zum {{.LinkExpiresOn}}{{end}}. Geben Sie ihn nicht weiter. Sie können auch auf Papier unterschreiben: Drucken Sie den Vertrag aus und geben Sie ihn beim Träger ab.</p>
 {{end}}

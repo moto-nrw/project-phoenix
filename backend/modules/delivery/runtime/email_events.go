@@ -52,6 +52,9 @@ type EmailOutcomes interface {
 	// TraegerMailHolds reports, in the caller's Träger transaction, whether a school
 	// of the Träger lists the address and whether all its holders there carry a stop.
 	TraegerMailHolds(ctx context.Context, organizationID int64, address string) (listed, stopped bool, err error)
+	// TraegerMailHoldsOf answers TraegerMailHolds for several addresses in one
+	// read, keyed by normalized address; an address without a hold has no key.
+	TraegerMailHoldsOf(ctx context.Context, organizationID int64, addresses []string) (listed, stopped map[string]bool, err error)
 	// ProviderEmailBlocks reads the provider's current block of each address, exactly
 	// for that address, keyed by normalized address. It is the one read here that
 	// waits for the provider: within a small budget and only for addresses the

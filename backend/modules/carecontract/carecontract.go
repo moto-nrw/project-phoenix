@@ -21,9 +21,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The states of a contract (ADR 0088 section 2). This owner reaches only
-// StatusDraft and StatusSent today; signature (#4679), conclusion at the
-// acceptance (#4680) and termination (#4682) move it further.
+// The states of a contract (ADR 0088 section 2). The Träger-Büro reaches
+// StatusDraft and StatusSent; the conclusion (conclusion.go: at the
+// acceptance, #4680, or with the signature, #4679) reaches StatusActive;
+// termination (#4682) moves it further.
 const (
 	StatusDraft  = "entwurf"
 	StatusSent   = "versendet"
@@ -80,8 +81,8 @@ var (
 	ErrContractExists = errors.New("the application has a contract")
 	// ErrContractNotDraft reports a write that only a draft allows.
 	ErrContractNotDraft = errors.New("the contract is no draft")
-	// ErrContractNotSendable reports a contract past sending (signed, active
-	// or ended).
+	// ErrContractNotSendable reports a contract that cannot be sent
+	// (signed, ended, or active without its frozen document).
 	ErrContractNotSendable = errors.New("the contract can no longer be sent")
 	// ErrRecipientMissing reports a party without an address.
 	ErrRecipientMissing = errors.New("the contract party has no e-mail address")
@@ -145,6 +146,9 @@ type OfferingTemplate struct {
 	PriceCents   *int      `json:"price_cents"`
 	Active       bool      `json:"active"`
 	Template     *Template `json:"template"`
+	// AcceptanceText is the complete saved conditions text for the enrollment
+	// form. It is empty without a template or an explicit contract partner.
+	AcceptanceText string `json:"acceptance_text"`
 }
 
 // CandidateKey names one accepted application child.
@@ -175,15 +179,24 @@ type Service struct {
 // without conditions, or modules whose conditions differ.
 type Candidate struct {
 	CandidateKey
-	SchoolName     string        `json:"school_name"`
-	ChildFirstName string        `json:"child_first_name"`
-	ChildLastName  string        `json:"child_last_name"`
-	GuardianName   string        `json:"guardian_name"`
-	GuardianEmail  string        `json:"guardian_email"`
-	PhaseName      string        `json:"phase_name"`
-	Services       []Service     `json:"services"`
-	EffectiveFrom  calendar.Date `json:"effective_from"`
-	TemplateIssue  string        `json:"template_issue"`
+	// AcceptanceIssue tells why the application gives no proof of the
+	// parents' agreement for a conclusion at the acceptance (Weg b): empty,
+	// SkipAcceptanceMissing or SkipAcceptanceChanged.
+	AcceptanceIssue string        `json:"acceptance_issue"`
+	SchoolName      string        `json:"school_name"`
+	ChildFirstName  string        `json:"child_first_name"`
+	ChildLastName   string        `json:"child_last_name"`
+	GuardianName    string        `json:"guardian_name"`
+	GuardianEmail   string        `json:"guardian_email"`
+	PhaseName       string        `json:"phase_name"`
+	Services        []Service     `json:"services"`
+	EffectiveFrom   calendar.Date `json:"effective_from"`
+	TemplateIssue   string        `json:"template_issue"`
+	// MailBlock names, for a child the conclusion at the acceptance (Weg b)
+	// could conclude, why the mail to the parents' address would stay back
+	// now (#4680): MailBlockStopped or MailBlockAddress. The contract then
+	// waits until the school corrects or clears the address.
+	MailBlock string `json:"mail_block,omitempty"`
 }
 
 // CreateResult answers a creation of several drafts: the created contracts
@@ -203,10 +216,13 @@ type CreateSkip struct {
 // The reasons of a CreateSkip; the first two are also the TemplateIssue
 // of a Candidate.
 const (
-	SkipTemplateMissing = "template_missing"
-	SkipTemplatesDiffer = "templates_differ"
-	SkipContractExists  = "contract_exists"
-	SkipNotFound        = "application_not_found"
+	SkipTemplateMissing     = "template_missing"
+	SkipTemplatesDiffer     = "templates_differ"
+	SkipContractExists      = "contract_exists"
+	SkipNotFound            = "application_not_found"
+	SkipConclusionAutomatic = "conclusion_automatic"
+	SkipAcceptanceMissing   = "acceptance_missing"
+	SkipAcceptanceChanged   = "acceptance_changed"
 )
 
 // ContractFilter selects the contracts of the list.
@@ -232,6 +248,8 @@ type ContractSummary struct {
 	EffectiveFrom  calendar.Date `json:"effective_from"`
 	CreatedAt      time.Time     `json:"created_at"`
 	SentAt         *time.Time    `json:"sent_at"`
+	// Concluded is how and when the contract was concluded; nil before.
+	Concluded *Concluded `json:"concluded"`
 }
 
 // ContractList is the filtered list with the count of every status over all
@@ -364,7 +382,7 @@ type Contracts interface {
 	// that a preview with the current template, which stores nothing.
 	ContractDocument(ctx context.Context, reviewer Reviewer, contractID int64) (File, error)
 	// SendContracts sends each contract by mail and into the inbox: a draft
-	// gets its PDF and becomes versendet, a sent one is sent again with the
+	// gets its PDF and becomes versendet, a sent or active one is sent again with the
 	// same PDF.
 	SendContracts(ctx context.Context, reviewer Reviewer, contractIDs []int64) (SendResult, error)
 	// ResendContract corrects only the delivery address of a failed send,
@@ -391,6 +409,9 @@ type Intake interface {
 	Templates(ctx context.Context, reviewer Reviewer) ([]OfferingTemplate, error)
 	// SaveTemplate creates or replaces the template of one offering.
 	SaveTemplate(ctx context.Context, reviewer Reviewer, schoolID, offeringID int64, input TemplateInput) (OfferingTemplate, error)
+	// ConclusionModes tells for every school of the Träger how its contracts
+	// come about: ModeSendLater (Weg a) or ModeOnAcceptance (Weg b).
+	ConclusionModes(ctx context.Context, reviewer Reviewer) ([]SchoolConclusion, error)
 }
 
 // InboxReader is the parents' account that reads its inbox, with its
@@ -455,6 +476,9 @@ type ContractMail struct {
 	EarlyStart       bool     `json:"early_start,omitempty"`
 	WithdrawalEndsOn string   `json:"withdrawal_ends_on,omitempty"`
 	WithdrawalNotice []string `json:"withdrawal_notice,omitempty"`
+	// Concluded tells that the contract is concluded already (Weg b): the
+	// parents receive it for their records and sign nothing.
+	Concluded bool `json:"concluded,omitempty"`
 }
 
 // RenderedContractMail is the mail the worker sends.
@@ -483,6 +507,7 @@ type ContractMailContent struct {
 	EarlyStart       bool
 	WithdrawalEndsOn string
 	WithdrawalNotice []string
+	Concluded        bool
 }
 
 // ContractMailRenderer renders the payload of a claimed contract mail.

@@ -53,6 +53,7 @@ func careContractMailRenderer(render carecontract.ContractMailRenderer, defaultF
 				"SignedAt": mail.Content.SignedAt, "SignerName": mail.Content.SignerName,
 				"DocumentSHA256": mail.Content.DocumentSHA256, "EarlyStart": mail.Content.EarlyStart,
 				"WithdrawalEndsOn": mail.Content.WithdrawalEndsOn, "WithdrawalNotice": mail.Content.WithdrawalNotice,
+				"Concluded": mail.Content.Concluded,
 			},
 			Attachments: careContractAttachments(mail),
 		}, nil
