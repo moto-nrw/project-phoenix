@@ -9,7 +9,7 @@ import (
 )
 
 func occupancyPortsBound(ports traegerview.OccupancyPorts) bool {
-	return ports.Groups != nil && ports.GroupNames != nil && ports.Bookings != nil && ports.Children != nil
+	return ports.Groups != nil && ports.GroupNames != nil && ports.Phases != nil && ports.Bookings != nil && ports.Children != nil
 }
 
 // Occupancy returns the children of every school of the Träger by OGS group
@@ -68,7 +68,12 @@ func (o *Overview) occupancyReads(ctx context.Context, scope []int64, now time.T
 	if reads.names, err = o.occupancy.GroupNames.GroupsByTenant(ctx, scope); err != nil {
 		return reads, err
 	}
-	if reads.bookings, err = o.occupancy.Bookings.CareOfferingBookingsByTenant(ctx, scope, calendar.DateFromTime(now)); err != nil {
+	day := calendar.DateFromTime(now)
+	phases, err := o.occupancy.Phases.RunningPhaseIDs(ctx, scope, day)
+	if err != nil {
+		return reads, err
+	}
+	if reads.bookings, err = o.occupancy.Bookings.CareOfferingBookingsByTenant(ctx, scope, day, phases); err != nil {
 		return reads, err
 	}
 	reads.children, err = o.occupancy.Children.ApprovedChildStudentIDsByTenant(ctx, scope)

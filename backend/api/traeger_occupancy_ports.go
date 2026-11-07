@@ -15,14 +15,16 @@ import (
 
 // traegerOccupancyPorts binds the owners' reads behind the Träger's occupancy
 // (#4676): the group of each membership at School Membership, the group names
-// at School Structure, the booked care offerings at Care Plan and the child
-// of each approved enrollment at Enrollment.
+// at School Structure, the running phases and the child of each approved
+// enrollment at Enrollment and the care offerings at Care Plan (#5977).
 func traegerOccupancyPorts() traegerview.OccupancyPorts {
+	enrollment := enrollmentCompose.NewBookedChildren()
 	return traegerview.OccupancyPorts{
 		Groups:     schoolMembershipCompose.NewSchoolRosters(),
 		GroupNames: traegerGroupNames{groups: schoolStructureCompose.NewTraegerGroupNames()},
+		Phases:     enrollment,
 		Bookings:   traegerCareBookings{bookings: carePlanCompose.NewTraegerCareBookings()},
-		Children:   enrollmentCompose.NewBookedChildren(),
+		Children:   enrollment,
 	}
 }
 
@@ -48,8 +50,8 @@ type traegerCareBookings struct {
 	bookings careplan.TraegerCareBookings
 }
 
-func (b traegerCareBookings) CareOfferingBookingsByTenant(ctx context.Context, schools []int64, day calendar.Date) (map[int64][]traegerview.CareOfferingBookings, error) {
-	offerings, err := b.bookings.CareOfferingBookingsByTenant(ctx, schools, day)
+func (b traegerCareBookings) CareOfferingBookingsByTenant(ctx context.Context, schools []int64, day calendar.Date, runningPhases []int64) (map[int64][]traegerview.CareOfferingBookings, error) {
+	offerings, err := b.bookings.CareOfferingBookingsByTenant(ctx, schools, day, runningPhases)
 	if err != nil {
 		return nil, err
 	}

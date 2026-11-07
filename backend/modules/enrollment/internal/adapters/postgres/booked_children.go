@@ -8,6 +8,7 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -56,4 +57,29 @@ func (BookedChildStore) ApprovedChildStudentIDsByTenant(ctx context.Context, sch
 		result[row.TenantID][row.ID] = row.StudentID
 	}
 	return result, nil
+}
+
+const runningPhasesQuery = `SELECT id FROM enrollment.phases
+	WHERE tenant_id = ANY(?0) AND is_active
+		AND service_start_date <= ?1::date AND service_end_date >= ?1::date
+	ORDER BY id`
+
+// RunningPhaseIDs lists the active phases of the schools whose service period
+// holds the day.
+func (BookedChildStore) RunningPhaseIDs(ctx context.Context, schools []int64, day calendar.Date) ([]int64, error) {
+	if len(schools) == 0 {
+		return nil, nil
+	}
+	if !tenant.IsAdminTx(ctx) {
+		return nil, errors.New("enrollment postgres: running phases need the administrative transaction")
+	}
+	db, err := NewDatabase()(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var ids []int64
+	if err := db.NewRaw(runningPhasesQuery, pgdialect.Array(schools), day).Scan(ctx, &ids); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: running phases: %w", err)
+	}
+	return ids, nil
 }
