@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // The visitor name orderDemoSchoolWithin queues every order with.
@@ -22,7 +23,9 @@ const (
 // visitor's name to (#4048), as SQL counting the rows of the school ?0 that
 // still hold it. The signed declarations of the parent are a seventh place;
 // they need a whole declaration of Communication, so the seed-smoke job
-// covers them with a real seed.
+// covers them with a real seed. The table a count reads first is its place;
+// TestVisitorTraceCountsCountEveryRowHoldingTheVisitor fails when a row
+// leaveVisitorTraces writes holds the name and no count reads it (#6015).
 var visitorTraceCounts = map[string]string{
 	"users.persons": `SELECT count(*) FROM users.persons
 		WHERE tenant_id = ?0 AND first_name = '` + visitorFirst + `' AND last_name = '` + visitorLast + `'`,
@@ -47,24 +50,42 @@ var visitorTraceCounts = map[string]string{
 		WHERE outbox.related_entity_type = 'care_contract' AND contract.school_id = ?0
 			AND outbox.recipient->>'name' = '` + visitorFull + `'`,
 	// The monthly invoice of the contract copies child, recipient and mail
-	// address (#4684) and outlives the contract; its positions go with it.
+	// address (#4684) and outlives the contract. Its positions and the read
+	// in the run's trail name no one; careMonthRows counts them.
 	"parent_billing.care_invoices": `SELECT count(*) FROM parent_billing.care_invoices
 		WHERE school_id = ?0 AND recipient_first_name = '` + visitorFirst + `' AND recipient_last_name = '` + visitorLast + `'`,
-	"parent_billing.care_invoice_positions": `SELECT count(*) FROM parent_billing.care_invoice_positions AS position
-		JOIN parent_billing.care_invoices AS invoice ON invoice.id = position.invoice_id
-		WHERE invoice.school_id = ?0`,
 	// A child a release held back keeps its name in the run's snapshot
-	// (ADR 0158 E5).
+	// (ADR 0158 E5); the visitor's child carries the visitor's last name.
 	"parent_billing.care_run_holds": `SELECT count(*) FROM parent_billing.care_run_holds
-		WHERE school_ids @> ARRAY[?0]::bigint[] AND child_first_name = 'Mia' AND child_last_name = 'Schneider'`,
-	// A read of the monthly run names the contracts it showed; once the
-	// contract is gone, the ID is a trace with no row left to count it by.
-	"parent_billing.care_run_events": `SELECT count(*) FROM parent_billing.care_run_events AS event
-		JOIN platform.schools AS school ON school.organization_id = event.organization_id AND school.id = ?0
-		WHERE EXISTS (
-			SELECT 1 FROM jsonb_array_elements_text(event.details->'contract_ids') AS shown(id)
-			LEFT JOIN care_contract.contracts AS contract ON contract.id = shown.id::bigint
-			WHERE contract.id IS NULL OR contract.school_id = ?0)`,
+		WHERE school_ids @> ARRAY[?0]::bigint[] AND child_last_name = '` + visitorLast + `'`,
+	// A holiday registration belongs to the Träger and outlives the school
+	// too; the visitor reaches it through the public holiday link (#6015).
+	// It names the school only as the home school of a child.
+	"enrollment.holiday_registrations": `SELECT count(*) FROM enrollment.holiday_registrations AS registration
+		WHERE registration.guardian_first_name = '` + visitorFirst + `' AND registration.guardian_last_name = '` + visitorLast + `'
+			AND registration.id IN (SELECT holiday_registration_id FROM enrollment.holiday_registration_children WHERE home_school_id = ?0)`,
+	"enrollment.holiday_registration_contacts": `SELECT count(*) FROM enrollment.holiday_registration_contacts AS contact
+		WHERE contact.name = '` + visitorFull + `'
+			AND contact.holiday_registration_id IN (SELECT holiday_registration_id FROM enrollment.holiday_registration_children WHERE home_school_id = ?0)`,
+	"enrollment.holiday_registration_proofs": `SELECT count(*) FROM enrollment.holiday_registration_proofs AS proof
+		WHERE proof.filename = 'Bescheid ` + visitorFull + `.pdf'
+			AND proof.holiday_registration_id IN (SELECT holiday_registration_id FROM enrollment.holiday_registration_children WHERE home_school_id = ?0)`,
+	// Its invoice copies the family and names the registration only by ID,
+	// so it would stay after the registration went.
+	"parent_billing.documents": `SELECT count(*) FROM parent_billing.documents AS document
+		WHERE document.recipient_first_name = '` + visitorFirst + `' AND document.recipient_last_name = '` + visitorLast + `'
+			AND document.number = 'F-' || ?0`,
+	// The letter of the invoice went out by mail: its copy on the outbox
+	// names the send only by its ID.
+	"billing letter mail": `SELECT count(*) FROM platform.email_outbox AS outbox
+		JOIN parent_billing.document_mailings AS mailing ON mailing.organization_id = outbox.organization_id AND mailing.delivery_id = outbox.id
+		JOIN parent_billing.documents AS document ON document.organization_id = mailing.organization_id AND document.id = mailing.document_id
+		WHERE document.number = 'F-' || ?0 AND outbox.recipient->>'name' = '` + visitorFull + `'`,
+	// The push that announced the letter names the invoice by ID.
+	"billing letter push": `SELECT count(*) FROM platform.push_outbox AS push
+		JOIN parent_billing.documents AS document ON document.organization_id = push.organization_id AND document.id = push.related_entity_id
+		WHERE push.related_entity_type = 'parent_billing_document' AND document.number = 'F-' || ?0
+			AND push.payload->>'title' = 'Brief für ` + visitorFull + `'`,
 }
 
 type visitorAccounts struct {
@@ -166,7 +187,7 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 		// The release held Mia back for a duplicate contract (#4684).
 		`INSERT INTO parent_billing.care_run_holds (organization_id, run_id, position, reason, school_ids,
 			child_first_name, child_last_name, contracts, slots)
-		SELECT invoice.organization_id, invoice.run_id, 1, 'duplicate_contract', ARRAY[?0]::bigint[], 'Mia', 'Schneider',
+		SELECT invoice.organization_id, invoice.run_id, 1, 'duplicate_contract', ARRAY[?0]::bigint[], 'Mia', '` + visitorLast + `',
 			jsonb_build_array(jsonb_build_object('contract_id', invoice.care_contract_id, 'school_id', ?0, 'school_name', 'OGS')),
 			'[{"module_name":"Betreuung bis 14:00 Uhr","weekday":"mon"}]'::jsonb
 		FROM parent_billing.care_invoices AS invoice WHERE invoice.school_id = ?0`,
@@ -176,7 +197,84 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 	}
 	_, err = db.NewRaw(`UPDATE audit.guardian_changes SET actor_account_id = ? WHERE tenant_id = ?`, parent.ID, schoolID).Exec(ctx)
 	require.NoError(t, err)
+	leaveVisitorHolidayRegistration(t, db, schoolID)
 	return visitorAccounts{caregiver: caregiver.ID, parent: parent.ID}
+}
+
+// leaveVisitorHolidayRegistration registers the visitor's child of the
+// school through the public holiday link of its Träger (#6015), with the
+// visitor as guardian and contact, a proof named after the visitor and the
+// invoice of a billing run, whose letter went out by mail and push. A registration names its home school only while
+// the school is open, so a closed school opens for the insert.
+func leaveVisitorHolidayRegistration(t *testing.T, db *bun.DB, schoolID int64) {
+	t.Helper()
+	ctx := t.Context()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.NewRaw(`CREATE TEMP TABLE closed_school ON COMMIT DROP AS
+		SELECT deleted_at FROM platform.schools WHERE id = ?`, schoolID).Exec(ctx)
+	require.NoError(t, err)
+	for _, statement := range []string{
+		`UPDATE platform.schools SET deleted_at = NULL WHERE id = ?0`,
+		`WITH period AS (
+			INSERT INTO enrollment.holiday_periods (organization_id, name, registration_opens_on, registration_closes_on, status, published_at)
+			SELECT organization_id, 'Sommerferien ' || id, DATE '2026-06-01', DATE '2026-07-31', 'published', NOW()
+			FROM platform.schools WHERE id = ?0
+			RETURNING organization_id, id),
+		registration AS (
+			INSERT INTO enrollment.holiday_registrations (organization_id, holiday_period_id, guardian_first_name, guardian_last_name,
+				guardian_email, guardian_phone, privacy_consent_at)
+			SELECT organization_id, id, '` + visitorFirst + `', '` + visitorLast + `', 'besuch@example.org', '0151 0000009', NOW() FROM period
+			RETURNING organization_id, holiday_period_id, id),
+		child AS (
+			INSERT INTO enrollment.holiday_registration_children (organization_id, holiday_period_id, holiday_registration_id,
+				position, first_name, last_name, birth_date, home_school_id)
+			SELECT organization_id, holiday_period_id, id, 1, 'Mia', 'Schneider', DATE '2018-04-12', ?0 FROM registration),
+		contact AS (
+			INSERT INTO enrollment.holiday_registration_contacts (organization_id, holiday_registration_id, kind, position, name)
+			SELECT organization_id, id, 'pickup', 1, '` + visitorFull + `' FROM registration),
+		proof AS (
+			INSERT INTO enrollment.holiday_registration_proofs (organization_id, holiday_period_id, holiday_registration_id,
+				filename, content_type, size_bytes, content, claimed_at)
+			SELECT organization_id, holiday_period_id, id, 'Bescheid ` + visitorFull + `.pdf', 'application/pdf', 3, '\x255044'::bytea, NOW()
+			FROM registration),
+		run AS (
+			INSERT INTO parent_billing.runs (organization_id, service, holiday_period_id, period_name, service_from, service_until)
+			SELECT organization_id, 'holiday', holiday_period_id, 'Sommerferien', DATE '2026-07-01', DATE '2026-07-31' FROM registration
+			RETURNING organization_id, id, holiday_period_id),
+		document AS (
+			INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year, number_sequence, issued_on,
+				holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name, recipient_email,
+				service_from, service_until, total_cents)
+			SELECT run.organization_id, run.id, 'holiday', 'F-' || ?0, 2026, ?0, DATE '2026-06-15', run.holiday_period_id, registration.id,
+				'` + visitorFirst + `', '` + visitorLast + `', 'besuch@example.org', DATE '2026-07-01', DATE '2026-07-31', 12000
+			FROM run JOIN registration ON registration.holiday_period_id = run.holiday_period_id
+			RETURNING organization_id, run_id, id),
+		run_letter AS (
+			INSERT INTO parent_billing.run_letters (organization_id, run_id, payment_due_on)
+			SELECT organization_id, run_id, DATE '2026-07-15' FROM document),
+		letter AS (
+			INSERT INTO parent_billing.document_letters (organization_id, document_id, run_id, filename, pdf)
+			SELECT organization_id, id, run_id, 'brief.pdf', '\x255044'::bytea FROM document),
+		outbox AS (
+			INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status)
+			SELECT organization_id, 'billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', '` + visitorFull + `'),
+				jsonb_build_object('guardian_name', '` + visitorFull + `'), 'pending' FROM document
+			RETURNING organization_id, id),
+		push AS (
+			INSERT INTO platform.push_outbox (organization_id, kind, related_entity_type, related_entity_id, recipient, payload)
+			SELECT organization_id, 'parent_billing_document', 'parent_billing_document', id,
+				jsonb_build_object('email', 'besuch@example.org'), jsonb_build_object('title', 'Brief für ` + visitorFull + `') FROM document)
+		INSERT INTO parent_billing.document_mailings (organization_id, run_id, document_id, delivery_id, recipient_email)
+		SELECT document.organization_id, document.run_id, document.id, outbox.id, 'besuch@example.org'
+		FROM document JOIN outbox ON outbox.organization_id = document.organization_id`,
+		`UPDATE platform.schools SET deleted_at = (SELECT deleted_at FROM closed_school) WHERE id = ?0`,
+	} {
+		_, err := tx.NewRaw(statement, schoolID).Exec(ctx)
+		require.NoError(t, err, statement)
+	}
+	require.NoError(t, tx.Commit())
 }
 
 // visitorTraces counts, per place, the rows of the school that still hold
@@ -761,4 +859,50 @@ func TestDemoSchoolQueueErasesTheCareContractsOfTheRetiredSchool(t *testing.T) {
 		"no row of the retired school's contract stays")
 	assert.Equal(t, []int64{mails[1]}, remainingMails(t, db, mails...), "only the open school keeps its contract mail")
 	assert.Equal(t, everyRow, careContractRows(t, db, openID), "the open school keeps its contract")
+}
+
+// careMonthRows are the rows of the monthly contribution that name no one
+// but belong to the school's contracts (#4684): the positions of its
+// invoices and the reads of a monthly run that showed its contracts.
+func careMonthRows(t *testing.T, db *bun.DB, schoolID int64) (positions, reads []int64) {
+	t.Helper()
+	require.NoError(t, db.NewRaw(`SELECT position.id FROM parent_billing.care_invoice_positions AS position
+		JOIN parent_billing.care_invoices AS invoice ON invoice.id = position.invoice_id
+		WHERE invoice.school_id = ? ORDER BY position.id`, schoolID).Scan(t.Context(), &positions))
+	require.NoError(t, db.NewRaw(`SELECT event.id FROM parent_billing.care_run_events AS event
+		WHERE EXISTS (SELECT 1 FROM care_contract.contracts AS contract
+			WHERE contract.school_id = ? AND event.details->'contract_ids' @> to_jsonb(contract.id))
+		ORDER BY event.id`, schoolID).Scan(t.Context(), &reads))
+	return positions, reads
+}
+
+func remainingRows(t *testing.T, db *bun.DB, table string, ids []int64) int {
+	t.Helper()
+	var count int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM `+table+` WHERE id = ANY(?)`, pgdialect.Array(ids)).Scan(t.Context(), &count))
+	return count
+}
+
+// The positions of a retired demo school's monthly invoices and the reads
+// of a monthly run that showed its contracts go with the visitor (1.15.805):
+// the positions with their invoices, the reads before the contracts they
+// name. A school of the same Träger that is still open keeps both.
+func TestDemoSchoolQueueErasesTheMonthlyRowsOfTheRetiredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	openID := schoolOfOrganization(t, db, schoolID, false)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	leaveVisitorTraces(t, db, openID)
+	positions, reads := careMonthRows(t, db, schoolID)
+	require.Len(t, positions, 1, "the fixture leaves a position")
+	require.Len(t, reads, 1, "the fixture leaves a read of the run")
+	openPositions, openReads := careMonthRows(t, db, openID)
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+
+	assert.Zero(t, remainingRows(t, db, "parent_billing.care_invoice_positions", positions), "no position of the retired school")
+	assert.Zero(t, remainingRows(t, db, "parent_billing.care_run_events", reads), "no read naming its contracts")
+	assert.Equal(t, len(openPositions), remainingRows(t, db, "parent_billing.care_invoice_positions", openPositions))
+	assert.Equal(t, len(openReads), remainingRows(t, db, "parent_billing.care_run_events", openReads))
 }

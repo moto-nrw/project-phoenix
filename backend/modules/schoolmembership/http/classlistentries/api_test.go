@@ -55,6 +55,18 @@ func (f *fakeEntries) MatchingStudentIDs(_ context.Context, fields schoolmembers
 	return f.matches[fields.FirstName+"|"+fields.LastName+"|"+fields.SchoolClass], nil
 }
 
+func (f *fakeEntries) MatchingStudentIDsForEntries(ctx context.Context, entries []schoolmembership.ClassListEntryFields) ([][]int64, error) {
+	result := make([][]int64, 0, len(entries))
+	for _, fields := range entries {
+		matches, err := f.MatchingStudentIDs(ctx, fields)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, matches)
+	}
+	return result, nil
+}
+
 func (f *fakeEntries) AddClassListEntry(_ context.Context, input schoolmembership.AddClassListEntry) (schoolmembership.ClassListEntry, error) {
 	f.added = append(f.added, input)
 	f.actors = append(f.actors, input.ChangedBy)

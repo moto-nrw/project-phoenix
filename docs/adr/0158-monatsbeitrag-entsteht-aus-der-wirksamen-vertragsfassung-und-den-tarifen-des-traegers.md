@@ -164,4 +164,4 @@ zweite (`heldView`).
 - Query-Budgets `api.traeger.care_billing_runs` (2, exact) und
   `api.traeger.care_tariffs` (6, exact).
 - Datenlebenszyklus und Aufbewahrung: je fünf Einträge.
-- Migrationen `1.15.789` (Tabellen) und `1.15.791` (`platform.erase_closed_demo_visitors`).
+- Migrationen `1.15.789` (Tabellen) und `1.15.805` (`platform.erase_closed_demo_visitors`, auf der Fassung von 1.15.797).

@@ -111,6 +111,16 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.classListEntryStudents.ListStudentIDsByNamesAndClasses",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ClassListEntryStudents.ListStudentIDsByNamesAndClasses",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.EnrolledStudentIDsByNamesAndClasses; modules/peopledirectory/student_namesakes.go:67. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrolledStudentIDsByNamesAndClasses",
+      "target_owner": "people-directory"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/api.classListEntryAuditTrail.AppendClassListEntryChange",
       "classification": "platform",
