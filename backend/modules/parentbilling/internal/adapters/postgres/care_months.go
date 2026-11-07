@@ -329,9 +329,14 @@ func claimInvoiceNumbers(ctx context.Context, db bun.IDB, organizationID int64, 
 		organizationID).Exec(ctx); err != nil {
 		return fmt.Errorf("hold the invoice numbers: %w", err)
 	}
+	query := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM parent_billing.documents WHERE organization_id = ? AND number = ANY(?))`,
+		organizationID, pgdialect.Array(numbers))
+	if otherTable == careNumbersTable {
+		query = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM parent_billing.care_invoices WHERE organization_id = ? AND number = ANY(?))`,
+			organizationID, pgdialect.Array(numbers))
+	}
 	var taken bool
-	if err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM `+otherTable+` WHERE organization_id = ? AND number = ANY(?))`,
-		organizationID, pgdialect.Array(numbers)).Scan(ctx, &taken); err != nil {
+	if err := query.Scan(ctx, &taken); err != nil {
 		return fmt.Errorf("check invoice numbers: %w", err)
 	}
 	if taken {
