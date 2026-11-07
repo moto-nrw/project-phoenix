@@ -1,6 +1,7 @@
 "use client";
 
 import { ShieldAlert } from "lucide-react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   useCallback,
   useEffect,
@@ -264,7 +265,12 @@ export function AdminEnrollmentDeletionModal({
 
               {impact.preserved_guardian_profiles > 0 ||
               impact.preserved_parent_accounts > 0 ? (
-                <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                <InsetPanel
+                  as="section"
+                  framed
+                  padding="md"
+                  className="text-sm text-gray-700"
+                >
                   <h4 className="font-semibold text-gray-900">
                     Erziehungsberechtigte bleiben erhalten
                   </h4>
@@ -277,7 +283,7 @@ export function AdminEnrollmentDeletionModal({
                     den separaten Löschworkflow in der Kind- bzw.
                     Kontoverwaltung.
                   </p>
-                </section>
+                </InsetPanel>
               ) : null}
 
               {impact.can_delete ? (

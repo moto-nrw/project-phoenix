@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useLocale, useTranslations } from "next-intl";
 import { Ban, Check, Minus, Utensils } from "lucide-react";
 import {
@@ -119,13 +120,7 @@ function DishCard({
   highlight?: boolean;
 }) {
   return (
-    <div
-      className={`rounded-lg px-3 py-2.5 ring-1 ${
-        highlight
-          ? "bg-white shadow-sm ring-gray-200"
-          : "bg-gray-50 ring-gray-100"
-      }`}
-    >
+    <InsetPanel tone={highlight ? "white" : "muted"} framed padding="compact">
       <p className="text-base leading-snug font-medium text-gray-900">
         {entry.dish}
       </p>
@@ -133,7 +128,7 @@ function DishCard({
         <p className="mt-1 text-sm leading-snug text-gray-500">{entry.note}</p>
       ) : null}
       <MealAllergenMarks allergens={entry.allergens} className="mt-1" />
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -711,7 +706,7 @@ function ParticipationWeek({
             <SkeletonRows rows={2} />
           </SkeletonRegion>
         ) : editingRegularDays ? (
-          <div className="mt-4 rounded-xl bg-gray-50 p-4">
+          <InsetPanel padding="md" className="mt-4">
             <fieldset>
               <legend className="text-sm font-semibold text-gray-900">
                 {t("editRegularDaysTitle")}
@@ -749,7 +744,7 @@ function ParticipationWeek({
                 {t("scheduleLocked")}
               </p>
             ) : null}
-          </div>
+          </InsetPanel>
         ) : (
           <div className="mt-4">
             <ParentSubsection
@@ -1062,62 +1057,70 @@ function ParticipationWeek({
                       <fieldset
                         ref={dayEditorRef}
                         tabIndex={-1}
-                        className="mt-3 rounded-xl bg-gray-50 p-3 ring-1 ring-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
+                        className="mt-3 rounded-xl focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                       >
                         <legend className="sr-only">
                           {t("editDayRegistration", { date: fullDate(date) })}
                         </legend>
-                        <div className="flex flex-wrap gap-2">
-                          {mayChangeTo(day, !displayedParticipation) ||
-                          draftChange !== null ? (
-                            <Button
-                              type="button"
-                              variant={
-                                displayedParticipation
-                                  ? "outline_danger"
-                                  : "success"
-                              }
-                              size="md"
-                              disabled={saving}
-                              onClick={() =>
-                                stageDayChange(day, !displayedParticipation)
-                              }
+                        <InsetPanel framed>
+                          <div className="flex flex-wrap gap-2">
+                            {mayChangeTo(day, !displayedParticipation) ||
+                            draftChange !== null ? (
+                              <Button
+                                type="button"
+                                variant={
+                                  displayedParticipation
+                                    ? "outline_danger"
+                                    : "success"
+                                }
+                                size="md"
+                                disabled={saving}
+                                onClick={() =>
+                                  stageDayChange(day, !displayedParticipation)
+                                }
+                              >
+                                {displayedParticipation
+                                  ? t("unregister")
+                                  : t("register")}
+                              </Button>
+                            ) : null}
+                            {displayedSource === "override" &&
+                            (regularParticipation === day.participating ||
+                              mayChangeTo(day, regularParticipation)) ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="md"
+                                disabled={saving}
+                                onClick={stageDayReset}
+                              >
+                                {t("useRegular")}
+                              </Button>
+                            ) : null}
+                          </div>
+                          {deadlineLines(day).map((line) => (
+                            <p
+                              key={line}
+                              className="mt-2 text-xs text-gray-500"
                             >
-                              {displayedParticipation
-                                ? t("unregister")
-                                : t("register")}
-                            </Button>
-                          ) : null}
-                          {displayedSource === "override" &&
-                          (regularParticipation === day.participating ||
-                            mayChangeTo(day, regularParticipation)) ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="md"
-                              disabled={saving}
-                              onClick={stageDayReset}
-                            >
-                              {t("useRegular")}
-                            </Button>
-                          ) : null}
-                        </div>
-                        {deadlineLines(day).map((line) => (
-                          <p key={line} className="mt-2 text-xs text-gray-500">
-                            {line}
+                              {line}
+                            </p>
+                          ))}
+                          <p className="mt-2 text-xs text-gray-500">
+                            {t("finishEdit")}
                           </p>
-                        ))}
-                        <p className="mt-2 text-xs text-gray-500">
-                          {t("finishEdit")}
-                        </p>
-                        <FormErrorAlert message={saveError} className="mt-2" />
-                        <MealParticipationEditActions
-                          saving={saving}
-                          onCancel={cancelDayEdit}
-                          onSave={() => void saveDayChange()}
-                          align="start"
-                          className="mt-2"
-                        />
+                          <FormErrorAlert
+                            message={saveError}
+                            className="mt-2"
+                          />
+                          <MealParticipationEditActions
+                            saving={saving}
+                            onCancel={cancelDayEdit}
+                            onSave={() => void saveDayChange()}
+                            align="start"
+                            className="mt-2"
+                          />
+                        </InsetPanel>
                       </fieldset>
                     ) : null}
                   </div>

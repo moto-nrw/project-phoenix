@@ -4,6 +4,7 @@
 // ways home per day with the coupled "mit wem" note (`weekday_multi_mode`).
 
 import { useEffect, useId, useState } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -77,9 +78,14 @@ export function WeekdayScheduleInput({
         </p>
       )}
       {daysToRender.length === 0 ? (
-        <p className="mt-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+        <InsetPanel
+          as="p"
+          framed
+          padding="compact"
+          className="mt-1 text-xs text-gray-600"
+        >
           {tr("structured.weekdayMultiModeNoDays")}
-        </p>
+        </InsetPanel>
       ) : (
         <>
           <p className="text-xs text-gray-500">
@@ -489,7 +495,7 @@ export function WeekdayMultiModeInput({
               <span>{tr("structured.weekdayMultiModeUniform")}</span>
             </label>
             {uniform ? (
-              <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3">
+              <InsetPanel framed className="mt-3">
                 <p className="mb-2 text-xs text-gray-500">
                   {tr("structured.weekdayMultiModeUniformHint")}
                 </p>
@@ -524,7 +530,7 @@ export function WeekdayMultiModeInput({
                     );
                   })}
                 </div>
-              </div>
+              </InsetPanel>
             ) : (
               <>
                 <div className="mt-3 grid grid-cols-5 gap-2">
@@ -541,10 +547,7 @@ export function WeekdayMultiModeInput({
                 </div>
                 <div className="mt-3 space-y-2">
                   {activeDays.map((day) => (
-                    <div
-                      key={day}
-                      className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
-                    >
+                    <InsetPanel framed key={day}>
                       <div className="mb-2 text-xs font-semibold text-gray-700">
                         {weekdayLabels[day] ?? day}
                       </div>
@@ -577,16 +580,21 @@ export function WeekdayMultiModeInput({
                           );
                         })}
                       </div>
-                    </div>
+                    </InsetPanel>
                   ))}
                 </div>
               </>
             )}
           </>
         ) : (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+          <InsetPanel
+            as="p"
+            framed
+            padding="compact"
+            className="text-xs text-gray-600"
+          >
             {tr("structured.weekdayMultiModeNoDays")}
-          </p>
+          </InsetPanel>
         )}
         {onCompanionNoteChange && accompaniedSelected && (
           <div className="mt-3">

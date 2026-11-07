@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
@@ -1789,7 +1790,7 @@ function CareOfferingAutomationFields({
           hint="Gilt für Filter, Kennzahlen und Exporte."
         />
 
-        <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+        <InsetPanel framed>
           <p className="text-xs font-medium text-gray-700">
             {offeringLabel} wird automatisch mitgebucht, wenn Eltern eines
             dieser Angebote wählen:
@@ -1833,7 +1834,7 @@ function CareOfferingAutomationFields({
               Mitgebuchte Angebote müssen einzelne Tage auswählbar machen.
             </p>
           ) : null}
-        </div>
+        </InsetPanel>
 
         <div>
           <p className="text-xs font-medium text-gray-700">
@@ -1975,9 +1976,9 @@ function CareOfferingAvailabilityFields({
             </label>
           ) : null}
           {rule.conditions.map((condition, index) => (
-            <div
+            <InsetPanel
+              framed
               key={getStableObjectKey(condition, "availability-condition")}
-              className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
             >
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-gray-800">
@@ -2095,7 +2096,7 @@ function CareOfferingAvailabilityFields({
                   })}
                 </div>
               </div>
-            </div>
+            </InsetPanel>
           ))}
           <Button
             type="button"

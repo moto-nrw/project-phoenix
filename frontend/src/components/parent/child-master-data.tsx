@@ -1,6 +1,7 @@
 "use client";
 
 import { DataField, DataGrid } from "~/components/ui/data-field";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   type Dispatch,
   type SetStateAction,
@@ -34,7 +35,6 @@ import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { SUPPORTED_LOCALES } from "~/i18n/locales";
 import { formatDate } from "~/lib/date-helpers";
-import { cn } from "~/lib/utils";
 import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
@@ -645,10 +645,10 @@ function IdentityFact({
       {value}
       {pending && (
         <div className="mt-3 font-normal">
-          <div
+          <InsetPanel
+            className="space-y-3"
             role="group"
             aria-labelledby={requestTitleId}
-            className="space-y-3 rounded-xl bg-gray-50 p-3"
           >
             <div>
               <p id={requestTitleId} className="text-sm text-gray-500">
@@ -681,7 +681,7 @@ function IdentityFact({
                 />
               </div>
             )}
-          </div>
+          </InsetPanel>
         </div>
       )}
       {pending && editing && editableValue !== null && (
@@ -903,37 +903,36 @@ function DepartureSection({
             className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
           >
             {DEPARTURE_DAYS.map((day, dayIndex) => (
-              <fieldset
-                key={day}
-                className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
-              >
-                <legend className="px-1 text-sm font-semibold text-gray-900">
-                  {t(`departureDays.${day}`)}
-                </legend>
-                <div className="mt-1 space-y-1">
-                  {DEPARTURE_REQUEST_MODES.map((mode, modeIndex) => (
-                    <label
-                      key={mode}
-                      htmlFor={`departure-${day}-${mode}`}
-                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
-                    >
-                      <Checkbox
-                        ref={
-                          dayIndex === 0 && modeIndex === 0
-                            ? firstChoiceRef
-                            : undefined
-                        }
-                        id={`departure-${day}-${mode}`}
-                        aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
-                        checked={(modes[day] ?? []).includes(mode)}
-                        disabled={status === "saving"}
-                        onChange={() => toggle(day, mode)}
-                      />
-                      <span>{t(`departureModes.${mode}`)}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
+              <InsetPanel key={day} framed>
+                <fieldset>
+                  <legend className="px-1 text-sm font-semibold text-gray-900">
+                    {t(`departureDays.${day}`)}
+                  </legend>
+                  <div className="mt-1 space-y-1">
+                    {DEPARTURE_REQUEST_MODES.map((mode, modeIndex) => (
+                      <label
+                        key={mode}
+                        htmlFor={`departure-${day}-${mode}`}
+                        className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
+                      >
+                        <Checkbox
+                          ref={
+                            dayIndex === 0 && modeIndex === 0
+                              ? firstChoiceRef
+                              : undefined
+                          }
+                          id={`departure-${day}-${mode}`}
+                          aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
+                          checked={(modes[day] ?? []).includes(mode)}
+                          disabled={status === "saving"}
+                          onChange={() => toggle(day, mode)}
+                        />
+                        <span>{t(`departureModes.${mode}`)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </InsetPanel>
             ))}
           </div>
           <RequestSharingSelector
@@ -1022,12 +1021,12 @@ function DepartureDays({
           (modes?.[day] ?? []).includes(mode),
         );
         return (
-          <li
+          <InsetPanel
+            as="li"
+            tone={nested ? "white" : "muted"}
+            framed={false}
+            padding="compact"
             key={day}
-            className={cn(
-              "rounded-xl px-3 py-2.5",
-              nested ? "bg-white" : "bg-gray-50",
-            )}
           >
             <DataGrid columns={1}>
               <DataField label={t(`careSchedule.weekdays.${day}`)}>
@@ -1038,7 +1037,7 @@ function DepartureDays({
                   : t("departureModes.none")}
               </DataField>
             </DataGrid>
-          </li>
+          </InsetPanel>
         );
       })}
     </ul>
