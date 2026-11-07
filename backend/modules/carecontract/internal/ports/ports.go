@@ -4,10 +4,38 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
+
+// AmendableContract is an active contract with its timeline (#4681): every
+// effective version by effective date, the newest of them, the start of the
+// first, which a fixed term counts from, and the number its next version
+// gets.
+type AmendableContract struct {
+	ID         int64
+	Key        ContractKey
+	FirstFrom  calendar.Date
+	NextNumber int
+	Latest     carecontract.Version
+	Versions   []carecontract.Version
+}
+
+// VersionStep is what a new version does to the timeline (#4681): at most
+// one of Supersede and Replace names a version; Status is the status that
+// version must still have.
+type VersionStep struct {
+	Supersede int64
+	Replace   int64
+	Status    string
+}
+
+// ErrVersionMoved reports that the version a new version should follow is
+// no longer the newest effective one: another run changed the contract.
+var ErrVersionMoved = errors.New("care contract: the newest version changed")
 
 // TemplateRow is a stored template with the offering it belongs to.
 type TemplateRow struct {
@@ -52,6 +80,16 @@ type ContractRecord struct {
 	// conclusion at acceptance sets it before the PDF is rendered, so the
 	// frozen PDF and the mail say that the contract is concluded.
 	Concluded *carecontract.Concluded
+	// SentDocument is the newest stored PDF of the contract with its version
+	// (#4681). Once a later version holds, the current version has no PDF of
+	// its own; a send again or an address correction delivers this one.
+	SentDocument *SentDocument
+}
+
+// SentDocument is a stored PDF of a contract and the version it shows.
+type SentDocument struct {
+	ID        int64
+	VersionID int64
 }
 
 // StoredMailing is a send of the contract as stored.
@@ -100,6 +138,24 @@ type Store interface {
 	// any other state is ErrContractNotConcludable.
 	MarkConcluded(ctx context.Context, organizationID, contractID, versionID int64, conclusion carecontract.Concluded) error
 	InsertEvents(ctx context.Context, organizationID int64, events []Event) error
+	// Versions reads every version of a contract, oldest first, with the
+	// last day each effective version holds.
+	Versions(ctx context.Context, organizationID, contractID int64) ([]carecontract.Version, error)
+	// AmendableContracts reads every active contract with its newest
+	// effective version.
+	AmendableContracts(ctx context.Context, organizationID int64) ([]AmendableContract, error)
+	// InsertVersion stores version after one step on the timeline: step.Supersede
+	// (the wirksam version it follows becomes abgeloest) or step.Replace (the
+	// version starting on the same day becomes ersetzt); neither for a version
+	// that goes before a planned one. ErrVersionMoved when the stepped version
+	// is no longer in its expected status.
+	InsertVersion(ctx context.Context, organizationID, contractID int64, step VersionStep, version carecontract.Version) (int64, error)
+	// VersionsInForce reads the effective versions holding between from and
+	// to; VersionPeriod.From and Until stay for the caller to fill.
+	VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date, contractIDs []int64) ([]carecontract.VersionPeriod, error)
+	// VersionDocument reads the stored PDF of a version; ok is false before
+	// its first send.
+	VersionDocument(ctx context.Context, organizationID, versionID int64) (carecontract.File, bool, error)
 	InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]carecontract.InboxContract, error)
 	InboxDocument(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (carecontract.File, error)
 }

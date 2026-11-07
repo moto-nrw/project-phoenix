@@ -2,9 +2,9 @@ import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
 /**
- * `/traeger/vertraege` (#4678, #4680): festlegen, wann der Vertrag gilt,
- * Vertragsbedingungen je Angebot festlegen, Entwürfe aus angenommenen
- * Anmeldungen erstellen, prüfen und senden.
+ * `/traeger/vertraege` (#4678, #4680, #4681): festlegen, wann der Vertrag
+ * gilt, Vertragsbedingungen je Angebot festlegen, Entwürfe aus angenommenen
+ * Anmeldungen erstellen, prüfen und senden; Versionen nach einer Änderung.
  */
 export function traegerCareContractsTopic(): HelpTopic {
   return {
@@ -73,6 +73,16 @@ export function traegerCareContractsTopic(): HelpTopic {
           "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken und wählen Sie oben `Entwürfe senden`.",
         ],
       },
+      {
+        title: "Wenn sich die Betreuung ändert: neue Version",
+        steps: [
+          "Die Eltern beantragen in der Eltern-App andere Tage oder Zeiten. Die Schule gibt die Änderung frei.",
+          "Nach wenigen Minuten bekommt der aktive Vertrag eine neue Version. Sie gilt ab dem Tag, den die Schule freigegeben hat.",
+          "Wählen Sie in der Liste das Kind. Oben steht, ab wann die neue Version gilt.",
+          "Unter `Versionen` sehen Sie jede Version mit ihren Tagen. `Geändert` markiert die Wochentage, die anders sind als vorher.",
+          "Mit `PDF` laden Sie eine Version als PDF.",
+        ],
+      },
     ],
     steps: [],
     result:
@@ -84,6 +94,10 @@ export function traegerCareContractsTopic(): HelpTopic {
       "Neben jedem Versand steht, was aus der Mail geworden ist: wie bei der Abrechnung. Der Hinweis oben nennt den Grund und den nächsten Schritt. Bei `Verzögert` warten Sie. Hat die Schule die Mails gestoppt, klären Sie das mit der Schule. Bei `Gesperrt` klärt das der moto-Support. Solange das gilt, ist `Erneut senden` aus.",
       "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
       "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
+      "Frühere Versionen bleiben unter `Versionen` lesbar. `Gilt jetzt` zeigt die Version von heute. Die Abrechnung nimmt für jeden Tag die Version, die an diesem Tag gilt.",
+      "Eine neue Version gilt nie rückwirkend. Kommt eine Freigabe zu spät, gilt die Version ab dem Tag, an dem moto sie anlegt.",
+      "Beginnt an einem Tag schon eine Version, und die Schule gibt für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
+      "Ist schon eine spätere Version geplant, gilt eine frühere Änderung nur bis dahin. Die geplante Version übernimmt sie nicht von selbst.",
     ],
     differences: [
       "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
@@ -101,6 +115,7 @@ export function traegerCareContractsTopic(): HelpTopic {
       "Ein Entwurf ist falsch? Wählen Sie auf seiner Seite oben `Entwurf verwerfen`. Danach erstellen Sie ihn neu. Einen versendeten Vertrag können Sie nicht verwerfen.",
       "Der Versand zeigt `Nicht angekommen`? Prüfen Sie die Adresse mit der Schule. Tragen Sie auf der Vertragsseite unter `Versand` die `Neue Versandadresse` ein. Wählen Sie `An diese Adresse senden`. Das geht auch bei aktiven Verträgen. Das PDF, der Abschluss, die Vertragspartei und bisherige Versanddaten bleiben gleich. Spätere Wiederholungen nutzen die letzte Versandadresse.",
       "Der Name des Vertragspartners fehlt? Ergänzen Sie den Briefkopf. Oder verwerfen Sie den Entwurf und erstellen ihn mit eingetragenem Vertragspartner neu.",
+      "Die Schule hat eine Änderung freigegeben, aber es gibt keine neue Version? Neue Versionen bekommen nur aktive Verträge. Bucht das Kind ab dem Tag gar keine Betreuung mehr, ist das eine Kündigung und keine neue Version.",
     ],
     related: [
       HELP_TOPICS.traegerDocumentTemplates,

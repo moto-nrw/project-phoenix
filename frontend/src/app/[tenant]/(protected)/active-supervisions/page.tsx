@@ -20,7 +20,10 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage, TenantPageListSearch } from "~/components/ui/tenant-page";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -514,8 +517,7 @@ function MeinRaumPageContent() {
     });
 
   // Zusätzliche Betreuer (#2806): auf der eigenen aktiven Aufsicht steht die
-  // Aktion in der Kopfkarte; das Gerüst regelt die mobile Darstellung, eine
-  // eigene Icon-Variante braucht es nicht mehr.
+  // Aktion im Kebab der Kopfkarte.
   const additionalSupervisionActiveGroupId = additionalSupervisionTarget({
     currentRoom,
     currentOpenRoom,
@@ -537,18 +539,18 @@ function MeinRaumPageContent() {
     />
   ) : null;
 
-  const addSupervisorButton = additionalSupervisionActiveGroupId ? (
-    <Button
-      type="button"
-      variant="outline"
-      size="md"
-      onClick={() => setAddSupervisorTarget(additionalSupervisionActiveGroupId)}
-      className="gap-2"
-    >
-      <UserPlus className="h-4 w-4" aria-hidden="true" />
-      Betreuer hinzufügen
-    </Button>
-  ) : null;
+  // Im Kebab (Spec R4): sichtbar steht das Übergeben oder Abgeben.
+  const addSupervisorEntries: OverflowMenuEntry[] =
+    additionalSupervisionActiveGroupId
+      ? [
+          {
+            label: "Betreuer hinzufügen",
+            icon: <UserPlus className="h-4 w-4" aria-hidden="true" />,
+            onClick: () =>
+              setAddSupervisorTarget(additionalSupervisionActiveGroupId),
+          },
+        ]
+      : [];
 
   // Abzeichen in der Kopfkarte: ein offener Raum heißt dort „Offener Raum",
   // die eigene Aufsicht „Eigene Aufsicht" (#3065). Keine Erklärzeile.
@@ -603,7 +605,7 @@ function MeinRaumPageContent() {
     openRoomBadge ??
     ownSupervisionBadge ??
     foreignSupervisionBadge ??
-    addSupervisorButton ??
+    additionalSupervisionActiveGroupId ??
     handOverButton ??
     superviseAction ??
     releaseAction,
@@ -856,16 +858,16 @@ function MeinRaumPageContent() {
                 {foreignSupervisionBadge}
               </span>
             ) : null}
-            {addSupervisorButton}
             {handOverButton}
             {superviseAction}
             {releaseAction}
             {/* Die Spaltenwahl der Liste (#3834) im ⋮-Menü, nicht als
                 eigener Knopf neben dem Umschalter. */}
-            {showTable ? (
-              <OverflowMenu
-                items={
-                  isPhone
+            <OverflowMenu
+              items={[
+                ...addSupervisorEntries,
+                ...(showTable
+                  ? isPhone
                     ? phoneDetailMenuEntries(
                         tableColumns,
                         collectionView.phoneDetail,
@@ -876,10 +878,10 @@ function MeinRaumPageContent() {
                         collectionView.hiddenColumns,
                         collectionView.setColumnVisible,
                       )
-                }
-                ariaLabel="Weitere Aktionen"
-              />
-            ) : null}
+                  : []),
+              ]}
+              ariaLabel="Weitere Aktionen"
+            />
           </>
         ) : undefined
       }

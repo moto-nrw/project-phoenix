@@ -23,6 +23,10 @@ import {
   formatTerm,
   serviceDays,
 } from "~/components/traeger/care-contract-format";
+import {
+  CareContractVersions,
+  plannedVersion,
+} from "~/components/traeger/care-contract-versions";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -52,9 +56,11 @@ import {
 } from "~/lib/date-helpers";
 import { mailStatusCopy } from "~/lib/email-delivery-status";
 import { downloadBlob } from "~/lib/file-download";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   type CareContractDetail,
+  type ContractVersion,
   discardCareContract,
   downloadCareContract,
   fetchCareContract,
@@ -85,6 +91,7 @@ export default function TraegerVertragPage() {
   const recipientErrors = useApiFormError(recipientForm);
   const [recipientEmail, setRecipientEmail] = useState("");
   const { success, warning } = useToast();
+  const today = useBerlinToday();
 
   const load = useCallback(async () => {
     try {
@@ -101,13 +108,16 @@ export default function TraegerVertragPage() {
     }
   }, [id, clearLoadError, showLoadError]);
 
+  // A new Berlin day can put another version in force: read the contract
+  // again, so booked care, contribution and PDF follow it (#4681).
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, today]);
 
   // The preview follows the stored PDF once the contract is sent.
   const frozen = contract?.documentFrozen;
   const loaded = contract !== null;
+  const versionInForce = contract?.version.number;
   useEffect(() => {
     if (!loaded) return;
     let url: string | null = null;
@@ -129,9 +139,9 @@ export default function TraegerVertragPage() {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-    // `frozen` is no input of the effect: a new PDF exists only after the
-    // first send, so the preview reloads then.
-  }, [id, frozen, loaded]);
+    // `frozen` and the version in force are no inputs of the effect: a new
+    // PDF exists only after the first send or when another version holds.
+  }, [id, frozen, loaded, versionInForce]);
 
   const refreshDelivery = async () => {
     setRefreshing(true);
@@ -220,6 +230,16 @@ export default function TraegerVertragPage() {
     isDraft || contract?.status === "versendet" || contract?.status === "aktiv";
   const lastMail = contract?.mailings[0];
   const party = contract?.parties[0];
+  const planned = contract
+    ? plannedVersion(contract.versions, today)
+    : undefined;
+  // An active or ended contract shows its versions, so the office sees where
+  // an approved change will appear; a draft has only its first version.
+  const showVersions =
+    contract !== null &&
+    (contract.versions.length > 1 ||
+      contract.status === "aktiv" ||
+      contract.status === "beendet");
 
   return (
     <TenantPage
@@ -328,6 +348,12 @@ export default function TraegerVertragPage() {
       {contract ? (
         <>
           <StatusNotice contract={contract} />
+          {planned ? (
+            <Alert
+              type="info"
+              message={`Ab ${formatDate(planned.effectiveFrom)} gilt Version ${planned.number}. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.`}
+            />
+          ) : null}
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="flex flex-col gap-6 lg:col-span-2">
               <SectionCard
@@ -365,10 +391,7 @@ export default function TraegerVertragPage() {
                     {formatDate(contract.version.effectiveFrom)}
                   </DataField>
                   <DataField label="Laufzeit">
-                    {formatTerm(
-                      contract.version.terms,
-                      contract.version.endsOn,
-                    )}
+                    {formatTerm(contract.version.terms, contractEnd(contract))}
                   </DataField>
                   <DataField label="Beitrag im Monat">
                     {contract.version.priceCents !== null
@@ -385,7 +408,11 @@ export default function TraegerVertragPage() {
               </SectionCard>
               <SectionCard
                 title="Gebuchte Betreuung"
-                description="Je Wochentag das Modul und bis wann das Kind betreut wird."
+                description={
+                  contract.versions.length > 1
+                    ? `Je Wochentag das Modul und bis wann das Kind betreut wird. So gilt es in Version ${contract.version.number}.`
+                    : "Je Wochentag das Modul und bis wann das Kind betreut wird."
+                }
               >
                 <DataGrid>
                   {serviceDays(contract.version.services).map((day) => (
@@ -529,6 +556,12 @@ export default function TraegerVertragPage() {
               </SectionCard>
             </div>
           </div>
+          {showVersions ? (
+            <CareContractVersions
+              contractId={contract.id}
+              versions={contract.versions}
+            />
+          ) : null}
           <SectionCard
             title={contract.documentFrozen ? "PDF für die Eltern" : "Vorschau"}
             description={
@@ -546,6 +579,29 @@ export default function TraegerVertragPage() {
       ) : null}
     </TenantPage>
   );
+}
+
+/**
+ * The last day of the contract: the end of its newest effective version.
+ * A version ends the day before a module switch, which is no end of the
+ * contract (#4681).
+ */
+function contractEnd(contract: CareContractDetail): string | null {
+  // The latest effective date, not the highest number: a change may go in
+  // front of a planned version.
+  const newest = contract.versions
+    .filter(
+      (version) =>
+        version.status === "wirksam" || version.status === "abgeloest",
+    )
+    .reduce<ContractVersion | null>(
+      (latest, version) =>
+        latest === null || version.effectiveFrom > latest.effectiveFrom
+          ? version
+          : latest,
+      null,
+    );
+  return newest ? newest.endsOn : contract.version.endsOn;
 }
 
 type ContractMailing = CareContractDetail["mailings"][number];

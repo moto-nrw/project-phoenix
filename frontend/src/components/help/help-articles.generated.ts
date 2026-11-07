@@ -657,7 +657,8 @@ export const activeSupervisionTopic = function activeSupervisionTopic(
         // #3823, ADR 0091: externe Kräfte mit einer von drei Zugangsstufen.
         title: "Weitere Betreuer eintragen",
         steps: [
-          "Wählen Sie in der laufenden Aufsicht `Betreuer hinzufügen`.",
+          "Öffnen Sie in der laufenden Aufsicht oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Betreuer hinzufügen`.",
           "Wählen Sie die Person unter `Betreuer auswählen` und dann `Hinzufügen`.",
           "Fehlt die Person, zum Beispiel jemand von der Musikschule? Wählen Sie `Externe Person eintragen`.",
           "Tragen Sie `Vorname` und `Nachname` ein.",
@@ -1300,7 +1301,8 @@ export const careTimesTopic = function careTimesTopic(): HelpTopic {
         title: "Zeiten für mehrere Kinder auf einmal setzen",
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Kinderdaten`.",
-          "Wählen Sie oben rechts `Auswählen`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Auswählen`.",
           "Haken Sie die Kinder an.",
           "Wählen Sie `Ankunftszeiten` oder `Gehzeiten`.",
           "Tragen Sie die Zeiten ein und wählen Sie `Speichern`.",
@@ -1526,7 +1528,8 @@ export const classListEntriesTopic =
           title: "Viele Einträge auf einmal",
           steps: [
             "Öffnen Sie `Klassenliste`.",
-            "Wählen Sie oben `Sammelimport`.",
+            "Öffnen Sie oben das Menü mit den drei Punkten.",
+            "Wählen Sie `Sammelimport`.",
             "Folgen Sie den Schritten auf der Seite.",
           ],
         },
@@ -1634,7 +1637,9 @@ export const createStudentTopic = function createStudentTopic(): HelpTopic {
         description:
           "Für ein ganzes Schuljahr ist die Vorlage schneller als das Fenster.",
         steps: [
-          "Öffnen Sie `Kinderdaten` und wählen Sie oben `Importieren`.",
+          "Öffnen Sie `Kinderdaten`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Importieren`.",
           "Wählen Sie bei `Format wählen` `Excel (.xlsx)` oder `CSV (Komma-getrennt)`.",
           "Wählen Sie `Vorlage herunterladen`.",
           "Tragen Sie die Kinder ein. Beim Geburtstag geht zum Beispiel `14.03.2018`.",
@@ -2296,7 +2301,8 @@ export const endCareTopic = function endCareTopic(): HelpTopic {
       {
         title: "Mehrere Kinder auf einmal abmelden",
         steps: [
-          "Wählen Sie oben rechts `Auswählen`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Auswählen`.",
           "Haken Sie die Kinder an.",
           "Wählen Sie `Betreuung beenden`.",
           "Gehen Sie die beiden Schritte wie oben durch.",
@@ -2378,13 +2384,13 @@ export const enrollmentExportTopic =
       steps: [
         "Öffnen Sie `Anmeldungen` und danach `Überblick`.",
         "Wählen Sie bei der Phase `Anmeldungen ansehen`.",
-        "Wählen Sie oben `Anmeldungen exportieren`.",
-        "Wählen Sie `PDF`, `Word` oder `Excel`.",
+        "Öffnen Sie oben das Menü mit den drei Punkten.",
+        "Wählen Sie unter `Exportieren` `PDF`, `Word` oder `Excel`.",
       ],
       result: "Die Datei wird erstellt und heruntergeladen.",
       notes: [
         "Oben steht, wie viele Eingänge die Phase hat und wie viele davon offen sind.",
-        "Die Seite hat drei Exporte: `Anmeldungen exportieren`, `Klassenliste exportieren` und `Auswertung exportieren`.",
+        "Die Seite hat drei Exporte: `Exportieren` im Menü für die Anmeldungen sowie `Klassenliste exportieren` und `Auswertung exportieren` weiter unten.",
         "`Klassenliste exportieren` gilt für die Klasse, die Sie unter `Klasse für Klassenliste` wählen.",
         "`Auswertung exportieren` bietet PDF und Word `ausführlich` oder als `kompakte Tabelle`.",
       ],
@@ -2907,7 +2913,7 @@ export const firstStepsTopic = function firstStepsTopic(): HelpTopic {
       "Sie können jeden Schritt in der Checkliste aufklappen, auch in anderer Reihenfolge.",
       "Ob moto auch den Raum erfasst, stimmt das moto-Team mit Ihnen ab.",
       "Sie möchten die Anwesenheit mit NFC-Armbändern erfassen? Dann melden Sie sich beim moto-Team.",
-      "Sie haben eine Liste aller Kinder? Wählen Sie in der Tour zu `Erstes Kind anlegen` den Knopf `Importieren`. Dann zeigt die Tour den Import.",
+      "Sie haben eine Liste aller Kinder? Starten Sie die Tour zu `Erstes Kind anlegen`. Öffnen Sie dort das Menü mit den drei Punkten. Wählen Sie `Importieren`. Dann zeigt die Tour den Import.",
       "Ihre OGS nutzt die Eltern-App nicht? Dann überspringen Sie `Erste Eltern einladen`.",
       "Der Stand gilt für die ganze OGS. Andere Leitungen sehen denselben Stand.",
     ],
@@ -3653,7 +3659,9 @@ export const inviteStaffTopic = function inviteStaffTopic(): HelpTopic {
         description:
           "Für ein ganzes Team ist die Vorlage schneller als einzelne Einladungen.",
         steps: [
-          "Öffnen Sie `Personal` und wählen Sie oben `Importieren`.",
+          "Öffnen Sie `Personal`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Importieren`.",
           "Wählen Sie bei `Format wählen` `Excel (.xlsx)` oder `CSV (Komma-getrennt)`.",
           "Wählen Sie `Vorlage herunterladen`.",
           "Füllen Sie `Vorname`, `Nachname` und `Rolle` aus. Diese drei sind Pflicht.",
@@ -5456,6 +5464,7 @@ export const parentCareChangeTopic =
         "Eine Änderung am Wochenplan ist dauerhaft und gilt jede Woche.",
         "Geht es nur um einen Tag? Ändern Sie stattdessen die Abholung für diesen Tag.",
         "Eine offene Anfrage lässt sich mit `Anfrage bearbeiten` noch ändern.",
+        "Gilt Ihr Betreuungsvertrag schon? Nach der Bestätigung bekommt er eine neue Version ab dem bestätigten Tag. Die alte Version gilt bis dahin weiter.",
         "Betreut Ihre OGS am Wochenende? Dann gilt der Freitagsplan auch für Samstag und Sonntag.",
       ],
       differences: [
@@ -5789,6 +5798,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Steht im Vertrag `Vertragsschluss`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
+      "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
       "Bei einem freigegebenen Dokument steht `Vom Träger für Eltern freigegeben`. Es gilt für alle Eltern, für die der Träger es freigegeben hat, zum Beispiel für eine Gruppe. Diese Dokumente kommen nicht per Mail.",
       "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein Bestätigungsschreiben kommt? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Einen Betreuungsvertrag bekommen Sie per Mail.",
@@ -5799,6 +5809,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen.",
     ],
     related: [
+      HELP_TOPICS.parentCareChange,
       HELP_TOPICS.parentHolidayRegistration,
       HELP_TOPICS.parentNotifications,
     ],
@@ -7839,7 +7850,8 @@ export const staffQualificationsTopic =
           steps: [
             "Öffnen Sie `Datenverwaltung` und danach `Nachweise`.",
             "Filtern Sie oben nach `Status` oder `Art`.",
-            "Wählen Sie `Für Excel herunterladen`, um die Liste als Datei zu speichern.",
+            "Öffnen Sie oben das Menü mit den drei Punkten.",
+            "Wählen Sie `Für Excel herunterladen`, um die Liste als Datei zu speichern. Ohne Treffer gibt es den Eintrag nicht.",
           ],
         },
         {
@@ -10174,9 +10186,9 @@ export const traegerBriefkopfTopic =
   } satisfies typeof authored_traegerBriefkopfTopic;
 
 /**
- * `/traeger/vertraege` (#4678, #4680): festlegen, wann der Vertrag gilt,
- * Vertragsbedingungen je Angebot festlegen, Entwürfe aus angenommenen
- * Anmeldungen erstellen, prüfen und senden.
+ * `/traeger/vertraege` (#4678, #4680, #4681): festlegen, wann der Vertrag
+ * gilt, Vertragsbedingungen je Angebot festlegen, Entwürfe aus angenommenen
+ * Anmeldungen erstellen, prüfen und senden; Versionen nach einer Änderung.
  */
 export const traegerCareContractsTopic =
   function traegerCareContractsTopic(): HelpTopic {
@@ -10246,6 +10258,16 @@ export const traegerCareContractsTopic =
             "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken und wählen Sie oben `Entwürfe senden`.",
           ],
         },
+        {
+          title: "Wenn sich die Betreuung ändert: neue Version",
+          steps: [
+            "Die Eltern beantragen in der Eltern-App andere Tage oder Zeiten. Die Schule gibt die Änderung frei.",
+            "Nach wenigen Minuten bekommt der aktive Vertrag eine neue Version. Sie gilt ab dem Tag, den die Schule freigegeben hat.",
+            "Wählen Sie in der Liste das Kind. Oben steht, ab wann die neue Version gilt.",
+            "Unter `Versionen` sehen Sie jede Version mit ihren Tagen. `Geändert` markiert die Wochentage, die anders sind als vorher.",
+            "Mit `PDF` laden Sie eine Version als PDF.",
+          ],
+        },
       ],
       steps: [],
       result:
@@ -10257,6 +10279,10 @@ export const traegerCareContractsTopic =
         "Neben jedem Versand steht, was aus der Mail geworden ist: wie bei der Abrechnung. Der Hinweis oben nennt den Grund und den nächsten Schritt. Bei `Verzögert` warten Sie. Hat die Schule die Mails gestoppt, klären Sie das mit der Schule. Bei `Gesperrt` klärt das der moto-Support. Solange das gilt, ist `Erneut senden` aus.",
         "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
         "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
+        "Frühere Versionen bleiben unter `Versionen` lesbar. `Gilt jetzt` zeigt die Version von heute. Die Abrechnung nimmt für jeden Tag die Version, die an diesem Tag gilt.",
+        "Eine neue Version gilt nie rückwirkend. Kommt eine Freigabe zu spät, gilt die Version ab dem Tag, an dem moto sie anlegt.",
+        "Beginnt an einem Tag schon eine Version, und die Schule gibt für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
+        "Ist schon eine spätere Version geplant, gilt eine frühere Änderung nur bis dahin. Die geplante Version übernimmt sie nicht von selbst.",
       ],
       differences: [
         "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
@@ -10274,6 +10300,7 @@ export const traegerCareContractsTopic =
         "Ein Entwurf ist falsch? Wählen Sie auf seiner Seite oben `Entwurf verwerfen`. Danach erstellen Sie ihn neu. Einen versendeten Vertrag können Sie nicht verwerfen.",
         "Der Versand zeigt `Nicht angekommen`? Prüfen Sie die Adresse mit der Schule. Tragen Sie auf der Vertragsseite unter `Versand` die `Neue Versandadresse` ein. Wählen Sie `An diese Adresse senden`. Das geht auch bei aktiven Verträgen. Das PDF, der Abschluss, die Vertragspartei und bisherige Versanddaten bleiben gleich. Spätere Wiederholungen nutzen die letzte Versandadresse.",
         "Der Name des Vertragspartners fehlt? Ergänzen Sie den Briefkopf. Oder verwerfen Sie den Entwurf und erstellen ihn mit eingetragenem Vertragspartner neu.",
+        "Die Schule hat eine Änderung freigegeben, aber es gibt keine neue Version? Neue Versionen bekommen nur aktive Verträge. Bucht das Kind ab dem Tag gar keine Betreuung mehr, ist das eine Kündigung und keine neue Version.",
       ],
       related: [
         HELP_TOPICS.traegerDocumentTemplates,

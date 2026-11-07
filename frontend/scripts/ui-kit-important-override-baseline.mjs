@@ -8,7 +8,6 @@
 // Zahl hier gesenkt ist.
 /** @type {Readonly<Record<string, number>>} */
 export const importantOverrideBaseline = {
-  "src/app/[tenant]/(protected)/meal-plan/page.tsx": 1,
   "src/components/help/help-view.tsx": 1,
   "src/components/staff/dienstplan-person-week-grid.tsx": 1,
 };
