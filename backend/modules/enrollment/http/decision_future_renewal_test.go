@@ -1,6 +1,8 @@
 package enrollmenthttp_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"testing"
@@ -19,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/uptrace/bun"
 )
 
 // futureRenewal is an approved re-enrollment of an already cared-for child
@@ -206,6 +209,66 @@ func TestDecisionService_Decide_FutureRenewalAppliesWeeklyPlanAtStart(t *testing
 	require.NoError(t, err)
 	assert.Nil(t, child.WeeklyPlanOn, "an applied plan is cleared")
 	assert.Equal(t, map[int]string{timetable.WeekdayMonday: "16:00"}, r.pickups(t))
+}
+
+func TestPhaseService_Update_ReschedulesPendingWeeklyPlans(t *testing.T) {
+	t.Parallel()
+
+	for _, days := range []int{-7, 7} {
+		t.Run(fmt.Sprintf("shift_%d_days", days), func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			r := setupFutureRenewal(t)
+			r.approve(t)
+			ctx := testpkg.Ctx(t)
+			module := r.env.repos.Enrollment()
+			phases, _, _, _, _ := setupPhaseTest(t)
+			phase := enrollmentAPI.OwnerPhaseForTest(r.env.sourcePhase)
+			phase.ServiceStartDate = enrollmentNative.Date(r.start.AddDays(days))
+
+			plan, err := testpkg.TenantQuery1(t, ctx, r.env.db, module.ChildWeeklyPlan, r.childID)
+			require.NoError(t, err)
+			require.NotNil(t, plan)
+			plan.Replace = true
+			require.NoError(t, testpkg.TenantCommand2(t, ctx, r.env.db, module.SetChildWeeklyPlan, r.childID, plan))
+
+			failure := errors.New("after phase update")
+			err = testpkg.WithTenantTx(t, ctx, r.env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+				if err := phases.UpdatePhase(txCtx, phase); err != nil {
+					return err
+				}
+				return failure
+			})
+			require.ErrorIs(t, err, failure)
+			unchanged, err := testpkg.TenantQuery1(t, ctx, r.env.db, module.ChildWeeklyPlan, r.childID)
+			require.NoError(t, err)
+			require.Equal(t, plan, unchanged, "rescheduling rolls back with the phase change")
+			storedPhase, err := testpkg.TenantQuery1(t, ctx, r.env.db, module.Phase, phase.ID)
+			require.NoError(t, err)
+			require.Equal(t, enrollmentNative.Date(r.start), storedPhase.ServiceStartDate)
+
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, phases.UpdatePhase, phase))
+			rescheduled, err := testpkg.TenantQuery1(t, ctx, r.env.db, module.ChildWeeklyPlan, r.childID)
+			require.NoError(t, err)
+			plan.On = phase.ServiceStartDate
+			require.Equal(t, plan, rescheduled, "only the activation day changes, not the author or replacement mode")
+			r.assertRunningPlan(t, "after rescheduling")
+
+			newStart := calendar.Date(phase.ServiceStartDate)
+			assert.Zero(t, r.applyDue(t, newStart.AddDays(-1)))
+			r.assertRunningPlan(t, "before the new start")
+			assert.Equal(t, 1, r.applyDue(t, newStart))
+			assert.Equal(t, map[int]string{timetable.WeekdayMonday: "15:10"}, r.pickups(t))
+			assert.Equal(t, []int{timetable.WeekdayMonday}, r.careDays(t))
+			assert.Equal(t, peopleValues.DeparturePickup,
+				r.student(t).AllowedDepartureModes.DepartureDays().ModeFor(peopleValues.PickupDayMonday))
+
+			phase.ServiceStartDate = enrollmentNative.Date(newStart.AddDays(1))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, phases.UpdatePhase, phase))
+			applied, err := testpkg.TenantQuery1(t, ctx, r.env.db, module.ChildWeeklyPlan, r.childID)
+			require.NoError(t, err)
+			assert.Nil(t, applied, "a phase change never recreates an applied plan")
+		})
+	}
 }
 
 // A plan that cannot be applied on the start day rolls back completely: the
