@@ -43,5 +43,12 @@
   "sibling_group_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "letter_mail_delayed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "letter_mail_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "letter_mail_block_unreadable": "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë."
+  "letter_mail_block_unreadable": "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë.",
+  "care_run_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "care_run_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "care_run_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "care_versions_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "care_tariff_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "care_tariff_month_billed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "care_tariff_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

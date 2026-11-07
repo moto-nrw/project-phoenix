@@ -2,7 +2,8 @@
 
 // Abrechnungsvorgaben des Trägers (#5685): was für jede Abrechnung gilt.
 // Bankverbindungen (#4653) sieht jede Rolle mit „Übersicht lesen“, ändern darf
-// sie, wer „Einstellungen“ hat. Rechnungsnummern (#4668), Ermäßigungen (#4664)
+// sie, wer „Einstellungen“ hat. Rechnungsnummern der Ferien (#4668) und der
+// Monatsbeiträge (#4684), Ermäßigungen (#4664)
 // und Kostenträger (#5627) gehören zum Recht „Abrechnung“.
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -19,6 +20,7 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import {
+  fetchCareNumberRange,
   fetchHolidayNumberRange,
   type NumberRange,
 } from "~/lib/traeger-billing-api";
@@ -42,6 +44,7 @@ interface BillingDefaults {
   readonly rules: ContributionRule[];
   readonly bearers: CostBearer[];
   readonly numberRange: NumberRange;
+  readonly careNumberRange: NumberRange;
 }
 
 function useBillingDefaults(enabled: boolean) {
@@ -56,13 +59,14 @@ function useBillingDefaults(enabled: boolean) {
     if (!enabledRef.current) return;
     const generation = ++loadGeneration.current;
     try {
-      const [rules, bearers, numberRange] = await Promise.all([
+      const [rules, bearers, numberRange, careNumberRange] = await Promise.all([
         fetchContributionRules(),
         fetchCostBearers(),
         fetchHolidayNumberRange(),
+        fetchCareNumberRange(),
       ]);
       if (!enabledRef.current || generation !== loadGeneration.current) return;
-      setData({ rules, bearers, numberRange });
+      setData({ rules, bearers, numberRange, careNumberRange });
       setFailure(undefined);
       clearLoadError();
     } catch (err) {
@@ -143,6 +147,11 @@ export default function TraegerAbrechnungsvorgabenPage() {
         <>
           <NumberRangeCard
             numberRange={billing.data.numberRange}
+            onChanged={billing.load}
+          />
+          <NumberRangeCard
+            service="care"
+            numberRange={billing.data.careNumberRange}
             onChanged={billing.load}
           />
           <ContributionRulesCard
