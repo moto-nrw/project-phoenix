@@ -98,7 +98,7 @@ func TestTraegerOfficeDecidesTheParentsChangeOnlyWithTheRightAndForItsOwnTraeger
 		ID: testpkg.UniqueTestTenantID(t), StudentID: student, EffectiveFrom: "2100-03-01", Status: careplan.OfferingChangePending,
 		CreatedAt: time.Date(2099, 12, 1, 9, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2099, 12, 1, 9, 0, 0, 0, time.UTC),
 	}}
-	router := careContractChangeRouter(t, f.db, review)
+	router := careContractChangeRouter(t, testpkg.SetupTestDB(t), review)
 	listPath := fmt.Sprintf("/traeger/contract-changes/%d", contract)
 	decidePath := fmt.Sprintf("%s/requests/%d/decide", listPath, review.pending.ID)
 	approve := map[string]any{"approve": true, "effective_from": "2100-03-01",

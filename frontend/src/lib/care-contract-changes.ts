@@ -8,7 +8,7 @@
 
 import type { Weekday } from "./traeger-care-contracts-api";
 
-export type ChangeModuleState = "added" | "removed" | "changed" | "unchanged";
+type ChangeModuleState = "added" | "removed" | "changed" | "unchanged";
 
 /** One module of a change: what the child books now and what is asked. */
 export interface ContractChangeLine {
