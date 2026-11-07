@@ -675,7 +675,7 @@ export default function StudentImportPage() {
             </SectionCard>
           )}
 
-          <StickyActionBar>
+          <StickyActionBar reserveSpace>
             <Button
               type="button"
               variant="outline"

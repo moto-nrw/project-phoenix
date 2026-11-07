@@ -476,7 +476,7 @@ export default function ClassListImportPage() {
             </SectionCard>
           )}
 
-          <StickyActionBar>
+          <StickyActionBar reserveSpace>
             <Button
               type="button"
               variant="outline"

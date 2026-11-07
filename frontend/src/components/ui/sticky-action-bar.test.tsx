@@ -5,7 +5,7 @@ import { StickyActionBar } from "./sticky-action-bar";
 
 describe("StickyActionBar", () => {
   it("shows the actions", () => {
-    render(
+    const { container } = render(
       <StickyActionBar>
         <button type="button">Importieren</button>
       </StickyActionBar>,
@@ -13,6 +13,19 @@ describe("StickyActionBar", () => {
     expect(
       screen.getByRole("button", { name: "Importieren" }),
     ).toBeInTheDocument();
+    expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
+  });
+
+  it("reserves space only when requested", () => {
+    const { container } = render(
+      <StickyActionBar reserveSpace>
+        <button type="button">Importieren</button>
+      </StickyActionBar>,
+    );
+
+    expect(container.querySelector('[aria-hidden="true"]')).toHaveClass(
+      "h-20",
+    );
   });
 
   it("names what the actions refer to", () => {

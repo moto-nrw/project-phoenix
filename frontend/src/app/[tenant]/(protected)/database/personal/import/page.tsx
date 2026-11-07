@@ -605,7 +605,7 @@ export default function StaffImportPage() {
             </SectionCard>
           )}
 
-          <StickyActionBar>
+          <StickyActionBar reserveSpace>
             <Button
               type="button"
               variant="outline"

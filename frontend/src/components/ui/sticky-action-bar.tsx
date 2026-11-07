@@ -5,8 +5,8 @@ import { STICKY_ABOVE_BOTTOM_NAV } from "./overlay-styles";
 
 /**
  * Die Leiste mit den Aktionen einer langen Seite (Import, Speiseplan). Sie
- * klebt am unteren Rand, solange die Seite scrollt, und bringt den Abstand
- * davor selbst mit, damit keine Seite einen eigenen Spacer braucht.
+ * klebt am unteren Rand, solange die Seite scrollt. Seiten, die schon vor der
+ * Umstellung Platz dafür reservierten, setzen `reserveSpace`.
  *
  * `summary` steht links und sagt, worauf sich die Aktionen beziehen; die
  * Aktionen stehen dann rechts in einer Zeile. Ohne `summary` füllen die
@@ -14,14 +14,17 @@ import { STICKY_ABOVE_BOTTOM_NAV } from "./overlay-styles";
  */
 export function StickyActionBar({
   summary,
+  reserveSpace = false,
   children,
 }: Readonly<{
   summary?: ReactNode;
+  /** Platz für die Leiste nur erhalten, wenn die Seite ihn vorher hatte. */
+  reserveSpace?: boolean;
   children: ReactNode;
 }>) {
   return (
     <>
-      <div aria-hidden="true" className="h-20" />
+      {reserveSpace && <div aria-hidden="true" className="h-20" />}
       <div
         className={cn(
           STICKY_ABOVE_BOTTOM_NAV,
