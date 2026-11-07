@@ -21,6 +21,7 @@ import {
   type TraegerDocumentSchool,
 } from "~/lib/traeger-documents-api";
 import { releaseAudienceLabel, schoolNamesOf } from "./traeger-document-format";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "TraegerDocumentReleaseModal" });
 
@@ -250,13 +251,13 @@ export function TraegerDocumentReleaseModal({
             searchable={groups.length > 8}
           />
         )}
-        <div className="rounded-xl bg-gray-50 px-4 py-3">
+        <InsetPanel padding="md">
           <p className="text-xs font-medium text-gray-500">Sichtbar für</p>
           <p className="mt-0.5 text-sm font-semibold text-gray-900">
             {preview ?? "Bitte wählen Sie oben aus."}
           </p>
           <p className="mt-1 text-xs text-gray-600">{WHERE[audience]}</p>
-        </div>
+        </InsetPanel>
       </form>
     </FormModal>
   );
