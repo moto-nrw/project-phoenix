@@ -50,6 +50,10 @@ var (
 	pptxKind = ooxmlKind{extension: ".pptx", part: "ppt/presentation.xml", contentType: PptxContentType}
 )
 
+// maxMultipartMemory is the part of a multipart body held in memory; the
+// rest of a file goes to a temporary file.
+const maxMultipartMemory = 1 << 20
+
 // documentUploadKinds is what child and staff documents accept.
 var documentUploadKinds = []ooxmlKind{docxKind}
 
@@ -79,7 +83,9 @@ func ParseOfficeFileWithLimits(w http.ResponseWriter, r *http.Request, fieldName
 func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64, kinds []ooxmlKind, invalidMessage string) (*UploadedFile, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 
-	if err := r.ParseMultipartForm(maxBodySize); err != nil {
+	// Parts beyond the memory threshold spill to temporary files, which the
+	// HTTP server removes after the handler returns (MultipartForm.RemoveAll).
+	if err := r.ParseMultipartForm(min(maxBodySize, maxMultipartMemory)); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			return nil, uploadRefusal{code: CodeFilesFileTooLarge, text: "file too large"}

@@ -29,10 +29,11 @@ type HolidayRegistrationResource struct {
 
 // HolidayProofUploads stores a proof of benefits of the public link
 // (#5238). The root opens the Träger units of each call: the upload counts
-// in a unit of its own, so a refused upload still counts, like the uploads
-// of the online registration (#4783).
+// in a unit of its own before the body is read, so a refused upload still
+// counts, like the uploads of the online registration (#4783).
 type HolidayProofUploads interface {
-	UploadHolidayProof(ctx context.Context, link capability.HolidayRegistrationLink, remoteIP string, upload capability.HolidayProofUpload) (capability.HolidayProofReceipt, error)
+	CountHolidayProofUpload(ctx context.Context, link capability.HolidayRegistrationLink, remoteIP string) error
+	UploadHolidayProof(ctx context.Context, link capability.HolidayRegistrationLink, upload capability.HolidayProofUpload) (capability.HolidayProofReceipt, error)
 }
 
 // NewHolidayRegistrationResource builds the resource. captcha is always

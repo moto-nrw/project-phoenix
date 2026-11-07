@@ -32,6 +32,16 @@ func (u enrollmentUploadUnits) PrepareUpload(ctx context.Context, input enrollme
 	return prepared, err
 }
 
+func (u enrollmentUploadUnits) CountUploadAttempt(ctx context.Context, tenantID int64, remoteIP string) error {
+	id, err := tenant.NewTenantID(tenantID)
+	if err != nil {
+		return err
+	}
+	return tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
+		return u.intake.CountUploadAttempt(txCtx, tenantID, remoteIP)
+	})
+}
+
 func (u enrollmentUploadUnits) DiscardUpload(ctx context.Context, tenantID, uploadID int64) error {
 	id, err := tenant.NewTenantID(tenantID)
 	if err != nil {
