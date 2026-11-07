@@ -469,7 +469,13 @@ passes cannot confirm that the family is empty; deleting rows on the last
 pass alone is not confirmation. Every portal shell revokes through its BFF logout route
 (`/api/{,parent/,school/,caterer/,traeger/,operator/}auth/logout`) before
 Auth.js clears the cookie; a failed revocation keeps the session and shows
-the error with a retry, as does the tenant relogin action. Portal cookies
+the error with a retry, as does the tenant relogin action. All six routes
+come from one factory (`frontend/src/lib/logout-route.server.ts`); the
+token kind and backend path come from the portal table. A refused token may
+still belong to a live family (another tab rotated it), so each route renews
+the session once and repeats the logout: a revoked family ends in the
+renewal and its 401 stands, a renewal without a new token answers 503 and
+the browser offers the logout again. Portal cookies
 are host-only; a late response of the same portal may write one back only
 in the narrow cases [below](#late-responses-after-logout-5399), and the
 revoked family makes it worthless. Migration 1.15.707 gives every
@@ -518,12 +524,16 @@ A staff-view preview token carries the admin's
 family and ends with the admin's session.
 
 In the frontend a backend 401 for an unexpired token renews the session at
-once (`withForcedSessionRenewal` in `frontend/src/server/auth/shared.ts`,
+once (`withForcedSessionRenewal` in `frontend/src/server/auth/token-refresh.ts`,
 used by `uncachedAuth` and by `withAuthResponse` for routes without their own
 retry). A revoked family fails that refresh; the response ends the session
 in its body but writes no cookie (#5399, below), and `/api/auth/token`
 answers 401 for a revoked family, so the browser signs out. A live family
 continues with fresh tokens.
+
+One table in `frontend/src/server/auth/portals.ts` holds these facts per
+portal; the Auth.js configs, entry modules, logout and login routes, layout
+snapshots and logout exemptions derive from it.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
@@ -537,7 +547,7 @@ continues with fresh tokens.
 The browser never receives a session's access token, refresh token or
 recovery proof (#5005). The client-importable `next-auth` types `Session` and
 `User` carry none; server code reads them through `ServerSession`, `AuthUser`
-and the `next-auth/jwt` `JWT` fields in `frontend/src/server/auth/shared.ts`.
+and the `next-auth/jwt` `JWT` fields in `frontend/src/server/auth/session-types.ts`.
 Each portal's `{basePath}/session` answer (GET and the `update()` POST)
 passes through the allowlist in `frontend/src/server/auth/browser-session.ts`,
 and the layout snapshots map the cookie without them. BFF routes authenticate
@@ -620,7 +630,7 @@ old session back; the browser only saves requests.
    cookie: a superset of what any reader accepts and no other cookie
    (`parent-session-token`, `session-token` pass). The names have one source,
    `PORTAL_SESSION_COOKIE_NAMES` and `tenantSessionCookieName` in that module,
-   which the six portal configs use. The gate approves only names Auth.js
+   which the portal table (`frontend/src/server/auth/portals.ts`) uses. The gate approves only names Auth.js
    writes: a configured name (with Auth.js' `__Secure-`/`__Host-` prefix) and
    its chunks `.<n>`. A Set-Cookie line with a session cookie name
    leaves only approved, or as a deletion: an empty value with at most one `Max-Age` and one `Expires`
@@ -649,7 +659,7 @@ old session back; the browser only saves requests.
    refresh lifetime and moves with each rotation.
 2. **Read gate.** The session route asks the family on every call and reads
    a revoked family as ended (`RefreshTokenError`); the layout snapshots of
-   every portal (`readFreshPortalToken`, `readTenantSessionSnapshot`) hydrate
+   every portal (`readPortalSessionSnapshot`) hydrate
    only a live family. A family that cannot be read (503) and an expired
    access token, which the backend refuses before it reads the family, leave
    the shown session as it is; its own refresh decides.
@@ -671,8 +681,8 @@ next session read or page load; delivered only after a new login, it replaces
 that login's cookie and asks for the login again. The same holds for a
 just-issued refresh token that lands while the family check had no answer. A
 session cookie the gate cannot decode counts as no session and passes; the
-gate reads with `NEXTAUTH_SECRET`, which Auth.js uses too while no
-environment sets `AUTH_SECRET`. A school switch that committed before the
+gate reads with `NEXTAUTH_SECRET`, which every portal's Auth.js config
+pins (`createPortalAuthConfig`), whatever `AUTH_SECRET` says. A school switch that committed before the
 logout mints a family of its own; it names the origin of its lineage
 (`switched_from_family_id`), so the logout revokes it too, even when the
 session cap already evicted the retired source (#5422).
