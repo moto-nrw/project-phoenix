@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -74,7 +75,7 @@ func TestTrackProductEventDefersUntilAfterCommit(t *testing.T) {
 	rec := &recordingTracker{}
 	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Tracker: rec}}
 	ctx := tenant.WithTenantID(context.Background(), 42)
-	ctx, drain := tenant.WithAfterCommitHooksForTest(ctx)
+	ctx, drain := tenanttest.WithAfterCommitHooks(ctx)
 
 	svc.trackProductEvent(ctx, "student_checked_in", map[string]any{"method": "rfid"})
 

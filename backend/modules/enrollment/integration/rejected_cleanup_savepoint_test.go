@@ -15,6 +15,7 @@ import (
 
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 )
 
 // Inside an ambient tenant transaction the retention worker joins it through
@@ -41,7 +42,7 @@ func rejectedCleanupAmbientTx(t *testing.T) (context.Context, sqlmock.Sqlmock) {
 	)
 	require.NoError(t, err)
 	ctx := tenant.WithUnitOfWork(context.Background(), uow)
-	return tenant.WithTransactionForTest(ctx, &tx), mock
+	return tenanttest.WithTransaction(ctx, &tx), mock
 }
 
 type rejectedCleanupSavepointController struct{ tx *bun.Tx }

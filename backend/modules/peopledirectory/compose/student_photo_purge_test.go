@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -132,7 +132,7 @@ func TestLockStudentPhotoFeatureIsVisibleToOtherTransactions(t *testing.T) {
 
 	holding, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err, "begin the holding transaction")
-	require.NoError(t, module.LockStudentPhotoFeature(tenant.WithTransactionForTest(ctx, holding)),
+	require.NoError(t, module.LockStudentPhotoFeature(tenanttest.WithTransaction(ctx, holding)),
 		"the first transaction must acquire the per-tenant photo gate")
 
 	// The advisory-lock class of the photo gate. Spelled out rather than

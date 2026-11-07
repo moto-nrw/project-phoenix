@@ -8,7 +8,10 @@ tmp_dir = "tmp"
   # -s -w drops symbol/DWARF tables: smaller link, less RAM, same panics
   # and stack traces. Keep in sync with scripts/dev-native.sh.
   cmd = "go build -ldflags='-s -w' -o ./tmp/main ."
-  delay = 300
+  # Debounce in ms after the last change. Agents save several files per
+  # edit; a short window rebuilt every intermediate state and filled the Go
+  # build cache with archives nobody ran (#5985).
+  delay = 2000
   exclude_dir = ["assets", "tmp", "vendor", "testdata"]
   exclude_file = []
   exclude_regex = ["_test.go"]

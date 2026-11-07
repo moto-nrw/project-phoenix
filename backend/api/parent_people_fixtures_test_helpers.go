@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -17,32 +19,32 @@ import (
 
 // These test-only bindings retain the exact stores the fixture graph already
 // holds. Native fixture values do not change the production reader DTO debt.
-func (f *PeopleRepositorySuiteFactory) CreateGuardianLinkFixture(ctx context.Context, value *peopledirectory.GuardianLinkFixture) error {
-	return f.StudentGuardian.(peopledirectory.GuardianLinkFixtureWriter).CreateGuardianLinkFixture(ctx, value)
+func (f *PeopleRepositorySuiteFactory) CreateGuardianLinkFixture(ctx context.Context, value *parentfixture.GuardianLinkFixture) error {
+	return f.StudentGuardian.(parentfixture.GuardianLinkFixtureWriter).CreateGuardianLinkFixture(ctx, value)
 }
-func (f *PeopleRepositorySuiteFactory) CreateGuardianPhoneFixture(ctx context.Context, value *peopledirectory.GuardianPhoneFixture) error {
+func (f *PeopleRepositorySuiteFactory) CreateGuardianPhoneFixture(ctx context.Context, value *parentfixture.GuardianPhoneFixture) error {
 	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		if value == nil {
 			return f.GuardianPhoneNumber.Create(txCtx, nil)
 		}
 		phone := peopledirectory.GuardianProfilePhoneSnapshot(*value)
 		err := f.GuardianPhoneNumber.Create(txCtx, &phone)
-		*value = peopledirectory.GuardianPhoneFixture(phone)
+		*value = parentfixture.GuardianPhoneFixture(phone)
 		return err
 	})
 }
-func (f *PeopleRepositorySuiteFactory) CreateFamilyProtectionFixture(ctx context.Context, value *peopledirectory.FamilyProtectionFixture) error {
-	return f.FamilyProtection.(peopledirectory.FamilyProtectionFixtureWriter).CreateFamilyProtectionFixture(ctx, value)
+func (f *PeopleRepositorySuiteFactory) CreateFamilyProtectionFixture(ctx context.Context, value *parentfixture.FamilyProtectionFixture) error {
+	return f.FamilyProtection.(parentfixture.FamilyProtectionFixtureWriter).CreateFamilyProtectionFixture(ctx, value)
 }
 
 // ParentRequestEventFixtureReads observes the same append-only ledger through
 // native values; workflow construction still receives its original writer.
 type ParentRequestEventFixtureReads struct {
-	source peopledirectory.ParentRequestEventFixtureSource
+	source parentfixture.ParentRequestEventFixtureSource
 }
 
 func NewParentRequestEventFixtureReads(source peopledirectory.ParentRequestEvents) ParentRequestEventFixtureReads {
-	return ParentRequestEventFixtureReads{source: source.(peopledirectory.ParentRequestEventFixtureSource)}
+	return ParentRequestEventFixtureReads{source: source.(parentfixture.ParentRequestEventFixtureSource)}
 }
 func (r ParentRequestEventFixtureReads) ListForRequest(ctx context.Context, kind string, id int64) ([]*ParentRequestEventFixture, error) {
 	values, err := r.source.ListParentRequestEventFixtures(ctx, kind, id)
@@ -65,7 +67,7 @@ func (r ParentRequestEventFixtureReads) ListForRequest(ctx context.Context, kind
 
 // NewParentGuardianProfileReadFixture retains the locale stub's complete
 // profile values and inert operations through the native workflow callbacks.
-func NewParentGuardianProfileReadFixture(find func(context.Context, int64) (*peopledirectory.GuardianProfileFixture, error)) parentportal.GuardianProfiles {
+func NewParentGuardianProfileReadFixture(find func(context.Context, int64) (*parentfixture.GuardianProfileFixture, error)) parentportal.GuardianProfiles {
 	return parentportal.NewGuardianProfileReads(parentportal.GuardianProfileReadCallbacks{
 		FindByAccountID: func(ctx context.Context, id int64) (*parentportal.GuardianProfile, error) {
 			value, err := find(ctx, id)
@@ -99,15 +101,15 @@ func NewParentGuardianProfileReadFixture(find func(context.Context, int64) (*peo
 }
 
 // ParentPersistedFixtureProtocol binds the composed owner scalar facet.
-func ParentPersistedFixtureProtocol(source peopledirectory.Capability) peopledirectory.ParentFixtureProtocol {
-	return source.(peopledirectory.ParentFixtureProtocols).ParentFixtureProtocol()
+func ParentPersistedFixtureProtocol(source peopledirectory.Capability) parentfixture.ParentFixtureProtocol {
+	return source.(parentfixture.ParentFixtureProtocols).ParentFixtureProtocol()
 }
 
 // ParentRequestEventFixture is the root test view of the owner's typed JSON
 // payload. It retains all metadata while decoding the same persisted JSON for
 // the existing ledger assertions.
 type ParentRequestEventFixture struct {
-	peopledirectory.ParentRequestEventFixture
+	parentfixture.ParentRequestEventFixture
 	Payload map[string]any
 }
 
