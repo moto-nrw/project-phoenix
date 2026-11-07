@@ -46,8 +46,9 @@ import { cn } from "~/lib/utils";
 /**
  * Das Seitengerüst des Tenant-Portals. JEDE Seite unter
  * `app/[tenant]/(protected)` rendert genau dieses Gerüst als Wurzel
- * (Ausnahmen gibt es nicht.), ebenso jede Seite des Träger-Portals nach der
- * Anmeldung (`app/traeger`, #5146).
+ * (Ausnahmen gibt es nicht.), ebenso jede Seite des Träger-, Schul- und
+ * Operator-Portals nach der Anmeldung (`app/traeger`, #5146; `app/school`,
+ * `app/operator`, #5604).
  *
  * Die Reihenfolge der Bausteine ist fest und liegt hier, nicht in der Seite:
  *
@@ -113,6 +114,8 @@ export interface TenantPageProps {
   readonly backHref?: string;
   /** Sichtbarer Text des Rückwegs, nennt das Ziel („Zurück zu den Räumen"). */
   readonly backLabel?: string;
+  /** Blendet die Kopfkarte nur für eine druckbare Inhaltsansicht aus. */
+  readonly printHideHeader?: boolean;
 
   /** Suchfeld in der Kopfkarte. */
   readonly search?: {
@@ -499,6 +502,7 @@ export function TenantPage(props: TenantPageProps) {
         back={props.back}
         backHref={props.backHref}
         backLabel={props.backLabel}
+        printHideHeader={props.printHideHeader}
         testId={props.testId}
       >
         <SectionCard>
@@ -575,6 +579,7 @@ function TenantPageView({
   back = false,
   backHref,
   backLabel,
+  printHideHeader = false,
   search,
   filters,
   activeFilters,
@@ -637,7 +642,10 @@ function TenantPageView({
           einer CSS-Layer stehen. */}
       <header
         ref={headRef}
-        className="moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4"
+        className={cn(
+          "moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4",
+          printHideHeader && "print:hidden",
+        )}
       >
         {back && <TenantBackLink href={backHref} label={backLabel} />}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 max-sm:gap-x-2">

@@ -5,9 +5,11 @@ Gerüst. Kein „ungefähr gleich", kein Sonderweg pro Seite. Es gibt KEINE
 Ausnahmeseite mehr — Startseite, Profil und Notfallliste tragen dasselbe
 Gerüst wie jede Liste.
 
-Nicht anfassen: Eltern-Portal (`app/parents`, `components/parent`),
-Schul-Portal (`app/school`, `components/school`, `components/class-day`),
-Operator-Portal (`app/operator`, `components/operator`).
+Dasselbe Gerüst gilt für das Träger-Portal und seit #5604 für das Schul-Portal
+(`app/school`, `components/school`, `components/class-day`) und das
+Operator-Portal (`app/operator`, `components/operator`), jeweils ohne die Seiten
+vor der Anmeldung. Nicht anfassen: Eltern-Portal (`app/parents`,
+`components/parent`), es behält `ParentPage`.
 
 ## Das Gerüst
 

@@ -1,3 +1,4 @@
+import { DataField, DataGrid } from "~/components/ui/data-field";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "~/components/ui/modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -274,26 +275,18 @@ export function ChildQuotaModal({
             controlSize="compact"
           />
         </div>
-        <dl className="grid grid-cols-2 gap-4 rounded-lg bg-gray-50 px-4 py-3">
-          <div>
-            <dt className="text-xs text-gray-500">Kinderkontingent</dt>
-            <dd
-              className="text-base font-semibold text-gray-900"
-              data-testid="child-quota-limit"
-            >
+        <DataGrid>
+          <DataField label="Kinderkontingent">
+            <span data-testid="child-quota-limit">
               {draft.ok ? `${formatCount(draft.limit)} Kinder` : "–"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500">Kontingentzahl</dt>
-            <dd
-              className="text-base font-semibold text-gray-900"
-              data-testid="child-quota-count"
-            >
+            </span>
+          </DataField>
+          <DataField label="Kontingentzahl">
+            <span data-testid="child-quota-count">
               {formatCount(school.childQuotaCount)} Kinder
-            </dd>
-          </div>
-        </dl>
+            </span>
+          </DataField>
+        </DataGrid>
         {warning && <Alert type="warning" message={warning} />}
       </form>
     </Modal>

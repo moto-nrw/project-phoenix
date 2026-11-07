@@ -1,12 +1,13 @@
 "use client";
 
-import { Button } from "~/components/ui/button";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { Trash2 } from "lucide-react";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -16,13 +17,8 @@ import { PersonTags } from "~/components/operator/persons-table";
 import { StaffPersonMerge } from "~/components/operator/staff-person-merge";
 import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { SimpleEmptyState } from "../provisioning/provisioning-shared";
-import {
-  SkeletonRegion,
-  CardGridSkeleton,
-} from "~/components/ui/page-skeletons";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
-import { peopleConcept } from "~/lib/concepts/people";
 
 function OperatorPersonsPageContent() {
   useSetBreadcrumb({ pageTitle: "Personen" });
@@ -72,56 +68,60 @@ function OperatorPersonsPageContent() {
     () => void mutateSchoolPersons(),
   );
 
-  const tabs = useMemo(
-    () => ({
-      items: [
-        {
-          id: "persons",
-          label: "Personen",
-          count: selectedSchool ? schoolPersons?.length : undefined,
-        },
-      ],
-      activeTab: "persons",
-      onTabChange: () => undefined,
-    }),
-    [selectedSchool, schoolPersons?.length],
-  );
+  const count = selectedSchool ? schoolPersons?.length : undefined;
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Personen"
-        concept={peopleConcept}
-        tabs={tabs}
-      />
-
-      <OrgSchoolFilter
-        idPrefix="person"
-        organizations={activeOrganizations}
-        filteredSchools={filteredSchools}
-        filterOrgId={filterOrgId}
-        selectedSchool={selectedSchool}
-        onOrgChange={handleOrgFilterChange}
-        onSchoolChange={handleSchoolFilterChange}
-      />
-
-      <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
-      <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
-      <LoadErrorAlert error={personsLoadError} className="mb-4" />
+    <TenantPage
+      title="Personen"
+      loading={selectedSchool !== null && schoolPersonsLoading}
+      loadingLabel="Personen werden geladen"
+      stats={
+        count === undefined ? undefined : (
+          <TenantPageStats
+            items={[
+              { value: count, label: count === 1 ? "Person" : "Personen" },
+            ]}
+          />
+        )
+      }
+      searchSlot={
+        <OrgSchoolFilter
+          idPrefix="person"
+          organizations={activeOrganizations}
+          filteredSchools={filteredSchools}
+          filterOrgId={filterOrgId}
+          selectedSchool={selectedSchool}
+          onOrgChange={handleOrgFilterChange}
+          onSchoolChange={handleSchoolFilterChange}
+        />
+      }
+      overlays={
+        <>
+          <DeletePersonModal
+            person={deletePersonTarget}
+            onClose={() => setDeletePersonTarget(null)}
+            onDeleted={(deletedPerson) =>
+              mutateSchoolPersons(
+                (persons) =>
+                  persons?.filter((person) => person.id !== deletedPerson.id),
+                { revalidate: false },
+              ).then(async () => {
+                await refreshPersons();
+              })
+            }
+          />
+        </>
+      }
+    >
+      <LoadErrorAlert error={organizationsLoadError} />
+      <LoadErrorAlert error={schoolsLoadError} />
+      <LoadErrorAlert error={personsLoadError} />
 
       {!selectedSchool ? (
         <SimpleEmptyState
           title="Keine Schule ausgewählt"
           description="Wählen Sie eine Schule aus, um deren Personen anzuzeigen."
         />
-      ) : schoolPersonsLoading ? (
-        <SkeletonRegion label="Personen werden geladen">
-          <CardGridSkeleton
-            cards={6}
-            rowsPerCard={2}
-            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-          />
-        </SkeletonRegion>
       ) : !schoolPersons || schoolPersonsError ? null : schoolPersons.length ===
         0 ? (
         <SimpleEmptyState
@@ -154,29 +154,18 @@ function OperatorPersonsPageContent() {
                     </p>
                   )}
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost_danger"
-                  size="icon"
-                  onClick={() => setDeletePersonTarget(person)}
-                  className="ml-3 shrink-0"
-                  title="Person löschen"
-                  aria-label="Person löschen"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                </Button>
+                <OverflowMenu
+                  items={[
+                    {
+                      label: "Person löschen",
+                      icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                      destructive: true,
+                      onClick: () => setDeletePersonTarget(person),
+                    },
+                  ]}
+                  triggerSize="sm"
+                  ariaLabel={`Aktionen für ${person.firstName} ${person.lastName}`}
+                />
               </div>
             ))}
           </div>
@@ -191,27 +180,13 @@ function OperatorPersonsPageContent() {
           onMerged={refreshPersons}
         />
       )}
-
-      <DeletePersonModal
-        person={deletePersonTarget}
-        onClose={() => setDeletePersonTarget(null)}
-        onDeleted={(deletedPerson) =>
-          mutateSchoolPersons(
-            (persons) =>
-              persons?.filter((person) => person.id !== deletedPerson.id),
-            { revalidate: false },
-          ).then(async () => {
-            await refreshPersons();
-          })
-        }
-      />
-    </div>
+    </TenantPage>
   );
 }
 
 export default function OperatorPersonsPage() {
   return (
-    <Suspense fallback={<div className="-mt-1.5 w-full" />}>
+    <Suspense fallback={<TenantPage title="Personen" loading />}>
       <OperatorPersonsPageContent />
     </Suspense>
   );
