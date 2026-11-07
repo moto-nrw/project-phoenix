@@ -14,19 +14,15 @@ import (
 // audience, the eligible classes and grades, the enrolled-status probes, the
 // pinned existing student and the per-student re-enrollment permission.
 
-// validatePhaseEligibility enforces the phase's eligibility for the
-// self-service paths. The trusted paths — admin manual enrollment and late
-// invites, both recognizable by AllowClosedPhase — bypass the audience gate;
-// the per-child re-enrollment permission still applies to them.
+// validatePhaseEligibility enforces the audience gate and the per-child gates
+// of a self-service submission; the caller's eligibilityGate decides whether
+// it runs.
 //
 // linked_parents and existing_students need an authenticated,
 // submit-eligible guardian account: an existing_students submission renews a
 // live student, and name plus birthday is a recognition signal, not an
 // authentication one.
 func (s *Intake) validatePhaseEligibility(ctx context.Context, phase *enrollmentNative.Phase, req SubmitRequest) error {
-	if req.AllowClosedPhase {
-		return nil
-	}
 	if audienceRequiresGuardianAccount(phase.Audience) &&
 		(req.GuardianAccountID == nil || !req.GuardianSubmitEligible) {
 		return enrollmentNative.ErrPhaseNotEligible

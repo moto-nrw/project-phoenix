@@ -51,6 +51,9 @@ type submissionPlan struct {
 	statusExpiresAt  time.Time
 	// signatureRequired: the parent signs this submission (#4786).
 	signatureRequired bool
+	// eligibility is the phase eligibility the payload passed; a trusted
+	// caller passes none.
+	eligibility eligibilityGate
 }
 
 func (s *Intake) submit(ctx context.Context, req SubmitRequest) (*submitOutcome, error) {
@@ -167,10 +170,11 @@ func (s *Intake) planSubmissionContract(ctx context.Context, req *SubmitRequest,
 	if plan.legalBlocks, err = s.resolveSubmissionLegalBlocks(ctx, schema); err != nil {
 		return fmt.Errorf("submit: resolve legal blocks: %w", err)
 	}
+	plan.eligibility = submissionEligibility(*req)
 	if err := s.validateIntakePayload(ctx, req, intakePayload{
 		phase: plan.phase, schema: schema, legalBlocks: plan.legalBlocks,
 		capabilities: plan.capabilities, openByID: plan.openByID,
-		eligibility: submissionEligibility(*req), consentConfirmed: req.ExternalConsentConfirmed,
+		eligibility: plan.eligibility, consentConfirmed: req.ExternalConsentConfirmed,
 	}); err != nil {
 		return err
 	}
@@ -375,9 +379,9 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 		if err != nil {
 			return nil, err
 		}
-		// !AllowClosedPhase means the eligibility gate ran, so a vanished
-		// match is a race, not a fresh create (#1663).
-		if err := assertExistingStudentMatchResolved(plan.phase, matchedStudentID, !req.AllowClosedPhase, i); err != nil {
+		// After an eligibility gate a vanished match is a race, not a fresh
+		// create (#1663).
+		if err := assertExistingStudentMatchResolved(plan.phase, matchedStudentID, plan.eligibility != eligibilityNone, i); err != nil {
 			return nil, err
 		}
 		if err := s.assertGuardianMayReEnrollStudent(ctx, submitter, matchedStudentID, req.TenantID, i); err != nil {
