@@ -3,8 +3,10 @@ name: Product screenshots
 # Produkt-Screenshots bei jedem Release (#3759, ADR 0042): Stack starten, Profil
 # `vollbetrieb` seeden und den Tag simulieren, alle Shots aus frontend/scripts/product-screenshots/
 # shots.yaml fotografieren und rahmen, die Ausgabe als Artefakt anhängen
-# (7 Tage) und als `product-screenshots-<version>.zip` an das GitHub-Release
-# vX.Y.Z hängen. Der Drive-Upload (publish.pw.ts) ist abgehängt, bis es ein
+# (7 Tage) und als `product-screenshots-<version>.zip` sowie
+# `product-screenshots.zip` an das GitHub-Release vX.Y.Z hängen. Die zweite
+# Datei macht releases/latest/download/product-screenshots.zip zum festen Link
+# auf die neuesten Bilder, wie in moto-nrw/PyrePortal. Der Drive-Upload (publish.pw.ts) ist abgehängt, bis es ein
 # geteiltes Google-Konto gibt.
 #
 # Auslöser:
@@ -442,12 +444,14 @@ jobs:
           name: product-screenshots-${{ needs.capture.outputs.version }}
           path: ${{ runner.temp }}/product-screenshots
 
-      # --clobber ersetzt das ZIP, wenn dasselbe Release erneut läuft.
+      # --clobber ersetzt beide ZIPs, wenn dasselbe Release erneut läuft.
       - name: Attach to release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.capture.outputs.version }}
         run: |
           zip_file="${RUNNER_TEMP}/product-screenshots-${VERSION}.zip"
+          latest_file="${RUNNER_TEMP}/product-screenshots.zip"
           (cd "${RUNNER_TEMP}/product-screenshots" && zip -qr "${zip_file}" .)
-          gh release upload "v${VERSION}" "${zip_file}" --clobber --repo "${GITHUB_REPOSITORY}"
+          cp "${zip_file}" "${latest_file}"
+          gh release upload "v${VERSION}" "${zip_file}" "${latest_file}" --clobber --repo "${GITHUB_REPOSITORY}"
