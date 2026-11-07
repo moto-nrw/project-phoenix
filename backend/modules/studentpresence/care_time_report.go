@@ -67,6 +67,11 @@ const (
 	CareTimeDayOpen CareTimeDayKind = "open"
 	// CareTimeDayNoPlan — present, but no care plan is on file at all.
 	CareTimeDayNoPlan CareTimeDayKind = "no_plan"
+	// CareTimeDayEndUnknown — booked and present, but the booking names no
+	// pickup (a contract module without an end time): the departure cannot
+	// be compared, so the day is neither within the booking nor an overrun
+	// at its end (#4683). An early arrival still makes it an overrun.
+	CareTimeDayEndUnknown CareTimeDayKind = "end_unknown"
 )
 
 // IsOverrun reports whether the day is marked as an overrun.
@@ -78,12 +83,15 @@ func (k CareTimeDayKind) IsOverrun() bool {
 // wall clocks; a nil pointer means the value is not known. Minutes are nil
 // where the day does not take part in the comparison.
 type CareTimeDay struct {
-	Date         calendar.Date
-	Kind         CareTimeDayKind
-	PlannedStart *calendar.WallClock
-	PlannedEnd   *calendar.WallClock
-	ActualStart  *calendar.WallClock
-	ActualEnd    *calendar.WallClock
+	Date calendar.Date
+	Kind CareTimeDayKind
+	// PlannedSource names where the Soll of the day comes from: the care
+	// contract or the care plan (#4683). Empty when no plan is on file.
+	PlannedSource PlannedCareSource
+	PlannedStart  *calendar.WallClock
+	PlannedEnd    *calendar.WallClock
+	ActualStart   *calendar.WallClock
+	ActualEnd     *calendar.WallClock
 	// PlannedMinutes and ActualMinutes are the lengths of the two spans.
 	PlannedMinutes *int
 	ActualMinutes  *int
@@ -152,7 +160,15 @@ type CareTimeOverruns struct {
 	To               calendar.Date
 	DataFrom         calendar.Date
 	ToleranceMinutes int
-	Students         []CareTimeOverrunRow
+	// ComparedDays counts the child-days with a check-in that were compared
+	// with a booking (within the booking, overrun, or unbooked). Zero means
+	// nothing was compared: an empty list is then no all-clear (#4683).
+	ComparedDays int
+	// UncomparedDays counts the child-days with a check-in that were not fully
+	// compared: no care plan on file, or no check-out yet (also when an early
+	// arrival already made the day an overrun).
+	UncomparedDays int
+	Students       []CareTimeOverrunRow
 }
 
 // OverrunCount is the number of days marked as an overrun.

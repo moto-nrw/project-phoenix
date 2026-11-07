@@ -7,7 +7,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
-import { Skeleton } from "~/components/ui/skeleton";
+import { SkeletonRows } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { blockTintStyle } from "~/components/timetable/block-row-parts";
@@ -105,19 +105,7 @@ export function DayFlowBlock() {
         // Ladefehler ist nie „Gerade steht nichts an“.
         if (loadError) return <LoadErrorAlert error={loadError} />;
         if ((isLoading && data === undefined) || error) {
-          return (
-            <div className="space-y-2" aria-hidden="true">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
-                >
-                  <Skeleton className="h-4 w-24 rounded" />
-                  <Skeleton className="h-4 flex-1 rounded" />
-                </div>
-              ))}
-            </div>
-          );
+          return <SkeletonRows />;
         }
         if (blocks.length === 0) {
           return (

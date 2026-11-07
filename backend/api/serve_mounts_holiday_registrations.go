@@ -14,6 +14,7 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
@@ -21,17 +22,19 @@ import (
 // holiday registration (#4661, ADR 0110) at /traeger/holiday-registrations: the one
 // link of a published holiday period, without an account. Turnstile is
 // always required there. The Elternabrechnung (#4664) and the
-// Betreuungsvertrag (#4678) mount beside them.
+// Betreuungsvertrag (#4678) with its evaluation of overruns (#4683) mount
+// beside them.
 func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.Capability,
 	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, schoolSettings CareContractSchoolSettings,
 	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, keys TurnstileKeys,
-	healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) error {
+	healthData enrollmentOwner.HolidayHealthCipher, statistics studentpresence.StatisticsReports, logger *slog.Logger) error {
 	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData); err != nil {
 		return err
 	}
 	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, logger).Router())
 	mountParentBillingRoutes(root, organizations, settings, delivery, outcomes, healthData, logger)
 	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, audit.Log)
+	mountCareTimeOverrunRoutes(root, organizations, statistics, audit.Log)
 	return nil
 }
 

@@ -21,20 +21,19 @@ export function ThreadSkeleton() {
     >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-2">
-          <Skeleton className="h-3 w-24 rounded-full" />
-          <Skeleton className="h-7 w-40 rounded" />
-          <Skeleton className="h-4 w-56 rounded" />
+          <Skeleton shape="round" className="h-3 w-24" />
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-4 w-56" />
         </div>
-        <Skeleton className="h-9 w-36 flex-shrink-0 rounded-lg" />
+        <Skeleton shape="control" className="h-9 w-36 flex-shrink-0" />
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         {Array.from({ length: 5 }, (_, i) => (
           <Skeleton
             key={i}
-            className={`h-12 rounded-2xl ${
-              i % 2 === 0 ? "w-2/3" : "ml-auto w-1/2"
-            }`}
+            shape="card"
+            className={`h-12 ${i % 2 === 0 ? "w-2/3" : "ml-auto w-1/2"}`}
           />
         ))}
       </div>
@@ -58,9 +57,8 @@ export function ThreadMessagesSkeleton() {
       {Array.from({ length: 5 }, (_, i) => (
         <Skeleton
           key={i}
-          className={`h-12 rounded-2xl ${
-            i % 2 === 0 ? "w-2/3" : "ml-auto w-1/2"
-          }`}
+          shape="card"
+          className={`h-12 ${i % 2 === 0 ? "w-2/3" : "ml-auto w-1/2"}`}
         />
       ))}
     </div>
@@ -76,7 +74,7 @@ export function ThreadMessagesSkeleton() {
 export function ThreadComposerSkeleton() {
   return (
     <div className="mt-4">
-      <Skeleton className="h-12 w-full rounded-full" />
+      <Skeleton shape="round" className="h-12 w-full" />
     </div>
   );
 }

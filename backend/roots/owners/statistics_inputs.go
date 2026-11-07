@@ -7,6 +7,7 @@ import (
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 
@@ -22,7 +23,7 @@ type StatisticsAuditLog struct {
 
 func (a StatisticsAuditLog) RecordStatisticsAccess(ctx context.Context, event presenceCompose.StatisticsAccessEvent) error {
 	entry := &auditModels.DataAccessLog{
-		ActorAccountID: event.ActorAccountID, ActorRole: event.ActorRole,
+		ActorAccountID: event.ActorAccountID, ActorRole: event.ActorRole, StudentID: event.StudentID,
 		ResourceType: auditModels.ResourceTypeAttendanceStatistics,
 		RangeStart:   event.RangeStart, RangeEnd: event.RangeEnd, AccessedAt: event.AccessedAt,
 	}
@@ -148,9 +149,35 @@ func (a StatisticsPlannedCareDays) PlannedCareDays(ctx context.Context, studentI
 			byDate[date] = studentpresence.PlannedCareDay{
 				Expected: day.Status.Expected(), NoPlan: day.Status == careplan.CareDayUnknown,
 				Cancelled: day.Status == careplan.CareDayCancelled, Arrival: day.Arrival, Pickup: day.Pickup,
+				Source: studentpresence.PlannedCareSourceCarePlan,
 			}
 		}
 		result[studentID] = byDate
+	}
+	return result, nil
+}
+
+// StatisticsContractCareDays reads the days the care contracts of the
+// Träger cover at the school, the Soll of Soll und Ist where a contract is
+// in force (#4683, ADR 0156).
+type StatisticsContractCareDays struct {
+	Contracts carecontract.BookedCare
+}
+
+func (a StatisticsContractCareDays) ContractCareDays(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]studentpresence.ContractCareDay, error) {
+	contracts, err := a.Contracts.BookedCare(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]map[timezone.Date]studentpresence.ContractCareDay, len(contracts))
+	for studentID, contract := range contracts {
+		days := map[timezone.Date]studentpresence.ContractCareDay{}
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			if booked := contract.Day(date); booked.InForce {
+				days[date] = studentpresence.ContractCareDay{Booked: booked.Booked, Pickup: booked.EndsAt}
+			}
+		}
+		result[studentID] = days
 	}
 	return result, nil
 }

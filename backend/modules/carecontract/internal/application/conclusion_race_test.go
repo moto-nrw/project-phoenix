@@ -112,7 +112,7 @@ func newRaceFixture(t *testing.T, name string) raceFixture {
 	clock := Clock{Now: time.Now}
 	contracts := NewContracts(store, raceRenderer{}, ContractPorts{
 		Letterheads: raceLetterhead{}, Post: &racePost{next: testpkg.UniqueTestTenantID(t)}, Runtime: raceRuntime{}, Access: raceAccess{},
-	}, clock)
+	}, clock, NewVersions(store))
 	var id int64
 	require.NoError(t, testpkg.WithinTraeger(ctx, org, func(txCtx context.Context) error {
 		var err error

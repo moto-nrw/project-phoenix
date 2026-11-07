@@ -19,7 +19,7 @@ export function AnnouncementDetailLoadingPage({
       back
       backHref={referrer}
       backLabel={backLabel}
-      leading={<Skeleton className="h-10 w-10 shrink-0 rounded-xl" />}
+      leading={<Skeleton shape="inner" className="h-10 w-10 shrink-0" />}
       statsLoading
     >
       <AnnouncementDetailSkeleton />

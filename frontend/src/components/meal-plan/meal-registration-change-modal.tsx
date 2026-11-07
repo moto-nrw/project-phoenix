@@ -308,7 +308,8 @@ export function MealRegistrationChangeModal({
                   {WEEKDAYS.map((weekday) => (
                     <Skeleton
                       key={weekday}
-                      className="h-11 rounded-lg"
+                      shape="control"
+                      className="h-11"
                       aria-hidden="true"
                     />
                   ))}

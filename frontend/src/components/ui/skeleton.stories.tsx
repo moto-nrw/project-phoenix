@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, SkeletonRows } from "~/components/ui/skeleton";
 
 const meta = {
   title: "components/ui/Skeleton",
@@ -19,16 +19,25 @@ export const Default: Story = {
 
 export const Circle: Story = {
   args: {
-    className: "h-12 w-12 rounded-full",
+    shape: "round",
+    className: "h-12 w-12",
   },
 };
 
 export const CardLayout: Story = {
   render: () => (
     <div className="flex flex-col gap-3">
-      <Skeleton className="h-12 w-12 rounded-full" />
+      <Skeleton shape="round" className="h-12 w-12" />
       <Skeleton className="h-4 w-48" />
       <Skeleton className="h-4 w-32" />
+    </div>
+  ),
+};
+
+export const Rows: Story = {
+  render: () => (
+    <div className="w-80">
+      <SkeletonRows />
     </div>
   ),
 };

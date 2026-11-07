@@ -517,10 +517,10 @@ function MessageThreadContent() {
   // Gezählt wird, was angekommen ist, nicht die Blase auf dem Weg (#5011).
   const sentCount = confirmedThread?.messages.length ?? 0;
   const statusLine = thread
-    ? `${thread.audience === "leadership" ? `${LEADERSHIP_AUDIENCE_LABEL} · ` : ""}${relationshipLabel(thread.relationship_type)} von ${thread.student_name} · ${
+    ? `${thread.audience === "leadership" ? `${LEADERSHIP_AUDIENCE_LABEL} · ` : ""}${relationshipLabel(thread.relationship_type)} von ${thread.student_name}${
         messagesLoading
-          ? "Nachrichten werden geladen"
-          : `${sentCount} ${sentCount === 1 ? "Nachricht" : "Nachrichten"}`
+          ? ""
+          : ` · ${sentCount} ${sentCount === 1 ? "Nachricht" : "Nachrichten"}`
       }`
     : null;
 

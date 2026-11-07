@@ -125,6 +125,7 @@ import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { permissionsConcept } from "~/lib/concepts/permissions";
 import { IconTile } from "~/components/ui/icon-tile";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
 
@@ -3029,7 +3030,8 @@ function AGBTemplateSourceEditor({
             </div>
           </div>
           {documentSaving ? (
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+              <SpinnerIcon className="h-3 w-3" />
               PDF wird hochgeladen...
             </p>
           ) : null}

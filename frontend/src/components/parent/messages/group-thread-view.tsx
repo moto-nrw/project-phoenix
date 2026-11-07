@@ -278,7 +278,7 @@ export function ParentGroupThreadView({
             {chatLink}
           </div>
         ) : writable === null ? (
-          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton shape="control" className="h-16 w-full" />
         ) : writable.length === 0 ? (
           <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
             {t("writingDisabled")}

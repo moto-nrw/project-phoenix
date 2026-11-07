@@ -166,6 +166,26 @@ export interface CareContractList {
 
 export type ContractMailState = "queued" | "sent" | "failed" | "unknown";
 
+/** The state of a contract version (ADR 0088 section 2, #4681). */
+type ContractVersionStatus =
+  "beantragt" | "wirksam" | "abgeloest" | "abgelehnt" | "ersetzt";
+
+/** Where a version came from: the conclusion or an approved change. */
+type ContractVersionSource = "abschluss" | "buchungsaenderung";
+
+/** One version of a contract with the days it holds (#4681). */
+export interface ContractVersion {
+  readonly number: number;
+  readonly status: ContractVersionStatus;
+  readonly source: ContractVersionSource;
+  readonly effectiveFrom: string;
+  readonly endsOn: string | null;
+  /** The last day it holds; null while it holds open ended. */
+  readonly validUntil: string | null;
+  readonly services: readonly ContractService[];
+  readonly createdAt: string;
+}
+
 export interface CareContractDetail extends CareContractSummary {
   readonly version: {
     readonly number: number;
@@ -194,6 +214,8 @@ export interface CareContractDetail extends CareContractSummary {
     readonly sendBlock?: ContractSendBlock;
   }[];
   readonly documentFrozen: boolean;
+  /** Every version, oldest first. */
+  readonly versions: readonly ContractVersion[];
 }
 
 type CreateSkipReason =
@@ -332,6 +354,18 @@ interface BackendDetail extends BackendSummary {
       }[]
     | null;
   document_frozen: boolean;
+  versions?: BackendVersion[] | null;
+}
+
+interface BackendVersion {
+  number: number;
+  status: ContractVersionStatus;
+  source: ContractVersionSource;
+  effective_from: string;
+  ends_on: string | null;
+  valid_until: string | null;
+  services: BackendService[] | null;
+  created_at: string;
 }
 
 function termsFromBackend(terms: BackendTerms): ContractTerms {
@@ -461,6 +495,16 @@ function detailFromBackend(row: BackendDetail): CareContractDetail {
       state: mailing.state,
     })),
     documentFrozen: row.document_frozen,
+    versions: (row.versions ?? []).map((version) => ({
+      number: version.number,
+      status: version.status,
+      source: version.source,
+      effectiveFrom: version.effective_from,
+      endsOn: version.ends_on,
+      validUntil: version.valid_until,
+      services: servicesFromBackend(version.services),
+      createdAt: version.created_at,
+    })),
   };
 }
 
@@ -625,7 +669,24 @@ export async function discardCareContract(id: string): Promise<void> {
 
 /** The PDF: a preview of a draft, the stored document once sent. */
 export async function downloadCareContract(id: string): Promise<ContractFile> {
-  const response = await transportFetch(`${contractPath(id)}/document`, {
+  return downloadContractFile(`${contractPath(id)}/document`);
+}
+
+/**
+ * The PDF of one version (#4681): the stored one when it was sent, else a
+ * rendering with the current letterhead.
+ */
+export async function downloadCareContractVersion(
+  id: string,
+  number: number,
+): Promise<ContractFile> {
+  return downloadContractFile(
+    `${contractPath(id)}/versions/${encodeURIComponent(String(number))}/document`,
+  );
+}
+
+async function downloadContractFile(path: string): Promise<ContractFile> {
+  const response = await transportFetch(path, {
     credentials: "include",
     cache: "no-store",
   });

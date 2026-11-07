@@ -34,6 +34,8 @@ import type { PendingInvitation } from "~/lib/invitation-helpers";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { Loading } from "~/components/ui/loading";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "PendingInvitationsList" });
 
@@ -186,12 +188,9 @@ export function PendingInvitationsList({
     (failedWithoutData && formErrorMessage(loadError.error) === null)
   ) {
     return (
-      <div className="moto-content-surface flex items-center justify-center rounded-2xl border p-12">
-        <div className="flex items-center gap-3 text-sm text-gray-600">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900"></div>
-          Wird geladen…
-        </div>
-      </div>
+      <SectionCard>
+        <Loading fullPage={false} message="Wird geladen…" />
+      </SectionCard>
     );
   }
 

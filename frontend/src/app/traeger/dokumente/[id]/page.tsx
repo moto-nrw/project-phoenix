@@ -156,10 +156,11 @@ export default function TraegerDocumentPage() {
               size="md"
               className="gap-2"
               onClick={() => void download()}
-              disabled={downloading}
+              isLoading={downloading}
+              loadingText="Wird geladen …"
             >
               <DownloadSimpleIcon className="h-4 w-4" aria-hidden="true" />
-              {downloading ? "Wird geladen …" : "Herunterladen"}
+              Herunterladen
             </Button>
             {canManage && (
               <Button

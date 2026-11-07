@@ -23,6 +23,7 @@ type (
 	CourseInstance        = ports.CourseInstance
 	CourseParticipation   = ports.CourseParticipation
 	StatusDay             = ports.StatusDay
+	ContractCareDay       = ports.ContractCareDay
 )
 
 // StatisticsDependencies binds the report to its foreign inputs. Attendance
@@ -42,7 +43,10 @@ type StatisticsDependencies struct {
 	AccessLog       ports.StatisticsAccessLog
 	Retention       ports.StatisticsRetention
 	PlannedCareDays ports.PlannedCareDays
-	Logger          *slog.Logger
+	// ContractCareDays replaces the care plan's Soll on the days a care
+	// contract covers (#4683); nil keeps the care plan alone.
+	ContractCareDays ports.ContractCareDays
+	Logger           *slog.Logger
 	// Now is injectable for tests; nil means time.Now.
 	Now func() time.Time
 }
@@ -66,7 +70,7 @@ func NewStatistics(deps StatisticsDependencies) (studentpresence.StatisticsRepor
 		AccessLog:           deps.AccessLog,
 		Retention:           deps.Retention,
 		PrivacyConsents:     presence,
-		PlannedCareDays:     deps.PlannedCareDays,
+		PlannedCareDays:     statistics.WithContractCareDays(deps.PlannedCareDays, deps.ContractCareDays),
 		AttendanceIntervals: postgres.New(databaseRuntime(deps.DB)),
 		Logger:              deps.Logger,
 		Now:                 deps.Now,

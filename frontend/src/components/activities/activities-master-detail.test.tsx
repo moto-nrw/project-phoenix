@@ -250,6 +250,7 @@ describe("ActivitiesMasterDetail", () => {
     expect(
       screen.getByText("Aktivitätsdaten werden geladen..."),
     ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveClass("h-full", "min-h-[240px]");
     expect(screen.queryByTestId("database-form")).not.toBeInTheDocument();
   });
 

@@ -164,7 +164,8 @@
     "withdrawalConfirmBack": "Geri",
     "withdrawalConfirmSubmit": "Talebi gönder",
     "errorObjectCatalog": "teklif listesi",
-    "errorObjectRequest": "değişiklik talebi"
+    "errorObjectRequest": "değişiklik talebi",
+    "submitting": "Gönderiliyor …"
   },
   "weekdayShort": {
     "1": "Pzt",
