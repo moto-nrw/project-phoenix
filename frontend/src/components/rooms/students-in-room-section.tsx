@@ -32,6 +32,7 @@ import type { Session } from "next-auth";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
 import { SelectionBar } from "~/components/ui/selection-bar";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/database/database-select";
@@ -724,7 +725,7 @@ function BulkMoveToolbar({
         </Button>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+      <FormRow>
         <DatabaseSelect
           id="room-bulk-target"
           name="room-bulk-target"
@@ -752,7 +753,7 @@ function BulkMoveToolbar({
         >
           In Raum setzen
         </Button>
-      </div>
+      </FormRow>
 
       {noTargets ? (
         <p role="status" className="mt-2 text-sm text-gray-600">

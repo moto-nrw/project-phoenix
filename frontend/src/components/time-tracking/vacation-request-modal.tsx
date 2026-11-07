@@ -459,14 +459,9 @@ export function VacationRequestModal({
               ))}
 
             <div>
-              <label
-                htmlFor="vacation-note"
-                className="mb-2 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-              >
-                Notiz (optional)
-              </label>
               <Textarea
                 id="vacation-note"
+                label="Notiz (optional)"
                 name="note"
                 error={formErrors.fieldError("note")}
                 value={note}

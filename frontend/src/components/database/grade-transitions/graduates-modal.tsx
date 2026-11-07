@@ -11,6 +11,7 @@
 // cohort right up until someone decides otherwise.
 
 import { EmptyState } from "~/components/ui/empty-state";
+import { FramedList } from "~/components/ui/framed-list";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -237,59 +238,60 @@ export function GraduatesModal({
             )}
 
             {entries !== null && entries.length > 0 && (
-              <div className="overflow-hidden rounded-lg border border-gray-200">
-                {canDelete && deletable.length > 0 && (
-                  <label
-                    htmlFor="graduates-select-all"
-                    className="flex cursor-pointer items-center gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2.5"
-                  >
-                    <Checkbox
-                      id="graduates-select-all"
-                      checked={
-                        selectedIds.length === deletable.length &&
-                        deletable.length > 0
-                      }
-                      onChange={toggleAll}
-                    />
-                    <span className="text-sm font-medium text-gray-700">
-                      Alle löschbaren auswählen
-                    </span>
-                  </label>
-                )}
-                <ul>
-                  {entries.map((entry) => {
-                    const isDeletable = entry.studentState === "alumnus";
-                    return (
-                      <li
-                        key={entry.id}
-                        className="flex items-center gap-3 border-b border-gray-100 px-4 py-2.5 last:border-b-0"
-                      >
-                        {canDelete ? (
-                          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 has-[:disabled]:cursor-not-allowed">
-                            <Checkbox
-                              checked={selected.has(entry.studentId)}
-                              disabled={!isDeletable}
-                              onChange={() => toggle(entry.studentId)}
-                              aria-label={`${entry.personName} auswählen`}
-                            />
-                            <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
-                              {entry.personName}
-                            </span>
-                          </label>
-                        ) : (
+              <FramedList
+                header={
+                  canDelete && deletable.length > 0 ? (
+                    <label
+                      htmlFor="graduates-select-all"
+                      className="flex cursor-pointer items-center gap-3"
+                    >
+                      <Checkbox
+                        id="graduates-select-all"
+                        checked={
+                          selectedIds.length === deletable.length &&
+                          deletable.length > 0
+                        }
+                        onChange={toggleAll}
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Alle löschbaren auswählen
+                      </span>
+                    </label>
+                  ) : undefined
+                }
+              >
+                {entries.map((entry) => {
+                  const isDeletable = entry.studentState === "alumnus";
+                  return (
+                    <li
+                      key={entry.id}
+                      className="flex items-center gap-3 px-4 py-2.5"
+                    >
+                      {canDelete ? (
+                        <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 has-[:disabled]:cursor-not-allowed">
+                          <Checkbox
+                            checked={selected.has(entry.studentId)}
+                            disabled={!isDeletable}
+                            onChange={() => toggle(entry.studentId)}
+                            aria-label={`${entry.personName} auswählen`}
+                          />
                           <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
                             {entry.personName}
                           </span>
-                        )}
-                        <span className="shrink-0 text-sm text-gray-500">
-                          {entry.fromClass}
+                        </label>
+                      ) : (
+                        <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
+                          {entry.personName}
                         </span>
-                        <StateBadge state={entry.studentState} />
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+                      )}
+                      <span className="shrink-0 text-sm text-gray-500">
+                        {entry.fromClass}
+                      </span>
+                      <StateBadge state={entry.studentState} />
+                    </li>
+                  );
+                })}
+              </FramedList>
             )}
           </div>
           <SlideOverFooter className="items-center justify-between gap-3">

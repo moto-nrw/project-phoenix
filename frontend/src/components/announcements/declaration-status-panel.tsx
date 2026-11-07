@@ -1,5 +1,6 @@
 "use client";
 
+import { FramedList } from "~/components/ui/framed-list";
 import {
   useCallback,
   useEffect,
@@ -395,11 +396,11 @@ export function DeclarationStatusPanel({
               : "Dieses Einverständnis erreicht derzeit kein Kind."}
           </p>
         ) : (
-          <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+          <FramedList>
             {children.map((child) => (
               <ChildRow key={child.student_id} child={child} />
             ))}
-          </ul>
+          </FramedList>
         )}
       </section>
 
@@ -541,7 +542,7 @@ function HistorySection({
       {submissions.length === 0 ? (
         <p className="text-sm text-gray-500">Noch keine Antworten.</p>
       ) : (
-        <ul className="max-h-96 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200 bg-white">
+        <FramedList maxHeight="lg">
           {submissions.map((entry) => (
             <li key={entry.id} className="px-4 py-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -576,7 +577,7 @@ function HistorySection({
               )}
             </li>
           ))}
-        </ul>
+        </FramedList>
       )}
     </section>
   );

@@ -16,6 +16,7 @@ interface PlanningTrackSelectProps {
   readonly tracks: readonly PlanningTrack[];
   readonly onChange: (value: string) => void;
   readonly disabled?: boolean;
+  readonly ariaDescribedBy?: string;
 }
 
 function normalize(value: string): string {
@@ -36,6 +37,7 @@ export function PlanningTrackSelect({
   tracks,
   onChange,
   disabled = false,
+  ariaDescribedBy,
 }: PlanningTrackSelectProps) {
   const [query, setQuery] = useState("");
 
@@ -65,6 +67,7 @@ export function PlanningTrackSelect({
       options={options}
       onChange={onChange}
       ariaLabel="Planungsspur"
+      ariaDescribedBy={ariaDescribedBy}
       disabled={disabled}
       placeholder="Keine Planungsspur"
       triggerRole="combobox"

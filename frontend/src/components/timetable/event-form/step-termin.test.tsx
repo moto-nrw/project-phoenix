@@ -195,3 +195,29 @@ describe("StepTermin — Typ Dienst (#3822)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("StepTermin — Beschreibungen der Datumsfelder", () => {
+  it("verknüpft beim Datum Hinweis und Fehler", () => {
+    renderStep({
+      fieldErrors: { date: "Bitte wählen Sie ein Datum." },
+    });
+
+    expect(document.getElementById("event_date")).toHaveAttribute(
+      "aria-describedby",
+      "event_date_hint event_date-error",
+    );
+  });
+
+  it("verknüpft beim Serienbeginn Hinweis und Fehler", () => {
+    renderStep({
+      fieldErrors: { seriesStartDate: "Der Serienbeginn ist ungültig." },
+      isEditingSeries: true,
+      seriesStartEdit: { min: "2026-08-01", original: "2026-08-03" },
+    });
+
+    expect(document.getElementById("event_series_start")).toHaveAttribute(
+      "aria-describedby",
+      "event_series_start_hint event_series_start_error",
+    );
+  });
+});

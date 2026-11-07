@@ -1,5 +1,6 @@
 "use client";
 import { SectionCard } from "~/components/ui/section-card";
+import { FramedList } from "~/components/ui/framed-list";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -1517,9 +1518,9 @@ export function CalendarOverviewList({
           <StatCard label="Offen" value={pending} tone="neutral" />
         </div>
       ) : null}
-      <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+      <FramedList>
         {overview.attendees.map((attendee) => (
-          <div
+          <li
             key={attendee.recipient_id}
             className="flex items-center justify-between gap-3 px-3 py-2"
           >
@@ -1537,9 +1538,9 @@ export function CalendarOverviewList({
               label={responseLabel[attendee.status] ?? attendee.status}
               tone={responseTone[attendee.status]}
             />
-          </div>
+          </li>
         ))}
-      </div>
+      </FramedList>
     </div>
   );
 }

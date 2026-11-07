@@ -83,6 +83,10 @@
     "ui-kit/no-hand-rolled-copy-field": "error",
     "ui-kit/no-own-spinner": "error",
     "ui-kit/no-hand-rolled-menu": "error",
+    "ui-kit/no-arbitrary-shadow": "error",
+    "ui-kit/no-hand-rolled-framed-list": "error",
+    "ui-kit/no-hand-rolled-list-row": "error",
+    "ui-kit/no-hand-rolled-nav-row": "error",
     "ui-kit/no-hand-rolled-popover": "error",
     "ui-kit/no-pill-dot": "error",
     "ui-kit/no-hex-alpha-tint": "error",
@@ -91,6 +95,7 @@
     "ui-kit/no-tabs-as-value-switcher": "error",
     "ui-kit/no-tiny-text": "error",
     "ui-kit/no-hand-rolled-sticky-bar": "error",
+    "ui-kit/no-hand-rolled-field-label": "error",
     "ui-kit/no-arbitrary-slide-over-width": "error",
     "ui-kit/no-slide-over-row-override": "error",
     "no-restricted-imports": [

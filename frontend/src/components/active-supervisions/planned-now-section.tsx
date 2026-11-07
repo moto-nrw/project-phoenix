@@ -2,6 +2,7 @@
 
 import { SectionCard } from "~/components/ui/section-card";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ListRow } from "~/components/ui/list-row";
 import {
   HANDOVER_ABSENT_WORDING,
   handoverDetail,
@@ -491,10 +492,9 @@ function RosterPreviewRow({
   // away from a check-in (#1747).
   const notScheduled = isNotScheduled(row);
   return (
-    <div
-      className={`rounded-lg px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)] ${
-        notScheduled ? "bg-gray-50" : "bg-white"
-      }`}
+    <ListRow
+      tone={notScheduled ? "muted" : "surface"}
+      className="block text-sm"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -554,7 +554,7 @@ function RosterPreviewRow({
           {warnings[0]?.message}
         </p>
       ) : null}
-    </div>
+    </ListRow>
   );
 }
 

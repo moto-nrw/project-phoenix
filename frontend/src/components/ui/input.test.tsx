@@ -40,6 +40,23 @@ describe("Input", () => {
     );
   });
 
+  it("describes the field with the hint before the error", () => {
+    render(
+      <Input
+        name="email"
+        label="E-Mail"
+        hint="Dorthin geht die Bestätigung."
+        error="Invalid email address"
+      />,
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "E-Mail" }),
+    ).toHaveAccessibleDescription(
+      "Dorthin geht die Bestätigung. Invalid email address",
+    );
+  });
+
   it("does not render error when not provided", () => {
     render(<Input name="email" />);
 

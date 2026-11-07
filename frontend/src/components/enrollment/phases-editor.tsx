@@ -1318,9 +1318,7 @@ function PhaseActions({
           ariaLabel={`Aktionen für ${phase.name}`}
           items={menuEntries}
           triggerClassName={
-            highlight
-              ? "bg-moto-green/10 shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
-              : ""
+            highlight ? "bg-moto-green/10 ring-4 ring-moto-green/18" : ""
           }
         />
       </div>
@@ -1632,7 +1630,7 @@ function PhaseForm(props: PhaseFormProps) {
         ref={formSectionRef}
         className={`rounded-xl border p-4 transition-colors duration-300 ${
           highlightFormSection
-            ? "border-moto-green bg-moto-green/8 shadow-[0_0_0_4px_rgba(131,205,45,0.12)]"
+            ? "border-moto-green bg-moto-green/8 ring-moto-green/12 ring-4"
             : "border-gray-200"
         }`}
       >
