@@ -149,6 +149,7 @@ vi.mock("next-intl", async () => {
 
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { CareFacilityTermScope } from "~/lib/care-facility-term";
 import { contactListValueMissing } from "./enrollment-form-contact-inputs";
 import { EnrollmentForm, submitFieldName } from "./enrollment-form";
 import type {
@@ -495,6 +496,44 @@ describe("EnrollmentForm", () => {
     mockFetchMyEnrollmentProfile.mockResolvedValue(null);
     mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
   });
+
+  it.each([false, true])(
+    "updates the care term without reloading or losing a draft (localized: %s)",
+    async (localizedCopy) => {
+      const form = (
+        <EnrollmentForm
+          phaseID="5"
+          gradeLevelMax={4}
+          onSubmitted={vi.fn()}
+          localizedCopy={localizedCopy}
+        />
+      );
+      const { rerender } = render(
+        <CareFacilityTermScope term="OGS">{form}</CareFacilityTermScope>,
+      );
+      await waitForLoaded();
+      expect(
+        screen.getByText(/Die OGS benötigt diese Angaben/),
+      ).toBeInTheDocument();
+      fireEvent.change(screen.getAllByLabelText("Vorname")[0]!, {
+        target: { value: "Entwurf" },
+      });
+
+      rerender(
+        <CareFacilityTermScope term="GTS">{form}</CareFacilityTermScope>,
+      );
+
+      expect(
+        screen.getByText(/Die GTS benötigt diese Angaben/),
+      ).toBeInTheDocument();
+      expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("Entwurf");
+      expect(mockFetchPublicActiveSchema).toHaveBeenCalledTimes(1);
+      expect(mockFetchPublicCareOfferings).toHaveBeenCalledTimes(1);
+      expect(mockFetchMyEnrollmentProfile).toHaveBeenCalledTimes(1);
+      expect(mockFetchPublicCaptchaConfig).toHaveBeenCalledTimes(1);
+      expect(mockFetchPublicLegalTexts).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("does not mount Turnstile or block submission when captcha is disabled with a site key", async () => {
     mockFetchPublicCareOfferings.mockResolvedValue({

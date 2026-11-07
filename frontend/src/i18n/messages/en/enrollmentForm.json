@@ -19,7 +19,7 @@
     "additionalGuardianLabel": "Guardian {index}",
     "extraKicker": "Additional questions",
     "extraTitle": "More information",
-    "extraDescription": "The OGS needs this information in addition to the basic data. Required questions are marked with an asterisk.",
+    "extraDescription": "The {careTerm} needs this information in addition to the basic data. Required questions are marked with an asterisk.",
     "childrenKicker": "Step 2",
     "childrenTitle": "Child or children",
     "childrenDescription": "Enter each child separately. You can add siblings with the button.",
@@ -98,7 +98,7 @@
     "requiredDescription": "These offers are a fixed part of the enrollment.",
     "additional": "Choose additionally",
     "offers": "Care offers",
-    "reviewHint": "The OGS checks available places after submission. Please note: By enrolling in the all-day care program, your child is required to attend at the registered times under the all-day school decree.",
+    "reviewHint": "The {careTerm} checks available places after submission. Please note: By enrolling in the all-day care program, your child is required to attend at the registered times under the all-day school decree.",
     "requiredBadge": "Required",
     "exactlyOneHint": "Choose exactly one offer for this child.",
     "atLeastOneHint": "Choose at least one offer for this child.",
@@ -118,7 +118,7 @@
     "ruleAtMostOnePerDay": "At most one per day",
     "availabilitySelectionRemoved": "Some care offerings are no longer available for the selected grade. Their selections, days, and automatic additions were removed.",
     "chooseGradeFirst": "First choose your child's grade. Then you will see the matching care offerings here.",
-    "noOfferingsForGrade": "There are no matching care offerings for grade {grade}. If you have questions, please contact the OGS."
+    "noOfferingsForGrade": "There are no matching care offerings for grade {grade}. If you have questions, please contact the {careTerm}."
   },
   "consent": {
     "agb": "I accept the school's terms and conditions.",
@@ -130,7 +130,7 @@
     "emailTitle": "Email contact",
     "photoTitle": "Photo consent"
   },
-  "captchaMisconfigured": "Online enrollment is not possible right now. This is not your fault. Please contact the OGS.",
+  "captchaMisconfigured": "Online enrollment is not possible right now. This is not your fault. Please contact the {careTerm}.",
   "structured": {
     "yes": "Yes",
     "no": "No",
@@ -231,7 +231,7 @@
     "care": "Booked offerings",
     "noCare": "No offerings booked.",
     "hint": "Changes for {name} now go through the parents app.",
-    "noAccess": "Cannot access the parents app? Please contact the OGS."
+    "noAccess": "Cannot access the parents app? Please contact the {careTerm}."
   },
   "upload": {
     "errorObject": "the file",
@@ -266,7 +266,7 @@
     "emptyDrawing": "Please sign in the box.",
     "nameTooShort": "Please type your name.",
     "title": "Signature",
-    "description": "Please sign the enrollment. Without a signature it does not reach the after-school care.",
+    "description": "Please sign the enrollment. Without a signature it does not reach the {careTerm}.",
     "required": "Please sign the enrollment."
   }
 }

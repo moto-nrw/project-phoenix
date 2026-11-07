@@ -169,51 +169,78 @@ func TestDemoErasureIncludesAConcurrentLetterSend(t *testing.T) {
 	order.requireFullyErased(t)
 }
 
-// A release in progress when the erasure starts, then a send of the letter
-// it issued: the send queues on the run the release holds, so it holds the
-// run once the release commits. Each wait of the erasure ends within its
-// lock timeout of 100 ms. The erasure has to lock that run after the
-// period lock and wait for the send, or the send's copies stay (#6015).
+// waitsOn reports whether a session whose query holds marker waits for a
+// lock of one of the kinds (pg_locks.locktype): the state the test steps
+// on, never a guess of how long a step takes.
+func waitsOn(t *testing.T, order demoOrder, marker string, locktypes ...string) bool {
+	t.Helper()
+	var waiting int
+	err := order.db.NewRaw(`SELECT count(*) FROM pg_locks AS lock
+		JOIN pg_stat_activity AS activity ON activity.pid = lock.pid
+		WHERE activity.datname = current_database() AND activity.pid <> pg_backend_pid()
+			AND NOT lock.granted AND lock.locktype IN (?) AND strpos(activity.query, ?) > 0`,
+		bun.List(locktypes), marker).Scan(t.Context(), &waiting)
+	return err == nil && waiting > 0
+}
+
+// periodLock holds the period lock of parent_billing (LockPeriodBilling) of
+// the run in a transaction of its own.
+func periodLock(t *testing.T, order demoOrder, runID int64) bun.Tx {
+	t.Helper()
+	tx, err := order.db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	_, err = tx.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('parent_billing.period_billing:' || organization_id::text || ':' || ? || ':' || holiday_period_id::text, 0))
+		FROM parent_billing.runs WHERE id = ?`, "holiday", runID).Exec(t.Context())
+	require.NoError(t, err)
+	return tx
+}
+
+// A release commits while the erasure waits for the period lock, and a send
+// of the letter it issued takes the released run and writes its mail, push
+// and mailing before the erasure gets the period. The erasure has to lock
+// that run after the period lock and wait for the send, or it cleans up the
+// copies before the send commits and the mail and push stay (#6015).
+//
+// In production the release's commit frees the period, and the send and the
+// erasure then race for the run: PostgreSQL does not queue a lock request
+// behind a waiter once the holder committed. Here a transaction of its own
+// holds the period, so the send deterministically takes the run first, the
+// case that leaves copies behind without the second pass. Every step waits
+// for the lock state in pg_locks, and the erasure's waits stay a few
+// statements long, far below its lock timeout of 100 ms.
 func TestDemoErasureIncludesASendOfAConcurrentRelease(t *testing.T) {
 	t.Parallel()
 	order := newHiddenDemoOrder(t)
 	withoutIssuedInvoice(t, order)
 	ctx := t.Context()
+	var runID int64
+	require.NoError(t, order.db.NewRaw(`SELECT run.id FROM parent_billing.runs AS run
+		JOIN enrollment.holiday_registration_children AS child
+			ON child.organization_id = run.organization_id AND child.holiday_period_id = run.holiday_period_id
+		WHERE child.home_school_id = ?`, order.schoolID).Scan(ctx, &runID))
+	period := periodLock(t, order, runID)
 	release, err := order.db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = release.Rollback() })
-	var runID, documentID int64
-	require.NoError(t, release.NewRaw(`SELECT run.id FROM parent_billing.runs AS run
-		JOIN enrollment.holiday_registration_children AS child
-			ON child.organization_id = run.organization_id AND child.holiday_period_id = run.holiday_period_id
-		WHERE child.home_school_id = ? FOR UPDATE OF run`, order.schoolID).Scan(ctx, &runID))
-	_, err = release.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('parent_billing.period_billing:' || organization_id::text || ':' || ? || ':' || holiday_period_id::text, 0))
-		FROM parent_billing.runs WHERE id = ?`, "holiday", runID).Exec(ctx)
-	require.NoError(t, err)
-	require.NoError(t, release.NewRaw(`INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year,
-			number_sequence, issued_on, holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name,
-			recipient_email, service_from, service_until, total_cents)
-		SELECT run.organization_id, run.id, 'holiday', 'S-' || ?0, 2026, ?0 + 2000000, DATE '2026-06-20', run.holiday_period_id,
-			child.holiday_registration_id, ?1, ?2, 'besuch@example.org', DATE '2026-07-01', DATE '2026-07-31', 12000
-		FROM parent_billing.runs AS run
-		JOIN enrollment.holiday_registration_children AS child
-			ON child.organization_id = run.organization_id AND child.holiday_period_id = run.holiday_period_id
-		WHERE run.id = ?3 AND child.home_school_id = ?0 RETURNING id`, order.schoolID, visitorFirst, visitorLast, runID).Scan(ctx, &documentID))
-	_, err = release.NewRaw(`INSERT INTO parent_billing.document_letters (organization_id, document_id, run_id, filename, pdf)
-		SELECT organization_id, id, run_id, 'brief.pdf', '\x255044'::bytea FROM parent_billing.documents WHERE id = ?`, documentID).Exec(ctx)
-	require.NoError(t, err)
+	var documentID int64
+	require.NoError(t, release.NewRaw(`WITH run AS (
+			SELECT run.organization_id, run.id, run.holiday_period_id FROM parent_billing.runs AS run WHERE run.id = ?3 FOR UPDATE),
+		document AS (
+			INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year,
+				number_sequence, issued_on, holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name,
+				recipient_email, service_from, service_until, total_cents)
+			SELECT run.organization_id, run.id, 'holiday', 'S-' || ?0, 2026, ?0 + 2000000, DATE '2026-06-20', run.holiday_period_id,
+				child.holiday_registration_id, ?1, ?2, 'besuch@example.org', DATE '2026-07-01', DATE '2026-07-31', 12000
+			FROM run JOIN enrollment.holiday_registration_children AS child
+				ON child.organization_id = run.organization_id AND child.holiday_period_id = run.holiday_period_id
+			WHERE child.home_school_id = ?0
+			RETURNING organization_id, run_id, id),
+		letter AS (
+			INSERT INTO parent_billing.document_letters (organization_id, document_id, run_id, filename, pdf)
+			SELECT organization_id, id, run_id, 'brief.pdf', '\x255044'::bytea FROM document)
+		SELECT id FROM document`, order.schoolID, visitorFirst, visitorLast, runID).Scan(ctx, &documentID))
 
-	send, err := order.db.BeginTx(ctx, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = send.Rollback() })
-	sendLocked := make(chan error, 1)
-	go func() {
-		_, err := send.NewRaw(`SELECT id /* letter send */ FROM parent_billing.runs WHERE id = ? FOR UPDATE`, runID).Exec(ctx)
-		sendLocked <- err
-	}()
-	require.Eventually(t, func() bool {
-		return lockWaits(t, order.db, "letter send")
-	}, 5*time.Second, time.Millisecond, "the send queues on the run the release holds")
 	type outcome struct {
 		erased int
 		err    error
@@ -223,30 +250,44 @@ func TestDemoErasureIncludesASendOfAConcurrentRelease(t *testing.T) {
 		_, erased, err := order.queue.RetireDemoSchools(t.Context(), nil)
 		erasure <- outcome{erased: erased, err: err}
 	}()
+	// The first pass found no invoice; the erasure waits for the period.
 	require.Eventually(t, func() bool {
-		return lockWaits(t, order.db, "retire_expired_demo_schools")
-	}, 5*time.Second, time.Millisecond, "the erasure waits for the period lock of the release")
+		return waitsOn(t, order, "retire_expired_demo_schools", "advisory")
+	}, 5*time.Second, time.Millisecond, "the erasure waits for the period lock")
 
 	require.NoError(t, release.Commit())
-	require.NoError(t, <-sendLocked)
-
+	send, err := order.db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = send.Rollback() })
 	var mailID, pushID int64
-	require.NoError(t, send.NewRaw(`INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status)
-		SELECT organization_id, 'billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', ?),
-			jsonb_build_object('guardian_name', ?), 'pending'
-		FROM parent_billing.documents WHERE id = ? RETURNING id`, visitorFull, visitorFull, documentID).Scan(ctx, &mailID))
-	require.NoError(t, send.NewRaw(`INSERT INTO platform.push_outbox (organization_id, kind, related_entity_type, related_entity_id, recipient, payload)
-		SELECT organization_id, 'parent_billing_document', 'parent_billing_document', id,
-			jsonb_build_object('email', 'besuch@example.org'), jsonb_build_object('title', ?)
-		FROM parent_billing.documents WHERE id = ? RETURNING id`, "Brief für "+visitorFull, documentID).Scan(ctx, &pushID))
-	_, err = send.NewRaw(`INSERT INTO parent_billing.document_mailings (organization_id, run_id, document_id, delivery_id, recipient_email)
-		SELECT organization_id, run_id, id, ?, 'besuch@example.org' FROM parent_billing.documents WHERE id = ?`, mailID, documentID).Exec(ctx)
-	require.NoError(t, err, "the letter of the released invoice is still there for the send")
-	// Without the run lock after the period lock the erasure no longer waits
-	// for the send here: it cleaned up the copies before the send wrote them.
+	require.NoError(t, send.NewRaw(`WITH run AS (
+			SELECT id FROM parent_billing.runs WHERE id = ?3 FOR UPDATE),
+		document AS (
+			SELECT document.organization_id, document.run_id, document.id
+			FROM parent_billing.documents AS document JOIN run ON run.id = document.run_id WHERE document.id = ?2),
+		outbox AS (
+			INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status)
+			SELECT organization_id, 'billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', ?0::text),
+				jsonb_build_object('guardian_name', ?0::text), 'pending' FROM document
+			RETURNING id),
+		push AS (
+			INSERT INTO platform.push_outbox (organization_id, kind, related_entity_type, related_entity_id, recipient, payload)
+			SELECT organization_id, 'parent_billing_document', 'parent_billing_document', id,
+				jsonb_build_object('email', 'besuch@example.org'), jsonb_build_object('title', ?1::text) FROM document
+			RETURNING id),
+		mailing AS (
+			INSERT INTO parent_billing.document_mailings (organization_id, run_id, document_id, delivery_id, recipient_email)
+			SELECT document.organization_id, document.run_id, document.id, outbox.id, 'besuch@example.org' FROM document, outbox)
+		SELECT outbox.id, push.id FROM outbox, push`, visitorFull, "Brief für "+visitorFull, documentID, runID).Scan(ctx, &mailID, &pushID),
+		"the send takes the released run and writes its copies while the erasure waits for the period")
+	require.NoError(t, period.Commit())
+
+	// Without the run lock after the period lock the erasure instead cleans
+	// up the copies it sees, none yet, and waits at the letter the mailing
+	// names; the mail and the push of the send then stay.
 	require.Eventually(t, func() bool {
-		return lockWaits(t, order.db, "retire_expired_demo_schools")
-	}, 5*time.Second, time.Millisecond, "the erasure waits for the send of the released run")
+		return waitsOn(t, order, "retire_expired_demo_schools", "transactionid", "tuple")
+	}, 5*time.Second, time.Millisecond, "the erasure waits for the send")
 	require.NoError(t, send.Commit())
 	select {
 	case result := <-erasure:
@@ -264,9 +305,17 @@ func TestDemoErasureIncludesASendOfAConcurrentRelease(t *testing.T) {
 }
 
 // A correction of the visitor's invoice (correctable: the released run, then
-// the period) while the erasure runs: the erasure takes the run before the
-// period too, so it waits for the correction and then erases the order with
-// the cancellation, without a cycle and without deferring it (#6015).
+// the period) while the erasure runs (#6015). The erasure has to take the run
+// before the period too: with the period first, the correction holding the
+// run and waiting for the period and the erasure holding the period and
+// waiting for the run close a cycle, which the erasure's lock timeout ends by
+// deferring the order.
+//
+// The correction takes run, period and cancellation in its order before the
+// erasure starts, so the test does not depend on how long a step takes under
+// load: the erasure's first wait (pg_locks) has to be for the run, not for
+// the period, and it lasts only until the correction's commit, far below its
+// lock timeout of 100 ms.
 func TestDemoErasureWaitsForAConcurrentCorrection(t *testing.T) {
 	t.Parallel()
 	order := newHiddenDemoOrder(t)
@@ -278,6 +327,17 @@ func TestDemoErasureWaitsForAConcurrentCorrection(t *testing.T) {
 	require.NoError(t, correction.NewRaw(`SELECT run.id FROM parent_billing.runs AS run
 		JOIN parent_billing.documents AS document ON document.organization_id = run.organization_id AND document.run_id = run.id
 		WHERE document.number = 'F-' || ? FOR UPDATE OF run`, order.schoolID).Scan(ctx, &runID))
+	var cancellationID int64
+	require.NoError(t, correction.NewRaw(`WITH period AS (
+			SELECT pg_advisory_xact_lock(hashtextextended('parent_billing.period_billing:' || organization_id::text || ':' || ?1 || ':' || holiday_period_id::text, 0)) AS locked
+			FROM parent_billing.runs WHERE id = ?2)
+		INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year,
+			number_sequence, issued_on, holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name,
+			recipient_email, service_from, service_until, total_cents, kind, reference_document_id, reason)
+		SELECT organization_id, run_id, service, 'ST-' || ?0, number_year, number_sequence + 3000000, issued_on, holiday_period_id,
+			holiday_registration_id, recipient_first_name, recipient_last_name, recipient_email, service_from, service_until,
+			-total_cents, 'cancellation', id, 'Storno'
+		FROM parent_billing.documents, period WHERE number = 'F-' || ?0 RETURNING id`, order.schoolID, "holiday", runID).Scan(ctx, &cancellationID))
 
 	type outcome struct {
 		erased int
@@ -288,22 +348,12 @@ func TestDemoErasureWaitsForAConcurrentCorrection(t *testing.T) {
 		_, erased, err := order.queue.RetireDemoSchools(t.Context(), nil)
 		erasure <- outcome{erased: erased, err: err}
 	}()
+	// With the period before the run the erasure would wait for the
+	// advisory lock here, never for the run.
 	require.Eventually(t, func() bool {
-		return lockWaits(t, order.db, "retire_expired_demo_schools")
-	}, 5*time.Second, time.Millisecond, "the erasure waits for the run the correction holds")
-	// With the period before the run, the erasure would hold the period here
-	// and this lock would wait until the erasure gave up and deferred.
-	_, err = correction.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('parent_billing.period_billing:' || organization_id::text || ':' || ? || ':' || holiday_period_id::text, 0))
-		FROM parent_billing.runs WHERE id = ?`, "holiday", runID).Exec(ctx)
-	require.NoError(t, err)
-	var cancellationID int64
-	require.NoError(t, correction.NewRaw(`INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year,
-			number_sequence, issued_on, holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name,
-			recipient_email, service_from, service_until, total_cents, kind, reference_document_id, reason)
-		SELECT organization_id, run_id, service, 'ST-' || ?0, number_year, number_sequence + 3000000, issued_on, holiday_period_id,
-			holiday_registration_id, recipient_first_name, recipient_last_name, recipient_email, service_from, service_until,
-			-total_cents, 'cancellation', id, 'Storno'
-		FROM parent_billing.documents WHERE number = 'F-' || ?0 RETURNING id`, order.schoolID).Scan(ctx, &cancellationID))
+		return waitsOn(t, order, "retire_expired_demo_schools", "transactionid", "tuple")
+	}, 5*time.Second, time.Millisecond, "the erasure waits for the run the correction holds, before it asks for the period")
+	require.False(t, waitsOn(t, order, "retire_expired_demo_schools", "advisory"), "the erasure does not wait for the period")
 	require.NoError(t, correction.Commit())
 	select {
 	case result := <-erasure:

@@ -40,6 +40,7 @@ export interface TenantResolveResponse {
   early_checkout_note_tolerance_minutes?: number;
   weekend_follows_friday?: boolean;
   child_search_only_navigation?: boolean;
+  care_facility_term?: string;
 }
 
 /** A non-200 answer of the tenant lookup; never cached. */

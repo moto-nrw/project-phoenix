@@ -18,6 +18,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
+  useTenantSafe: () => null,
 }));
 
 vi.mock("~/lib/tenant-api", () => ({
