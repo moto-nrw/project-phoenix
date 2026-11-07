@@ -9,7 +9,8 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { Dropzone } from "~/components/ui/dropzone";
-import { RequiredMark } from "~/components/ui/field-label";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -41,6 +42,7 @@ export function PaperSignatureModal({
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const formError = useApiFormError();
+  const signedOnError = formError.fieldError("signed_on");
   const { success } = useToast();
 
   const save = async () => {
@@ -112,14 +114,31 @@ export function PaperSignatureModal({
           disabled={saving}
         />
         <div className="space-y-1.5">
-          <span className="block text-sm font-medium text-gray-700">
+          <FieldLabel
+            htmlFor="care-contract-signed-on"
+            required
+            invalid={Boolean(signedOnError)}
+          >
             Unterschrieben am
-          </span>
+          </FieldLabel>
           <DatePicker
+            id="care-contract-signed-on"
+            name="signed_on"
+            invalid={Boolean(signedOnError)}
+            ariaDescribedBy={
+              signedOnError ? "care-contract-signed-on-error" : undefined
+            }
+            minDate={parseISODate("2000-01-01")}
+            disabled={saving}
+            required
             value={signedOn}
             onChange={setSignedOn}
             maxDate={parseISODate(berlinTodayISO())}
             hideClearButton
+          />
+          <FieldErrorHint
+            id="care-contract-signed-on-error"
+            message={signedOnError}
           />
         </div>
         <div className="space-y-1.5">

@@ -102,7 +102,7 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 	if event == nil {
 		return event
 	}
-	// Public calendar and request feeds authenticate purely by the token in the
+	// Public feeds and contract signing authenticate purely by the token in the
 	// URL. Sentry's HTTP integration captures that URL (and the derived
 	// transaction name / breadcrumbs), so a failing feed request would otherwise
 	// ship a replayable capability token to Sentry. Redact it everywhere the SDK
@@ -131,7 +131,8 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 		event.Request.URL = appmiddleware.RedactFeedToken(event.Request.URL)
 		event.Request.QueryString = appmiddleware.RedactFeedToken(event.Request.QueryString)
 		event.Request.Data = ""
-		for key := range event.Request.Headers {
+		for key, value := range event.Request.Headers {
+			event.Request.Headers[key] = appmiddleware.RedactFeedToken(value)
 			for _, sensitive := range []string{"Authorization", "X-Staff-PIN", "X-Staff-Auth-PIN", "X-Staff-Id", "X-Device-Key"} {
 				if strings.EqualFold(key, sensitive) {
 					event.Request.Headers[key] = "[filtered]"

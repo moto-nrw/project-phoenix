@@ -1,5 +1,7 @@
 import type { BrowserOptions, ErrorEvent, Event } from "@sentry/nextjs";
 
+import { SIGNING_TOKEN_PATH_PATTERN } from "~/lib/log-redaction";
+
 const routerStateParseMessage =
   "The router state header was sent but could not be parsed.";
 
@@ -7,6 +9,7 @@ const routerStateParseMessage =
 // from every recorded URL/path so a Sentry event cannot leak a replayable
 // secret. This mirrors the backend request-log redactor.
 const feedTokenPatterns = [
+  SIGNING_TOKEN_PATH_PATTERN,
   /(\/api\/calendar-feed\/)[^/?#\s"]+/g,
   /(\/public\/calendar\/)[^/?#\s"]+/g,
   /(\/api\/request-feed\/)[^/?#\s"]+/g,
@@ -52,6 +55,14 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
   }
 
   scrubRequestAndUser(event);
+  // Sentry's global error handler can use the current page URL as a
+  // stack-frame filename when an error has no parsed frames.
+  for (const exception of event.exception?.values ?? []) {
+    for (const frame of exception.stacktrace?.frames ?? []) {
+      if (frame.filename) frame.filename = redactFeedToken(frame.filename);
+      if (frame.abs_path) frame.abs_path = redactFeedToken(frame.abs_path);
+    }
+  }
 
   return event;
 }

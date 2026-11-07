@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"testing"
 
 	"github.com/getsentry/sentry-go"
@@ -293,4 +294,23 @@ func testHealthDataKeys() string {
 		panic(err)
 	}
 	return "test:" + base64.StdEncoding.EncodeToString(key)
+}
+
+func TestScrubSentryEventRedactsContractSigningCredentials(t *testing.T) {
+	t.Parallel()
+	path := "/public/care-contract-signing/42.sentry-signing-credential/sign"
+	page := "https://parents.example/vertrag-unterschreiben/42.sentry-signing-credential"
+	event := &sentry.Event{
+		Message: "request " + path, Transaction: path,
+		Request:     &sentry.Request{URL: "https://api.example" + path, Headers: map[string]string{"Referer": page, "Content-Type": "application/json"}},
+		Exception:   []sentry.Exception{{Value: "failed " + path}},
+		Breadcrumbs: []*sentry.Breadcrumb{nil, {Message: page, Data: map[string]any{"url": path, "status": 500}}},
+	}
+	scrubbed := scrubSentryEvent(event)
+	data, err := json.Marshal(scrubbed)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "sentry-signing-credential")
+	assert.Equal(t, "https://api.example/public/care-contract-signing/[REDACTED]/sign", scrubbed.Request.URL)
+	assert.Equal(t, "application/json", scrubbed.Request.Headers["Content-Type"])
+	assert.Equal(t, 500, scrubbed.Breadcrumbs[1].Data["status"])
 }

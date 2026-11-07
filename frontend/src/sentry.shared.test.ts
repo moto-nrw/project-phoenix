@@ -639,3 +639,48 @@ describe("sampleNoTrace", () => {
     expect(sampleNoTrace()).toBe(0);
   });
 });
+
+it.each([
+  "/api/public/care-contract-signing/42.signing-credential/sign",
+  "/public/care-contract-signing/42.signing-credential/document",
+  "/parents/vertrag-unterschreiben/42.signing-credential",
+  "/public/care%2Dcontract-signing/42.signing-credential",
+  "/%76ertrag-unterschreiben/42.signing-credential",
+])("redacts signing URLs from events and spans: %s", (path) => {
+  const result = scrubEvent(
+    makeEvent({
+      request: {
+        url: `https://parents.example${path}`,
+        headers: { Referer: `https://parents.example${path}` },
+      },
+      exception: {
+        values: [
+          {
+            stacktrace: {
+              frames: [
+                { filename: `https://parents.example${path}`, abs_path: path },
+                {
+                  filename:
+                    "https://parents.example/_next/static/chunks/app.js",
+                },
+              ],
+            },
+          },
+        ],
+      },
+      transaction: `GET ${path}`,
+      contexts: { nextjs: { request_path: path } },
+      breadcrumbs: [{ message: `fetch ${path}`, data: { url: path } }],
+    }),
+  );
+  expect(result?.request?.url).toContain("[REDACTED]");
+  expect(
+    result?.exception?.values?.[0]?.stacktrace?.frames?.[1]?.filename,
+  ).toBe("https://parents.example/_next/static/chunks/app.js");
+  expect(JSON.stringify(result)).not.toContain("signing-credential");
+  const span = makeSpan({
+    name: `GET ${path}`,
+    attributes: { "http.url": `https://parents.example${path}` },
+  });
+  expect(JSON.stringify(scrubSpan(span))).not.toContain("signing-credential");
+});

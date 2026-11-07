@@ -203,3 +203,17 @@ describe("redactSensitiveLogData", () => {
     );
   });
 });
+
+describe("contract signing credentials", () => {
+  it.each([
+    "/api/public/care-contract-signing/42.signing-credential/sign",
+    "/public/care-contract-signing/42.signing-credential/document",
+    "/parents/vertrag-unterschreiben/42.signing-credential",
+    "https://parents.example/vertrag-unterschreiben/42.signing-credential",
+    "/public/care%2Dcontract-signing/42.signing-credential",
+    "/%76ertrag-unterschreiben/42.signing-credential",
+  ])("redacts %s", (path) => {
+    expect(redactSensitiveLogString(path)).not.toContain("signing-credential");
+    expect(redactSensitiveLogString(path)).toContain("[REDACTED]");
+  });
+});
