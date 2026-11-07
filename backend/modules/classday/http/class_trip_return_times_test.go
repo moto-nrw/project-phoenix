@@ -58,3 +58,45 @@ func TestClassTripReturnTimeSetsEveryChildsArrival(t *testing.T) {
 		assert.Equal(t, "Ausflug", reason)
 	}
 }
+
+// guardianArrival stores an arrival the parents entered, which a class trip
+// may reclaim.
+func (f *classTripFixture) guardianArrival(t *testing.T, studentID int64) {
+	t.Helper()
+	_, err := f.db.ExecContext(testpkg.Ctx(t),
+		`INSERT INTO schedule.student_arrival_exceptions (tenant_id, student_id, exception_date, expected_arrival, reason, created_by, source)
+		 VALUES (?, ?, ?, '09:00', 'Eltern', ?, 'guardian')`,
+		testpkg.Tenant(t), studentID, classTripMonday, f.staffID)
+	require.NoError(t, err)
+}
+
+// The statements of a return-time trip grow by a fixed number per child
+// (#5824): the student and day locks, the locked membership check and the
+// write. The children's current arrivals are one read after the last lock.
+func TestClassTripReturnTimeStatementsPerChild(t *testing.T) {
+	t.Parallel()
+	f := setupClassTripFixture(t)
+	f.openTrips(t)
+	counter := testpkg.CaptureQueriesForContext(t, f.db)
+
+	small := f.classChildren(t, 3)
+	code, resp, n3 := f.returnTimeTrip(t, counter, small)
+	require.Equal(t, http.StatusCreated, code, resp)
+
+	large := f.classChildren(t, 8)
+	code, resp, n8 := f.returnTimeTrip(t, counter, large)
+	require.Equal(t, http.StatusCreated, code, resp)
+
+	mixed := f.classChildren(t, 3)
+	f.guardianArrival(t, mixed[1])
+	code, resp, reclaim := f.returnTimeTrip(t, counter, mixed)
+	require.Equal(t, http.StatusCreated, code, resp)
+	arrival, reason, ok := f.arrival(t, mixed[1], classTripMonday)
+	require.True(t, ok)
+	assert.Equal(t, "13:30", arrival)
+	assert.Equal(t, "Ausflug", reason)
+
+	t.Logf("class trip return time: N3=%d N8=%d N3-reclaim=%d per-child=%d", n3, n8, reclaim, (n8-n3)/5)
+	assert.Equal(t, 4*5, n8-n3, "each further child costs its locks, the locked membership check and the write")
+	assert.Equal(t, n3, reclaim, "a reclaimed arrival costs what a new one costs")
+}

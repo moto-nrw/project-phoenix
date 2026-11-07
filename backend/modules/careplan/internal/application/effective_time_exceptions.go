@@ -336,23 +336,33 @@ func (c *effectiveTimeCore[S, E, N, D]) deleteExceptionRow(ctx context.Context, 
 }
 
 func (c *effectiveTimeCore[S, E, N, D]) reclaimException(ctx context.Context, existing E, fields domain.EffectiveExceptionFields, resolveStaffID func() (int64, error)) (E, error) {
+	fields, err := c.reclaimedFields(existing, fields, resolveStaffID)
+	if err != nil {
+		var zero E
+		return zero, err
+	}
+	result := c.domain.NewException(fields)
+	return result, c.updateExceptionRow(ctx, result)
+}
+
+// reclaimedFields takes over a guardian's exception for a staff write, or
+// refuses the day.
+func (c *effectiveTimeCore[S, E, N, D]) reclaimedFields(existing E, fields domain.EffectiveExceptionFields, resolveStaffID func() (int64, error)) (domain.EffectiveExceptionFields, error) {
 	previous := c.domain.ExceptionFields(existing)
-	var zero E
 	if previous.Source != careplan.ExceptionSourceGuardian {
-		return zero, careplan.ErrCareExceptionDayConflict
+		return fields, careplan.ErrCareExceptionDayConflict
 	}
 	// Reclaiming a partial-absence row would erase its provenance.
 	if previous.ExcusedFrom != nil {
-		return zero, careplan.ErrCareExceptionContainsPartialAbsence
+		return fields, careplan.ErrCareExceptionContainsPartialAbsence
 	}
 	staffID, err := resolveStaffID()
 	if err != nil || staffID == 0 {
-		return zero, careplan.ErrCareExceptionStaffProfileRequired
+		return fields, careplan.ErrCareExceptionStaffProfileRequired
 	}
 	fields.ID, fields.CreatedAt, fields.TenantID = previous.ID, previous.CreatedAt, previous.TenantID
 	fields.CreatedBy = staffID
-	result := c.domain.NewException(fields)
-	return result, c.updateExceptionRow(ctx, result)
+	return fields, nil
 }
 
 func prepareExceptionUpdate(fields *domain.EffectiveExceptionFields, studentID int64, date calendar.Date, clearValue bool, resolveStaffID func() (int64, error)) error {
