@@ -145,6 +145,8 @@ export interface CareDuplicate {
     readonly schoolId: string;
     readonly schoolName: string;
   }[];
+  /** A released run's child whose duplicate is gone; a new run bills it. */
+  readonly resolved: boolean;
 }
 
 export interface CareRunDetail extends CareRun {
@@ -253,6 +255,7 @@ interface BackendRunDetail extends BackendRun {
         contracts:
           | { contract_id: number; school_id: number; school_name: string }[]
           | null;
+        resolved?: boolean;
       }[]
     | null;
   duplicate_children: number;
@@ -369,6 +372,7 @@ function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
         schoolId: id(contract.school_id),
         schoolName: contract.school_name,
       })),
+      resolved: entry.resolved ?? false,
     })),
     duplicateChildren: detail.duplicate_children ?? 0,
     billed: detail.billed,

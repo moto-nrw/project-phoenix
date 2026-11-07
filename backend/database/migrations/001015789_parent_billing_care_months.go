@@ -73,6 +73,7 @@ CREATE TABLE parent_billing.care_runs (
 	billing_month DATE NOT NULL,
 	status VARCHAR(16) NOT NULL DEFAULT 'calculated',
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	held_contract_ids BIGINT[] NOT NULL DEFAULT '{}',
 	created_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	released_at TIMESTAMPTZ,
 	issued_on DATE,

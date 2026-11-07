@@ -39,7 +39,7 @@ type CareStore interface {
 	InvoicedContracts(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]bool, error)
 	InsertCareRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
 	IssueCareInvoices(ctx context.Context, organizationID int64, run parentbilling.CareRun, rule string, year int, first int64, invoices []parentbilling.CareInvoice) error
-	MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string) (parentbilling.CareRun, error)
+	MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string, held []int64) (parentbilling.CareRun, error)
 	CareRunInvoices(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareInvoice, error)
 	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
 	ReserveNumbers(ctx context.Context, organizationID int64, service string, year, count int) (int64, error)
@@ -430,7 +430,7 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 		return parentbilling.CareRunDetail{}, err
 	}
 	released, err := c.store.MarkCareRunReleased(ctx, reviewer.OrganizationID, run.ID, *month.invoices[0].IssuedOn,
-		len(month.invoices), month.total(), rule)
+		len(month.invoices), month.total(), rule, heldContracts(month.duplicates))
 	if err != nil {
 		return parentbilling.CareRunDetail{}, err
 	}
@@ -510,11 +510,13 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		// The release left the children with a duplicate contract out; they
 		// stay in sight under the rule it applied until a later run of the
 		// month bills them (Betragsregel 1).
-		_, month, err := c.monthWith(ctx, reviewer.OrganizationID, run, run.MonthRule)
-		if err != nil {
-			return parentbilling.CareRunDetail{}, err
+		if len(run.HeldContractIDs) > 0 {
+			_, month, err := c.monthWith(ctx, reviewer.OrganizationID, run, run.MonthRule)
+			if err != nil {
+				return parentbilling.CareRunDetail{}, err
+			}
+			detail.Duplicates = stillHeld(run.HeldContractIDs, month)
 		}
-		detail.Duplicates = month.duplicates
 	} else {
 		rule, month, err := c.preview(ctx, reviewer.OrganizationID, run)
 		if err != nil {
@@ -539,12 +541,51 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 	return detail, nil
 }
 
+// heldContracts are the contracts of the duplicates, sorted.
+func heldContracts(duplicates []parentbilling.CareDuplicate) []int64 {
+	ids := []int64{}
+	for _, duplicate := range duplicates {
+		for _, contract := range duplicate.Contracts {
+			if !slices.Contains(ids, contract.ContractID) {
+				ids = append(ids, contract.ContractID)
+			}
+		}
+	}
+	slices.Sort(ids)
+	return ids
+}
+
+// stillHeld is what a released run shows of the contracts it left out: a
+// duplicate that still names one of them, and a contract whose duplicate is
+// gone but that no run has billed yet. A contract a later run billed, or a
+// duplicate that arose after the release, is not this run's.
+func stillHeld(held []int64, month careMonth) []parentbilling.CareDuplicate {
+	shown := []parentbilling.CareDuplicate{}
+	for _, duplicate := range month.duplicates {
+		if slices.ContainsFunc(duplicate.Contracts, func(c parentbilling.CareDuplicateContract) bool {
+			return slices.Contains(held, c.ContractID)
+		}) {
+			shown = append(shown, duplicate)
+		}
+	}
+	for _, invoice := range month.invoices {
+		if slices.Contains(held, invoice.ContractID) {
+			shown = append(shown, parentbilling.CareDuplicate{
+				ChildFirstName: invoice.ChildFirstName, ChildLastName: invoice.ChildLastName, Resolved: true,
+				Contracts: []parentbilling.CareDuplicateContract{
+					{ContractID: invoice.ContractID, SchoolID: invoice.SchoolID, SchoolName: invoice.SchoolName},
+				},
+			})
+		}
+	}
+	return shown
+}
+
 // duplicateChildren counts the children behind duplicate entries: contracts
 // that meet in an entry, directly or through a third one, are one child.
 func duplicateChildren(duplicates []parentbilling.CareDuplicate) int {
 	child := map[int64]int64{}
-	var root func(int64) int64
-	root = func(id int64) int64 {
+	root := func(id int64) int64 {
 		for child[id] != id {
 			id = child[id]
 		}

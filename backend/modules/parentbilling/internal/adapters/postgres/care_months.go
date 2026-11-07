@@ -59,12 +59,13 @@ type careRunRow struct {
 	DocumentCount      *int           `bun:"document_count"`
 	TotalCents         *int64         `bun:"total_cents"`
 	MonthRule          *string        `bun:"month_rule"`
+	HeldContractIDs    []int64        `bun:"held_contract_ids,array"`
 }
 
 func (r careRunRow) run() parentbilling.CareRun {
 	run := parentbilling.CareRun{
 		ID: r.ID, BillingMonth: r.BillingMonth, Status: r.Status, CreatedAt: r.CreatedAt, ReleasedAt: r.ReleasedAt,
-		IssuedOn: r.IssuedOn, DocumentCount: r.DocumentCount, TotalCents: r.TotalCents,
+		IssuedOn: r.IssuedOn, DocumentCount: r.DocumentCount, TotalCents: r.TotalCents, HeldContractIDs: r.HeldContractIDs,
 	}
 	if r.MonthRule != nil {
 		run.MonthRule = *r.MonthRule
@@ -271,7 +272,8 @@ func (s *Store) InsertCareRun(ctx context.Context, organizationID, accountID int
 	if err != nil {
 		return parentbilling.CareRun{}, err
 	}
-	row := &careRunRow{OrganizationID: organizationID, BillingMonth: month, Status: parentbilling.RunCalculated, CreatedByAccountID: &accountID}
+	row := &careRunRow{OrganizationID: organizationID, BillingMonth: month, Status: parentbilling.RunCalculated, CreatedByAccountID: &accountID,
+		HeldContractIDs: []int64{}}
 	if _, err := db.NewInsert().Model(row).Returning("id, created_at").Exec(ctx); err != nil {
 		if constraintOf(err) == openCareRunIndex {
 			return parentbilling.CareRun{}, parentbilling.ErrCareRunOpen
@@ -438,7 +440,7 @@ func carePositionRows(organizationID int64, rows []careInvoiceRow, invoices []pa
 
 // MarkCareRunReleased closes a calculated run with its issue date, sums
 // and the rule it billed by.
-func (s *Store) MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string) (parentbilling.CareRun, error) {
+func (s *Store) MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string, held []int64) (parentbilling.CareRun, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return parentbilling.CareRun{}, err
@@ -447,6 +449,7 @@ func (s *Store) MarkCareRunReleased(ctx context.Context, organizationID, runID i
 	if err := db.NewUpdate().Model(row).
 		Set("status = ?", parentbilling.RunReleased).Set("released_at = CURRENT_TIMESTAMP").Set("issued_on = ?", issuedOn).
 		Set("document_count = ?", count).Set("total_cents = ?", totalCents).Set("month_rule = ?", rule).
+		Set("held_contract_ids = ?", pgdialect.Array(nonNilIDs(held))).
 		Where("organization_id = ?", organizationID).Where("id = ?", runID).Where("status = ?", parentbilling.RunCalculated).
 		Returning("*").Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -506,4 +509,12 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 		}
 	}
 	return invoices, nil
+}
+
+// nonNilIDs binds an empty array for no IDs.
+func nonNilIDs(ids []int64) []int64 {
+	if ids == nil {
+		return []int64{}
+	}
+	return ids
 }

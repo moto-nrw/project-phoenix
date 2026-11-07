@@ -8,10 +8,14 @@ vi.mock("~/lib/traeger-url", () => ({
 
 import { CareDuplicatesCard } from "./care-run-invoices";
 
-const CONTRACTS = [
-  { contractId: "11", schoolId: "3", schoolName: "OGS Am Lindenhof" },
-  { contractId: "12", schoolId: "3", schoolName: "OGS Am Lindenhof" },
-];
+const FIRST = {
+  contractId: "11",
+  schoolId: "3",
+  schoolName: "OGS Am Lindenhof",
+};
+const SECOND = { ...FIRST, contractId: "12" };
+const THIRD = { ...FIRST, contractId: "13" };
+const CONTRACTS = [FIRST, SECOND];
 
 function duplicate(weekday: CareDuplicate["weekday"]): CareDuplicate {
   return {
@@ -20,6 +24,7 @@ function duplicate(weekday: CareDuplicate["weekday"]): CareDuplicate {
     moduleName: "Betreuung bis 14:00 Uhr",
     weekday,
     contracts: CONTRACTS,
+    resolved: false,
   };
 }
 
@@ -53,6 +58,41 @@ describe("CareDuplicatesCard", () => {
     expect(
       screen.getByText(/Sie sind in diesem Lauf nicht abgerechnet/),
     ).toBeInTheDocument();
+  });
+
+  it("shows a child with three contracts once, each contract once", () => {
+    const pair = (a: number, b: number): CareDuplicate => ({
+      ...duplicate("mon"),
+      contracts: [FIRST, SECOND, THIRD].filter((_, i) => i === a || i === b),
+    });
+    render(
+      <CareDuplicatesCard duplicates={[pair(0, 1), pair(1, 2), pair(0, 2)]} />,
+    );
+    expect(screen.getByText("1 Kind")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(
+      screen.getAllByRole("link").map((link) => link.getAttribute("href")),
+    ).toEqual([
+      "/traeger/vertraege/11",
+      "/traeger/vertraege/12",
+      "/traeger/vertraege/13",
+    ]);
+  });
+
+  it("keeps a solved child of a released run until a new run bills it", () => {
+    render(
+      <CareDuplicatesCard
+        released
+        duplicates={[
+          { ...duplicate("mon"), resolved: true, contracts: [FIRST] },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/Doppelter Vertrag behoben/)).toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/traeger/vertraege/11",
+    );
   });
 
   it("shows nothing without a duplicate", () => {

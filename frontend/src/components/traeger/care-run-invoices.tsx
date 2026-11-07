@@ -282,34 +282,81 @@ export function CareUnpricedCard({
 function bookedTwice(entries: readonly CareDuplicate[]): string {
   const days = new Map<string, string[]>();
   for (const entry of entries) {
-    days.set(entry.moduleName, [
-      ...(days.get(entry.moduleName) ?? []),
-      WEEKDAY_LONG[entry.weekday],
-    ]);
+    if (entry.resolved) continue;
+    const weekday = WEEKDAY_LONG[entry.weekday];
+    const known = days.get(entry.moduleName) ?? [];
+    if (!known.includes(weekday)) {
+      days.set(entry.moduleName, [...known, weekday]);
+    }
   }
   return [...days.entries()]
     .map(([module, weekdays]) => `${module}: ${weekdays.join(", ")}`)
     .join(" · ");
 }
 
+type DuplicateContract = CareDuplicate["contracts"][number];
+
+interface DuplicateChild {
+  readonly key: string;
+  readonly entries: CareDuplicate[];
+  readonly contracts: DuplicateContract[];
+}
+
+/**
+ * The entries by child: contracts that meet in an entry, directly or
+ * through a third one, are one child, with each contract once.
+ */
+function byChild(duplicates: readonly CareDuplicate[]): DuplicateChild[] {
+  const parent = new Map<string, string>();
+  const root = (id: string): string => {
+    let current = id;
+    while (parent.get(current) !== current) {
+      current = parent.get(current) ?? current;
+    }
+    return current;
+  };
+  for (const entry of duplicates) {
+    for (const contract of entry.contracts) {
+      if (!parent.has(contract.contractId)) {
+        parent.set(contract.contractId, contract.contractId);
+      }
+    }
+    const [first, ...rest] = entry.contracts;
+    if (!first) continue;
+    for (const contract of rest) {
+      parent.set(root(contract.contractId), root(first.contractId));
+    }
+  }
+  const children = new Map<string, DuplicateChild>();
+  for (const entry of duplicates) {
+    const first = entry.contracts[0];
+    if (!first) continue;
+    const key = root(first.contractId);
+    const child = children.get(key) ?? { key, entries: [], contracts: [] };
+    child.entries.push(entry);
+    for (const contract of entry.contracts) {
+      if (!child.contracts.some((c) => c.contractId === contract.contractId)) {
+        child.contracts.push(contract);
+      }
+    }
+    children.set(key, child);
+  }
+  return [...children.values()];
+}
+
 /**
  * The children with two active contracts for the same module and weekday.
  * The run and its release bill none of them, so no child pays twice and
- * none drops out unnoticed; after the release they stay here until a later
- * run of the month bills them. Each contract opens from here.
+ * none drops out unnoticed; after the release they stay here, also once
+ * the duplicate is solved, until a later run of the month bills them. Each
+ * contract opens from here.
  */
 export function CareDuplicatesCard({
   duplicates,
   released = false,
 }: Readonly<{ duplicates: readonly CareDuplicate[]; released?: boolean }>) {
   if (duplicates.length === 0) return null;
-  const children = new Map<string, CareDuplicate[]>();
-  for (const entry of duplicates) {
-    const key = entry.contracts
-      .map((contract) => contract.contractId)
-      .join("-");
-    children.set(key, [...(children.get(key) ?? []), entry]);
-  }
+  const children = byChild(duplicates);
   return (
     <SectionCard
       title={
@@ -319,7 +366,7 @@ export function CareDuplicatesCard({
       }
       titleBadge={
         <span className="text-moto-orange-strong text-sm font-medium">
-          {children.size === 1 ? "1 Kind" : `${children.size} Kinder`}
+          {children.length === 1 ? "1 Kind" : `${children.length} Kinder`}
         </span>
       }
       description={
@@ -329,10 +376,11 @@ export function CareDuplicatesCard({
       }
     >
       <ResponsiveActionList>
-        {[...children.entries()].map(([key, entries]) => {
+        {children.map(({ key, entries, contracts }) => {
           const first = entries[0];
           if (!first) return null;
           const child = `${first.childFirstName} ${first.childLastName}`;
+          const solved = entries.every((entry) => entry.resolved);
           return (
             <li
               key={key}
@@ -341,23 +389,29 @@ export function CareDuplicatesCard({
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">{child}</p>
                 <p className="mt-0.5 text-sm text-gray-600">
-                  {bookedTwice(entries)}
+                  {solved
+                    ? "Doppelter Vertrag behoben. Starten Sie einen neuen Monatslauf für diesen Monat. Er rechnet das Kind ab."
+                    : bookedTwice(entries)}
                 </p>
               </div>
               <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
-                {first.contracts.map((contract, index) => (
-                  <ButtonLink
-                    key={contract.contractId}
-                    href={traegerPath(
-                      `/traeger/vertraege/${contract.contractId}`,
-                    )}
-                    variant="surface"
-                    size="compact"
-                    aria-label={`Vertrag ${index + 1} von ${child} öffnen: ${contract.schoolName}`}
-                  >
-                    Vertrag {index + 1} · {contract.schoolName}
-                  </ButtonLink>
-                ))}
+                {contracts.map((contract, index) => {
+                  const label =
+                    contracts.length === 1 ? "Vertrag" : `Vertrag ${index + 1}`;
+                  return (
+                    <ButtonLink
+                      key={contract.contractId}
+                      href={traegerPath(
+                        `/traeger/vertraege/${contract.contractId}`,
+                      )}
+                      variant="surface"
+                      size="compact"
+                      aria-label={`${label} von ${child} öffnen: ${contract.schoolName}`}
+                    >
+                      {label} · {contract.schoolName}
+                    </ButtonLink>
+                  );
+                })}
               </div>
             </li>
           );

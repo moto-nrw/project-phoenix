@@ -148,6 +148,10 @@ type CareRun struct {
 	DocumentCount *int           `json:"document_count"`
 	TotalCents    *int64         `json:"total_cents"`
 	MonthRule     string         `json:"month_rule"`
+	// HeldContractIDs are the contracts the release left out for a
+	// duplicate (Betragsregel 1); a released run shows them until a later
+	// run of the month bills them.
+	HeldContractIDs []int64 `json:"-"`
 }
 
 // CareRunList is the list of the monthly runs, the latest month first,
@@ -230,6 +234,9 @@ type CareDuplicate struct {
 	ModuleName     string                  `json:"module_name"`
 	Weekday        string                  `json:"weekday"`
 	Contracts      []CareDuplicateContract `json:"contracts"`
+	// Resolved marks a contract a release left out whose duplicate is gone:
+	// a new run of the month bills it.
+	Resolved bool `json:"resolved"`
 }
 
 // CareRunDetail is a run with its invoices. A calculated run shows the

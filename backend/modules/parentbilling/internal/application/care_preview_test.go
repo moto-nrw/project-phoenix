@@ -463,6 +463,25 @@ func TestCareMonthChildWithAndWithoutRecordIsOneChild(t *testing.T) {
 	assert.Len(t, month.invoices, 2)
 }
 
+// TestCareMonthLinkedContractsWithAnotherNameAreOneChild matches contracts
+// by the child record even when a later contract spells the name
+// differently (Betragsregel 1): before, the name kept them apart and the
+// child paid twice.
+func TestCareMonthLinkedContractsWithAnotherNameAreOneChild(t *testing.T) {
+	t.Parallel()
+	first := sjrVersion(t, contractMia, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
+	second := sjrVersion(t, contractNoah, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
+	second.StudentID = first.StudentID
+	second.ChildFirstName, second.ChildLastName = "Maria", "Beispiel-Krause"
+	month, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
+		versions: []parentbilling.CareContractVersion{first, second}, tariffs: sjrTariffs(t)})
+	require.NoError(t, err)
+	assert.Empty(t, month.invoices, "not 64,00 € for one child")
+	require.Len(t, month.duplicates, 1)
+}
+
 // TestCareMonthContractsOfOneChildWithoutOverlapAreBilled bills one child's
 // contracts that share no module and day: the early care of one contract
 // and the afternoon of another, or the modules of two schools.

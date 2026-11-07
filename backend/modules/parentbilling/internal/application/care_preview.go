@@ -1,6 +1,7 @@
 package application
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -182,29 +183,48 @@ func findDuplicates(month calendar.Date, rule string, byContract map[int64][]par
 }
 
 // sameChildPairs lists every pair of contracts that name the same child, in
-// the order of the contracts. Only contracts of the same name can.
+// the order of the contracts. Contracts meet through the child record, or
+// through the name when one of them has no record; a record with another
+// name on a later contract is still the same child.
 func sameChildPairs(byContract map[int64][]parentbilling.CareContractVersion, order []int64) [][2]int64 {
-	byName := map[string][]int64{}
-	names := []string{}
-	for _, contractID := range order {
-		name := childName(byContract[contractID][0])
-		if _, seen := byName[name]; !seen {
-			names = append(names, name)
-		}
-		byName[name] = append(byName[name], contractID)
-	}
+	buckets, keys := childBuckets(byContract, order)
+	seen := map[[2]int64]bool{}
 	var pairs [][2]int64
-	for _, name := range names {
-		contracts := byName[name]
+	for _, key := range keys {
+		contracts := buckets[key]
 		for i := range contracts {
 			for _, other := range contracts[i+1:] {
-				if sameChild(byContract[contracts[i]][0], byContract[other][0]) {
-					pairs = append(pairs, [2]int64{contracts[i], other})
+				pair := [2]int64{contracts[i], other}
+				if seen[pair] || !sameChild(byContract[contracts[i]][0], byContract[other][0]) {
+					continue
 				}
+				seen[pair] = true
+				pairs = append(pairs, pair)
 			}
 		}
 	}
 	return pairs
+}
+
+// childBuckets puts every contract under its child's name and, when it
+// has one, under its child record, in the order of the contracts.
+func childBuckets(byContract map[int64][]parentbilling.CareContractVersion, order []int64) (map[string][]int64, []string) {
+	buckets := map[string][]int64{}
+	keys := []string{}
+	add := func(key string, contractID int64) {
+		if _, seen := buckets[key]; !seen {
+			keys = append(keys, key)
+		}
+		buckets[key] = append(buckets[key], contractID)
+	}
+	for _, contractID := range order {
+		version := byContract[contractID][0]
+		add("name:"+childName(version), contractID)
+		if version.StudentID != nil {
+			add(fmt.Sprintf("student:%d", *version.StudentID), contractID)
+		}
+	}
+	return buckets, keys
 }
 
 // billedSlots are the days the run bills each module of a contract on,

@@ -729,15 +729,33 @@ func TestCareMonthlyReleaseBillsTheValidChildrenAndKeepsTheDuplicateInSight(t *t
 		Scan(context.Background(), &invoices))
 	assert.Zero(t, invoices)
 
-	// The office removes the second contract; the next run bills Mia once.
+	// A duplicate that arises after the release is not this run's.
+	careContract(t, f.db, f.office.organization, school, "Noah", careMonth, sjrServices()[0])
+	assert.Len(t, f.run(t, run.ID).Duplicates, 1, "Noah's new duplicate does not reach back")
+
+	// The office removes the second contract: until a run bills her, Mia
+	// stays under the released run, marked as solved.
 	_, err := f.db.NewRaw(`DELETE FROM care_contract.contracts WHERE id = ?`, twice).Exec(context.Background())
 	require.NoError(t, err)
+	solved := decodeSchoolPortalData[struct {
+		Duplicates []struct {
+			Resolved  bool `json:"resolved"`
+			Contracts []struct {
+				ContractID int64 `json:"contract_id"`
+			} `json:"contracts"`
+		} `json:"duplicates"`
+	}](t, traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, ""), nil).Body.Bytes())
+	require.Len(t, solved.Duplicates, 1, "Mia does not drop out of sight before a run bills her")
+	assert.True(t, solved.Duplicates[0].Resolved)
+	assert.Equal(t, kept, solved.Duplicates[0].Contracts[0].ContractID)
+
+	// The next run bills Mia once; Noah's new duplicate stays out.
 	later := f.run(t, f.startRun(t, careMonth).ID)
 	require.Len(t, later.Invoices, 1)
 	assert.Equal(t, kept, later.Invoices[0].ContractID)
 	assert.Equal(t, int64(7750), later.Invoices[0].TotalCents)
 	assert.Equal(t, 1, later.Billed, "Noah is not billed again")
-	assert.Empty(t, later.Duplicates)
+	assert.Len(t, later.Duplicates, 1, "only Noah's new duplicate")
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(later.ID, "/release"), careRelease(later))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Empty(t, f.run(t, run.ID).Duplicates, "the first run no longer shows the solved duplicate")
