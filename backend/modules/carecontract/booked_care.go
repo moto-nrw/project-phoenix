@@ -24,7 +24,7 @@ type BookedVersion struct {
 }
 
 // BookedContract is a contract of a child at the reading school with every
-// version that is not rejected, the newest first.
+// version that is neither rejected nor replaced, the newest first.
 type BookedContract struct {
 	ContractID int64
 	StudentID  int64

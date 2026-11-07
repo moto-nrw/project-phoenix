@@ -53,14 +53,15 @@ type bookedVersionRow struct {
 }
 
 // bookedCareSQL reads every version of the children's contracts that
-// overlaps the window and is not rejected, the newest effective version of a
-// child first.
+// overlaps the window and is neither rejected nor replaced, the newest
+// effective version of a child first. A replaced version holds on no day
+// (#4681), so it never enters the Soll, whatever the order of the versions.
 const bookedCareSQL = `SELECT c.id AS contract_id, c.student_id, v.version_number, v.effective_from, v.ends_on,
 	` + servicesSQL + ` AS services
 	FROM care_contract.contracts AS c
 	JOIN care_contract.contract_versions AS v ON v.contract_id = c.id AND v.organization_id = c.organization_id
 	WHERE c.school_id = ? AND c.student_id = ANY(?) AND c.status <> ?
-		AND v.status <> ? AND v.effective_from <= ? AND (v.ends_on IS NULL OR v.ends_on >= ?)
+		AND v.status NOT IN (?, ?) AND v.effective_from <= ? AND (v.ends_on IS NULL OR v.ends_on >= ?)
 	ORDER BY c.student_id, v.effective_from DESC, v.version_number DESC, c.id DESC`
 
 // BookedCare lists the booked care of the children by child. A child with
@@ -77,7 +78,7 @@ func (BookedCare) BookedCare(ctx context.Context, studentIDs []int64, from, to c
 	}
 	var rows []bookedVersionRow
 	if err := db.NewRaw(bookedCareSQL, school, pgdialect.Array(studentIDs), carecontract.StatusDraft,
-		carecontract.VersionRejected, to, from).Scan(ctx, &rows); err != nil {
+		carecontract.VersionRejected, carecontract.VersionReplaced, to, from).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read booked care: %w", err)
 	}
 	for _, row := range rows {
