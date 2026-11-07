@@ -79,7 +79,10 @@ import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
 import { timetableService } from "~/lib/timetable-api";
 import type { TimetableTemplate } from "~/lib/timetable-types";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import {
+  isSupportedGradeLevel,
+  supportedGradeLevelMax,
+} from "~/lib/grade-level";
 import { useTenant } from "~/lib/tenant-context";
 import {
   useApiFormError,
@@ -408,9 +411,7 @@ export function CareOfferingsEditor({
   ) => void;
 } = {}) {
   const { tenant } = useTenant();
-  const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
-    ? tenant.gradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(tenant?.gradeLevelMax);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [selectedPhaseId, setSelectedPhaseId] = useState<string>("");
   const selectedPhaseIdRef = useRef("");
@@ -1417,15 +1418,11 @@ function toggleSetValue<T>(values: Iterable<T>, value: T): Set<T> {
   return next;
 }
 
-function isSupportedAutoAddGrade(value: number): boolean {
-  return isSupportedGradeLevelMax(value);
-}
-
 function careOfferingGradeOptions(
   gradeLevelMax: number | null,
   selectedGrades: readonly number[],
 ): number[] {
-  const options = new Set(selectedGrades.filter(isSupportedAutoAddGrade));
+  const options = new Set(selectedGrades.filter(isSupportedGradeLevel));
   if (gradeLevelMax !== null) {
     for (let grade = 1; grade <= gradeLevelMax; grade++) options.add(grade);
   }
@@ -1739,14 +1736,14 @@ function CareOfferingAutomationFields({
     });
   };
   const selectedGrades = (draft.auto_add_grade_levels ?? [])
-    .filter(isSupportedAutoAddGrade)
+    .filter(isSupportedGradeLevel)
     .sort((a, b) => a - b);
   const gradeOptions = careOfferingGradeOptions(gradeLevelMax, selectedGrades);
   const toggleAutoAddGrade = (grade: number) => {
     const next = toggleSetValue(selectedGrades, grade);
     onChange({
       auto_add_grade_levels: [...next]
-        .filter(isSupportedAutoAddGrade)
+        .filter(isSupportedGradeLevel)
         .sort((a, b) => a - b),
     });
   };

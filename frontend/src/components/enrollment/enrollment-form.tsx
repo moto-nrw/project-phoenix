@@ -99,13 +99,10 @@ import {
   careOfferingAvailabilityReason,
   careOfferingRuleExcludesNobody,
 } from "~/lib/care-offering-availability";
-import {
-  type CareOfferingBookingStats,
-  formatOfferingOccupancy,
-  offeringIsFull,
-} from "~/lib/care-offering-booking-stats";
+import { type CareOfferingBookingStats } from "~/lib/care-offering-booking-stats";
 import {
   BLOCKED_OFFERING_ROW_TONE,
+  OfferingOccupancyLine,
   OfferingRowShell,
 } from "~/components/enrollment/offering-row-shell";
 import {
@@ -1878,27 +1875,6 @@ function offeringRuleHint(rule: string, tr: TranslationFn): string {
   if (rule === "at_least_one") return tr("care.ruleAtLeastOne");
   if (rule === "at_most_one") return tr("care.ruleAtMostOne");
   return "";
-}
-
-/**
- * Occupancy line under an offering in ADMIN flows (#2186). Renders nothing
- * without stats, so the parent form and a failed stats load look exactly as
- * they did before.
- */
-function OfferingOccupancyLine({
-  stats,
-}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
-  const label = formatOfferingOccupancy(stats);
-  if (!label) return null;
-  return (
-    <div
-      className={`mt-1 text-xs ${
-        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
-      }`}
-    >
-      {label}
-    </div>
-  );
 }
 
 /**
