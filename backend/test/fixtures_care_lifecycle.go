@@ -113,10 +113,10 @@ func SetStudentLifecycle(
 }
 
 // CreateTestScheduledStudent creates a new child the way a scheduled approval
-// does: the membership is inserted pending with its later care start, so
-// School Membership knows it never had care (#6041). CreateTestStudent plus
-// SetStudentLifecycle stages a returning child instead: an existing child
-// whose interval is replaced.
+// does: the membership is inserted pending with its later care start, and
+// School Membership bounds its first care by that start (#6041, ADR 0163).
+// CreateTestStudent plus SetStudentLifecycle stages a returning child
+// instead: an existing child whose interval is replaced.
 func CreateTestScheduledStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string, start calendar.Date) *Student {
 	tb.Helper()
 	person := CreateTestPerson(tb, db, firstName, lastName)
@@ -124,15 +124,15 @@ func CreateTestScheduledStudent(tb testing.TB, db *bun.DB, firstName, lastName, 
 	require.NoError(tb, db.NewRaw(`WITH profile AS (
 		INSERT INTO users.student_profiles (tenant_id, person_id) VALUES (?, ?) RETURNING *
 	), membership AS (
-		INSERT INTO users.student_school_memberships (tenant_id, student_profile_id, school_class, status, enrolled_from)
-		SELECT tenant_id, id, ?, 'pending', ? FROM profile RETURNING *
+		INSERT INTO users.student_school_memberships (tenant_id, student_profile_id, school_class, status, enrolled_from, first_care_from)
+		SELECT tenant_id, id, ?, 'pending', ?::date, ?::date FROM profile RETURNING *
 	), care AS (
 		INSERT INTO users.student_care_profiles (tenant_id, membership_id)
 		SELECT tenant_id, id FROM membership RETURNING *
 	)
 	SELECT p.id, p.tenant_id, p.person_id, p.created_at, p.updated_at, m.school_class, m.status
 	FROM profile p JOIN membership m ON m.student_profile_id=p.id AND m.tenant_id=p.tenant_id`,
-		student.TenantID, student.PersonID, student.SchoolClass, start).Scan(Ctx(tb), student),
+		student.TenantID, student.PersonID, student.SchoolClass, start, start).Scan(Ctx(tb), student),
 		"failed to create scheduled test student")
 	return student
 }

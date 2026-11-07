@@ -173,10 +173,39 @@ func (s *CareLifecycle) inUnitHistoricalParticipatingStudentIDsByDate(ctx contex
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[calendar.Date]map[int64]bool)
 	today := s.today()
+	attended, err := s.presenceWhileAwaitingCare(ctx, students, from, to, today)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[calendar.Date]map[int64]bool)
 	for day := from; !day.After(to); day = day.AddDays(1) {
-		result[day] = domain.HistoricalParticipationOn(studentIDs, students, boundaries, day, today)
+		result[day] = domain.HistoricalParticipationOn(studentIDs, students, boundaries, day, today, attended[day])
 	}
 	return result, nil
+}
+
+// presenceWhileAwaitingCare reads the recorded presence of the children that
+// await their care on a day of the period (domain.AwaitsCareStartOn): real
+// care on such a day still counts (#6041 review 3). Without such a child
+// there is nothing to read.
+func (s *CareLifecycle) presenceWhileAwaitingCare(ctx context.Context, students map[int64]domain.CareStudent, from, to, today calendar.Date) (map[calendar.Date]map[int64]bool, error) {
+	var awaiting []int64
+	for id, student := range students {
+		for day := from; !day.After(to); day = day.AddDays(1) {
+			if student.AwaitsCareStartOn(day, today) {
+				awaiting = append(awaiting, id)
+				break
+			}
+		}
+	}
+	if len(awaiting) == 0 {
+		return nil, nil
+	}
+	slices.Sort(awaiting)
+	attended, err := s.owners.Presence.PresenceDaysBetween(ctx, awaiting, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("care lifecycle: list presence days: %w", err)
+	}
+	return attended, nil
 }

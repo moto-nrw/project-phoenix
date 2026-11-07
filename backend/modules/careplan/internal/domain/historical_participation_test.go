@@ -19,15 +19,15 @@ func TestHistoricalParticipationUsesDatedAlumniBoundaries(t *testing.T) {
 	}
 	ids := []int64{1, 2, 3, 4}
 	boundaries := ParticipationBoundaries(students, map[int64]calendar.Date{3: "2026-08-25"})
-	before := HistoricalParticipationOn(ids, students, boundaries, lastDay.AddDays(-1), lastDay)
+	before := HistoricalParticipationOn(ids, students, boundaries, lastDay.AddDays(-1), lastDay, nil)
 	assert.True(t, before[1])
 	assert.False(t, before[2], "an undated alumnus has no reconstructable departure")
 	assert.True(t, before[3])
 	assert.True(t, before[4])
-	on := HistoricalParticipationOn(ids, students, boundaries, lastDay, lastDay)
+	on := HistoricalParticipationOn(ids, students, boundaries, lastDay, lastDay, nil)
 	assert.True(t, on[1], "the last care day is inclusive")
 	assert.False(t, on[3], "an earlier pending withdrawal boundary still wins")
-	after := HistoricalParticipationOn(ids, students, boundaries, lastDay.AddDays(1), lastDay)
+	after := HistoricalParticipationOn(ids, students, boundaries, lastDay.AddDays(1), lastDay, nil)
 	assert.False(t, after[1])
 	assert.False(t, after[3])
 	assert.True(t, after[4])

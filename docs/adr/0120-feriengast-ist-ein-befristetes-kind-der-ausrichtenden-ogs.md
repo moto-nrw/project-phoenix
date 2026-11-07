@@ -333,25 +333,26 @@ der Anmeldung stempelt auch eine Wiederanmeldung, die Wiederaufnahme
 berührt ihn nicht; `created_at` deckt die Tage zwischen Anlage und heute
 nicht ab; fehlende Anwesenheitsdaten beweisen keine fehlende Betreuung.
 
-Darum merkt sich School Membership die Tatsache selbst:
-`users.student_school_memberships.awaits_first_care` (Migration 1.15.812).
-Ein Trigger der Tabelle setzt sie beim Einfügen einer `pending`-Mitgliedschaft
-mit Beginn, wenn das Kind an der Schule keine andere (auch gelöschte)
-Mitgliedschaft hat, also bei einer neuen Genehmigung mit späterem Start. Jeder
-spätere Schreibvorgang kann sie nur behalten oder löschen: Sie bleibt, solange
-die Zeile `pending` mit Beginn bleibt und der Beginn früher rückt oder noch
-in der Zukunft liegt; Aktivierung, jeder andere Status, eine Wiederaufnahme
-oder ein bereits erreichter und dann verschobener Beginn löschen sie für
-immer. Keine Anwendung schreibt die Spalte. Der Nachlauf der Migration setzt
-sie nur für Zeilen, die seit dem Einfügen nachweislich unverändert sind
-(`pending` mit Beginn, `updated_at = created_at`, keine weitere
-Mitgliedschaft); alle anderen bleiben unbekannt.
+Darum merkt sich School Membership den frühesten Tag, an dem ein neues Kind
+betreut worden sein kann: `users.student_school_memberships.first_care_from`
+(Migration 1.15.812,
+[ADR 0163](0163-mitgliedschaft-merkt-sich-den-fruehesten-betreuungstag.md)).
+Eine neue Genehmigung mit späterem Start (`pending` mit Beginn, keine andere
+auch gelöschte Mitgliedschaft) setzt ihn auf den Beginn. Die Schreibvorgänge
+von School Membership führen ihn am Tag der Anwendung nach: Ein erreichter
+Tag rückt nur noch früher, die Aktivierung am Starttag und eine
+Wiederaufnahme behalten ihn, eine Aktivierung vor dem Beginn setzt ihn auf
+diesen Tag, unbekannt bleibt unbekannt. Der Nachlauf der Migration setzt ihn
+nur für Zeilen, die seit dem Einfügen nachweislich unverändert sind.
 
-Care Plan liest sie über die Schülerprojektion (`CareStudent.AwaitsFirstCare`)
-in denselben Statements. `AwaitsCareStartOn` hält ein vorgemerktes Kind vor
-seinem Beginn zurück, ab heute immer und an vergangenen Tagen nur, wenn
-`awaits_first_care` gilt. Ein zurückkehrendes oder unbekanntes Kind behält
-seine vergangenen Tage. Offen bleibt die Lücke zwischen früherem Ende und
-Wiederaufnahme sowie die Zeit nach der Aktivierung, in der ein Kind wieder
-vor seinem Beginn teilnimmt
+Care Plan liest ihn über die Schülerprojektion (`CareStudent.FirstCareFrom`)
+in denselben Statements. `AwaitsCareStartOn` hält ein Kind an jedem Tag vor
+`first_care_from` zurück, in jedem Status, also auch nach der Aktivierung;
+ohne diesen Tag ein vorgemerktes Kind vor seinem Beginn nur ab heute. Ein
+zurückkehrendes oder unbekanntes Kind behält seine vergangenen Tage. Echte
+Betreuung verschwindet nie: Die Fehlzeitenliste zählt ein zurückgehaltenes
+Kind an einem Tag mit, an dem Student Presence eine Anwesenheit oder einen
+Raumbesuch gespeichert hat, wie die laufenden Listen ein tatsächlich
+anwesendes Kind behalten. Offen bleibt die Lücke zwischen früherem Ende und
+Wiederaufnahme eines zurückkehrenden Kindes
 ([#6073](https://github.com/moto-nrw/project-phoenix/issues/6073)).

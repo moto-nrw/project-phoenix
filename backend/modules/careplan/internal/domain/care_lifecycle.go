@@ -19,10 +19,11 @@ type CareStudent struct {
 	Status        string
 	EnrolledFrom  *calendar.Date
 	EnrolledUntil *calendar.Date
-	// AwaitsFirstCare is School Membership's record that the membership was
-	// created pending with its start and never had care since (#6041).
-	AwaitsFirstCare bool
-	UpdatedAt       time.Time
+	// FirstCareFrom is School Membership's first-care bound (#6041, ADR
+	// 0163): the earliest day the child can have been cared for at this
+	// school, nil when unknown. It survives the activation.
+	FirstCareFrom *calendar.Date
+	UpdatedAt     time.Time
 }
 
 // CareEndedOn reports whether the care has already ended on day. The
@@ -32,21 +33,26 @@ func (s CareStudent) CareEndedOn(day calendar.Date) bool {
 	return s.EnrolledUntil != nil && day.After(*s.EnrolledUntil)
 }
 
-// AwaitsCareStartOn reports whether a pending child still waits for its
-// scheduled care start on day (#6041): the start lies after day, and day is
-// today or later, or the child never had care (AwaitsFirstCare). Only the
-// pending status waits: an immediately activated child already takes part
-// before its regular start, and a pending child without a start day is not
-// placed.
+// AwaitsCareStartOn reports whether the child is not yet in care on day
+// (#6041), unless something shows it was there:
 //
-// A past day is held back only for a known new child. A resumption or a
-// renewal stores a returning child exactly like a new one (pending, the new
-// start, the earlier start replaced); without School Membership's fact,
-// holding back its past days would erase real care from reports.
+//   - day lies before the first-care bound, whatever the status: a new
+//     child approved for a later start, also after its activation;
+//   - or the child is pending, its start lies after day, and day is today
+//     or later.
+//
+// Without a bound only today and later days wait. A resumption or a renewal
+// stores a returning child exactly like a new one (pending, the new start,
+// the earlier start replaced), so holding back its past days would erase
+// real care from reports. An immediately activated child already takes part
+// before its regular start, and a pending child without a start is not
+// placed.
 func (s CareStudent) AwaitsCareStartOn(day, today calendar.Date) bool {
+	if s.FirstCareFrom != nil && *s.FirstCareFrom != "" && day.Before(*s.FirstCareFrom) {
+		return true
+	}
 	return s.Status == careplan.StudentStatusPending && s.EnrolledFrom != nil &&
-		*s.EnrolledFrom != "" && day.Before(*s.EnrolledFrom) &&
-		(s.AwaitsFirstCare || !day.Before(today))
+		*s.EnrolledFrom != "" && day.Before(*s.EnrolledFrom) && !day.Before(today)
 }
 
 // IsAlumnus reports whether the child left with a grade transition.

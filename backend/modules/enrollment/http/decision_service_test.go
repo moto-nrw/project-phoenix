@@ -2165,8 +2165,8 @@ func TestDecisionService_Decide_ApprovedScheduledKeepsStudentPending(t *testing.
 		calendar.Date(env.sourcePhase.ServiceStartDate).Format("2006-01-02"),
 		student.EnrolledFrom.Format("2006-01-02"),
 		"enrolled_from must be pinned to the phase service-start date")
-	assert.True(t, membershipAwaitsFirstCare(t, *outcome.Child.CreatedStudentID),
-		"a scheduled new child is known to School Membership as never cared for (#6041)")
+	assert.Equal(t, calendar.Date(env.sourcePhase.ServiceStartDate), membershipFirstCareFrom(t, *outcome.Child.CreatedStudentID),
+		"School Membership bounds a scheduled new child's first care by its start (#6041)")
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
@@ -2209,7 +2209,7 @@ func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) 
 		calendar.Date(env.sourcePhase.ServiceStartDate).Format("2006-01-02"),
 		student.EnrolledFrom.Format("2006-01-02"),
 		"enrolled_from must stay the phase service-start date even in immediate mode")
-	assert.False(t, membershipAwaitsFirstCare(t, *outcome.Child.CreatedStudentID),
+	assert.Empty(t, membershipFirstCareFrom(t, *outcome.Child.CreatedStudentID),
 		"an immediately activated child may take part before its start (#6041)")
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
@@ -4653,12 +4653,15 @@ func (defaultDecisionSettings) ResolveString(_ context.Context, key string) (str
 	}
 }
 
-// membershipAwaitsFirstCare reads School Membership's fact that the child's
-// membership never had care (#6041), which only its table trigger writes.
-func membershipAwaitsFirstCare(t *testing.T, studentID int64) bool {
+// membershipFirstCareFrom reads School Membership's first-care bound of the
+// child's membership (#6041, ADR 0163); empty when unknown.
+func membershipFirstCareFrom(t *testing.T, studentID int64) calendar.Date {
 	t.Helper()
-	var awaits bool
-	require.NoError(t, testpkg.SetupTestDB(t).NewRaw(`SELECT awaits_first_care FROM users.student_school_memberships
-		WHERE tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL`, testpkg.Tenant(t), studentID).Scan(testpkg.Ctx(t), &awaits))
-	return awaits
+	var bound *calendar.Date
+	require.NoError(t, testpkg.SetupTestDB(t).NewRaw(`SELECT first_care_from FROM users.student_school_memberships
+		WHERE tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL`, testpkg.Tenant(t), studentID).Scan(testpkg.Ctx(t), &bound))
+	if bound == nil {
+		return ""
+	}
+	return *bound
 }

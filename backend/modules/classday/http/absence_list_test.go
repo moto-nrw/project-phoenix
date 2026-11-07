@@ -314,6 +314,79 @@ func TestAbsenceListLeavesOutAKnownNewChildBeforeItsStart(t *testing.T) {
 	assert.NotContains(t, export(), "Februar, Neu", "the export leaves the child out too")
 }
 
+// A new child approved for a later start comes to the OGS on one day before
+// it (#6041 review 3): the completed attendance and the morning mark of that
+// day are care that really happened. Read later, the period keeps the child's
+// row for that day; a day without such a record still does not count.
+func TestAbsenceListKeepsRecordedCareOfAKnownNewChildBeforeItsStart(t *testing.T) {
+	t.Parallel()
+	f := setupMorningAttendanceFixture(t, morningMonday)
+	child := testpkg.CreateTestScheduledStudent(t, f.db, "Frueh", "Gekommen", f.class, "2099-04-19")
+	attended := calendar.Date("2099-02-27")
+	checkIn := attended.BerlinMidnight().Add(12 * time.Hour)
+	checkOut := checkIn.Add(4 * time.Hour)
+	device := testpkg.CreateTestDevice(t, f.db, fmt.Sprintf("absence-early-%d", child.ID))
+	staff := testpkg.CreateTestStaff(t, f.db, "Ganztag", fmt.Sprintf("Frueh-%d", child.ID))
+	testpkg.CreateTestAttendanceForDate(t, f.db, child.ID, staff.ID, device.ID, attended, checkIn, &checkOut)
+	insertMorningMark(t, f.db, f.tenantID, child.ID, attended.String(), "present")
+	insertMorningMark(t, f.db, f.tenantID, child.ID, "2099-02-25", "absent")
+
+	rec := f.do(t, http.MethodGet, "/absence-list?class="+f.class+"&from=2099-02-23&to="+morningMonday, "", classDayReadPermission)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var envelope struct {
+		Data absenceListBody `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
+	counts := map[int64]absenceListCounts{}
+	for _, row := range envelope.Data.Children {
+		counts[row.StudentID] = row.absenceListCounts
+	}
+	require.Contains(t, counts, child.ID, "the day the child was cared for keeps its row")
+	assert.Equal(t, absenceListCounts{}, counts[child.ID],
+		"only the attended day counts: present there, the absent mark of a day without care stays out")
+}
+
+// A new child approved for 3 February is activated by the hourly run on that
+// day (#6041 review 3). Read on 4 February, the January list and the list of
+// the running half-year stay what they were before the activation: the
+// activation is no evidence of care before the start.
+func TestAbsenceListKeepsAKnownNewChildOutBeforeItsStartAfterActivation(t *testing.T) {
+	t.Parallel()
+	const today, start = "2099-02-04", "2099-02-03"
+	f := setupMorningAttendanceFixture(t, today)
+	child := testpkg.CreateTestScheduledStudent(t, f.db, "Neu", "Februar", f.class, start)
+	read := func(query string) absenceListBody {
+		t.Helper()
+		rec := f.do(t, http.MethodGet, "/absence-list?class="+f.class+query, "", classDayReadPermission)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var envelope struct {
+			Data absenceListBody `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
+		return envelope.Data
+	}
+	const january = "&from=2099-01-01&to=2099-01-31"
+	januaryBefore, halfYearBefore := read(january), read("")
+	for _, row := range januaryBefore.Children {
+		require.NotEqual(t, child.ID, row.StudentID, "the child was not cared for in January")
+	}
+
+	startDay, err := calendar.ParseDate(start)
+	require.NoError(t, err)
+	activationRun := startDay.BerlinMidnight().Add(time.Hour)
+	membership, err := rootAPI.NewSchoolMembershipTestModule(testpkg.NewDatabase(t, f.db), func() time.Time { return activationRun })
+	require.NoError(t, err)
+	moved, err := membership.TransitionStatus(testpkg.Ctx(t), child.ID, "pending", "active")
+	require.NoError(t, err)
+	require.True(t, moved)
+
+	januaryAfter, halfYearAfter := read(january), read("")
+	assert.Equal(t, januaryBefore.Children, januaryAfter.Children, "the activation must not pull the child into January")
+	assert.Equal(t, januaryBefore.Totals, januaryAfter.Totals)
+	assert.Equal(t, halfYearBefore.Children, halfYearAfter.Children, "the half-year gains no days before the start")
+	assert.Equal(t, halfYearBefore.Totals, halfYearAfter.Totals)
+}
+
 func TestAbsenceListPreservesDatedAlumni(t *testing.T) {
 	t.Parallel()
 	f := setupMorningAttendanceFixture(t, morningMonday)

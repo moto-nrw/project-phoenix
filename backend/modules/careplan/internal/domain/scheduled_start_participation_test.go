@@ -92,10 +92,10 @@ func TestHistoricalParticipationWaitsForScheduledStart(t *testing.T) {
 	ids := []int64{scheduled}
 	boundaries := ParticipationBoundaries(students, nil)
 	const today calendar.Date = "2026-11-07"
-	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, today, today)[scheduled],
+	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, today, today, nil)[scheduled],
 		"a dated end does not pull a child into care before its start")
-	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, start, today)[scheduled])
-	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, until.AddDays(1), today)[scheduled],
+	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, start, today, nil)[scheduled])
+	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, until.AddDays(1), today, nil)[scheduled],
 		"the end boundary still applies")
 }
 
@@ -114,11 +114,11 @@ func TestParticipationKeepsThePastOfAScheduledReturn(t *testing.T) {
 	boundaries := ParticipationBoundaries(students, nil)
 	const today calendar.Date = "2026-11-07"
 	const cared calendar.Date = "2026-11-05"
-	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, cared, today)[returning],
+	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, cared, today, nil)[returning],
 		"a report keeps the care before the scheduled return")
 	assert.True(t, ParticipatingOn(ids, students, boundaries, cared, today, nil)[returning],
 		"a past day of a running reader keeps the child too")
-	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, today, today)[returning],
+	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, today, today, nil)[returning],
 		"from today on the child waits for its new start")
 	assert.False(t, ParticipatingOn(ids, students, boundaries, today, today, nil)[returning])
 	assert.False(t, ParticipatingOn(ids, students, boundaries, restart.AddDays(-1), today, nil)[returning])
@@ -126,7 +126,7 @@ func TestParticipationKeepsThePastOfAScheduledReturn(t *testing.T) {
 }
 
 // A new child approved in December for care from 3 February (#6041 review 2):
-// School Membership knows it never had care (AwaitsFirstCare), so a past day
+// School Membership bounds its first care by the start (FirstCareFrom), so a past day
 // of the running half-year does not pull it in either. A read on 8 December
 // of 7 December must agree with the read on 7 December.
 func TestParticipationHoldsBackTheWholePastOfAKnownNewChild(t *testing.T) {
@@ -138,24 +138,86 @@ func TestParticipationHoldsBackTheWholePastOfAKnownNewChild(t *testing.T) {
 		returning
 	)
 	students := map[int64]CareStudent{
-		newChild:  {Status: careplan.StudentStatusPending, EnrolledFrom: &start, EnrolledUntil: &until, AwaitsFirstCare: true},
+		newChild:  {Status: careplan.StudentStatusPending, EnrolledFrom: &start, EnrolledUntil: &until, FirstCareFrom: &start},
 		returning: {Status: careplan.StudentStatusPending, EnrolledFrom: &start},
 	}
 	ids := []int64{newChild, returning}
 	boundaries := ParticipationBoundaries(students, nil)
 	const yesterday, today calendar.Date = "2026-12-07", "2026-12-08"
 	for _, day := range []calendar.Date{"2026-08-24", yesterday} {
-		assert.False(t, HistoricalParticipationOn(ids, students, boundaries, day, today)[newChild],
+		assert.False(t, HistoricalParticipationOn(ids, students, boundaries, day, today, nil)[newChild],
 			"%s: a known new child was never cared for before its start", day)
 		assert.False(t, ParticipatingOn(ids, students, boundaries, day, today, nil)[newChild], day)
-		assert.True(t, HistoricalParticipationOn(ids, students, boundaries, day, today)[returning],
+		assert.True(t, HistoricalParticipationOn(ids, students, boundaries, day, today, nil)[returning],
 			"%s: a returning child keeps its past", day)
 	}
 	assert.Equal(t,
-		HistoricalParticipationOn(ids, students, boundaries, yesterday, yesterday)[newChild],
-		HistoricalParticipationOn(ids, students, boundaries, yesterday, today)[newChild],
+		HistoricalParticipationOn(ids, students, boundaries, yesterday, yesterday, nil)[newChild],
+		HistoricalParticipationOn(ids, students, boundaries, yesterday, today, nil)[newChild],
 		"the answer for a day does not change with the day it is read")
 	assert.True(t, ParticipatingOn(ids, students, boundaries, yesterday, today, map[int64]bool{newChild: true})[newChild],
 		"actual presence still wins")
-	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, start, today)[newChild], "the start day counts")
+	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, start, today, nil)[newChild], "the start day counts")
+}
+
+// The hourly run activates a new child on its start day, 3 February (#6041
+// review 3). The first-care bound survives the activation: read on
+// 4 February, January and the days before the start stay out, for the
+// running lists and the reports alike, while an immediately activated child
+// without a bound keeps taking part before its regular start.
+func TestParticipationKeepsTheFirstCareBoundAfterActivation(t *testing.T) {
+	t.Parallel()
+	start := calendar.Date("2099-02-03")
+	const (
+		activated int64 = iota + 1
+		immediate
+	)
+	students := map[int64]CareStudent{
+		activated: {Status: careplan.StudentStatusActive, EnrolledFrom: &start, FirstCareFrom: &start},
+		immediate: {Status: careplan.StudentStatusActive, EnrolledFrom: &start},
+	}
+	ids := []int64{activated, immediate}
+	boundaries := ParticipationBoundaries(students, nil)
+	const today calendar.Date = "2099-02-04"
+	for _, day := range []calendar.Date{"2099-01-15", "2099-02-02"} {
+		assert.False(t, HistoricalParticipationOn(ids, students, boundaries, day, today, nil)[activated],
+			"%s: the activation is no evidence of care before the start", day)
+		assert.False(t, ParticipatingOn(ids, students, boundaries, day, today, nil)[activated], day)
+		assert.True(t, HistoricalParticipationOn(ids, students, boundaries, day, today, nil)[immediate],
+			"%s: an immediately activated child keeps taking part before its start", day)
+	}
+	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, start, today, nil)[activated], "the start day counts")
+	assert.True(t, ParticipatingOn(ids, students, boundaries, today, today, nil)[activated])
+}
+
+// A new child waiting for its start comes to the OGS on 27 February (#6041
+// review 3). The recorded presence of that day is care: a report read later
+// keeps it, while a day without presence and a day after an ended care stay
+// out.
+func TestHistoricalParticipationHonorsRecordedPresenceBeforeTheStart(t *testing.T) {
+	t.Parallel()
+	start := calendar.Date("2099-04-19")
+	ended := calendar.Date("2099-02-20")
+	const (
+		newChild int64 = iota + 1
+		endedNew
+		alumnus
+	)
+	students := map[int64]CareStudent{
+		newChild: {Status: careplan.StudentStatusPending, EnrolledFrom: &start, FirstCareFrom: &start},
+		endedNew: {Status: careplan.StudentStatusInactive, EnrolledFrom: &start, EnrolledUntil: &ended, FirstCareFrom: &start},
+		alumnus:  {Status: careplan.StudentStatusAlumnus, FirstCareFrom: &start},
+	}
+	ids := []int64{newChild, endedNew, alumnus}
+	boundaries := ParticipationBoundaries(students, nil)
+	const today calendar.Date = "2099-03-02"
+	present := map[int64]bool{newChild: true, endedNew: true, alumnus: true}
+	attended := HistoricalParticipationOn(ids, students, boundaries, "2099-02-27", today, present)
+	assert.True(t, attended[newChild], "recorded presence before the start is care")
+	assert.False(t, attended[endedNew], "presence does not reach past the end of care")
+	assert.False(t, attended[alumnus], "an undated alumnus stays out")
+	assert.False(t, HistoricalParticipationOn(ids, students, boundaries, "2099-02-26", today, nil)[newChild],
+		"a day without presence stays out")
+	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, today, today, map[int64]bool{newChild: true})[newChild],
+		"presence today counts as well")
 }

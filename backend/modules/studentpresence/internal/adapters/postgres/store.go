@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -158,6 +160,29 @@ func (s *Store) LatestPresenceDate(ctx context.Context, studentID int64) (*strin
 		return nil, stats, fmt.Errorf("find latest attendance before care exit: %w", err)
 	}
 	return day, stats, nil
+}
+
+func (s *Store) PresenceDaysBetween(ctx context.Context, ids []int64, from, to calendar.Date) ([]studentpresence.PresenceDay, ports.Stats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, ports.Stats{}, err
+	}
+	result := []studentpresence.PresenceDay{}
+	started := time.Now()
+	err = db.NewRaw(`
+		SELECT student_id, date FROM active.attendance
+		WHERE tenant_id = ? AND student_id IN (?) AND date BETWEEN ?::date AND ?::date
+		UNION
+		SELECT student_id, (entry_time AT TIME ZONE 'Europe/Berlin')::date AS date FROM active.visits
+		WHERE tenant_id = ? AND student_id IN (?)
+			AND entry_time >= ? AND entry_time <= ?
+		ORDER BY student_id, date
+	`, tenantID, bun.List(ids), from, to, tenantID, bun.List(ids), from.BerlinMidnight(), to.EndOfDay()).Scan(ctx, &result)
+	stats := ports.Stats{Queries: 1, Rows: int64(len(result)), StatementDuration: time.Since(started)}
+	if err != nil {
+		return nil, stats, fmt.Errorf("list presence days: %w", err)
+	}
+	return result, stats, nil
 }
 
 func (s *Store) CountAttendanceRecords(ctx context.Context, studentID int64) (int, ports.Stats, error) {

@@ -7,19 +7,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// TestStudentMembershipAwaitsFirstCareBackfillsOnlyProvableRows runs the
+// TestStudentMembershipFirstCareFromBackfillsOnlyProvableRows runs the
 // migration of #6041 over memberships from before it: only a pending row with
-// a start that never changed since its insert is marked as a child without
-// care; an edited, active or second membership stays unknown. The trigger
-// then keeps a later write from marking a known child.
-func TestStudentMembershipAwaitsFirstCareBackfillsOnlyProvableRows(t *testing.T) {
+// a start that never changed since its insert gets that start as its
+// first-care bound; an edited, active, undated or second membership stays
+// unknown, and updated_at stays as it was.
+func TestStudentMembershipFirstCareFromBackfillsOnlyProvableRows(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
-	require.NoError(t, studentMembershipAwaitsFirstCareDown(ctx, db))
+	require.NoError(t, studentMembershipFirstCareFromDown(ctx, db))
 
 	tenantID := testpkg.Tenant(t)
 	insert := func(name, status string, from any) int64 {
@@ -44,31 +45,25 @@ func TestStudentMembershipAwaitsFirstCareBackfillsOnlyProvableRows(t *testing.T)
 		VALUES (?, ?, '1a', 'inactive', NOW() - INTERVAL '1 year')`, tenantID, second)
 	require.NoError(t, err)
 
-	require.NoError(t, studentMembershipAwaitsFirstCareUp(ctx, db))
-	awaits := func(profileID int64) bool {
+	require.NoError(t, studentMembershipFirstCareFromUp(ctx, db))
+	bound := func(profileID int64) *calendar.Date {
 		t.Helper()
-		var value bool
-		require.NoError(t, db.NewRaw(`SELECT awaits_first_care FROM users.student_school_memberships
+		var value *calendar.Date
+		require.NoError(t, db.NewRaw(`SELECT first_care_from FROM users.student_school_memberships
 			WHERE student_profile_id = ? AND deleted_at IS NULL`, profileID).Scan(ctx, &value))
 		return value
 	}
-	assert.True(t, awaits(untouched), "a pending row unchanged since its insert never had care")
-	assert.False(t, awaits(edited), "an edited row may have been a known child")
-	assert.False(t, awaits(active))
-	assert.False(t, awaits(undated))
-	assert.False(t, awaits(second), "an earlier membership may have had care")
+	require.NotNil(t, bound(untouched), "a pending row unchanged since its insert is a new child")
+	assert.Equal(t, calendar.Date("2035-02-03"), *bound(untouched))
+	assert.Nil(t, bound(edited), "an edited row may have been a known child")
+	assert.Nil(t, bound(active))
+	assert.Nil(t, bound(undated))
+	assert.Nil(t, bound(second), "an earlier membership may have had care")
 	var bumped int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.student_school_memberships
 		WHERE student_profile_id = ? AND updated_at <> created_at`, untouched).Scan(ctx, &bumped))
 	assert.Zero(t, bumped, "the backfill keeps updated_at")
 
-	_, err = db.ExecContext(ctx, `UPDATE users.student_school_memberships SET awaits_first_care = true WHERE student_profile_id = ?`, active)
-	require.NoError(t, err)
-	assert.False(t, awaits(active), "only the trigger decides the fact")
-	_, err = db.ExecContext(ctx, `UPDATE users.student_school_memberships SET status = 'active' WHERE student_profile_id = ?`, untouched)
-	require.NoError(t, err)
-	assert.False(t, awaits(untouched), "activation ends the wait for good")
-
-	require.NoError(t, studentMembershipAwaitsFirstCareDown(ctx, db))
-	require.NoError(t, studentMembershipAwaitsFirstCareUp(ctx, db), "the migration runs again after its down path")
+	require.NoError(t, studentMembershipFirstCareFromDown(ctx, db))
+	require.NoError(t, studentMembershipFirstCareFromUp(ctx, db), "the migration runs again after its down path")
 }

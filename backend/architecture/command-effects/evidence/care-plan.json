@@ -7617,6 +7617,14 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careExitPresence.PresenceDaysBetween",
+      "binding_digest": "6cb3f89a848615c36df72cab9d494b3d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareExitPresence.PresenceDaysBetween",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PresenceDaysBetween",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/workflows/careexit.Roster.CloseOpenStudentAssignments",
       "binding_digest": "91c8401819f0540b37b0a8fd0a23dab3",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareExitRoster.CloseOpenStudentAssignments",
@@ -7810,7 +7818,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareStudents.FindCareStudents",
-      "binding_digest": "9b389c02b80437b43ece581be1d214c6",
+      "binding_digest": "4e01672bdac1c374c4f0479acb006a9a",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareStudentDirectory.FindCareStudents",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDs",
@@ -7818,7 +7826,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareStudents.FindCareStudents",
-      "binding_digest": "e80e7dcb04bc3ae89862221c26515c2c",
+      "binding_digest": "c49daebd056d6cce1349bedc48823c80",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareStudentDirectory.FindCareStudents",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",

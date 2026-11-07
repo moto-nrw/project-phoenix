@@ -4475,6 +4475,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (p careExitPresence) PresenceDaysBetween(ctx context.Context, studentIDs []int64, from, to owner0.Date) (map[owner0.Date]map[int64]bool, error) {\n\tdays, err := p.presence.PresenceDaysBetween(ctx, studentIDs, from, to)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[owner0.Date]map[int64]bool)\n\tfor _, day := range days {\n\t\tif result[day.Date] == nil {\n\t\t\tresult[day.Date] = make(map[int64]bool)\n\t\t}\n\t\tresult[day.Date][day.StudentID] = true\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/careExitPresence.PresenceDaysBetween",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (r carePlanRecords) CreateArrivalException(ctx context.Context, value timetablePorts.CareArrivalException) (timetablePorts.CareArrivalException, error) {\n\tcreated, err := r.capability.CreateArrivalException(ctx, CareArrivalExceptionFromRows(value))\n\treturn CareArrivalExceptionToRows(created), carePlanScheduleError(err)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/carePlanRecords.CreateArrivalException",
