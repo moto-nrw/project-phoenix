@@ -19,6 +19,7 @@ import type { CategoryOption, RoomOption } from "./use-event-form";
 import type { ActivityType, TimetableListKind } from "~/lib/timetable-types";
 import { PlanningTrackSelect } from "../planning-track-select";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 const TYPE_OPTIONS: Array<{
   value: ActivityType;
@@ -146,15 +147,13 @@ export function StepTermin({
                 const isActive = form.type === option.value;
                 const color = getActivityColor(option.value);
                 return (
-                  <button
+                  <ChoiceTile
                     key={option.value}
-                    type="button"
+                    as="button"
+                    selected={isActive}
+                    aria-pressed={isActive}
                     onClick={() => update("type", option.value)}
-                    className={`flex flex-col items-start gap-0.5 rounded-lg border border-l-[3px] px-3 py-2 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                      isActive
-                        ? "border-gray-300 bg-white"
-                        : "border-gray-200 bg-white hover:bg-gray-50"
-                    }`}
+                    className="flex-col items-start gap-0.5 border-l-[3px] py-2 font-normal shadow-sm"
                     style={{ borderLeftColor: color }}
                   >
                     <span
@@ -170,7 +169,7 @@ export function StepTermin({
                     <span className="text-[10px] text-gray-500">
                       {option.hint}
                     </span>
-                  </button>
+                  </ChoiceTile>
                 );
               })}
             </div>

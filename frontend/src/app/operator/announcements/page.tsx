@@ -9,7 +9,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 // eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
 import { useSWRAuth } from "~/lib/swr";
-import { Pencil, Trash2, Send, Check } from "lucide-react";
+import { Pencil, Trash2, Send } from "lucide-react";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -58,6 +58,8 @@ import {
   StatusBadge,
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { CheckboxIndicator } from "~/components/ui/checkbox";
 
 const logger = createLogger({ component: "OperatorAnnouncementsPage" });
 
@@ -699,9 +701,12 @@ export default function OperatorAnnouncementsPage() {
                   {(["admin", "user", "guardian"] as const).map((role) => {
                     const isChecked = formData.targetRoles.includes(role);
                     return (
-                      <button
+                      <ChoiceTile
                         key={role}
-                        type="button"
+                        as="button"
+                        tone="green"
+                        selected={isChecked}
+                        aria-pressed={isChecked}
                         onClick={() => {
                           if (isChecked) {
                             setFormData((prev) => ({
@@ -717,28 +722,11 @@ export default function OperatorAnnouncementsPage() {
                             }));
                           }
                         }}
-                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
-                          isChecked
-                            ? "border-moto-green bg-moto-green/10 text-gray-900"
-                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                        }`}
+                        className="gap-2 py-2 font-normal"
                       >
-                        <span
-                          className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
-                            isChecked
-                              ? "border-moto-green-fill bg-moto-green-fill"
-                              : "border-gray-300 bg-white"
-                          }`}
-                        >
-                          {isChecked && (
-                            <Check
-                              className="h-3 w-3 text-white"
-                              strokeWidth={3}
-                            />
-                          )}
-                        </span>
+                        <CheckboxIndicator checked={isChecked} />
                         {SYSTEM_ROLE_LABELS[role]}
-                      </button>
+                      </ChoiceTile>
                     );
                   })}
                 </div>
@@ -847,9 +835,12 @@ export default function OperatorAnnouncementsPage() {
                     const orgId = org.id;
                     const isChecked = formData.targetOrgIds.includes(orgId);
                     return (
-                      <button
+                      <ChoiceTile
                         key={org.id}
-                        type="button"
+                        as="button"
+                        tone="green"
+                        selected={isChecked}
+                        aria-pressed={isChecked}
                         onClick={() => {
                           if (isChecked) {
                             setFormData((prev) => ({
@@ -889,28 +880,11 @@ export default function OperatorAnnouncementsPage() {
                             });
                           }
                         }}
-                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
-                          isChecked
-                            ? "border-moto-green bg-moto-green/10 text-gray-900"
-                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                        }`}
+                        className="gap-2 py-2 font-normal"
                       >
-                        <span
-                          className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
-                            isChecked
-                              ? "border-moto-green-fill bg-moto-green-fill"
-                              : "border-gray-300 bg-white"
-                          }`}
-                        >
-                          {isChecked && (
-                            <Check
-                              className="h-3 w-3 text-white"
-                              strokeWidth={3}
-                            />
-                          )}
-                        </span>
+                        <CheckboxIndicator checked={isChecked} />
                         {org.name}
-                      </button>
+                      </ChoiceTile>
                     );
                   })}
                 </div>
@@ -940,9 +914,12 @@ export default function OperatorAnnouncementsPage() {
                     const isChecked =
                       formData.targetTenantIds.includes(schoolId);
                     return (
-                      <button
+                      <ChoiceTile
                         key={school.id}
-                        type="button"
+                        as="button"
+                        tone="green"
+                        selected={isChecked}
+                        aria-pressed={isChecked}
                         onClick={() => {
                           if (isChecked) {
                             setFormData((prev) => ({
@@ -961,28 +938,11 @@ export default function OperatorAnnouncementsPage() {
                             }));
                           }
                         }}
-                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
-                          isChecked
-                            ? "border-moto-green bg-moto-green/10 text-gray-900"
-                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                        }`}
+                        className="gap-2 py-2 font-normal"
                       >
-                        <span
-                          className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
-                            isChecked
-                              ? "border-moto-green-fill bg-moto-green-fill"
-                              : "border-gray-300 bg-white"
-                          }`}
-                        >
-                          {isChecked && (
-                            <Check
-                              className="h-3 w-3 text-white"
-                              strokeWidth={3}
-                            />
-                          )}
-                        </span>
+                        <CheckboxIndicator checked={isChecked} />
                         {school.name}
-                      </button>
+                      </ChoiceTile>
                     );
                   })}
                   {availableSchools.length === 0 && (

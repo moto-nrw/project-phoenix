@@ -132,7 +132,6 @@ export function FileFieldOptionsEditor({
               key={type}
               selected={options.allowed_types.includes(type)}
               disabled={disabled}
-              className="bg-white"
             >
               <Checkbox
                 name={
@@ -169,7 +168,7 @@ export function FileFieldOptionsEditor({
         <ChoiceTile
           selected={options.multiple}
           disabled={disabled}
-          className="items-start self-end bg-white"
+          className="items-start self-end"
         >
           <Checkbox
             checked={options.multiple}

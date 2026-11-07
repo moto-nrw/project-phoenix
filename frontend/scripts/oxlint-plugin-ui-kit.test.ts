@@ -1279,6 +1279,127 @@ afterAll(() => {
   }
 });
 
+describe.concurrent("ui-kit/no-hand-rolled-toggle-control", () => {
+  it("reports role switch, role checkbox and a painted check box", async () => {
+    const result = await lintSource(
+      `const Check = () => <svg />;
+      function Probe({ on }: { on: boolean }) {
+        return <>
+          <button type="button" role="switch" aria-checked={on} aria-label="An" />
+          <div role="checkbox" aria-checked={on} aria-label="Wahl" tabIndex={0} />
+          <span className="flex h-4 w-4 items-center justify-center rounded border">
+            {on && <Check />}
+          </span>
+        </>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-hand-rolled-toggle-control\)/g),
+    ).toHaveLength(3);
+  });
+
+  it("allows round status marks and the kit itself", async () => {
+    const outside = await lintSource(
+      `const Check = () => <svg />;
+      function Probe() {
+        return <span className="flex h-4 w-4 rounded-full border"><Check /></span>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const kit = await lintSource(
+      `function Probe() {
+        return <button type="button" role="switch" aria-checked aria-label="An" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(outside.output).not.toContain(
+      "ui-kit(no-hand-rolled-toggle-control)",
+    );
+    expect(kit.output).not.toContain("ui-kit(no-hand-rolled-toggle-control)");
+  });
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-fieldset", () => {
+  it("reports a framed fieldset", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <fieldset className="rounded-xl border border-gray-200 p-4">
+          <legend>Wochentage</legend>
+        </fieldset>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-fieldset)");
+  });
+
+  it("allows an unframed group and a fieldset used as a card", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <>
+          <fieldset className="space-y-2"><legend>Aktion</legend></fieldset>
+          <fieldset className="moto-content-surface rounded-2xl border p-4">
+            <legend>Kind</legend>
+          </fieldset>
+        </>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-hand-rolled-fieldset)");
+  });
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-choice-tile", () => {
+  it("reports a framed label around a Checkbox or Radio", async () => {
+    const result = await lintSource(
+      `const Checkbox = () => <input type="checkbox" />;
+      const Radio = () => <input type="radio" />;
+      function Probe() {
+        return <>
+          <label className="flex rounded-lg border px-3 py-2"><Checkbox /> Montag</label>
+          <label className="moto-content-surface flex rounded-xl p-3">
+            <span><Radio /></span> Dienstag
+          </label>
+        </>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-hand-rolled-choice-tile\)/g),
+    ).toHaveLength(2);
+  });
+
+  it("allows a plain label row and a framed label without a choice control", async () => {
+    const result = await lintSource(
+      `const Checkbox = () => <input type="checkbox" />;
+      function Probe() {
+        return <>
+          <label className="flex items-center gap-2"><Checkbox /> Montag</label>
+          <label className="rounded-lg border px-3 py-2">Name<input /></label>
+        </>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-hand-rolled-choice-tile)");
+  });
+});
+
 describe.concurrent("ui-kit/require-checkbox-label", () => {
   it("reports sibling labels and aria-label-only checkboxes", async () => {
     const result = await lintSource(`

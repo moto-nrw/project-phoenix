@@ -61,7 +61,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { Switch } from "~/components/ui/switch";
 import {
   formatSignedDuration,
   TargetOriginChip,
@@ -2757,10 +2757,10 @@ function EditSessionModal({
 
                   {/* Half day toggle */}
                   <div className="flex items-center gap-3">
-                    <BooleanField
+                    <Switch
                       ariaLabel="Halber Tag"
-                      value={absHalfDay}
-                      onChange={setAbsHalfDay}
+                      checked={absHalfDay}
+                      onCheckedChange={setAbsHalfDay}
                     />
                     <span className="text-sm font-medium text-gray-700">
                       Halber Tag
@@ -2970,10 +2970,10 @@ function CreateAbsenceModal({
 
         {/* Half day toggle */}
         <div className="flex items-center gap-3">
-          <BooleanField
+          <Switch
             ariaLabel="Halber Tag"
-            value={halfDay}
-            onChange={setHalfDay}
+            checked={halfDay}
+            onCheckedChange={setHalfDay}
           />
           <span className="text-sm font-medium text-gray-700">Halber Tag</span>
         </div>

@@ -109,6 +109,7 @@ import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { RemovableChip } from "~/components/ui/removable-chip";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -1423,10 +1424,7 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
       </div>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Betreuungszeitraum
-        </legend>
+      <FormFieldset legend="Betreuungszeitraum">
         {periods.length > 0 && (
           <label
             className="mb-3 block"
@@ -1553,12 +1551,9 @@ function PhaseForm(props: PhaseFormProps) {
             />
           </div>
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Anmeldefenster (optional)
-        </legend>
+      <FormFieldset legend="Anmeldefenster (optional)">
         <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
           Lassen Sie beide Felder leer, wenn das Anmeldeformular jederzeit
           erreichbar sein soll. Sonst kann die Anmeldung nur in diesem Zeitraum
@@ -1624,19 +1619,17 @@ function PhaseForm(props: PhaseFormProps) {
             />
           </div>
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset
+      <FormFieldset
         ref={formSectionRef}
-        className={`rounded-xl border p-4 transition-colors duration-300 ${
+        legend="Formular"
+        className={`transition-colors duration-300 ${
           highlightFormSection
             ? "border-moto-green bg-moto-green/8 ring-moto-green/12 ring-4"
-            : "border-gray-200"
+            : ""
         }`}
       >
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Formular
-        </legend>
         <div className="space-y-2 text-sm">
           <label
             htmlFor="schema-source-base"
@@ -1706,7 +1699,7 @@ function PhaseForm(props: PhaseFormProps) {
             </span>
           </label>
         </div>
-      </fieldset>
+      </FormFieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label
@@ -1789,10 +1782,7 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
       </div>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Zielgruppe
-        </legend>
+      <FormFieldset legend="Zielgruppe">
         <div className="space-y-2 text-sm">
           {AUDIENCE_OPTIONS.map((option) => (
             <label
@@ -1869,12 +1859,9 @@ function PhaseForm(props: PhaseFormProps) {
             }
           />
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Konkrete Klassen
-        </legend>
+      <FormFieldset legend="Konkrete Klassen">
         <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
           Ab der 2. Klasse können Eltern die konkrete Klasse (z. B. 2a) aus
           dieser Liste wählen. Für die 1. Klasse wird weiterhin nur die
@@ -1916,7 +1903,7 @@ function PhaseForm(props: PhaseFormProps) {
             hint="(Eltern müssen ab der 2. Klasse eine Klasse wählen)"
           />
         </div>
-      </fieldset>
+      </FormFieldset>
 
       <TranslationsSection
         targets={

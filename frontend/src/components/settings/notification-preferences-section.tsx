@@ -14,7 +14,7 @@ import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SectionCard } from "~/components/ui/section-card";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { Switch } from "~/components/ui/switch";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -426,9 +426,9 @@ function NotificationPreferencesSectionContent({
                         </p>
                       )}
                     </div>
-                    <BooleanField
-                      value={type.enabled}
-                      onChange={(next) => void toggle(type, next)}
+                    <Switch
+                      checked={type.enabled}
+                      onCheckedChange={(next) => void toggle(type, next)}
                       disabled={busy}
                       ariaLabel={
                         isParentPortal && PARENT_TYPES.has(type.key)

@@ -4,7 +4,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { me as meKeys } from "~/lib/swr/me";
 import { rooms as roomsKeys } from "~/lib/swr/rooms";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
@@ -40,6 +40,7 @@ import {
 import { transitConcept } from "~/lib/concepts/transit";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Loading } from "~/components/ui/loading";
+import { Checkbox } from "~/components/ui/checkbox";
 
 const DETAIL_CARD_CLASS = "moto-content-surface rounded-2xl border p-5 sm:p-6";
 const EMPTY_STUDENTS: Student[] = [];
@@ -548,28 +549,16 @@ export function TransitStudentsSection({
                     className="gap-2"
                   >
                     {attendanceWebEnabled ? (
-                      <button
-                        type="button"
-                        role="checkbox"
-                        aria-checked={checked}
-                        aria-label={`${fullName} auswählen`}
-                        onClick={() => toggleSelected(studentId)}
-                        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                      <label
+                        htmlFor={`transit-select-${studentId}`}
+                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
                       >
-                        <span
-                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-                            checked
-                              ? "border-gray-900 bg-gray-900"
-                              : "border-gray-300 bg-white"
-                          }`}
-                          aria-hidden="true"
-                        >
-                          <Check
-                            className={`h-3.5 w-3.5 text-white transition-opacity ${
-                              checked ? "opacity-100" : "opacity-0"
-                            }`}
-                          />
-                        </span>
+                        <Checkbox
+                          id={`transit-select-${studentId}`}
+                          checked={checked}
+                          aria-label={`${fullName} auswählen`}
+                          onChange={() => toggleSelected(studentId)}
+                        />
                         <CompactStudentCard
                           studentId={student.id}
                           firstName={student.first_name}
@@ -579,7 +568,7 @@ export function TransitStudentsSection({
                           photoUrl={student.photo_url ?? null}
                           chrome="plain"
                         />
-                      </button>
+                      </label>
                     ) : (
                       <div className="min-w-0 flex-1">
                         <CompactStudentCard

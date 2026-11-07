@@ -25,7 +25,7 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { Check, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
@@ -61,6 +61,7 @@ import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled"
 import { createLogger } from "~/lib/logger";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { Checkbox } from "~/components/ui/checkbox";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
@@ -894,30 +895,18 @@ function SelectableStudentRow({
   return (
     <ChoiceTile as="div" selected={isSelected} className="gap-2">
       {selectable ? (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={isSelected}
-          aria-label={`${fullName} auswählen`}
-          onClick={onToggleSelection}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+        <label
+          htmlFor={`room-select-${student.id}`}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
         >
-          <span
-            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-              isSelected
-                ? "border-gray-900 bg-gray-900"
-                : "border-gray-300 bg-white"
-            }`}
-            aria-hidden="true"
-          >
-            <Check
-              className={`h-3.5 w-3.5 text-white transition-opacity ${
-                isSelected ? "opacity-100" : "opacity-0"
-              }`}
-            />
-          </span>
+          <Checkbox
+            id={`room-select-${student.id}`}
+            checked={isSelected}
+            aria-label={`${fullName} auswählen`}
+            onChange={onToggleSelection}
+          />
           {studentCard}
-        </button>
+        </label>
       ) : (
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {studentCard}

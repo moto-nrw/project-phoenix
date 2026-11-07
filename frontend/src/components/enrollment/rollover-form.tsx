@@ -31,6 +31,7 @@ import { Input } from "~/components/ui/input";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "RolloverForm" });
 
@@ -331,10 +332,7 @@ export function RolloverForm({
         </label>
       </div>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Betreuungszeitraum
-        </legend>
+      <FormFieldset legend="Betreuungszeitraum">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="block">
             <label
@@ -380,12 +378,9 @@ export function RolloverForm({
             />
           </div>
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Elternrückmeldung
-        </legend>
+      <FormFieldset legend="Elternrückmeldung">
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block" htmlFor="rollover-mode">
             <span className="block text-xs font-semibold text-gray-700">
@@ -439,7 +434,7 @@ export function RolloverForm({
             />
           </div>
         </div>
-      </fieldset>
+      </FormFieldset>
 
       <div className="space-y-2">
         <CheckboxCard
