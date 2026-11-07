@@ -14,16 +14,22 @@ import (
 // portal supplies the schools and children its relationship checks permit.
 type Inbox struct {
 	store Store
+	// InboxNotices is the store's check for the push of a sent contract
+	// (#5941): it records no read, so it needs no layer of its own.
+	carecontract.InboxNotices
 }
 
-var _ carecontract.Inbox = (*Inbox)(nil)
+var (
+	_ carecontract.Inbox        = (*Inbox)(nil)
+	_ carecontract.InboxNotices = (*Inbox)(nil)
+)
 
 // NewInbox builds the contracts of the parents' inbox.
 func NewInbox(store Store) *Inbox {
 	if store == nil {
 		panic("care contract: the store is required")
 	}
-	return &Inbox{store: store}
+	return &Inbox{store: store, InboxNotices: store}
 }
 
 // InboxContracts lists the sent contracts addressed to the reader and

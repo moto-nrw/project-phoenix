@@ -45,7 +45,7 @@ func NewConclusion(contracts ContractPorts, intake IntakePorts) carecontract.Con
 }
 
 // NewInbox builds the parents' inbox in the parents portal's Träger unit.
-func NewInbox() carecontract.Inbox { return application.NewInbox(postgres.NewStore()) }
+func NewInbox() *application.Inbox { return application.NewInbox(postgres.NewStore()) }
 
 // NewContractMailRenderer renders a contract mail for Delivery's worker.
 func NewContractMailRenderer() carecontract.ContractMailRenderer {
