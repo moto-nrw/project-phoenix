@@ -238,7 +238,12 @@ func (s *workSessionService) endActiveBreakIfExists(ctx context.Context, session
 	if activeBreak == nil {
 		return nil
 	}
+	return s.endFoundActiveBreak(ctx, sessionID, activeBreak, endAt)
+}
 
+// endFoundActiveBreak ends a session's active break at endAt and
+// recalculates the session's break minutes.
+func (s *workSessionService) endFoundActiveBreak(ctx context.Context, sessionID int64, activeBreak *WorkSessionBreak, endAt time.Time) error {
 	// A break started after endAt (e.g. during the auto-checkout grace
 	// window) is capped to zero length instead of a negative duration.
 	if endAt.Before(activeBreak.StartedAt) {

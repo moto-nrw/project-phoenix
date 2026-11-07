@@ -317,11 +317,11 @@ const ROW_ACTION_BASELINE = new Map(
       "Gericht entfernen@798",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1587",
-      "Entfernen@2029",
+      "Antwort entfernen@1588",
+      "Entfernen@2033",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@1986",
+      "Bedingung löschen@2007",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2514",
@@ -337,7 +337,7 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@298"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@794",
+      "Erziehungsberechtigte/n entfernen@802",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@810",
@@ -1575,7 +1575,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1491",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1492",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
@@ -1607,13 +1607,13 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@268",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@997",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@998",
     ],
     "src/components/enrollment/phases-editor.tsx": [
       "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@952",
     ],
     "src/components/files/folder-modal.tsx": [
-      "Ordner bearbeiten Neuer Ordner@146",
+      "Ordner bearbeiten Neuer Ordner@147",
     ],
     "src/components/planning/closing-day-modal.tsx": [
       "Schließtag bearbeiten Schließtag anlegen@90",
@@ -1629,7 +1629,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // Betreuung): keine Feldgruppe des Datensatzes, aus dem Kebab der
     // Personalakte geöffnet (#3116).
     "src/components/auth/mfa-admin-override-modal.tsx": [
-      "Zwei-Faktor-Authentifizierung verwalten@385",
+      "Zwei-Faktor-Authentifizierung verwalten@386",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
       "resolve Zuordnungen auflösen: Betreuung verwalten:@334",

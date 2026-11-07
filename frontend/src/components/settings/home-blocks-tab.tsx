@@ -38,6 +38,7 @@ import {
   useOpenCareGroupMode,
   usePresenceMode,
 } from "~/lib/tenant-context";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "HomeBlocksTab" });
 
@@ -357,7 +358,7 @@ function BirthdaySwitches({
       : settings;
   if (rows.length === 0) return null;
   return (
-    <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+    <InsetPanel framed className="space-y-3">
       {rows.map((item) => (
         <SwitchRow
           key={item.key}
@@ -369,6 +370,6 @@ function BirthdaySwitches({
           disabled={disabled || !item.writable}
         />
       ))}
-    </div>
+    </InsetPanel>
   );
 }

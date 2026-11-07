@@ -3,6 +3,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Plus, StickyNote } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { EditActions } from "~/components/ui/edit-actions";
@@ -516,9 +517,11 @@ export function CareWeeklyPlanGrid({
       </div>
 
       {removals.length > 0 ? (
-        <div className="border-moto-orange/25 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-sm">
-          Wird beim Speichern entfernt: {removals.join(", ")}.
-        </div>
+        <Alert
+          type="warning"
+          announce="polite"
+          message={`Wird beim Speichern entfernt: ${removals.join(", ")}.`}
+        />
       ) : null}
     </div>
   );

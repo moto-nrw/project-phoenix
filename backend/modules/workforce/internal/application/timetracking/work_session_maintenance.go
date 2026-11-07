@@ -39,13 +39,16 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 		return 0, err
 	}
 
+	// One read finds the running break of every stale session (#5855).
+	activeBreaks, breakErr := s.firstActiveBreaksBySession(ctx, openSessions)
+
 	count := 0
 	for _, session := range openSessions {
 		// Set check-out time to 23:59:59 of the session date in Berlin timezone.
 		endOfDay := session.Date.EndOfDay()
 
 		// End any active break before closing the session
-		if err := s.endActiveBreakIfExists(ctx, session.ID, endOfDay); err != nil {
+		if err := s.endCleanupBreak(ctx, session.ID, activeBreaks[session.ID], breakErr, endOfDay); err != nil {
 			s.getLogger().WarnContext(ctx, "failed to end active break during cleanup",
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()))
@@ -68,6 +71,45 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 	return count, nil
 }
 
+// firstActiveBreaksBySession returns each session's first running break, in
+// the order a single-session lookup with limit 1 would pick it.
+func (s *workSessionService) firstActiveBreaksBySession(ctx context.Context, sessions []*WorkSession) (map[int64]*WorkSessionBreak, error) {
+	if len(sessions) == 0 {
+		return nil, nil
+	}
+	sessionIDs := make([]int64, 0, len(sessions))
+	for _, session := range sessions {
+		sessionIDs = append(sessionIDs, session.ID)
+	}
+	records, err := s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionIDs: sessionIDs, Active: boolPointer(true)})
+	err = rowReadError("get active breaks by session IDs", err, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check active break: %w", err)
+	}
+	first := make(map[int64]*WorkSessionBreak, len(records))
+	for _, brk := range workSessionBreaksToRecords(records) {
+		if brk == nil {
+			continue
+		}
+		if _, ok := first[brk.SessionID]; !ok {
+			first[brk.SessionID] = brk
+		}
+	}
+	return first, nil
+}
+
+// endCleanupBreak ends the running break the cleanup found for a session. A
+// failed lookup is reported for every session, as the per-session lookup did.
+func (s *workSessionService) endCleanupBreak(ctx context.Context, sessionID int64, activeBreak *WorkSessionBreak, lookupErr error, endAt time.Time) error {
+	if lookupErr != nil {
+		return lookupErr
+	}
+	if activeBreak == nil {
+		return nil
+	}
+	return s.endFoundActiveBreak(ctx, sessionID, activeBreak, endAt)
+}
+
 func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error) {
 	if s.staffShiftRepo == nil {
 		return 0, nil
@@ -86,9 +128,6 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	if len(openSessions) == 0 {
 		return 0, nil
 	}
-	if err := s.lockStaffBalanceWritesOrdered(ctx, sessionStaffIDs(openSessions)); err != nil {
-		return 0, err
-	}
 
 	latestEndByDate, err := s.latestShiftEndsByDate(ctx, openSessions)
 	if err != nil {
@@ -96,8 +135,24 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	}
 
 	run := autoCheckoutRun{now: now, grace: grace, latestEndByDate: latestEndByDate, tenantID: tenant.FromContext(ctx)}
+	// Only sessions whose listed row is due are locked (#5823). A sick report
+	// cancels shifts under the same balance lock, so the candidates' shifts
+	// are read again once it is held, and autoCheckoutSession decides on that
+	// fresh map and the freshly locked row. A session that became due after
+	// the list waits for the next tick.
+	candidates := run.dueSessions(openSessions)
+	if len(candidates) == 0 {
+		return 0, nil
+	}
+	if err := s.lockStaffBalanceWritesOrdered(ctx, sessionStaffIDs(candidates)); err != nil {
+		return 0, err
+	}
+	if run.latestEndByDate, err = s.latestShiftEndsByDate(ctx, candidates); err != nil {
+		return 0, err
+	}
+
 	count := 0
-	for _, listedSession := range openSessions {
+	for _, listedSession := range candidates {
 		checkedOut, err := s.autoCheckoutSession(ctx, run, listedSession)
 		if err != nil {
 			return count, err
@@ -121,6 +176,17 @@ type autoCheckoutRun struct {
 	grace           time.Duration
 	latestEndByDate map[calendar.Date]map[int64]*TimeTrackingShift
 	tenantID        int64
+}
+
+// dueSessions keeps the listed sessions whose checkout is due, in list order.
+func (run autoCheckoutRun) dueSessions(sessions []*WorkSession) []*WorkSession {
+	due := make([]*WorkSession, 0, len(sessions))
+	for _, session := range sessions {
+		if _, ok := run.dueCloseAt(session); ok {
+			due = append(due, session)
+		}
+	}
+	return due
 }
 
 // sessionStaffIDs lists the staff member of every session, in session order.

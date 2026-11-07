@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "~/components/ui/alert";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ApiError } from "~/lib/api-error";
 import { useEffect, useState } from "react";
@@ -98,7 +99,7 @@ export default function EnrollPhasePickerPage() {
       <PublicEnrollmentPageShell withInlineSwitcher>
         <PhasePickerHeader tenant={tenant} />
         <section className="moto-content-surface flex min-h-[24rem] items-center justify-center rounded-2xl border">
-          <Loading fullPage={false} message={t("loading")} />
+          <Loading message={t("loading")} />
         </section>
       </PublicEnrollmentPageShell>
     );
@@ -127,9 +128,11 @@ export default function EnrollPhasePickerPage() {
               {loadError ? (
                 <LoadErrorAlert error={loadError} />
               ) : !phases || phases.length === 0 ? (
-                <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong rounded-xl border p-5 text-sm leading-6">
-                  {enrollmentDisabled ? t("disabled") : t("noPhase")}
-                </div>
+                <Alert
+                  type="warning"
+                  announce="off"
+                  message={enrollmentDisabled ? t("disabled") : t("noPhase")}
+                />
               ) : (
                 <ul className="space-y-3">
                   {phases.map((phase) => (

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 
 	"github.com/uptrace/bun"
@@ -122,4 +123,46 @@ func mapBirthdayRows(rows []birthdayRow, kind peopleBirthday.BirthdayKind) []peo
 		})
 	}
 	return entries
+}
+
+type bornRow struct {
+	ID            int64          `bun:"id"`
+	FirstName     string         `bun:"first_name"`
+	LastName      string         `bun:"last_name"`
+	Birthday      calendar.Date  `bun:"birthday,type:date"`
+	EnrolledFrom  *calendar.Date `bun:"enrolled_from,type:date"`
+	EnrolledUntil *calendar.Date `bun:"enrolled_until,type:date"`
+}
+
+// FindBornOn returns every child of the school born on one of dates in one
+// statement (#5994), also one whose care has ended or who graduated: the
+// caller decides by the membership interval whether the child belonged to
+// the school on a given day. A deleted person is gone.
+func (r *studentRepository) FindBornOn(ctx context.Context, dates []calendar.Date) ([]directory.StudentBorn, error) {
+	if len(dates) == 0 {
+		return nil, nil
+	}
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []bornRow
+	query := r.students.StudentModelRows(db, r.runtime.TenantID(ctx), &rows).
+		ColumnExpr(`"student".id AS id`).
+		ColumnExpr(`"person".first_name AS first_name, "person".last_name AS last_name`).
+		ColumnExpr(`"person".birthday AS birthday`).
+		ColumnExpr(`"student".enrolled_from AS enrolled_from, "student".enrolled_until AS enrolled_until`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"person".deleted_at IS NULL`).
+		Where(`"person".birthday IN (?)`, bun.List(dates))
+	query = withTenantFilter(ctx, r.runtime, query, "student")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &ports.DatabaseError{Op: "find students born on", Err: translateNotFound(err)}
+	}
+	result := make([]directory.StudentBorn, len(rows))
+	for i, row := range rows {
+		result[i] = directory.StudentBorn{StudentID: row.ID, FirstName: row.FirstName, LastName: row.LastName,
+			Birthday: row.Birthday, EnrolledFrom: row.EnrolledFrom, EnrolledUntil: row.EnrolledUntil}
+	}
+	return result, nil
 }
