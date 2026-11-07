@@ -5083,7 +5083,7 @@
     {
       "decision": "0090",
       "id": "roots/owners/staffAdminSubjects.OffboardedStaffIDs",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "E1 #5786: read membership ID and deletion state including offboarded rows, without unused Employment. Same tenant context, no writes or locks; ADR 0075 consumer-port translation unchanged."
     },
     {
       "decision": "0090",

@@ -3610,7 +3610,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffAdminSubjects.OffboardedStaffIDs",
-      "binding_digest": "e104a98563a17011e521ec0bf8cac711",
+      "binding_digest": "82ee33eeecc624659ecb55793ead4cd0",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffAdminSubjects.OffboardedStaffIDs",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -3618,7 +3618,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffAdminSubjects.OffboardedStaffIDs",
-      "binding_digest": "7e86778b227ba54b87e61e70c76b7248",
+      "binding_digest": "2dfec2ab0bc7b013417b50eeef81554f",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffAdminSubjects.OffboardedStaffIDs",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -3626,7 +3626,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffAdminSubjects.OffboardedStaffIDs",
-      "binding_digest": "7a3d40b4b824b4b545ca194bd8f325cf",
+      "binding_digest": "ceacc0e0a005844a49590b710ea91f96",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffAdminSubjects.OffboardedStaffIDs",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Staff.IsDeleted",
@@ -10010,7 +10010,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.staffSubjects.OffboardedStaffIDs",
-      "binding_digest": "e104a98563a17011e521ec0bf8cac711",
+      "binding_digest": "82ee33eeecc624659ecb55793ead4cd0",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports.StaffSubjects.OffboardedStaffIDs",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -10018,7 +10018,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.staffSubjects.OffboardedStaffIDs",
-      "binding_digest": "7e86778b227ba54b87e61e70c76b7248",
+      "binding_digest": "2dfec2ab0bc7b013417b50eeef81554f",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports.StaffSubjects.OffboardedStaffIDs",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -10026,7 +10026,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.staffSubjects.OffboardedStaffIDs",
-      "binding_digest": "7a3d40b4b824b4b545ca194bd8f325cf",
+      "binding_digest": "ceacc0e0a005844a49590b710ea91f96",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports.StaffSubjects.OffboardedStaffIDs",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Staff.IsDeleted",

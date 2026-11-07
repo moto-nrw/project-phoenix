@@ -7114,7 +7114,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s staffAdminSubjects) OffboardedStaffIDs(ctx context.Context) ([]int64, error) {\n\tmembers, err := s.membership.ListStaff(ctx, schoolmembership.StaffFilter{IncludeDeleted: true})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\toffboarded := make([]int64, 0, len(members))\n\tfor _, member := range members {\n\t\tif member.IsDeleted() {\n\t\t\toffboarded = append(offboarded, member.ID)\n\t\t}\n\t}\n\treturn offboarded, nil\n}",
+      "evidence": "func (s staffAdminSubjects) OffboardedStaffIDs(ctx context.Context) ([]int64, error) {\n\tmembers, err := s.membership.ListStaff(ctx, schoolmembership.StaffFilter{IncludeDeleted: true, MembershipOnly: true})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\toffboarded := make([]int64, 0, len(members))\n\tfor _, member := range members {\n\t\tif member.IsDeleted() {\n\t\t\toffboarded = append(offboarded, member.ID)\n\t\t}\n\t}\n\treturn offboarded, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/staffAdminSubjects.OffboardedStaffIDs",
       "owner": "roots"
