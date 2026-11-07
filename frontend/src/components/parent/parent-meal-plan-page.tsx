@@ -1415,7 +1415,7 @@ export function ParentMealPlanPage() {
         )
       }
       loadingLabel={t("loading")}
-      error={schoolsError}
+      error={loadingSchools ? null : schoolsError}
       empty={
         !hasLinkedChildren
           ? {

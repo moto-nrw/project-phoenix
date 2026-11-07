@@ -132,35 +132,38 @@ export function ParentPageHeader({
   prominent?: boolean;
 }>) {
   return (
-    <SectionCard overflow="visible" className={prominent ? "max-sm:p-5" : ""}>
-      <div className="space-y-3">
-        {backHref && backLabel && (
-          <BackLink href={backHref} label={backLabel} />
-        )}
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <SectionCard
-            bare
-            kicker={kicker}
-            title={title}
-            description={description}
-            leading={media}
-            headingLevel={1}
-            titleSize={prominent ? "display" : "page"}
-            className="min-w-0 flex-1 basis-0"
-          />
-          {actions ? (
-            <div className="contents sm:flex sm:shrink-0 sm:items-center sm:gap-2">
-              <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:order-last max-sm:basis-full">
-                {actions}
-              </div>
-              <MobilePageHelpTarget />
-            </div>
-          ) : (
-            <MobilePageHelpTarget />
+    // `header` bleibt das Element des Seitenkopfs; die Fläche kommt aus dem Kit.
+    <header>
+      <SectionCard overflow="visible" className={prominent ? "max-sm:p-5" : ""}>
+        <div className="space-y-3">
+          {backHref && backLabel && (
+            <BackLink href={backHref} label={backLabel} />
           )}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <SectionCard
+              bare
+              kicker={kicker}
+              title={title}
+              description={description}
+              leading={media}
+              headingLevel={1}
+              titleSize={prominent ? "display" : "page"}
+              className="min-w-0 flex-1 basis-0"
+            />
+            {actions ? (
+              <div className="contents sm:flex sm:shrink-0 sm:items-center sm:gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:order-last max-sm:basis-full">
+                  {actions}
+                </div>
+                <MobilePageHelpTarget />
+              </div>
+            ) : (
+              <MobilePageHelpTarget />
+            )}
+          </div>
         </div>
-      </div>
-    </SectionCard>
+      </SectionCard>
+    </header>
   );
 }
 
