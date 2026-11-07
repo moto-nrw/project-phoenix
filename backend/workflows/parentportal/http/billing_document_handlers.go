@@ -33,6 +33,10 @@ type BillingDocumentResponse struct {
 	SentAt         time.Time     `json:"sent_at"`
 	// Replaced marks a contract version replaced by a later change (#4681).
 	Replaced bool `json:"replaced"`
+	// ContractStatus and EndsOn tell whether a care contract was terminated
+	// or withdrawn, and its last day (#4682); empty for a letter.
+	ContractStatus string         `json:"contract_status,omitempty"`
+	EndsOn         *timezone.Date `json:"ends_on,omitempty"`
 }
 
 // listBillingDocuments answers the letters in the inbox of the account.
@@ -64,7 +68,7 @@ func (rs *Resource) respondInbox(w http.ResponseWriter, r *http.Request, inbox p
 			TraegerName: document.TraegerName, Kind: document.Kind, Number: document.Number, PeriodName: document.PeriodName,
 			ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil, IssuedOn: document.IssuedOn,
 			TotalCents: document.TotalCents, ChildNames: document.ChildNames, SentAt: document.SentAt,
-			Replaced: document.Replaced,
+			Replaced: document.Replaced, ContractStatus: document.ContractStatus, EndsOn: document.EndsOn,
 		}
 	}
 	common.Respond(w, r, http.StatusOK, out, "Documents retrieved")

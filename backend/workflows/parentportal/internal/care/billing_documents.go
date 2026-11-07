@@ -57,6 +57,10 @@ type BillingDocument struct {
 	// Replaced marks a sent contract version that a change on its own first
 	// day replaced (#4681); it holds on no day.
 	Replaced bool
+	// ContractStatus and EndsOn are the status of a care contract and the
+	// last day of a terminated one (#4682); empty for a letter.
+	ContractStatus string
+	EndsOn         *calendar.Date
 }
 
 // BillingDocumentFile is the PDF of one document.

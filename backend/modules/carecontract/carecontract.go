@@ -458,6 +458,10 @@ type InboxContract struct {
 	// replaced it (#4681): it holds on no day, and a changed version holds
 	// from EffectiveOn.
 	Replaced bool `json:"replaced"`
+	// Status is the contract's status and EndsOn the last day of a
+	// terminated contract (#4682), so the inbox shows its end.
+	Status string         `json:"status"`
+	EndsOn *calendar.Date `json:"ends_on"`
 }
 
 // Inbox serves the contracts of one Träger in the parents' inbox (ADR 0088

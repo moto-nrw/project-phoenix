@@ -88,6 +88,12 @@ func TestParentsEndAContractOnlyWithTheRelationshipRight(t *testing.T) {
 	assert.Contains(t, done.Notice.ConfirmationText, "Felix")
 	assert.NotEmpty(t, done.TraegerName)
 
+	documents, err := portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxContracts)
+	require.NoError(t, err)
+	require.Len(t, documents, 1)
+	assert.Equal(t, "gekuendigt", documents[0].ContractStatus, "the inbox shows the terminated contract")
+	assert.Equal(t, done.Notice.EndsOn, documents[0].EndsOn)
+
 	_, err = portal.DeclareContractNotice(ctx, chain.AccountID, organization, own,
 		parentService.ContractNoticeInput{Kind: "widerruf"})
 	assert.ErrorIs(t, err, parentService.ErrContractNotEndable, "a contract ends once")
