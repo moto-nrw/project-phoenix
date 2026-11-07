@@ -148,12 +148,24 @@ func TestDemoSchoolOrderCarriesNoAddress(t *testing.T) {
 // second school: the new link leads into the school it already has.
 func TestDemoAccessOfAnActiveAddressGetsNoSecondSchool(t *testing.T) {
 	t.Parallel()
-	env := newOwnSchoolDemoEnv(t)
+	db := testpkg.SetupIsolatedTestDB(t)
+	env := mountDemoEnv(t, db, "")
 	address := env.address()
 	first, slug := env.requestOwnSchool(t, address)
 	env.endCooldown(t)
 
+	counter := testpkg.CaptureQueries(t, db)
 	second, again := env.requestOwnSchool(t, strings.ToUpper(address))
+	counter.Stop()
+	locks := counter.Matching(func(q string) bool {
+		return strings.Contains(q, "pg_advisory_xact_lock") && strings.Contains(q, "auth.demo_accesses:")
+	})
+	reads := counter.Matching(func(q string) bool {
+		return strings.Contains(q, "where email =") && strings.Contains(q, "order by id desc limit 1")
+	})
+	t.Logf("known_address address_locks=%d fresh_reads=%d", len(locks), len(reads))
+	require.Len(t, locks, 1, "retain the address lock for the whole transaction")
+	require.Len(t, reads, 2, "retain the fresh lookup after the school lock")
 	assert.NotEqual(t, first, second, "every request stores its own access")
 	assert.Equal(t, slug, again, "an active address gets no second school")
 	var accesses, orders int

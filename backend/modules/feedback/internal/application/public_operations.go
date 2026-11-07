@@ -60,18 +60,8 @@ func (s *Service) SubmitBatch(ctx context.Context, inputs []feedback.CreateEntry
 	var entries []domain.Entry
 
 	err := s.runWhenEnabled(ctx, "submit_batch", func(txCtx context.Context) (stats domain.OperationStats, batchErr error) {
-		entries = make([]domain.Entry, 0, len(values))
-		for _, input := range values {
-			entry, current, createErr := s.store.Create(txCtx, input)
-			stats.Queries += current.Queries
-			stats.Rows += current.Rows
-			stats.StatementDuration += current.StatementDuration
-			if createErr != nil {
-				return stats, createErr
-			}
-			entries = append(entries, entry)
-		}
-		return stats, nil
+		entries, stats, batchErr = s.store.CreateBatch(txCtx, values)
+		return stats, batchErr
 	})
 	if err != nil {
 		return nil, err

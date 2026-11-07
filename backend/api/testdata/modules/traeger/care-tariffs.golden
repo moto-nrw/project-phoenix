@@ -1,0 +1,3 @@
+DELETE /traeger/care-tariffs/{schoolID}/{validFrom} -> basis
+GET /traeger/care-tariffs/ -> basis
+PUT /traeger/care-tariffs/ -> basis

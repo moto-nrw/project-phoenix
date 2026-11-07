@@ -1,0 +1,4 @@
+GET /traeger/care-billing-runs/
+GET /traeger/care-billing-runs/{id}
+POST /traeger/care-billing-runs/
+POST /traeger/care-billing-runs/{id}/release
