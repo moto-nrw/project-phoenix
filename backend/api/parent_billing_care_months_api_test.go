@@ -692,11 +692,11 @@ func TestReleasedCareRunOutlivesTheAccountThatStartedIt(t *testing.T) {
 	require.Error(t, err, "clearing the account does not open the other fields")
 }
 
-// A duplicate does not hold up the month (Betragsregel 1): the release
-// bills the valid child and leaves the child with two contracts out, names
-// how many it left out and keeps them in sight under the released run.
-// Once a contract is gone, a later run of the month bills the child once,
-// like a child left out for a missing price.
+// A duplicate does not hold up the month (ADR 0158, Nachtrag Kind-Monat):
+// the release bills the valid child, holds the child with two contracts
+// back (E4), names how many and shows them under the released run as
+// stored (E5). Once the duplicate is gone, a later run of the month bills
+// the child once, like a child left out for a missing price.
 func TestCareMonthlyReleaseBillsTheValidChildrenAndKeepsTheDuplicateInSight(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Monatsbeitrag Doppelt freigeben")
@@ -729,36 +729,33 @@ func TestCareMonthlyReleaseBillsTheValidChildrenAndKeepsTheDuplicateInSight(t *t
 		Scan(context.Background(), &invoices))
 	assert.Zero(t, invoices)
 
-	// A duplicate that arises after the release is not this run's.
+	// E5: the released run shows what its release stored. A contract that
+	// arises after it, Noah's second or Mia's third, does not reach back.
 	careContract(t, f.db, f.office.organization, school, "Noah", careMonth, sjrServices()[0])
-	assert.Len(t, f.run(t, run.ID).Duplicates, 1, "Noah's new duplicate does not reach back")
+	third := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()[1])
+	after := f.run(t, run.ID)
+	require.Len(t, after.Duplicates, 1, "Noah's new duplicate does not reach back")
+	var stored []int64
+	for _, contract := range after.Duplicates[0].Contracts {
+		stored = append(stored, contract.ContractID)
+	}
+	assert.ElementsMatch(t, []int64{kept, twice}, stored, "Mia's third contract is not the release's")
 
-	// The office removes the second contract: until a run bills her, Mia
-	// stays under the released run, marked as solved.
-	_, err := f.db.NewRaw(`DELETE FROM care_contract.contracts WHERE id = ?`, twice).Exec(context.Background())
+	// The office removes Mia's second and third contract; the next run of
+	// the month bills her once. Noah's new duplicate holds Noah's new
+	// contract; his first is billed already.
+	_, err := f.db.NewRaw(`DELETE FROM care_contract.contracts WHERE id IN (?, ?)`, twice, third).Exec(context.Background())
 	require.NoError(t, err)
-	solved := decodeSchoolPortalData[struct {
-		Duplicates []struct {
-			Resolved  bool `json:"resolved"`
-			Contracts []struct {
-				ContractID int64 `json:"contract_id"`
-			} `json:"contracts"`
-		} `json:"duplicates"`
-	}](t, traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, ""), nil).Body.Bytes())
-	require.Len(t, solved.Duplicates, 1, "Mia does not drop out of sight before a run bills her")
-	assert.True(t, solved.Duplicates[0].Resolved)
-	assert.Equal(t, kept, solved.Duplicates[0].Contracts[0].ContractID)
-
-	// The next run bills Mia once; Noah's new duplicate stays out.
 	later := f.run(t, f.startRun(t, careMonth).ID)
 	require.Len(t, later.Invoices, 1)
 	assert.Equal(t, kept, later.Invoices[0].ContractID)
 	assert.Equal(t, int64(7750), later.Invoices[0].TotalCents)
 	assert.Equal(t, 1, later.Billed, "Noah is not billed again")
-	assert.Len(t, later.Duplicates, 1, "only Noah's new duplicate")
+	assert.Equal(t, 1, later.DuplicateChildren, "only Noah's new duplicate")
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(later.ID, "/release"), careRelease(later))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Empty(t, f.run(t, run.ID).Duplicates, "the first run no longer shows the solved duplicate")
+	// The first run keeps its snapshot: Mia was not billed in it.
+	assert.Equal(t, 1, f.run(t, run.ID).DuplicateChildren)
 	var perContract []int
 	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.care_invoices WHERE care_contract_id IN (?, ?)
 		GROUP BY care_contract_id ORDER BY care_contract_id`, valid, kept).Scan(context.Background(), &perContract))

@@ -24,7 +24,6 @@ function duplicate(weekday: CareDuplicate["weekday"]): CareDuplicate {
     moduleName: "Betreuung bis 14:00 Uhr",
     weekday,
     contracts: CONTRACTS,
-    resolved: false,
   };
 }
 
@@ -79,20 +78,31 @@ describe("CareDuplicatesCard", () => {
     ]);
   });
 
-  it("keeps a solved child of a released run until a new run bills it", () => {
+  it("shows a child a released run held back with its stored contracts", () => {
     render(
       <CareDuplicatesCard
         released
         duplicates={[
-          { ...duplicate("mon"), resolved: true, contracts: [FIRST] },
+          {
+            childFirstName: "Mia",
+            childLastName: "Beispiel",
+            moduleName: "",
+            weekday: "mon",
+            contracts: [FIRST, SECOND, THIRD],
+          },
         ]}
       />,
     );
-    expect(screen.getByText(/Doppelter Vertrag behoben/)).toBeInTheDocument();
-    expect(screen.getByRole("link")).toHaveAttribute(
-      "href",
+    expect(
+      screen.getByText("In diesem Lauf nicht abgerechnet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("link").map((link) => link.getAttribute("href")),
+    ).toEqual([
       "/traeger/vertraege/11",
-    );
+      "/traeger/vertraege/12",
+      "/traeger/vertraege/13",
+    ]);
   });
 
   it("shows nothing without a duplicate", () => {

@@ -95,7 +95,7 @@ var parentBillingDefinitions = []config.Definition{
 		Key:             config.KeyParentBillingCareMonthChange,
 		Levels:          config.LevelTraeger,
 		Label:           "Wenn sich der Vertrag im Monat ändert",
-		Description:     "Gilt für den Monatsbeitrag, wenn ein Vertrag im Monat beginnt, endet oder sich ändert. Voller Monat: Es zählt der Vertrag am 1. des Monats. Anteilig: Jede Fassung zählt für ihre Tage. Ausgestellte Rechnungen bleiben, wie sie sind.",
+		Description:     "Gilt für den Monatsbeitrag, wenn ein Vertrag im Monat beginnt, endet oder sich ändert. Voller Monat: Es zählt nur der Vertrag, der am 1. gilt. Ein Vertrag, der später beginnt, zählt erst ab dem nächsten Monat. Anteilig: Jede Fassung zählt für ihre Tage. Ausgestellte Rechnungen bleiben, wie sie sind.",
 		Type:            config.FieldSelect,
 		Default:         "version_on_first",
 		ReadPermission:  "config:read",

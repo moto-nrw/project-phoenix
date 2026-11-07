@@ -282,7 +282,7 @@ export function CareUnpricedCard({
 function bookedTwice(entries: readonly CareDuplicate[]): string {
   const days = new Map<string, string[]>();
   for (const entry of entries) {
-    if (entry.resolved) continue;
+    if (!entry.moduleName) continue;
     const weekday = WEEKDAY_LONG[entry.weekday];
     const known = days.get(entry.moduleName) ?? [];
     if (!known.includes(weekday)) {
@@ -345,11 +345,10 @@ function byChild(duplicates: readonly CareDuplicate[]): DuplicateChild[] {
 }
 
 /**
- * The children with two active contracts for the same module and weekday.
- * The run and its release bill none of them, so no child pays twice and
- * none drops out unnoticed; after the release they stay here, also once
- * the duplicate is solved, until a later run of the month bills them. Each
- * contract opens from here.
+ * The children the run holds back for a duplicate contract, each with all
+ * its contracts (ADR 0158, Nachtrag Kind-Monat). A preview names the module
+ * and weekdays billed twice; a released run shows the children its release
+ * held back, as stored then. Each contract opens from here.
  */
 export function CareDuplicatesCard({
   duplicates,
@@ -380,7 +379,7 @@ export function CareDuplicatesCard({
           const first = entries[0];
           if (!first) return null;
           const child = `${first.childFirstName} ${first.childLastName}`;
-          const solved = entries.every((entry) => entry.resolved);
+          const booked = bookedTwice(entries);
           return (
             <li
               key={key}
@@ -389,9 +388,7 @@ export function CareDuplicatesCard({
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">{child}</p>
                 <p className="mt-0.5 text-sm text-gray-600">
-                  {solved
-                    ? "Doppelter Vertrag behoben. Starten Sie einen neuen Monatslauf für diesen Monat. Er rechnet das Kind ab."
-                    : bookedTwice(entries)}
+                  {booked || "In diesem Lauf nicht abgerechnet."}
                 </p>
               </div>
               <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">

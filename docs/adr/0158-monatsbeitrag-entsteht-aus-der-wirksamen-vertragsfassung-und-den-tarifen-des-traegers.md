@@ -92,6 +92,46 @@ und #4681. Sie führt keinen Owner ein und hält fest, was sie in den Registern
    Zahlungsweg (#4689) sowie Ermäßigungen und Geschwister (#4685) bauen auf
    diesen Rechnungen auf und sind nicht Teil dieser Entscheidung.
 
+## Nachtrag 2026-11-07: Abrechnungseinheit Kind-Monat
+
+Ersetzt in Punkt 3 den Halbsatz zum Eintritt unter `version_on_first` und in
+Punkt 10 die Regeln zum doppelten Vertrag. Die Duplikatlogik ist eine reine
+Funktion (`childMonthHolds`); die Anzeige eines freigegebenen Laufs eine
+zweite (`heldView`).
+
+- **E1 Einheit.** Abgerechnet wird je Kind und Monat. Ein Kind ist ein
+  Schülerdatensatz. Ohne Schülerdatensatz gilt das Paar aus normalisiertem
+  Namen (klein, Leerzeichen zusammengefasst) und Geburtsdatum; ein Vertrag
+  ohne Datensatz gehört zu dem Kind mit Datensatz, dessen Verträge dasselbe
+  Paar tragen, wenn es genau eines gibt.
+- **E2 Abrechnungstage.** Für jeden Vertrag des Kindes steht zuerst fest,
+  welche Kalendertage des Monats er nach `care_month_change` abrechnet:
+  unter „voller Monat“ rechnet nur der Vertrag, der am 1. des Monats gilt,
+  den ganzen Monat ab, mit den Modulen seiner Fassung am 1.; ein Vertrag,
+  der später im Monat beginnt, rechnet in diesem Monat nichts ab (auch beim
+  Eintritt). Unter „anteilig“ rechnet jeder Vertrag nur seine eigenen Tage
+  ab.
+- **E3 Duplikat.** Ein Duplikat liegt genau dann vor, wenn zwei Verträge
+  desselben Kindes nach E2 am selben Kalendertag dasselbe Modul am selben
+  Wochentag abrechnen. Laufzeit-Überlappung ohne doppelt abgerechneten Tag
+  ist kein Duplikat.
+- **E4 Ganzes Kind.** Hat ein Kind im Monat ein Duplikat, hält der Lauf das
+  ganze Kind für diesen Monat zurück, mit allen seinen Verträgen. Die
+  Freigabe stellt die Rechnungen der übrigen Kinder aus und speichert die
+  zurückgehaltenen Verträge am Lauf (`held_contract_ids`).
+- **E5 Momentaufnahme.** Ein freigegebener Lauf zeigt ausschließlich die bei
+  der Freigabe gespeicherten Daten: seine ausgestellten Rechnungen und die
+  Verträge aus `held_contract_ids`, je Kind gruppiert. Er rechnet nichts neu;
+  später entstandene Verträge erscheinen erst in einem neuen Lauf. Ein
+  späterer Lauf des Monats rechnet ein zurückgehaltenes Kind ab, sobald es
+  kein Duplikat mehr hat.
+- **E6 Tabellentest.** `TestCareMonthChildMonthTable` rechnet jede
+  Kombination aus Einstellung (voll, anteilig) und Vertragsfolge (15./16.,
+  1./1., Überlappung an einem Wochentag, verschiedene Module, drei Verträge
+  mit einem Duplikat, zwei Schulen) gegen einen von Hand gerechneten Betrag
+  oder die Zurückhaltung; die Rechnung steht je Zeile als Kommentar. Je eine
+  Mutation von E2 bis E5 macht ihn rot.
+
 ## Verworfene Optionen
 
 - **Monatsrechnungen in `parent_billing.documents`:** Die Tabelle und ihre

@@ -1,9 +1,7 @@
 package application
 
 import (
-	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -65,7 +63,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 			return careMonth{}, err
 		}
 	}
-	duplicates, held := findDuplicates(in.month, in.rule, byContract, order)
+	duplicates, held := childMonthHolds(in.month, in.rule, byContract, order)
 	prices := newPriceBook(in.tariffs)
 	result := careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{}, duplicates: duplicates}
 	for _, contractID := range order {
@@ -137,146 +135,6 @@ func weekdayOf(day calendar.Date) string {
 	return [...]string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}[day.Weekday()]
 }
 
-// childName is the name a child is compared by when a contract has no
-// child record.
-func childName(version parentbilling.CareContractVersion) string {
-	return strings.ToLower(strings.TrimSpace(version.ChildFirstName)) + "|" + strings.ToLower(strings.TrimSpace(version.ChildLastName))
-}
-
-// sameChild tells whether two contracts name the same child: by the child
-// record when both have one, else by name and date of birth, so a contract
-// linked to the record and one that is not still meet.
-func sameChild(a, b parentbilling.CareContractVersion) bool {
-	if a.StudentID != nil && b.StudentID != nil {
-		return *a.StudentID == *b.StudentID
-	}
-	if childName(a) != childName(b) {
-		return false
-	}
-	if a.ChildBirthDate == nil || b.ChildBirthDate == nil {
-		return a.ChildBirthDate == nil && b.ChildBirthDate == nil
-	}
-	return *a.ChildBirthDate == *b.ChildBirthDate
-}
-
-// slotKey is one module on one day of the month.
-type slotKey struct {
-	offeringID int64
-	day        calendar.Date
-}
-
-// findDuplicates names every child whose contracts bill the same module on
-// the same day of the month (Betragsregel 1), and holds both contracts of
-// such a pair: none of them is billed, none silently left out. A child
-// with a record matches its contracts without one by name and date of
-// birth, so contracts are compared within the same name.
-func findDuplicates(month calendar.Date, rule string, byContract map[int64][]parentbilling.CareContractVersion, order []int64) ([]parentbilling.CareDuplicate, map[int64]bool) {
-	duplicates := []parentbilling.CareDuplicate{}
-	held := map[int64]bool{}
-	for _, pair := range sameChildPairs(byContract, order) {
-		if shared := sharedSlots(month, rule, byContract[pair[0]], byContract[pair[1]]); len(shared) > 0 {
-			duplicates = append(duplicates, shared...)
-			held[pair[0]], held[pair[1]] = true, true
-		}
-	}
-	return duplicates, held
-}
-
-// sameChildPairs lists every pair of contracts that name the same child, in
-// the order of the contracts. Contracts meet through the child record, or
-// through the name when one of them has no record; a record with another
-// name on a later contract is still the same child.
-func sameChildPairs(byContract map[int64][]parentbilling.CareContractVersion, order []int64) [][2]int64 {
-	buckets, keys := childBuckets(byContract, order)
-	seen := map[[2]int64]bool{}
-	var pairs [][2]int64
-	for _, key := range keys {
-		contracts := buckets[key]
-		for i := range contracts {
-			for _, other := range contracts[i+1:] {
-				pair := [2]int64{contracts[i], other}
-				if seen[pair] || !sameChild(byContract[contracts[i]][0], byContract[other][0]) {
-					continue
-				}
-				seen[pair] = true
-				pairs = append(pairs, pair)
-			}
-		}
-	}
-	return pairs
-}
-
-// childBuckets puts every contract under its child's name and, when it
-// has one, under its child record, in the order of the contracts.
-func childBuckets(byContract map[int64][]parentbilling.CareContractVersion, order []int64) (map[string][]int64, []string) {
-	buckets := map[string][]int64{}
-	keys := []string{}
-	add := func(key string, contractID int64) {
-		if _, seen := buckets[key]; !seen {
-			keys = append(keys, key)
-		}
-		buckets[key] = append(buckets[key], contractID)
-	}
-	for _, contractID := range order {
-		version := byContract[contractID][0]
-		add("name:"+childName(version), contractID)
-		if version.StudentID != nil {
-			add(fmt.Sprintf("student:%d", *version.StudentID), contractID)
-		}
-	}
-	return buckets, keys
-}
-
-// billedSlots are the days the run bills each module of a contract on,
-// under the rule of the month: the whole month after the version on the
-// first, or the days each version holds pro rata.
-func billedSlots(month calendar.Date, rule string, versions []parentbilling.CareContractVersion) map[slotKey]string {
-	slots := map[slotKey]string{}
-	for _, track := range tracksOf(month, rule, versions) {
-		for _, run := range track.runs {
-			for day := run.from; !day.After(run.until); day = day.AddDays(1) {
-				if slices.Contains(run.weekdays, weekdayOf(day)) {
-					slots[slotKey{track.offeringID, day}] = track.name
-				}
-			}
-		}
-	}
-	return slots
-}
-
-// sharedSlots lists every module and weekday both contracts are billed for
-// on a day of the month, in the order of the days.
-func sharedSlots(month calendar.Date, rule string, first, second []parentbilling.CareContractVersion) []parentbilling.CareDuplicate {
-	mine, theirs := billedSlots(month, rule, first), billedSlots(month, rule, second)
-	type moduleDay struct {
-		offeringID int64
-		weekday    string
-	}
-	seen := map[moduleDay]bool{}
-	shared := []parentbilling.CareDuplicate{}
-	a, b := first[0], second[0]
-	tracks := tracksOf(month, rule, second)
-	for day := month; !day.After(monthEnd(month)); day = day.AddDays(1) {
-		for _, track := range tracks {
-			slot := slotKey{track.offeringID, day}
-			name, both := mine[slot]
-			key := moduleDay{track.offeringID, weekdayOf(day)}
-			if _, billed := theirs[slot]; !both || !billed || seen[key] {
-				continue
-			}
-			seen[key] = true
-			shared = append(shared, parentbilling.CareDuplicate{
-				ChildFirstName: a.ChildFirstName, ChildLastName: a.ChildLastName, ModuleName: name, Weekday: weekdayOf(day),
-				Contracts: []parentbilling.CareDuplicateContract{
-					{ContractID: a.ContractID, SchoolID: a.SchoolID, SchoolName: a.SchoolName},
-					{ContractID: b.ContractID, SchoolID: b.SchoolID, SchoolName: b.SchoolName},
-				},
-			})
-		}
-	}
-	return shared
-}
-
 // moduleRun is a stretch of days a module is booked on the same weekdays.
 type moduleRun struct {
 	from, until calendar.Date
@@ -294,15 +152,19 @@ type moduleTrack struct {
 	runs       []moduleRun
 }
 
-// tracksOf follows every module of a contract through the month. Under the
-// full month the version on the first day (or the first one of a contract
-// that starts in the month) books the whole month with every module it has
-// on that day. Pro rata a module's booked weekdays are read day by day;
+// tracksOf follows every module of a contract through the month (E2 of
+// ADR 0158, Nachtrag Kind-Monat). Under the full month only a contract in
+// force on the first day bills, the whole month with every module its
+// version on that day books; a contract that starts later bills nothing. Pro rata a module's booked weekdays are read day by day;
 // days with the same weekdays form one run, also across versions, so a
 // module that does not change is one run (Betragsregel 2).
 func tracksOf(month calendar.Date, rule string, versions []parentbilling.CareContractVersion) []moduleTrack {
 	if rule != parentbilling.MonthRuleProRata {
-		return fullMonthTracks(month, versions[0])
+		version, ok := versionOn(versions, month)
+		if !ok {
+			return nil
+		}
+		return fullMonthTracks(month, version)
 	}
 	tracks := map[int64]*moduleTrack{}
 	var order []int64
@@ -366,16 +228,12 @@ func modulesBookedOn(version parentbilling.CareContractVersion, day calendar.Dat
 	return modules
 }
 
-// fullMonthTracks books the whole month by one version: every module it
-// books on the first billed day.
+// fullMonthTracks books the whole month by the version on its first day:
+// every module that version books on that day.
 func fullMonthTracks(month calendar.Date, version parentbilling.CareContractVersion) []moduleTrack {
-	first := month
-	if version.From.After(month) {
-		first = version.From
-	}
 	tracks := map[int64]*moduleTrack{}
 	var order []int64
-	for offeringID, module := range modulesBookedOn(version, first) {
+	for offeringID, module := range modulesBookedOn(version, month) {
 		tracks[offeringID] = &moduleTrack{offeringID: offeringID, name: module.name, endsAt: module.endsAt,
 			runs: []moduleRun{{from: month, until: monthEnd(month), version: version.Number, weekdays: module.weekdays}}}
 		order = append(order, offeringID)

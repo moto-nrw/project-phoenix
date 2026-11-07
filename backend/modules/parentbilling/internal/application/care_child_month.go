@@ -1,0 +1,183 @@
+package application
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// The billing unit child-month (ADR 0158, Nachtrag Kind-Monat): the monthly
+// run bills each child once a month. childMonthHolds decides which children
+// it holds back for a duplicate contract (E1 to E4); heldView is what a
+// released run shows of them (E5). Both are pure: they read only their
+// arguments.
+
+// childMonthHolds groups the contracts of the month by child (E1), lays
+// down the days every contract bills under the rule (E2) and finds a
+// duplicate where two contracts of a child bill the same module on the
+// same calendar day (E3). A child with a duplicate is held with all its
+// contracts (E4). It returns one entry per doubly billed module and
+// weekday, each naming every contract of its child, and the held contracts.
+func childMonthHolds(month calendar.Date, rule string, byContract map[int64][]parentbilling.CareContractVersion, order []int64) ([]parentbilling.CareDuplicate, map[int64]bool) {
+	duplicates := []parentbilling.CareDuplicate{}
+	held := map[int64]bool{}
+	for _, child := range childrenOf(byContract, order) {
+		doubled := doublyBilled(month, rule, child, byContract)
+		if len(doubled) == 0 {
+			continue
+		}
+		contracts := childContracts(child, byContract)
+		head := byContract[child[0]][0]
+		for _, slot := range doubled {
+			duplicates = append(duplicates, parentbilling.CareDuplicate{
+				ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName,
+				ModuleName: slot.name, Weekday: slot.weekday, Contracts: contracts,
+			})
+		}
+		for _, contractID := range child {
+			held[contractID] = true
+		}
+	}
+	return duplicates, held
+}
+
+// heldView is what a released run shows of the contracts it held back
+// (E5): only those, grouped by child, from the versions given. A contract
+// that came after the release is not among them.
+func heldView(held []int64, versions []parentbilling.CareContractVersion) []parentbilling.CareDuplicate {
+	byContract, order := versionsByContract(slices.DeleteFunc(slices.Clone(versions), func(version parentbilling.CareContractVersion) bool {
+		return !slices.Contains(held, version.ContractID)
+	}))
+	shown := []parentbilling.CareDuplicate{}
+	for _, child := range childrenOf(byContract, order) {
+		head := byContract[child[0]][0]
+		shown = append(shown, parentbilling.CareDuplicate{
+			ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, Contracts: childContracts(child, byContract),
+		})
+	}
+	return shown
+}
+
+// childrenOf groups the contracts by child (E1), in the order of the
+// contracts: by the child record, without one by the normalized name and
+// date of birth. A contract without a record joins the child whose record's
+// contracts carry the same name and date of birth when exactly one does.
+func childrenOf(byContract map[int64][]parentbilling.CareContractVersion, order []int64) [][]int64 {
+	recordsOf := map[string][]int64{}
+	for _, contractID := range order {
+		version := byContract[contractID][0]
+		if version.StudentID != nil && !slices.Contains(recordsOf[personOf(version)], *version.StudentID) {
+			recordsOf[personOf(version)] = append(recordsOf[personOf(version)], *version.StudentID)
+		}
+	}
+	groups := map[string][]int64{}
+	var keys []string
+	for _, contractID := range order {
+		key := childKeyOf(byContract[contractID][0], recordsOf)
+		if _, seen := groups[key]; !seen {
+			keys = append(keys, key)
+		}
+		groups[key] = append(groups[key], contractID)
+	}
+	children := make([][]int64, len(keys))
+	for i, key := range keys {
+		children[i] = groups[key]
+	}
+	return children
+}
+
+// childKeyOf is the child a contract bills: its record, the one record
+// with its name and date of birth, else that name and date of birth.
+func childKeyOf(version parentbilling.CareContractVersion, recordsOf map[string][]int64) string {
+	if version.StudentID != nil {
+		return fmt.Sprintf("student:%d", *version.StudentID)
+	}
+	if records := recordsOf[personOf(version)]; len(records) == 1 {
+		return fmt.Sprintf("student:%d", records[0])
+	}
+	return "person:" + personOf(version)
+}
+
+// personOf is the normalized name and date of birth of the child of a
+// contract.
+func personOf(version parentbilling.CareContractVersion) string {
+	birth := ""
+	if version.ChildBirthDate != nil {
+		birth = version.ChildBirthDate.String()
+	}
+	return normalizedName(version.ChildFirstName) + "|" + normalizedName(version.ChildLastName) + "|" + birth
+}
+
+func normalizedName(name string) string {
+	return strings.Join(strings.Fields(strings.ToLower(name)), " ")
+}
+
+// slotKey is one module on one calendar day of the month.
+type slotKey struct {
+	offeringID int64
+	day        calendar.Date
+}
+
+// doubledSlot is a module and weekday two contracts of a child both bill.
+type doubledSlot struct {
+	offeringID int64
+	name       string
+	weekday    string
+}
+
+// doublyBilled lists, in the order of the days, every module and weekday
+// that two contracts of the child bill on the same calendar day (E3), each
+// once.
+func doublyBilled(month calendar.Date, rule string, child []int64, byContract map[int64][]parentbilling.CareContractVersion) []doubledSlot {
+	billers := map[slotKey]int{}
+	names := map[int64]string{}
+	for _, contractID := range child {
+		for slot, name := range billedSlots(month, rule, byContract[contractID]) {
+			billers[slot]++
+			names[slot.offeringID] = name
+		}
+	}
+	var doubled []doubledSlot
+	for day := month; !day.After(monthEnd(month)); day = day.AddDays(1) {
+		for offeringID, name := range names {
+			slot := doubledSlot{offeringID: offeringID, name: name, weekday: weekdayOf(day)}
+			if billers[slotKey{offeringID, day}] >= 2 && !slices.Contains(doubled, slot) {
+				doubled = append(doubled, slot)
+			}
+		}
+	}
+	slices.SortStableFunc(doubled, func(a, b doubledSlot) int {
+		return firstNonZero(compareOrdered(a.name, b.name), compareOrdered(a.offeringID, b.offeringID),
+			compareOrdered(weekdayOrder[a.weekday], weekdayOrder[b.weekday]))
+	})
+	return doubled
+}
+
+// billedSlots are the calendar days a contract bills each module on under
+// the rule (E2): the tracks of the month, the same ones its invoice bills.
+func billedSlots(month calendar.Date, rule string, versions []parentbilling.CareContractVersion) map[slotKey]string {
+	slots := map[slotKey]string{}
+	for _, track := range tracksOf(month, rule, versions) {
+		for _, run := range track.runs {
+			for day := run.from; !day.After(run.until); day = day.AddDays(1) {
+				if slices.Contains(run.weekdays, weekdayOf(day)) {
+					slots[slotKey{track.offeringID, day}] = track.name
+				}
+			}
+		}
+	}
+	return slots
+}
+
+// childContracts names every contract of a child with its school.
+func childContracts(child []int64, byContract map[int64][]parentbilling.CareContractVersion) []parentbilling.CareDuplicateContract {
+	contracts := make([]parentbilling.CareDuplicateContract, len(child))
+	for i, contractID := range child {
+		head := byContract[contractID][0]
+		contracts[i] = parentbilling.CareDuplicateContract{ContractID: contractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName}
+	}
+	return contracts
+}

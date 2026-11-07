@@ -507,15 +507,15 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.CareRunDetail{}, err
 		}
 		detail.Invoices = invoices
-		// The release left the children with a duplicate contract out; they
-		// stay in sight under the rule it applied until a later run of the
-		// month bills them (Betragsregel 1).
+		// A released run shows what its release stored (E5): its invoices
+		// and the contracts it held back, by child. Nothing is computed
+		// again, and a contract that came later is not among them.
 		if len(run.HeldContractIDs) > 0 {
-			_, month, err := c.monthWith(ctx, reviewer.OrganizationID, run, run.MonthRule)
+			versions, err := c.contracts.VersionsInForce(ctx, reviewer.OrganizationID, run.BillingMonth, monthEnd(run.BillingMonth))
 			if err != nil {
-				return parentbilling.CareRunDetail{}, err
+				return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: read the held contracts: %w", err)
 			}
-			detail.Duplicates = stillHeld(run.HeldContractIDs, month)
+			detail.Duplicates = heldView(run.HeldContractIDs, versions)
 		}
 	} else {
 		rule, month, err := c.preview(ctx, reviewer.OrganizationID, run)
@@ -553,32 +553,6 @@ func heldContracts(duplicates []parentbilling.CareDuplicate) []int64 {
 	}
 	slices.Sort(ids)
 	return ids
-}
-
-// stillHeld is what a released run shows of the contracts it left out: a
-// duplicate that still names one of them, and a contract whose duplicate is
-// gone but that no run has billed yet. A contract a later run billed, or a
-// duplicate that arose after the release, is not this run's.
-func stillHeld(held []int64, month careMonth) []parentbilling.CareDuplicate {
-	shown := []parentbilling.CareDuplicate{}
-	for _, duplicate := range month.duplicates {
-		if slices.ContainsFunc(duplicate.Contracts, func(c parentbilling.CareDuplicateContract) bool {
-			return slices.Contains(held, c.ContractID)
-		}) {
-			shown = append(shown, duplicate)
-		}
-	}
-	for _, invoice := range month.invoices {
-		if slices.Contains(held, invoice.ContractID) {
-			shown = append(shown, parentbilling.CareDuplicate{
-				ChildFirstName: invoice.ChildFirstName, ChildLastName: invoice.ChildLastName, Resolved: true,
-				Contracts: []parentbilling.CareDuplicateContract{
-					{ContractID: invoice.ContractID, SchoolID: invoice.SchoolID, SchoolName: invoice.SchoolName},
-				},
-			})
-		}
-	}
-	return shown
 }
 
 // duplicateChildren counts the children behind duplicate entries: contracts

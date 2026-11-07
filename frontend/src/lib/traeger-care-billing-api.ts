@@ -132,8 +132,10 @@ export interface CareUnpriced {
 }
 
 /**
- * A child whose active contracts book the same weekday of the same module
- * in the month. The run bills none of them until the office checks them.
+ * A child the run holds back for a duplicate contract (ADR 0158, Nachtrag
+ * Kind-Monat): in a preview one entry per module and weekday billed twice,
+ * naming every contract of the child; in a released run one entry per
+ * child of the contracts its release held back, without a module.
  */
 export interface CareDuplicate {
   readonly childFirstName: string;
@@ -145,8 +147,6 @@ export interface CareDuplicate {
     readonly schoolId: string;
     readonly schoolName: string;
   }[];
-  /** A released run's child whose duplicate is gone; a new run bills it. */
-  readonly resolved: boolean;
 }
 
 export interface CareRunDetail extends CareRun {
@@ -255,7 +255,6 @@ interface BackendRunDetail extends BackendRun {
         contracts:
           | { contract_id: number; school_id: number; school_name: string }[]
           | null;
-        resolved?: boolean;
       }[]
     | null;
   duplicate_children: number;
@@ -372,7 +371,6 @@ function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
         schoolId: id(contract.school_id),
         schoolName: contract.school_name,
       })),
-      resolved: entry.resolved ?? false,
     })),
     duplicateChildren: detail.duplicate_children ?? 0,
     billed: detail.billed,

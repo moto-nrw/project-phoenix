@@ -225,18 +225,17 @@ type CareDuplicateContract struct {
 	SchoolName string `json:"school_name"`
 }
 
-// CareDuplicate is a child whose active contracts book the same weekday of
-// the same module in the month. The run bills none of them; the Träger-Büro
-// checks the contracts (#4684, Betragsregel 1).
+// CareDuplicate is a child the run holds back (ADR 0158, Nachtrag
+// Kind-Monat): in a preview one entry per module and weekday two of its
+// contracts bill on the same day, naming every contract of the child; in a
+// released run one entry per child of the stored held contracts, without a
+// module. The run bills none of the child's contracts this month.
 type CareDuplicate struct {
 	ChildFirstName string                  `json:"child_first_name"`
 	ChildLastName  string                  `json:"child_last_name"`
 	ModuleName     string                  `json:"module_name"`
 	Weekday        string                  `json:"weekday"`
 	Contracts      []CareDuplicateContract `json:"contracts"`
-	// Resolved marks a contract a release left out whose duplicate is gone:
-	// a new run of the month bills it.
-	Resolved bool `json:"resolved"`
 }
 
 // CareRunDetail is a run with its invoices. A calculated run shows the

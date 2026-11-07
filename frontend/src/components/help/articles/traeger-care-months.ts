@@ -46,7 +46,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
           "Wählen Sie `Monatslauf starten`, dann den Monat und `Lauf starten`.",
           "Prüfen Sie die Rechnungen. Je Schule steht eine Karte. Jede Rechnung hat je Modul eine Zeile mit den gebuchten Wochentagen.",
           "Steht oben `Ohne Preis`, fehlt für einen gebuchten Wochentag ein Preis. Wählen Sie `Preis eintragen`. Danach kommt das Kind in den Lauf.",
-          "Steht oben `Doppelter Vertrag – bitte prüfen`, hat ein Kind zwei gültige Verträge für dasselbe Modul am selben Tag. Die Freigabe rechnet dieses Kind nicht ab, alle anderen schon. Nach der Freigabe steht es unter `Nicht abgerechnet – Doppelter Vertrag`. Öffnen Sie die Verträge und beenden oder ändern Sie einen davon. Starten Sie dann einen neuen Monatslauf für diesen Monat. Er rechnet nur dieses Kind ab.",
+          "Steht oben `Doppelter Vertrag – bitte prüfen`, rechnen zwei Verträge eines Kindes am selben Tag dasselbe Modul ab. Die Freigabe rechnet dieses Kind mit allen seinen Verträgen nicht ab, alle anderen Kinder schon. Nach der Freigabe steht es unter `Nicht abgerechnet – Doppelter Vertrag`. Beenden oder ändern Sie einen der Verträge. Starten Sie dann einen neuen Monatslauf für diesen Monat. Er rechnet nur dieses Kind ab.",
         ],
       },
       {
@@ -61,7 +61,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
     result:
       "Die Rechnungen des Monats sind ausgestellt. Ein späterer Lauf desselben Monats rechnet nur Kinder ab, die noch keine Rechnung für diesen Monat haben.",
     differences: [
-      "Beginnt, endet oder ändert sich ein Vertrag im Monat, zählt standardmäßig der Vertrag am 1. des Monats für den ganzen Monat. Anteilig nach Kalendertagen stellen Sie unter `Einstellungen`, `Allgemein`, Bereich `Monatsbeitrag` ein.",
+      "Beginnt, endet oder ändert sich ein Vertrag im Monat, zählt standardmäßig der Vertrag am 1. des Monats für den ganzen Monat. Ein Vertrag, der später im Monat beginnt, zählt erst ab dem nächsten Monat. Anteilig nach Kalendertagen stellen Sie unter `Einstellungen`, `Allgemein`, Bereich `Monatsbeitrag` ein.",
       "Mit einem Preis, für den es schon eine Rechnung gibt, rechnet der Monat weiter ab. Ändern Sie ihn ab einem späteren Monat. Fehlende Preise ergänzen Sie auch für einen schon abgerechneten Monat. Der nächste Lauf dieses Monats rechnet die Kinder dann ab.",
     ],
     notes: [

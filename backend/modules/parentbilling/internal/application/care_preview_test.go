@@ -203,8 +203,10 @@ func TestCareMonthChangeWithinMonth(t *testing.T) {
 	assert.Equal(t, int64(3896), share.invoices[0].TotalCents)
 }
 
-// TestCareMonthEntryWithinMonth bills a contract that starts on the 16th: a
-// full month by its first version by default, its days pro rata.
+// TestCareMonthEntryWithinMonth bills a contract that starts on the 16th
+// by E2 (ADR 0158, Nachtrag Kind-Monat): under the full month only the
+// contract in force on the 1st bills, so the entry month bills nothing;
+// pro rata it bills its own days.
 func TestCareMonthEntryWithinMonth(t *testing.T) {
 	t.Parallel()
 	version := sjrVersion(t, contractMia, schoolIspringen, 1, "2027-01-16", januaryLastDay2027,
@@ -212,7 +214,7 @@ func TestCareMonthEntryWithinMonth(t *testing.T) {
 	full, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
 		versions: []parentbilling.CareContractVersion{version}, tariffs: sjrTariffs(t)})
 	require.NoError(t, err)
-	assert.Equal(t, int64(3200), full.invoices[0].TotalCents)
+	assert.Empty(t, full.invoices, "not in force on the 1st: nothing this month")
 	share, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleProRata,
 		versions: []parentbilling.CareContractVersion{version}, tariffs: sjrTariffs(t)})
 	require.NoError(t, err)
@@ -404,35 +406,6 @@ func TestCareMonthDuplicateContractsAreHeldForReview(t *testing.T) {
 	assert.Empty(t, month.duplicates)
 }
 
-// TestCareMonthFullMonthHoldsContractsThatFollowEachOther compares what
-// the run bills, not the days a contract holds (Betragsregel 1): under the
-// full month a contract that ends on the 15th and one that starts on the
-// 16th both bill the whole month, so Monday until 14:00 cost 64,00 €
-// instead of 32,00 €. Pro rata each bills only its own days, so both are
-// billed once.
-func TestCareMonthFullMonthHoldsContractsThatFollowEachOther(t *testing.T) {
-	t.Parallel()
-	before := sjrVersion(t, contractMia, schoolIspringen, 1, january2027, "2027-01-15",
-		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
-	after := sjrVersion(t, contractNoah, schoolIspringen, 1, "2027-01-16", januaryLastDay2027,
-		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
-	after.StudentID = before.StudentID
-	versions := []parentbilling.CareContractVersion{before, after}
-
-	month, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
-		versions: versions, tariffs: sjrTariffs(t)})
-	require.NoError(t, err)
-	assert.Empty(t, month.invoices, "not twice the whole month")
-	require.Len(t, month.duplicates, 1)
-	assert.Equal(t, "mon", month.duplicates[0].Weekday)
-
-	month, err = buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleProRata,
-		versions: versions, tariffs: sjrTariffs(t)})
-	require.NoError(t, err)
-	assert.Empty(t, month.duplicates)
-	assert.Equal(t, int64(3200), month.total(), "the two halves make one month")
-}
-
 // TestCareMonthChildWithAndWithoutRecordIsOneChild matches a contract
 // linked to the child record with one that is not by name and date of
 // birth (Betragsregel 1): before, the keys student:… and name:… never met
@@ -585,4 +558,148 @@ func TestDuplicateChildrenCountsChildrenNotEntries(t *testing.T) {
 	}
 	assert.Zero(t, duplicateChildren(nil))
 	assert.Equal(t, 2, duplicateChildren([]parentbilling.CareDuplicate{pair(1, 2), pair(1, 2), pair(2, 3), pair(1, 3), pair(7, 8)}))
+}
+
+// The contracts of the child-month table: Mia's contracts A to D share one
+// child record, E is another child. January 2027 starts on a Friday; its
+// Mondays are the 4th, 11th, 18th and 25th, its Tuesdays the 5th, 12th,
+// 19th and 26th. Prices per weekday and month: until 14:00 32,00 €, until
+// 16:30 45,50 €, early care 15,00 € (Ispringen), until 14:00 in Birkenfeld
+// 28,00 €.
+const (
+	tableA int64 = 601
+	tableB int64 = 602
+	tableC int64 = 603
+	tableD int64 = 604
+	tableE int64 = 605
+)
+
+func tableContract(t *testing.T, contractID, schoolID int64, from, until string, services ...parentbilling.CareContractService) parentbilling.CareContractVersion {
+	t.Helper()
+	version := sjrVersion(t, contractID, schoolID, 1, from, until, services...)
+	if contractID != tableE {
+		record := tableA + 9000
+		version.StudentID = &record
+	}
+	return version
+}
+
+// TestCareMonthChildMonthTable is E6 of ADR 0158, Nachtrag Kind-Monat: every
+// sequence of contracts under both rules, against an amount or a hold worked
+// out by hand. Rows 15./16. full month, three contracts and the release
+// snapshot are the cases of the final review.
+func TestCareMonthChildMonthTable(t *testing.T) {
+	t.Parallel()
+	until1400 := booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00")
+	until1630 := booked("tue", moduleUntil1630, "Betreuung bis 16:30 Uhr", "16:30")
+	early := booked("mon", moduleEarly, "Frühbetreuung", "08:00")
+	birkenfeld := booked("mon", 201, "Betreuung bis 14:00 Uhr", "14:00")
+	tariffs := append(sjrTariffs(t),
+		price(t, schoolIspringen, moduleEarly, "Frühbetreuung", "mon", "2026-09-01", 1500),
+		price(t, schoolBirkenfeld, 201, "Betreuung bis 14:00 Uhr", "mon", "2026-09-01", 2800))
+	full, share := parentbilling.MonthRuleVersionOnFirst, parentbilling.MonthRuleProRata
+	followEachOther := func() []parentbilling.CareContractVersion {
+		return []parentbilling.CareContractVersion{
+			tableContract(t, tableA, schoolIspringen, january2027, "2027-01-15", until1400),
+			tableContract(t, tableB, schoolIspringen, "2027-01-16", januaryLastDay2027, until1400),
+		}
+	}
+	sameMonth := func() []parentbilling.CareContractVersion {
+		return []parentbilling.CareContractVersion{
+			tableContract(t, tableA, schoolIspringen, january2027, januaryLastDay2027, until1400),
+			tableContract(t, tableB, schoolIspringen, january2027, januaryLastDay2027, until1400),
+		}
+	}
+	meetOnAMonday := func() []parentbilling.CareContractVersion {
+		return []parentbilling.CareContractVersion{
+			tableContract(t, tableA, schoolIspringen, january2027, "2027-01-18", until1400),
+			tableContract(t, tableB, schoolIspringen, "2027-01-18", januaryLastDay2027, until1400),
+		}
+	}
+	otherModule := func() []parentbilling.CareContractVersion {
+		return []parentbilling.CareContractVersion{
+			tableContract(t, tableA, schoolIspringen, january2027, januaryLastDay2027, until1400),
+			tableContract(t, tableB, schoolIspringen, january2027, januaryLastDay2027, early),
+		}
+	}
+	threeContracts := func() []parentbilling.CareContractVersion {
+		return []parentbilling.CareContractVersion{
+			tableContract(t, tableA, schoolIspringen, january2027, januaryLastDay2027, until1400),
+			tableContract(t, tableB, schoolIspringen, january2027, januaryLastDay2027, until1400),
+			tableContract(t, tableC, schoolIspringen, january2027, januaryLastDay2027, until1630),
+		}
+	}
+	twoSchools := func() []parentbilling.CareContractVersion {
+		return []parentbilling.CareContractVersion{
+			tableContract(t, tableA, schoolIspringen, january2027, januaryLastDay2027, until1400),
+			tableContract(t, tableB, schoolBirkenfeld, january2027, januaryLastDay2027, birkenfeld),
+		}
+	}
+	rows := []struct {
+		name     string
+		rule     string
+		versions []parentbilling.CareContractVersion
+		billed   map[int64]int64 // contract → cents
+		held     []int64
+	}{
+		// A holds on the 1st and bills the whole month: 4 Mondays, 32,00 €.
+		// B starts on the 16th and bills nothing (E2); no day is billed twice.
+		{"15./16. full month", full, followEachOther(), map[int64]int64{tableA: 3200}, []int64{}},
+		// A bills the 1st to 15th: 3200 * 15/31 = 1548.39 → 15,48 €; B the
+		// 16th to 31st: 3200 * 16/31 = 1651.61 → 16,52 €. A's Mondays are the
+		// 4th and 11th, B's the 18th and 25th: no common day (E3).
+		{"15./16. pro rata", share, followEachOther(), map[int64]int64{tableA: 1548, tableB: 1652}, []int64{}},
+		// Both hold on the 1st and bill every Monday until 14:00: the 4th is
+		// billed twice, so Mia is held with both contracts (E3, E4).
+		{"1./1. full month", full, sameMonth(), map[int64]int64{}, []int64{tableA, tableB}},
+		// Pro rata both bill the 1st to 31st: the same Mondays twice.
+		{"1./1. pro rata", share, sameMonth(), map[int64]int64{}, []int64{tableA, tableB}},
+		// A holds on the 1st and bills the whole month, 32,00 €; B starts on
+		// the 18th and bills nothing. The common 18th is no billed day of B.
+		{"meet on a Monday full month", full, meetOnAMonday(), map[int64]int64{tableA: 3200}, []int64{}},
+		// Pro rata A bills the 1st to 18th and B the 18th to 31st: Monday the
+		// 18th until 14:00 is billed by both, so Mia is held.
+		{"meet on a Monday pro rata", share, meetOnAMonday(), map[int64]int64{}, []int64{tableA, tableB}},
+		// Monday until 14:00 and Monday early care are two modules: 32,00 €
+		// and 15,00 €, no module twice on a day.
+		{"other module full month", full, otherModule(), map[int64]int64{tableA: 3200, tableB: 1500}, []int64{}},
+		// Pro rata both bill their whole month: 31/31 of each price.
+		{"other module pro rata", share, otherModule(), map[int64]int64{tableA: 3200, tableB: 1500}, []int64{}},
+		// A and B bill Monday until 14:00 twice; C (Tuesday until 16:30,
+		// 45,50 €) doubles nothing but is Mia's too: all three are held (E4).
+		{"three contracts full month", full, threeContracts(), map[int64]int64{}, []int64{tableA, tableB, tableC}},
+		{"three contracts pro rata", share, threeContracts(), map[int64]int64{}, []int64{tableA, tableB, tableC}},
+		// Two schools have their own modules (101 and 201): 32,00 € in
+		// Ispringen and 28,00 € in Birkenfeld, nothing twice.
+		{"two schools full month", full, twoSchools(), map[int64]int64{tableA: 3200, tableB: 2800}, []int64{}},
+		{"two schools pro rata", share, twoSchools(), map[int64]int64{tableA: 3200, tableB: 2800}, []int64{}},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			month, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: row.rule, versions: row.versions, tariffs: tariffs})
+			require.NoError(t, err)
+			billed := map[int64]int64{}
+			for _, invoice := range month.invoices {
+				billed[invoice.ContractID] = invoice.TotalCents
+			}
+			assert.Equal(t, row.billed, billed)
+			assert.Equal(t, row.held, heldContracts(month.duplicates), "held contracts")
+		})
+	}
+
+	// E5: the release of "three contracts" stored A, B and C. After it, Mia
+	// gets a fourth contract D and another child E one of its own; the
+	// released run still shows Mia with A, B and C only, and not E.
+	t.Run("release snapshot", func(t *testing.T) {
+		later := append(threeContracts(),
+			tableContract(t, tableD, schoolIspringen, january2027, januaryLastDay2027, early),
+			tableContract(t, tableE, schoolIspringen, january2027, januaryLastDay2027, until1400))
+		shown := heldView([]int64{tableA, tableB, tableC}, later)
+		require.Len(t, shown, 1, "one child, Mia")
+		var contracts []int64
+		for _, contract := range shown[0].Contracts {
+			contracts = append(contracts, contract.ContractID)
+		}
+		assert.Equal(t, []int64{tableA, tableB, tableC}, contracts)
+	})
 }
