@@ -131,6 +131,14 @@ type PreferenceSettings interface {
 	ResolveBools(ctx context.Context, keys []string) (map[string]bool, error)
 }
 
+// PreferenceGateSnapshot is the optional batch read behind the preference
+// catalogue: it attaches one settings snapshot of the keys to the context, so
+// the gate reads that follow resolve in memory. It leaves a context that
+// already carries an explicit snapshot unchanged.
+type PreferenceGateSnapshot interface {
+	WithGateSnapshot(ctx context.Context, keys []string) (context.Context, error)
+}
+
 type preferenceService struct {
 	consent        ConsentStore
 	settings       PreferenceSettings
@@ -183,6 +191,7 @@ func (s *preferenceService) GetForAccount(ctx context.Context, accountID int64, 
 		return nil, fmt.Errorf("load notification preferences: %w", err)
 	}
 
+	ctx = s.withGateSnapshot(ctx, portal)
 	tenantEnabled, err := s.resolveBool(ctx, settingDispatchEnabled)
 	if err != nil {
 		return nil, err
@@ -546,6 +555,31 @@ func (s *preferenceService) forEachGuardianTenant(
 
 // resolveBool surfaces a settings failure rather than guessing. A broken read
 // must not silently widen or narrow who gets notified.
+// withGateSnapshot reads the dispatch switch and every gate of the portal's
+// catalogue in one statement (#5699, decision E2: one early shared read may
+// replace the former per-gate READ COMMITTED reads; this read takes no lock).
+// The scalar reads below keep their order and their per-key errors. A failed
+// batch read leaves the context unchanged, so they report it as before.
+func (s *preferenceService) withGateSnapshot(ctx context.Context, portal string) context.Context {
+	snapshots, ok := s.settings.(PreferenceGateSnapshot)
+	if !ok {
+		return ctx
+	}
+	keys := []string{settingDispatchEnabled}
+	seen := map[string]bool{settingDispatchEnabled: true}
+	for _, def := range TypesForPortal(portal) {
+		if def.TenantGate != "" && !seen[def.TenantGate] {
+			seen[def.TenantGate] = true
+			keys = append(keys, def.TenantGate)
+		}
+	}
+	snapshotCtx, err := snapshots.WithGateSnapshot(ctx, keys)
+	if err != nil || snapshotCtx == nil {
+		return ctx
+	}
+	return snapshotCtx
+}
+
 func (s *preferenceService) resolveBool(ctx context.Context, key string) (bool, error) {
 	if s.settings == nil {
 		return false, errors.New("notification preferences service has no settings service configured")

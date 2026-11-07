@@ -1,5 +1,6 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 
 import { catererAuth, uncachedCatererAuth } from "~/server/auth/caterer";
 import { withCatererAuth } from "~/server/auth/caterer-route";
@@ -20,16 +21,11 @@ export const GET = withPrivateDownloadNoStore(
         `${getServerApiUrl()}/caterer/orders/export${request.nextUrl.search}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-    let response = await makeRequest(session.user.token);
-    if (response.status === 401) {
-      const refreshed = await uncachedCatererAuth();
-      if (
-        refreshed?.user?.token &&
-        refreshed.user.token !== session.user.token
-      ) {
-        response = await makeRequest(refreshed.user.token);
-      }
-    }
+    const response = await sendWithTokenRefresh(
+      session.user.token,
+      makeRequest,
+      () => uncachedCatererAuth(),
+    );
     if (!response.ok) {
       return forwardBackendResponse(response, request);
     }

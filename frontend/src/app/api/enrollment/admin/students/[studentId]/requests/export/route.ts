@@ -1,94 +1,13 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { captureBffException } from "~/lib/sentry-bff.server";
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
-import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
-import { createLogger } from "~/lib/logger";
-import { problemResponse } from "~/lib/api-helpers.server";
+import { createFileExportRoute } from "~/lib/export-proxy.server";
 
-const logger = createLogger({
-  component: "EnrollmentStudentRequestsExportRoute",
-});
-
-interface RouteContext {
-  params: Promise<{ studentId: string }>;
-}
-
-async function proxyExport(
-  request: NextRequest,
-  studentId: string,
-  body: string,
-  token: string,
-) {
-  const response = await fetch(
-    `${getServerApiUrl()}/api/enrollment/admin/students/${encodeURIComponent(
-      studentId,
-    )}/requests/export`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        ...(await incomingAnalyticsSessionHeaders()),
-      },
-      body,
-      cache: "no-store",
-    },
-  );
-
-  if (!response.ok) {
-    return forwardBackendResponse(response, request);
-  }
-
-  const contentType =
-    response.headers.get("content-type") ?? "application/octet-stream";
-  const disposition = response.headers.get("content-disposition");
-  const data = await response.arrayBuffer();
-  const headers = new Headers({
-    "Content-Type": contentType,
-    "Content-Length": String(data.byteLength),
-  });
-  if (disposition) headers.set("Content-Disposition", disposition);
-  return new NextResponse(data, { status: 200, headers });
-}
-
-async function POSTHandler(request: NextRequest, context: RouteContext) {
-  try {
-    const session = await auth();
-    if (!session?.user?.token) {
-      return problemResponse(401, "Unauthorized", request);
-    }
-
-    const { studentId } = await context.params;
-    const body = await request.text();
-    const response = await proxyExport(
-      request,
-      studentId,
-      body,
-      session.user.token,
-    );
-    if (response.status !== 401) return response;
-
-    const refreshed = await uncachedAuth();
-    if (
-      !refreshed?.user?.token ||
-      refreshed.user.token === session.user.token
-    ) {
-      return response;
-    }
-    return proxyExport(request, studentId, body, refreshed.user.token);
-  } catch (error) {
-    captureBffException(error, request);
-    const message = error instanceof Error ? error.message : "Export failed";
-    logger.error("student_enrollment_requests_export_failed", {
-      error: message,
-    });
-    return problemResponse(500, message, request);
-  }
-}
-
-export const POST = withPrivateDownloadNoStore(withTenantAuth(POSTHandler));
+export const POST = withPrivateDownloadNoStore(
+  withTenantAuth(
+    createFileExportRoute<{ studentId: string }>({
+      backendPath: ({ studentId }) =>
+        `/api/enrollment/admin/students/${encodeURIComponent(studentId)}/requests/export`,
+      component: "EnrollmentStudentRequestsExportRoute",
+    }),
+  ),
+);

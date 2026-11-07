@@ -869,7 +869,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         <>
           <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
           {schoolDelete.showTrash ? (
-            <div className="space-y-4">
+            <div className="grid gap-4">
               {deletedSchools.map((school) => (
                 <DeletedEntityCard
                   key={school.id}

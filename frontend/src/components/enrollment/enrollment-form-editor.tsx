@@ -863,8 +863,6 @@ export function EnrollmentFormEditor({
   const pendingUploadMessage = hasPendingLegalDocumentUpload
     ? LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE
     : null;
-  const effectiveSaveBlockedMessage =
-    saveBlockedMessage ?? pendingUploadMessage;
 
   // "Wiederholen" sends the draft as it is then, not as it was when the
   // save failed.
@@ -1356,7 +1354,8 @@ export function EnrollmentFormEditor({
           <UnsavedChangesDialog
             pendingNavigation={pendingNavigation}
             saving={saving || hasPendingLegalDocumentUpload}
-            saveBlockedMessage={effectiveSaveBlockedMessage}
+            saveValidationMessage={saveBlockedMessage}
+            pendingUploadMessage={pendingUploadMessage}
             onCancel={() => setPendingNavigation(null)}
             onDiscard={discardPendingNavigation}
             onSave={savePendingNavigation}
@@ -2071,14 +2070,16 @@ function RenameSchemaDialog({
 function UnsavedChangesDialog({
   pendingNavigation,
   saving,
-  saveBlockedMessage,
+  saveValidationMessage,
+  pendingUploadMessage,
   onCancel,
   onDiscard,
   onSave,
 }: Readonly<{
   pendingNavigation: PendingNavigation | null;
   saving: boolean;
-  saveBlockedMessage: string | null;
+  saveValidationMessage: string | null;
+  pendingUploadMessage: string | null;
   onCancel: () => void;
   onDiscard: () => void;
   onSave: () => void;
@@ -2086,6 +2087,7 @@ function UnsavedChangesDialog({
   if (!pendingNavigation) return null;
 
   const isPreview = pendingNavigation === "preview";
+  const saveBlocked = Boolean(saveValidationMessage || pendingUploadMessage);
   const footer = (
     <>
       <Button
@@ -2113,7 +2115,7 @@ function UnsavedChangesDialog({
       <Button
         type="button"
         onClick={onSave}
-        disabled={saving || Boolean(saveBlockedMessage)}
+        disabled={saving || saveBlocked}
         variant="primary"
         size="md"
         className="inline-flex items-center justify-center"
@@ -2141,9 +2143,14 @@ function UnsavedChangesDialog({
           ? "Für die externe Vorschau muss die Vorlage zuerst gespeichert werden."
           : "Sie haben Änderungen an dieser Vorlage. Speichern Sie sie, bevor Sie den Bereich verlassen, oder verwerfen Sie sie bewusst."}
       </p>
-      {saveBlockedMessage ? (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-4 rounded-lg border px-3 py-2 text-sm font-medium">
-          {saveBlockedMessage}
+      {saveValidationMessage || pendingUploadMessage ? (
+        <div className="mt-4 space-y-3">
+          {saveValidationMessage ? (
+            <FormErrorAlert message={saveValidationMessage} />
+          ) : null}
+          {pendingUploadMessage ? (
+            <Alert type="warning" message={pendingUploadMessage} />
+          ) : null}
         </div>
       ) : null}
     </Modal>
@@ -2978,7 +2985,7 @@ function AGBTemplateSourceEditor({
           />
         </div>
       ) : (
-        <div className="border-moto-blue/20 bg-moto-blue/5 rounded-xl border p-3">
+        <InsetPanel framed padding="sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900">PDF-Datei</p>
@@ -3046,7 +3053,7 @@ function AGBTemplateSourceEditor({
               PDF wird hochgeladen...
             </p>
           ) : null}
-        </div>
+        </InsetPanel>
       )}
     </div>
   );

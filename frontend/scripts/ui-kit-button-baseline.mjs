@@ -121,7 +121,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1068],
+    lines: [1066],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
@@ -158,7 +158,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [305],
+    lines: [306],
     reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder
@@ -166,7 +166,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [305],
+    lines: [306],
     reason:
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
   },

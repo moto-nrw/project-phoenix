@@ -3,27 +3,10 @@ import {
   createFileUploadHandler,
   FileValidationError,
 } from "~/lib/file-upload-wrapper.server";
-import { uncachedAuth } from "~/server/auth";
 import { backendResponseError } from "~/lib/api-helpers.server";
 
 interface EnrollmentLegalDocumentResponse {
   document_url: string;
-}
-
-async function fetchWithRetry(
-  token: string,
-  doFetch: (authToken: string) => Promise<Response>,
-): Promise<Response> {
-  let response = await doFetch(token);
-
-  if (response.status === 401) {
-    const refreshed = await uncachedAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      response = await doFetch(refreshed.user.token);
-    }
-  }
-
-  return response;
 }
 
 export const POST = createFileUploadHandler<EnrollmentLegalDocumentResponse>(
@@ -42,13 +25,11 @@ export const POST = createFileUploadHandler<EnrollmentLegalDocumentResponse>(
 
     const { getServerApiUrl } = await import("~/lib/server-api-url");
     const url = `${getServerApiUrl()}/api/enrollment/legal-documents`;
-    const response = await fetchWithRetry(token, (t) =>
-      fetch(url, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${t}` },
-        body: validatedFormData,
-      }),
-    );
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: validatedFormData,
+    });
 
     if (!response.ok) {
       throw await backendResponseError(response);

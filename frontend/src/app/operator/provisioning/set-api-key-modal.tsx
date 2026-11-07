@@ -76,11 +76,11 @@ export function SetApiKeyModal({
     return (
       <Modal isOpen={isOpen} onClose={onClose} title="API-Key aktualisiert">
         <div className="space-y-4">
-          <div className="border-moto-green/20 bg-moto-green/10 rounded-lg border p-4">
-            <p className="text-moto-green-strong text-sm font-medium">
-              API-Key für {deviceLabel} wurde aktualisiert.
-            </p>
-          </div>
+          <Alert
+            type="success"
+            announce="off"
+            message={`API-Key für ${deviceLabel} wurde aktualisiert.`}
+          />
 
           {updatedDevice.apiKey && (
             <div className="space-y-2">
