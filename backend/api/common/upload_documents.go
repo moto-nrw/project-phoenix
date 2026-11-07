@@ -3,6 +3,7 @@ package common
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -83,8 +84,10 @@ func ParseOfficeFileWithLimits(w http.ResponseWriter, r *http.Request, fieldName
 func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64, kinds []ooxmlKind, invalidMessage string) (*UploadedFile, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 
-	// Parts beyond the memory threshold spill to temporary files, which the
-	// HTTP server removes after the handler returns (MultipartForm.RemoveAll).
+	// Parts beyond the memory threshold spill to temporary files. The server
+	// cancels the request context once the handler returns; the files go
+	// then. net/http's own cleanup misses them, because routers parse a copy
+	// of the request (WithContext).
 	if err := r.ParseMultipartForm(min(maxBodySize, maxMultipartMemory)); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
@@ -92,6 +95,7 @@ func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName stri
 		}
 		return nil, uploadRefusal{code: CodeFilesFileUnreadable, text: "cannot read upload"}
 	}
+	removeMultipartFilesAfter(r)
 
 	file, header, err := r.FormFile(fieldName)
 	if err != nil {
@@ -113,6 +117,14 @@ func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName stri
 		Filename:    header.Filename,
 		ContentType: contentType,
 	}, nil
+}
+
+// removeMultipartFilesAfter removes the temporary files of the parsed form
+// when the request context ends.
+func removeMultipartFilesAfter(r *http.Request) {
+	if form := r.MultipartForm; form != nil {
+		context.AfterFunc(r.Context(), func() { _ = form.RemoveAll() })
+	}
 }
 
 // detectDocumentContentType reads the first 512 bytes to detect the MIME
