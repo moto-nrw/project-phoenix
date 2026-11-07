@@ -260,7 +260,7 @@ func acceptanceIssue(draft NewContract, termsChanged time.Time) string {
 		return ""
 	}
 	for _, proof := range draft.Acceptances {
-		if submittedAcceptance(draft, proof) && strings.HasPrefix(proof.Text, "Vertragsbedingungen für die Betreuung\n") &&
+		if proof.Required && submittedAcceptance(draft, proof) && strings.HasPrefix(proof.Text, "Vertragsbedingungen für die Betreuung\n") &&
 			termsChanged.After(proof.SubmittedAt) {
 			return carecontract.SkipAcceptanceChanged
 		}
@@ -277,7 +277,7 @@ func acceptanceProof(draft NewContract) (carecontract.AcceptedText, bool) {
 	}
 	var found carecontract.AcceptedText
 	for _, proof := range draft.Acceptances {
-		if !submittedAcceptance(draft, proof) || proof.Text != text {
+		if !proof.Required || !submittedAcceptance(draft, proof) || proof.Text != text {
 			continue
 		}
 		if proof.SubmittedAt.After(found.SubmittedAt) {

@@ -81,7 +81,9 @@ export const GET = createGetHandler(
  * backend transaction), then the privacy consent the form changed. The consent
  * lives at another backend endpoint, so it cannot join that transaction: when
  * it fails, the child exists anyway and the answer carries the consent that is
- * actually stored, which the person can correct on the child's page.
+ * actually stored and `privacy_consent_saved: false`, so the form can say that
+ * the input was lost and the person can correct it on the child's page (#5970).
+ * The marker is absent whenever nothing was lost.
  */
 export const POST = createPostHandler<Student, StudentCreateBody>(
   async (_request, body, token) => {
@@ -113,6 +115,7 @@ export const POST = createPostHandler<Student, StudentCreateBody>(
     return {
       ...mapStudentResponse(student),
       ...(await readConsentAfterWrite(student.id, token, written)),
+      ...(consent && !written && { privacy_consent_saved: false }),
     };
   },
 );

@@ -206,7 +206,7 @@ function LoginForm() {
   if (status === "loading") {
     return (
       <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-        <Loading fullPage={false} message="Sitzung wird überprüft …" />
+        <Loading message="Sitzung wird überprüft …" />
       </AuthShell>
     );
   }
@@ -402,7 +402,7 @@ export default function TraegerLoginPage() {
     <Suspense
       fallback={
         <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-          <Loading fullPage={false} message="Laden …" />
+          <Loading message="Laden …" />
         </AuthShell>
       }
     >

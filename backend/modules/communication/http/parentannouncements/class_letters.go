@@ -159,7 +159,7 @@ func (rs *Resource) ownClassLetter(withReach bool) func(http.Handler) http.Handl
 }
 
 func (rs *Resource) checkOwnClassLetter(r *http.Request, id int64, withReach bool) error {
-	a, err := rs.Service.GetParentAnnouncement(r.Context(), id)
+	a, err := rs.Service.GetParentAnnouncement(r.Context(), id, announcementService.ParentAnnouncementHeaderOnly)
 	if err != nil {
 		return err
 	}

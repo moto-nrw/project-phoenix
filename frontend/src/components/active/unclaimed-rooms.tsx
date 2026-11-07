@@ -7,16 +7,16 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
-import { X } from "lucide-react";
 import { activeService } from "~/lib/active-api";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Supervisor } from "~/lib/active-helpers";
 import { createLogger } from "~/lib/logger";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { schoolyardConcept } from "~/lib/concepts/schoolyard";
-import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 const logger = createLogger({ component: "UnclaimedRooms" });
 
@@ -223,52 +223,39 @@ export function UnclaimedRooms({
     .join(", ");
 
   return (
-    <div className="border-moto-amber/30 bg-moto-amber/10 relative mb-4 flex flex-col gap-3 rounded-xl border px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-      {/* Dismiss badge - positioned top right corner */}
-      {hasSupervisors && (
+    <Alert
+      type="warning"
+      announce="off"
+      className="mb-4"
+      icon={<MotoConceptIcon concept={schoolyardConcept} size={20} />}
+      title="Schulhof-Aufsicht verfügbar"
+      message={
+        hasSupervisors
+          ? `Aktuelle Aufsicht: ${supervisorNames}`
+          : "Der Schulhof hat derzeit keine Aufsicht."
+      }
+      // Ein Schließen-X nur, solange jemand den Schulhof beaufsichtigt: ohne
+      // Aufsicht bleibt der Hinweis stehen.
+      onDismiss={hasSupervisors ? handleDismiss : undefined}
+      dismissLabel="Banner schließen"
+      action={
         <Button
           type="button"
-          variant="ghost_tone"
-          size="icon"
-          onClick={handleDismiss}
-          className="absolute top-2 right-2"
-          aria-label="Banner schließen"
+          variant="primary"
+          size="compact"
+          onClick={() => void handleClaim()}
+          disabled={claiming}
         >
-          <X className="h-4 w-4" aria-hidden="true" />
+          {claiming ? (
+            <span className="flex items-center gap-2">
+              <SpinnerIcon />
+              Wird übernommen...
+            </span>
+          ) : (
+            "Beaufsichtigen"
+          )}
         </Button>
-      )}
-
-      <div className="flex items-center gap-3">
-        <ConceptIconTile concept={schoolyardConcept} size="sm" />
-        <div className="pr-6">
-          <h3 className="font-semibold text-gray-900">
-            Schulhof-Aufsicht verfügbar
-          </h3>
-          <p className="text-sm text-gray-600">
-            {hasSupervisors
-              ? `Aktuelle Aufsicht: ${supervisorNames}`
-              : "Der Schulhof hat derzeit keine Aufsicht."}
-          </p>
-        </div>
-      </div>
-
-      <Button
-        type="button"
-        variant="primary"
-        size="md"
-        onClick={() => void handleClaim()}
-        disabled={claiming}
-        className="shrink-0"
-      >
-        {claiming ? (
-          <span className="flex items-center gap-2">
-            <SpinnerIcon />
-            Wird übernommen...
-          </span>
-        ) : (
-          "Beaufsichtigen"
-        )}
-      </Button>
-    </div>
+      }
+    />
   );
 }

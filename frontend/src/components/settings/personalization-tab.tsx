@@ -25,6 +25,7 @@ import { Button } from "~/components/ui/button";
 import { Dropzone } from "~/components/ui/dropzone";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { SectionCard } from "~/components/ui/section-card";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "PersonalizationTab" });
 
@@ -201,11 +202,18 @@ export function PersonalizationTab() {
         ) : null}
         {/* Current image preview */}
         {isLoading ? (
-          <div className="flex h-[120px] items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
+          <InsetPanel
+            framed
+            className="flex h-[120px] items-center justify-center"
+          >
             <SpinnerIcon className="h-6 w-6 text-gray-500 motion-reduce:animate-none" />
-          </div>
+          </InsetPanel>
         ) : currentImageUrl ? (
-          <div className="flex flex-col items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 p-6">
+          <InsetPanel
+            framed
+            padding="md"
+            className="flex flex-col items-center gap-4"
+          >
             <Image
               src={loginImageSrc(currentImageUrl)}
               alt="Login-Bild"
@@ -225,7 +233,7 @@ export function PersonalizationTab() {
                 {isDeleting ? "Wird entfernt…" : "Bild entfernen"}
               </Button>
             )}
-          </div>
+          </InsetPanel>
         ) : loadError ? null : (
           // Ohne eigenes Bild zeigt die Login-Seite das moto-Logo. Die
           // Vorschau sagt das, statt die Karte leer zu lassen (#3893).

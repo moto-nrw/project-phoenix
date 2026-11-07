@@ -47,7 +47,7 @@ func (s *announcementContract) ListParentAnnouncements(c context.Context, all bo
 	err := s.call(c, "list", s.id)
 	return []communication.ParentAnnouncement{s.row}, err
 }
-func (s *announcementContract) GetParentAnnouncement(c context.Context, id int64) (*communication.ParentAnnouncement, error) {
+func (s *announcementContract) GetParentAnnouncement(c context.Context, id int64, _ ...communication.ParentAnnouncementRead) (*communication.ParentAnnouncement, error) {
 	return &s.row, s.call(c, "get", id)
 }
 func (s *announcementContract) CreateParentAnnouncement(c context.Context, id int64, v communication.ParentAnnouncementInput) (*communication.ParentAnnouncement, error) {

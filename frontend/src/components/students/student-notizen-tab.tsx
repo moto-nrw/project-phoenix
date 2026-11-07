@@ -16,7 +16,6 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -685,11 +684,7 @@ export function StudentNotizenTab({
     </li>
   );
 
-  if (isLoading) {
-    return <Loading />;
-  }
-
-  if (error) {
+  if (error && !isLoading) {
     return <LoadErrorAlert error={load.error} />;
   }
 
@@ -698,8 +693,9 @@ export function StudentNotizenTab({
       title="Notizen"
       description="Einträge zu diesem Kind. Eltern sehen sie nicht."
       icon={NotebookPen}
+      loading={isLoading}
       action={
-        composing ? undefined : (
+        composing || isLoading ? undefined : (
           <Button type="button" size="md" onClick={startCompose}>
             Neue Notiz
           </Button>

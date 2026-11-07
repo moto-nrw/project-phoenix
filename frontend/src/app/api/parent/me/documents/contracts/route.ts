@@ -13,7 +13,9 @@ interface BackendParentContractDocument {
   total_cents: number;
   child_names: string[];
   sent_at: string;
+  replaced?: boolean;
   contract_status?: string;
+  ends_on?: string;
   signed_at?: string | null;
 }
 

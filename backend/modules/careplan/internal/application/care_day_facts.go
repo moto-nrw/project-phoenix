@@ -61,6 +61,25 @@ func NewCareDayQuery(deps CareDayDependencies) (careplan.CareDayQuery, error) {
 	return &careDayService{deps: deps}, nil
 }
 
+// ResolveStatusForDate uses the same markers, per-child exceptions and participation
+// as ResolveForDate, without class-clock reads. Custom legacy baseline readers
+// that do not expose the narrow projection retain their original behavior.
+func (s *careDayService) ResolveStatusForDate(ctx context.Context, ids []int64, date calendar.Date) (map[int64]careplan.CareDayStatus, error) {
+	status := *s
+	if reader, ok := s.deps.ArrivalBaselines.(careplan.ArrivalStatusBaselineReader); ok {
+		status.deps.ArrivalBaselines = arrivalStatusBaselines{reader}
+	}
+	return NewCareDayQueries(&status).ResolveForDate(ctx, ids, date)
+}
+
+type arrivalStatusBaselines struct {
+	careplan.ArrivalStatusBaselineReader
+}
+
+func (s arrivalStatusBaselines) Project(ctx context.Context, ids []int64, from, to calendar.Date) (*careplan.ArrivalBaselineProjection, error) {
+	return s.ProjectStatus(ctx, ids, from, to)
+}
+
 func (s *careDayService) ResolveForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]careplan.CareDayStatus, error) {
 	return NewCareDayQueries(s).ResolveForDate(ctx, studentIDs, date)
 }

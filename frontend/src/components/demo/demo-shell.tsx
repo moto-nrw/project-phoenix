@@ -46,7 +46,7 @@ export function DemoShell({ children }: { readonly children: ReactNode }) {
 export function DemoOpening() {
   return (
     <DemoShell>
-      <Loading message={DEMO_ENTRY_OPENING} fullPage={false} />
+      <Loading message={DEMO_ENTRY_OPENING} />
     </DemoShell>
   );
 }

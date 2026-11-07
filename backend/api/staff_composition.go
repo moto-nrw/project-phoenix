@@ -171,9 +171,10 @@ func newStaffResource(
 		CurrentAccountID: currentStaffAccountID,
 		CurrentUsername:  currentStaffUsername,
 
-		Person:         staffPersonLookup(runtime),
-		PersonNotFound: apiCommon.IsNotFound,
-		Persons:        staffPersonsLookup(runtime),
+		PersonAccountID: staffAvatarAccountLookup(people),
+		Person:          staffPersonLookup(runtime),
+		PersonNotFound:  apiCommon.IsNotFound,
+		Persons:         staffPersonsLookup(runtime),
 
 		CreateExternalCaregiver:   externals.create,
 		InviteExternalCaregiver:   externals.invite,
@@ -261,6 +262,14 @@ func currentStaffAccountID(ctx context.Context) int64 {
 
 func currentStaffUsername(ctx context.Context) string {
 	return sessiontoken.ClaimsFromCtx(ctx).Username
+}
+
+// staffAvatarAccountLookup keeps the live-person boundary without loading account metadata.
+func staffAvatarAccountLookup(people peopleModule.Capability) func(context.Context, int64) (*int64, error) {
+	return func(ctx context.Context, personID int64) (*int64, error) {
+		person, err := people.FindPerson(ctx, personID)
+		return person.AccountID, err
+	}
 }
 
 func staffPersonLookup(runtime StaffMembershipRuntime) func(context.Context, int64) (staffHTTP.Person, error) {
