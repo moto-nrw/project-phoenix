@@ -184,7 +184,7 @@ export function PendingInvitationsList({
     {
       key: "email",
       header: "E-Mail",
-      className: "w-1/3 max-w-0 font-medium",
+      className: "w-1/3 max-w-0 font-medium max-sm:w-full",
       render: (invitation) => {
         const mailCopy = mailStatusCopy(
           invitation.mailOutcome,
