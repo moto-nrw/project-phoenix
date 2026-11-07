@@ -12,9 +12,12 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { OfferingRequestChanges } from "~/components/students/offering-request-review-item";
-import { CarePlanImpact } from "~/components/students/care-plan-impact";
-import type { RosterImpact } from "~/lib/roster-impact";
+import { OfferingRequestChanges } from "~/components/students/offering-request-changes";
+import {
+  describeAdjustment,
+  formatWeekdayAdverbs,
+  type RosterImpact,
+} from "~/lib/roster-impact";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -145,7 +148,7 @@ export function CareContractChangeCard({
               message="Bitte geben Sie diese Hinweise an die Schule weiter. Die Schule muss Regeltermine und Abholzeiten prüfen."
             />
           ) : null}
-          <CarePlanImpact impact={impact} schoolFollowUp />
+          <ChangeFollowUp impact={impact} />
         </div>
       ) : null}
       {deciding ? (
@@ -225,5 +228,34 @@ function LastDecision({
         ) : null}
       </DataField>
     </DataGrid>
+  );
+}
+
+/**
+ * What the approval did to the child's Regeltermine and pickup times, as a
+ * plain list the office passes on: the school acts on it in its own plan.
+ */
+function ChangeFollowUp({ impact }: Readonly<{ impact: RosterImpact }>) {
+  const lines = [
+    ...impact.adjusted.map(
+      (template) =>
+        `${template.name}: ${describeAdjustment(template)}. Das hat moto schon angepasst.`,
+    ),
+    ...impact.notAdjusted.map(
+      (template) =>
+        `${template.name}: ${formatWeekdayAdverbs(template.weekdays)} noch eingetragen. Die Schule prüft den Regeltermin.`,
+    ),
+    ...impact.pickupOverrides.map(
+      (override) =>
+        `Abholzeit ${formatWeekdayAdverbs([override.weekday])} ab ${formatDate(override.date)}: eingetragen ${override.storedTime} Uhr, gebucht ${override.bookedTime} Uhr. Die Schule gleicht sie an.`,
+    ),
+  ];
+  if (lines.length === 0) return null;
+  return (
+    <ul className="space-y-1.5 text-sm wrap-anywhere text-gray-700">
+      {lines.map((line) => (
+        <li key={line}>{line}</li>
+      ))}
+    </ul>
   );
 }

@@ -7,7 +7,6 @@
 // (#4680) zeigt, wann und wie er zustande kam; erneut senden lässt er sich mit demselben PDF.
 
 import { Download, RotateCw, Send, Trash2 } from "lucide-react";
-import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -24,6 +23,7 @@ import {
   formatTerm,
   serviceDays,
 } from "~/components/traeger/care-contract-format";
+import { CareContractChangeCard } from "~/components/traeger/care-contract-change-card";
 import { CareContractNoticeCard } from "~/components/traeger/care-contract-notice-card";
 import {
   CareContractVersions,
@@ -73,16 +73,6 @@ import {
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerVertragPage" });
-
-// The parents' change (#5979) reuses the school's review display; it loads
-// with the card, so the contract page keeps its bundle budget.
-const CareContractChangeCard = dynamic(
-  () =>
-    import("~/components/traeger/care-contract-change-card").then(
-      (module) => module.CareContractChangeCard,
-    ),
-  { ssr: false },
-);
 
 const LIST_HREF = traegerPath("/traeger/vertraege");
 

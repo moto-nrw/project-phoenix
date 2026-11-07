@@ -6,10 +6,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import {
-  RequestReviewCard,
-  ReviewDiffPanel,
-} from "~/components/students/request-review-card";
+import { RequestReviewCard } from "~/components/students/request-review-card";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { formatDate, isoWeekNumber } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -34,7 +31,6 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
-  type OfferingRequestDiffLine,
   type OfferingRequestPreview,
   type OfferingRequestPreviewSelection,
   type StaffOfferingRequest,
@@ -42,10 +38,10 @@ import {
   previewOfferingChangeRequest,
 } from "~/lib/offering-request-review-api";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { OfferingRequestChanges } from "~/components/students/offering-request-changes";
 import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "OfferingRequestReviewItem" });
-const NO_EXCLUDED_OFFERINGS: readonly string[] = [];
 
 // Gründe, aus denen die Anfrage so nicht umsetzbar ist. Sie ändern sich nicht
 // von selbst: erneut klicken hilft nicht, es braucht ein anderes Datum, eine
@@ -79,36 +75,6 @@ function blockedReason(code: string | undefined): string {
 // joinNames renders trigger names as „A“ und „B“ for the explanation line.
 function joinNames(names: readonly string[]): string {
   return names.map((name) => `„${name}“`).join(" und ");
-}
-
-// automaticHint says why a line appeared. Kept to one short sentence: the
-// review card must be readable at a glance.
-function automaticHint(entry: OfferingRequestDiffLine): string {
-  const names = entry.trigger_names ?? [];
-  const attributedDays = entry.rule_days ?? entry.automatic_days;
-  const partial = attributedDays !== undefined && attributedDays !== entry.new;
-  if (names.length === 0) {
-    return partial
-      ? `Die Tage ${entry.automatic_days} kommen automatisch dazu.`
-      : "Kommt automatisch dazu.";
-  }
-  return partial
-    ? `Die Tage ${attributedDays} kommen automatisch dazu, weil ${joinNames(names)} gewählt ist.`
-    : `Kommt automatisch dazu, weil ${joinNames(names)} gewählt ist.`;
-}
-
-// cascadeSourceName names the unticked line a greyed dependent hangs on.
-function cascadeSourceName(
-  entry: OfferingRequestDiffLine,
-  diff: readonly OfferingRequestDiffLine[],
-  removed: ReadonlySet<string>,
-): string {
-  for (const id of entry.trigger_ids ?? []) {
-    if (!removed.has(id)) continue;
-    const trigger = diff.find((line) => line.offering_id === id);
-    if (trigger) return trigger.label;
-  }
-  return "";
 }
 
 const WEEKDAY_LABELS: Readonly<Record<string, string>> = {
@@ -495,7 +461,7 @@ export function OfferingRequestReviewItem({
           excluded={excluded}
           busy={busy}
           onToggleExcluded={toggleExcluded}
-          showWaitlist
+          waitlist={<RequestWaitlistPlaces requestId={row.id} />}
         />
         <InsetPanel className="mt-3 space-y-2">
           <SectionLabel as="p">Gültig ab</SectionLabel>
@@ -625,137 +591,5 @@ export function OfferingRequestReviewItem({
         )}
       </ConfirmationModal>
     </RequestReviewCard>
-  );
-}
-
-/** Shared request comparison, used by school review and the contract office. */
-export function OfferingRequestChanges({
-  row,
-  preview,
-  excluded = NO_EXCLUDED_OFFERINGS,
-  busy = false,
-  onToggleExcluded,
-  showWaitlist = false,
-}: Readonly<{
-  row: Pick<StaffOfferingRequest, "id" | "diff" | "unchanged" | "note">;
-  preview?: readonly OfferingRequestPreviewSelection[];
-  excluded?: readonly string[];
-  busy?: boolean;
-  onToggleExcluded?: (offeringId: string) => Promise<void>;
-  showWaitlist?: boolean;
-}>) {
-  const unchanged = row.unchanged ?? [];
-  const previewByOffering = new Map(
-    preview?.map((selection) => [selection.offering_id, selection]),
-  );
-  const removed = new Set(
-    row.diff
-      .filter((entry) => {
-        const selection = previewByOffering.get(entry.offering_id);
-        return selection?.removed && selection.new !== entry.new;
-      })
-      .map((entry) => entry.offering_id),
-  );
-
-  return (
-    <ReviewDiffPanel title="Änderungen">
-      {row.diff.length === 0 && (
-        <span className="text-sm text-gray-500">–</span>
-      )}
-      {row.diff.map((entry) => {
-        const previewSelection = previewByOffering.get(entry.offering_id);
-        const isExcluded = excluded.includes(entry.offering_id);
-        const isRemoved = removed.has(entry.offering_id);
-        const cascaded = isRemoved && !isExcluded;
-        const previewChanged =
-          previewSelection !== undefined && previewSelection.new !== entry.new;
-        const displayedNew = previewSelection?.new ?? entry.new;
-        return (
-          <div
-            key={entry.offering_id}
-            className={`text-sm wrap-anywhere ${isRemoved ? "opacity-50" : ""}`}
-          >
-            <span className="text-xs text-gray-500">{entry.label}: </span>
-            {/* Eine Kursanfrage sieht sonst aus wie jede andere
-                    Angebotsänderung (#3075). Das Mitarbeiterportal ist
-                    deutsch und lädt die Eltern-Texte nicht: der Schlüssel
-                    stand dort roh im Badge (#4767). */}
-            {entry.is_course && <StatusBadge tone="green" label="Kurs" />}
-            {entry.automatic && (
-              <StatusBadge tone="blue" label="Automatisch mitgebucht" />
-            )}
-            <div className="flex flex-wrap items-baseline gap-2">
-              <span className="text-gray-400 line-through">{entry.old}</span>
-              <span className="text-gray-400" aria-hidden="true">
-                →
-              </span>
-              <span
-                className={
-                  isRemoved
-                    ? "font-medium text-gray-500 line-through"
-                    : "font-medium text-gray-900"
-                }
-              >
-                {displayedNew}
-              </span>
-            </div>
-            {entry.automatic && !previewChanged && !cascaded && !isExcluded && (
-              <p className="mt-0.5 text-xs text-gray-500">
-                {automaticHint(entry)}
-              </p>
-            )}
-            {cascaded && (
-              <p className="mt-0.5 text-xs text-gray-500">
-                Entfällt, weil{" "}
-                {`„${cascadeSourceName(entry, row.diff, removed)}“`} nicht
-                mitgebucht wird.
-              </p>
-            )}
-            {entry.optoutable && onToggleExcluded && !cascaded && (
-              <label
-                htmlFor={`mitbuchen-${row.id}-${entry.offering_id}`}
-                className="mt-1 flex w-fit cursor-pointer items-center gap-2 text-xs text-gray-700"
-              >
-                <Checkbox
-                  id={`mitbuchen-${row.id}-${entry.offering_id}`}
-                  checked={!isExcluded}
-                  onChange={() => {
-                    void onToggleExcluded?.(entry.offering_id);
-                  }}
-                  disabled={busy}
-                  aria-label={`${entry.label} automatisch mitbuchen`}
-                />
-                Automatisch mitbuchen
-              </label>
-            )}
-            {isExcluded && (
-              <p className="mt-0.5 text-xs text-gray-500">
-                Die Mitbuchungs-Regel gilt für diese Anfrage nicht.
-              </p>
-            )}
-          </div>
-        );
-      })}
-      {showWaitlist && <RequestWaitlistPlaces requestId={row.id} />}
-      {unchanged.length > 0 && (
-        <div className="mt-3 border-t border-gray-200 pt-2">
-          <SectionLabel as="p">Bleibt gebucht</SectionLabel>
-          {unchanged.map((line) => (
-            <p
-              key={line.offering_id}
-              className="text-sm wrap-anywhere text-gray-700"
-            >
-              <span className="text-xs text-gray-500">{line.label}: </span>
-              {line.days}
-            </p>
-          ))}
-        </div>
-      )}
-      {row.note && (
-        <p className="mt-2 text-xs wrap-anywhere whitespace-pre-line text-gray-500">
-          Nachricht der Eltern: {row.note}
-        </p>
-      )}
-    </ReviewDiffPanel>
   );
 }

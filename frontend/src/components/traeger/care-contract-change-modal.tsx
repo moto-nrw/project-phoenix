@@ -16,7 +16,7 @@ import type {
   ContractChanges,
 } from "~/lib/care-contract-changes";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
-import { OfferingRequestChanges } from "~/components/students/offering-request-review-item";
+import { OfferingRequestChanges } from "~/components/students/offering-request-changes";
 import { contractChangeReview } from "~/lib/care-contract-changes";
 import {
   decideContractChange,
