@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 )
 
 // recordingWaker haelt fest, welche Kinder geweckt wurden.
@@ -76,7 +77,7 @@ func TestBroadcastVisitMovedWakesGuardiansWithoutBroadcaster(t *testing.T) {
 	waker := &recordingWaker{}
 	s := &service{}
 	WithGuardianWaker(waker)(s)
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +60,7 @@ func TestWithSavepoint_OperationFailureRollsBack(t *testing.T) {
 
 func TestWithSavepoint_OperationFailureRunsOnlyItsRollbackHooks(t *testing.T) {
 	t.Parallel()
-	ctx, commit, rollback := tenant.WithTransactionHooksForTest(savepointContext(t, func(tenant.SavepointAction) error {
+	ctx, commit, rollback := tenanttest.WithTransactionHooks(savepointContext(t, func(tenant.SavepointAction) error {
 		return nil
 	}))
 	var outerCommit, innerCommit, innerRollback int
@@ -67,7 +68,7 @@ func TestWithSavepoint_OperationFailureRunsOnlyItsRollbackHooks(t *testing.T) {
 
 	err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
 		tenant.RegisterAfterCommit(ctx, func() { innerCommit++ })
-		tenant.RegisterAfterRollback(ctx, func() { innerRollback++ })
+		tenanttest.RegisterAfterRollback(ctx, func() { innerRollback++ })
 		return errors.New("operation failed")
 	})
 	require.Error(t, err)

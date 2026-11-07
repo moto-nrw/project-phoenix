@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp/sftptest"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -337,6 +338,6 @@ func rollbackCommandContext(t *testing.T, ctx context.Context, db *bun.DB, rollb
 		func(context.Context, tenant.SavepointAction) error { return nil }, func(error) bool { return false })
 	require.NoError(t, err)
 	ctx = tenant.WithUnitOfWork(ctx, runtime)
-	ctx, _ = tenant.WithAfterCommitHooksForTest(ctx)
+	ctx, _ = tenanttest.WithAfterCommitHooks(ctx)
 	return ctx
 }

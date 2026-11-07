@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -107,7 +107,7 @@ func TestEnsureStaffPresenceRollsBackFailedCheckInToSavepoint(t *testing.T) {
 	mock.ExpectBegin()
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
-	txCtx := tenant.WithTransactionForTest(withSessionTestRuntime(t, ctx, db), &tx)
+	txCtx := tenanttest.WithTransaction(withSessionTestRuntime(t, ctx, db), &tx)
 
 	mock.ExpectExec("SAVEPOINT phoenix_operation").
 		WillReturnResult(sqlmock.NewResult(0, 0))
