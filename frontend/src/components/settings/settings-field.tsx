@@ -1983,6 +1983,7 @@ function PresetTextField({
     <div className="w-full min-w-0 space-y-3">
       <SegmentedControl
         ariaLabel={ariaLabel}
+        className="max-sm:w-full max-sm:grid-flow-row"
         value={own ? OWN_TEXT_VALUE : value}
         items={[
           ...presets.map((preset) => ({
