@@ -42,6 +42,16 @@ func (s *Store) FindActiveDemoAccessByEmail(ctx context.Context, email string, n
 	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('auth.demo_accesses:' || ?, 0))`, email).Exec(ctx); err != nil {
 		return domain.DemoAccess{}, false, fmt.Errorf("identity access postgres: lock demo access address: %w", err)
 	}
+	return s.RereadActiveDemoAccessByEmail(ctx, email, now)
+}
+
+// RereadActiveDemoAccessByEmail observes the address again after the caller's
+// school lock, without reacquiring the transaction-level address lock.
+func (s *Store) RereadActiveDemoAccessByEmail(ctx context.Context, email string, now time.Time) (domain.DemoAccess, bool, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return domain.DemoAccess{}, false, err
+	}
 	var row struct {
 		ID           int64     `bun:"id"`
 		FirstName    string    `bun:"first_name"`
