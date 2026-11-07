@@ -24,8 +24,9 @@ import (
 func childMonthHolds(month calendar.Date, rule string, byContract map[int64][]parentbilling.CareContractVersion, order []int64) ([]parentbilling.CareDuplicate, map[int64]bool) {
 	duplicates := []parentbilling.CareDuplicate{}
 	held := map[int64]bool{}
+	entries := monthEntries(month, byContract, order)
 	for _, child := range childrenOf(byContract, order) {
-		doubled := doublyBilled(month, rule, child, byContract)
+		doubled := doublyBilled(month, rule, child, byContract, entries)
 		if len(doubled) == 0 {
 			continue
 		}
@@ -131,11 +132,11 @@ type doubledSlot struct {
 // doublyBilled lists, in the order of the days, every module and weekday
 // that two contracts of the child bill on the same calendar day (E3), each
 // once.
-func doublyBilled(month calendar.Date, rule string, child []int64, byContract map[int64][]parentbilling.CareContractVersion) []doubledSlot {
+func doublyBilled(month calendar.Date, rule string, child []int64, byContract map[int64][]parentbilling.CareContractVersion, entries map[int64]bool) []doubledSlot {
 	billers := map[slotKey]int{}
 	names := map[int64]string{}
 	for _, contractID := range child {
-		for slot, name := range billedSlots(month, rule, byContract[contractID]) {
+		for slot, name := range billedSlots(month, rule, byContract[contractID], entries[contractID]) {
 			billers[slot]++
 			names[slot.offeringID] = name
 		}
@@ -158,9 +159,9 @@ func doublyBilled(month calendar.Date, rule string, child []int64, byContract ma
 
 // billedSlots are the calendar days a contract bills each module on under
 // the rule (E2): the tracks of the month, the same ones its invoice bills.
-func billedSlots(month calendar.Date, rule string, versions []parentbilling.CareContractVersion) map[slotKey]string {
+func billedSlots(month calendar.Date, rule string, versions []parentbilling.CareContractVersion, entry bool) map[slotKey]string {
 	slots := map[slotKey]string{}
-	for _, track := range tracksOf(month, rule, versions) {
+	for _, track := range tracksOf(month, rule, versions, entry) {
 		for _, run := range track.runs {
 			for day := run.from; !day.After(run.until); day = day.AddDays(1) {
 				if slices.Contains(run.weekdays, weekdayOf(day)) {
@@ -170,6 +171,33 @@ func billedSlots(month calendar.Date, rule string, versions []parentbilling.Care
 		}
 	}
 	return slots
+}
+
+// monthEntries names, per child without a contract in force on the first
+// of the month, the first contract that begins in the month (E2 under the
+// full month): it bills the whole month by its first version. Any further
+// contract that begins later bills nothing that month, and a child with a
+// contract on the first has no entry. On the same start day the earlier
+// contract of the order is the entry.
+func monthEntries(month calendar.Date, byContract map[int64][]parentbilling.CareContractVersion, order []int64) map[int64]bool {
+	entries := map[int64]bool{}
+	for _, child := range childrenOf(byContract, order) {
+		entry := int64(0)
+		for _, contractID := range child {
+			versions := byContract[contractID]
+			if _, onFirst := versionOn(versions, month); onFirst {
+				entry = 0
+				break
+			}
+			if entry == 0 || versions[0].From.Before(byContract[entry][0].From) {
+				entry = contractID
+			}
+		}
+		if entry != 0 {
+			entries[entry] = true
+		}
+	}
+	return entries
 }
 
 // childContracts names every contract of a child with its school.

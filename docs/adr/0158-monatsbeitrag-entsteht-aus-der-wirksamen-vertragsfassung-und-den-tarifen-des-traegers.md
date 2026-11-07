@@ -94,8 +94,8 @@ und #4681. Sie führt keinen Owner ein und hält fest, was sie in den Registern
 
 ## Nachtrag 2026-11-07: Abrechnungseinheit Kind-Monat
 
-Ersetzt in Punkt 3 den Halbsatz zum Eintritt unter `version_on_first` und in
-Punkt 10 die Regeln zum doppelten Vertrag. Die Duplikatlogik ist eine reine
+Präzisiert in Punkt 3 den Eintritt unter `version_on_first` (je Kind, nicht
+je Vertrag) und ersetzt in Punkt 10 die Regeln zum doppelten Vertrag. Die Duplikatlogik ist eine reine
 Funktion (`childMonthHolds`); die Anzeige eines freigegebenen Laufs eine
 zweite (`heldView`).
 
@@ -105,12 +105,14 @@ zweite (`heldView`).
   ohne Datensatz gehört zu dem Kind mit Datensatz, dessen Verträge dasselbe
   Paar tragen, wenn es genau eines gibt.
 - **E2 Abrechnungstage.** Für jeden Vertrag des Kindes steht zuerst fest,
-  welche Kalendertage des Monats er nach `care_month_change` abrechnet:
-  unter „voller Monat“ rechnet nur der Vertrag, der am 1. des Monats gilt,
-  den ganzen Monat ab, mit den Modulen seiner Fassung am 1.; ein Vertrag,
-  der später im Monat beginnt, rechnet in diesem Monat nichts ab (auch beim
-  Eintritt). Unter „anteilig“ rechnet jeder Vertrag nur seine eigenen Tage
-  ab.
+  welche Kalendertage des Monats er nach `care_month_change` abrechnet.
+  Unter „voller Monat“ rechnet den ganzen Monat der Vertrag ab, der am 1.
+  gilt, mit den Modulen seiner Fassung am 1. Gilt am 1. kein Vertrag des
+  Kindes, rechnet der erste Vertrag, der im Monat beginnt, den ganzen Monat
+  ab, mit den Modulen seiner ersten Fassung (Eintritt; bei gleichem
+  Beginn der zuerst gelesene). Jeder weitere Vertrag, der später im Monat
+  beginnt, rechnet in diesem Monat nichts ab. Unter „anteilig“ rechnet jeder
+  Vertrag nur seine eigenen Tage ab.
 - **E3 Duplikat.** Ein Duplikat liegt genau dann vor, wenn zwei Verträge
   desselben Kindes nach E2 am selben Kalendertag dasselbe Modul am selben
   Wochentag abrechnen. Laufzeit-Überlappung ohne doppelt abgerechneten Tag
@@ -128,9 +130,11 @@ zweite (`heldView`).
 - **E6 Tabellentest.** `TestCareMonthChildMonthTable` rechnet jede
   Kombination aus Einstellung (voll, anteilig) und Vertragsfolge (15./16.,
   1./1., Überlappung an einem Wochentag, verschiedene Module, drei Verträge
-  mit einem Duplikat, zwei Schulen) gegen einen von Hand gerechneten Betrag
+  mit einem Duplikat, Eintritt am 16., Eintritt am 10. mit zweitem Vertrag
+  am 20., zwei Schulen) gegen einen von Hand gerechneten Betrag
   oder die Zurückhaltung; die Rechnung steht je Zeile als Kommentar. Je eine
-  Mutation von E2 bis E5 macht ihn rot.
+  Mutation von E2 bis E5 macht ihn rot, ebenso das Entfernen der Ausnahme
+  „kein Vertrag am 1.“ (Zeile „Eintritt am 16.“).
 
 ## Verworfene Optionen
 

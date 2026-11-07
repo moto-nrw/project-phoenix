@@ -204,9 +204,9 @@ func TestCareMonthChangeWithinMonth(t *testing.T) {
 }
 
 // TestCareMonthEntryWithinMonth bills a contract that starts on the 16th
-// by E2 (ADR 0158, Nachtrag Kind-Monat): under the full month only the
-// contract in force on the 1st bills, so the entry month bills nothing;
-// pro rata it bills its own days.
+// by E2 (ADR 0158, Nachtrag Kind-Monat): the child has no contract on the
+// 1st, so its first contract of the month bills the full month by its
+// first version; pro rata it bills its own days.
 func TestCareMonthEntryWithinMonth(t *testing.T) {
 	t.Parallel()
 	version := sjrVersion(t, contractMia, schoolIspringen, 1, "2027-01-16", januaryLastDay2027,
@@ -214,7 +214,8 @@ func TestCareMonthEntryWithinMonth(t *testing.T) {
 	full, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
 		versions: []parentbilling.CareContractVersion{version}, tariffs: sjrTariffs(t)})
 	require.NoError(t, err)
-	assert.Empty(t, full.invoices, "not in force on the 1st: nothing this month")
+	require.Len(t, full.invoices, 1)
+	assert.Equal(t, int64(3200), full.invoices[0].TotalCents, "the entry bills the full month")
 	share, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleProRata,
 		versions: []parentbilling.CareContractVersion{version}, tariffs: sjrTariffs(t)})
 	require.NoError(t, err)
@@ -629,6 +630,17 @@ func TestCareMonthChildMonthTable(t *testing.T) {
 			tableContract(t, tableC, schoolIspringen, january2027, januaryLastDay2027, until1630),
 		}
 	}
+	entry16th := func() []parentbilling.CareContractVersion {
+		return []parentbilling.CareContractVersion{
+			tableContract(t, tableA, schoolIspringen, "2027-01-16", januaryLastDay2027, until1400),
+		}
+	}
+	entry10thAnd20th := func() []parentbilling.CareContractVersion {
+		return []parentbilling.CareContractVersion{
+			tableContract(t, tableA, schoolIspringen, "2027-01-10", januaryLastDay2027, until1400),
+			tableContract(t, tableB, schoolIspringen, "2027-01-20", januaryLastDay2027, until1630),
+		}
+	}
 	twoSchools := func() []parentbilling.CareContractVersion {
 		return []parentbilling.CareContractVersion{
 			tableContract(t, tableA, schoolIspringen, january2027, januaryLastDay2027, until1400),
@@ -669,6 +681,20 @@ func TestCareMonthChildMonthTable(t *testing.T) {
 		// 45,50 €) doubles nothing but is Mia's too: all three are held (E4).
 		{"three contracts full month", full, threeContracts(), map[int64]int64{}, []int64{tableA, tableB, tableC}},
 		{"three contracts pro rata", share, threeContracts(), map[int64]int64{}, []int64{tableA, tableB, tableC}},
+		// No contract of Mia holds on the 1st: her first contract of the
+		// month, from the 16th, bills the whole month by its first version,
+		// 4 Mondays until 14:00, 32,00 € (E2).
+		{"entry on the 16th full month", full, entry16th(), map[int64]int64{tableA: 3200}, []int64{}},
+		// Pro rata it bills the 16th to 31st: 3200 * 16/31 = 1651.61 → 16,52 €.
+		{"entry on the 16th pro rata", share, entry16th(), map[int64]int64{tableA: 1652}, []int64{}},
+		// No contract on the 1st: A, from the 10th, is the first of the month
+		// and bills the whole month, 32,00 €. B begins on the 20th and bills
+		// nothing (E2), so its Tuesday until 16:30 is not billed in January.
+		{"entry on the 10th, second on the 20th full month", full, entry10thAnd20th(), map[int64]int64{tableA: 3200}, []int64{}},
+		// Pro rata A bills the 10th to 31st: 3200 * 22/31 = 2270.97 → 22,71 €;
+		// B the 20th to 31st: 4550 * 12/31 = 1761.29 → 17,61 €. Two modules,
+		// no day billed twice.
+		{"entry on the 10th, second on the 20th pro rata", share, entry10thAnd20th(), map[int64]int64{tableA: 2271, tableB: 1761}, []int64{}},
 		// Two schools have their own modules (101 and 201): 32,00 € in
 		// Ispringen and 28,00 € in Birkenfeld, nothing twice.
 		{"two schools full month", full, twoSchools(), map[int64]int64{tableA: 3200, tableB: 2800}, []int64{}},

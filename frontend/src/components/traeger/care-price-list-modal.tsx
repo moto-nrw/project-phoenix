@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -209,18 +210,19 @@ export function CarePriceListModal({
           </p>
         ) : (
           rows.map((row) => (
-            <fieldset
+            <FormFieldset
               key={row.careOfferingId}
-              className="rounded-xl border border-gray-200 p-4"
+              legend={
+                <>
+                  {row.moduleName}
+                  {row.endsAt ? (
+                    <span className="ml-2 font-normal text-gray-600">
+                      {endsAtLabel(row.endsAt)}
+                    </span>
+                  ) : null}
+                </>
+              }
             >
-              <legend className="px-1 text-sm font-semibold text-gray-900">
-                {row.moduleName}
-                {row.endsAt ? (
-                  <span className="ml-2 font-normal text-gray-600">
-                    {endsAtLabel(row.endsAt)}
-                  </span>
-                ) : null}
-              </legend>
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
                 {weekdays.map((weekday) => {
                   const key = draftKey(row.careOfferingId, weekday);
@@ -247,7 +249,7 @@ export function CarePriceListModal({
                   );
                 })}
               </div>
-            </fieldset>
+            </FormFieldset>
           ))
         )}
       </form>

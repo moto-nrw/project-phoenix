@@ -64,6 +64,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 		}
 	}
 	duplicates, held := childMonthHolds(in.month, in.rule, byContract, order)
+	entries := monthEntries(in.month, byContract, order)
 	prices := newPriceBook(in.tariffs)
 	result := careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{}, duplicates: duplicates}
 	for _, contractID := range order {
@@ -74,7 +75,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 		if held[contractID] {
 			continue
 		}
-		invoice, unpriced := billContract(in.month, in.rule, byContract[contractID], prices)
+		invoice, unpriced := billContract(in.month, in.rule, byContract[contractID], entries[contractID], prices)
 		if len(unpriced) > 0 {
 			result.unpriced = append(result.unpriced, unpriced...)
 			continue
@@ -153,18 +154,23 @@ type moduleTrack struct {
 }
 
 // tracksOf follows every module of a contract through the month (E2 of
-// ADR 0158, Nachtrag Kind-Monat). Under the full month only a contract in
-// force on the first day bills, the whole month with every module its
-// version on that day books; a contract that starts later bills nothing. Pro rata a module's booked weekdays are read day by day;
+// ADR 0158, Nachtrag Kind-Monat). Under the full month a contract in force
+// on the first day bills the whole month with every module its version on
+// that day books. A contract that starts later bills the whole month by its
+// first version only when it is its child's entry of the month (see
+// monthEntries); else it bills nothing. Pro rata a module's booked weekdays are read day by day;
 // days with the same weekdays form one run, also across versions, so a
 // module that does not change is one run (Betragsregel 2).
-func tracksOf(month calendar.Date, rule string, versions []parentbilling.CareContractVersion) []moduleTrack {
+func tracksOf(month calendar.Date, rule string, versions []parentbilling.CareContractVersion, entry bool) []moduleTrack {
 	if rule != parentbilling.MonthRuleProRata {
 		version, ok := versionOn(versions, month)
-		if !ok {
-			return nil
+		switch {
+		case ok:
+			return fullMonthTracks(month, version, month)
+		case entry:
+			return fullMonthTracks(month, versions[0], versions[0].From)
 		}
-		return fullMonthTracks(month, version)
+		return nil
 	}
 	tracks := map[int64]*moduleTrack{}
 	var order []int64
@@ -228,12 +234,12 @@ func modulesBookedOn(version parentbilling.CareContractVersion, day calendar.Dat
 	return modules
 }
 
-// fullMonthTracks books the whole month by the version on its first day:
-// every module that version books on that day.
-func fullMonthTracks(month calendar.Date, version parentbilling.CareContractVersion) []moduleTrack {
+// fullMonthTracks books the whole month by one version: every module it
+// books on the first day it bills from.
+func fullMonthTracks(month calendar.Date, version parentbilling.CareContractVersion, first calendar.Date) []moduleTrack {
 	tracks := map[int64]*moduleTrack{}
 	var order []int64
-	for offeringID, module := range modulesBookedOn(version, month) {
+	for offeringID, module := range modulesBookedOn(version, first) {
 		tracks[offeringID] = &moduleTrack{offeringID: offeringID, name: module.name, endsAt: module.endsAt,
 			runs: []moduleRun{{from: month, until: monthEnd(month), version: version.Number, weekdays: module.weekdays}}}
 		order = append(order, offeringID)
@@ -256,7 +262,7 @@ func sortedTracks(tracks map[int64]*moduleTrack, order []int64) []moduleTrack {
 
 // billContract computes the draft invoice of one contract, or the booked
 // weekdays without a price.
-func billContract(month calendar.Date, rule string, versions []parentbilling.CareContractVersion, prices priceBook) (parentbilling.CareInvoice, []parentbilling.CareUnpriced) {
+func billContract(month calendar.Date, rule string, versions []parentbilling.CareContractVersion, entry bool, prices priceBook) (parentbilling.CareInvoice, []parentbilling.CareUnpriced) {
 	head := versions[0]
 	invoice := parentbilling.CareInvoice{
 		ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
@@ -264,7 +270,7 @@ func billContract(month calendar.Date, rule string, versions []parentbilling.Car
 	}
 	daysInMonth := month.DaysUntil(monthEnd(month)) + 1
 	var unpriced []parentbilling.CareUnpriced
-	for _, track := range tracksOf(month, rule, versions) {
+	for _, track := range tracksOf(month, rule, versions, entry) {
 		missing := missingPrices(head, track, prices, month)
 		if len(missing) > 0 {
 			unpriced = append(unpriced, missing...)
