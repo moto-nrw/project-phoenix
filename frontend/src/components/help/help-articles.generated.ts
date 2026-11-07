@@ -328,6 +328,8 @@ import type { traegerBriefkopfTopic as authored_traegerBriefkopfTopic } from "./
 
 import type { traegerCareContractsTopic as authored_traegerCareContractsTopic } from "./articles/traeger-care-contracts";
 
+import type { traegerCareMonthsTopic as authored_traegerCareMonthsTopic } from "./articles/traeger-care-months";
+
 import type { traegerCareTimeOverrunsTopic as authored_traegerCareTimeOverrunsTopic } from "./articles/traeger-care-time-overruns";
 
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
@@ -1243,6 +1245,8 @@ export const careTimeComparisonTopic =
       notes: [
         "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
         "Hat das Kind einen Vertrag vom Träger, gilt der Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Vertrag`. Das Ende ist die Endzeit des letzten Moduls an diesem Wochentag. Die Ankunft kommt weiter aus dem Wochenplan.",
+        "An einem Tag mit bestätigter Ferienbuchung gilt die Ferienbuchung, auch vor dem Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Ferienbuchung`. Ankunft und Ende sind die Zeiten des gebuchten `Zeitmodell`.",
+        "Bei einem Feriengast steht `Soll und Ist` unter `Feriengast`. Der Zeitraum beginnt mit seiner Ferienwoche.",
         "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
         "Zeit im Unterricht wird nicht abgezogen. Unter `Hinweis` steht sie als `Zum Unterricht` mit der Uhrzeit.",
         "Kommt ein Kind nach dem Unterricht nicht zurück, endet `Tatsächlich` mit dieser Abmeldung. Die `Abweichung` ist dann groß und negativ. `Zum Unterricht: ab` mit der Uhrzeit zeigt, dass es nicht nach Hause gegangen ist.",
@@ -2554,6 +2558,8 @@ export const enrollmentFormTopic = function enrollmentFormTopic(): HelpTopic {
     notes: [
       "Eine Vorlage gilt für alle Phasen, die sie auswählen. Sie brauchen nicht für jede Phase eine eigene.",
       "Mit `Vorschau öffnen` sehen Sie den Entwurf in einem neuen Tab, bevor Sie speichern.",
+      "Die Vorschau zeigt nur Ihre Fragen, keine Betreuungsangebote. Unter `Angebote prüfen` öffnen Sie die Vorschau jeder Phase, die die Vorlage nutzt. Dort stehen die Angebote, auch wenn die Phase noch nicht aktiv ist.",
+      "Haben Ihre Betreuungsangebote eine Gehzeit, brauchen Sie keine Frage nach `Abholzeiten`. Eine Antwort darauf ersetzt die Gehzeit des Angebots beim Kind.",
       "Die Zustimmungen `Datenschutzinformation`, `Fotoeinwilligung` und `E-Mail-Kontakt` tragen `Aus Einstellungen übernommen`. Sie kommen aus Ihren Einstellungen und lassen sich je Vorlage ausblenden.",
       "Über `+ Eigene Zustimmung hinzufügen` ergänzen Sie einen Text, der nur in dieser Vorlage steht.",
 
@@ -2700,28 +2706,31 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
         steps: [
           "Öffnen Sie `Betreuungsangebote` und tragen Sie ein, was buchbar sein soll.",
           "Öffnen Sie `Anmeldeformulare`. Dort steht schon ein `Basisformular`. Für die meisten OGS reicht es.",
-          "Sehen Sie es sich mit `Vorschau` an.",
-          "Öffnen Sie `Überblick` und wählen Sie `Formular ansehen`.",
+          "Sehen Sie es sich mit `Vorschau` an. Dort fehlen die Angebote noch.",
+          "Öffnen Sie `Anmeldephasen`, dann bei der Phase das Menü mit den drei Punkten, und wählen Sie `Vorschau mit Angeboten`. Dort sehen Sie das Formular mit den Angeboten, so wie die Eltern. Das geht auch, bevor die Phase aktiv ist.",
         ],
       },
       {
         title: "Die Anmeldung öffnen",
         steps: [
+          "Schalten Sie unter `Einstellungen` > `Anmeldung` die `Online-Anmeldung` ein.",
           "Öffnen Sie `Anmeldephasen`.",
           "Öffnen Sie bei der Phase das Menü mit den drei Punkten.",
           "Wählen Sie `Aktivieren`.",
-          "Kopieren Sie den Link der Phase und geben Sie ihn an die Eltern.",
+          "Hat das Menü `Elternlink kopieren`? Geben Sie diesen Link an die Eltern. Sonst läuft die Anmeldung über das Elternportal.",
         ],
       },
     ],
     result:
-      "Eltern können sich über den Link anmelden. Eingänge sehen Sie im `Überblick`.",
+      "Eltern melden sich über den Link oder im Elternportal an. Eingänge sehen Sie im `Überblick`.",
     notes: [
       "Über `Elternansicht öffnen` sehen Sie das Formular so wie die Eltern.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
       "Bei `Betreuungsangebote` steht in der Spalte `Belegt`, wie viele Plätze gebucht sind. Bei Angeboten mit Kapazität steht auch, wie viele Plätze frei sind. Ein volles Angebot ist mit `Voll` markiert.",
       "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
+      "Tragen Sie bei jeder Variante unter `Gehzeit je Betreuungstag` ihre Uhrzeit ein. Nach der Zusage steht sie beim Kind. Bucht ein Kind an einem Tag zwei Angebote, gilt die spätere Gehzeit.",
+      "Ein Angebot nur für eine Klassenstufe, zum Beispiel Klasse 1: Setzen Sie den Haken bei `Nur für bestimmte Klassenstufen anbieten` und wählen Sie `Klasse 1`. Ohne Haken können alle Kinder das Angebot wählen.",
     ],
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Die Anmeldungen laufen am Computer.",
@@ -9947,7 +9956,7 @@ export const traegerBillingRunTopic =
           steps: [
             "Wählen Sie unten in der Navigation `Einstellungen`.",
             "Wählen Sie `Abrechnungsvorgaben`.",
-            "Wählen Sie bei `Rechnungsnummern` den Knopf `Muster festlegen`.",
+            "Wählen Sie bei `Rechnungsnummern der Ferien` den Knopf `Muster festlegen`.",
             "Tragen Sie das Muster ein, zum Beispiel FE-{JJJJ}-{NNNN}. {NNNN} ist die laufende Nummer, {JJJJ} das Jahr.",
             "Wählen Sie `Speichern`.",
           ],
@@ -10386,6 +10395,80 @@ export const traegerCareContractsTopic =
     };
   } satisfies typeof authored_traegerCareContractsTopic;
 
+export const traegerCareMonthsTopic =
+  function traegerCareMonthsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareMonths,
+      title: "Monatsbeiträge abrechnen",
+      question: "Wie rechne ich die Betreuung jeden Monat ab?",
+      summary:
+        "Ein Monatslauf rechnet einen Monat nach den gültigen Verträgen ab. Der Beitrag eines Kindes ist die Summe seiner gebuchten Wochentage, mit den Preisen aus der Preisliste. Es zählt der Vertrag, nicht die Anwesenheit.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "CalendarCheck",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Abrechnung`.",
+        "Die Kinder haben einen gültigen Betreuungsvertrag. Module und gebuchte Wochentage kommen aus dem Vertrag.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Preise festlegen",
+          description:
+            "Jede Schule hat eigene Preise. Ein Preis gilt für einen gebuchten Wochentag eines Moduls, für den ganzen Monat.",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Preisliste`.",
+            "Wählen Sie bei der Schule `Neue Preise`.",
+            "Wählen Sie bei `Gültig ab` den Monat, ab dem die Preise gelten.",
+            "Tragen Sie je Modul und Wochentag den Monatspreis ein, zum Beispiel 32,00. Ein leeres Feld setzt keinen Preis. Dann gilt der Preis davor.",
+            "Wählen Sie `Preise speichern`.",
+          ],
+        },
+        {
+          title: "Rechnungsnummern festlegen",
+          description: "Das machen Sie einmal vor der ersten Freigabe.",
+          steps: [
+            "Wählen Sie unten in der Navigation `Einstellungen` und dann `Abrechnungsvorgaben`.",
+            "Wählen Sie bei `Rechnungsnummern der Monatsbeiträge` den Knopf `Muster festlegen`.",
+            "Tragen Sie ein Muster ein, zum Beispiel MB-{JJJJ}-{NNNN}. Nehmen Sie ein anderes Kürzel als bei den Ferien.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Monatslauf starten und prüfen",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Monatsbeiträge`.",
+            "Wählen Sie `Monatslauf starten`, dann den Monat und `Lauf starten`.",
+            "Prüfen Sie die Rechnungen. Je Schule steht eine Karte. Jede Rechnung hat je Modul eine Zeile mit den gebuchten Wochentagen.",
+            "Steht oben `Ohne Preis`, fehlt für einen gebuchten Wochentag ein Preis. Wählen Sie `Preis eintragen`. Danach kommt das Kind in den Lauf.",
+            "Steht oben `Doppelter Vertrag – bitte prüfen`, rechnen zwei Verträge eines Kindes am selben Tag dasselbe Modul ab. Die Freigabe rechnet dieses Kind mit allen seinen Verträgen nicht ab, alle anderen Kinder schon. Nach der Freigabe steht es unter `Nicht abgerechnet – Doppelter Vertrag`. Beenden oder ändern Sie einen der Verträge. Starten Sie dann einen neuen Monatslauf für diesen Monat. Er rechnet nur dieses Kind ab.",
+          ],
+        },
+        {
+          title: "Monatslauf freigeben",
+          steps: [
+            "Wählen Sie `Lauf freigeben`.",
+            "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
+            "Jede Rechnung bekommt ihre Nummer. Danach ändert sie sich nicht mehr.",
+          ],
+        },
+      ],
+      result:
+        "Die Rechnungen des Monats sind ausgestellt. Ein späterer Lauf desselben Monats rechnet nur Kinder ab, die noch keine Rechnung für diesen Monat haben.",
+      differences: [
+        "Beginnt, endet oder ändert sich ein Vertrag im Monat, zählt standardmäßig der Vertrag am 1. des Monats für den ganzen Monat. Beginnt die Betreuung erst im Monat, zählt der erste Vertrag den ganzen Monat. Ein weiterer Vertrag, der später im Monat beginnt, zählt erst ab dem nächsten Monat. Anteilig nach Kalendertagen stellen Sie unter `Einstellungen`, `Allgemein`, Bereich `Monatsbeitrag` ein.",
+        "Mit einem Preis, für den es schon eine Rechnung gibt, rechnet der Monat weiter ab. Ändern Sie ihn ab einem späteren Monat. Fehlende Preise ergänzen Sie auch für einen schon abgerechneten Monat. Der nächste Lauf dieses Monats rechnet die Kinder dann ab.",
+      ],
+      notes: [
+        "Ferienpreise legen Sie im Ferienzeitraum fest. Die Preisliste gilt nur für die Monatsbeiträge.",
+      ],
+      related: [
+        HELP_TOPICS.traegerCareContracts,
+        HELP_TOPICS.traegerBillingRun,
+      ],
+    };
+  } satisfies typeof authored_traegerCareMonthsTopic;
+
 /**
  * `/traeger/zeitvergleich` (#4683): wie oft Kinder an den Schulen des Trägers
  * länger da waren als gebucht, je Schule und mit Recht auch je Kind.
@@ -10417,6 +10500,7 @@ export const traegerCareTimeOverrunsTopic =
         "Rote Zahlen zeigen Überschreitungen. Sprechen Sie mit den Eltern, oder ändern Sie die Buchung.",
       notes: [
         "Das Soll kommt aus dem versendeten Vertrag: je Wochentag die Module und die Endzeit. Ohne Vertrag gilt der Betreuungsplan der Schule.",
+        "An einem Tag mit bestätigter Ferienbuchung gilt die Ferienbuchung, nicht der Vertrag. Jeder Tag zählt nur einmal.",
         "Das Ist reicht vom ersten Einchecken bis zum letzten Auschecken des Tages.",
         "Eine Überschreitung ist mehr als 15 Minuten früher oder später als gebucht. Ein Tag ohne Buchung zählt ganz.",
         "Krank, entschuldigt, abgemeldet, Schließtage und Feiertage zählen nicht.",
@@ -10812,13 +10896,14 @@ export const traegerHolidayPeriodTopic =
       notes: [
         "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
         "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
+        "Ein Zeitmodell mit Anmeldungen lässt sich nicht entfernen. Wählen Sie dann `Archivieren`. Neu buchen kann es danach niemand mehr. Gebuchte Tage behalten es. Zurückholen lässt es sich nicht.",
         "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Abrechnungsvorgaben` fest.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Ferienbetreuung`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
       ],
       troubleshootingDetails: [
-        "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell.",
+        "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell, das nicht archiviert ist.",
         "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
       ],
       related: [
@@ -11021,7 +11106,7 @@ export const traegerHolidayRegistrationTopic =
         "Sie sehen keinen Link? Dann ist der Ferienzeitraum noch ein Entwurf. Veröffentlichen Sie ihn zuerst.",
       ],
       troubleshootingDetails: [
-        "Eine Woche oder ein Zeitmodell lässt sich nicht entfernen? Dafür gibt es schon Anmeldungen.",
+        "Eine Woche oder ein Zeitmodell lässt sich nicht entfernen? Dafür gibt es schon Anmeldungen. Ein gebuchtes Zeitmodell können Sie `Archivieren`.",
         "Eltern sagen, die Anmeldung sei nicht offen? Prüfen Sie `Anmeldebeginn` und `Anmeldeschluss`.",
       ],
       related: [HELP_TOPICS.traegerHolidayPeriod],

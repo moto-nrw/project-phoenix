@@ -52,6 +52,7 @@ import type { EnrichedInstance } from "~/lib/timetable-types";
 
 import { overlapWarningMessage } from "./substitution-deviation-input";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "BulkSubstitutionModal" });
 
@@ -429,10 +430,10 @@ export function BulkSubstitutionModal({
             {/* Vorschau der betroffenen Tage — Auswahl ist tagesweit. */}
             {absentStaffId !== "" && rangeValid && (
               <div>
-                <span className="mb-1 block text-sm font-medium text-gray-700">
+                <SectionLabel as="p" className="mb-1">
                   Betroffene Termine
                   {absentName ? ` von ${absentName}` : ""}
-                </span>
+                </SectionLabel>
                 <div className="mb-2">
                   <Alert
                     type="info"

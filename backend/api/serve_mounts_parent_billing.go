@@ -6,10 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
@@ -22,6 +26,7 @@ import (
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	parentBillingHTTP "github.com/moto-nrw/project-phoenix/modules/parentbilling/http"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // mountParentBillingRoutes serves the Elternabrechnung (ADR 0088, #4664, ADR
@@ -51,6 +56,82 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	families := parentBillingHTTP.NewBillingFamilyResource(parentBillingCompose.NewBillingFamilies(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
+	care := NewCareBillingHTTP(organizations, settings)
+	root.Mount("/traeger/care-tariffs", care.TariffRouter(ProtectedTraegerRoutes))
+	root.Mount("/traeger/care-billing-runs", care.RunRouter(ProtectedTraegerRoutes))
+}
+
+// NewCareBillingHTTP binds the monthly contribution of the care contract
+// (#4684) to the right "Abrechnung", to the versions in force and the
+// parties of the Betreuungsvertrag in the caller's Träger transaction, and
+// to the Träger's month rule.
+func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings) *parentBillingHTTP.CareBillingResource {
+	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
+	return parentBillingHTTP.NewCareBillingResource(parentBillingCompose.NewCareBilling(contracts,
+		parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings}),
+		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+}
+
+// parentBillingCareSchools lists the schools of the Träger at Organisation
+// & Tenancy that are not deleted, by name, for the price list (#4684).
+type parentBillingCareSchools struct {
+	organizations HolidayOrganizations
+}
+
+func (s parentBillingCareSchools) TraegerSchools(ctx context.Context, organizationID int64) ([]parentbilling.CareSchool, error) {
+	schools, err := s.organizations.ListSchoolsByOrganization(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]parentbilling.CareSchool, 0, len(schools))
+	for _, school := range schools {
+		if !school.IsDeleted() {
+			result = append(result, parentbilling.CareSchool{ID: school.ID, Name: school.Name})
+		}
+	}
+	slices.SortFunc(result, func(a, b parentbilling.CareSchool) int { return strings.Compare(a.Name, b.Name) })
+	return result, nil
+}
+
+// parentBillingCareContracts translates the Betreuungsvertrag's versions in
+// force and invoice recipients into the Elternabrechnung's port.
+type parentBillingCareContracts struct {
+	contracts carecontract.ContractBilling
+}
+
+func (c parentBillingCareContracts) VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date) ([]parentbilling.CareContractVersion, error) {
+	periods, err := c.contracts.VersionsInForce(ctx, organizationID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	versions := make([]parentbilling.CareContractVersion, len(periods))
+	for i, period := range periods {
+		services := make([]parentbilling.CareContractService, len(period.Version.Services))
+		for j, service := range period.Version.Services {
+			services[j] = parentbilling.CareContractService{Weekday: service.Weekday, CareOfferingID: service.CareOfferingID,
+				ModuleName: service.ModuleName, EndsAt: service.EndsAt, LastDay: service.LastDay}
+		}
+		versions[i] = parentbilling.CareContractVersion{
+			ContractID: period.ContractID, SchoolID: period.SchoolID, SchoolName: period.Version.SchoolName,
+			Number: period.Version.Number, ChildFirstName: period.Version.ChildFirstName, ChildLastName: period.Version.ChildLastName,
+			StudentID: period.StudentID, ChildBirthDate: period.Version.ChildBirthDate,
+			From: period.From, Until: period.Until, Services: services,
+		}
+	}
+	return versions, nil
+}
+
+// Recipients translates the party each invoice goes to.
+func (c parentBillingCareContracts) Recipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]parentbilling.CareRecipient, error) {
+	parties, err := c.contracts.BillingRecipients(ctx, organizationID, contractIDs)
+	if err != nil {
+		return nil, err
+	}
+	recipients := make(map[int64]parentbilling.CareRecipient, len(parties))
+	for contractID, party := range parties {
+		recipients[contractID] = parentbilling.CareRecipient{FirstName: party.FirstName, LastName: party.LastName, Email: party.Email}
+	}
+	return recipients, nil
 }
 
 // NewBillingRunHTTP binds the billing runs to the right "Abrechnung", to
@@ -212,6 +293,16 @@ func (s parentBillingSettings) HolidayChain(ctx context.Context, organizationID 
 		SiblingRank:       texts[configModels.KeyParentBillingSiblingRank],
 		CostTakeoverOrder: texts[configModels.KeyParentBillingCostTakeoverOrder],
 	}, nil
+}
+
+// CareMonthRule is the Träger's value of parent_billing.care_month_change
+// or its default (#4684).
+func (s parentBillingSettings) CareMonthRule(ctx context.Context, organizationID int64) (string, error) {
+	texts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingCareMonthChange})
+	if err != nil {
+		return "", err
+	}
+	return texts[configModels.KeyParentBillingCareMonthChange], nil
 }
 
 // parentBillingLetterheads binds the letterhead of the letters to the

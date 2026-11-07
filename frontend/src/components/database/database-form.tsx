@@ -12,6 +12,7 @@ import { Button } from "~/components/ui/button";
 import { RemovableChip } from "~/components/ui/removable-chip";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "DatabaseForm" });
 
@@ -785,9 +786,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
       >
         {sections.map((section) => {
           return (
-            <div
+            <InsetPanel
               key={section.title}
-              className="mb-6 rounded-lg bg-gray-50 p-3 md:mb-8 md:p-4"
+              padding="md"
+              className="mb-6 md:mb-8"
             >
               {section.concept ? (
                 // Nur der Kopf: der graue Abschnitt ist schon die Fläche.
@@ -830,7 +832,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                   </div>
                 ))}
               </div>
-            </div>
+            </InsetPanel>
           );
         })}
 

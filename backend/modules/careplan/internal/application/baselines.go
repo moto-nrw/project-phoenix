@@ -21,6 +21,15 @@ func NewArrivalBaselineQueries(source ports.ArrivalBaselineSource) *ArrivalBasel
 	return &ArrivalBaselineQueries{source: source}
 }
 func (q *ArrivalBaselineQueries) Project(ctx context.Context, ids []int64, from, to calendar.Date) (*careplan.ArrivalBaselineProjection, error) {
+	return q.project(ctx, ids, from, to, true)
+}
+
+// ProjectStatus keeps recurring markers and booking coverage, not class clocks.
+func (q *ArrivalBaselineQueries) ProjectStatus(ctx context.Context, ids []int64, from, to calendar.Date) (*careplan.ArrivalBaselineProjection, error) {
+	return q.project(ctx, ids, from, to, false)
+}
+
+func (q *ArrivalBaselineQueries) project(ctx context.Context, ids []int64, from, to calendar.Date, withClassClocks bool) (*careplan.ArrivalBaselineProjection, error) {
 	out := &careplan.ArrivalBaselineProjection{
 		WeeklyByStudentDate:          make(careplan.ArrivalPlansByStudent, len(ids)),
 		DerivedByStudentDate:         make(careplan.ArrivalPlansByStudent, len(ids)),
@@ -34,21 +43,28 @@ func (q *ArrivalBaselineQueries) Project(ctx context.Context, ids []int64, from,
 	if err != nil {
 		return nil, err
 	}
-	classes, err := q.source.StudentClasses(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	times, err := q.source.ClassArrivalTimes(ctx, classes)
-	if err != nil {
-		return nil, err
+	var classes map[int64]string
+	var times map[string]*domain.ClassArrivalBaseline
+	if withClassClocks {
+		classes, err = q.source.StudentClasses(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		times, err = q.source.ClassArrivalTimes(ctx, classes)
+		if err != nil {
+			return nil, err
+		}
 	}
 	days, err := q.careDays(ctx, ids, from, to)
 	if err != nil {
 		return nil, err
 	}
-	exceptions, err := q.source.ClassArrivalExceptions(ctx, classes, from, to)
-	if err != nil {
-		return nil, err
+	var exceptions map[string]careplan.ClassArrivalExceptionsByDate
+	if withClassClocks {
+		exceptions, err = q.source.ClassArrivalExceptions(ctx, classes, from, to)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if out.WeekendFollowsFriday, err = weekendFollowsFridayIn(ctx, from, to); err != nil {
 		return nil, fmt.Errorf("project arrival baselines: %w", err)

@@ -21,7 +21,7 @@ func (rs *StaffAdminResource) getStaffScheduleTargets(w http.ResponseWriter, r *
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.StaffByID(r.Context(), staffID, workforce.StaffMembershipOnly); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}

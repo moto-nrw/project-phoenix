@@ -18,6 +18,7 @@ import type {
   SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
 import type { Phase } from "~/lib/enrollment-phase-api";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -142,26 +143,28 @@ export function LateInviteModal({
         />
 
         {generatedUrl ? (
-          <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
-            <p className="text-moto-green-strong text-sm font-medium">
-              Link wurde erstellt.
-            </p>
-            <div className="mt-3 flex items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <Input
-                  aria-label="Erstellter Nachzügler-Link"
-                  readOnly
-                  value={generatedUrl}
-                  controlSize="compact"
+          <Alert
+            type="success"
+            message="Link wurde erstellt."
+            actionLayout="stacked"
+            action={
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <Input
+                    aria-label="Erstellter Nachzügler-Link"
+                    readOnly
+                    value={generatedUrl}
+                    controlSize="compact"
+                  />
+                </div>
+                <PublicLinkCopyButton
+                  url={generatedUrl}
+                  componentId={`LateInvite:${phase.id}:${generatedUrl}`}
+                  label="Nachzügler-Link kopieren"
                 />
               </div>
-              <PublicLinkCopyButton
-                url={generatedUrl}
-                componentId={`LateInvite:${phase.id}:${generatedUrl}`}
-                label="Nachzügler-Link kopieren"
-              />
-            </div>
-          </div>
+            }
+          />
         ) : null}
 
         <div className="flex justify-end gap-2 pt-2">
@@ -321,26 +324,28 @@ export function ManualApprovedEnrollmentModal({
           <LoadErrorAlert error={loadError.error ?? configurationError} />
           <FormErrorAlert message={checks.error} />
           {statusUrl ? (
-            <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
-              <p className="text-moto-green-strong text-sm font-medium">
-                Die manuelle Anmeldung wurde angelegt und freigegeben.
-              </p>
-              <div className="mt-3 flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <Input
-                    aria-label="Statuslink der manuellen Anmeldung"
-                    readOnly
-                    value={statusUrl}
-                    controlSize="compact"
+            <Alert
+              type="success"
+              message="Die manuelle Anmeldung wurde angelegt und freigegeben."
+              actionLayout="stacked"
+              action={
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Input
+                      aria-label="Statuslink der manuellen Anmeldung"
+                      readOnly
+                      value={statusUrl}
+                      controlSize="compact"
+                    />
+                  </div>
+                  <PublicLinkCopyButton
+                    url={statusUrl}
+                    componentId={`ManualEnrollment:${phase.id}:${statusUrl}`}
+                    label="Statuslink kopieren"
                   />
                 </div>
-                <PublicLinkCopyButton
-                  url={statusUrl}
-                  componentId={`ManualEnrollment:${phase.id}:${statusUrl}`}
-                  label="Statuslink kopieren"
-                />
-              </div>
-            </div>
+              }
+            />
           ) : null}
           <div className="moto-content-surface grid gap-3 rounded-xl border p-4 sm:grid-cols-[minmax(0,1fr)_16rem]">
             <Textarea

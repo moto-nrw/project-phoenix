@@ -17,6 +17,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Alert } from "~/components/ui/alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   ArrowDown,
@@ -494,15 +495,13 @@ export function FieldEditorRow({
           </div>
 
           {isInfo ? (
-            <div className="border-moto-blue/20 bg-moto-blue/5 rounded-xl border px-3 py-2 text-xs leading-5 text-gray-600">
-              <p className="text-moto-blue-hover font-medium">
-                Wird Eltern als Hinweis angezeigt.
-              </p>
-              <p className="mt-0.5">
-                Ein Infotext sammelt keine Antwort. Nutzen Sie ihn für
-                Erklärungen, Hinweise oder Zwischenüberschriften.
-              </p>
-            </div>
+            <Alert
+              type="info"
+              size="compact"
+              announce="off"
+              title="Wird Eltern als Hinweis angezeigt."
+              message="Ein Infotext sammelt keine Antwort. Nutzen Sie ihn für Erklärungen, Hinweise oder Zwischenüberschriften."
+            />
           ) : isTargetField ? (
             <InsetPanel
               framed
@@ -687,6 +686,14 @@ export function FieldEditorRow({
 
               {field.target === "schedule.pickup" ? (
                 <div>
+                  {/* The answer becomes the child's maintained pickup time,
+                      which outranks an offering's Gehzeit in the care plan
+                      (#6044): two sources for one time. */}
+                  <Alert
+                    type="info"
+                    message="Haben Ihre Betreuungsangebote eine Gehzeit? Dann brauchen Sie diese Frage nicht. Eine Antwort hier ersetzt die Gehzeit des Angebots."
+                    className="mb-3"
+                  />
                   <span className="text-xs font-medium text-gray-700">
                     Feste Auswahlzeiten (optional)
                   </span>
@@ -1248,14 +1255,20 @@ function ConditionOfferingControls({
 
 export function PreviewSection({
   title,
+  description,
   fields,
 }: Readonly<{
   title: string;
+  /** One line under the title: where the shown answers come from. */
+  description?: string;
   fields: readonly (string | PreviewFieldLabel)[];
 }>) {
   return (
     <section>
       <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
+      {description ? (
+        <p className="mt-1 text-xs leading-5 text-gray-500">{description}</p>
+      ) : null}
       <div className="mt-3 grid gap-2">
         {fields.map((entry) => {
           const field = typeof entry === "string" ? { label: entry } : entry;
@@ -1301,30 +1314,26 @@ function PreviewCustomField({
 }: Readonly<{ field: FormField; badge?: ReactNode }>) {
   if (field.type === "information") {
     return (
-      <div className="border-moto-blue/20 bg-moto-blue/5 rounded-lg border px-3 py-2">
-        <div className="flex items-start justify-between gap-3">
-          {field.label.trim() ? (
-            <span className="text-sm font-semibold text-gray-900">
-              {field.label}
-            </span>
+      <Alert
+        type="info"
+        size="compact"
+        announce="off"
+        actionLayout="inline"
+        action={
+          field.visible_when ? <ConditionalBadge field={field} /> : undefined
+        }
+        title={field.label.trim() || "Infotext"}
+        message={
+          field.content?.trim() ? (
+            <p className="leading-5 whitespace-pre-line">{field.content}</p>
           ) : (
-            <span className="text-moto-blue-hover text-xs font-medium">
-              Infotext
-            </span>
-          )}
-          <ConditionalBadge field={field} />
-        </div>
-        {field.content?.trim() ? (
-          <p className="mt-1 text-xs leading-5 whitespace-pre-line text-gray-600">
-            {field.content}
-          </p>
-        ) : (
-          <p className="mt-1 text-xs leading-5 text-gray-400 italic">
-            Noch kein Text hinterlegt.
-          </p>
-        )}
-        <PreviewAttachmentNames attachments={field.attachments} />
-      </div>
+            <p className="leading-5 italic opacity-70">
+              Noch kein Text hinterlegt.
+            </p>
+          )
+        }
+        details={<PreviewAttachmentNames attachments={field.attachments} />}
+      />
     );
   }
 

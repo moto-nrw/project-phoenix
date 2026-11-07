@@ -227,7 +227,8 @@ func TestDeviationHistoryPopulatedQueryBudget(t *testing.T) {
 		} else {
 			t.Logf("history statement growth N3=%d N8=%d", small, len(queries))
 		}
-		require.Len(t, queries, 2*n+5, "existing best-effort name lookups remain linear")
+		require.Len(t, queries, n+4, "one membership per identity; unused Employment reads are removed under E1 (#5892)")
+		require.Empty(t, counter.Selects("staff_employment_profiles"))
 		t.Logf("deviation history N%d statements=%d", n, len(queries))
 		querybudgets.AssertQueryBudget(t, "api.timetable.deviation_history.list", queries)
 	}

@@ -14262,6 +14262,26 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CareCalendarDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CareCalendarDays.CareCalendarDays",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar CareCalendarDays: reads the school's closing days and active holiday periods in one statement for the days without care (#5994).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CareCalendarDays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CareCalendarDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CareCalendarDays.CareCalendarDays",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar CareCalendarDays: reads the school's closing days and active holiday periods in one statement for the days without care (#5994).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CareCalendarDays",
+      "target_owner": "school-calendar"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCareDayLocker.LockExceptionDay",
       "classification": "leaf",
@@ -14452,6 +14472,16 @@
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.ListDevicesByID",
       "target_owner": "device-fleet"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayCareDays.HolidayCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.HolidayCareDays.HolidayCareDays",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayGuestBookedCare.HolidayGuestBookedDays: reads the booked days of the school's holiday guests in its tenant transaction, the Soll of Soll und Ist on those days (ADR 0156 addendum, #5994).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestBookedCare.HolidayGuestBookedDays",
+      "target_owner": "enrollment"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.TenantHolidays.HolidayDates",

@@ -228,6 +228,13 @@ func WithSettingsSnapshot(ctx context.Context, snapshot *Snapshot) context.Conte
 	return configModel.WithSettingsSnapshot(ctx, snapshot)
 }
 
+// HasSettingsSnapshot reports whether ctx already carries an explicit
+// snapshot. Its keys keep priority over any batch read, so a batch reader
+// that would replace it must leave the context as it is.
+func HasSettingsSnapshot(ctx context.Context) bool {
+	return configModel.HasExplicitSettingsSnapshot(ctx)
+}
+
 // WithSettingsRequestCache attaches the tenant-keyed memo used by the resolver.
 // Repeated attachment keeps the same cache; successful writes evict its entries.
 func WithSettingsRequestCache(ctx context.Context) context.Context {

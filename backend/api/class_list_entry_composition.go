@@ -52,6 +52,14 @@ func (d classListEntryStudents) ListStudentIDsByNameAndClass(ctx context.Context
 	return peopledirectory.EnrolledStudentIDsByNameAndClass(ctx, d.persons, firstName, lastName, schoolClass)
 }
 
+func (d classListEntryStudents) ListStudentIDsByNamesAndClasses(ctx context.Context, entries []schoolmembership.ClassListEntryFields) ([][]int64, error) {
+	keys := make([]peopledirectory.NameAndClass, len(entries))
+	for i, entry := range entries {
+		keys[i] = peopledirectory.NameAndClass{FirstName: entry.FirstName, LastName: entry.LastName, SchoolClass: entry.SchoolClass}
+	}
+	return peopledirectory.EnrolledStudentIDsByNamesAndClasses(ctx, d.persons, keys)
+}
+
 func (d classListEntryStudents) IsEnrolledStudent(ctx context.Context, studentID int64) (bool, error) {
 	return peopledirectory.IsEnrolledStudent(ctx, d.persons, studentID)
 }

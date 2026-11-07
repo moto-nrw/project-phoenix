@@ -227,7 +227,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0159: the withdrawal and termination constructors of
 // modules/carecontract/compose (+35) and the notice port of
 // workflows/parentportal/compose (+1) add exactly 36 LOC.
-const moduleComposeBudgetTotal = 13076
+// ADR 0158: the monthly contribution constructor of
+// modules/parentbilling/compose adds exactly 5 LOC.
+const moduleComposeBudgetTotal = 13080
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -298,8 +300,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0155: the signature, the paper contract and the reminders (+58),
 	// the test hook of the signing link (+17); ADR 0159: withdrawal and
 	// termination (+35).
-	"modules/carecontract/compose":                177,
-	"modules/parentbilling/compose":               50,
+	"modules/carecontract/compose": 177,
+	// Raised by ADR 0158: the monthly contribution constructor (+5).
+	"modules/parentbilling/compose":               55,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":    973,
@@ -325,7 +328,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0156: the contract Soll port (+4).
-	"modules/studentpresence/compose":                 267,
+	"modules/studentpresence/compose":                 266,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
 	// Raised by ADR 0128: the student template days constructor (+5) and by

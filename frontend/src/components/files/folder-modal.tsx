@@ -23,6 +23,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "FolderModal" });
 
@@ -201,7 +202,7 @@ export function FolderModal({
         </div>
 
         {visibility === "selected" && (
-          <div className="space-y-4 rounded-xl bg-gray-50 p-4">
+          <InsetPanel padding="md" className="space-y-4">
             <LoadErrorAlert error={audienceLoadError} />
             <div className="space-y-1.5">
               <FieldLabel
@@ -254,7 +255,7 @@ export function FolderModal({
               Eine Person sieht den Ordner, wenn sie selbst gewählt ist oder
               eine der gewählten Rollen hat.
             </p>
-          </div>
+          </InsetPanel>
         )}
 
         <p className="text-xs leading-5 text-gray-500">

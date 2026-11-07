@@ -1,6 +1,6 @@
 {
   "scenario": "school.notifications.preferences",
-  "max": 8,
+  "max": 6,
   "exact": true,
-  "description": "Protected school JWT GET /school/notifications/preferences/ through real owners. N=0/3/8 stored decisions, including OGS-only decisions ignored by the fixed school catalogue. Complete ordered DTO, foreign-school/account exclusion and no writes. Includes tenant BEGIN/prolog/COMMIT; excludes outer host session-liveness and module-booking middleware."
+  "description": "Protected school JWT GET /school/notifications/preferences/ through real owners. N=0/3/8 stored decisions, including OGS-only decisions ignored by the fixed school catalogue. Complete ordered DTO, foreign-school/account exclusion and no writes. Includes tenant BEGIN/prolog/COMMIT; excludes outer host session-liveness and module-booking middleware. The dispatch switch and all catalogue gates come from one shared settings read (#5699)."
 }

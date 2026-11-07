@@ -65,13 +65,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/guardians/guardian-picker-panel.tsx",
-    lines: [329],
+    lines: [323],
     reason: "Trefferzeile der Erziehungsberechtigten-Suche: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-message-modal.tsx",
-    lines: [379],
+    lines: [380],
     reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
   },
   {
@@ -121,20 +121,20 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1068],
+    lines: [1066],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
     rule: "no-button-override",
     file: "src/components/class-day/class-day-overview.tsx",
-    lines: [179],
+    lines: [180],
     reason:
       "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1545],
+    lines: [1543],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
@@ -158,7 +158,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [305],
+    lines: [306],
     reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder
@@ -166,7 +166,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [305],
+    lines: [306],
     reason:
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
   },

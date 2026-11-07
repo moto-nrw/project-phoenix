@@ -1940,12 +1940,12 @@ function CareOfferingAvailabilityFields({
               : null,
           })
         }
-        label={
-          rule
-            ? "Nur unter Bedingungen anbieten"
-            : "Für alle Klassenstufen / ohne Bedingungen"
-        }
-        hint="Ohne Bedingungen ist dieses Angebot für jedes Kind verfügbar."
+        // One label for both states: it names what a tick does. The old
+        // pair called the unticked box „Für alle Klassenstufen“, so schools
+        // ticked it to mean „for everyone“ and restricted the offering
+        // instead (#6044).
+        label="Nur für bestimmte Klassenstufen anbieten"
+        hint="Ohne Haken können alle Kinder das Angebot wählen."
       />
       {rule ? (
         <div className="mt-4 space-y-3">

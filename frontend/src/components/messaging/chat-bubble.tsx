@@ -14,6 +14,7 @@ import { ChecksIcon } from "@phosphor-icons/react/ssr";
 
 import { Button } from "~/components/ui/button";
 import { formatChatTime } from "~/lib/date-helpers";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 /** One chat message bubble. */
 export function ChatBubble({
@@ -174,7 +175,11 @@ export function ChatEventCard({
   action?: { label: string; onClick: () => void };
 }>) {
   return (
-    <div className="mx-auto flex max-w-[90%] flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+    <InsetPanel
+      framed
+      padding="compact"
+      className="mx-auto flex max-w-[90%] flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-gray-700"
+    >
       <span>{body}</span>
       <span className="text-xs text-gray-400">
         {formatChatTime(createdAt, locale)}
@@ -191,6 +196,6 @@ export function ChatEventCard({
           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Button>
       )}
-    </div>
+    </InsetPanel>
   );
 }

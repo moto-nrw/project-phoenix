@@ -373,7 +373,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p TimetablePeople) StaffPersonID(ctx context.Context, staffID int64) (int64, error) {\n\tstaff, err := p.persons.StaffRows().FindByID(ctx, staffID)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\tif staff == nil || staff.ID == 0 {\n\t\treturn 0, nil\n\t}\n\treturn staff.PersonID, nil\n}",
+      "evidence": "func (p TimetablePeople) StaffPersonID(ctx context.Context, staffID int64) (int64, error) {\n\tstaff, err := p.persons.StaffRows().FindMembershipByID(ctx, staffID)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\tif staff == nil || staff.ID == 0 {\n\t\treturn 0, nil\n\t}\n\treturn staff.PersonID, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/TimetablePeople.StaffPersonID",
       "owner": "roots"
@@ -1157,6 +1157,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (c parentBillingCareContracts) Recipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]parentbilling.CareRecipient, error) {\n\tparties, err := c.contracts.BillingRecipients(ctx, organizationID, contractIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trecipients := make(map[int64]parentbilling.CareRecipient, len(parties))\n\tfor contractID, party := range parties {\n\t\trecipients[contractID] = parentbilling.CareRecipient{FirstName: party.FirstName, LastName: party.LastName, Email: party.Email}\n\t}\n\treturn recipients, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingCareContracts.Recipients",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s parentBillingCareSchools) TraegerSchools(ctx context.Context, organizationID int64) ([]parentbilling.CareSchool, error) {\n\tschools, err := s.organizations.ListSchoolsByOrganization(ctx, organizationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]parentbilling.CareSchool, 0, len(schools))\n\tfor _, school := range schools {\n\t\tif !school.IsDeleted() {\n\t\t\tresult = append(result, parentbilling.CareSchool{ID: school.ID, Name: school.Name})\n\t\t}\n\t}\n\tslices.SortFunc(result, func(a, b parentbilling.CareSchool) int {\n\t\treturn strings.Compare(a.Name, b.Name)\n\t})\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingCareSchools.TraegerSchools",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (b parentBillingHolidayRegistrations) CancelHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64) (parentbilling.HolidayRegistration, error) {\n\tdetail, err := b.review.ChangeHolidayRegistration(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, enrollmentOwner.HolidayAuditCancel)\n\tif err != nil {\n\t\treturn parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)\n\t}\n\treturn parentBillingRegistration(detail), nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingHolidayRegistrations.CancelHolidayRegistration",
@@ -1230,6 +1244,13 @@
       "evidence": "func (s parentBillingSettings) AsksDebtorNumber(ctx context.Context, organizationID int64) (bool, error) {\n\tvalues, err := s.settings.TraegerBools(ctx, organizationID, []string{configModels.KeyParentBillingDebtorNumberOnConfirm})\n\tif err != nil {\n\t\treturn false, err\n\t}\n\treturn values[configModels.KeyParentBillingDebtorNumberOnConfirm], nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingSettings.AsksDebtorNumber",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s parentBillingSettings) CareMonthRule(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingCareMonthChange})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyParentBillingCareMonthChange], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingSettings.CareMonthRule",
       "owner": "roots"
     },
     {
@@ -2865,7 +2886,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (d ParentStaffMembers) List(ctx context.Context, tenantIDs []int64) ([]recordports.StaffMember, error) {\n\tmembers, err := d.Membership.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: tenantIDs})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]recordports.StaffMember, 0, len(members))\n\tfor _, member := range members {\n\t\tresult = append(result, recordports.StaffMember{TenantID: member.TenantID, PersonID: member.PersonID})\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (d ParentStaffMembers) List(ctx context.Context, tenantIDs []int64) ([]recordports.StaffMember, error) {\n\tmembers, err := d.Membership.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: tenantIDs, MembershipOnly: true})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]recordports.StaffMember, 0, len(members))\n\tfor _, member := range members {\n\t\tresult = append(result, recordports.StaffMember{TenantID: member.TenantID, PersonID: member.PersonID})\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/ParentStaffMembers.List",
       "owner": "roots"
@@ -4191,13 +4212,6 @@
       "evidence": "func (p calendarPersonPort) FindByAccountID(ctx context.Context, id int64) (*calendarCompose.Person, error) {\n\tvalue, err := p.source.FindByAccountID(ctx, id)\n\treturn calendarPerson(value), err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/calendarPersonPort.FindByAccountID",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (p calendarRelationshipPort) FindByGuardianProfileID(ctx context.Context, id int64) ([]*calendarCompose.StudentGuardian, error) {\n\tvalue, err := p.source.FindByGuardianProfileID(ctx, id)\n\treturn CalendarMapSlice(value, calendarRelationship), err\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/calendarRelationshipPort.FindByGuardianProfileID",
       "owner": "roots"
     },
     {
@@ -7163,7 +7177,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s staffAdminSubjects) OffboardedStaffIDs(ctx context.Context) ([]int64, error) {\n\tmembers, err := s.membership.ListStaff(ctx, schoolmembership.StaffFilter{IncludeDeleted: true})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\toffboarded := make([]int64, 0, len(members))\n\tfor _, member := range members {\n\t\tif member.IsDeleted() {\n\t\t\toffboarded = append(offboarded, member.ID)\n\t\t}\n\t}\n\treturn offboarded, nil\n}",
+      "evidence": "func (s staffAdminSubjects) OffboardedStaffIDs(ctx context.Context) ([]int64, error) {\n\tmembers, err := s.membership.ListStaff(ctx, schoolmembership.StaffFilter{IncludeDeleted: true, MembershipOnly: true})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\toffboarded := make([]int64, 0, len(members))\n\tfor _, member := range members {\n\t\tif member.IsDeleted() {\n\t\t\toffboarded = append(offboarded, member.ID)\n\t\t}\n\t}\n\treturn offboarded, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/staffAdminSubjects.OffboardedStaffIDs",
       "owner": "roots"
@@ -7303,14 +7317,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (c staffDirectoryCapability) StaffByID(ctx context.Context, staffID int64) (*workforceModule.StaffProfile, error) {\n\tstaff, err := c.people.StaffRows().FindByID(ctx, staffID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn publicStaffProfile(staff), nil\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/staffDirectoryCapability.StaffByID",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (c staffDirectoryCapability) StaffByPersonID(ctx context.Context, personID int64) (*workforceModule.StaffProfile, error) {\n\tstaff, err := c.people.StaffRows().FindByPersonID(ctx, personID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn publicStaffProfile(staff), nil\n}",
+      "evidence": "func (c staffDirectoryCapability) StaffByPersonID(ctx context.Context, personID int64) (*workforceModule.StaffProfile, error) {\n\tstaff, err := c.people.StaffRows().FindMembershipByPersonID(ctx, personID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn publicStaffProfile(staff), nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/staffDirectoryCapability.StaffByPersonID",
       "owner": "roots"

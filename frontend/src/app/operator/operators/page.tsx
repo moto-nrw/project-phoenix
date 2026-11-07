@@ -38,6 +38,7 @@ import { operatorsConcept } from "~/lib/concepts/operators";
 import { SectionCard } from "~/components/ui/section-card";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "OperatorOperatorsPage" });
 
@@ -372,9 +373,11 @@ function PendingInvitationsList({
     <SectionCard title="Offene Einladungen" concept={operatorsConcept}>
       <div className="space-y-3">
         {invitations.map((inv) => (
-          <div
+          <InsetPanel
             key={inv.id}
-            className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3"
+            framed
+            padding="md"
+            className="flex items-center justify-between"
           >
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-gray-900">
@@ -414,7 +417,7 @@ function PendingInvitationsList({
                 Widerrufen
               </Button>
             </div>
-          </div>
+          </InsetPanel>
         ))}
       </div>
     </SectionCard>
@@ -472,9 +475,11 @@ function OperatorsList({
       ) : (
         <div className="space-y-3">
           {operators.map((op) => (
-            <div
+            <InsetPanel
               key={op.id}
-              className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              framed
+              padding="md"
+              className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-gray-900">
@@ -540,7 +545,7 @@ function OperatorsList({
                   )}
                 </div>
               </div>
-            </div>
+            </InsetPanel>
           ))}
         </div>
       )}

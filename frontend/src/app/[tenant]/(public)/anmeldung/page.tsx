@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "~/components/ui/alert";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ApiError } from "~/lib/api-error";
 import { useEffect, useState } from "react";
@@ -112,10 +113,7 @@ export default function EnrollPhasePickerPage() {
         <div className="grid lg:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="p-5 sm:p-8 lg:p-10">
             <div className="max-w-3xl">
-              <p className="text-moto-blue text-sm font-semibold tracking-wide uppercase">
-                {t("phaseEyebrow")}
-              </p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
+              <h1 className="text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
                 {t("phaseTitle")}
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
@@ -127,9 +125,11 @@ export default function EnrollPhasePickerPage() {
               {loadError ? (
                 <LoadErrorAlert error={loadError} />
               ) : !phases || phases.length === 0 ? (
-                <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong rounded-xl border p-5 text-sm leading-6">
-                  {enrollmentDisabled ? t("disabled") : t("noPhase")}
-                </div>
+                <Alert
+                  type="warning"
+                  announce="off"
+                  message={enrollmentDisabled ? t("disabled") : t("noPhase")}
+                />
               ) : (
                 <ul className="space-y-3">
                   {phases.map((phase) => (

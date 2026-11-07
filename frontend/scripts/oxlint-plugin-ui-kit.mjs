@@ -6,13 +6,8 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import {
-  fieldLabelAllowlist,
-  fieldLabelBaseline,
-} from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
-import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
-import { insetBaseline } from "./ui-kit-inset-baseline.mjs";
+import { uppercaseLabelBaseline } from "./ui-kit-uppercase-label-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -77,6 +72,9 @@ import { insetBaseline } from "./ui-kit-inset-baseline.mjs";
 //                                     Tailwind never generates them
 //   ui-kit/no-white-on-warm-fill    — no white text on orange (SCHOOLYARD) or
 //                                     amber (WARNING) fills
+//
+// ui-kit/no-uppercase-label (#5590, shrink-only baseline): no `uppercase
+// tracking-*` class chain outside the kit; group headings use SectionLabel.
 //
 // ui-kit/no-hand-rolled-empty-state (#5597, hard-zero): a dashed, centered box
 // outside ui/ is a hand-built placeholder; use EmptyState variant="dashed".
@@ -1195,8 +1193,8 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
-src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
+src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@226 text-[11px]@275
+src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@238
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
@@ -1208,24 +1206,23 @@ src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
-src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
 src/components/students/planned-status-days-modal.tsx|text-[10px]@935 text-[11px]@935
 src/components/students/school-checkin-fab.tsx|text-[10px]@200
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@371
+src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@372
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[11px]@312
-src/components/timetable/event-form/step-termin.tsx|text-[10px]@169
+src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1358 text-[11px]@1383 text-[11px]@1536 text-[10px]@1645 text-[11px]@1666
-src/components/timetable/month-planner-grid.tsx|text-[11px]@64 text-[11px]@140 text-[11px]@149 text-[11px]@170 text-[9px]@201 text-[10px]@235
-src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@178 text-[10px]@245 text-[11px]@254 text-[10px]@296 text-[10px]@320 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
-src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@412 text-[11px]@481
-src/components/timetable/substitution-person-card.tsx|text-[11px]@58 text-[11px]@337 text-[11px]@344 text-[11px]@351 text-[11px]@359 text-[11px]@371
-src/components/timetable/substitution-slide-over.tsx|text-[11px]@743 text-[11px]@747
-src/components/timetable/template-card.tsx|text-[11px]@128 text-[10px]@198
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1388 text-[11px]@1541 text-[11px]@1669
+src/components/timetable/month-planner-grid.tsx|text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[10px]@237
+src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[11px]@255 text-[10px]@321 text-[11px]@398 text-[11px]@405
+src/components/timetable/staff-pool-slide-over.tsx|text-[11px]@482
+src/components/timetable/substitution-person-card.tsx|text-[11px]@59 text-[11px]@338 text-[11px]@345 text-[11px]@352 text-[11px]@360
+src/components/timetable/substitution-slide-over.tsx|text-[11px]@744
+src/components/timetable/template-card.tsx|text-[10px]@198
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@352 text-[11px]@392 text-[11px]@399 text-[11px]@420 text-[11px]@426
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@455 text-[11px]@455 text-[11px]@460 text-[10px]@483 text-[10px]@518 text-[11px]@518
+src/components/timetable/weekly-calendar-grid.tsx|text-[11px]@460 text-[10px]@483 text-[10px]@518 text-[11px]@518
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[10px]@282
@@ -2077,6 +2074,94 @@ function classText(node, constants) {
   return chunks.join(" ");
 }
 
+/**
+ * Statische Klassenalternativen eines Ausdrucks. Anders als `classText()`
+ * bleiben die Seiten eines Ternärausdrucks getrennt: `a ? "uppercase" :
+ * "tracking-wide"` ist keine Versalien-Beschriftung, weil beide Klassen nie
+ * gemeinsam gerendert werden. Aufruf- und Array-Argumente gehören dagegen
+ * zur selben möglichen Klassenkette und werden miteinander kombiniert.
+ */
+function classTextAlternatives(node, constants, depth = 0) {
+  if (!node || typeof node !== "object") return [""];
+  if (
+    node.type === "JSXExpressionContainer" ||
+    node.type === "ChainExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSTypeAssertion" ||
+    node.type === "TypeCastExpression"
+  ) {
+    return classTextAlternatives(node.expression, constants, depth);
+  }
+  if (node.type === "Literal") {
+    return typeof node.value === "string" ? [node.value] : [""];
+  }
+  if (node.type === "Identifier") {
+    const init = depth < 2 ? constants.get(node.name) : undefined;
+    return init ? classTextAlternatives(init, constants, depth + 1) : [""];
+  }
+  if (node.type === "ConditionalExpression") {
+    return [
+      ...classTextAlternatives(node.consequent, constants, depth),
+      ...classTextAlternatives(node.alternate, constants, depth),
+    ];
+  }
+  if (node.type === "LogicalExpression") {
+    if (node.operator === "&&") {
+      return ["", ...classTextAlternatives(node.right, constants, depth)];
+    }
+    if (node.operator === "||" || node.operator === "??") {
+      return [
+        ...classTextAlternatives(node.left, constants, depth),
+        ...classTextAlternatives(node.right, constants, depth),
+      ];
+    }
+  }
+  if (node.type === "TemplateLiteral") {
+    let alternatives = [node.quasis[0]?.value.raw ?? ""];
+    for (const [index, expression] of node.expressions.entries()) {
+      alternatives = combineClassTextAlternatives(
+        alternatives,
+        classTextAlternatives(expression, constants, depth),
+      ).map(
+        (alternative) =>
+          `${alternative}${node.quasis[index + 1]?.value.raw ?? ""}`,
+      );
+    }
+    return alternatives;
+  }
+  if (node.type === "CallExpression") {
+    if (
+      node.callee?.type === "Identifier" &&
+      node.callee.name === "buttonClassName"
+    ) {
+      return [""];
+    }
+    return node.arguments.reduce(
+      (alternatives, argument) =>
+        combineClassTextAlternatives(
+          alternatives,
+          classTextAlternatives(argument, constants, depth),
+        ),
+      [""],
+    );
+  }
+  if (node.type === "ArrayExpression") {
+    return node.elements.reduce(
+      (alternatives, element) =>
+        combineClassTextAlternatives(
+          alternatives,
+          classTextAlternatives(element, constants, depth),
+        ),
+      [""],
+    );
+  }
+  return [""];
+}
+
+function combineClassTextAlternatives(left, right) {
+  return [...new Set(left.flatMap((a) => right.map((b) => `${a} ${b}`)))];
+}
+
 function classNameProperty(objectExpression) {
   if (objectExpression?.type !== "ObjectExpression") return null;
   return (
@@ -2162,6 +2247,7 @@ function makeRatchetRule({
   countEnv = "UI_KIT_BUTTON_RATCHET",
   kitFile = BUTTON_KIT_FILE,
   exemptDir = null,
+  exemptFiles = [],
   followStaticClassSources = false,
   onlySrc = false,
 }) {
@@ -2181,6 +2267,7 @@ function makeRatchetRule({
         EXEMPT_FILE_RE.test(key) ||
         key.endsWith(kitFile) ||
         (exemptDir !== null && key.startsWith(exemptDir)) ||
+        exemptFiles.some((prefix) => key.startsWith(prefix)) ||
         (onlySrc && !key.startsWith("src/")) ||
         key.includes("src/test/")
       ) {
@@ -3346,7 +3433,8 @@ const noHandRolledStickyBar = {
 // font-medium/font-semibold, ein `<span>` dieser Art mit `block` und `mb-*` über
 // dem Feld, oder als erstes Kind oder mit `block` in einem `<label>`. Kein Fund: Zeilen
 // (Checkbox plus Text), `sr-only`, ein `<label>` in Knopfoptik (Datei wählen).
-// Start mit shrink-only Baseline je Datei, Abbau je Bereich in Sub-Issues.
+// Hard-zero seit #5590: die letzten Funde waren Gruppenköpfe und sind jetzt
+// `SectionLabel`.
 const FIELD_LABEL_SIZE = new Set(["text-xs", "text-sm"]);
 const FIELD_LABEL_WEIGHT = new Set(["font-medium", "font-semibold"]);
 const FIELD_LABEL_ROW_RE = /^(?:inline-)?(?:flex|grid)$/;
@@ -3375,9 +3463,8 @@ const noHandRolledFieldLabel = makeRatchetRule({
     "Build field labels from FieldLabel or the label prop instead of styling a label or span by hand.",
   message:
     "Keine eigene Feldbeschriftung: `label`-Prop von Input, Textarea oder CustomSelect, sonst FieldLabel aus ~/components/ui/field-label. Immer normal geschrieben, nie in Versalien (#5589, .claude/rules/frontend-ui-kit.md).",
-  baselines: fieldLabelBaseline,
-  allowlist: fieldLabelAllowlist,
-  countEnv: "UI_KIT_FIELD_LABEL_RATCHET",
+  baselines: {},
+  allowlist: [],
   kitFile: "src/components/ui/field-label.tsx",
   detect: ({ classText: textOf, found }) => ({
     JSXOpeningElement(node) {
@@ -3424,7 +3511,9 @@ const noHandRolledFieldLabel = makeRatchetRule({
 // mit Rundung, Innenabstand, getöntem Rand `border-moto-<Ton>/N` und Fläche
 // desselben Tons (`bg-moto-<Ton>-soft` oder `bg-moto-<Ton>/N`). Kein Fund:
 // Pillen (`rounded-full`), Bedienelemente (Knopf, Link, Label), Inline-Text.
-// Start mit shrink-only Baseline je Datei, Abbau je Bereich in Sub-Issues.
+// Amber ist kein Ton von `Alert` (Warnungen sind orange): eine amber-Fläche
+// mit Rundung und Innenabstand ist auch ohne Rand ein Fund. Hard-zero seit
+// dem Abbau der Baseline.
 const NOTICE_TAGS = new Set([
   "div",
   "p",
@@ -3447,7 +3536,7 @@ function isHandRolledNotice(utilities) {
   );
   return utilities.some((token) => {
     const hue = token.match(NOTICE_FILL_RE)?.[1];
-    return hue !== undefined && borderHues.has(hue);
+    return hue !== undefined && (hue === "amber" || borderHues.has(hue));
   });
 }
 
@@ -3457,9 +3546,8 @@ const noHandRolledNotice = makeRatchetRule({
     "Build tinted notice boxes from Alert instead of styling a bordered, tinted block by hand.",
   message:
     'Kein eigener Hinweiskasten: Alert aus ~/components/ui/alert (`type`, für Hinweise in Feldern `size="compact"`, Standortfarbe über `color`). Warnhinweise sind orange über `type="warning"` (#5591, .claude/rules/frontend-ui-kit.md).',
-  baselines: noticeBaseline,
-  allowlist: noticeAllowlist,
-  countEnv: "UI_KIT_NOTICE_RATCHET",
+  baselines: {},
+  allowlist: [],
   kitFile: "src/components/ui/alert.tsx",
   detect: ({ classText: textOf, found }) => ({
     JSXOpeningElement(node) {
@@ -3876,11 +3964,159 @@ const noHandRolledListRow = makeRatchetRule({
   detect: (tools) => classNameVisitor(tools, isHandRolledListRowClass),
 });
 
+// ui-kit/no-uppercase-label (#5590) — Gruppenköpfe und Zwischenüberschriften
+// stehen normal geschrieben über `SectionLabel` (Epic #5576, Entscheidung 2).
+// Fund: eine Klassenkette mit `uppercase` und `tracking-*` außerhalb des Kits,
+// im `className` eines Elements (auch über Ternär-Zweige und `cn(…)`) oder in
+// einer anderen Zeichenkette, etwa einer Konstante. Ausnahmen laut Epic: `/start`
+// und die NFC-Druckanleitung; der Kicker des Elternportals kommt über das Kit
+// (`SectionCard kicker`). Start mit shrink-only Baseline je Datei, Abbau je
+// Bereich in Sub-Issues.
+const UPPERCASE_LABEL_EXEMPT_FILES = [
+  "src/app/start/page.tsx",
+  "src/app/help/nfc/",
+];
+
+function isUppercaseLabelText(text) {
+  const utilities = classUtilities(text);
+  return (
+    utilities.includes("uppercase") &&
+    utilities.some((token) => token.startsWith("tracking-"))
+  );
+}
+
+// A complete static chain is reported by the Literal/TemplateLiteral visitor.
+// Recognise it through the same shallow constant lookup as classText() so the
+// className visitor can report split cn(...) arguments without double-counting
+// a direct `const label = "uppercase tracking-wide"` reference.
+function containsStaticUppercaseLabelText(
+  node,
+  constants,
+  seen = new WeakSet(),
+  depth = 0,
+) {
+  if (!node || typeof node !== "object" || seen.has(node)) return false;
+  seen.add(node);
+
+  if (node.type === "Literal") {
+    return typeof node.value === "string" && isUppercaseLabelText(node.value);
+  }
+  if (node.type === "TemplateLiteral") {
+    return isUppercaseLabelText(
+      node.quasis.map((quasi) => quasi.value.raw).join(" "),
+    );
+  }
+  if (node.type === "Identifier" && depth < 2) {
+    const init = constants.get(node.name);
+    return init
+      ? containsStaticUppercaseLabelText(init, constants, seen, depth + 1)
+      : false;
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent" || key === "loc" || key === "range") continue;
+    if (Array.isArray(value)) {
+      if (
+        value.some((child) =>
+          containsStaticUppercaseLabelText(child, constants, seen, depth),
+        )
+      ) {
+        return true;
+      }
+    } else if (
+      containsStaticUppercaseLabelText(value, constants, seen, depth)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function classNameUsesStaticUppercaseLabelConstant(value, constants) {
+  let expression = value;
+  while (
+    expression?.type === "JSXExpressionContainer" ||
+    expression?.type === "ChainExpression" ||
+    expression?.type === "TSAsExpression" ||
+    expression?.type === "TSTypeAssertion" ||
+    expression?.type === "TypeCastExpression"
+  ) {
+    expression = expression.expression;
+  }
+  return (
+    expression?.type === "Identifier" &&
+    containsStaticUppercaseLabelText(expression, constants)
+  );
+}
+
+function isClassNameAttribute(node) {
+  return (
+    node?.type === "JSXAttribute" &&
+    node.name?.type === "JSXIdentifier" &&
+    /(?:^c|C)lassName$/.test(node.name.name)
+  );
+}
+
+function insideClassNameAttribute(node) {
+  for (let current = node.parent; current; current = current.parent) {
+    if (isClassNameAttribute(current)) return true;
+    if (current.type === "JSXElement" || current.type === "Program") break;
+  }
+  return false;
+}
+
+const noUppercaseLabel = makeRatchetRule({
+  ruleName: "no-uppercase-label",
+  description:
+    "Group headings come from SectionLabel; no `uppercase tracking-*` class chain outside the UI kit.",
+  message:
+    "Keine Versalien-Überschrift: Gruppenkopf oder Zwischenüberschrift über `SectionLabel` (`as`, `required`) aus ~/components/ui/section-label, Gruppenkopf einer Liste über `ListGroupHeader`, Mini-Tag über `StatusBadge size=\"xs\"`, Tabellenkopf über `DataTable` (#5590, .claude/rules/frontend-ui-kit.md).",
+  baselines: uppercaseLabelBaseline,
+  allowlist: [],
+  countEnv: "UI_KIT_UPPERCASE_LABEL_RATCHET",
+  kitFile: "src/components/ui/section-label.tsx",
+  exemptDir: UI_KIT_DIR,
+  exemptFiles: UPPERCASE_LABEL_EXEMPT_FILES,
+  onlySrc: true,
+  detect: ({ constants, found }) => {
+    const check = (node, text) => {
+      if (insideClassNameAttribute(node)) return;
+      if (isUppercaseLabelText(text)) found(node);
+    };
+    return {
+      JSXAttribute(node) {
+        if (!isClassNameAttribute(node) || !node.value) return;
+        if (
+          classTextAlternatives(node.value, constants).some(
+            isUppercaseLabelText,
+          ) &&
+          !classNameUsesStaticUppercaseLabelConstant(node.value, constants)
+        ) {
+          found(node);
+        }
+      },
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        check(node, node.quasis.map((quasi) => quasi.value.raw).join(" "));
+      },
+    };
+  },
+});
+
 // ui-kit/no-hand-rolled-inset (#5592) — die graue Innenfläche kommt aus
 // `InsetPanel`. Fund: ein Element mit Radius, `bg-gray-50` und Polster, auch über
 // Ternär-Zweige und lokale Konstanten hinweg. Ein Knopf oder Link ist keine Fläche.
 // Zweiter Fund: eine Flächen-Klassenkette in einer Modul-Konstante; dort entstand
-// das nächste Mini-Kit. Start mit shrink-only Baseline, Abbau je Bereich in Sub-Issues.
+// das nächste Mini-Kit. Hard-zero seit dem Abbau der Baseline.
+// Eltern-Ausnahmen aus #2619: Kinderkarten, Kinderwahl und Startseite des
+// Elternportals behalten ihre Flächen. Nie anfassen, auch nicht für das Kit.
+const INSET_PARENT_EXCEPTIONS = [
+  "src/components/parent/child/child-day-card.tsx",
+  "src/components/parent/child/child-switcher.tsx",
+  "src/components/parent/start/parent-start-page.tsx",
+];
 const INSET_ACTION_ELEMENTS = new Set([
   "a",
   "button",
@@ -3924,11 +4160,11 @@ const noHandRolledInset = makeRatchetRule({
     "Inner surfaces come from InsetPanel; surface class chains do not live in module constants.",
   message:
     "Keine eigene Innenfläche: `InsetPanel` (`tone`, `framed`, `dashed`, `padding`, `as`) aus ~/components/ui/inset-panel, Flächenklassen nicht in einer Modul-Konstante (#5592, .claude/rules/frontend-ui-kit.md).",
-  baselines: insetBaseline,
+  baselines: {},
   allowlist: [],
-  countEnv: "UI_KIT_INSET_RATCHET",
   kitFile: "src/components/ui/inset-panel.tsx",
   exemptDir: UI_KIT_DIR,
+  exemptFiles: INSET_PARENT_EXCEPTIONS,
   // E2E-Dateien halten Selektoren als Konstanten, keine Oberfläche.
   onlySrc: true,
   detect: ({ classText, found }) => ({
@@ -4806,6 +5042,7 @@ export default {
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-inset": noHandRolledInset,
     "no-hand-rolled-field-label": noHandRolledFieldLabel,
+    "no-uppercase-label": noUppercaseLabel,
     "no-hand-rolled-fieldset": noHandRolledFieldset,
     "no-hand-rolled-choice-tile": noHandRolledChoiceTile,
     "no-hand-rolled-toggle-control": noHandRolledToggleControl,

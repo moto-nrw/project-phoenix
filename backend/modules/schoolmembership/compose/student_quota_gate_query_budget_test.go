@@ -66,7 +66,7 @@ func TestStudentQuotaClassGateQueryBudget(t *testing.T) {
 				}
 				queries := counter.Queries()
 				classLocks := counter.Matching(func(q string) bool { return strings.HasPrefix(q, "select pg_advisory_xact_lock_shared(") })
-				require.Len(t, classLocks, 2, "retain the cancellation error boundary before the quota lock")
+				require.Len(t, classLocks, 1, "reuse the held class gate before the quota lock")
 				classIndex := slices.IndexFunc(queries, func(q string) bool {
 					return strings.HasPrefix(strings.ToLower(q), "select pg_advisory_xact_lock_shared(")
 				})
