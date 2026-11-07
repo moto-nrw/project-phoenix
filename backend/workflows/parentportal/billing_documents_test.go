@@ -66,7 +66,7 @@ func documentInboxWithMails(t *testing.T) (*parentService.Portal, parentService.
 	deps := documentInboxDependencies(t, db, mails)
 	pushes := &recordedPushes{}
 	deps.DocumentNotifier = pushes
-	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps), pushes, db, mails
+	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps, parentService.DocumentPushPorts{}), pushes, db, mails
 }
 
 // documentInboxDependencies are the parents portal's dependencies of the

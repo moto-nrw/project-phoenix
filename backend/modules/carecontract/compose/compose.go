@@ -40,11 +40,7 @@ func NewConclusion(contracts ContractPorts, intake IntakePorts) carecontract.Con
 }
 
 // NewInbox builds the parents' inbox in the parents portal's Träger unit.
-func NewInbox() carecontract.Inbox { return application.NewInbox(postgres.NewStore()) }
-
-// NewInboxNotices builds the worker's check whether a contract still lies in
-// the inbox of an address, for the push of a sent contract (#5941).
-func NewInboxNotices() carecontract.InboxNotices { return postgres.NewStore() }
+func NewInbox() *application.Inbox { return application.NewInbox(postgres.NewStore()) }
 
 // NewContractMailRenderer renders a contract mail for Delivery's worker.
 func NewContractMailRenderer() carecontract.ContractMailRenderer {

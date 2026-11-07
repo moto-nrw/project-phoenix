@@ -73,16 +73,14 @@ func traegerDocumentNotices(t *testing.T) (releaseNotices, *recordedPushes, *bun
 	require.NoError(t, err)
 	pushes := &recordedPushes{}
 	deps.DocumentNotifier = pushes
-	deps.TraegerDocumentNotifier = pushes
 	fan := &recordedFanOut{}
-	deps.ReleaseFanOut = fan
 	deps.StudentRepo = owners.NewParentStudentReads(people.Student)
-	deps.ContractInboxNotices = owners.NewParentContractInboxNotices()
-	deps.ReleaseNotices = owners.NewParentReleaseNotices()
-	deps.ReleaseSchools = owners.NewParentReleaseSchools(organizations)
-	deps.ReleaseRecipients = owners.NewParentReleaseRecipients(owners.NewParentGroupAudience(testpkg.NewDatabase(t, db)))
 	deps.Logger = slog.Default()
-	return releaseNotices{DocumentNotices: parentportalcompose.NewDocumentNotices(deps), fan: fan}, pushes, db
+	return releaseNotices{DocumentNotices: parentportalcompose.NewDocumentNotices(deps, parentService.DocumentPushPorts{
+		ContractInboxNotices: owners.NewParentContractInboxNotices(), ReleaseNotices: owners.NewParentReleaseNotices(),
+		ReleaseSchools: owners.NewParentReleaseSchools(organizations), ReleaseRecipients: owners.NewParentReleaseRecipients(owners.NewParentGroupAudience(testpkg.NewDatabase(t, db))),
+		ReleaseFanOut: fan, TraegerDocumentNotifier: pushes,
+	}), fan: fan}, pushes, db
 }
 
 // to keeps the pushes to one account: the shared school of the fixtures has

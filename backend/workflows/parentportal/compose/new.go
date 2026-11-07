@@ -74,23 +74,16 @@ type Dependencies struct {
 	ParentRequestEvents messaging.RequestEvents
 
 	// Document inbox (#4671, ADR 0126).
-	BillingDocuments  care.BillingDocuments
-	ContractDocuments care.ContractDocuments
-	ContractNotices   care.ContractNotices
-	SharedDocuments   care.TraegerSharedDocuments
-	TraegerRuntime    care.TraegerRuntime
-	SchoolTraeger     care.SchoolTraeger
-	ParentAccounts    care.ParentAccounts
-	DocumentNotifier  care.BillingDocumentNotifier
-	// The push of a sent contract and of a release for parents (#5941).
-	ContractInboxNotices    care.ContractInboxNotices
-	ReleaseNotices          care.ReleaseNotices
-	ReleaseSchools          care.ReleaseSchools
-	ReleaseRecipients       care.ReleaseRecipients
-	ReleaseFanOut           care.ReleaseFanOut
-	TraegerDocumentNotifier care.TraegerDocumentNotifier
-	GuardianInvites         care.GuardianAccess
-	GuardianInvitations     care.GuardianInvitationReads
+	BillingDocuments    care.BillingDocuments
+	ContractDocuments   care.ContractDocuments
+	ContractNotices     care.ContractNotices
+	SharedDocuments     care.TraegerSharedDocuments
+	TraegerRuntime      care.TraegerRuntime
+	SchoolTraeger       care.SchoolTraeger
+	ParentAccounts      care.ParentAccounts
+	DocumentNotifier    care.BillingDocumentNotifier
+	GuardianInvites     care.GuardianAccess
+	GuardianInvitations care.GuardianInvitationReads
 
 	// Messaging: conversation, announcements, surveys, request-sharing reads.
 	MessageThreadRepo         messaging.MessageThreadAccess
@@ -204,18 +197,12 @@ func bindOwners(deps Dependencies) owners {
 
 // NewDocumentNotices builds the push of a new document (ADR 0126) for the
 // Delivery worker over the children, their Träger, the accounts, the
-// guardian's language and the notifier of deps; it needs no other flow. The
-// pushes of a sent contract and of a release (#5941) also need the Träger
-// runtime, the children's groups, the contract and release checks and the
-// recipients of a release; without them those two pushes fail and Delivery
-// retries them.
-func NewDocumentNotices(deps Dependencies) parentportal.DocumentNotices {
+// guardian's language and the notifier of deps, and the pushes (#5941).
+func NewDocumentNotices(deps Dependencies, pushes care.DocumentPushPorts) parentportal.DocumentNotices {
 	if deps.Runtime == nil || deps.ChildRepo == nil || deps.SchoolTraeger == nil || deps.ParentAccounts == nil || deps.DocumentNotifier == nil || deps.Logger == nil {
 		panic("parent portal: document notices need the runtime, the children, the Träger, the accounts, the notifier and a logger")
 	}
 	return &care.Service{Config: care.Config{Runtime: deps.Runtime, ChildRepo: deps.ChildRepo, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, GuardianProfileRepo: deps.GuardianProfileRepo, DocumentNotifier: deps.DocumentNotifier,
-		TraegerRuntime: deps.TraegerRuntime, StudentRepo: deps.StudentRepo, ContractInboxNotices: deps.ContractInboxNotices,
-		ReleaseNotices: deps.ReleaseNotices, ReleaseSchools: deps.ReleaseSchools, ReleaseRecipients: deps.ReleaseRecipients,
-		ReleaseFanOut: deps.ReleaseFanOut, TraegerDocumentNotifier: deps.TraegerDocumentNotifier, Logger: deps.Logger}}
+		TraegerRuntime: deps.TraegerRuntime, StudentRepo: deps.StudentRepo, DocumentPushPorts: pushes, Logger: deps.Logger}}
 }

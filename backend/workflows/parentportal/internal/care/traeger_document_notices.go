@@ -80,6 +80,17 @@ type ReleaseRecipients interface {
 	GuardianAccounts(ctx context.Context, schoolID int64, groupID *int64) ([]int64, error)
 }
 
+// DocumentPushPorts are the ports of the pushes of a sent contract and of a
+// release for parents.
+type DocumentPushPorts struct {
+	ContractInboxNotices    ContractInboxNotices
+	ReleaseNotices          ReleaseNotices
+	ReleaseSchools          ReleaseSchools
+	ReleaseRecipients       ReleaseRecipients
+	ReleaseFanOut           ReleaseFanOut
+	TraegerDocumentNotifier TraegerDocumentNotifier
+}
+
 // TraegerDocumentNotifier sends the push of a contract or a release through
 // the school's router, with the account's consent, in the caller's tenant
 // transaction. sent tells whether a device push was enqueued there: a school

@@ -2,8 +2,6 @@ package owners
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -12,6 +10,7 @@ import (
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -140,8 +139,7 @@ func (n TraegerDocumentReleaseNotices) EnqueueReleaseNotice(ctx context.Context,
 // contractDocumentNoticeKey names the contract and the address without
 // spelling the address out: the key travels into Delivery's logs.
 func contractDocumentNoticeKey(contractID int64, address string) string {
-	sum := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(address))))
-	return fmt.Sprintf("care-contract-document:%d:%s", contractID, hex.EncodeToString(sum[:8]))
+	return fmt.Sprintf("care-contract-document:%d:%s", contractID, securityruntime.Fingerprint([]byte(strings.ToLower(strings.TrimSpace(address))))[:16])
 }
 
 // pushKindTraegerDocumentReleaseAccount is the outbox kind of the push of a

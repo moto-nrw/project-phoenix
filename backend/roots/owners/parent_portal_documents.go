@@ -290,15 +290,13 @@ func BuildParentDocumentNotices(
 		Runtime: ParentPortalRuntime{}, ChildRepo: NewParentChildReads(carePlanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)),
 		SchoolTraeger: NewParentSchoolTraeger(organizations), ParentAccounts: NewParentAccounts(identity),
 		GuardianProfileRepo: NewParentGuardianProfileReads(people.GuardianProfiles),
-		DocumentNotifier:    notifier,
-		// The pushes of a sent contract and of a release (#5941).
-		TraegerRuntime: ParentPortalRuntime{}, StudentRepo: NewParentStudentReads(people.Students),
-		ContractInboxNotices: NewParentContractInboxNotices(),
-		ReleaseNotices:       NewParentReleaseNotices(),
-		ReleaseSchools:       NewParentReleaseSchools(organizations),
-		ReleaseRecipients:    NewParentReleaseRecipients(NewParentGroupAudience(db)),
-		ReleaseFanOut:        ParentReleaseFanOut{Delivery: outbox}, TraegerDocumentNotifier: notifier,
+		DocumentNotifier:    notifier, TraegerRuntime: ParentPortalRuntime{}, StudentRepo: NewParentStudentReads(people.Students),
 		Logger: env.Logger.With("service", "parent-document-notices"),
+	}, parentportal.DocumentPushPorts{
+		// The pushes of a sent contract and of a release (#5941).
+		ContractInboxNotices: NewParentContractInboxNotices(), ReleaseNotices: NewParentReleaseNotices(),
+		ReleaseSchools: NewParentReleaseSchools(organizations), ReleaseRecipients: NewParentReleaseRecipients(NewParentGroupAudience(db)),
+		ReleaseFanOut: ParentReleaseFanOut{Delivery: outbox}, TraegerDocumentNotifier: notifier,
 	})
 }
 

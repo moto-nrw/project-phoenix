@@ -166,4 +166,5 @@ type Store interface {
 	VersionDocument(ctx context.Context, organizationID, versionID int64) (carecontract.File, bool, error)
 	InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]carecontract.InboxContract, error)
 	InboxDocument(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (carecontract.File, error)
+	ContractNoticeTarget(ctx context.Context, organizationID, contractID int64, email string) (carecontract.ContractNoticeTarget, bool, error)
 }

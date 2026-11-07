@@ -21,12 +21,9 @@ const contractNoticeTargetSQL = `SELECT c.school_id, c.student_id FROM care_cont
 		AND EXISTS (SELECT 1 FROM care_contract.contract_mailings AS m
 			WHERE m.organization_id = c.organization_id AND m.contract_id = c.id AND lower(m.recipient_email) = lower(?))`
 
-// The store serves the worker's check directly; it is the capability
-// carecontract.InboxNotices without a forwarding layer.
-var _ carecontract.InboxNotices = (*Store)(nil)
-
 // ContractNoticeTarget reads the school and the child of a contract in the
-// inbox of email, in the caller's Träger transaction; it records no read.
+// inbox of email, in the caller's Träger transaction; it records no read. A
+// missing contract or address finds nothing.
 func (Store) ContractNoticeTarget(ctx context.Context, organizationID, contractID int64, email string) (carecontract.ContractNoticeTarget, bool, error) {
 	address := strings.TrimSpace(email)
 	if contractID <= 0 || address == "" {

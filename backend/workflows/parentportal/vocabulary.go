@@ -50,6 +50,7 @@ type (
 	ReleaseSchoolsPort              = care.ReleaseSchools
 	ReleaseRecipientsPort           = care.ReleaseRecipients
 	ReleaseFanOutPort               = care.ReleaseFanOut
+	DocumentPushPorts               = care.DocumentPushPorts
 	TraegerDocumentNotifierPort     = care.TraegerDocumentNotifier
 	BillingDocumentReader           = care.BillingDocumentReader
 	BillingDocumentsPort            = care.BillingDocuments

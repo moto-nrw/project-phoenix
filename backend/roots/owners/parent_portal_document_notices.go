@@ -26,7 +26,7 @@ type parentContractInboxNotices struct {
 
 // NewParentContractInboxNotices binds the contract check of the push.
 func NewParentContractInboxNotices() parentportal.ContractInboxNoticesPort {
-	return parentContractInboxNotices{inbox: careContractCompose.NewInboxNotices()}
+	return parentContractInboxNotices{inbox: careContractCompose.NewInbox()}
 }
 
 func (n parentContractInboxNotices) ContractNoticeTarget(ctx context.Context, organizationID, contractID int64, email string) (parentportal.ContractNoticeTarget, bool, error) {

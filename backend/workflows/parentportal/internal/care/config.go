@@ -87,17 +87,9 @@ type Config struct {
 	SchoolTraeger    SchoolTraeger
 	ParentAccounts   ParentAccounts
 	DocumentNotifier BillingDocumentNotifier
-	// The push of a sent contract and of a release for parents (#5941):
-	// whether the contract still lies in the inbox of its address, the
-	// release for its push, and the accounts a release may reach.
-	ContractInboxNotices ContractInboxNotices
-	ReleaseNotices       ReleaseNotices
-	ReleaseSchools       ReleaseSchools
-	ReleaseRecipients    ReleaseRecipients
-	ReleaseFanOut        ReleaseFanOut
-	// TraegerDocumentNotifier sends those two pushes and tells whether one
-	// went out at a school.
-	TraegerDocumentNotifier TraegerDocumentNotifier
+	// DocumentPushPorts serve the pushes of a sent contract and of a
+	// release for parents (#5941).
+	DocumentPushPorts
 
 	// Owner commands. Care Plan records absences, the guardian leg of a
 	// day's pickup exception and the Stammdaten requests; People Directory

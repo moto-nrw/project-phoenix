@@ -120,7 +120,7 @@ func TestContractSendPushesOncePerAddress(t *testing.T) {
 // put nothing there; a new release after the revocation is a new push.
 func TestReleaseForParentsPushesOncePerRelease(t *testing.T) {
 	t.Parallel()
-	f := newTraegerDocumentsFixture(t)
+	f := newTraegerDocumentsFixtureOn(t, testpkg.SetupTestDB(t))
 	token := f.office.token
 	pushes := func() []queuedTraegerPush {
 		return queuedTraegerPushes(t, f.db, f.office.organization, "traeger_document_release")
@@ -162,7 +162,7 @@ func TestReleaseForParentsPushesOncePerRelease(t *testing.T) {
 // a check reads without the organization.
 func TestDocumentPushChecksFindNothingOfAnotherTraegerBeneathRLS(t *testing.T) {
 	t.Parallel()
-	f := newTraegerDocumentsFixture(t)
+	f := newTraegerDocumentsFixtureOn(t, testpkg.SetupTestDB(t))
 	document := f.uploaded(t, f.office.token, "Elternbrief")
 	release := f.released(t, f.office.token, document.ID, map[string]any{"audience": "parents"})
 	other := f.newOffice(t, "Träger Fremd Push unter RLS", identityaccess.TraegerRoleDocuments)
@@ -172,7 +172,7 @@ func TestDocumentPushChecksFindNothingOfAnotherTraegerBeneathRLS(t *testing.T) {
 	contract := pushContract(t, f.db, f.office.organization, f.office.schools[0], chain.StudentID, chain.Email)
 
 	documents := organizationtenancyCompose.NewSharedTraegerDocuments()
-	contracts := careContractCompose.NewInboxNotices()
+	contracts := careContractCompose.NewInbox()
 	parent := organizationtenancy.TraegerDocumentParent{AccountID: chain.AccountID, Schools: map[int64][]int64{f.office.schools[0]: {}}}
 	unit := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db))
 	check := func(organization int64) (releaseFound, isNew, contractFound bool) {
