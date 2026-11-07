@@ -14,10 +14,7 @@ import {
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
-import {
-  TIMETABLE_UNTYPED_EDGE_COLOR,
-  timetableSurface,
-} from "./timetable-style";
+import { TIMETABLE_UNTYPED_EDGE_COLOR } from "./timetable-colors";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { StatusDot } from "~/components/ui/status-dot";
 
@@ -59,7 +56,7 @@ export function MonthPlannerGrid({
   const currentMonth = monthDate.getMonth();
 
   return (
-    <div className={`${timetableSurface} overflow-hidden`}>
+    <div className="moto-content-surface overflow-hidden rounded-2xl border">
       <div className="grid grid-cols-7 border-b border-gray-200">
         {days.slice(0, 7).map((day) => (
           <div

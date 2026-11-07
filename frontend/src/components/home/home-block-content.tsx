@@ -15,9 +15,8 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { ListRow } from "~/components/ui/list-row";
-import { SectionCard } from "~/components/ui/section-card";
 import { SkeletonRows } from "~/components/ui/skeleton";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import {
   HomeCardLink,
   HomeMoreRow,
@@ -109,10 +108,8 @@ function ListCard({
   children: ReactNode;
 }>) {
   return (
-    <SectionCard
+    <HomeCard
       title={title}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       leading={<HomeCardIcon concept={concept} />}
       inlineActions
       actions={
@@ -124,7 +121,7 @@ function ListCard({
       }
     >
       {children}
-    </SectionCard>
+    </HomeCard>
   );
 }
 

@@ -278,7 +278,7 @@ describe.concurrent("bauart rules", () => {
     it.each([
       "src/app/parents/(protected)/page.tsx",
       "src/components/parent/guardians-panel.tsx",
-    ])("leaves %s alone", async (path) => {
+    ])("reports row actions in %s (#5606)", async (path) => {
       const source = `import { Button } from "~/components/ui/button";
       export function Probe({ rows }: { rows: string[] }) {
         return rows.map((row) => (
@@ -286,7 +286,7 @@ describe.concurrent("bauart rules", () => {
         ));
       }`;
 
-      expect((await lintSource(source, path)).output).not.toContain(ROW_ACTION);
+      expect((await lintSource(source, path)).output).toContain(ROW_ACTION);
     });
 
     it.each([
@@ -641,7 +641,6 @@ describe.concurrent("bauart rules", () => {
       for (const path of [
         "src/components/ui/probe.tsx",
         "src/components/probe.test.tsx",
-        "src/components/parent/probe.tsx",
       ]) {
         const { output } = await lintSource(source, path);
         expect(output).not.toContain("bauart(no-toast-form-error)");
@@ -801,7 +800,6 @@ describe.concurrent("bauart rules", () => {
       for (const path of [
         "src/components/ui/probe.tsx",
         "src/components/probe.test.tsx",
-        "src/components/parent/probe.tsx",
       ]) {
         const { output } = await lintSource(source, path);
         expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
@@ -826,17 +824,45 @@ describe.concurrent("bauart rules", () => {
     });
 
     it.each(["src/app/parents/page.tsx", "src/components/parent/probe.tsx"])(
-      "still leaves %s alone",
+      "reports an own skeleton in %s too (#5606)",
       async (path) => {
         const source = `export function Probe() {
         return <div className="h-4 animate-pulse rounded bg-gray-200" />;
       }`;
 
-        expect((await lintSource(source, path)).output).not.toContain(
+        expect((await lintSource(source, path)).output).toContain(
           "bauart(no-own-skeleton)",
         );
       },
     );
+
+    it.each([
+      "src/components/parent/start/parent-start-page.tsx",
+      "src/components/parent/child/child-day-card.tsx",
+    ])("leaves the epic's untouched surface %s alone", async (path) => {
+      const source = `export function Probe() {
+        return <div className="h-4 animate-pulse rounded bg-gray-200" />;
+      }`;
+
+      expect((await lintSource(source, path)).output).not.toContain(
+        "bauart(no-own-skeleton)",
+      );
+    });
+
+    it("keeps the other rules active on those surfaces (#5606)", async () => {
+      const source = `export function Probe() {
+        return <dl><dt>Name</dt></dl>;
+      }`;
+
+      expect(
+        (
+          await lintSource(
+            source,
+            "src/components/parent/start/parent-start-page.tsx",
+          )
+        ).output,
+      ).toContain("bauart(no-local-field-grid)");
+    });
   });
 
   describe("bauart/one-detail-per-type", () => {
@@ -1023,7 +1049,6 @@ describe.concurrent("bauart rules", () => {
       for (const path of [
         "src/components/ui/form-modal.tsx",
         "src/components/probe.test.tsx",
-        "src/app/parents/page.tsx",
       ]) {
         expect((await lintSource(source, path)).output).not.toContain(
           "bauart(no-edit-overlay)",
@@ -1108,7 +1133,6 @@ describe.concurrent("bauart rules", () => {
       for (const path of [
         "src/components/ui/detail-modal-components.tsx",
         "src/components/probe.test.tsx",
-        "src/components/parent/child-master-data.tsx",
       ]) {
         expect((await lintSource(source, path)).output).not.toContain(
           "bauart(no-local-field-grid)",
@@ -1213,7 +1237,6 @@ describe.concurrent("bauart rules", () => {
         "src/components/ui/skeleton.tsx",
         "src/components/probe.test.tsx",
         "src/components/probe.stories.tsx",
-        "src/app/parents/page.tsx",
       ]) {
         expect((await lintSource(source, path)).output).not.toContain(
           "bauart(no-own-skeleton)",
@@ -1420,7 +1443,6 @@ describe.concurrent("bauart rules", () => {
           "src/test/fixtures/rooms.ts",
           "src/components/ui/status-badge.tsx",
           "src/components/probe.test.ts",
-          "src/components/parent/child-card.tsx",
         ].map((path) => lintSource(source, path)),
       );
 

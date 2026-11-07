@@ -19,10 +19,8 @@ import { ParentSection } from "~/components/parent/shell/parent-section";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
-import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -113,23 +111,23 @@ export function ParentDocumentsPage() {
   }, [load]);
 
   return (
-    <ParentPage>
-      <ParentPageHeader title={t("title")} description={t("description")} />
+    <ParentPage
+      header={
+        <ParentPageHeader title={t("title")} description={t("description")} />
+      }
+      loading={documents === null}
+      empty={
+        documents?.length === 0 && !error
+          ? {
+              icon: <MotoConceptIcon concept={documentsConcept} />,
+              title: t("emptyTitle"),
+              description: t("emptyDescription"),
+            }
+          : null
+      }
+    >
       {error ? <LoadErrorAlert error={error} /> : null}
-      {documents === null ? (
-        <div className="space-y-3" aria-busy="true">
-          <Skeleton shape="card" className="h-36 w-full" />
-          <Skeleton shape="card" className="h-36 w-full" />
-        </div>
-      ) : documents.length === 0 ? (
-        error ? null : (
-          <EmptyState
-            icon={<MotoConceptIcon concept={documentsConcept} />}
-            title={t("emptyTitle")}
-            description={t("emptyDescription")}
-          />
-        )
-      ) : (
+      {documents && documents.length > 0 ? (
         <ul className="space-y-4">
           {documents.map((entry) =>
             entry.type === "shared" ? (
@@ -147,7 +145,7 @@ export function ParentDocumentsPage() {
             ),
           )}
         </ul>
-      )}
+      ) : null}
     </ParentPage>
   );
 }

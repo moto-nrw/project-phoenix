@@ -10,7 +10,7 @@ import {
 import { FieldLabel } from "~/components/ui/field-label";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { ParentVisibleBadge } from "~/components/ui/parent-visible-badge";
+import { VisibilityBadge } from "~/components/ui/visibility-badge";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 
 // Shared relationship UI used by BOTH the multi-guardian form (create/edit) and
@@ -45,7 +45,7 @@ export function RelationshipTypeSelect({
           Beziehung zum Kind
         </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <CustomSelect
@@ -156,7 +156,7 @@ export function RelationshipPermissionsFields({
             />
           </svg>
           Berechtigungen
-          <ParentVisibleBadge hint={PARENT_VISIBLE_HINTS.guardianPermissions} />
+          <VisibilityBadge hint={PARENT_VISIBLE_HINTS.guardianPermissions} />
         </h3>
         <div className="space-y-2">
           <label
@@ -220,7 +220,7 @@ export function RelationshipPermissionsFields({
         </label>
         {/* This badge sits at the right edge of its row, where a left-aligned
             bubble runs off the modal. Anchor it to the right instead. */}
-        <ParentVisibleBadge
+        <VisibilityBadge
           hint={PARENT_VISIBLE_HINTS.guardianPermissions}
           bubbleClassName="left-auto right-0"
         />

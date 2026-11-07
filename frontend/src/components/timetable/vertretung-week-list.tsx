@@ -36,8 +36,8 @@ import {
 import { formatDayHeader, toISODate } from "~/lib/timetable-helpers";
 import type { EnrichedInstance, GapInstance } from "~/lib/timetable-types";
 
-import { timetableSurface } from "./timetable-style";
 import { VertretungListFilter } from "./vertretung-list-filter";
+import { cn } from "~/lib/utils";
 
 export interface VertretungWeekListProps {
   /** Die angezeigten Wochentage (Mo–Fr). */
@@ -82,12 +82,14 @@ export function VertretungWeekList({
   className,
 }: VertretungWeekListProps) {
   // flex-col: die Filterzeile bleibt stehen, nur die Liste darunter scrollt.
-  const containerClassName = className
-    ? `${timetableSurface} flex flex-col ${className}`
-    : `${timetableSurface} flex flex-col`;
-
   return (
-    <div className={containerClassName} data-testid="vertretung-week-list">
+    <div
+      className={cn(
+        "moto-content-surface flex flex-col rounded-2xl border",
+        className,
+      )}
+      data-testid="vertretung-week-list"
+    >
       {onModeChange && (
         <VertretungListFilter
           mode={mode}

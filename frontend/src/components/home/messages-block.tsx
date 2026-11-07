@@ -2,9 +2,8 @@
 
 import { EmptyState } from "~/components/ui/empty-state";
 import { ListRow } from "~/components/ui/list-row";
-import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import { HomeCardLink } from "~/components/home/home-card-rows";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
@@ -54,11 +53,9 @@ export function MessagesBlock() {
   const allHref = tenantPath(parentsEnabled ? "/messages" : "/team-chat");
 
   return (
-    <SectionCard
+    <HomeCard
       title="Ungelesene Nachrichten"
       leading={<HomeCardIcon concept={messagesConcept} />}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       inlineActions
       actions={
         <HomeCardLink
@@ -98,6 +95,6 @@ export function MessagesBlock() {
           ))}
         </ul>
       )}
-    </SectionCard>
+    </HomeCard>
   );
 }

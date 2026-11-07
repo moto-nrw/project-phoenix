@@ -1,6 +1,5 @@
 "use client";
 
-import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -13,13 +12,12 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { Skeleton } from "~/components/ui/skeleton";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { useLocale, useTranslations } from "next-intl";
 import { type EnrollablePhase, listEnrollableSchools } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   formatLocalizedDate,
   formatLocalizedDateTime,
@@ -109,37 +107,47 @@ export function ParentEnrollPicker() {
   }, [phases]);
 
   return (
-    <ParentPage>
-      <ParentPageHeader
-        kicker={t("kicker")}
-        title={t("title")}
-        description={t("description")}
-      />
-
-      {loading ? (
-        <ParentEnrollSkeleton />
-      ) : loadError ? (
-        <LoadErrorAlert error={loadError} />
-      ) : phases.length === 0 ? (
-        <EmptyPhases />
-      ) : (
-        <div className="space-y-6">
-          {linked.length > 0 && (
-            <SchoolSection
-              label={t("yourSchools")}
-              groups={linked}
-              locale={locale}
-            />
-          )}
-          {other.length > 0 && (
-            <SchoolSection
-              label={t("otherSchools")}
-              groups={other}
-              locale={locale}
-            />
-          )}
-        </div>
-      )}
+    <ParentPage
+      header={
+        <ParentPageHeader
+          kicker={t("kicker")}
+          title={t("title")}
+          description={t("description")}
+        />
+      }
+      loading={
+        loading && (
+          <div data-testid="parent-enroll-skeleton">
+            <ListSkeleton rows={4} avatar={false} />
+          </div>
+        )
+      }
+      error={loadError}
+      empty={
+        phases.length === 0
+          ? {
+              title: t("empty"),
+              icon: <MotoConceptIcon concept={schoolsConcept} />,
+            }
+          : null
+      }
+    >
+      <div className="space-y-6">
+        {linked.length > 0 && (
+          <SchoolSection
+            label={t("yourSchools")}
+            groups={linked}
+            locale={locale}
+          />
+        )}
+        {other.length > 0 && (
+          <SchoolSection
+            label={t("otherSchools")}
+            groups={other}
+            locale={locale}
+          />
+        )}
+      </div>
     </ParentPage>
   );
 }
@@ -247,57 +255,6 @@ function PhaseRow({
         aria-hidden="true"
       />
     </Link>
-  );
-}
-
-function EmptyPhases() {
-  const t = useTranslations("parentEnroll");
-  return (
-    <EmptyState
-      variant="dashed"
-      icon={<ConceptIconTile concept={schoolsConcept} size="page" />}
-      title={t("empty")}
-    />
-  );
-}
-
-function ParentEnrollSkeleton() {
-  // Mirrors SchoolCard above: icon-tile header row over a divide-y list of
-  // PhaseRow-shaped lines, instead of two blank blocks.
-  return (
-    <div
-      data-testid="parent-enroll-skeleton"
-      className="space-y-4"
-      aria-hidden="true"
-    >
-      <Skeleton className="ml-1 h-5 w-32" />
-      {[0, 1].map((card) => (
-        <div
-          key={card}
-          className="moto-content-surface overflow-hidden rounded-2xl border"
-        >
-          <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
-            <Skeleton shape="inner" className="size-11 shrink-0" />
-            <Skeleton className="h-5 w-48 max-w-2/3" />
-          </div>
-          <ul className="divide-y divide-gray-100">
-            {[0, 1].map((row) => (
-              <li key={row} className="flex items-center gap-4 p-4 sm:px-6">
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="flex gap-2">
-                    <Skeleton className="h-4 w-36" />
-                    <Skeleton shape="round" className="h-5 w-20" />
-                  </div>
-                  <Skeleton className="h-4 w-56 max-w-full" />
-                  <Skeleton className="h-3 w-40" />
-                </div>
-                <Skeleton className="size-5 shrink-0" />
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </div>
   );
 }
 

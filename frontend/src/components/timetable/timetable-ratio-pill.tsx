@@ -13,7 +13,7 @@
 
 import type { ReactNode } from "react";
 
-import { timetableToneColors, type TimetableTone } from "./timetable-style";
+import { timetableToneColors, type TimetableTone } from "./timetable-colors";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { StatusDot } from "~/components/ui/status-dot";
 

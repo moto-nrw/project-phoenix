@@ -202,14 +202,16 @@ export function ParentGroupThreadView({
 
   if (!thread) {
     return (
-      <ParentPage>
-        <ParentPageHeader
-          title={tm("title")}
-          backHref={parentPath("/parents/messages")}
-          backLabel={tm("back")}
-        />
-        <LoadErrorAlert error={loadError} />
-      </ParentPage>
+      <ParentPage
+        header={
+          <ParentPageHeader
+            title={tm("title")}
+            backHref={parentPath("/parents/messages")}
+            backLabel={tm("back")}
+          />
+        }
+        error={loadError}
+      />
     );
   }
 

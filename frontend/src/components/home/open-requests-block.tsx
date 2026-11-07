@@ -2,8 +2,7 @@
 
 import { ListRow } from "~/components/ui/list-row";
 import { EmptyState } from "~/components/ui/empty-state";
-import { SectionCard } from "~/components/ui/section-card";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import { HomeCardLink } from "~/components/home/home-card-rows";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
@@ -73,11 +72,9 @@ export function OpenRequestsBlock() {
   ].filter((row) => row.count > 0);
 
   return (
-    <SectionCard
+    <HomeCard
       title="Offene Anfragen"
       leading={<HomeCardIcon concept={requestsConcept} />}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       inlineActions
       actions={
         <HomeCardLink
@@ -120,6 +117,6 @@ export function OpenRequestsBlock() {
           ))}
         </ul>
       )}
-    </SectionCard>
+    </HomeCard>
   );
 }

@@ -22,6 +22,12 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { Avatar } from "./avatar";
 
 describe("Avatar", () => {
+  it("shows the same initials on the neutral surface", () => {
+    render(<Avatar name="Mara Kern" tone="neutral" />);
+
+    expect(screen.getByLabelText("Mara Kern")).toHaveTextContent("MK");
+  });
+
   it("renders the image when a URL is provided and loads ok", () => {
     render(
       <Avatar imageUrl="/uploads/student-photos/a.jpg" name="Alice Bee" />,

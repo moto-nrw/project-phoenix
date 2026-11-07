@@ -61,7 +61,8 @@ import {
 } from "~/components/ui/status-badge";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Textarea } from "~/components/ui/textarea";
-import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
+import { VisibilityBadge } from "~/components/ui/visibility-badge";
+import { Avatar } from "~/components/ui/avatar";
 import { type SignatureValue, signatureRequestBody } from "~/lib/signature";
 import {
   PickupSignatureField,
@@ -104,10 +105,6 @@ function isRelationshipType(type: string): type is RelationshipType {
   return RELATIONSHIP_TYPES.includes(type as RelationshipType);
 }
 
-function initials(first: string, last: string): string {
-  return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase() || "?";
-}
-
 let nextPhoneDraftId = 0;
 
 function newPhoneDraftId(): string {
@@ -134,6 +131,7 @@ export default function GuardiansPanel({
   canManagePickup = false,
 }: GuardiansPanelProps) {
   const t = useTranslations("parentChildDetail");
+  const visibilityT = useTranslations("parentVisibility");
   const tPermission = useTranslations("parentPickupPermission");
   const [guardians, setGuardians] = useState<ChildGuardian[]>([]);
   const [accounts, setAccounts] = useState<RelatedAccount[]>([]);
@@ -380,7 +378,11 @@ export default function GuardiansPanel({
             data-parent-tour="child-guardians"
             className="flex flex-col items-start gap-2 sm:flex-row sm:items-center"
           >
-            <OgsVisibleBadge />
+            <VisibilityBadge
+              audience="ogs"
+              label={visibilityT("ogs")}
+              hint={visibilityT("ogsDescription")}
+            />
             {canAddContact ? (
               <Button
                 type="button"
@@ -667,9 +669,7 @@ function ConnectedAccountRow({
 
   return (
     <div className="flex flex-col gap-3 rounded-xl bg-gray-50 p-4 sm:flex-row sm:items-center">
-      <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[15px] font-semibold text-gray-700">
-        {initials(account.first_name, account.last_name)}
-      </span>
+      <Avatar tone="neutral" size="md" decorative name={name} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900">{name}</p>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -776,9 +776,7 @@ function GuardianRow({
   return (
     <div className="rounded-xl bg-gray-50 p-4">
       <div className="flex items-start gap-3">
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[15px] font-semibold text-gray-700">
-          {initials(g.first_name, g.last_name)}
-        </span>
+        <Avatar tone="neutral" size="md" decorative name={name} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p className="text-sm font-semibold text-gray-900">{name}</p>

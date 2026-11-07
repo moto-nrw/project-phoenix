@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 
 function renderTabs(
   props: {
-    variant?: "default" | "line";
+    variant?: "default" | "line" | "icon";
     onValueChange?: (v: string) => void;
   } = {},
 ) {
@@ -87,5 +87,18 @@ describe("Tabs primitives", () => {
       </Tabs>,
     );
     expect(screen.getByRole("tabpanel")).toHaveClass("content-class");
+  });
+
+  it("switches panels in the icon variant", () => {
+    renderTabs({ variant: "icon" });
+
+    expect(screen.getByRole("tablist")).toHaveAttribute("data-variant", "icon");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Two" }), {
+      button: 0,
+    });
+    expect(screen.getByRole("tab", { name: "Two" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 });
