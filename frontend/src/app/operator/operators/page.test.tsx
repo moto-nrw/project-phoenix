@@ -53,6 +53,25 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 vi.mock("~/components/ui/modal", () => ({
+  Modal: ({
+    isOpen,
+    onClose,
+    title,
+    children,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    title: string;
+    children: React.ReactNode;
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label={title}>
+        {children}
+        <button type="button" onClick={onClose}>
+          Schließen
+        </button>
+      </div>
+    ) : null,
   ConfirmationModal: ({
     isOpen,
     onClose,
@@ -146,6 +165,12 @@ function openActions(displayName: string) {
   );
 }
 
+function openInviteForm() {
+  fireEvent.click(
+    screen.getByRole("button", { name: "Neuen Operator einladen" }),
+  );
+}
+
 describe("OperatorOperatorsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -167,16 +192,18 @@ describe("OperatorOperatorsPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows loading skeleton when loading", () => {
+  it("keeps the invitation form reachable while the list loads", () => {
     setupSWR(undefined, { isLoading: true });
     render(<OperatorOperatorsPage />);
 
     expect(
       screen.getByLabelText("Operatoren werden geladen"),
     ).toBeInTheDocument();
+    openInviteForm();
     expect(
-      screen.queryByRole("heading", { name: "Neuen Operator einladen" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("dialog", { name: "Neuen Operator einladen" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("E-Mail-Adresse")).toBeInTheDocument();
   });
 
   it("displays pending invitations and operators", () => {
@@ -236,6 +263,7 @@ describe("OperatorOperatorsPage", () => {
     mockCreateInvitation.mockResolvedValue(undefined);
 
     render(<OperatorOperatorsPage />);
+    openInviteForm();
 
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "new@example.com" },
@@ -262,6 +290,7 @@ describe("OperatorOperatorsPage", () => {
     mockCreateInvitation.mockResolvedValue(undefined);
 
     render(<OperatorOperatorsPage />);
+    openInviteForm();
 
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "new@example.com" },
@@ -289,6 +318,7 @@ describe("OperatorOperatorsPage", () => {
     );
 
     render(<OperatorOperatorsPage />);
+    openInviteForm();
 
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "fail@example.com" },

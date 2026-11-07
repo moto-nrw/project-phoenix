@@ -17,7 +17,7 @@ import {
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import {
   createOperatorInvitation,
   listOperatorInvitations,
@@ -59,6 +59,7 @@ export default function OperatorOperatorsPage() {
     "die Liste der Operatoren",
     () => void mutate(),
   );
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [revokeTarget, setRevokeTarget] =
     useState<PendingOperatorInvitation | null>(null);
   const [revokeLoading, setRevokeLoading] = useState(false);
@@ -144,10 +145,26 @@ export default function OperatorOperatorsPage() {
     <TenantPage
       title="Operatoren"
       info={<p>Neue Operatoren einladen und bestehende anzeigen.</p>}
+      actions={
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={() => setInviteOpen(true)}
+        >
+          Neuen Operator einladen
+        </Button>
+      }
       loading={isLoading}
       loadingLabel="Operatoren werden geladen"
       overlays={
         <>
+          <InviteOperatorModal
+            isOpen={inviteOpen}
+            onClose={() => setInviteOpen(false)}
+            onCreated={() => void mutate()}
+          />
+
           <ConfirmationModal
             isOpen={revokeTarget !== null}
             onClose={() => setRevokeTarget(null)}
@@ -188,8 +205,6 @@ export default function OperatorOperatorsPage() {
         </>
       }
     >
-      <InviteForm onCreated={() => void mutate()} />
-
       <LoadErrorAlert error={loadError} />
 
       {data && (
@@ -214,7 +229,15 @@ export default function OperatorOperatorsPage() {
 
 // --- Invite Form ---
 
-function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
+function InviteOperatorModal({
+  isOpen,
+  onClose,
+  onCreated,
+}: {
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onCreated: () => void;
+}) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -261,7 +284,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
   );
 
   return (
-    <SectionCard title="Neuen Operator einladen" concept={operatorsConcept}>
+    <Modal isOpen={isOpen} onClose={onClose} title="Neuen Operator einladen">
       <form
         ref={formRef}
         onSubmit={(e) => void handleSubmit(e)}
@@ -302,7 +325,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
           {isSubmitting ? "Wird gesendet..." : "Einladung senden"}
         </Button>
       </form>
-    </SectionCard>
+    </Modal>
   );
 }
 
