@@ -13,7 +13,7 @@ describe("rosterPickupTimeLabel", () => {
 
   it("keeps failed and missing pickup times distinct", () => {
     expect(rosterPickupTimeLabel(null, false)).toBe("Nicht geladen");
-    expect(rosterPickupTimeLabel(null, true)).toBe("—");
+    expect(rosterPickupTimeLabel(null, true)).toBe("–");
   });
 });
 

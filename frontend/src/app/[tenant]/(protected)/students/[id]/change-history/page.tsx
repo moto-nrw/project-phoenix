@@ -3,6 +3,7 @@
 import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
@@ -64,6 +65,60 @@ function ValueText({ value }: { readonly value: string }) {
   }
   return <span className="break-words whitespace-pre-wrap">{value}</span>;
 }
+
+// ─── Table ───────────────────────────────────────────────────────────────────
+
+const CHANGE_COLUMNS: DataTableColumn<StudentFieldChange>[] = [
+  {
+    key: "changedAt",
+    header: "Zeitpunkt",
+    className: "whitespace-nowrap tabular-nums",
+    stacked: "meta",
+    render: (entry) => (
+      <span className="text-gray-600">
+        {formatDate(entry.changed_at)}
+        <span className="ml-1 text-gray-400">
+          {formatTime(entry.changed_at)}
+        </span>
+      </span>
+    ),
+  },
+  {
+    key: "editedBy",
+    header: "Geändert von",
+    className: "whitespace-nowrap font-medium",
+    render: (entry) => entry.edited_by,
+  },
+  {
+    key: "field",
+    header: "Feld",
+    className: "whitespace-nowrap",
+    stacked: "title",
+    render: (entry) => (
+      <span className="text-gray-700">{fieldLabel(entry.field)}</span>
+    ),
+  },
+  {
+    key: "old",
+    header: "Vorher",
+    className: "max-w-xs",
+    render: (entry) => (
+      <span className="text-gray-500">
+        <ValueText value={entry.old_value} />
+      </span>
+    ),
+  },
+  {
+    key: "new",
+    header: "Nachher",
+    className: "max-w-xs",
+    render: (entry) => (
+      <span className="text-gray-700">
+        <ValueText value={entry.new_value} />
+      </span>
+    ),
+  },
+];
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
@@ -190,92 +245,17 @@ function StudentChangeHistoryPageContent() {
             : null
         }
       >
-        {/* flush: die Tabelle bringt ihre eigene Zellpolsterung mit und läuft
-            bis zur Kartenkante. */}
         <SectionCard
           title="Änderungsverlauf"
           description="Wer hat wann welche Angaben zu diesem Kind geändert"
           concept={changeHistoryConcept}
-          flush
         >
-          <>
-            {/* Desktop table */}
-            <div className="hidden md:block">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500">
-                    <th className="px-6 py-3">Zeitpunkt</th>
-                    <th className="px-6 py-3">Geändert von</th>
-                    <th className="px-6 py-3">Feld</th>
-                    <th className="px-6 py-3">Vorher</th>
-                    <th className="px-6 py-3">Nachher</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {(entries ?? []).map((entry) => (
-                    <tr key={entry.id} className="align-top text-sm">
-                      <td className="px-6 py-3 whitespace-nowrap text-gray-600 tabular-nums">
-                        {formatDate(entry.changed_at)}
-                        <span className="ml-1 text-gray-400">
-                          {formatTime(entry.changed_at)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3 font-medium whitespace-nowrap text-gray-900">
-                        {entry.edited_by}
-                      </td>
-                      <td className="px-6 py-3 whitespace-nowrap text-gray-700">
-                        {fieldLabel(entry.field)}
-                      </td>
-                      <td className="max-w-xs px-6 py-3 text-gray-500">
-                        <ValueText value={entry.old_value} />
-                      </td>
-                      <td className="max-w-xs px-6 py-3 text-gray-700">
-                        <ValueText value={entry.new_value} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile card layout */}
-            <div className="divide-y divide-gray-100 md:hidden">
-              {(entries ?? []).map((entry) => (
-                <div key={entry.id} className="px-4 py-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900">
-                      {fieldLabel(entry.field)}
-                    </span>
-                    <span className="text-xs text-gray-500 tabular-nums">
-                      {formatDate(entry.changed_at)}{" "}
-                      {formatTime(entry.changed_at)}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-gray-500">
-                    von {entry.edited_by}
-                  </div>
-                  <div className="mt-2 space-y-1 text-sm">
-                    <div className="flex gap-2">
-                      <span className="shrink-0 text-xs text-gray-400">
-                        Vorher:
-                      </span>
-                      <span className="text-gray-500">
-                        <ValueText value={entry.old_value} />
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="shrink-0 text-xs text-gray-400">
-                        Nachher:
-                      </span>
-                      <span className="text-gray-700">
-                        <ValueText value={entry.new_value} />
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
+          <DataTable
+            columns={CHANGE_COLUMNS}
+            rows={entries ?? []}
+            getRowKey={(entry) => entry.id}
+            stackedOnMobile
+          />
         </SectionCard>
       </TenantPage>
     </>

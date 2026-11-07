@@ -61,6 +61,8 @@
     "ui-kit/no-dynamic-color-class": "error",
     "ui-kit/no-white-on-warm-fill": "error",
     "ui-kit/no-raw-input": "error",
+    "ui-kit/no-raw-table": "error",
+    "ui-kit/no-em-dash-empty-value": "error",
     "ui-kit/no-kit-domain-import": "error",
     "ui-kit/no-important-override": "error",
     "ui-kit/no-section-card-bleed": "error",

@@ -1,5 +1,6 @@
 "use client";
 
+import { DataTableSkeleton } from "~/components/ui/data-table";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StudentHistoryLoadingBack } from "../student-history-loading-back";
@@ -44,31 +45,8 @@ export function RoomHistorySkeleton() {
         </div>
 
         {/* Desktop table */}
-        <div className="hidden md:block">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100">
-                {["Tag", "Ankunft", "Abmeldung", "Dauer", "Räume"].map(
-                  (label) => (
-                    <th key={label} className="px-6 py-3 text-left">
-                      <Skeleton className="h-3 w-14" />
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {Array.from({ length: 4 }, (_, row) => (
-                <tr key={row}>
-                  {Array.from({ length: 5 }, (_, cell) => (
-                    <td key={cell} className="px-6 py-3">
-                      <Skeleton className="h-4 w-16" />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="hidden p-6 md:block">
+          <DataTableSkeleton rows={4} columns={5} />
         </div>
 
         {/* Mobile day-card list */}

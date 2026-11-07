@@ -1263,6 +1263,64 @@ describe.concurrent("ui-kit/no-raw-input", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-raw-table", () => {
+  it("reports a table outside the kit", async () => {
+    const result = await lintSource(`
+      export function Probe() {
+        return <table><tbody><tr><td>Mia</td></tr></tbody></table>;
+      }
+    `);
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-raw-table\)/g)).toHaveLength(1);
+  });
+
+  it("accepts DataTable and the kit's own table", async () => {
+    const outside = await lintSource(`
+      import { DataTable } from "~/components/ui/data-table";
+      export function Probe() {
+        return <DataTable columns={[]} rows={[]} getRowKey={() => 1} />;
+      }
+    `);
+    const kit = await lintSource(
+      `
+      export function Grid() {
+        return <table><tbody /></table>;
+      }
+    `,
+      "src/components/ui/planning/grid.tsx",
+    );
+
+    expect(outside.output).not.toContain("no-raw-table");
+    expect(kit.output).not.toContain("no-raw-table");
+  });
+});
+
+describe.concurrent("ui-kit/no-em-dash-empty-value", () => {
+  it("reports an em dash as JSX text and as a fallback value", async () => {
+    const result = await lintSource(`
+      export function Probe({ name }: { name?: string }) {
+        return <div><span>—</span><span>{name ?? "—"}</span><span>Abholzeit: —</span></div>;
+      }
+    `);
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-em-dash-empty-value\)/g),
+    ).toHaveLength(3);
+  });
+
+  it("accepts the en dash and an em dash inside a sentence", async () => {
+    const result = await lintSource(`
+      export function Probe({ name }: { name?: string }) {
+        return <p title="Mia — Klasse 3">{name ?? "–"} — läuft ab</p>;
+      }
+    `);
+
+    expect(result.output).not.toContain("no-em-dash-empty-value");
+  });
+});
+
 describe.concurrent("ui-kit/no-select-override", () => {
   it("reports frame, fill, height and radius classes on kit selects", async () => {
     const result = await lintSource(`

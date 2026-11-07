@@ -370,7 +370,7 @@ describe("OperatorDevicesPage", () => {
 
     render(<OperatorDevicesPage />);
 
-    const cells = screen.getAllByText("—");
+    const cells = screen.getAllByText("–");
     expect(cells.length).toBeGreaterThan(0);
   });
 
@@ -380,7 +380,7 @@ describe("OperatorDevicesPage", () => {
 
     render(<OperatorDevicesPage />);
 
-    const cells = screen.getAllByText("—");
+    const cells = screen.getAllByText("–");
     expect(cells.length).toBeGreaterThan(0);
   });
 

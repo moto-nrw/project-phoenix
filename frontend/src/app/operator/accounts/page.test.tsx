@@ -342,7 +342,7 @@ describe("OperatorAccountsPage", () => {
 
     render(<OperatorAccountsPage />);
 
-    const cells = screen.getAllByText("—");
+    const cells = screen.getAllByText("–");
     expect(cells.length).toBeGreaterThan(0);
   });
 
@@ -353,7 +353,7 @@ describe("OperatorAccountsPage", () => {
 
     render(<OperatorAccountsPage />);
 
-    const cells = screen.getAllByText("—");
+    const cells = screen.getAllByText("–");
     expect(cells.length).toBeGreaterThan(0);
   });
 

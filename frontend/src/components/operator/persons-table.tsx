@@ -25,7 +25,7 @@ export function PersonTags({
 }: Readonly<{
   person: OperatorPerson;
   /**
-   * Zeigt einen Gedankenstrich, wenn die Person kein einziges Merkmal traegt.
+   * Zeigt einen Strich („–“), wenn die Person kein einziges Merkmal traegt.
    * Nur fuer die Tabellenzelle gedacht, die nicht leer bleiben soll. Die
    * Kartenansicht rendert in dem Fall nichts, so wie vor der Extraktion.
    */
@@ -33,7 +33,7 @@ export function PersonTags({
 }>) {
   if (!person.isStaff && !person.isStudent && !person.hasRfidCard) {
     return emptyPlaceholder ? (
-      <span className="text-xs text-gray-400">—</span>
+      <span className="text-xs text-gray-400">–</span>
     ) : null;
   }
   return (
@@ -99,7 +99,7 @@ export function PersonsTable({
           row.accountEmail ? (
             <span className="text-gray-600">{row.accountEmail}</span>
           ) : (
-            <span className="text-xs text-gray-400">—</span>
+            <span className="text-xs text-gray-400">–</span>
           ),
         sortValue: (row) => (row.accountEmail ?? "").toLowerCase(),
       },

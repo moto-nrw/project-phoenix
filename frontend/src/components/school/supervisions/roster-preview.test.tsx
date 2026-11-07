@@ -45,7 +45,7 @@ describe("SupervisionRosterPreview pickup times", () => {
     );
 
     expect(screen.getByText("Gehzeit: 13:30")).toBeInTheDocument();
-    expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+    expect(screen.getByText("Gehzeit: –")).toBeInTheDocument();
   });
 
   it("reports a failed lookup without disabling the child list", () => {
@@ -63,7 +63,7 @@ describe("SupervisionRosterPreview pickup times", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Gehzeit: Nicht geladen")).toBeInTheDocument();
-    expect(screen.queryByText("Gehzeit: —")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gehzeit: –")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Weiter lesbar/ })).toBeEnabled();
   });
 });

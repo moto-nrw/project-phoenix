@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -21,6 +20,7 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import {
@@ -180,6 +180,123 @@ export function PendingInvitationsList({
     [invitations],
   );
 
+  const columns: DataTableColumn<PendingInvitation>[] = [
+    {
+      key: "email",
+      header: "E-Mail",
+      className: "w-1/3 max-w-0 font-medium",
+      render: (invitation) => {
+        const mailCopy = mailStatusCopy(
+          invitation.mailOutcome,
+          invitation.addressMark,
+          false,
+          invitation.providerBlock,
+        );
+        return (
+          <>
+            <span className="block truncate">{invitation.email}</span>
+            {mailCopy && (
+              <span className="mt-1 block">
+                <StatusBadge
+                  label={mailCopy.label}
+                  tone={mailCopy.tone}
+                  compact
+                />
+              </span>
+            )}
+          </>
+        );
+      },
+    },
+    {
+      key: "role",
+      header: "Rolle",
+      headerClassName: "hidden sm:table-cell",
+      className: "hidden truncate sm:table-cell",
+      render: (invitation) => (
+        <span className="text-gray-600">
+          {getRoleDisplayName(invitation.roleName)}
+        </span>
+      ),
+    },
+    {
+      key: "creator",
+      header: "Von",
+      headerClassName: "hidden lg:table-cell",
+      className: "hidden truncate lg:table-cell",
+      render: (invitation) => (
+        <span className="text-xs text-gray-500">
+          {invitation.creatorEmail ??
+            (invitation.firstName && invitation.lastName
+              ? `${invitation.firstName} ${invitation.lastName}`
+              : "System")}
+        </span>
+      ),
+    },
+    {
+      key: "expires",
+      header: "Gültig bis",
+      headerClassName: "hidden md:table-cell",
+      className: "hidden whitespace-nowrap md:table-cell",
+      render: (invitation) => {
+        if (!isValidDateString(invitation.expiresAt)) {
+          return <span className="text-xs text-gray-400">Ungültig</span>;
+        }
+        const expiresDate = new Date(invitation.expiresAt);
+        return (
+          <StatusBadge
+            label={`${expiresDate.toLocaleDateString("de-DE", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            })} ${expiresDate.toLocaleTimeString("de-DE", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}`}
+            tone={isDateExpired(invitation.expiresAt) ? "red" : "gray"}
+          />
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "Aktionen",
+      align: "right",
+      className: "whitespace-nowrap",
+      // Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC Bauart 1 Regel 4).
+      // Löschen fragt weiter im ConfirmationModal nach.
+      render: (invitation) => (
+        <div className="flex justify-end">
+          <OverflowMenu
+            ariaLabel={`Aktionen für ${invitation.email}`}
+            items={[
+              ...(isDateExpired(invitation.expiresAt) ||
+              invitation.mailOutcome === "delayed" ||
+              invitation.providerBlock === "active" ||
+              invitation.providerBlock === "unreadable"
+                ? []
+                : [
+                    {
+                      label: "Erneut senden",
+                      icon: <Send className="h-4 w-4" aria-hidden />,
+                      disabled: actionLoading === invitation.id,
+                      onClick: () => handleResend(invitation.id),
+                    },
+                  ]),
+              {
+                label: "Löschen",
+                icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                destructive: true,
+                disabled: actionLoading === invitation.id,
+                onClick: () => setRevokeTarget(invitation),
+              },
+            ]}
+          />
+        </div>
+      ),
+    },
+  ];
+
   // Bis der Katalogtext des Ladefehlers da ist, bleibt der Ladezustand
   // stehen, nie „Keine offenen Einladungen“.
   const failedWithoutData = loadFailed && invitations.length === 0;
@@ -213,156 +330,18 @@ export function PendingInvitationsList({
           <p className="text-xs text-gray-400">Keine offenen Einladungen</p>
         </div>
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50/50">
-              <tr>
-                <th
-                  scope="col"
-                  className="px-3 py-2 text-left text-xs font-semibold text-gray-600 md:px-4 md:py-3"
-                >
-                  E-Mail
-                </th>
-                <th
-                  scope="col"
-                  className="hidden px-3 py-2 text-left text-xs font-semibold text-gray-600 sm:table-cell md:px-4 md:py-3"
-                >
-                  Rolle
-                </th>
-                <th
-                  scope="col"
-                  className="hidden px-3 py-2 text-left text-xs font-semibold text-gray-600 md:px-4 md:py-3 lg:table-cell"
-                >
-                  Von
-                </th>
-                <th
-                  scope="col"
-                  className="hidden px-3 py-2 text-left text-xs font-semibold text-gray-600 md:table-cell md:px-4 md:py-3"
-                >
-                  Gültig bis
-                </th>
-                <th
-                  scope="col"
-                  className="px-3 py-2 text-right text-xs font-semibold text-gray-600 md:px-4 md:py-3"
-                >
-                  Aktionen
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
-              {sortedInvitations.map((invitation) => {
-                const isValidDate = isValidDateString(invitation.expiresAt);
-                const isExpired = isDateExpired(invitation.expiresAt);
-                const expiresDate = isValidDate
-                  ? new Date(invitation.expiresAt)
-                  : null;
-                const mailCopy = mailStatusCopy(
-                  invitation.mailOutcome,
-                  invitation.addressMark,
-                  false,
-                  invitation.providerBlock,
-                );
-
-                const mailNote = staffMailNote(invitation);
-
-                return (
-                  <Fragment key={invitation.id}>
-                    <tr className="transition-colors hover:bg-gray-50/50">
-                      <td className="max-w-0 px-3 py-2 text-xs font-medium text-gray-900 md:px-4 md:py-3 md:text-sm">
-                        <span className="block truncate">
-                          {invitation.email}
-                        </span>
-                        {mailCopy && (
-                          <span className="mt-1 block">
-                            <StatusBadge
-                              label={mailCopy.label}
-                              tone={mailCopy.tone}
-                              compact
-                            />
-                          </span>
-                        )}
-                      </td>
-                      <td className="hidden truncate px-3 py-2 text-xs text-gray-600 sm:table-cell md:px-4 md:py-3 md:text-sm">
-                        {getRoleDisplayName(invitation.roleName)}
-                      </td>
-                      <td className="hidden truncate px-3 py-2 text-xs text-gray-500 md:px-4 md:py-3 lg:table-cell">
-                        {invitation.creatorEmail ??
-                          (invitation.firstName && invitation.lastName
-                            ? `${invitation.firstName} ${invitation.lastName}`
-                            : "System")}
-                      </td>
-                      <td className="hidden px-3 py-2 whitespace-nowrap md:table-cell md:px-4 md:py-3">
-                        {isValidDate && expiresDate ? (
-                          <StatusBadge
-                            label={`${expiresDate.toLocaleDateString("de-DE", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                            })} ${expiresDate.toLocaleTimeString("de-DE", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}`}
-                            tone={isExpired ? "red" : "gray"}
-                          />
-                        ) : (
-                          <span className="text-xs text-gray-400">
-                            Ungültig
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap md:px-4 md:py-3">
-                        {/* Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC
-                          Bauart 1 Regel 4). Löschen fragt weiter im
-                          ConfirmationModal nach. */}
-                        <div className="flex justify-end">
-                          <OverflowMenu
-                            ariaLabel={`Aktionen für ${invitation.email}`}
-                            items={[
-                              ...(isExpired ||
-                              invitation.mailOutcome === "delayed" ||
-                              invitation.providerBlock === "active" ||
-                              invitation.providerBlock === "unreadable"
-                                ? []
-                                : [
-                                    {
-                                      label: "Erneut senden",
-                                      icon: (
-                                        <Send className="h-4 w-4" aria-hidden />
-                                      ),
-                                      disabled: actionLoading === invitation.id,
-                                      onClick: () =>
-                                        handleResend(invitation.id),
-                                    },
-                                  ]),
-                              {
-                                label: "Löschen",
-                                icon: (
-                                  <Trash2 className="h-4 w-4" aria-hidden />
-                                ),
-                                destructive: true,
-                                disabled: actionLoading === invitation.id,
-                                onClick: () => setRevokeTarget(invitation),
-                              },
-                            ]}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                    {mailNote && (
-                      <tr>
-                        <td
-                          colSpan={5}
-                          className="px-3 pb-3 text-xs text-gray-600 md:px-4"
-                        >
-                          {mailNote}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="mt-4">
+          <DataTable
+            columns={columns}
+            rows={sortedInvitations}
+            getRowKey={(invitation) => invitation.id}
+            renderSubRows={(invitation) => {
+              const mailNote = staffMailNote(invitation);
+              return mailNote
+                ? [{ key: `${invitation.id}-mail-note`, content: mailNote }]
+                : [];
+            }}
+          />
         </div>
       )}
 
