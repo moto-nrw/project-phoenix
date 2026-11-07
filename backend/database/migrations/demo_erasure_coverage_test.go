@@ -159,7 +159,6 @@ var demoErasureExceptions = map[string]string{
 	"platform.billing_key_date_counts":               "school name and counts of an invoice key date, no person",
 	"platform.email_suppressions":                    schoolContentUntil5559,
 	"platform.organization_accounts":                 traegerBueroOnly,
-	"platform.push_outbox":                           schoolContentUntil5559,
 	"platform.traeger_bank_accounts":                 traegerBueroOnly + "; invented bank details of the demo Träger",
 	"platform.traeger_document_reads":                "an opening keeps only the school ID and the account ID, which the erasure anonymizes; expires three years after the opening (#4692)",
 	"platform.traeger_document_releases":             traegerBueroOnly + "; a release names the school, not a person",
@@ -247,7 +246,7 @@ var demoErasureExceptions = map[string]string{
 // demoErasureExceptionBudget is the recorded size of demoErasureExceptions,
 // so every change of the list is a deliberate one: lower it when an entry
 // leaves, raise it only together with a reasoned new entry.
-const demoErasureExceptionBudget = 189
+const demoErasureExceptionBudget = 188
 
 type cascadeEdge struct{ Child, Parent string }
 

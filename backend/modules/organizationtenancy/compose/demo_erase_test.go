@@ -71,6 +71,11 @@ var visitorTraceCounts = map[string]string{
 		JOIN parent_billing.document_mailings AS mailing ON mailing.organization_id = outbox.organization_id AND mailing.delivery_id = outbox.id
 		JOIN parent_billing.documents AS document ON document.organization_id = mailing.organization_id AND document.id = mailing.document_id
 		WHERE document.number = 'F-' || ?0 AND outbox.recipient->>'name' = '` + visitorFull + `'`,
+	// The push that announced the letter names the invoice by ID.
+	"billing letter push": `SELECT count(*) FROM platform.push_outbox AS push
+		JOIN parent_billing.documents AS document ON document.organization_id = push.organization_id AND document.id = push.related_entity_id
+		WHERE push.related_entity_type = 'parent_billing_document' AND document.number = 'F-' || ?0
+			AND push.payload->>'title' = 'Brief für ` + visitorFull + `'`,
 }
 
 type visitorAccounts struct {
@@ -157,7 +162,7 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 // leaveVisitorHolidayRegistration registers the visitor's child of the
 // school through the public holiday link of its Träger (#6015), with the
 // visitor as guardian and contact, a proof named after the visitor and the
-// invoice of a billing run, whose letter went out by mail. A registration names its home school only while
+// invoice of a billing run, whose letter went out by mail and push. A registration names its home school only while
 // the school is open, so a closed school opens for the insert.
 func leaveVisitorHolidayRegistration(t *testing.T, db *bun.DB, schoolID int64) {
 	t.Helper()
@@ -214,7 +219,11 @@ func leaveVisitorHolidayRegistration(t *testing.T, db *bun.DB, schoolID int64) {
 			INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status)
 			SELECT organization_id, 'billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', '` + visitorFull + `'),
 				jsonb_build_object('guardian_name', '` + visitorFull + `'), 'pending' FROM document
-			RETURNING organization_id, id)
+			RETURNING organization_id, id),
+		push AS (
+			INSERT INTO platform.push_outbox (organization_id, kind, related_entity_type, related_entity_id, recipient, payload)
+			SELECT organization_id, 'parent_billing_document', 'parent_billing_document', id,
+				jsonb_build_object('email', 'besuch@example.org'), jsonb_build_object('title', 'Brief für ` + visitorFull + `') FROM document)
 		INSERT INTO parent_billing.document_mailings (organization_id, run_id, document_id, delivery_id, recipient_email)
 		SELECT document.organization_id, document.run_id, document.id, outbox.id, 'besuch@example.org'
 		FROM document JOIN outbox ON outbox.organization_id = document.organization_id`,
