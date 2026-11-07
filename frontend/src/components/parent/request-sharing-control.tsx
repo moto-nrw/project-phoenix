@@ -27,6 +27,7 @@ import {
   type RequestSharingState,
 } from "~/lib/parent-api";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 interface RequestSharingControlProps {
   readonly studentId: string;
@@ -238,9 +239,10 @@ function SharingRecipients({
       </legend>
       {hint ? <p className="text-sm text-gray-600">{hint}</p> : null}
       {state.recipients.map((recipient) => (
-        <label
+        <ChoiceTile
           key={recipient.guardian_profile_id}
-          className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900"
+          selected={selected.includes(recipient.guardian_profile_id)}
+          className="min-h-12 py-2 font-normal text-gray-900"
         >
           <Checkbox
             checked={selected.includes(recipient.guardian_profile_id)}
@@ -248,7 +250,7 @@ function SharingRecipients({
             onChange={() => toggle(recipient.guardian_profile_id)}
           />
           <span>{`${recipient.first_name} ${recipient.last_name}`}</span>
-        </label>
+        </ChoiceTile>
       ))}
     </fieldset>
   );

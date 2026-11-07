@@ -68,6 +68,7 @@ import { childrenConcept } from "~/lib/concepts/children";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -903,36 +904,35 @@ function DepartureSection({
             className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
           >
             {DEPARTURE_DAYS.map((day, dayIndex) => (
-              <InsetPanel key={day} framed>
-                <fieldset>
-                  <legend className="text-sm font-semibold text-gray-900">
-                    {t(`departureDays.${day}`)}
-                  </legend>
-                  <div className="mt-1 space-y-1">
-                    {DEPARTURE_REQUEST_MODES.map((mode, modeIndex) => (
-                      <label
-                        key={mode}
-                        htmlFor={`departure-${day}-${mode}`}
-                        className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
-                      >
-                        <Checkbox
-                          ref={
-                            dayIndex === 0 && modeIndex === 0
-                              ? firstChoiceRef
-                              : undefined
-                          }
-                          id={`departure-${day}-${mode}`}
-                          aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
-                          checked={(modes[day] ?? []).includes(mode)}
-                          disabled={status === "saving"}
-                          onChange={() => toggle(day, mode)}
-                        />
-                        <span>{t(`departureModes.${mode}`)}</span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              </InsetPanel>
+              <FormFieldset
+                key={day}
+                legend={t(`departureDays.${day}`)}
+                className="bg-gray-50/70 p-3"
+              >
+                <div className="mt-1 space-y-1">
+                  {DEPARTURE_REQUEST_MODES.map((mode, modeIndex) => (
+                    <label
+                      key={mode}
+                      htmlFor={`departure-${day}-${mode}`}
+                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
+                    >
+                      <Checkbox
+                        ref={
+                          dayIndex === 0 && modeIndex === 0
+                            ? firstChoiceRef
+                            : undefined
+                        }
+                        id={`departure-${day}-${mode}`}
+                        aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
+                        checked={(modes[day] ?? []).includes(mode)}
+                        disabled={status === "saving"}
+                        onChange={() => toggle(day, mode)}
+                      />
+                      <span>{t(`departureModes.${mode}`)}</span>
+                    </label>
+                  ))}
+                </div>
+              </FormFieldset>
             ))}
           </div>
           <RequestSharingSelector
