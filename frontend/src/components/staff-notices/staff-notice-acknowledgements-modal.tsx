@@ -88,7 +88,7 @@ export function StaffNoticeAcknowledgementsModal({
           {loadFailed && formErrorMessage(loadError.error) !== null ? (
             <LoadErrorAlert error={loadError.error} />
           ) : rows === null || loadFailed ? (
-            <Loading fullPage={false} />
+            <Loading />
           ) : rows.length === 0 ? (
             <p className="text-sm leading-6 text-gray-600">
               Noch niemand hat bestätigt.

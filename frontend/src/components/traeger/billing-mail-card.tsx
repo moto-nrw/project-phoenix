@@ -321,7 +321,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
           </ul>
         </div>
       ) : (
-        <Loading fullPage={false} />
+        <Loading />
       )}
     </SectionCard>
   );

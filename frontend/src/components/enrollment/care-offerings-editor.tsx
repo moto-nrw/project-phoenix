@@ -10,6 +10,7 @@ import {
 } from "react";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type CareOffering,
@@ -1208,21 +1209,21 @@ function CareOfferingToolbar({
 
 function PlannerMetadataNotice({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return (
-    <div
-      className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong flex flex-col gap-3 rounded-2xl border p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
-      role="status"
-    >
-      <p>{PLANNER_METADATA_UNAVAILABLE_MESSAGE}</p>
-      <Button
-        type="button"
-        variant="surface"
-        size="md"
-        onClick={onRetry}
-        className="shrink-0"
-      >
-        Erneut laden
-      </Button>
-    </div>
+    <Alert
+      type="warning"
+      announce="polite"
+      message={PLANNER_METADATA_UNAVAILABLE_MESSAGE}
+      action={
+        <Button
+          type="button"
+          variant="surface"
+          size="compact"
+          onClick={onRetry}
+        >
+          Erneut laden
+        </Button>
+      }
+    />
   );
 }
 
@@ -1590,9 +1591,13 @@ function CareOfferingTemplateField({
         den ausgewählten Angebotstagen erwartet.
       </p>
       {compatibilityUnknown ? (
-        <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
-          {unknownCompatibilityMessage(metadataStatus)}
-        </p>
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-2"
+          message={unknownCompatibilityMessage(metadataStatus)}
+        />
       ) : null}
       {metadataStatus === "ready" &&
       !periodMismatch &&
@@ -1604,11 +1609,19 @@ function CareOfferingTemplateField({
         </p>
       ) : null}
       {templateWarnings.length > 0 ? (
-        <ul className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 space-y-1 rounded-lg border px-3 py-2 text-xs">
-          {templateWarnings.map((warning) => (
-            <li key={warning}>{warning}</li>
-          ))}
-        </ul>
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-2"
+          message={
+            <ul className="space-y-1">
+              {templateWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          }
+        />
       ) : null}
     </section>
   );
@@ -1663,9 +1676,13 @@ function CareOfferingWeekdayFields({
         })}
       </div>
       {nameMismatch ? (
-        <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border px-3 py-2 text-xs">
-          {nameMismatch}
-        </p>
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-3"
+          message={nameMismatch}
+        />
       ) : null}
       {draft.available_days.length > 0 ? (
         <div className="mt-4">
@@ -1813,9 +1830,13 @@ function CareOfferingAutomationFields({
           ) : null}
           {draft.auto_add_trigger_offering_ids.length > 0 &&
           draft.days_of_week_mode !== "parent_choice" ? (
-            <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
-              Mitgebuchte Angebote müssen einzelne Tage auswählbar machen.
-            </p>
+            <Alert
+              type="warning"
+              size="compact"
+              announce="off"
+              className="mt-2"
+              message="Mitgebuchte Angebote müssen einzelne Tage auswählbar machen."
+            />
           ) : null}
         </InsetPanel>
 
@@ -2089,26 +2110,28 @@ function CareOfferingAvailabilityFields({
             live
           />
           {!error && conflicts > 0 ? (
-            <p
-              role="status"
-              className="border-moto-amber/40 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-xs leading-5"
-            >
-              {conflicts === 1
-                ? "1 bestehende Buchung erfüllt diese Bedingung nicht."
-                : `${conflicts} bestehende Buchungen erfüllen diese Bedingung nicht.`}{" "}
-              Sie {conflicts === 1 ? "bleibt" : "bleiben"} bestehen, die Regel
-              gilt nur für neue Auswahlen.
-            </p>
+            <Alert
+              type="warning"
+              size="compact"
+              announce="polite"
+              message={
+                <>
+                  {conflicts === 1
+                    ? "1 bestehende Buchung erfüllt diese Bedingung nicht."
+                    : `${conflicts} bestehende Buchungen erfüllen diese Bedingung nicht.`}{" "}
+                  Sie {conflicts === 1 ? "bleibt" : "bleiben"} bestehen, die
+                  Regel gilt nur für neue Auswahlen.
+                </>
+              }
+            />
           ) : null}
           {!error && bookingCountUnknown ? (
-            <p
-              role="status"
-              className="border-moto-amber/40 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-xs leading-5"
-            >
-              Ob bestehende Buchungen diese Bedingung erfüllen, lässt sich
-              gerade nicht prüfen. Bestehende Buchungen bleiben in jedem Fall
-              bestehen.
-            </p>
+            <Alert
+              type="warning"
+              size="compact"
+              announce="polite"
+              message="Ob bestehende Buchungen diese Bedingung erfüllen, lässt sich gerade nicht prüfen. Bestehende Buchungen bleiben in jedem Fall bestehen."
+            />
           ) : null}
         </div>
       ) : null}

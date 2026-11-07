@@ -294,7 +294,7 @@ export function ActivityManagementModal({
         footer={footer}
       >
         {loading ? (
-          <Loading fullPage={false} message="Kategorien werden geladen…" />
+          <Loading message="Kategorien werden geladen…" />
         ) : (
           <form
             ref={formRef}

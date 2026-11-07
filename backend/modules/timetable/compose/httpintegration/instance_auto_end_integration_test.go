@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -246,4 +247,68 @@ func TestAutoEnd_LeavesIndependentRoomStays(t *testing.T) {
 	keptSession, err := s.active.GetActiveGroup(s.ctx, roomSession.ID)
 	require.NoError(t, err)
 	assert.Nil(t, keptSession.EndTime, "the room's own session is not the activity's session")
+}
+
+// TestAutoEnd_OpensSavepointOnlyForDueInstances pins #5809: the minute tick
+// isolates each due completion in its own savepoint, while active blocks it
+// skips (not yet due, spontaneous) cost no statement. With one due block, the
+// tick issues the same statements whether three or eight blocks are skipped
+// beside it, and the due block still completes.
+func TestAutoEnd_OpensSavepointOnlyForDueInstances(t *testing.T) {
+	t.Parallel()
+
+	n3 := runAutoEndWithSkippedBlocks(t, 3)
+	n8 := runAutoEndWithSkippedBlocks(t, 8)
+	t.Logf("#5809 auto-end statements: N3=%d N8=%d (savepoints %d/%d)", n3.total, n8.total, n3.savepoints, n8.savepoints)
+
+	assert.Equal(t, n3.savepoints, n8.savepoints, "skipped blocks open no savepoint")
+	assert.Equal(t, n3.releases, n8.releases, "skipped blocks release no savepoint")
+	assert.Equal(t, n3.total, n8.total, "skipped blocks issue no statement")
+}
+
+type autoEndStatements struct {
+	savepoints, releases, total int
+}
+
+func runAutoEndWithSkippedBlocks(t *testing.T, notDue int) autoEndStatements {
+	t.Helper()
+	var counted autoEndStatements
+	t.Run(fmt.Sprintf("not_due_%d", notDue), func(t *testing.T) {
+		s := buildLifecycle(t)
+		due := seedInstance(t, s, true, false)
+		_, err := s.svc.Start(s.ctx, due.ID, s.staffID)
+		require.NoError(t, err)
+		// Hourly blocks from 15:00 end after autoEndNow plus grace; the
+		// distinct start keeps each one its own template slot.
+		for i := range notDue {
+			insertInstanceAt(t, s, calendar.DateFromTime(autoEndNow), fixtures.InstanceStatusActive(), false, 15+i)
+		}
+		// Spontaneous blocks never end automatically, even when overdue.
+		insertInstanceAt(t, s, calendar.DateFromTime(autoEndNow), fixtures.InstanceStatusActive(), true, 13)
+
+		autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()), s.svc)
+		counter := testpkg.CaptureQueriesForContext(t, s.db)
+		var result *timetable.AutoEndResult
+		err = testpkg.WithTenantTx(t, counter.Context(context.Background()), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			var runErr error
+			result, runErr = autoEnd.RunForTenant(txCtx, autoEndNow, 15*time.Minute)
+			return runErr
+		})
+		counter.Stop()
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, notDue+2, result.Checked)
+		assert.Equal(t, 1, result.Completed)
+		assert.Equal(t, notDue, result.SkippedBeforeDeadline)
+		assert.Equal(t, 1, result.SkippedSpontaneous)
+		assert.Zero(t, result.Failed)
+		assert.Equal(t, fixtures.InstanceStatusCompleted(), reloadInstance(t, s, due.ID).Status)
+
+		counted = autoEndStatements{
+			savepoints: len(counter.Matching(func(sql string) bool { return strings.HasPrefix(sql, "savepoint ") })),
+			releases:   len(counter.Matching(func(sql string) bool { return strings.HasPrefix(sql, "release savepoint ") })),
+			total:      counter.Total(),
+		}
+	})
+	return counted
 }

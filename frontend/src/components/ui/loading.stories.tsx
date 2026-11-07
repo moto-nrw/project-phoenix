@@ -17,14 +17,11 @@ export const FullPage: Story = {
 };
 
 export const Inline: Story = {
-  args: {
-    fullPage: false,
-  },
+  args: {},
 };
 
 export const CustomMessage: Story = {
   args: {
-    fullPage: false,
     message: "Daten werden geladen...",
   },
 };

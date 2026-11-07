@@ -776,9 +776,7 @@ export default function StudentGuardianManager({
     (isLoading && guardians.length === 0) ||
     (failedWithoutData && formErrorMessage(loadError.error) === null)
   ) {
-    return (
-      <Loading fullPage={false} message="Bezugspersonen werden geladen …" />
-    );
+    return <Loading message="Bezugspersonen werden geladen …" />;
   }
 
   if (failedWithoutData) {

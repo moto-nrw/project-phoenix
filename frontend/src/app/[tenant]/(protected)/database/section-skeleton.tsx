@@ -24,5 +24,5 @@ export function DatabaseSectionSkeleton() {
     return <MasterDetailSkeleton />;
   }
 
-  return <Loading message="Datenverwaltung wird geladen…" fullPage={false} />;
+  return <Loading message="Datenverwaltung wird geladen…" />;
 }

@@ -385,10 +385,7 @@ export function ManualApprovedEnrollmentModal({
             </div>
           </div>
           {loading ? (
-            <Loading
-              fullPage={false}
-              message="Formularvorlage wird geladen..."
-            />
+            <Loading message="Formularvorlage wird geladen..." />
           ) : prefetchedData && gradeLevelMax !== null ? (
             <EnrollmentForm
               phaseID={phase.id}

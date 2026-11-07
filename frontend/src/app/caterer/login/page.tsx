@@ -238,7 +238,7 @@ function LoginForm() {
             onCancel={backToCredentials}
           />
         ) : isCheckingAuth ? (
-          <Loading fullPage={false} message="Anmeldung wird geprüft …" />
+          <Loading message="Anmeldung wird geprüft …" />
         ) : (
           <form
             ref={formRef}
@@ -361,7 +361,7 @@ export default function CatererLoginPage() {
     <Suspense
       fallback={
         <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-          <Loading fullPage={false} message="Anmeldung wird vorbereitet …" />
+          <Loading message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >

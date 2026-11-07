@@ -556,7 +556,6 @@ function GuardedTenant({
   if (refusal === "checking") {
     return (
       <Loading
-        fullPage={false}
         message={
           accountRefused
             ? "Seite wird neu geladen..."
@@ -588,13 +587,11 @@ function GuardedTenant({
       (isTenantSessionEnding() && !sessionHasAccess)) &&
     !onLoginEntry
   ) {
-    return <Loading fullPage={false} message="Sitzung wird erneuert..." />;
+    return <Loading message="Sitzung wird erneuert..." />;
   }
 
   if (isOperatorOnTenant) {
-    return (
-      <Loading fullPage={false} message="Operator-Sitzung wird beendet..." />
-    );
+    return <Loading message="Operator-Sitzung wird beendet..." />;
   }
 
   // Show switching state during mismatch auto-switch. Like its effect, only
@@ -677,7 +674,7 @@ function GuardedTenant({
         </div>
       );
     }
-    return <Loading fullPage={false} message="Schule wird gewechselt..." />;
+    return <Loading message="Schule wird gewechselt..." />;
   }
 
   return <>{children}</>;

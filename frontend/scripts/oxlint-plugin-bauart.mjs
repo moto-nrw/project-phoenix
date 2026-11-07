@@ -321,7 +321,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Entfernen@2029",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@1986",
+      "Bedingung löschen@2007",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2514",
@@ -1607,7 +1607,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@268",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@997",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@998",
     ],
     "src/components/enrollment/phases-editor.tsx": [
       "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@952",
@@ -1629,7 +1629,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // Betreuung): keine Feldgruppe des Datensatzes, aus dem Kebab der
     // Personalakte geöffnet (#3116).
     "src/components/auth/mfa-admin-override-modal.tsx": [
-      "Zwei-Faktor-Authentifizierung verwalten@385",
+      "Zwei-Faktor-Authentifizierung verwalten@386",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
       "resolve Zuordnungen auflösen: Betreuung verwalten:@334",

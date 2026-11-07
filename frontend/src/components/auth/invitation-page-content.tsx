@@ -133,7 +133,7 @@ export function InvitationPageContent({
         brand={brand}
         formMaxWidth="max-w-[32rem]"
       >
-        <Loading fullPage={false} />
+        <Loading />
       </AuthShell>
     );
   }
