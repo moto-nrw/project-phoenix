@@ -37,11 +37,11 @@ func concludeSigned(ctx context.Context, store Store, organizationID, accountID 
 }
 
 // versionChecksum is the SHA-256 of the structured version the parents
-// sign: child, place of care, services, price, terms and dates. The state
-// and the number of the version are left out; they change when it takes
-// effect.
+// sign: child, place of care, services, price, terms and dates. What the
+// timeline derives is left out: the state changes when the version takes
+// effect, and ValidUntil when a later version starts (#4681).
 func versionChecksum(fingerprint func([]byte) string, version carecontract.Version) (string, error) {
-	version.Status = ""
+	version.Status, version.ValidUntil = "", nil
 	encoded, err := json.Marshal(version)
 	if err != nil {
 		return "", fmt.Errorf("care contract: encode version: %w", err)
