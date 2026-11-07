@@ -24,14 +24,14 @@ import {
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ExportMenu, exportFormatOptions } from "~/components/ui/export-menu";
 import { SectionCard } from "~/components/ui/section-card";
+import { ChildOfferingAdjustment } from "~/components/enrollment/child-offering-adjustment";
 import {
   ChildExtraFields,
-  ChildOfferingAdjustment,
   ChildOfferings,
   RequestExtraSection,
   formatDateTime,
   formatPlainDate,
-} from "~/components/enrollment/admin-enrollment-detail";
+} from "~/components/enrollment/enrollment-request-display";
 import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { createLogger } from "~/lib/logger";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";

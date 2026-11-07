@@ -40,6 +40,7 @@ import {
   type EnrollmentFormPrefetchedData,
 } from "~/components/enrollment/enrollment-form";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
+import { LATE_INVITE_QUERY_PARAM } from "~/lib/enrollment-form-schema-api";
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
@@ -437,10 +438,10 @@ function toManualPrefetchedData(
 function buildLateInviteUrl(phaseUrl: string, token: string): string {
   try {
     const url = new URL(phaseUrl);
-    url.searchParams.set("late_invite", token);
+    url.searchParams.set(LATE_INVITE_QUERY_PARAM, token);
     return url.toString();
   } catch {
     const separator = phaseUrl.includes("?") ? "&" : "?";
-    return `${phaseUrl}${separator}late_invite=${encodeURIComponent(token)}`;
+    return `${phaseUrl}${separator}${LATE_INVITE_QUERY_PARAM}=${encodeURIComponent(token)}`;
   }
 }

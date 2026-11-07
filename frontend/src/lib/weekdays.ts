@@ -44,3 +44,8 @@ export function isoWeekdayShortLabel(isoWeekday: number): string | undefined {
 export function isSchoolWeekday(code: string): boolean {
   return (SCHOOL_WEEKDAY_CODES as readonly string[]).includes(code);
 }
+
+/** „Mo, Mi, Fr“ for a list of codes, in the given order. */
+export function weekdayShortList(codes: readonly string[]): string {
+  return codes.map(weekdayShortLabel).join(", ");
+}
