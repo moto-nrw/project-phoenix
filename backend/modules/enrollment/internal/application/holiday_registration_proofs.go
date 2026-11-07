@@ -17,9 +17,6 @@ import (
 // (#4783): limits, display name, upload bucket per IP and the single-use
 // token the submission claims. The bytes stay in the Träger's row.
 
-// holidayRateLimitKeyUploadIP is the upload bucket of the public link.
-const holidayRateLimitKeyUploadIP = enrollment.SubmissionRateLimitKeyTypeUploadIP
-
 // HolidayProofStore persists the proofs of benefits of a Träger.
 type HolidayProofStore interface {
 	// InsertHolidayProof stores an unclaimed proof of the period with the
@@ -42,11 +39,11 @@ func (h *HolidayRegistrations) CountHolidayProofUpload(ctx context.Context, orga
 	if remoteIP == "" {
 		return nil
 	}
-	attempts, err := h.deps.Registrations.CountHolidayRegistrationAttempt(ctx, organizationID, holidayRateLimitKeyUploadIP, remoteIP, rateLimitWindowUploadIP)
+	attempts, err := h.deps.Registrations.CountHolidayRegistrationAttempt(ctx, organizationID, uploadRateLimit.keyType, remoteIP, uploadRateLimit.window, rateLimitRetention)
 	if err != nil {
 		return fmt.Errorf("enrollment: count holiday proof upload: %w", err)
 	}
-	if attempts > rateLimitMaxAttemptsUploadIP {
+	if attempts > uploadRateLimit.maxAttempts {
 		h.deps.Logger.Info("holiday proof upload rate-limited",
 			slog.Int("attempts", attempts),
 			slog.Int64("organization_id", organizationID))
