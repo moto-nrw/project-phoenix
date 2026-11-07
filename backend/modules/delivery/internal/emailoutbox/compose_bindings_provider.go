@@ -21,7 +21,10 @@ type MailPushProvider struct {
 	Logger         *slog.Logger
 	Tenants        IntentTenantTransactions
 	PushAuthorized func(context.Context, deliveryContract.ClaimedIntent) (bool, error)
-	DeferredPush   func(context.Context, deliveryContract.ClaimedIntent) error
+	// PushObjects checks current object validity and concrete recipient rights.
+	// The owner supplies decisions keyed by intent ID; missing decisions deny.
+	PushObjects  func(context.Context, []deliveryContract.ClaimedIntent) (map[int64]bool, error)
+	DeferredPush func(context.Context, deliveryContract.ClaimedIntent) error
 	// Deliverable reports whether the school still books the module a
 	// claimed mail or push belongs to (#4895). An intent of a cancelled
 	// module is cancelled, never sent; a read failure retries. Nil sends
@@ -128,6 +131,9 @@ func (p *MailPushProvider) SendPush(ctx context.Context, intent deliveryContract
 	}
 	if !allowed {
 		return deliveryContract.ProviderResult{}, deliveryContract.ErrCancelled
+	}
+	if err := p.requirePushObject(ctx, intent); err != nil {
+		return deliveryContract.ProviderResult{}, err
 	}
 	return p.Push.SendPush(ctx, intent)
 }

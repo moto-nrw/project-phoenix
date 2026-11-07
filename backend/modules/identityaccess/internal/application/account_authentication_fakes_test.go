@@ -1141,3 +1141,7 @@ func (s *fakeStore) SavePasswordLoginState(_ context.Context, id int64, operator
 	s.passwordStates[id] = state
 	return nil
 }
+
+func (s *fakeStore) FindActiveAccounts(context.Context, []int64) (map[int64]domain.Account, domain.OperationStats, error) {
+	panic("not used")
+}

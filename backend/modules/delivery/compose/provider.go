@@ -34,6 +34,10 @@ func (p *MailPushProvider) SendPush(ctx context.Context, intent deliveryContract
 	return (*emailoutbox.MailPushProvider)(p).SendPush(ctx, intent)
 }
 
+func (p *MailPushProvider) PreparePushBatch(ctx context.Context, intents []deliveryContract.ClaimedIntent) context.Context {
+	return (*emailoutbox.MailPushProvider)(p).PreparePushBatch(ctx, intents)
+}
+
 // NewPushAuthorizationChecker answers whether the claimed push still goes to
 // a subscription its audience may receive.
 func NewPushAuthorizationChecker(tenants IntentTenantTransactions, subscriptions notifications.PushSubscriptionAuthorizer) func(context.Context, deliveryContract.ClaimedIntent) (bool, error) {

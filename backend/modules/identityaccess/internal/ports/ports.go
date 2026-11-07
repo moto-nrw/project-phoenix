@@ -12,6 +12,7 @@ import (
 // Store is the persistence port over the platform account table and the
 // tenant-scoped mapping and role tables.
 type Store interface {
+	FindActiveAccounts(context.Context, []int64) (map[int64]domain.Account, domain.OperationStats, error)
 	ListSchoolRoles(context.Context, int64) ([]*domain.SchoolRole, domain.OperationStats, error)
 	FindSchoolRoleByName(context.Context, string, int64) (*domain.SchoolRole, domain.OperationStats, error)
 	FindRolePermissions(context.Context, int64, int64) ([]string, domain.OperationStats, error)

@@ -53,3 +53,9 @@ func NewBillingFamilies() parentbilling.BillingFamilies {
 func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings) parentbilling.CareBilling {
 	return application.NewCareBilling(postgres.NewStore(), contracts, schools, settings, calendar.TodayDate)
 }
+
+// NewDocumentPushValidity checks current document authority without reading
+// PDFs or adding user-access events for a worker's authorization lookup.
+func NewDocumentPushValidity() parentbilling.DocumentPushValidity {
+	return application.NewDocumentPushValidity(postgres.NewStore())
+}
