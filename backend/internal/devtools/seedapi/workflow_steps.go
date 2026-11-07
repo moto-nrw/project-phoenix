@@ -224,7 +224,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	steps = append(steps,
 		seedParentEngagementStep{}, seedAnalyticsConsentStep{}, seedSchoolLifeStep{},
 		// After the parents: it orders lunch for the children they registered.
-		seedMealOrdersStep{seeder: seeder},
+		seedMealOrdersStep{seeder: seeder}, seedEmailStopStep{},
 	)
 	if !seeder.options.DeferHistory {
 		// After the meal orders: books care and lunch for the children who eat.
@@ -260,7 +260,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
 		)
 	}
-	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerCareContractsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedTestTraegerStep{})
+	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerCareContractsStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedTestTraegerStep{})
 	if !seeder.options.DeferHistory {
 		// Erst jetzt sind alle Kinder der Schule angelegt (#5031).
 		steps = append(steps, seedPresenceHistoryStep{seeder: seeder}, seedFeedbackHistoryStep{seeder: seeder}, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})

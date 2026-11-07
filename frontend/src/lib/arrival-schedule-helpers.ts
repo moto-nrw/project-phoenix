@@ -31,11 +31,11 @@ export function formatArrivalTime(time: string): string {
 }
 
 export function arrivalScheduleSourceLabel(
-  schedule: Pick<ArrivalSchedule, "source" | "source_class"> | null | undefined,
+  schedule: Pick<ArrivalSchedule, "source" | "sourceClass"> | null | undefined,
 ): string | null {
   if (schedule?.source === "class_schedule") {
-    return schedule.source_class
-      ? `aus ${schoolClassLabel(schedule.source_class)}`
+    return schedule.sourceClass
+      ? `aus ${schoolClassLabel(schedule.sourceClass)}`
       : "Klassenzeit";
   }
   if (schedule?.source === "staff") return "eigene Zeit";
@@ -126,7 +126,7 @@ export function mergeSchedulesWithTemplate(
   return WEEKDAYS.map((w) => {
     const match = existing.find((s) => s.weekday === w.value);
     const inherited = match?.source === "class_schedule";
-    const time = match ? formatArrivalTime(match.expected_arrival) : "";
+    const time = match ? formatArrivalTime(match.expectedArrival) : "";
     return {
       weekday: w.value,
       inCare: Boolean(match),
@@ -187,7 +187,7 @@ export function getDayData(
     };
   }
 
-  const exception = exceptions.find((e) => e.exception_date === dateStr);
+  const exception = exceptions.find((e) => e.exceptionDate === dateStr);
   const baseSchedule = schedules.find((s) => s.weekday === weekday);
   const showSick = statusForDate
     ? statusForDate === "sick"
@@ -215,8 +215,8 @@ export function getDayData(
     isAbsent = true;
     effectiveReason = "Entschuldigt";
   } else if (exception) {
-    if (exception.expected_arrival) {
-      effectiveTime = formatArrivalTime(exception.expected_arrival);
+    if (exception.expectedArrival) {
+      effectiveTime = formatArrivalTime(exception.expectedArrival);
     } else {
       effectiveTime = undefined;
       isAbsent = true;
@@ -225,10 +225,10 @@ export function getDayData(
     // A care day whose class carries no time yet has no arrival time. It must
     // stay a care day, so isAbsent is deliberately not set (#2414).
     effectiveTime =
-      formatArrivalTime(baseSchedule.expected_arrival) || undefined;
+      formatArrivalTime(baseSchedule.expectedArrival) || undefined;
   }
 
-  const dayNotes = notes.filter((n) => n.note_date === dateStr);
+  const dayNotes = notes.filter((n) => n.noteDate === dateStr);
 
   return {
     date,

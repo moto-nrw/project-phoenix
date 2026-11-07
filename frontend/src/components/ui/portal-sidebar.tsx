@@ -1,16 +1,29 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from "react";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
 import {
   PORTAL_ICON_CLASSES,
   portalSidebarRowClasses,
+  type PortalSidebarTopOffset,
+  SIDEBAR_WIDTH_COLLAPSED,
+  SIDEBAR_WIDTH_EXPANDED,
+  SIDEBAR_WIDTH_TRANSITION,
 } from "~/components/ui/sidebar-geometry";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
-/** Ab dieser Fensterposition klebt die Leiste; die Klasse `top-[73px]` passt dazu. */
-const STICKY_TOP_PX = 73;
+const STICKY_POSITION: Readonly<Record<PortalSidebarTopOffset, string>> = {
+  73: "top-[73px] h-[calc(100vh-73px)]",
+  121: "top-[121px] h-[calc(100vh-121px)]",
+  153: "top-[153px] h-[calc(100vh-153px)]",
+};
 
 /**
  * Hält die Unterkante der Leiste am Fensterrand, auch wenn ein Hinweis über der
@@ -23,18 +36,21 @@ const STICKY_TOP_PX = 73;
  * läuft auch, weil der Hinweis erst nach dem Laden des Trägers erscheint und
  * dabei weder Scroll- noch Resize-Ereignis auslöst.
  */
-function useFitSidebarToWindow() {
+function useFitSidebarToWindow(topOffset: PortalSidebarTopOffset) {
   const asideRef = useRef<HTMLElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const aside = asideRef.current;
-    const inner = innerRef.current;
-    if (!aside || !inner) return;
+    if (!aside) return;
 
+    // Liest über die Refs, damit der Fenster-Listener den Baum nicht festhält.
     const fit = () => {
-      const { top } = aside.getBoundingClientRect();
-      inner.style.height = top > STICKY_TOP_PX ? `calc(100vh - ${top}px)` : "";
+      const measured = asideRef.current;
+      const inner = innerRef.current;
+      if (!measured || !inner) return;
+      const { top } = measured.getBoundingClientRect();
+      inner.style.height = top > topOffset ? `calc(100vh - ${top}px)` : "";
     };
     let frame = 0;
     const scheduleFit = () => {
@@ -57,19 +73,60 @@ function useFitSidebarToWindow() {
       window.removeEventListener("resize", scheduleFit);
       observer.disconnect();
     };
-  }, []);
+  }, [topOffset]);
 
   return { asideRef, innerRef };
 }
 
 /**
- * Die feste Seitenleiste eines Portals mit eigener Navigation ab 1024 px:
- * oben die Ziele, unten abgetrennt die Hilfe. Das Schul- und das
- * Träger-Portal (#5145) teilen sie; die Ziele, ihre Freigabe und ihren
- * Aktivzustand bestimmt jedes Portal selbst.
+ * Die Hülle jeder Seitenleiste: die Spalte ab 1024 px und darin der klebende
+ * Bereich. `PortalSidebar` füllt sie mit Listen. Die Tenant-App füllt sie selbst,
+ * weil ihre Akkordeons und der Klappzustand am Fachbereich hängen; `collapsed`
+ * schaltet dafür die Breite samt Bewegung (#2825, #2923): Hülle und klebender
+ * Bereich gleiten gemeinsam, dieselben Zeilen wandern mit der Kante. Die Hülle
+ * trägt kein `overflow-hidden`, das hebelte das Kleben aus.
  *
  * Unter 1024 px übernimmt die mobile Leiste des Portals; CSS blendet die
  * Spalte dort bereits beim ersten Paint aus, ohne Hydrationssprung.
+ */
+export function PortalSidebarFrame({
+  children,
+  topOffset = 73,
+  collapsed,
+  className = "",
+}: {
+  readonly children: ReactNode;
+  readonly topOffset?: PortalSidebarTopOffset;
+  /** Ohne Wert hat die Leiste eine feste Breite und ist nicht einklappbar. */
+  readonly collapsed?: boolean;
+  readonly className?: string;
+}) {
+  const { asideRef, innerRef } = useFitSidebarToWindow(topOffset);
+  const collapsible = collapsed !== undefined;
+  const width = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
+  const motion = collapsible ? SIDEBAR_WIDTH_TRANSITION : "";
+  return (
+    <aside
+      ref={asideRef}
+      className={`hidden ${width} shrink-0 border-r border-gray-200/70 bg-white/95 ${motion} lg:block ${className}`}
+    >
+      <div
+        ref={innerRef}
+        className={`sticky ${STICKY_POSITION[topOffset]} flex flex-col ${
+          collapsible ? `${width} ${motion}` : ""
+        }`}
+      >
+        {children}
+      </div>
+    </aside>
+  );
+}
+
+/**
+ * Die feste Seitenleiste eines Portals mit eigener Navigation ab 1024 px:
+ * oben die Ziele, unten abgetrennt die Hilfe. Schul-, Träger- und Eltern-Portal
+ * (#5145, #5603) teilen sie; die Ziele, ihre Freigabe und ihren Aktivzustand
+ * bestimmt jedes Portal selbst.
  *
  * Ein Portal kann den Inhalt an derselben Stelle wechseln (Träger-Portal,
  * #5685): Position und Breite bleiben, nur Einträge und `navLabel` ändern sich.
@@ -79,6 +136,9 @@ export function PortalSidebar({
   navLabel = "Hauptnavigation",
   secondary,
   secondaryLabel = "Hilfe",
+  secondaryListClassName,
+  topOffset,
+  className,
 }: {
   /** Die Einträge (`PortalSidebarLink`, `PortalSidebarGroup`). */
   readonly children: ReactNode;
@@ -91,34 +151,29 @@ export function PortalSidebar({
   readonly secondary?: ReactNode;
   /** Der Name des unteren Blocks für Vorleseprogramme. */
   readonly secondaryLabel?: string;
+  /** Der Abstand der Einträge im unteren Block. */
+  readonly secondaryListClassName?: string;
+  readonly topOffset?: PortalSidebarTopOffset;
+  readonly className?: string;
 }) {
-  const { asideRef, innerRef } = useFitSidebarToWindow();
   return (
-    <aside
-      ref={asideRef}
-      className="hidden w-64 shrink-0 border-r border-gray-200/70 bg-white/95 lg:block"
-    >
-      <div
-        ref={innerRef}
-        className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col"
+    <PortalSidebarFrame topOffset={topOffset} className={className}>
+      <nav
+        aria-label={navLabel}
+        className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3"
       >
-        <nav
-          aria-label={navLabel}
-          className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3"
-        >
-          <ul>{children}</ul>
-        </nav>
+        <ul>{children}</ul>
+      </nav>
 
-        {secondary ? (
-          <nav
-            aria-label={secondaryLabel}
-            className="border-t border-gray-200 p-3 lg:p-4 xl:p-3"
-          >
-            <ul>{secondary}</ul>
-          </nav>
-        ) : null}
-      </div>
-    </aside>
+      {secondary ? (
+        <nav
+          aria-label={secondaryLabel}
+          className="border-t border-gray-200 p-3 lg:p-4 xl:p-3"
+        >
+          <ul className={secondaryListClassName}>{secondary}</ul>
+        </nav>
+      ) : null}
+    </PortalSidebarFrame>
   );
 }
 
@@ -151,6 +206,8 @@ type PortalSidebarLinkProps = Omit<
 > & {
   readonly label: string;
   readonly concept: MotoConcept;
+  /** Ein anderes Symbol im Ton von `concept`. */
+  readonly iconConcept?: MotoConcept;
   readonly active: boolean;
   /** Ziele außerhalb des Portals (die Hilfe) öffnen in einem neuen Tab. */
   readonly newTab?: boolean;
@@ -162,6 +219,7 @@ type PortalSidebarLinkProps = Omit<
 export function PortalSidebarLink({
   label,
   concept,
+  iconConcept,
   active,
   newTab = false,
   badge,
@@ -179,6 +237,7 @@ export function PortalSidebarLink({
         <MotoNavIcon
           scene
           concept={concept}
+          iconConcept={iconConcept}
           active={active}
           className={`${PORTAL_ICON_CLASSES} ${active ? "" : "text-gray-400"}`}
         />
@@ -187,6 +246,37 @@ export function PortalSidebarLink({
           {badge}
         </span>
       </NavLink>
+    </li>
+  );
+}
+
+/** Ein Eintrag der `PortalSidebar`, der eine Aktion auslöst (Abmelden). */
+export function PortalSidebarButton({
+  label,
+  concept,
+  ...buttonProps
+}: Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "children" | "className" | "type"
+> & {
+  readonly label: string;
+  readonly concept: MotoConcept;
+}) {
+  return (
+    <li>
+      <button
+        {...buttonProps}
+        type="button"
+        className={`${portalSidebarRowClasses(false)} w-full text-left`}
+      >
+        <MotoNavIcon
+          scene
+          concept={concept}
+          active={false}
+          className={`${PORTAL_ICON_CLASSES} text-gray-400`}
+        />
+        <span className="flex flex-1 items-center">{label}</span>
+      </button>
     </li>
   );
 }

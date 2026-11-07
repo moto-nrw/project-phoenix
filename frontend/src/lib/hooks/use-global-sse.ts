@@ -59,6 +59,10 @@ import {
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 import { createLogger } from "~/lib/logger";
 import { isOwnAttendanceEvent } from "~/lib/sse-optimistic-mutations";
+import { STUDENT_KEY_FAMILIES } from "~/lib/swr/portal-keys";
+import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
+import { announceCareScheduleStale } from "~/lib/care-schedule-stale";
+import { groupKeys } from "~/lib/swr/groups-keys";
 
 const logger = createLogger({ component: "GlobalSSE" });
 
@@ -126,13 +130,13 @@ const STAFF_TIME_TRACKING_CACHE_KEY_PARTS = [
 // "care-plan-day-<id>-<date>", "care-plan-week-<id>-<from>-<to>". useSWRAuth
 // prefixes the whole thing with the tenant slug ("<slug>:student-detail-7").
 const STUDENT_SCOPED_KEY_PREFIXES = [
-  "student-detail-",
-  "care-plan-day-",
-  "care-plan-week-",
+  STUDENT_KEY_FAMILIES.detail,
+  STUDENT_KEY_FAMILIES.carePlanDay,
+  STUDENT_KEY_FAMILIES.carePlanWeek,
 ] as const;
 
 // The per-group student list on the OGS page ("<slug>:ogs-students-7").
-const OGS_STUDENTS_KEY_PREFIX = "ogs-students-";
+const OGS_STUDENTS_KEY_PREFIX = groupKeys.liveFamily;
 
 // Reasons the timetable lifecycle puts on active_supervision_changed
 // (instanceRefreshReason in backend/modules/timetable/compose).
@@ -160,12 +164,12 @@ const SUPERVISOR_CHANGE_REASONS: ReadonlySet<string> = new Set([
 // revalidation, so this list is its only pickup-driven live update path.
 // ("pickup-supervisions-" was the former per-room bulk fetch's key.)
 const PICKUP_TIME_CACHE_KEY_PARTS = [
-  "care-plan-day-",
-  "care-plan-week-",
-  "pickup-data-",
-  "student-partial-absences-",
+  STUDENT_KEY_FAMILIES.carePlanDay,
+  STUDENT_KEY_FAMILIES.carePlanWeek,
+  STUDENT_KEY_FAMILIES.pickupData,
+  STUDENT_KEY_FAMILIES.partialAbsences,
   "active-supervision-dashboard-",
-  "student-detail-",
+  STUDENT_KEY_FAMILIES.detail,
   // A pulled-forward day pickup time auto-excuses the child from later
   // blocks (#2360): the planner list renders the changed attendance plus the
   // early_pickup_time marker, and the Web-Anwesenheit roster shows the same
@@ -182,9 +186,9 @@ const PICKUP_TIME_CACHE_KEY_PARTS = [
 // their own, they read it inline from their list responses, which the
 // student-list and ogs-students blocks invalidate on the same event.
 const ARRIVAL_TIME_CACHE_KEY_PARTS = [
-  "arrival-data-",
-  "care-plan-day-",
-  "care-plan-week-",
+  STUDENT_KEY_FAMILIES.arrivalData,
+  STUDENT_KEY_FAMILIES.carePlanDay,
+  STUDENT_KEY_FAMILIES.carePlanWeek,
   "active-supervision-dashboard-",
 ] as const;
 
@@ -198,13 +202,13 @@ const ARRIVAL_TIME_CACHE_KEY_PARTS = [
 // revalidation, so without this list an open page keeps showing the superseded
 // time until a manual reload.
 const STUDENT_UPDATE_CACHE_KEY_PARTS = [
-  "student-detail-",
-  "student-status-days-",
-  "student-partial-absences-",
-  "care-plan-day-",
-  "care-plan-week-",
-  "pickup-data-",
-  "arrival-data-",
+  STUDENT_KEY_FAMILIES.detail,
+  STUDENT_KEY_FAMILIES.statusDays,
+  STUDENT_KEY_FAMILIES.partialAbsences,
+  STUDENT_KEY_FAMILIES.carePlanDay,
+  STUDENT_KEY_FAMILIES.carePlanWeek,
+  STUDENT_KEY_FAMILIES.pickupData,
+  STUDENT_KEY_FAMILIES.arrivalData,
   "active-supervision-dashboard-",
   // Parent care-exception submits/deletes announce ONLY student_updated, and
   // a pulled-forward pickup time now rewrites timetable attendance and the
@@ -771,9 +775,7 @@ export function useGlobalSSE(): SSEHookState {
       hasPendingArrivalScheduleEvent.current ||
       hasPendingStudentUpdateEvent.current
     ) {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("phoenix:care-schedule-stale"));
-      }
+      announceCareScheduleStale();
     }
 
     // Invalidate the count dashboards for activity events, explicit dashboard
@@ -940,8 +942,8 @@ export function useGlobalSSE(): SSEHookState {
             // home task disables focus revalidation.
             key.includes("booking-leftovers-") ||
             // the per-child Betreuungsplan renders these activity instances
-            key.includes("care-plan-day-") ||
-            key.includes("care-plan-week-")),
+            key.includes(STUDENT_KEY_FAMILIES.carePlanDay) ||
+            key.includes(STUDENT_KEY_FAMILIES.carePlanWeek)),
       ).catch((err) => {
         // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
@@ -1255,9 +1257,7 @@ export function useGlobalSSE(): SSEHookState {
           // review page updates in real time without depending on the parent-
           // messaging pill (the school may have messaging disabled). Fires only on
           // request transitions, so a plain refetch is fine — no debounce needed.
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("change-requests-refresh"));
-          }
+          announceChangeRequestsChanged();
           break;
         }
 
@@ -1519,7 +1519,7 @@ export function useGlobalSSE(): SSEHookState {
     }
     window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
     window.dispatchEvent(new CustomEvent("team-messages-unread-refresh"));
-    window.dispatchEvent(new CustomEvent("change-requests-refresh"));
+    announceChangeRequestsChanged();
   }, [accepts, flushInvalidations]);
   useLayoutEffect(() => {
     reconcileRef.current = reconcile;

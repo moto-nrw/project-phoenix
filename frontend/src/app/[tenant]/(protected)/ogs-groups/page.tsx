@@ -36,7 +36,7 @@ import type {
   FilterConfig,
   ActiveFilter,
 } from "~/components/ui/page-header/types";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
 import { isNotCheckedInLocation } from "~/lib/location-helper";
 import {

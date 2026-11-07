@@ -28,7 +28,14 @@ async function openLoadedSourceAt(page: Page, top: number) {
   await expect(
     page.getByRole("heading", { level: 1, name: "Aktivitäten" }),
   ).toBeVisible();
-  // Erst wenn die Liste geladen ist, ist die Seite hoch genug für die Position.
+  // Auch das Ladegerüst ist scrollbar. Erst eine echte Kachel belegt, dass
+  // der spätere Listenaufbau die Ausgangsposition nicht mehr verschiebt.
+  await expect(
+    page
+      .getByRole("main")
+      .getByRole("button", { name: / öffnen$/ })
+      .first(),
+  ).toBeVisible();
   await expect
     .poll(async () => {
       await page.evaluate((y) => window.scrollTo(0, y), top);

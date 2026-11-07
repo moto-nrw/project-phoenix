@@ -213,13 +213,6 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-// Mock studentService
-vi.mock("~/lib/api", () => ({
-  studentService: {
-    getStudents: vi.fn(),
-  },
-}));
-
 // Mock location helpers. Partial mock via importOriginal — MotoConceptIcon
 // (rendered for the substitution badge) pulls in MOTO_COLOR_PALETTE, which
 // must stay real; only the location predicates below are deliberately

@@ -467,6 +467,12 @@
       "class": "input",
       "parameters": [],
       "legacy": "care.pickup_signature_too_large"
+    },
+    {
+      "code": "care.guardian_invite_unavailable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care.guardian_invite_unavailable"
     }
   ]
 }

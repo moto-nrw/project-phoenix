@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { TransitAssignmentCard } from "~/components/rooms/transit-assignment-card";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { hasPermission } from "~/lib/auth-utils";
 import { isTransitLocation } from "~/lib/location-helper";
 import { useAttendanceWebEnabled, usePresenceMode } from "~/lib/tenant-context";

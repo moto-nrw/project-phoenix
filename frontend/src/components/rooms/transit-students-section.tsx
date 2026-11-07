@@ -21,8 +21,8 @@ import {
   summarizeStudentMoveResult,
 } from "~/lib/active-service";
 import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
-import { studentService } from "~/lib/api";
-import type { Student } from "~/lib/api";
+import { fetchStudents } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { SEARCH_STUDENTS_KEY_PREFIX } from "~/lib/swr/search-students-key";
@@ -159,7 +159,7 @@ export function TransitStudentsSection({
     students: Student[];
     pagination?: { total_records: number };
   }>(dayStatus ? `transit-students-${dayStatus}` : "transit-students", () =>
-    studentService.getStudents({
+    fetchStudents({
       locationState: "transit",
       ...(dayStatus ? { dayStatus } : {}),
       pageSize: 200,

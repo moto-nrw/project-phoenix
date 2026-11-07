@@ -15,7 +15,6 @@ import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
-import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
@@ -38,6 +37,16 @@ import type {
 } from "~/components/active-supervisions/view-model";
 
 const logger = createLogger({ component: "useSupervisionDashboard" });
+
+export interface BulkArrivalTime {
+  studentId: string;
+  date: string;
+  weekdayName: string;
+  expectedArrival?: string;
+  isException: boolean;
+  dayNotes: Array<{ id: string; content: string }>;
+  notes?: string;
+}
 
 export interface SupervisionDashboardOptions {
   /**

@@ -1,102 +1,145 @@
+// The browser's client for the student: list, detail, update, check-in, photo,
+// deletion and privacy consent. Every call goes through the tenant BFF routes
+// under /api/students, which own the backend wire shape.
+
+import { apiErrorFromText } from "./api-error";
 import {
-  ApiError,
-  apiErrorFromBody,
-  apiErrorFromResponse,
-  apiErrorFromText,
-  unavailableApiError,
-  transportFetch,
-} from "./api-error";
-// lib/student-api.ts
-import { hasSessionAccess } from "./session-access";
-import { getCachedSession, sessionFetch } from "./session-cache";
+  mapAttendanceHistoryResponse,
+  type AttendanceHistory,
+  type BackendAttendanceHistoryResponse,
+} from "./attendance-history-helpers";
+import { bffJson } from "./bff-fetch";
 import { createLogger } from "~/lib/logger";
-import { isAxiosError } from "axios";
+import { encodeMultiValueParam } from "./multi-value-param";
+import { sessionFetch } from "./session-cache";
+import type {
+  CareOfferingOption,
+  PrivacyConsent,
+  Student,
+  StudentPage,
+  StudentUpdate,
+} from "./student-helpers";
+import { notifyStudentCompanionsChanged } from "./student-companion-api";
+import {
+  CompanionPlanConflictError,
+  isCompanionPlanConflictResponse,
+} from "./student-update-errors";
 
 const logger = createLogger({ component: "StudentAPI" });
-import api from "./api";
-import {
-  handleDomainApiError,
-  isBrowserContext,
-  authFetch,
-} from "./api-helpers";
-import { resolveServerApiUrl } from "./api-url";
-import {
-  mapStudentsResponse,
-  mapStudentDetailResponse,
-  mapPrivacyConsentResponse,
-  type Student,
-  type BackendStudent,
-  type BackendStudentDetail,
-  type BackendPrivacyConsent,
-  type PrivacyConsent,
-} from "./student-helpers";
 
-// Filter interface for searching students
+/** The filters of `GET /api/students`. */
 export interface StudentFilters {
   search?: string;
-  school_class?: string;
-  group_id?: string;
-  location?: string;
-  location_state?: "present" | "transit";
-  first_name?: string;
-  last_name?: string;
-  page?: number;
-  page_size?: number;
-  /** Adds today's effective pickup time (`pickup_time`) to every row. */
-  include_pickup_times?: boolean;
+  inHouse?: boolean;
+  /**
+   * Educational group(s). Several may be selected at once (#2218) and travel
+   * comma-separated; the backend reads both that form and a repeated parameter.
+   */
+  groupId?: string | string[];
+  /** Students currently checked in to an active group in this room (#1323). */
+  roomId?: string;
+  schoolClass?: string | string[];
+  /** School year(s) ("Stufe"), matched against the class name (#2218). */
+  gradeLevel?: string | string[];
+  locationState?: "present" | "transit";
+  dayStatus?: "comes_today" | "not_coming_today";
+  /** Planning day (YYYY-MM-DD) the day status and times are evaluated for (#1939). Omit for today. */
+  date?: string;
+  bus?: "yes" | "no";
+  photoConsent?: "yes" | "no";
+  pickupStatus?: "self" | "pickedUp" | "none";
   /**
    * Keeps the present children who booked this care offering for today and
-   * are not signed off for it (#4571). Needs `location_state: "present"`.
+   * are not signed off for it (#4571). Needs `locationState: "present"`.
    */
-  care_offering_id?: string;
+  careOfferingId?: string;
+  page?: number;
+  pageSize?: number;
+  /** Adds today's effective pickup time (`pickup_time`) to every row. */
+  includePickupTimes?: boolean;
+  includeArrivalTimes?: boolean;
+  /** Companion links for the shown day; costs an extra query per page. */
+  includeCompanions?: boolean;
   /**
    * Wire projection. "slim" (#2097) drops address, health, guardian and
-   * schedule fields; "names" (#4996) keeps only ID and name, for callers that
-   * only show who a child is.
+   * schedule fields; "names" (#4996) keeps only ID and name.
    */
   view?: "slim" | "names";
 }
 
-/** An active care offering that counts as care, as a selection lists it. */
-export interface CareOfferingOption {
-  readonly id: string;
-  readonly name: string;
+const QUERY_KEYS: Record<
+  Exclude<keyof StudentFilters, "groupId" | "schoolClass" | "gradeLevel">,
+  string
+> = {
+  search: "search",
+  inHouse: "in_house",
+  roomId: "room_id",
+  locationState: "location_state",
+  dayStatus: "day_status",
+  date: "date",
+  bus: "bus",
+  photoConsent: "photo_consent",
+  pickupStatus: "pickup_status",
+  careOfferingId: "care_offering_id",
+  page: "page",
+  pageSize: "page_size",
+  includePickupTimes: "include_pickup_times",
+  includeArrivalTimes: "include_arrival_times",
+  includeCompanions: "include_companions",
+  view: "view",
+};
+
+const MULTI_VALUE_KEYS = {
+  groupId: "group_id",
+  schoolClass: "school_class",
+  gradeLevel: "grade_level",
+} as const;
+
+function studentQuery(filters: StudentFilters = {}): string {
+  const params = new URLSearchParams();
+  for (const [key, param] of Object.entries(QUERY_KEYS)) {
+    const value = filters[key as keyof typeof QUERY_KEYS];
+    // false and 0 restrict nothing, except in_house where false is a filter.
+    if (value === undefined || value === "" || value === 0) continue;
+    if (value === false && key !== "inHouse") continue;
+    params.append(param, String(value));
+  }
+  // A selection of several values travels comma-separated and escaped (see
+  // lib/multi-value-param); a single string is taken as already encoded.
+  for (const [key, param] of Object.entries(MULTI_VALUE_KEYS)) {
+    const value = filters[key as keyof typeof MULTI_VALUE_KEYS];
+    const encoded = Array.isArray(value)
+      ? encodeMultiValueParam(value)
+      : (value ?? "").trim();
+    if (encoded) params.append(param, encoded);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
 }
 
-// Generic API response interface
-interface ApiResponse<T> {
-  data: T;
-  message?: string;
-  status?: string;
+export async function fetchStudents(
+  filters?: StudentFilters,
+): Promise<{ students: Student[]; pagination: StudentPage["pagination"] }> {
+  const page = await bffJson<StudentPage>(
+    `/api/students${studentQuery(filters)}`,
+  );
+  return { students: page.data, pagination: page.pagination };
 }
 
-// Paginated response interface
-interface PaginatedResponse<T> {
-  status: string;
-  data: T[];
-  pagination: {
-    current_page: number;
-    page_size: number;
-    total_pages: number;
-    total_records: number;
-  };
-  message?: string;
+export async function fetchSchoolClasses(): Promise<string[]> {
+  return bffJson<string[]>("/api/students/school-classes");
 }
 
-interface WrappedPaginatedResponse<T> {
-  status?: string;
-  data:
-    | PaginatedResponse<T>
-    | {
-        data: T[];
-        pagination: PaginatedResponse<T>["pagination"];
-      };
-  message?: string;
+/** One child with access flags, feature flags and privacy consent. */
+export async function fetchStudent(id: string): Promise<Student> {
+  return bffJson<Student>(`/api/students/${encodeURIComponent(id)}`);
 }
 
-interface StudentEnrollmentExtraFieldOption {
-  label: string;
-  value: string;
+/** The school's active care offerings that count as care (#4571). */
+export async function fetchCareOfferingOptions(): Promise<
+  CareOfferingOption[]
+> {
+  return bffJson<CareOfferingOption[]>("/api/students/care-offerings");
 }
 
 interface StudentEnrollmentExtraField {
@@ -104,7 +147,7 @@ interface StudentEnrollmentExtraField {
   label: string;
   type: string;
   target?: string;
-  options?: StudentEnrollmentExtraFieldOption[];
+  options?: { label: string; value: string }[];
   value: unknown;
 }
 
@@ -115,249 +158,121 @@ export interface StudentEnrollmentExtraFieldGroup {
   fields: StudentEnrollmentExtraField[];
 }
 
-// Error handler using shared utility
-function handleStudentApiError(error: unknown, context: string): never {
-  // A structured failure keeps code, fields and request ID for the shared
-  // error path (#2513); only untyped errors get the legacy wrapping.
-  if (error instanceof ApiError) throw error;
-  handleDomainApiError(error, context);
-}
-
-// Helper: Build URL with optional query params
-// Note: Browser uses proxy path (/api/students), server uses direct backend path (/students)
-async function buildStudentUrl(
-  proxyPath: string,
-  backendPath: string,
-  filters?: StudentFilters,
-): Promise<{ url: string; useProxy: boolean }> {
-  const useProxy = isBrowserContext();
-  const baseUrl = useProxy ? proxyPath : await resolveServerApiUrl(backendPath);
-
-  if (!filters) return { url: baseUrl, useProxy };
-
-  const params = new URLSearchParams();
-  if (filters.search) params.append("search", filters.search);
-  if (filters.school_class) params.append("school_class", filters.school_class);
-  if (filters.group_id) params.append("group_id", filters.group_id);
-  if (filters.location) params.append("location", filters.location);
-  if (filters.location_state)
-    params.append("location_state", filters.location_state);
-  if (filters.first_name) params.append("first_name", filters.first_name);
-  if (filters.last_name) params.append("last_name", filters.last_name);
-  if (filters.page) params.append("page", filters.page.toString());
-  if (filters.page_size)
-    params.append("page_size", filters.page_size.toString());
-  if (filters.include_pickup_times)
-    params.append("include_pickup_times", "true");
-  if (filters.care_offering_id)
-    params.append("care_offering_id", filters.care_offering_id);
-  if (filters.view) params.append("view", filters.view);
-
-  const queryString = params.toString();
-  return { url: queryString ? `${baseUrl}?${queryString}` : baseUrl, useProxy };
-}
-
-// Fetch students with filters and pagination
-export async function fetchStudents(filters?: StudentFilters): Promise<{
-  students: Student[];
-  pagination?: {
-    current_page: number;
-    page_size: number;
-    total_pages: number;
-    total_records: number;
-  };
-}> {
-  const { url, useProxy } = await buildStudentUrl(
-    "/api/students",
-    "/students",
-    filters,
-  );
-
-  try {
-    if (useProxy) {
-      const responseData = await authFetch<
-        | Student[]
-        | PaginatedResponse<Student>
-        | WrappedPaginatedResponse<Student>
-      >(url);
-
-      // Next.js API routes wrap GET responses once more:
-      // { status, data: { data: students, pagination } }.
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData &&
-        responseData.data &&
-        typeof responseData.data === "object" &&
-        "data" in responseData.data &&
-        "pagination" in responseData.data &&
-        Array.isArray(responseData.data.data)
-      ) {
-        return {
-          students: responseData.data.data,
-          pagination: responseData.data.pagination,
-        };
-      }
-
-      // Backend-style paginated response.
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData &&
-        "pagination" in responseData
-      ) {
-        return {
-          students: responseData.data,
-          pagination: responseData.pagination,
-        };
-      }
-
-      // Fallback for non-paginated response
-      return { students: Array.isArray(responseData) ? responseData : [] };
-    }
-
-    // Server-side: use axios with the API URL directly
-    const response = await api.get<PaginatedResponse<BackendStudent>>(url);
-    if (response.data?.data) {
-      return {
-        students: mapStudentsResponse(response.data.data),
-        pagination: response.data.pagination,
-      };
-    }
-    return { students: [] };
-  } catch (error) {
-    handleStudentApiError(error, "fetch students");
-  }
-}
-
-// Type guard for wrapped API response
-function isWrappedResponse<T>(
-  responseData: unknown,
-): responseData is ApiResponse<T> {
-  return (
-    responseData !== null &&
-    typeof responseData === "object" &&
-    "data" in responseData
-  );
-}
-
-// Helper: Extract data from wrapped API response
-function extractApiData<T>(responseData: ApiResponse<T> | T): T {
-  if (isWrappedResponse<T>(responseData)) {
-    return responseData.data;
-  }
-  return responseData;
-}
-
-/**
- * The school's active care offerings that count as care (#4571). Browser
- * only: the present-children picker is its one caller.
- */
-export async function fetchCareOfferingOptions(): Promise<
-  CareOfferingOption[]
-> {
-  try {
-    const responseData = await authFetch<
-      ApiResponse<CareOfferingOption[]> | CareOfferingOption[]
-    >("/api/students/care-offerings");
-    const data = extractApiData(responseData);
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    handleStudentApiError(error, "fetch care offering options");
-  }
-}
-
-// Fetch a single student by ID
-export async function fetchStudent(id: string): Promise<Student> {
-  const useProxy = isBrowserContext();
-  const url = useProxy
-    ? `/api/students/${id}`
-    : await resolveServerApiUrl(`/students/${id}`);
-
-  try {
-    if (useProxy) {
-      const responseData = await authFetch<ApiResponse<Student> | Student>(url);
-      return extractApiData(responseData);
-    }
-
-    const response = await api.get<ApiResponse<BackendStudentDetail>>(url);
-    return mapStudentDetailResponse(response.data.data);
-  } catch (error) {
-    handleStudentApiError(error, "fetch student");
-  }
-}
-
 export async function fetchStudentEnrollmentExtraFields(
   id: string,
 ): Promise<StudentEnrollmentExtraFieldGroup[]> {
-  const useProxy = isBrowserContext();
-  const url = useProxy
-    ? `/api/students/${id}/enrollment-extra-fields`
-    : await resolveServerApiUrl(`/api/students/${id}/enrollment-extra-fields`);
+  return bffJson<StudentEnrollmentExtraFieldGroup[]>(
+    `/api/students/${encodeURIComponent(id)}/enrollment-extra-fields`,
+  );
+}
 
-  try {
-    if (useProxy) {
-      const responseData = await authFetch<
-        | ApiResponse<StudentEnrollmentExtraFieldGroup[]>
-        | StudentEnrollmentExtraFieldGroup[]
-      >(url);
-      const data = extractApiData(responseData);
-      return Array.isArray(data) ? data : [];
+/**
+ * Updates a child.
+ *
+ * A 409 carrying a conflict list means a linked child's own departure plan
+ * does not allow the requested "läuft mit" days. It is a question, not a
+ * failure: it arrives as CompanionPlanConflictError, and the caller re-sends
+ * with extend_companion_plans after the user confirms. Nothing was written.
+ * Every other refusal keeps code, field errors and request ID (#2513); the
+ * predicates in student-update-errors recognise the companion ones by code.
+ *
+ * Mounted "läuft mit" views refetch when the write changed the links, as the
+ * route reports. An open Laufgemeinschaft form answers that by discarding its
+ * draft, so a write that changed none announces nothing.
+ */
+export async function updateStudent(
+  id: string,
+  update: StudentUpdate,
+): Promise<Student> {
+  const response = await sessionFetch(
+    `/api/students/${encodeURIComponent(id)}`,
+    { method: "PUT", body: JSON.stringify(update) },
+  );
+  if (!response.ok) {
+    const body = await response.text();
+    if (response.status === 409 && isCompanionPlanConflictResponse(body)) {
+      throw new CompanionPlanConflictError(body);
     }
-
-    const response =
-      await api.get<ApiResponse<StudentEnrollmentExtraFieldGroup[]>>(url);
-    return response.data?.data ?? [];
-  } catch (error) {
-    handleStudentApiError(error, "fetch student enrollment extra fields");
+    throw apiErrorFromText(
+      `Student update failed (${response.status})`,
+      response.status,
+      body,
+    );
   }
+  const { data } = (await response.json()) as {
+    data: Student & { companions_changed: boolean };
+  };
+  if (data.companions_changed) {
+    notifyStudentCompanionsChanged();
+  }
+  return data;
+}
+
+/** The latest recorded change of a tracked field (#1455). */
+export interface StudentFieldChange {
+  id: string;
+  field: string;
+  /** Already formatted German values. */
+  old_value: string;
+  new_value: string;
+  edited_by: string;
+  changed_at: string;
+}
+
+/** Recorded field changes, newest first; the backend requires full access. */
+export async function fetchStudentChangeHistory(
+  id: string,
+): Promise<StudentFieldChange[]> {
+  return bffJson<StudentFieldChange[]>(
+    `/api/students/${encodeURIComponent(id)}/change-history`,
+  );
+}
+
+/** The child's Anwesenheitsprotokoll (#1425); 403 when the school turned it off. */
+export async function fetchStudentAttendanceHistory(
+  id: string,
+): Promise<AttendanceHistory> {
+  return mapAttendanceHistoryResponse(
+    await bffJson<BackendAttendanceHistoryResponse>(
+      `/api/students/${encodeURIComponent(id)}/attendance-history`,
+    ),
+  );
 }
 
 // ─── School check-in/out (web UI) ───────────────────────────────────────────
 
-/** Action accepted by POST /api/students/{id}/school-checkin. */
 export type SchoolCheckinAction = "in" | "out";
 
 /** Why a checkout is no departure for the day: the child goes to class (#5656). */
 export type SchoolCheckoutReason = "class";
 
-/**
- * Response shape mirrors `AttendanceStatus` on the backend plus the resolved
- * presence label so the UI can update a PresenceBadge optimistically without
- * a follow-up fetch.
- */
-export interface SchoolCheckinResponse {
-  /**
-   * Backend int64 IDs are converted to string at the API boundary
-   * (CLAUDE.md §4) so consumers don't lose precision in JSON/JS number land.
-   */
+type SchoolLocation = "Anwesend" | "Schulhof" | "Abwesend" | "Im Unterricht";
+
+/** The attendance state after the call, so the UI can update optimistically. */
+interface SchoolCheckinResponse {
   studentId: string;
   status: "checked_in" | "on_yard" | "checked_out" | "not_checked_in";
   checkInTime?: string;
   checkOutTime?: string;
   yardSince?: string;
-  location: "Anwesend" | "Schulhof" | "Abwesend" | "Im Unterricht";
-  /** false when the call was a no-op because the student was already in the target state. */
+  location: SchoolLocation;
+  /** false when the student was already in the target state. */
   changed: boolean;
 }
 
 interface BackendSchoolCheckinResponse {
   student_id: number;
-  status: "checked_in" | "on_yard" | "checked_out" | "not_checked_in";
+  status: SchoolCheckinResponse["status"];
   check_in_time?: string;
   check_out_time?: string;
   yard_since?: string;
-  location: "Anwesend" | "Schulhof" | "Abwesend" | "Im Unterricht";
+  location: SchoolLocation;
   changed: boolean;
 }
 
 /**
- * Check a student in or out of school via the web UI.
- * Mode-agnostic: always writes active.attendance; room visits stay the
- * exclusive responsibility of the IoT kiosk flow.
- *
- * Throws on 4xx/5xx — callers typically handle 403 (no permission / not a
- * group supervisor) separately from other errors for tailored UI messaging.
+ * Checks a child in or out of school via the web UI. Always writes
+ * active.attendance; room visits stay with the IoT kiosk flow.
  */
 export async function schoolCheckinStudent(
   studentId: string,
@@ -365,25 +280,25 @@ export async function schoolCheckinStudent(
   checkoutNote?: string,
   checkoutReason?: SchoolCheckoutReason,
 ): Promise<SchoolCheckinResponse> {
-  const url = `/api/students/${studentId}/school-checkin`;
-  // Optional reason for an early checkout (#3324); the backend accepts it
-  // only with "out" and stores nothing for a blank note.
+  // The early-checkout note (#3324) and the reason only go with "out". The
+  // backend refuses a note together with a reason: the note is for going home
+  // early, so the reason wins.
   const note = action === "out" ? checkoutNote?.trim() : undefined;
   const reason = action === "out" ? checkoutReason : undefined;
   try {
-    const response = await authFetch<
-      ApiResponse<BackendSchoolCheckinResponse> | BackendSchoolCheckinResponse
-    >(url, {
-      method: "POST",
-      // The backend refuses a note together with a reason: the note is for
-      // going home early, so the reason wins.
-      body: reason ? { action, reason } : note ? { action, note } : { action },
-    });
-
-    const data = extractApiData<BackendSchoolCheckinResponse>(response);
+    const data = await bffJson<BackendSchoolCheckinResponse>(
+      `/api/students/${encodeURIComponent(studentId)}/school-checkin`,
+      {
+        method: "POST",
+        body: reason
+          ? { action, reason }
+          : note
+            ? { action, note }
+            : { action },
+      },
+    );
     return {
-      // Convert int64 -> string at the boundary per CLAUDE.md §4.
-      studentId: data.student_id.toString(),
+      studentId: String(data.student_id),
       status: data.status,
       checkInTime: data.check_in_time,
       checkOutTime: data.check_out_time,
@@ -403,7 +318,6 @@ export async function schoolCheckinStudent(
 
 // ─── Batch school check-in/out (#2359) ──────────────────────────────────────
 
-/** Per-student outcome of a batch check-in/out. */
 interface SchoolCheckinBatchResult {
   studentId: string;
   ok: boolean;
@@ -424,9 +338,8 @@ export interface SchoolCheckinBatchOutcome {
 interface BackendSchoolCheckinBatchResponse {
   action: SchoolCheckinAction;
   results: Array<{
-    // The backend emits string IDs on this endpoint: the values are matched
-    // back against the client's selection set, and a JSON-number round-trip
-    // would corrupt int64 IDs above Number.MAX_SAFE_INTEGER.
+    // String IDs on this endpoint: they are matched back against the
+    // selection, and a JSON number would corrupt int64 IDs above 2^53-1.
     student_id: string;
     ok: boolean;
     changed: boolean;
@@ -437,44 +350,19 @@ interface BackendSchoolCheckinBatchResponse {
   failed: number;
 }
 
-/**
- * One request may carry at most this many students — mirrors the backend's
- * maxSchoolCheckinBatchSize. Larger selections are split into sequential
- * requests below, so the UI never has to cap what the user can select.
- */
+/** The backend's maxSchoolCheckinBatchSize. */
 const SCHOOL_CHECKIN_BATCH_CHUNK_SIZE = 1000;
 
-async function postSchoolCheckinBatchChunk(
-  studentIds: string[],
-  action: SchoolCheckinAction,
-  reason?: SchoolCheckoutReason,
-): Promise<BackendSchoolCheckinBatchResponse> {
-  const response = await authFetch<
-    | ApiResponse<BackendSchoolCheckinBatchResponse>
-    | BackendSchoolCheckinBatchResponse
-  >("/api/students/school-checkin/batch", {
-    method: "POST",
-    // IDs stay strings on the wire (see BackendSchoolCheckinBatchResponse) —
-    // never convert them with Number(), which is lossy above 2^53-1.
-    body: reason
-      ? { action, reason, student_ids: studentIds }
-      : { action, student_ids: studentIds },
-  });
-  return extractApiData<BackendSchoolCheckinBatchResponse>(response);
-}
-
 /**
- * Apply one explicit check-in/out action to a set of students (#2359,
- * Sammelauswahl). Students already in the target state are counted as
- * succeeded no-ops; students the caller cannot act on come back with a
- * per-student error entry while the rest are still processed.
+ * Applies one check-in/out action to a set of children (#2359). Children
+ * already in the target state count as succeeded no-ops; children the caller
+ * cannot act on come back with a per-child error while the rest are processed.
  *
- * Selections beyond the per-request cap are chunked into sequential requests
- * and the outcomes merged. Throws only when the FIRST request fails outright
- * (e.g. 403 without users:checkin) — once anything has been processed, a
- * failing later chunk is reported as per-student `request_failed` entries
- * instead, so the caller's partial-failure handling (retained selection,
- * named retry dialog) covers it truthfully.
+ * Selections beyond the per-request cap go out as sequential requests. Throws
+ * only when the FIRST request fails outright (e.g. 403 without users:checkin);
+ * once anything has been processed, a failing later chunk is reported as
+ * per-child `request_failed` entries, so the caller's partial-failure handling
+ * (retained selection, named retry dialog) covers it truthfully.
  */
 export async function schoolCheckinStudentsBatch(
   studentIds: string[],
@@ -498,10 +386,14 @@ export async function schoolCheckinStudentsBatch(
       offset + SCHOOL_CHECKIN_BATCH_CHUNK_SIZE,
     );
     try {
-      const data = await postSchoolCheckinBatchChunk(
-        chunk,
-        action,
-        checkoutReason,
+      const data = await bffJson<BackendSchoolCheckinBatchResponse>(
+        "/api/students/school-checkin/batch",
+        {
+          method: "POST",
+          body: checkoutReason
+            ? { action, reason: checkoutReason, student_ids: chunk }
+            : { action, student_ids: chunk },
+        },
       );
       outcome.succeeded += data.succeeded;
       outcome.failed += data.failed;
@@ -521,11 +413,7 @@ export async function schoolCheckinStudentsBatch(
         chunk_offset: offset,
         error: error instanceof Error ? error.message : String(error),
       });
-      // Nothing processed yet → the whole action failed; rethrow so the
-      // caller's request-level handling (toast, kept selection) applies.
       if (offset === 0) throw error;
-      // Later chunk failed after earlier ones committed: report the
-      // unprocessed rest per-student so the merged outcome stays truthful.
       for (const studentId of studentIds.slice(offset)) {
         outcome.results.push({
           studentId,
@@ -541,6 +429,8 @@ export async function schoolCheckinStudentsBatch(
 
   return outcome;
 }
+
+// ─── Deletion ───────────────────────────────────────────────────────────────
 
 export interface StudentDeletionCounts {
   timetable_assignments: number;
@@ -577,38 +467,21 @@ export type StudentDeletionReason =
   // Austritt liegt lange genug zurück, die Aufbewahrungsfrist ist um.
   | "retention_expired";
 
-export interface DeleteStudentWithDataInput {
+interface DeleteStudentWithDataInput {
   expected_fingerprint: string;
   confirmation_name: string;
   reason: StudentDeletionReason;
   acknowledged: true;
 }
 
-async function studentDeletionResponse<T>(
-  response: Response,
-  fallbackError: string,
-): Promise<T> {
-  const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok) {
-    throw apiErrorFromBody(fallbackError, response.status, payload);
-  }
-  if (payload && typeof payload === "object" && "data" in payload) {
-    return (payload as { data: T }).data;
-  }
-  return payload as T;
-}
-
 export async function fetchStudentDeletionImpact(
   id: string,
   completionId?: string,
 ): Promise<StudentDeletionImpact> {
-  const path = completionId
-    ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}/deletion-impact`
-    : `/api/students/${encodeURIComponent(id)}/delete-impact`;
-  const response = await transportFetch(path, { cache: "no-store" });
-  return studentDeletionResponse<StudentDeletionImpact>(
-    response,
-    "Auswirkungen der Löschung konnten nicht geladen werden.",
+  return bffJson<StudentDeletionImpact>(
+    completionId
+      ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}/deletion-impact`
+      : `/api/students/${encodeURIComponent(id)}/delete-impact`,
   );
 }
 
@@ -617,142 +490,89 @@ export async function deleteStudentWithData(
   input: DeleteStudentWithDataInput,
   completionId?: string,
 ): Promise<void> {
-  const path = completionId
-    ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}`
-    : `/api/students/${encodeURIComponent(id)}`;
-  const response = await transportFetch(path, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  await studentDeletionResponse<unknown>(
-    response,
-    "Das Kind konnte nicht gelöscht werden.",
+  await bffJson<unknown>(
+    completionId
+      ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}`
+      : `/api/students/${encodeURIComponent(id)}`,
+    { method: "DELETE", body: input },
   );
 }
 
 // ─── Student photo (Datenverwaltung) ────────────────────────────────────────
 
 /**
- * Upload a photo for a student. Caller is expected to have already passed
- * the file through `compressAvatar` (lib/image-utils) — sending raw 5+ MB
- * camera JPEGs from a phone would hit the backend's `maxStudentPhotoBody`
- * cap and fail with 400.
+ * Uploads a photo for a child. Callers pass the file through `compressAvatar`
+ * (lib/image-utils) first: a raw 5+ MB camera JPEG would hit the backend's
+ * `maxStudentPhotoBody` cap.
  *
- * Pre-conditions checked server-side:
- *   1. Tenant has `operations.student_photos_enabled = true`
- *   2. Either the row already has photo_consent_given_at set, OR the
- *      caller passes `consentAcknowledged=true` so the backend can stamp
- *      consent atomically alongside saving the photo. The form-level
- *      checkbox state drives this — the user can tick consent + upload
- *      without an intermediate "Speichern" round-trip.
- *
- * The backend stores filesystem paths internally and returns the stable
- * `/uploads/student-photos/...` URL; consumers should treat the returned
- * URL as opaque and re-render the avatar without local path arithmetic.
+ * The backend requires `operations.student_photos_enabled` and either a stored
+ * photo consent or `consentAcknowledged`, which stamps the consent together
+ * with the photo. The returned URL is opaque.
  */
 export async function uploadStudentPhoto(
   studentId: string,
   file: Blob,
   options: { consentAcknowledged?: boolean } = {},
 ): Promise<{ photoUrl: string }> {
-  const url = `/api/students/${studentId}/photo`;
   const formData = new FormData();
-  const photoFile =
+  formData.append(
+    "photo",
     file instanceof File
       ? file
       : new File([file], "student-photo.jpg", {
           type: file.type || "image/jpeg",
-        });
-  formData.append("photo", photoFile);
+        }),
+  );
   if (options.consentAcknowledged) {
     formData.append("consent_acknowledged", "true");
   }
-
-  if (!hasSessionAccess(await getCachedSession())) {
-    // 401 sends the person to the login screen on the shared error path.
-    throw new ApiError("Authentifizierung erforderlich", 401);
-  }
-
-  // Use raw fetch — authFetch wraps JSON bodies, but this endpoint expects
-  // multipart/form-data. The route reads the session cookie (#5005).
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      body: formData,
-    });
-  } catch (error) {
-    throw unavailableApiError(error);
-  }
-
-  if (!response.ok) {
-    const text = await response.text();
-    logger.error("student_photo_upload_failed", {
-      student_id: studentId,
-      status: response.status,
-      error: text,
-    });
-    throw apiErrorFromText(
-      text || `Upload fehlgeschlagen (HTTP ${response.status})`,
-      response.status,
-      text,
-    );
-  }
-
-  const body = (await response.json()) as
-    { data: { photo_url: string } } | { photo_url: string };
-  const data = "data" in body ? body.data : body;
+  const data = await bffJson<{ photo_url: string }>(
+    `/api/students/${encodeURIComponent(studentId)}/photo`,
+    { method: "POST", body: formData },
+  );
   return { photoUrl: data.photo_url };
 }
 
-/** Remove a student's photo (idempotent — succeeds even with no photo set). */
+/** Removes a child's photo (idempotent). */
 export async function deleteStudentPhoto(studentId: string): Promise<void> {
-  const url = `/api/students/${studentId}/photo`;
-  await authFetch<void>(url, {
-    method: "DELETE",
-  });
+  await bffJson<unknown>(
+    `/api/students/${encodeURIComponent(studentId)}/photo`,
+    { method: "DELETE" },
+  );
 }
 
-// Fetch student's privacy consent
+// ─── Privacy consent ────────────────────────────────────────────────────────
+
+interface BackendConsentPair {
+  accepted: boolean;
+  data_retention_days: number;
+}
+
+function mapConsentPair(consent: BackendConsentPair): PrivacyConsent {
+  return {
+    accepted: consent.accepted,
+    dataRetentionDays: consent.data_retention_days,
+  };
+}
+
+/**
+ * The stored consent of a child, or the school's defaults when none is
+ * stored. Refused (403) without read access, where the detail read only
+ * carries the defaults.
+ */
 export async function fetchStudentPrivacyConsent(
   studentId: string,
-): Promise<PrivacyConsent | null> {
-  const useProxy = isBrowserContext();
-  const url = useProxy
-    ? `/api/students/${studentId}/privacy-consent`
-    : await resolveServerApiUrl(`/students/${studentId}/privacy-consent`);
+): Promise<PrivacyConsent> {
+  return mapConsentPair(
+    await bffJson<BackendConsentPair>(
+      `/api/students/${encodeURIComponent(studentId)}/privacy-consent`,
+    ),
+  );
+}
 
-  try {
-    if (useProxy) {
-      const response = await sessionFetch(url, {
-        method: "GET",
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) return null;
-        throw await apiErrorFromResponse(
-          response,
-          `API error (${response.status}): ${response.statusText}`,
-        );
-      }
-
-      const responseData =
-        (await response.json()) as ApiResponse<BackendPrivacyConsent>;
-      return mapPrivacyConsentResponse(responseData.data);
-    }
-
-    const response = await api.get<ApiResponse<BackendPrivacyConsent>>(url);
-    return mapPrivacyConsentResponse(response.data.data);
-  } catch (error) {
-    if (isAxiosError(error) && error.response?.status === 404) {
-      return null;
-    }
-    logger.error("failed to fetch privacy consent", {
-      student_id: studentId,
-      error: String(error),
-    });
-    throw error;
-  }
+/** The consent a new child starts with: the school's defaults. */
+export async function fetchPrivacyConsentDefaults(): Promise<PrivacyConsent> {
+  return mapConsentPair(
+    await bffJson<BackendConsentPair>("/api/students/privacy-consent/defaults"),
+  );
 }

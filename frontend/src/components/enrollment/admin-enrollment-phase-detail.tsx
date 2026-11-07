@@ -84,7 +84,7 @@ import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
-import { studentService } from "~/lib/api";
+import { fetchSchoolClasses } from "~/lib/student-api";
 import { useSWRAuth } from "~/lib/swr";
 import {
   CHILD_STATUS_LABELS,
@@ -192,7 +192,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   const { data: schoolClassOptionsData } = useSWRAuth<unknown>(
     "enrollment-phase-school-classes",
-    async () => studentService.getSchoolClasses(),
+    async () => fetchSchoolClasses(),
     { revalidateOnFocus: false },
   );
   const schoolClassOptions = useMemo(

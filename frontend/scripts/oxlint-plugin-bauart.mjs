@@ -313,8 +313,8 @@ const ROW_ACTION_BASELINE = new Map(
       "Gericht entfernen@797",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1589",
-      "Entfernen@2030",
+      "Antwort entfernen@1590",
+      "Entfernen@2031",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Bedingung löschen@2004",
@@ -333,7 +333,7 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@297"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@725",
+      "Erziehungsberechtigte/n entfernen@796",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@816",
@@ -1576,7 +1576,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1491",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1492",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
@@ -1587,7 +1587,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Termin bearbeiten Termin erstellen@1065",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@611",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@602",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@269",

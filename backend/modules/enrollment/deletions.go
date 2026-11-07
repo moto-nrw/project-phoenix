@@ -59,6 +59,8 @@ type DeletionImpact struct {
 type EnrollmentDeletions interface {
 	PreviewRequest(ctx context.Context, requestID int64) (*DeletionImpact, error)
 	PreviewChild(ctx context.Context, requestID, childID int64) (*DeletionImpact, error)
+	// RequestMailOutcomes reports what became of the mails to the family (#5934).
+	RequestMailOutcomes(ctx context.Context, requestID int64) ([]RequestMailOutcome, error)
 	DeleteRequest(ctx context.Context, requestID, actorAccountID int64, reason string) (*DeletionImpact, error)
 	DeleteChild(ctx context.Context, requestID, childID, actorAccountID int64, reason string) (*DeletionImpact, error)
 }

@@ -54,8 +54,9 @@ import type {
   FilterSection,
 } from "~/components/ui/page-header/types";
 import { DetailIcons } from "~/components/ui/detail-modal-components";
-import { studentService } from "~/lib/api";
-import type { Student, Group, Room } from "~/lib/api";
+import { fetchSchoolClasses } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
+import type { Group, Room } from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
@@ -1507,7 +1508,7 @@ function SearchPageContent() {
 
   const { data: schoolClassOptionsData } = useSWRAuth<unknown>(
     studentKeys.schoolClasses(),
-    async () => studentService.getSchoolClasses(),
+    fetchSchoolClasses,
     { revalidateOnFocus: false },
   );
   const schoolClassOptions = useMemo(

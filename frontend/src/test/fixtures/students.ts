@@ -1,4 +1,5 @@
-import type { BackendStudent, Student } from "~/lib/student-helpers";
+import type { BackendStudent } from "~/lib/student-wire";
+import type { Student } from "~/lib/student-helpers";
 
 let studentIdCounter = 0;
 

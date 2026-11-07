@@ -76,5 +76,6 @@
   "request_not_open": "Уже не відкрито: {object}. Зверніться до контактної особи.",
   "request_sharing_invalid": "Указано неправильні дані: {object}. Перевірте введені дані.",
   "sick_note_disabled": "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
-  "staff_managed_guardian_protected": "У вас немає доступу до: {object}. Зверніться до школи."
+  "staff_managed_guardian_protected": "У вас немає доступу до: {object}. Зверніться до школи.",
+  "guardian_invite_unavailable": "Зараз не вдалося надіслати це запрошення. Будь ласка, зверніться до групи продовженого дня."
 }

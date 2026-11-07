@@ -48,6 +48,13 @@ type PrivacyConsentResponse struct {
 	UpdatedAt         time.Time              `json:"updated_at"`
 }
 
+// PrivacyConsentDefaultsResponse is the consent a new child starts from.
+type PrivacyConsentDefaultsResponse struct {
+	PolicyVersion     string `json:"policy_version"`
+	Accepted          bool   `json:"accepted"`
+	DataRetentionDays int    `json:"data_retention_days"`
+}
+
 // PrivacyConsentRequest represents a privacy consent update request
 type PrivacyConsentRequest struct {
 	PolicyVersion     string                 `json:"policy_version"`

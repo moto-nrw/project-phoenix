@@ -29,7 +29,6 @@ import {
   NOTE_KIND_PERMANENT,
   NOTE_ORIGIN_MASTER_DATA,
   NOTE_ORIGIN_SCHOOL,
-  NOTE_SHARED_WITH_SCHOOL_BADGE,
   NOTE_VISIBILITY_ALL_STAFF,
   NOTE_VISIBILITY_CARE_TEAM,
   NOTE_VISIBILITY_GROUP_LEADS,
@@ -38,7 +37,9 @@ import {
   type StudentNoteActivity,
   type StudentNoteDraft,
 } from "~/lib/student-notes-api";
+import { NOTE_SHARED_WITH_SCHOOL_BADGE } from "~/components/students/note-badges";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { studentKeys } from "~/lib/swr/portal-keys";
 
 // Notizen tab (#3632): the chronicle of one child. The backend resolves who
 // may read which note and sends can_edit / can_delete with every entry, so
@@ -455,14 +456,14 @@ export function StudentNotizenTab({
   readonly educationGroupName?: string;
 }) {
   const { data, isLoading, error, mutate } = useSWRAuth<StudentNote[]>(
-    `student-notes-${studentId}`,
+    studentKeys.notes(studentId),
     () => studentNotesService.list(studentId),
   );
   // The activities name the references in the chronicle and fill the picker.
   // Without them the card still works; only the activity names are missing.
   const { data: activityData, error: activityError } = useSWRAuth<
     StudentNoteActivity[]
-  >(`student-note-activities-${studentId}`, () =>
+  >(studentKeys.noteActivities(studentId), () =>
     studentNotesService.listActivities(studentId),
   );
   useEffect(() => {
@@ -488,7 +489,7 @@ export function StudentNotizenTab({
   const revalidateNotes = async (permanentNotesChanged: boolean) => {
     const revalidations: Promise<unknown>[] = [mutate()];
     if (permanentNotesChanged) {
-      revalidations.push(tenantMutate(`student-permanent-notes-${studentId}`));
+      revalidations.push(tenantMutate(studentKeys.permanentNotes(studentId)));
     }
     await Promise.all(revalidations);
   };

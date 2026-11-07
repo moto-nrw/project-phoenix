@@ -152,6 +152,7 @@ func (rs *Resource) tenantID(ctx context.Context) int64 {
 // owner serves both, so the resource takes them as one dependency (#3332).
 type Invitations interface {
 	identityaccess.SchoolInvitations
+	identityaccess.SchoolInvitationMailStates
 	identityaccess.GuardianInvitations
 }
 

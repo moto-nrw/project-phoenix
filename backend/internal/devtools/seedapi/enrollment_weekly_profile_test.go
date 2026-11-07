@@ -153,6 +153,9 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		return true
 	case path == "/traeger/schools/":
 		data = []map[string]any{{"id": 1}}
+	case isFakeTraegerDocumentRoute(r.Method, path):
+		// The shared document step (#4692).
+		data, _ = fakeTraegerDocumentData(r.Method, path)
 	case r.Method == "GET" && (path == "/traeger/contract-templates/" || path == "/traeger/contracts/candidates"):
 		// The care contract step (#4678) reads the offerings and the
 		// accepted applications; this fake school has neither.

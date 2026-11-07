@@ -153,11 +153,17 @@ type Letterheads interface {
 type MailState struct {
 	OutboxID int64
 	State    string
+	// Outcome is what Delivery knows about the mail, in its words.
+	Outcome string
 }
 
 // Post enqueues the mail of a contract in the caller's Träger transaction
 // and reads the state of its mails.
 type Post interface {
 	EnqueueContractMail(ctx context.Context, mail ContractMail) (int64, error)
+	// ContractMailBlock says why a mail to the address would stay back now, or
+	// nothing. Outcome is the last mail's to this address, if there was one: only a
+	// mail that left a block at the provider makes the provider worth asking.
+	ContractMailBlock(ctx context.Context, organizationID int64, address, outcome string) (string, error)
 	ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]MailState, error)
 }

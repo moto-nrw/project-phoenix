@@ -14,7 +14,7 @@ import {
   type StudentSearchFilterInput,
 } from "~/lib/student-search-resource";
 import { berlinTodayISO } from "~/lib/date-helpers";
-import { studentService } from "~/lib/api";
+import { fetchSchoolClasses } from "~/lib/student-api";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 
 /** Explicit opt-in destinations. Never a URL-to-API conversion or an audited read. */
@@ -88,7 +88,7 @@ export async function tenantPrefetchResources(
         : []),
       {
         key: studentKeys.schoolClasses(),
-        fetcher: () => studentService.getSchoolClasses(),
+        fetcher: () => fetchSchoolClasses(),
       },
     ];
   }

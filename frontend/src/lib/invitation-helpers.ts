@@ -1,3 +1,9 @@
+import type {
+  EmailAddressMark,
+  MailProviderBlock,
+  MailOutcome,
+} from "~/lib/email-delivery-status";
+
 export interface InvitationValidation {
   targetPortal?: "tenant" | "school";
   requiresAccountLogin?: boolean;
@@ -44,6 +50,10 @@ export interface PendingInvitation {
   firstName?: string | null;
   lastName?: string | null;
   position?: string | null;
+  /** What became of the last mail; only a provider's report says delivered. */
+  mailOutcome?: MailOutcome;
+  providerBlock?: MailProviderBlock;
+  addressMark?: EmailAddressMark;
 }
 
 export interface BackendInvitationValidation {
@@ -70,6 +80,9 @@ export interface BackendInvitation {
   last_name?: string | null;
   position?: string | null;
   creator?: string; // Creator email from backend
+  mail_outcome?: MailOutcome;
+  provider_block?: MailProviderBlock;
+  address_mark?: EmailAddressMark;
 }
 
 export const mapInvitationValidationResponse = (
@@ -101,6 +114,9 @@ export const mapPendingInvitationResponse = (
     firstName: data.first_name,
     lastName: data.last_name,
     position: data.position,
+    mailOutcome: data.mail_outcome,
+    providerBlock: data.provider_block,
+    addressMark: data.address_mark,
   };
 };
 

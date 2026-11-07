@@ -26,6 +26,10 @@ const PROBLEM_LABEL: Record<BulkInviteProblem["reason"], string> = {
   invalid_email: "E-Mail-Adresse ist falsch geschrieben",
   duplicate_email: "Gleiche E-Mail-Adresse wie eine andere Person",
   email_not_queued: "E-Mail konnte gerade nicht verschickt werden",
+  address_blocked: "Mails an diese Person gehen gerade nicht raus",
+  mail_delayed: "Die letzte E-Mail ist noch unterwegs",
+  provider_blocked: "Diese Adresse ist gesperrt",
+  block_unreadable: "Der Stand der Adresse lässt sich gerade nicht prüfen",
 };
 
 const PROBLEM_ACTION: Record<BulkInviteProblem["reason"], string> = {
@@ -33,6 +37,11 @@ const PROBLEM_ACTION: Record<BulkInviteProblem["reason"], string> = {
   invalid_email: "Prüfen Sie die E-Mail-Adresse beim Kind.",
   duplicate_email: "Prüfen Sie die E-Mail-Adressen bei den Eltern.",
   email_not_queued: "Versuchen Sie es später noch einmal.",
+  address_blocked:
+    "Den Grund sehen Sie beim Kind unter „Erziehungsberechtigte“.",
+  mail_delayed: "Bitte warten Sie, sonst kommt die Mail doppelt an.",
+  provider_blocked: "Der moto-Support muss das klären.",
+  block_unreadable: "Bitte versuchen Sie es später noch einmal.",
 };
 
 function parents(count: number): string {
@@ -106,7 +115,9 @@ export function SelectionBulkInviteModal({
     clearLoadError,
   ]);
 
-  const toMail = preview ? preview.invited + preview.resent : 0;
+  const toMail = preview
+    ? preview.invited + preview.resent + preview.linkedExistingAccount
+    : 0;
 
   const handleResendOpenChange = (value: boolean) => {
     setPreview(null);
@@ -228,7 +239,8 @@ function PreviewSummary({
   onResendOpenChange: (value: boolean) => void;
   disabled: boolean;
 }) {
-  const toMail = preview.invited + preview.resent;
+  const toMail =
+    preview.invited + preview.resent + preview.linkedExistingAccount;
   const openCount = preview.skippedOpen + preview.resent;
   return (
     <>
@@ -238,18 +250,21 @@ function PreviewSummary({
         ) : (
           <>
             <strong>{parents(toMail)}</strong>{" "}
-            {toMail === 1 ? "bekommt" : "bekommen"} eine E-Mail mit der
-            Einladung. Ausgewählt:{" "}
-            {childCount === 1 ? "1 Kind" : `${childCount} Kinder`}.
+            {toMail === 1 ? "bekommt" : "bekommen"} Zugang zum Elternportal.
+            Ausgewählt: {childCount === 1 ? "1 Kind" : `${childCount} Kinder`}.
           </>
         )}
       </p>
-      {toMail > 0 ? (
+      {preview.invited + preview.resent > 0 ? (
         <p className="text-sm text-gray-600">
           Sagen Sie den Eltern vorher Bescheid, dass eine E-Mail von moto kommt.
         </p>
       ) : null}
       <ul className="space-y-1 text-sm text-gray-700">
+        <CountRow
+          label="Vorhandenes moto-Konto wird verbunden"
+          count={preview.linkedExistingAccount}
+        />
         <CountRow
           label="Nutzen das Elternportal schon"
           count={preview.skippedActive}

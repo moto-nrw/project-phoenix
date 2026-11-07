@@ -26,6 +26,8 @@ export function enrollmentReviewTopic(): HelpTopic {
       "Die Eltern sehen die Entscheidung bei ihrer Anmeldung. Bei `Bestätigen` wird das Kind übernommen.",
     notes: [
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
+      // #5934
+      "Unter `E-Mails an die Familie` sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind. Steht dort `Adresse prüfen`, sprechen Sie die Familie direkt an.",
       "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",
       "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
       "Hat die Vorlage `Unterschrift erforderlich`, steht die Unterschrift der Eltern im Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie den Anmeldenachweis mit der Unterschrift herunter.",

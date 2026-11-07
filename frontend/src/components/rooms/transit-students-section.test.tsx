@@ -2,9 +2,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { activeService } from "~/lib/active-service";
 import type { ActiveGroup } from "~/lib/active-helpers";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
-import { studentService } from "~/lib/api";
+import { fetchStudents } from "~/lib/student-api";
 import { TransitStudentsSection } from "./transit-students-section";
 import {
   useAttendanceWebEnabled,
@@ -73,10 +73,11 @@ vi.mock("~/lib/active-service", async (importOriginal) => ({
   },
 }));
 
+vi.mock("~/lib/student-api", () => ({
+  fetchStudents: vi.fn(),
+}));
+
 vi.mock("~/lib/api", () => ({
-  studentService: {
-    getStudents: vi.fn(),
-  },
   roomService: {
     getRooms: vi.fn(),
   },
@@ -296,8 +297,14 @@ describe("TransitStudentsSection", () => {
   });
 
   it("keeps the day-planning scope in the transit request", async () => {
-    vi.mocked(studentService.getStudents).mockResolvedValue({
+    vi.mocked(fetchStudents).mockResolvedValue({
       students: mockStudents,
+      pagination: {
+        current_page: 1,
+        page_size: 200,
+        total_pages: 1,
+        total_records: mockStudents.length,
+      },
     });
     render(<TransitStudentsSection dayStatus="comes_today" />);
 
@@ -307,7 +314,7 @@ describe("TransitStudentsSection", () => {
     const fetchTransitStudents = transitCall?.[1] as () => Promise<unknown>;
     await fetchTransitStudents();
 
-    expect(studentService.getStudents).toHaveBeenCalledWith({
+    expect(fetchStudents).toHaveBeenCalledWith({
       locationState: "transit",
       dayStatus: "comes_today",
       pageSize: 200,

@@ -29,8 +29,10 @@ const (
 	EmailDeliveryDelayed    EmailDeliveryState = "delayed"
 	EmailDeliveryDelivered  EmailDeliveryState = "delivered"
 	EmailDeliverySuppressed EmailDeliveryState = "suppressed"
-	EmailDeliveryFailed     EmailDeliveryState = "failed"
-	EmailDeliveryComplained EmailDeliveryState = "complained"
+	// EmailDeliveryUnsubscribed is a person who unsubscribed at the provider.
+	EmailDeliveryUnsubscribed EmailDeliveryState = "unsubscribed"
+	EmailDeliveryFailed       EmailDeliveryState = "failed"
+	EmailDeliveryComplained   EmailDeliveryState = "complained"
 )
 
 // emailDeliveryStateOrder ranks the states by how much they say about the
@@ -41,6 +43,7 @@ var emailDeliveryStateOrder = []EmailDeliveryState{
 	EmailDeliveryDelayed,
 	EmailDeliveryDelivered,
 	EmailDeliverySuppressed,
+	EmailDeliveryUnsubscribed,
 	EmailDeliveryFailed,
 	EmailDeliveryComplained,
 }
@@ -54,9 +57,27 @@ func NextEmailDeliveryState(current, event EmailDeliveryState) EmailDeliveryStat
 }
 
 // BlocksAddress reports whether the state puts the address on the school's
-// suppression list.
+// suppression list. Only a bounce for good and a complaint do (#5936). A mail the
+// provider or the list held back says nothing new about the address, and an
+// unsubscribe is a person's wish, not a broken address.
 func (s EmailDeliveryState) BlocksAddress() bool {
 	return s == EmailDeliveryFailed || s == EmailDeliveryComplained
+}
+
+// EmailSuppressionReason is why a school's list holds an address.
+type EmailSuppressionReason string
+
+const (
+	EmailSuppressionFailed     EmailSuppressionReason = "failed"
+	EmailSuppressionComplained EmailSuppressionReason = "complained"
+)
+
+// SuppressionReason is the reason the state leaves on the school's list.
+func (s EmailDeliveryState) SuppressionReason() EmailSuppressionReason {
+	if s == EmailDeliveryComplained {
+		return EmailSuppressionComplained
+	}
+	return EmailSuppressionFailed
 }
 
 // EmailDeliveryEvent is one reported event of a mail. The mail is named by
@@ -111,14 +132,11 @@ type ProviderMail struct {
 	ID                int64
 	ProviderMessageID string
 	State             EmailDeliveryState
+	StateAt           *time.Time
 	SentAt            time.Time
 	// CheckedAt is when the reconciliation last asked about the mail, if ever.
 	CheckedAt *time.Time
 }
-
-// SuppressionRetention is how long the suppression list keeps an address after
-// its last event. A new bounce or complaint starts the period again.
-const SuppressionRetention = 365 * 24 * time.Hour
 
 var diagnosticAddress = regexp.MustCompile(`(?:"[^"]*"|[^\s<>,;:()\[\]"]+)@[^\s<>,;:()\[\]"]+`)
 

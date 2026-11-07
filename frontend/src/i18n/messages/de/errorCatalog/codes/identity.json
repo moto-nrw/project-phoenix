@@ -53,5 +53,9 @@
   "lehrkraft_role_immutable": "Ein Lehrkraft-Konto behält seine Rolle. Für eine andere Rolle braucht die Person ein neues Konto.",
   "access_name_required": "Für diese Schule fehlt der Name der Person. Bitte geben Sie Vor- und Nachnamen ein.",
   "caterer_address_taken": "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
-  "caterer_without_school": "Sie beliefern zurzeit keine Schule über moto. Bitte fragen Sie die Schule."
+  "caterer_without_school": "Sie beliefern zurzeit keine Schule über moto. Bitte fragen Sie die Schule.",
+  "guardian_email_address_blocked": "Die Einladung wurde nicht gesendet, weil an diese Person keine Mails gehen. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
+  "invitation_mail_delayed": "Die letzte Einladung ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an.",
+  "mail_blocked_at_provider": "Diese Adresse ist gesperrt. Eine neue Mail hilft nicht. Der moto-Support muss das klären.",
+  "mail_block_unreadable": "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal."
 }

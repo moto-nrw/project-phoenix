@@ -130,33 +130,70 @@ func (s *Service) CreateOperator(ctx context.Context, operator identityaccess.Op
 	return identityaccess.Operator(result), nil
 }
 
-// UpdateOperator validates and normalizes the address and display name and
-// writes every mutable column.
-func (s *Service) UpdateOperator(ctx context.Context, operator identityaccess.Operator) (identityaccess.Operator, error) {
+// UpdateOperator locks the operator's row in the administrative transaction,
+// lets change edit the row as committed and writes every mutable column back.
+// Because change never sees a copy read before the lock, a transition another
+// transaction committed meanwhile (deactivation, rotated password) stays in
+// force. The locked read (ErrOperatorNotFound included) and change report
+// their errors as is, and nothing is written; write errors are wrapped.
+func (s *Service) UpdateOperator(ctx context.Context, id int64, change func(*identityaccess.Operator) error) (identityaccess.Operator, error) {
 	var result domain.Operator
+	var editErr error
 	err := s.run(ctx, s.tx.RunAdmin, "update_operator", func(txCtx context.Context, stats *domain.OperationStats) error {
-		row := domain.Operator(operator)
-		if row.ID <= 0 {
-			return identityaccess.ErrOperatorNotFound
+		row, lockErr := s.lockOperatorRow(txCtx, stats, id)
+		if editErr = lockErr; editErr != nil {
+			return editErr
 		}
-		if validateErr := row.Validate(); validateErr != nil {
-			return validateErr
+		edited := identityaccess.Operator(row)
+		if editErr = change(&edited); editErr != nil {
+			return editErr
 		}
-		found, queryStats, updateErr := s.operators.UpdateOperator(txCtx, row)
-		stats.Add(queryStats)
-		if updateErr != nil {
-			return updateErr
-		}
-		if !found {
-			return identityaccess.ErrOperatorNotFound
+		row = domain.Operator(edited)
+		row.ID = id
+		if writeErr := s.writeOperatorRow(txCtx, stats, &row); writeErr != nil {
+			return writeErr
 		}
 		result = row
 		return nil
 	})
+	if editErr != nil {
+		return identityaccess.Operator{}, editErr
+	}
 	if err != nil {
 		return identityaccess.Operator{}, fmt.Errorf("identity access: update operator: %w", MapError(err))
 	}
 	return identityaccess.Operator(result), nil
+}
+
+func (s *Service) lockOperatorRow(ctx context.Context, stats *domain.OperationStats, id int64) (domain.Operator, error) {
+	if id <= 0 {
+		return domain.Operator{}, identityaccess.ErrOperatorNotFound
+	}
+	row, found, queryStats, err := s.operators.FindOperator(ctx, id, true)
+	stats.Add(queryStats)
+	if err != nil {
+		return domain.Operator{}, err
+	}
+	if !found {
+		return domain.Operator{}, identityaccess.ErrOperatorNotFound
+	}
+	return row, nil
+}
+
+// writeOperatorRow validates and normalizes row in place, then stores it.
+func (s *Service) writeOperatorRow(ctx context.Context, stats *domain.OperationStats, row *domain.Operator) error {
+	if err := row.Validate(); err != nil {
+		return err
+	}
+	found, queryStats, err := s.operators.UpdateOperator(ctx, *row)
+	stats.Add(queryStats)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return identityaccess.ErrOperatorNotFound
+	}
+	return nil
 }
 
 func (s *Service) DeleteOperator(ctx context.Context, id int64) error {
