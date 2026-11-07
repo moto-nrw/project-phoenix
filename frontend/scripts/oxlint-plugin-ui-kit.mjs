@@ -732,6 +732,10 @@ const SURFACE_WHITE_FILL_RE = /^bg-white(?:\/\d+)?$/;
 const SURFACE_RESPONSIVE_VARIANT_RE =
   /^(?:(?:max-)?(?:sm|md|lg|xl|2xl)|compact|min-\[[^\]]+\]|max-\[[^\]]+\])$/;
 const SURFACE_BREAKPOINTS = ["sm", "md", "lg", "xl", "2xl"];
+const SURFACE_STANDARD_RESPONSIVE_VARIANTS = new Set([
+  ...SURFACE_BREAKPOINTS,
+  ...SURFACE_BREAKPOINTS.map((breakpoint) => `max-${breakpoint}`),
+]);
 const SURFACE_CONTROL_ELEMENTS = new Set([
   "a",
   "button",
@@ -762,14 +766,34 @@ function isWideSurfaceTokens(tokens) {
     variantTokens.push(normalized);
     responsiveTokens.set(variant, variantTokens);
   }
-  const states = [baseTokens];
-  const cumulativeTokens = [...baseTokens];
-  for (const breakpoint of SURFACE_BREAKPOINTS) {
-    cumulativeTokens.push(...(responsiveTokens.get(breakpoint) ?? []));
-    states.push([...cumulativeTokens]);
-    responsiveTokens.delete(breakpoint);
+  const states = [];
+  for (let range = 0; range <= SURFACE_BREAKPOINTS.length; range++) {
+    const state = [...baseTokens];
+    for (let index = 0; index < SURFACE_BREAKPOINTS.length; index++) {
+      const breakpoint = SURFACE_BREAKPOINTS[index];
+      if (index < range) {
+        state.push(...(responsiveTokens.get(breakpoint) ?? []));
+      }
+      if (index >= range) {
+        state.push(...(responsiveTokens.get(`max-${breakpoint}`) ?? []));
+      }
+    }
+    states.push(state);
+
+    // `compact` starts at `md` and can also match short wide screens. Its
+    // width range overlaps the md+ states, where it needs to be checked with
+    // both min- and max-breakpoint variants.
+    if (range > SURFACE_BREAKPOINTS.indexOf("md")) {
+      states.push([...state, ...(responsiveTokens.get("compact") ?? [])]);
+    }
   }
-  for (const variantTokens of responsiveTokens.values()) {
+  for (const [variant, variantTokens] of responsiveTokens) {
+    if (
+      SURFACE_STANDARD_RESPONSIVE_VARIANTS.has(variant) ||
+      variant === "compact"
+    ) {
+      continue;
+    }
     states.push([...baseTokens, ...variantTokens]);
   }
   return states.some(isWideSurfaceTokenGroup);

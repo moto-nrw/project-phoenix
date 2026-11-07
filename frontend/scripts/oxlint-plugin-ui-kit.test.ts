@@ -764,6 +764,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     '<div className="rounded-lg border bg-white sm:rounded-2xl" />',
     '<div className="sm:rounded-lg sm:border sm:bg-white sm:p-3" />',
     '<div className="p-3 sm:rounded-lg md:border md:bg-white" />',
+    '<div className="sm:rounded-lg max-md:border max-md:bg-white p-3" />',
     '<section className="space-y-3 rounded-md border border-gray-200 p-3" />',
     '<li className="rounded-xl border px-4 py-3" />',
     '<div className="rounded-lg border bg-transparent p-3" />',
@@ -779,6 +780,17 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     expect(
       result.output.match(/ui-kit\(no-hand-rolled-surface\)/g),
     ).toHaveLength(1);
+  });
+
+  it("does not join non-overlapping min and max breakpoint variants", async () => {
+    const result = await lintSource(
+      `export const Probe = () => (
+        <div className="max-sm:rounded-lg sm:border sm:bg-white p-3" />
+      );`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-hand-rolled-surface)");
   });
 
   it("follows a class chain held in a local constant", async () => {
