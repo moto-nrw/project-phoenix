@@ -863,8 +863,6 @@ export function EnrollmentFormEditor({
   const pendingUploadMessage = hasPendingLegalDocumentUpload
     ? LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE
     : null;
-  const effectiveSaveBlockedMessage =
-    saveBlockedMessage ?? pendingUploadMessage;
 
   // "Wiederholen" sends the draft as it is then, not as it was when the
   // save failed.
@@ -1356,7 +1354,8 @@ export function EnrollmentFormEditor({
           <UnsavedChangesDialog
             pendingNavigation={pendingNavigation}
             saving={saving || hasPendingLegalDocumentUpload}
-            saveBlockedMessage={effectiveSaveBlockedMessage}
+            saveValidationMessage={saveBlockedMessage}
+            pendingUploadMessage={pendingUploadMessage}
             onCancel={() => setPendingNavigation(null)}
             onDiscard={discardPendingNavigation}
             onSave={savePendingNavigation}
@@ -2071,14 +2070,16 @@ function RenameSchemaDialog({
 function UnsavedChangesDialog({
   pendingNavigation,
   saving,
-  saveBlockedMessage,
+  saveValidationMessage,
+  pendingUploadMessage,
   onCancel,
   onDiscard,
   onSave,
 }: Readonly<{
   pendingNavigation: PendingNavigation | null;
   saving: boolean;
-  saveBlockedMessage: string | null;
+  saveValidationMessage: string | null;
+  pendingUploadMessage: string | null;
   onCancel: () => void;
   onDiscard: () => void;
   onSave: () => void;
@@ -2086,6 +2087,7 @@ function UnsavedChangesDialog({
   if (!pendingNavigation) return null;
 
   const isPreview = pendingNavigation === "preview";
+  const saveBlocked = Boolean(saveValidationMessage || pendingUploadMessage);
   const footer = (
     <>
       <Button
@@ -2113,7 +2115,7 @@ function UnsavedChangesDialog({
       <Button
         type="button"
         onClick={onSave}
-        disabled={saving || Boolean(saveBlockedMessage)}
+        disabled={saving || saveBlocked}
         variant="primary"
         size="md"
         className="inline-flex items-center justify-center"
@@ -2141,8 +2143,15 @@ function UnsavedChangesDialog({
           ? "Für die externe Vorschau muss die Vorlage zuerst gespeichert werden."
           : "Sie haben Änderungen an dieser Vorlage. Speichern Sie sie, bevor Sie den Bereich verlassen, oder verwerfen Sie sie bewusst."}
       </p>
-      {saveBlockedMessage ? (
-        <Alert type="warning" message={saveBlockedMessage} className="mt-4" />
+      {saveValidationMessage || pendingUploadMessage ? (
+        <div className="mt-4 space-y-3">
+          {saveValidationMessage ? (
+            <FormErrorAlert message={saveValidationMessage} />
+          ) : null}
+          {pendingUploadMessage ? (
+            <Alert type="warning" message={pendingUploadMessage} />
+          ) : null}
+        </div>
       ) : null}
     </Modal>
   );
