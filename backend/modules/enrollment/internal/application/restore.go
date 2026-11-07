@@ -159,12 +159,18 @@ func (d *Decisions) checkRestoreDuplicates(ctx context.Context, phase *enrollmen
 // live student from coming back next to a second active request targeting
 // that student (different-email submissions bypass the email-scoped check).
 func (d *Decisions) checkRestoreMatchedStudents(ctx context.Context, phase *enrollmentNative.Phase, withdrawn []*RequestChild) error {
+	locked := false
 	for _, child := range withdrawn {
 		if child.MatchedStudentID == nil {
 			continue
 		}
-		if err := d.deps.Requests.AcquireExistingStudentMatchLock(ctx, phase.ID); err != nil {
-			return fmt.Errorf("restore: acquire existing-student match lock: %w", err)
+		if !locked {
+			if err := d.deps.Requests.AcquireExistingStudentMatchLock(ctx, phase.ID); err != nil {
+				return fmt.Errorf("restore: acquire existing-student match lock: %w", err)
+			}
+			// This transaction-level phase lock already protects every following
+			// child. Keep each fresh duplicate read in its original position.
+			locked = true
 		}
 		has, err := d.deps.Requests.HasActiveRequestForMatchedStudent(ctx, phase.ID, *child.MatchedStudentID, child.ID)
 		if err != nil {

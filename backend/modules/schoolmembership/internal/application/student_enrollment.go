@@ -60,7 +60,7 @@ func (s *Service) SetStatus(ctx context.Context, id int64, status string) (chang
 		if gateErr != nil {
 			return gateErr
 		}
-		return s.countingWrite(txCtx, stats, func(writeCtx context.Context) error {
+		return s.countingWriteAfterClassGate(txCtx, stats, func(writeCtx context.Context) error {
 			moved, queryStats, writeErr := s.store.TransitionStudentStatus(writeCtx, id, "", status)
 			stats.Add(queryStats)
 			changed = moved
@@ -97,7 +97,7 @@ func (s *Service) ResumeCare(ctx context.Context, id int64, from, status, on str
 		if gateErr != nil {
 			return gateErr
 		}
-		return s.countingWrite(txCtx, stats, func(writeCtx context.Context) error {
+		return s.countingWriteAfterClassGate(txCtx, stats, func(writeCtx context.Context) error {
 			resumed, queryStats, writeErr := s.store.ResumeStudentCare(writeCtx, id, from, status, on)
 			stats.Add(queryStats)
 			changed = resumed
@@ -163,7 +163,7 @@ func (s *Service) Reactivate(ctx context.Context, ids []int64, status string, ch
 		if !enforceChildQuota {
 			return reactivate(txCtx)
 		}
-		return s.countingWrite(txCtx, stats, reactivate)
+		return s.countingWriteAfterClassGate(txCtx, stats, reactivate)
 	})
 	if err != nil {
 		return nil, err
