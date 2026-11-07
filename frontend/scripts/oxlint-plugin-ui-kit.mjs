@@ -740,6 +740,8 @@ const SURFACE_BREAKPOINT_VALUES = new Map([
 ]);
 const SURFACE_ARBITRARY_BREAKPOINT_RE =
   /^(min|max)-\[(\d+(?:\.\d+)?)(?:px|rem|em)\]$/;
+const SURFACE_INTERACTION_VARIANT_RE =
+  /^(?:hover|focus(?:-visible|-within)?)$/;
 const SURFACE_CONTROL_ELEMENTS = new Set([
   "a",
   "button",
@@ -772,52 +774,107 @@ function surfaceResponsiveRange(variant) {
   return direction === "min" ? { min: pixels } : { max: pixels };
 }
 
-function isWideSurfaceTokens(tokens) {
-  const baseTokens = [];
-  const responsiveTokens = new Map();
-  for (const token of tokens) {
-    const [variant, normalized] = token.split(/:(.+)/);
-    if (!normalized) {
-      baseTokens.push(token);
+function splitTailwindVariants(token) {
+  const parts = [];
+  let start = 0;
+  let bracketDepth = 0;
+  for (let index = 0; index < token.length; index++) {
+    if (token[index] === "[") bracketDepth++;
+    if (token[index] === "]") bracketDepth--;
+    if (token[index] !== ":" || bracketDepth !== 0) continue;
+    parts.push(token.slice(start, index));
+    start = index + 1;
+  }
+  parts.push(token.slice(start));
+  return parts;
+}
+
+function surfaceResponsiveToken(token) {
+  const parts = splitTailwindVariants(token);
+  if (parts.length === 1) return { utility: token };
+
+  const utility = parts.pop();
+  const variants = parts;
+  const ranges = [];
+  let compact = false;
+  let interaction;
+  for (const variant of variants) {
+    const range = surfaceResponsiveRange(variant);
+    if (range) {
+      ranges.push(range);
       continue;
     }
-    if (!SURFACE_RESPONSIVE_VARIANT_RE.test(variant)) continue;
-    const variantTokens = responsiveTokens.get(variant) ?? [];
-    variantTokens.push(normalized);
-    responsiveTokens.set(variant, variantTokens);
+    if (variant === "compact") {
+      compact = true;
+      continue;
+    }
+    if (SURFACE_INTERACTION_VARIANT_RE.test(variant)) {
+      interaction ??= variant;
+      continue;
+    }
+    return null;
+  }
+  if (ranges.length === 0 && !compact) return null;
+  return {
+    utility:
+      interaction && utility.startsWith("bg-")
+        ? `${interaction}:${utility}`
+        : utility,
+    ranges,
+    compact,
+  };
+}
+
+function isWideSurfaceTokens(tokens) {
+  const baseTokens = [];
+  const responsiveTokens = [];
+  const isolatedTokens = new Map();
+  for (const token of tokens) {
+    const parsed = surfaceResponsiveToken(token);
+    if (parsed && parsed.ranges === undefined) {
+      baseTokens.push(parsed.utility);
+      continue;
+    }
+    if (parsed) {
+      responsiveTokens.push(parsed);
+      continue;
+    }
+
+    const [variant, utility, ...rest] = splitTailwindVariants(token);
+    if (
+      rest.length === 0 &&
+      utility &&
+      SURFACE_RESPONSIVE_VARIANT_RE.test(variant)
+    ) {
+      const variantTokens = isolatedTokens.get(variant) ?? [];
+      variantTokens.push(utility);
+      isolatedTokens.set(variant, variantTokens);
+    }
   }
   const states = [];
-  const rangedVariants = [];
   const bounds = new Set([0]);
-  for (const [variant, variantTokens] of responsiveTokens) {
-    const range = surfaceResponsiveRange(variant);
-    if (!range) continue;
-    rangedVariants.push([range, variantTokens]);
-    bounds.add(range.min ?? range.max);
+  for (const { ranges, compact } of responsiveTokens) {
+    for (const range of ranges) bounds.add(range.min ?? range.max);
+    // `compact` starts at `md` and can also match short wide screens.
+    if (compact) bounds.add(SURFACE_BREAKPOINT_VALUES.get("md"));
   }
   for (const width of [...bounds].sort((left, right) => left - right)) {
     const state = [...baseTokens];
-    for (const [range, variantTokens] of rangedVariants) {
+    for (const { utility, ranges, compact } of responsiveTokens) {
       if (
-        (range.min === undefined || width >= range.min) &&
-        (range.max === undefined || width < range.max)
+        (!compact || width >= SURFACE_BREAKPOINT_VALUES.get("md")) &&
+        ranges.every(
+          (range) =>
+            (range.min === undefined || width >= range.min) &&
+            (range.max === undefined || width < range.max),
+        )
       ) {
-        state.push(...variantTokens);
+        state.push(utility);
       }
     }
     states.push(state);
-
-    // `compact` starts at `md` and can also match short wide screens. Its
-    // width range overlaps the md+ states, where it needs to be checked with
-    // both min- and max-breakpoint variants.
-    if (width >= SURFACE_BREAKPOINT_VALUES.get("md")) {
-      states.push([...state, ...(responsiveTokens.get("compact") ?? [])]);
-    }
   }
-  for (const [variant, variantTokens] of responsiveTokens) {
-    if (surfaceResponsiveRange(variant) || variant === "compact") {
-      continue;
-    }
+  for (const variantTokens of isolatedTokens.values()) {
     states.push([...baseTokens, ...variantTokens]);
   }
   return states.some(isWideSurfaceTokenGroup);
@@ -841,7 +898,9 @@ function isWideSurfaceTokenGroup(tokens) {
   if (tokens.some((token) => SURFACE_WHITE_FILL_RE.test(token))) return true;
   const anyFill = tokens.some(
     (token) =>
-      /(?:^|:)bg-/.test(token) && !/(?:^|:)bg-transparent$/.test(token),
+      /(?:^|:)bg-/.test(token) &&
+      !/(?:^|:)(?:hover|focus(?:-visible|-within)?):bg-/.test(token) &&
+      !/(?:^|:)bg-transparent$/.test(token),
   );
   const padded = tokens.some((token) => /^p[xytblrse]?-\d/.test(token));
   return !anyFill && padded;
@@ -925,6 +984,7 @@ const noHandRolledSurface = {
     },
     (context, report) => {
       const key = fileKey(context);
+      const countMode = process.env.UI_KIT_SURFACE_RATCHET === "count";
       if (!key.startsWith("src/")) return {};
       if (EXEMPT_FILE_RE.test(key)) return {};
       if (SURFACE_KIT_CONTROLS.has(key)) return {};
@@ -936,6 +996,8 @@ const noHandRolledSurface = {
       // Die alte Kette ist hart null und meldet sofort, an der Baseline vorbei.
       const check = (node, text) => {
         if (!isSurfaceCombo(text)) return;
+        // Der Generator zählt ausschließlich die shrink-only Schärfung.
+        if (countMode) return;
         context.report({
           node,
           messageId: "handRolledSurface",

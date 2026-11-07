@@ -767,6 +767,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     '<div className="p-3 sm:rounded-lg md:border md:bg-white" />',
     '<div className="sm:rounded-lg max-md:border max-md:bg-white p-3" />',
     '<div className="min-[768px]:rounded-lg min-[900px]:border min-[1024px]:bg-white p-3" />',
+    '<div className="p-3 md:hover:rounded-lg md:hover:border md:hover:bg-white" />',
     '<section className="space-y-3 rounded-md border border-gray-200 p-3" />',
     '<li className="rounded-xl border px-4 py-3" />',
     '<div className="rounded-lg border bg-transparent p-3" />',
@@ -3360,6 +3361,70 @@ describe.concurrent("ui-kit surface baseline (#5594)", () => {
 
     expect(result.output).not.toContain("no-hand-rolled-page-card");
   });
+
+  it("excludes hard-zero legacy surfaces from the generated baseline", () => {
+    const directory = mkdtempSync(join(tmpdir(), "surface-baseline-"));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, "scripts"));
+    for (const file of [
+      "ui-kit-surface-baseline-update.mjs",
+      "ui-kit-ratchet-baseline.mjs",
+    ]) {
+      copyFileSync(resolve("scripts", file), join(directory, "scripts", file));
+    }
+    symlinkSync(resolve("node_modules"), join(directory, "node_modules"));
+    writeFileSync(
+      join(directory, ".oxlintrc.json"),
+      JSON.stringify({
+        categories: { correctness: "off", suspicious: "off", perf: "off" },
+        jsPlugins: [resolve("scripts/oxlint-plugin-ui-kit.mjs")],
+        rules: {
+          "ui-kit/no-hand-rolled-surface": "error",
+          "ui-kit/no-hand-rolled-page-card": "error",
+        },
+      }),
+    );
+    mkdirSync(join(directory, "src/components"), { recursive: true });
+    writeFileSync(
+      join(directory, "src/components/probe.tsx"),
+      `export const Probe = () => <>
+        <div className="rounded-xl border bg-white p-4">Alt</div>
+        <div className="rounded-lg border bg-white p-3">Neu</div>
+      </>;`,
+    );
+    const baselinePath = join(directory, "ui-kit-surface-baseline.json");
+    writeFileSync(
+      baselinePath,
+      `${JSON.stringify(
+        {
+          "no-hand-rolled-surface": { "src/components/probe.tsx": 1 },
+          "no-hand-rolled-page-card": {},
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        join(directory, "scripts/ui-kit-surface-baseline-update.mjs"),
+        "--check",
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          UI_KIT_SURFACE_BASELINE_PATH: baselinePath,
+        },
+      },
+    );
+
+    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toContain(
+      "no-hand-rolled-surface: 1 Funde in 1 Dateien",
+    );
+  }, 120_000);
 });
 
 describe("ui-kit surface baseline is current (#5594)", () => {
