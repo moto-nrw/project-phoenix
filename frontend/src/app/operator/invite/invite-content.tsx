@@ -23,6 +23,7 @@ import type { OperatorInvitationValidation } from "~/lib/operator/operator-invit
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { InvitationSummary } from "~/components/auth/invitation-summary";
 
 const logger = createLogger({ component: "OperatorInviteAcceptPage" });
 
@@ -271,9 +272,8 @@ export function InviteContent() {
       formMaxWidth="max-w-[32rem]"
     >
       {invitation && (
-        <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm text-gray-600">
-          Einladung für{" "}
-          <strong className="text-gray-900">{invitation.email}</strong>
+        <div className="mb-5">
+          <InvitationSummary email={invitation.email} />
         </div>
       )}
 

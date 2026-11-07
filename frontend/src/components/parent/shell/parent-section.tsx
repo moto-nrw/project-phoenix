@@ -4,6 +4,7 @@ import type React from "react";
 import { SectionCard } from "~/components/ui/section-card";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import type { MotoConcept } from "~/lib/moto-concepts";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 /** Einheitliche Abschnittskarte fuer die Eltern-App. */
 export function ParentSection({
@@ -90,7 +91,7 @@ export function ParentSubsection({
   children?: React.ReactNode;
 }>) {
   return (
-    <section className="rounded-xl bg-gray-50 p-4">
+    <InsetPanel as="section" padding="md">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
@@ -107,6 +108,6 @@ export function ParentSubsection({
         ) : null}
       </div>
       {children ? <div className="mt-4 space-y-4">{children}</div> : null}
-    </section>
+    </InsetPanel>
   );
 }

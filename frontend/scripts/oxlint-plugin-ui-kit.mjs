@@ -11,6 +11,7 @@ import {
   fieldLabelBaseline,
 } from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
+import { insetBaseline } from "./ui-kit-inset-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -1196,19 +1197,19 @@ src/components/students/planned-status-days-modal.tsx|text-[10px]@935 text-[11px
 src/components/students/school-checkin-fab.tsx|text-[10px]@200
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@371
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-[11px]@310
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@146 text-[11px]@307
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1355 text-[11px]@1380 text-[11px]@1553 text-[10px]@1662 text-[11px]@1685
-src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
-src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[10px]@246 text-[11px]@255 text-[10px]@297 text-[10px]@321 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1350 text-[11px]@1375 text-[11px]@1532 text-[10px]@1641 text-[11px]@1662
+src/components/timetable/month-planner-grid.tsx|text-[11px]@64 text-[11px]@140 text-[11px]@149 text-[11px]@170 text-[9px]@201 text-[10px]@235
+src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@178 text-[10px]@245 text-[11px]@254 text-[10px]@296 text-[10px]@320 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@411 text-[11px]@478
-src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
-src/components/timetable/substitution-slide-over.tsx|text-[11px]@743 text-[11px]@747
-src/components/timetable/template-card.tsx|text-[11px]@131 text-[10px]@201
-src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@456 text-[11px]@456 text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
+src/components/timetable/substitution-person-card.tsx|text-[11px]@57 text-[11px]@335 text-[11px]@342 text-[11px]@349 text-[11px]@357 text-[11px]@369
+src/components/timetable/substitution-slide-over.tsx|text-[11px]@740 text-[11px]@744
+src/components/timetable/template-card.tsx|text-[11px]@128 text-[10px]@198
+src/components/timetable/vertretung-day-list.tsx|text-[11px]@352 text-[11px]@392 text-[11px]@399 text-[11px]@420 text-[11px]@426
+src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@455 text-[11px]@455 text-[11px]@460 text-[10px]@483 text-[10px]@518 text-[11px]@518
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[10px]@282
@@ -2146,6 +2147,7 @@ function makeRatchetRule({
   kitFile = BUTTON_KIT_FILE,
   exemptDir = null,
   followStaticClassSources = false,
+  onlySrc = false,
 }) {
   return {
     meta: {
@@ -2163,6 +2165,7 @@ function makeRatchetRule({
         EXEMPT_FILE_RE.test(key) ||
         key.endsWith(kitFile) ||
         (exemptDir !== null && key.startsWith(exemptDir)) ||
+        (onlySrc && !key.startsWith("src/")) ||
         key.includes("src/test/")
       ) {
         return {};
@@ -3803,6 +3806,86 @@ const noHandRolledListRow = makeRatchetRule({
   detect: (tools) => classNameVisitor(tools, isHandRolledListRowClass),
 });
 
+// ui-kit/no-hand-rolled-inset (#5592) — die graue Innenfläche kommt aus
+// `InsetPanel`. Fund: ein Element mit Radius, `bg-gray-50` und Polster, auch über
+// Ternär-Zweige und lokale Konstanten hinweg. Ein Knopf oder Link ist keine Fläche.
+// Zweiter Fund: eine Flächen-Klassenkette in einer Modul-Konstante; dort entstand
+// das nächste Mini-Kit. Start mit shrink-only Baseline, Abbau je Bereich in Sub-Issues.
+const INSET_ACTION_ELEMENTS = new Set([
+  "a",
+  "button",
+  "Link",
+  "NavigationLink",
+]);
+const SURFACE_RADIUS_RE = /(?:^|[\s])rounded-(?:md|lg|xl|2xl)(?=[\s]|$)/;
+const SURFACE_LOOK_RE =
+  /(?:^|[\s])(?:border|moto-content-surface|bg-(?:white|gray-\d+|moto-[\w-]+)(?:\/\d+)?)(?=[\s]|$)/;
+
+function isHandRolledInsetClass(tokens) {
+  return (
+    tokens.some((token) => /^rounded-(?:md|lg|xl|2xl)$/.test(token)) &&
+    tokens.some((token) => /^bg-gray-50(?:\/\d+)?$/.test(token)) &&
+    tokens.some((token) => /^p[xytblrse]?-\d/.test(token))
+  );
+}
+
+function isModuleLevel(declaration) {
+  const holder = declaration.parent;
+  return (
+    holder?.type === "Program" ||
+    (holder?.type === "ExportNamedDeclaration" &&
+      holder.parent?.type === "Program")
+  );
+}
+
+function staticStringValue(node) {
+  if (node?.type === "TSAsExpression")
+    return staticStringValue(node.expression);
+  if (node?.type === "Literal") return node.value;
+  if (node?.type === "TemplateLiteral") {
+    return node.quasis.map((quasi) => quasi.value.raw).join(" ");
+  }
+  return null;
+}
+
+const noHandRolledInset = makeRatchetRule({
+  ruleName: "no-hand-rolled-inset",
+  description:
+    "Inner surfaces come from InsetPanel; surface class chains do not live in module constants.",
+  message:
+    "Keine eigene Innenfläche: `InsetPanel` (`tone`, `framed`, `dashed`, `padding`, `as`) aus ~/components/ui/inset-panel, Flächenklassen nicht in einer Modul-Konstante (#5592, .claude/rules/frontend-ui-kit.md).",
+  baselines: insetBaseline,
+  allowlist: [],
+  countEnv: "UI_KIT_INSET_RATCHET",
+  kitFile: "src/components/ui/inset-panel.tsx",
+  exemptDir: UI_KIT_DIR,
+  // E2E-Dateien halten Selektoren als Konstanten, keine Oberfläche.
+  onlySrc: true,
+  detect: ({ classText, found }) => ({
+    JSXOpeningElement(node) {
+      if (INSET_ACTION_ELEMENTS.has(jsxName(node.name) ?? "")) return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      if (isHandRolledInsetClass(classText(className.value).split(/\s+/))) {
+        found(node);
+      }
+    },
+    VariableDeclaration(node) {
+      if (!isModuleLevel(node)) return;
+      for (const declarator of node.declarations) {
+        const value = staticStringValue(declarator.init);
+        if (
+          typeof value === "string" &&
+          SURFACE_RADIUS_RE.test(value) &&
+          SURFACE_LOOK_RE.test(value)
+        ) {
+          found(declarator);
+        }
+      }
+    },
+  }),
+});
+
 function isHandRolledFramedListClass(tokens) {
   return (
     tokens.includes("divide-y") &&
@@ -4154,6 +4237,7 @@ export default {
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
+    "no-hand-rolled-inset": noHandRolledInset,
     "no-hand-rolled-field-label": noHandRolledFieldLabel,
     "no-hand-rolled-menu": noHandRolledMenu,
     "no-hand-rolled-number-stepper": noHandRolledNumberStepper,

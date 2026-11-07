@@ -6,9 +6,8 @@ import { ListRow } from "~/components/ui/list-row";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { SectionCard } from "~/components/ui/section-card";
 import { SkeletonRows } from "~/components/ui/skeleton";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { blockTintStyle } from "~/components/timetable/block-row-parts";
 import { useOperationalOverviewScope } from "~/lib/tenant-context";
@@ -85,11 +84,9 @@ export function DayFlowBlock() {
   });
 
   return (
-    <SectionCard
+    <HomeCard
       title="Ablauf des Tages"
       leading={<HomeCardIcon concept={carePlanConcept} />}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       inlineActions
       actions={
         <HomeCardLink
@@ -180,7 +177,7 @@ export function DayFlowBlock() {
           </>
         );
       })()}
-    </SectionCard>
+    </HomeCard>
   );
 }
 

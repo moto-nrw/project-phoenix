@@ -99,7 +99,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
 | Text input | `Input`, multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
 | Field label, hint | `label`/`hint` prop of `Input`, `Textarea`, `CustomSelect` (`ISODatePicker`: `label`); else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
-| Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group's `<legend>` ends in `RequiredMark`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
+| Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group's `<legend>` ends in `RequiredMark`. No star in label strings or translations (#5217) | `~/components/ui/field-label` |
 | Checkbox | `Checkbox` — gray-900 checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
 | Consent or confirmation a person ticks (Einwilligung, „verbindlich“) | `ConsentCheckbox` — `required`, `error`, `action` for the legal text button; both public Anmeldungen use it | `~/components/ui/consent-checkbox` |
 | Inline alert / banner (one notice) | `Alert` (`type`, `message`); a notice that needs attention is `type="warning"` (orange), never an amber box; several notices of the same kind follow [Several notices of the same kind](#several-notices-of-the-same-kind) | `~/components/ui/alert` |
@@ -123,6 +123,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Floating panel at a control, with content | `AnchoredPopover` — `header`, `footer`, `align`, `focusPanelOnOpen`, `swallowOutsideClick` | `~/components/ui/anchored-popover` |
 | Count on an icon or nav row | `NotificationBadge` — `tone`, `size` | `~/components/ui/notification-badge` |
 | Selectable row or tile (label around a Checkbox/Radio, mode-picker button, row with a selection state) | `ChoiceTile` — `as` = `label` (default) / `button` / `div`, `selected`, `disabled`, `tone` = `gray` `green` `blue`; padding via `className` | `~/components/ui/choice-tile` |
+| Inner surface | `InsetPanel` (`tone`, `framed`, `dashed`, `padding`, `as`). A message with icon stays `Alert` | `~/components/ui/inset-panel` |
 | Label/value fields | `DataField` in a `dl`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
 | Select | `CustomSelect`, `MultiSelect`; own content: `ListboxDropdown` | `~/components/ui/<kebab-name>` |
 | Weekday choice | `WeekdayToggleGroup` | `~/components/ui/weekday-toggle-group` |
@@ -317,6 +318,8 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 `ui-kit/no-radix-outside-kit` (#5604, hard-zero): `@radix-ui/*` only under `components/ui/`.
 
 `ui-kit/no-arbitrary-shadow`, `no-hand-rolled-list-row`, `no-hand-rolled-framed-list` (#5593, hard-zero): no `shadow-[…]`, hand-built list row or framed list outside `ui/`. `ui-kit/no-hand-rolled-nav-row` (#5593, shrink-only): no full-width row with an arrow; use `ListRowLink`.
+
+`ui-kit/no-hand-rolled-inset` (#5592, shrink-only, `pnpm run ui-kit:inset-baseline`): radius + `bg-gray-50` + padding, and surface chains in module constants.
 
 `ui-kit/no-raw-table` (#5600, hard-zero): no `<table>` outside `ui/`.
 

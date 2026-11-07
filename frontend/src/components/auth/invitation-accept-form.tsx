@@ -21,6 +21,8 @@ import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
 import { IconTile } from "~/components/ui/icon-tile";
+import { InvitationSummary } from "~/components/auth/invitation-summary";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "InvitationAccept" });
 
@@ -287,18 +289,12 @@ export function InvitationAcceptForm({
     >
       <FormErrorAlert message={formErrors.error} />
 
-      <div className="mb-4">
-        <p className="text-sm text-gray-600">
-          Einladung für{" "}
-          <span className="font-medium text-gray-900">{invitation.email}</span>{" "}
-          als{" "}
-          <span className="font-medium text-gray-900">
-            {getRoleDisplayName(invitation.roleName)}
-          </span>
-        </p>
-      </div>
+      <InvitationSummary
+        email={invitation.email}
+        role={getRoleDisplayName(invitation.roleName)}
+      />
 
-      <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <InsetPanel framed className="space-y-2">
         <div>
           <span className="block text-xs font-medium text-gray-600">
             Gültig bis
@@ -324,7 +320,7 @@ export function InvitationAcceptForm({
             </p>
           </div>
         )}
-      </div>
+      </InsetPanel>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>

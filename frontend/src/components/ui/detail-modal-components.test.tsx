@@ -92,7 +92,7 @@ describe("InfoSection", () => {
       </InfoSection>,
     );
 
-    const section = container.querySelector(".bg-gray-50");
+    const section = container.querySelector(".bg-gray-50\\/70");
     expect(section).toBeInTheDocument();
   });
 
@@ -103,7 +103,7 @@ describe("InfoSection", () => {
       </InfoSection>,
     );
 
-    const section = container.querySelector(".bg-gray-50");
+    const section = container.querySelector(".bg-gray-50\\/70");
     expect(section).toBeInTheDocument();
     expect(container.querySelector(".bg-blue-50\\/30")).not.toBeInTheDocument();
   });

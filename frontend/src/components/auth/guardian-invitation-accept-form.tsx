@@ -25,6 +25,7 @@ import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
 import { IconTile } from "~/components/ui/icon-tile";
+import { InvitationSummary } from "~/components/auth/invitation-summary";
 
 const logger = createLogger({ component: "GuardianInvitationAccept" });
 
@@ -227,17 +228,11 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
     >
       <FormErrorAlert message={formErrors.error} />
 
-      <section className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm">
-        <p className="font-medium text-gray-700">
-          {t("invitationFor")}{" "}
-          <span className="font-semibold text-gray-900">
-            {guardianFullName || invitation.email}
-          </span>
-        </p>
-        {guardianFullName && (
-          <p className="mt-1 text-gray-500">{invitation.email}</p>
-        )}
-      </section>
+      <InvitationSummary
+        label={t("invitationFor")}
+        name={guardianFullName}
+        email={invitation.email}
+      />
 
       <div>
         <FieldLabel

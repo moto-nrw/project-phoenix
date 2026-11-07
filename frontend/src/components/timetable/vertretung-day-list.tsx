@@ -40,11 +40,11 @@ import type {
   InstanceStaffSummary,
 } from "~/lib/timetable-types";
 
-import { timetableSurface } from "./timetable-style";
 import {
   VertretungListFilter,
   type VertretungDayListMode as FilterMode,
 } from "./vertretung-list-filter";
+import { cn } from "~/lib/utils";
 
 // Der Typ lebt beim Filter (siehe dort), wird hier aber unter dem gewohnten
 // Namen weitergereicht, damit die bestehenden Aufrufer nichts ändern müssen.
@@ -238,9 +238,10 @@ export function VertretungDayList({
   onEdit,
   className,
 }: VertretungDayListProps) {
-  const containerClassName = className
-    ? `${timetableSurface} ${className}`
-    : timetableSurface;
+  const containerClassName = cn(
+    "moto-content-surface rounded-2xl border",
+    className,
+  );
   const filter = onModeChange ? (
     <VertretungListFilter
       mode={mode}

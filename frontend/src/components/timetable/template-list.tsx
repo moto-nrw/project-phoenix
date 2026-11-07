@@ -9,9 +9,9 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { RosterDeviation } from "~/lib/roster-deviation";
 import { TemplateCard } from "./template-card";
 import type { TimetableTemplate } from "~/lib/timetable-types";
-import { timetableSurface, timetableSurfacePadded } from "./timetable-style";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { SectionCard } from "~/components/ui/section-card";
 
 type ReviewFilter = "all" | "review";
 
@@ -64,7 +64,7 @@ export function TemplateList({
 
   if (templates.length === 0) {
     return (
-      <div className={`${timetableSurface} border-dashed px-6`}>
+      <div className="moto-content-surface rounded-2xl border border-dashed px-6">
         <EmptyState
           icon={
             <ConceptIconTile
@@ -95,7 +95,7 @@ export function TemplateList({
   }
 
   return (
-    <div className={timetableSurfacePadded}>
+    <SectionCard overflow="visible">
       {onReviewOnlyChange && (reviewCount > 0 || reviewOnly) ? (
         <SegmentedControl<ReviewFilter>
           ariaLabel="Regeltermine zeigen"
@@ -130,6 +130,6 @@ export function TemplateList({
           ))}
         </div>
       )}
-    </div>
+    </SectionCard>
   );
 }
