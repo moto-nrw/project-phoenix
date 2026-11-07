@@ -315,7 +315,7 @@ function LabeledSelect({
   name,
   label,
   value,
-  invalid,
+  error,
   onChange,
   options,
 }: Readonly<{
@@ -324,7 +324,7 @@ function LabeledSelect({
   name: string;
   label: string;
   value: string;
-  invalid: boolean;
+  error: string | undefined;
   onChange: (value: string) => void;
   options: Array<{ id: string; name: string }>;
 }>) {
@@ -333,7 +333,7 @@ function LabeledSelect({
       id={id}
       name={name}
       label={label}
-      invalid={invalid}
+      error={error}
       value={value}
       onChange={onChange}
       placeholder={`${label} auswählen...`}
@@ -430,7 +430,7 @@ function AssignmentFields(props: AssignmentFieldsProps) {
         name="group_id"
         label="Gruppe"
         value={values.groupId}
-        invalid={Boolean(fieldError("group_id"))}
+        error={fieldError("group_id")}
         onChange={setters.group}
         options={overview.groups}
       />
@@ -439,7 +439,7 @@ function AssignmentFields(props: AssignmentFieldsProps) {
         name="target_staff_id"
         label="Betreuungskraft"
         value={values.staffId}
-        invalid={Boolean(fieldError("target_staff_id"))}
+        error={fieldError("target_staff_id")}
         onChange={setters.staff}
         options={overview.targets.map((target) => ({
           id: target.id,

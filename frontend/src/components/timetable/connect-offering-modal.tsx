@@ -226,6 +226,9 @@ export function ConnectOfferingModal({
           <MultiSelect
             id={OFFERINGS_FIELD_ID}
             ariaLabel="Angebote"
+            ariaDescribedBy={
+              phaseLocked ? `${OFFERINGS_FIELD_ID}-hint` : undefined
+            }
             value={offeringIds}
             options={options}
             onChange={setOfferingIds}
@@ -239,7 +242,10 @@ export function ConnectOfferingModal({
             }
           />
           {phaseLocked ? (
-            <p className="text-xs text-gray-500">
+            <p
+              id={`${OFFERINGS_FIELD_ID}-hint`}
+              className="text-xs text-gray-500"
+            >
               Angebote anderer Anmeldephasen sind ausgegraut, solange ein
               Angebot gewählt ist.
             </p>

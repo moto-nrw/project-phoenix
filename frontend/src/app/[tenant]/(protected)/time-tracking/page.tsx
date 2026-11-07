@@ -2560,8 +2560,12 @@ function EditSessionModal({
                 <div>
                   {hasIndividualBreaks ? (
                     <div>
-                      <FieldLabel>Pausen</FieldLabel>
-                      <div className="space-y-2">
+                      <FieldLabel id="edit-breaks-label">Pausen</FieldLabel>
+                      <div
+                        role="group"
+                        aria-labelledby="edit-breaks-label"
+                        className="space-y-2"
+                      >
                         {session.breaks.map((brk) => (
                           <div key={brk.id} className="flex items-center gap-2">
                             <span className="w-12 shrink-0 text-xs text-gray-500 tabular-nums">
@@ -2730,6 +2734,7 @@ function EditSessionModal({
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <ISODatePicker
                       id="edit-abs-start"
+                      name="date_start"
                       label="Von"
                       error={formErrors.fieldError("date_start")}
                       value={absDateStart}
@@ -2739,6 +2744,7 @@ function EditSessionModal({
                     />
                     <ISODatePicker
                       id="edit-abs-end"
+                      name="date_end"
                       label="Bis"
                       error={formErrors.fieldError("date_end")}
                       value={absDateEnd}
@@ -2941,6 +2947,7 @@ function CreateAbsenceModal({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <ISODatePicker
             id="absence-start"
+            name="date_start"
             label="Von"
             error={formErrors.fieldError("date_start")}
             value={dateStart}
@@ -2950,6 +2957,7 @@ function CreateAbsenceModal({
           />
           <ISODatePicker
             id="absence-end"
+            name="date_end"
             label="Bis"
             error={formErrors.fieldError("date_end")}
             value={dateEnd}

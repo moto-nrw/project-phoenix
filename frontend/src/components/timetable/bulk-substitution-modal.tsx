@@ -383,7 +383,7 @@ export function BulkSubstitutionModal({
               options={absentOptions}
               name="absent_staff_id"
               label="Abwesende Person"
-              invalid={Boolean(formErrors.fieldError("absent_staff_id"))}
+              error={formErrors.fieldError("absent_staff_id")}
               placeholder="Person wählen…"
               onChange={(value) => {
                 setAbsentStaffId(value);
@@ -515,7 +515,7 @@ export function BulkSubstitutionModal({
               name="substitute_staff_id"
               label="Ersatzperson"
               hint="Ohne Ersatzperson werden die Termine nur als abwesend markiert."
-              invalid={Boolean(formErrors.fieldError("substitute_staff_id"))}
+              error={formErrors.fieldError("substitute_staff_id")}
               placeholder="Keine — nur abwesend melden"
               disabled={staffLoadError}
               onChange={setSubstituteStaffId}
