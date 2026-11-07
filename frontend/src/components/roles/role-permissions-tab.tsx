@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { ChevronRight } from "lucide-react";
 import {
   useCallback,
@@ -377,9 +378,7 @@ export function RolePermissionsTab({
 
       <SectionCard padding="none">
         {editGroups.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-gray-500">
-            Keine Berechtigungen gefunden.
-          </p>
+          <EmptyState title="Keine Berechtigungen gefunden." className="py-8" />
         ) : (
           editGroups.map(([resource, permissions]) => {
             const groupChecked = permissions.filter(
