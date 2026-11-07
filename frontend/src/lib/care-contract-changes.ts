@@ -17,7 +17,7 @@ import type { Weekday } from "./traeger-care-contracts-api";
 type ChangeModuleState = "added" | "removed" | "changed" | "unchanged";
 
 /** One module of a change: what the child books now and what is asked. */
-export interface ContractChangeLine {
+interface ContractChangeLine {
   readonly careOfferingId: string;
   readonly moduleName: string;
   readonly state: ChangeModuleState;
