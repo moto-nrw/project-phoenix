@@ -2721,6 +2721,14 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.CareFacilityTerm",
+      "binding_digest": "42ed3e7dea3e8333f87e476682c56d11",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.CareFacilityTerm",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.CareFacilityTerm",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.CareOfferingsEnabled",
       "binding_digest": "1e6e2bcbef487a199a626c1c90fb4473",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.CareOfferingsEnabled",
@@ -2863,6 +2871,22 @@
       "source_owner": "enrollment",
       "target": "unresolved:interface{Field(byte) string; error}.Field",
       "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.CareFacilityTerm",
+      "binding_digest": "0dbf1a661c22705fbcfeb2e3a41e5821",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.NotificationSettings.CareFacilityTerm",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.CareFacilityTerm",
+      "binding_digest": "077d974dbfbd6c5d4f1f7e3093134f59",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.NotificationSettings.CareFacilityTerm",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.NotifyPerDecision",

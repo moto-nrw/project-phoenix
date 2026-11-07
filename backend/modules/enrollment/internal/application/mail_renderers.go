@@ -178,6 +178,7 @@ func renderSubmitted(_ string, payload map[string]any) (*enrollment.RenderedMail
 			"StatusURL":         statusURL,
 			"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 			"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
+			"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
 			"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 		},
 	}, nil
@@ -216,6 +217,7 @@ func renderAdminNotification(_ string, payload map[string]any) (*enrollment.Rend
 			"AdminURL":          adminURL,
 			"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 			"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
+			"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
 			"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 		},
 	}, nil
@@ -269,6 +271,7 @@ func rolloverRenderer(spec rolloverRendererSpec) payloadRenderer {
 				"StatusURL":         statusURL,
 				"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 				"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
+				"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
 				"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 				"RolloverDeadline":  payloadString(payload, enrollment.EnrollmentPayloadRolloverDeadline),
 			},
@@ -304,6 +307,7 @@ func renderDecisionMail(kind string, payload map[string]any, subject, templateNa
 			"StatusURL":         statusURL,
 			"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 			"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
+			"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
 			"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 			"StatusReason":      payloadString(payload, enrollment.EnrollmentPayloadStatusReason),
 		},
@@ -365,6 +369,7 @@ func changeRequestRenderer(subject, templateName string) payloadRenderer {
 				"AdminURL":          payloadString(payload, enrollment.EnrollmentPayloadAdminURL),
 				"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 				"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
+				"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
 			},
 		}, nil
 	}

@@ -411,3 +411,42 @@ func TestSchoolSender(t *testing.T) {
 	assert.Equal(t, "OGS Sonnenschule", schoolSender("OGS Sonnenschule"))
 	assert.Equal(t, "Schule", schoolSender("  Schule  "))
 }
+
+// Every school-branded enrollment mail hands the school's care-facility term
+// captured at enqueue time to the shared header (#6042). A payload enqueued
+// before the term existed renders without it, and the header keeps "OGS".
+func TestRenderersPassTheCareFacilityTermToTheHeader(t *testing.T) {
+	t.Parallel()
+
+	renderers := NewMailRenderers()
+	for name, renderer := range map[string]enrollment.MailRenderer{
+		"submitted":                   renderers.Submitted,
+		"admin_notification":          renderers.AdminNotification,
+		"approved":                    renderers.Approved,
+		"waitlisted":                  renderers.Waitlisted,
+		"rejected":                    renderers.Rejected,
+		"decision_digest":             renderers.DecisionDigest,
+		"change_request_submitted":    renderers.ChangeRequestSubmitted,
+		"change_request_question":     renderers.ChangeRequestQuestion,
+		"change_request_parent_reply": renderers.ChangeRequestParentReply,
+		"change_request_approved":     renderers.ChangeRequestApproved,
+		"change_request_rejected":     renderers.ChangeRequestRejected,
+		"rollover_opt_in":             renderers.RolloverOptIn,
+		"rollover_opt_out":            renderers.RolloverOptOut,
+	} {
+		payload := map[string]any{
+			enrollment.EnrollmentPayloadRecipientEmail: "guardian@example.test",
+			enrollment.EnrollmentPayloadStatusURL:      "https://parents.localhost:3000/status/abc",
+			enrollment.EnrollmentPayloadAdminURL:       "https://localhost:3000/admin/enrollments/1",
+			enrollment.EnrollmentPayloadSchoolName:     "Grundschule Barnstorf",
+		}
+		legacy, err := render(renderer, &outboxRow{Kind: name, Payload: payload})
+		require.NoError(t, err, name)
+		assert.Empty(t, contentOf(t, legacy)["CareFacilityTerm"], name)
+
+		payload[enrollment.EnrollmentPayloadCareFacilityTerm] = "GTS"
+		mail, err := render(renderer, &outboxRow{Kind: name, Payload: payload})
+		require.NoError(t, err, name)
+		assert.Equal(t, "GTS", contentOf(t, mail)["CareFacilityTerm"], name)
+	}
+}

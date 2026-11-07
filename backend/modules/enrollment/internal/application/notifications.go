@@ -64,17 +64,32 @@ func NewNotifications(deps NotificationDependencies) *Notifications {
 
 // SchoolBrand brands a mail even when the school cannot be read: only its
 // name and school logo are then empty; the moto footer remains available.
-func (n *Notifications) SchoolBrand(ctx context.Context, tenantID int64, baseURL string) (string, string, string) {
+// The care-facility term is a setting of the tenant in context; its read
+// error fails the mail, so no school gets a guessed wording.
+func (n *Notifications) SchoolBrand(ctx context.Context, tenantID int64, baseURL string) (enrollment.MailBrand, error) {
 	_, motoLogoURL := n.deps.Branding(baseURL, "")
-	if n.deps.Schools == nil || tenantID == 0 {
-		return "", "", motoLogoURL
+	brand := enrollment.MailBrand{MotoLogoURL: motoLogoURL}
+	if tenantID == 0 {
+		return brand, nil
+	}
+	if n.deps.Settings == nil {
+		return enrollment.MailBrand{}, fmt.Errorf("mail brand: settings are not configured")
+	}
+	term, err := n.deps.Settings.CareFacilityTerm(ctx)
+	if err != nil {
+		return enrollment.MailBrand{}, fmt.Errorf("mail brand: resolve care facility term: %w", err)
+	}
+	brand.CareFacilityTerm = term
+	if n.deps.Schools == nil {
+		return brand, nil
 	}
 	school, err := n.deps.Schools.FindSchool(ctx, tenantID)
 	if err != nil || school == nil || school.Deleted {
-		return "", "", motoLogoURL
+		return brand, nil
 	}
-	logoURL, _ := n.deps.Branding(baseURL, schoolLoginImageURL(school.Settings))
-	return school.Name, logoURL, motoLogoURL
+	brand.SchoolName = school.Name
+	brand.LogoURL, _ = n.deps.Branding(baseURL, schoolLoginImageURL(school.Settings))
+	return brand, nil
 }
 
 func schoolLoginImageURL(rawSettings string) string {
@@ -246,9 +261,12 @@ func decisionChildStateVector(child enrollment.DecisionChild) string {
 }
 
 // decisionMailPayload is the payload every decision mail shares.
-func (n *Notifications) decisionMailPayload(ctx context.Context, notice enrollment.DecisionNotice) map[string]any {
+func (n *Notifications) decisionMailPayload(ctx context.Context, notice enrollment.DecisionNotice) (map[string]any, error) {
 	request := notice.Request
-	schoolName, logoURL, footerLogoURL := n.SchoolBrand(ctx, request.TenantID, notice.ParentsURL)
+	brand, err := n.SchoolBrand(ctx, request.TenantID, notice.ParentsURL)
+	if err != nil {
+		return nil, fmt.Errorf("decision: %w", err)
+	}
 	phaseName := ""
 	if notice.Phase != nil {
 		phaseName = notice.Phase.Name
@@ -258,12 +276,13 @@ func (n *Notifications) decisionMailPayload(ctx context.Context, notice enrollme
 		enrollment.EnrollmentPayloadGuardianLastName:  request.GuardianLastName,
 		enrollment.EnrollmentPayloadGuardianEmail:     request.GuardianEmail,
 		enrollment.EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
-		enrollment.EnrollmentPayloadSchoolName:        schoolName,
+		enrollment.EnrollmentPayloadSchoolName:        brand.SchoolName,
 		enrollment.EnrollmentPayloadStatusURL:         enrollment.StatusURL(notice.ParentsURL, request.StatusToken),
-		enrollment.EnrollmentPayloadLogoURL:           logoURL,
-		enrollment.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
+		enrollment.EnrollmentPayloadLogoURL:           brand.LogoURL,
+		enrollment.EnrollmentPayloadMotoLogoURL:       brand.MotoLogoURL,
+		enrollment.EnrollmentPayloadCareFacilityTerm:  brand.CareFacilityTerm,
 		enrollment.EnrollmentPayloadPhaseName:         phaseName,
-	}
+	}, nil
 }
 
 func (n *Notifications) enqueueDecisionDigest(ctx context.Context, notice enrollment.DecisionNotice) error {
@@ -278,7 +297,10 @@ func (n *Notifications) enqueueDecisionDigest(ctx context.Context, notice enroll
 			names[child.Status] = append(list, strings.TrimSpace(child.FirstName+" "+child.LastName))
 		}
 	}
-	payload := n.decisionMailPayload(ctx, notice)
+	payload, err := n.decisionMailPayload(ctx, notice)
+	if err != nil {
+		return err
+	}
 	payload["approved_names"] = names[enrollment.ChildStatusApproved]
 	payload["waitlisted_names"] = names[enrollment.ChildStatusWaitlisted]
 	payload["rejected_names"] = names[enrollment.ChildStatusRejected]
@@ -296,7 +318,10 @@ func (n *Notifications) enqueueDecisionDigest(ctx context.Context, notice enroll
 }
 
 func (n *Notifications) enqueueImmediateDecisionEmail(ctx context.Context, notice enrollment.DecisionNotice, child enrollment.DecisionChild, kind string) error {
-	payload := n.decisionMailPayload(ctx, notice)
+	payload, err := n.decisionMailPayload(ctx, notice)
+	if err != nil {
+		return err
+	}
 	payload[enrollment.EnrollmentPayloadChildNames] = []string{child.FirstName + " " + child.LastName}
 	if notice.Phase != nil && notice.Phase.ShowStatusReasonToParent && child.StatusReason != nil && *child.StatusReason != "" {
 		payload[enrollment.EnrollmentPayloadStatusReason] = *child.StatusReason
