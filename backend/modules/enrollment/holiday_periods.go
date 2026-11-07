@@ -72,12 +72,19 @@ func (r *HolidayWeeksBookedTogetherRefusal) Unwrap() error { return ErrHolidayWe
 
 // HolidayTimeModel is a bookable care time of one week, such as "bis
 // 13 Uhr", with its price in cent. Times are wall-clock "HH:MM".
+//
+// Protected marks a time model that bookings or the trail of a rebooking
+// name: it keeps the Soll of their days and cannot be removed, only archived
+// (#5994). An archived time model is no longer offered and takes no new
+// booking; the bookings that name it keep reading it.
 type HolidayTimeModel struct {
 	ID         int64  `json:"id"`
 	Name       string `json:"name"`
 	StartsAt   string `json:"starts_at"`
 	EndsAt     string `json:"ends_at"`
 	PriceCents int64  `json:"price_cents"`
+	Archived   bool   `json:"archived"`
+	Protected  bool   `json:"protected"`
 }
 
 // HolidayWeek is a bookable week of a period with its host school.
@@ -112,13 +119,16 @@ type HolidayPeriod struct {
 }
 
 // HolidayTimeModelInput is a time model as the Träger-Büro writes it. A zero
-// ID adds a time model; an ID of the week keeps and changes it.
+// ID adds a time model; an ID of the week keeps and changes it. Archived
+// archives a time model of the week for good and leaves it as it is; an
+// archived time model stays, named or not, and is never restored.
 type HolidayTimeModelInput struct {
 	ID         int64
 	Name       string
 	StartsAt   string
 	EndsAt     string
 	PriceCents int64
+	Archived   bool
 }
 
 // HolidayWeekInput is a week as the Träger-Büro writes it. A zero ID adds a
