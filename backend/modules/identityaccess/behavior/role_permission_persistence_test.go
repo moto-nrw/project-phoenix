@@ -71,4 +71,16 @@ func TestRolePermissionPersistence(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, rbac.RemovePermissionFromRole(ctx, second.ID, kept.ID))
 	assertPermissions(second.ID)
+
+	// auth.permissions.description is nullable; the visible-role read maps
+	// NULL to an empty description like the catalogue read.
+	undescribed := testpkg.CreateTestPermission(t, db, "permission-undescribed", "mapping", "list")
+	_, err = db.NewUpdate().TableExpr("auth.permissions").Set("description = NULL").Where("id = ?", undescribed.ID).Exec(ctx)
+	require.NoError(t, err)
+	require.NoError(t, rbac.AssignPermissionToRole(ctx, second.ID, undescribed.ID))
+	permissions, err := rbac.GetRolePermissions(ctx, second.ID)
+	require.NoError(t, err)
+	require.Len(t, permissions, 1)
+	require.Equal(t, undescribed.ID, permissions[0].ID)
+	require.Empty(t, permissions[0].Description)
 }

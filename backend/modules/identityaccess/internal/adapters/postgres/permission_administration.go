@@ -142,15 +142,16 @@ func (s *Store) ListRolePermissions(ctx context.Context, roleID int64) ([]domain
 
 // visibleRolePermissionRow is one row of the role's outer join to its
 // selection: a visible role without permissions yields one row with a NULL
-// permission, an invisible role yields none.
+// permission ID, an invisible role yields none. The other columns scan NULL
+// as their zero value, like scanPermissions (description is nullable).
 type visibleRolePermissionRow struct {
-	ID          *int64     `bun:"id"`
-	Name        *string    `bun:"name"`
-	Description *string    `bun:"description"`
-	Resource    *string    `bun:"resource"`
-	Action      *string    `bun:"action"`
-	CreatedAt   *time.Time `bun:"created_at"`
-	UpdatedAt   *time.Time `bun:"updated_at"`
+	ID          *int64    `bun:"id"`
+	Name        string    `bun:"name"`
+	Description string    `bun:"description"`
+	Resource    string    `bun:"resource"`
+	Action      string    `bun:"action"`
+	CreatedAt   time.Time `bun:"created_at"`
+	UpdatedAt   time.Time `bun:"updated_at"`
 }
 
 // ListVisibleRolePermissions loads a role's selection in one statement, but
@@ -179,8 +180,8 @@ func (s *Store) ListVisibleRolePermissions(ctx context.Context, roleID int64) ([
 		if row.ID == nil {
 			continue
 		}
-		permissions = append(permissions, domain.ManagedPermission{ID: *row.ID, Name: *row.Name, Description: *row.Description,
-			Resource: *row.Resource, Action: *row.Action, CreatedAt: *row.CreatedAt, UpdatedAt: *row.UpdatedAt})
+		permissions = append(permissions, domain.ManagedPermission{ID: *row.ID, Name: row.Name, Description: row.Description,
+			Resource: row.Resource, Action: row.Action, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
 	}
 	return permissions, true, nil
 }
