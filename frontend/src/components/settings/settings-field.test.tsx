@@ -1722,4 +1722,127 @@ describe("SettingsField care-facility term", () => {
     );
     expect(onSave).toHaveBeenCalledTimes(2);
   });
+
+  it("resets only after the draft and queued preset finish saving", async () => {
+    let finishDraft: () => void = () => undefined;
+    let finishPreset: () => void = () => undefined;
+    let storedValue = "Ganztag Süd";
+    const writes: string[] = [];
+    const onSave = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => {
+          finishDraft = resolve;
+        });
+        storedValue = "Ganztag Nord";
+        writes.push("draft");
+      })
+      .mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => {
+          finishPreset = resolve;
+        });
+        storedValue = "GTS";
+        writes.push("preset");
+      });
+    const onReset = vi.fn().mockImplementation(async () => {
+      storedValue = "OGS";
+      writes.push("reset");
+    });
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={{ ...term, value: storedValue, is_default: false }}
+        onSave={onSave}
+        onReset={onReset}
+      />,
+    );
+
+    const field = ownField(getByRole);
+    fireEvent.change(field, { target: { value: "Ganztag Nord" } });
+    fireEvent.blur(field);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(getByRole("button", { name: "GTS" }));
+    fireEvent.click(getByRole("button", { name: "Zurücksetzen" }));
+    finishDraft();
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    finishPreset();
+    await waitFor(() => expect(writes).toHaveLength(3));
+
+    expect(writes).toEqual(["draft", "preset", "reset"]);
+    expect(storedValue).toBe(term.default);
+    expect(onReset).toHaveBeenCalledExactlyOnceWith(term.key);
+  });
+
+  it.each([false, true])(
+    "saves a later preset after a pending reset (reset fails: %s)",
+    async (resetFails) => {
+      let finishReset: () => void = () => undefined;
+      let storedValue = "Ganztag Nord";
+      const writes: string[] = [];
+      const onReset = vi.fn().mockImplementation(async () => {
+        await new Promise<void>((resolve) => {
+          finishReset = resolve;
+        });
+        writes.push("reset");
+        if (resetFails) throw new ApiError("boom", 500);
+        storedValue = "OGS";
+      });
+      const onSave = vi.fn().mockImplementation(async () => {
+        storedValue = "GTS";
+        writes.push("preset");
+      });
+      const { getByRole } = renderWithProviders(
+        <SettingsField
+          setting={{ ...term, value: storedValue, is_default: false }}
+          onSave={onSave}
+          onReset={onReset}
+        />,
+      );
+
+      fireEvent.click(getByRole("button", { name: "Zurücksetzen" }));
+      await waitFor(() => expect(onReset).toHaveBeenCalledTimes(1));
+      fireEvent.click(getByRole("button", { name: "GTS" }));
+      finishReset();
+      await waitFor(() => expect(writes).toHaveLength(2));
+
+      expect(writes).toEqual(["reset", "preset"]);
+      expect(storedValue).toBe("GTS");
+      expect(onSave).toHaveBeenCalledExactlyOnceWith(term.key, "GTS");
+    },
+  );
+
+  it("keeps a second reset after a preset while the first reset is pending", async () => {
+    let finishReset: () => void = () => undefined;
+    const writes: string[] = [];
+    const onReset = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => {
+          finishReset = resolve;
+        });
+        writes.push("reset");
+      })
+      .mockImplementation(async () => {
+        writes.push("reset");
+      });
+    const onSave = vi.fn().mockImplementation(async () => {
+      writes.push("preset");
+    });
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={{ ...term, value: "Ganztag Nord", is_default: false }}
+        onSave={onSave}
+        onReset={onReset}
+      />,
+    );
+
+    fireEvent.click(getByRole("button", { name: "Zurücksetzen" }));
+    await waitFor(() => expect(onReset).toHaveBeenCalledTimes(1));
+    fireEvent.click(getByRole("button", { name: "GTS" }));
+    fireEvent.click(getByRole("button", { name: "Zurücksetzen" }));
+    finishReset();
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+
+    expect(writes).toEqual(["reset", "preset", "reset"]);
+  });
 });

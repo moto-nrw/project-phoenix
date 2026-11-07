@@ -483,7 +483,6 @@ export function SettingsField({
   );
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isResettingRef = useRef(false);
   const pendingSaveRef = useRef<PendingSettingSave>({
     setting,
     categoryItems,
@@ -551,7 +550,7 @@ export function SettingsField({
     [settingObject, showFieldError],
   );
 
-  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const writeQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const doSave = useCallback(
     async (value: unknown): Promise<boolean> => {
       const localError = validateLocally(setting, value, categoryItems);
@@ -559,12 +558,11 @@ export function SettingsField({
         setHint(localError);
         return false;
       }
-      // Saves of one field run in order: a typed draft saved on blur must
-      // not land after a preset picked right after it (#6042).
-      const run = saveQueueRef.current.then(() =>
+      // Saves and resets of one field run in order, so the last action wins.
+      const run = writeQueueRef.current.then(() =>
         persistSetting(onSave, setting.key, value),
       );
-      saveQueueRef.current = run.catch(() => undefined);
+      writeQueueRef.current = run.catch(() => undefined);
       const outcome = await run;
       if (!outcome.ok) {
         reportFieldFailure(outcome, () => latestDoSaveRef.current(value));
@@ -973,34 +971,31 @@ export function SettingsField({
   );
 
   const performReset = useCallback(async () => {
-    if (isResettingRef.current) return;
-    isResettingRef.current = true;
-    try {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-        debounceRef.current = null;
-      }
-      let outcome: SaveOutcome;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    const run = writeQueueRef.current.then(async (): Promise<SaveOutcome> => {
       try {
         await onReset(setting.key);
-        outcome = { ok: true };
+        return { ok: true };
       } catch (error) {
-        outcome = { ok: false, error };
+        return { ok: false, error };
       }
-      if (!outcome.ok) {
-        reportFieldFailure(outcome, () => latestResetRef.current());
-        return;
-      }
-      setHint(null);
-      setIsDirty(false);
-      toastSuccess(
-        restoresTraegerValue
-          ? `Für „${setting.label}“ gilt wieder der Wert des Trägers.`
-          : `Die Einstellung „${setting.label}“ steht wieder auf dem Standard.`,
-      );
-    } finally {
-      isResettingRef.current = false;
+    });
+    writeQueueRef.current = run.catch(() => undefined);
+    const outcome = await run;
+    if (!outcome.ok) {
+      reportFieldFailure(outcome, () => latestResetRef.current());
+      return;
     }
+    setHint(null);
+    setIsDirty(false);
+    toastSuccess(
+      restoresTraegerValue
+        ? `Für „${setting.label}“ gilt wieder der Wert des Trägers.`
+        : `Die Einstellung „${setting.label}“ steht wieder auf dem Standard.`,
+    );
   }, [
     setting.key,
     setting.label,
