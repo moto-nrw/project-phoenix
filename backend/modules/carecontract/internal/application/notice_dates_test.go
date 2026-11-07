@@ -83,3 +83,19 @@ func TestConfirmationTextFillsTheTemplate(t *testing.T) {
 	_, err = confirmationText("  ", confirmationValues{})
 	assert.ErrorIs(t, err, carecontract.ErrNoticeTemplateMissing)
 }
+
+// The worker's mail carries the confirmation as stored, paragraph by
+// paragraph, and a subject without the child's name.
+func TestRenderNoticeMailKeepsTheConfirmation(t *testing.T) {
+	t.Parallel()
+	payload := []byte(`{"kind":"widerruf","traeger_name":"Ganztag e.V.","guardian_name":"Erika Muster",` +
+		`"confirmation_text":"wir bestätigen Ihren Widerruf.\n\nMit freundlichen Grüßen\nGanztag e.V."}`)
+	mail, err := RenderNoticeMail(t.Context(), payload)
+	assert.NoError(t, err)
+	assert.Equal(t, "Bestätigung Ihres Widerrufs", mail.Subject)
+	assert.True(t, mail.Withdrawal)
+	assert.Equal(t, []string{"wir bestätigen Ihren Widerruf.", "Mit freundlichen Grüßen\nGanztag e.V."}, mail.Paragraphs)
+
+	_, err = RenderNoticeMail(t.Context(), []byte(`{"kind":"kuendigung","confirmation_text":" "}`))
+	assert.Error(t, err, "a confirmation without text is never sent")
+}

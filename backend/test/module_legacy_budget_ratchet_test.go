@@ -225,8 +225,9 @@ var moduleLegacyFileBudgets = map[string]int{
 const moduleComposeBudgetTotal = 13016
 
 // moduleComposeBudgets maps every owner composition package to its production
-// LOC, raised by ADR 0159 for withdrawal and termination (#4682), first measured on 2026-10-15 on top of development c49b81c3a9: 61
-// packages, 90627 LOC. #4084 carries the reduction to construction only;
+// LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
+// measured on 2026-10-15 on top of development c49b81c3a9: 61 packages,
+// 90627 LOC. #4084 carries the reduction to construction only;
 // modules/timetable/compose is the largest by far. Shrink-only — a new owner
 // composition starts small and is no reason to raise the total; split code
 // keeps its LOC counted. ADR 0078 raised modules/mealplan/compose and
