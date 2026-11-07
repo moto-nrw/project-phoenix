@@ -204,6 +204,26 @@
       "target_owner": "care-contract"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.CareLetterMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareLetterPost.CareLetterMailStates",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/delivery/runtime.Capability.TraegerEmailStatuses: the state of the mails of a monthly run of the session's Träger, read in its Träger transaction under the Träger policy of platform.email_outbox (ADR 0110, ADR 0123, ADR 0165).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.EnqueueCareLetterMail",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareLetterPost.EnqueueCareLetterMail",
+      "reason": "Platform protocol participation (durable): parent-billing reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through api.parentBillingLetterPost.EnqueueCareLetterMail. The mail of the letter of a monthly invoice or its Storno is a mail of the Träger with the stored PDF in its payload, enqueued in the caller's Träger transaction with the record of the send in parent_billing.care_letter_mailings (ADR 0110, ADR 0123, ADR 0165); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareSchools.TraegerSchools",
       "classification": "query",
       "effect": "query",
@@ -390,6 +410,16 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.SetHolidayDebtorNumber",
       "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/application.CareLetterRecipients.Recipients",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.ContractBilling.BillingRecipients: the party each monthly invoice of the given contracts of the session's Träger goes to now, read in its Träger transaction before a letter is sent, so a letter only goes to the address that is still the contract's billing party (#4684, ADR 0165).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.BillingRecipients",
+      "target_owner": "care-contract"
     }
   ]
 }

@@ -71,8 +71,8 @@ func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBran
 	post := parentBillingLetterPost{settings: settings, delivery: delivery, outcomes: outcomes}
 	letters := parentBillingCompose.NewCareLetters(newParentBillingLetterheads(settings), contracts, post, post)
 	return parentBillingHTTP.NewCareBillingResource(parentBillingCompose.NewCareBilling(contracts,
-		parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings}),
-		common.RequiresPermission(identityaccess.TraegerRightBillingManage)).WithLetters(letters)
+		parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings}), letters,
+		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
 // parentBillingCareSchools lists the schools of the Träger at Organisation

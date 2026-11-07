@@ -236,3 +236,26 @@ Betrag.
   und Aufbewahrung je ein Eintrag; die Zeile geht mit ihrem Lauf oder der
   Position. Zwei schreibende Routen im Route-Golden und in der Nutzungsanalyse
   als `notCaptured` (Träger, keine Schule). Migration `1.15.748`.
+
+## Nachtrag 2026-11-08: Storno vor dem Versand und Monatsrechnungen (#4684)
+
+Präzisiert den Nachtrag vom 03.11.2026 („Hat der Lauf seine Schreiben, bekommt
+Storno oder Gutschrift sein Schreiben sofort“) für die Monatsrechnungen nach
+dem SJR-Abgleich E1 A (Entscheidung D3 in #4684); die Ferienrechnungen bleiben
+unverändert.
+
+- **Prüfen vor dem Ausstellen, danach nur Storno.** Ausstellen und Senden
+  bleiben zwei Schritte. Was der SJR „nach der Erstellung ändern“ nennt,
+  geschieht vor der Freigabe (Prüfphase, #5916); nach der Freigabe gilt Storno
+  und Neuausstellung. Keine Rechnung wird nach der Ausstellung geändert.
+- **Kein Schreiben an die Familie für einen Storno vor dem Versand.** Wurde das
+  Schreiben einer Monatsrechnung nie gesendet, bekommt ihr Storno kein Schreiben,
+  die Rechnung wird nicht mehr gesendet, und weder Postfach noch Druck nennen
+  sie. Der Storno bleibt mit Nummer und Grund in Lauf und Spur. Wurde die
+  Rechnung gesendet, bekommt der Storno sofort sein Schreiben.
+- **Ein Nummernkreis.** Der Storno einer Monatsrechnung nimmt wie die
+  Ferienbelege die nächste Nummer aus Muster und Zähler seiner Leistung (`care`);
+  keine Nummer wiederholt eine Ferien- oder Monatsnummer des Trägers.
+- **Neuausstellung.** Der nächste Lauf des Monats rechnet den Vertrag einer
+  stornierten Rechnung neu ab und nennt sie (`replaces_invoice_id`). Details:
+  [ADR 0165](0165-monatsrechnungen-nehmen-schreiben-versand-und-storno-der-ferienrechnungen.md).

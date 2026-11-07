@@ -138,7 +138,7 @@ func (s *Store) InsertCareLetter(ctx context.Context, organizationID, runID, inv
 		return 0, err
 	}
 	row := &careLetterRow{OrganizationID: organizationID, RunID: runID, InvoiceID: invoiceID, Kind: kind, Filename: file.Filename, PDF: file.Data}
-	if _, err := db.NewInsert().Model(row).ExcludeColumn("sha256").Returning("id").Exec(ctx); err != nil {
+	if _, err := db.NewInsert().Model(row).Returning("id").Exec(ctx); err != nil {
 		return 0, fmt.Errorf("insert care letter: %w", err)
 	}
 	return row.ID, nil

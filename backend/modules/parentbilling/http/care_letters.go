@@ -20,20 +20,8 @@ import (
 // Storno ("cancellation"). Sending answers 202: the mail waits on Delivery's
 // outbox, and the run shows its state.
 
-// WithLetters adds the letters of the released monthly runs to the routes.
-func (rs *CareBillingResource) WithLetters(letters capability.CareLetterService) *CareBillingResource {
-	if letters == nil {
-		panic("parent billing http: the monthly letters are required")
-	}
-	rs.letters = letters
-	return rs
-}
-
 // mountLetters adds the letter routes of a released run.
 func (rs *CareBillingResource) mountLetters(billing chi.Router) {
-	if rs.letters == nil {
-		return
-	}
 	billing.Get("/{id}/letters", rs.careLetters)
 	billing.Post("/{id}/letters", rs.createCareLetters)
 	billing.Post("/{id}/letters/preview", rs.previewCareLetter)

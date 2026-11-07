@@ -72,7 +72,7 @@ func releasedCareRun(t *testing.T, f careBillingFixture, children ...string) (ca
 		contracts[child] = careContract(t, f.db, f.office.organization, school, child, careMonth, sjrServices()...)
 	}
 	if noah, ok := contracts["Noah"]; ok {
-		_, err := f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_parties SET email = NULL WHERE contract_id = ?`, noah)
+		_, err := f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_parties SET email = '' WHERE contract_id = ?`, noah)
 		require.NoError(t, err)
 	}
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
@@ -129,6 +129,20 @@ func careInboxPushes(t *testing.T, f careBillingFixture) int {
 	return count
 }
 
+// brandCareTraeger gives the Träger its letterhead and bank account through a
+// colleague with the right "Verwaltung"; the office itself only bills.
+func brandCareTraeger(t *testing.T, f careBillingFixture) {
+	t.Helper()
+	password := testpkg.NewTestPassword()
+	account := traegerAccount(t, f.db, password)
+	testpkg.CreateTestTraegerMember(t, f.db, f.office.organization, account.ID, identityaccess.TraegerRoleAdministration)
+	code, answer := traegerSignIn(t, f.traeger, account.Email, password, 0)
+	require.Equal(t, http.StatusOK, code)
+	administration := f.office
+	administration.token = answer.AccessToken
+	brandTraegerOffice(t, f.db, f.traeger, administration)
+}
+
 func careLettersInput() map[string]any {
 	return map[string]any{"payment_due_on": "2099-01-15", "notes": "Am 2. Januar ist die Betreuung geschlossen."}
 }
@@ -138,7 +152,7 @@ func careLettersInput() map[string]any {
 func TestCareLettersSendEveryFamilyOnceAndShowTheirState(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Monatsschreiben")
-	brandTraegerOffice(t, f.db, f.traeger, f.office)
+	brandCareTraeger(t, f)
 	run, contracts := releasedCareRun(t, f, "Mia", "Noah")
 	mia, noah := invoiceOfContract(t, run, contracts["Mia"]), invoiceOfContract(t, run, contracts["Noah"])
 
@@ -216,7 +230,7 @@ func TestCareLettersSendEveryFamilyOnceAndShowTheirState(t *testing.T) {
 func TestCareInvoiceCancelledBeforeTheSendReachesNoFamilyAndIsIssuedAgain(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Monatsstorno")
-	brandTraegerOffice(t, f.db, f.traeger, f.office)
+	brandCareTraeger(t, f)
 	run, contracts := releasedCareRun(t, f, "Mia", "Lea")
 	mia, lea := invoiceOfContract(t, run, contracts["Mia"]), invoiceOfContract(t, run, contracts["Lea"])
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
@@ -268,7 +282,7 @@ func TestCareInvoiceCancelledBeforeTheSendReachesNoFamilyAndIsIssuedAgain(t *tes
 func TestCareInvoiceCancelledAfterTheSendGetsItsLetter(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Monatsstorno gesendet")
-	brandTraegerOffice(t, f.db, f.traeger, f.office)
+	brandCareTraeger(t, f)
 	run, contracts := releasedCareRun(t, f, "Mia")
 	mia := invoiceOfContract(t, run, contracts["Mia"])
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
@@ -303,7 +317,7 @@ func TestCareInvoiceCancelledAfterTheSendGetsItsLetter(t *testing.T) {
 func TestCareLetterGoesOnlyToThePartyTheContractStillBills(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Monatsempfänger")
-	brandTraegerOffice(t, f.db, f.traeger, f.office)
+	brandCareTraeger(t, f)
 	run, contracts := releasedCareRun(t, f, "Mia")
 	mia := invoiceOfContract(t, run, contracts["Mia"])
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
@@ -326,7 +340,7 @@ func TestCareLetterGoesOnlyToThePartyTheContractStillBills(t *testing.T) {
 func TestCareLettersNeedTheRightAndStayWithTheirTraeger(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Monatsschreiben Recht")
-	brandTraegerOffice(t, f.db, f.traeger, f.office)
+	brandCareTraeger(t, f)
 	run, contracts := releasedCareRun(t, f, "Mia")
 	mia := invoiceOfContract(t, run, contracts["Mia"])
 	routes := []struct{ method, path string }{
@@ -355,7 +369,7 @@ func TestCareLettersNeedTheRightAndStayWithTheirTraeger(t *testing.T) {
 func TestCareLettersQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Monatsschreiben Budget")
-	brandTraegerOffice(t, f.db, f.traeger, f.office)
+	brandCareTraeger(t, f)
 	run, _ := releasedCareRun(t, f, "Mia", "Lea", "Ben")
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())

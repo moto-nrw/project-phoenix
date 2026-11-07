@@ -102,6 +102,12 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/traeger/care-tariffs/{schoolID}/{validFrom}"}: notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/"}:                    notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/release"}:        notCaptured,
+	// The letters, mails and Storno of a monthly run (#4684, ADR 0165).
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters"}:                           notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters/preview"}:                   notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters/mail"}:                      notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/invoices/{invoiceID}/mail"}:         notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/invoices/{invoiceID}/cancellation"}: notCaptured,
 	// The care contracts and their templates (#4678, ADR 0153) belong to
 	// the Träger, not to a school.
 	{http.MethodPost, "/traeger/contracts/"}:       notCaptured,
