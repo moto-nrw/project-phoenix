@@ -2,6 +2,7 @@ import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { createLogger } from "~/lib/logger";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
@@ -23,19 +24,10 @@ function exportQuery(request: NextRequest): string {
   return month ? `?month=${encodeURIComponent(month)}` : "";
 }
 
-async function proxyExport(
+function exportResponse(
+  backendResponse: Response,
   request: NextRequest,
-  query: string,
-  token: string,
-): Promise<Response> {
-  const backendResponse = await fetch(
-    `${getServerApiUrl()}/operator/billing/key-date-counts/export${query}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    },
-  );
-
+): Response {
   if (!backendResponse.ok) {
     const response = forwardBackendResponse(backendResponse, request);
     response.headers.set("Cache-Control", "no-store");
@@ -71,20 +63,18 @@ async function GETHandler(request: NextRequest) {
       return operatorErrorResponse(401, "general.permission", "Unauthorized");
     }
 
-    const query = exportQuery(request);
-    const response = await proxyExport(request, query, session.user.token);
-    if (response.status !== 401) return response;
-
-    // The access token may have expired between page load and click; one
-    // retry with a refreshed session, as the JSON routes do.
-    const refreshed = await uncachedOperatorAuth();
-    if (
-      !refreshed?.user?.token ||
-      refreshed.user.token === session.user.token
-    ) {
-      return response;
-    }
-    return await proxyExport(request, query, refreshed.user.token);
+    const url = `${getServerApiUrl()}/operator/billing/key-date-counts/export${exportQuery(request)}`;
+    const send = (bearer: string) =>
+      fetch(url, {
+        headers: { Authorization: `Bearer ${bearer}` },
+        cache: "no-store",
+      });
+    return exportResponse(
+      await sendWithTokenRefresh(session.user.token, send, () =>
+        uncachedOperatorAuth(),
+      ),
+      request,
+    );
   } catch (error) {
     captureBffException(error, request);
     logger.error("operator billing export proxy failed", {

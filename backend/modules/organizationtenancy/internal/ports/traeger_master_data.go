@@ -11,9 +11,10 @@ import (
 // 0112). Every method runs in the caller's Träger transaction of
 // organizationID and names the Träger in its own filter again.
 type TraegerMasterDataStore interface {
-	// FindProfile reads the contact person and the logo description; a
-	// Träger without a row has neither.
-	FindProfile(ctx context.Context, organizationID int64) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, error)
+	// FindMasterData reads the contact person, the logo description and the
+	// bank accounts (ordered like ListBankAccounts) in one statement; a
+	// Träger without a profile row has neither contact nor logo.
+	FindMasterData(ctx context.Context, organizationID int64) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, []organizationtenancy.TraegerBankAccount, error)
 	// LockProfile locks the row of the Träger until the end of the
 	// transaction; create makes it first where it is missing. Every change
 	// of the master data takes this lock first, so changes of one Träger run

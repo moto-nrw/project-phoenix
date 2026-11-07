@@ -9,6 +9,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -76,6 +77,12 @@ func (a StatisticsReportPeriods) StatisticsHolidayPeriods(ctx context.Context, f
 // statisticsStudentRows are the student rows the report's roster reads.
 type statisticsStudentRows interface {
 	FindOverlappingWithGroups(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]*peopleValues.StudentRosterEntry, error)
+}
+
+// statisticsBirthdays are the children of the school by date of birth, also
+// those whose care has ended.
+type statisticsBirthdays interface {
+	FindBornOn(context.Context, []timezone.Date) ([]peopleValues.StudentBorn, error)
 }
 
 type StatisticsReportStudents struct {
@@ -178,6 +185,60 @@ func (a StatisticsContractCareDays) ContractCareDays(ctx context.Context, studen
 			}
 		}
 		result[studentID] = days
+	}
+	return result, nil
+}
+
+// StatisticsHolidayCareDays reads the days the confirmed holiday bookings of
+// the school's holiday guests cover, the Soll of Soll und Ist on those days
+// (#5994).
+type StatisticsHolidayCareDays struct {
+	Bookings enrollment.HolidayGuestBookedCare
+}
+
+func (a StatisticsHolidayCareDays) HolidayCareDays(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]studentpresence.HolidayCareDay, error) {
+	booked, err := a.Bookings.HolidayGuestBookedDays(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]map[timezone.Date]studentpresence.HolidayCareDay, len(booked))
+	for studentID, days := range booked {
+		byDate := make(map[timezone.Date]studentpresence.HolidayCareDay, len(days))
+		for date, day := range days {
+			byDate[date] = studentpresence.HolidayCareDay{Arrival: day.StartsAt, Pickup: day.EndsAt, Ambiguous: day.Ambiguous}
+		}
+		result[studentID] = byDate
+	}
+	return result, nil
+}
+
+// StatisticsHolidayStudents reads every child of the school born on the
+// dates of the own holiday bookings, with its membership interval, in one
+// read of the People Directory (#5994): Enrollment finds the child of a
+// booked day among the children that belonged to the school on that day.
+type StatisticsHolidayStudents struct {
+	Students statisticsBirthdays
+}
+
+func (a StatisticsHolidayStudents) HolidayStudentsBornOn(ctx context.Context, birthDates []timezone.Date) ([]enrollment.HolidayStudentCandidate, error) {
+	born, err := a.Students.FindBornOn(ctx, birthDates)
+	if err != nil {
+		return nil, err
+	}
+	// Only an equal date counts: a child born on the same day of another
+	// year is another child.
+	wanted := make(map[timezone.Date]bool, len(birthDates))
+	for _, date := range birthDates {
+		wanted[date] = true
+	}
+	result := make([]enrollment.HolidayStudentCandidate, 0, len(born))
+	for _, child := range born {
+		if !wanted[child.Birthday] {
+			continue
+		}
+		result = append(result, enrollment.HolidayStudentCandidate{StudentID: child.StudentID,
+			Identity:     enrollment.HolidayStudentIdentity{FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.Birthday},
+			EnrolledFrom: child.EnrolledFrom, EnrolledUntil: child.EnrolledUntil})
 	}
 	return result, nil
 }

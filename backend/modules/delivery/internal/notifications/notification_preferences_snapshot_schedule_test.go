@@ -67,6 +67,25 @@ func (s *preferenceGateSchedule) ResolveBools(ctx context.Context, keys []string
 	return values, err
 }
 
+// WithGateSnapshot delegates to the production gate snapshot (#5699). The
+// writer boundary is after that real batch read, which contains the first
+// gate.
+func (s *preferenceGateSchedule) WithGateSnapshot(ctx context.Context, keys []string) (context.Context, error) {
+	snapshots, ok := s.PreferenceSettings.(notifications.PreferenceGateSnapshot)
+	if !ok {
+		return ctx, nil
+	}
+	snapshotCtx, err := snapshots.WithGateSnapshot(ctx, keys)
+	s.reads = append(s.reads, preferenceGateRead{Keys: append([]string(nil), keys...), Error: fmt.Sprint(err)})
+	for _, key := range keys {
+		if key == s.first && s.after != nil {
+			s.after(ctx)
+			break
+		}
+	}
+	return snapshotCtx, err
+}
+
 type preferenceReadObservation struct {
 	devices.StaffNotificationPreferences
 	err error
@@ -232,7 +251,7 @@ func preferenceRunSchedule(t *testing.T, db *bun.DB, settings owners.SettingsTes
 			return ctx.Err()
 		}
 	}
-	source := &preferenceGateSchedule{PreferenceSettings: settings.Settings, first: pair.first}
+	source := &preferenceGateSchedule{PreferenceSettings: owners.DeliveryPreferenceSettings(settings.Settings), first: pair.first}
 	if schedule == "between_reads" {
 		source.after = func(context.Context) {
 			trigger()

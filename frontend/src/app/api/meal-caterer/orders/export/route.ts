@@ -2,6 +2,7 @@ import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 // Die Lieferliste der Schule (#3873): dieselbe Vorlage wie die des Caterers,
 // ohne Namen. meals:read erzwingt das Backend.
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
@@ -20,16 +21,11 @@ export const GET = withPrivateDownloadNoStore(
         `${getServerApiUrl()}/api/meal-caterer/orders/export${request.nextUrl.search}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-    let response = await makeRequest(session.user.token);
-    if (response.status === 401) {
-      const refreshed = await uncachedAuth();
-      if (
-        refreshed?.user?.token &&
-        refreshed.user.token !== session.user.token
-      ) {
-        response = await makeRequest(refreshed.user.token);
-      }
-    }
+    const response = await sendWithTokenRefresh(
+      session.user.token,
+      makeRequest,
+      () => uncachedAuth(),
+    );
     if (!response.ok) {
       return forwardBackendResponse(response, request);
     }
