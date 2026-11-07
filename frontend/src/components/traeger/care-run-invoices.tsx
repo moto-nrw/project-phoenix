@@ -7,6 +7,7 @@
 
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { ButtonLink } from "~/components/ui/button";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatDate } from "~/lib/date-helpers";
 import type {
@@ -98,42 +99,65 @@ function PositionLine({
   );
 }
 
-function InvoiceRow({
-  invoice,
-  month,
-}: Readonly<{ invoice: CareInvoice; month: string }>) {
-  const recipient =
-    `${invoice.recipient.firstName} ${invoice.recipient.lastName}`.trim();
-  return (
-    <li className="grid gap-3 py-3 first:pt-0 last:pb-0 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] md:gap-6">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-gray-900">
-          {invoice.childFirstName} {invoice.childLastName}
-        </p>
-        <p className="mt-0.5 truncate text-sm text-gray-600">
-          {recipient ? `An ${recipient}` : "Ohne Empfänger"}
-        </p>
-        {invoice.number ? (
-          <p className="mt-0.5 font-mono text-xs text-gray-500">
-            {invoice.number}
-          </p>
-        ) : null}
-      </div>
-      <ul className="min-w-0 divide-y divide-gray-100">
-        {invoice.positions.map((position) => (
-          <PositionLine
-            key={`${position.careOfferingId}-${position.serviceFrom}`}
-            position={position}
-            month={month}
-            showAmount={invoice.positions.length > 1}
-          />
-        ))}
-      </ul>
-      <p className="text-base font-semibold text-gray-900 tabular-nums md:text-right">
-        {formatEuro(invoice.totalCents)}
-      </p>
-    </li>
-  );
+function invoiceColumns(month: string): DataTableColumn<CareInvoice>[] {
+  return [
+    {
+      key: "child",
+      header: "Kind",
+      stacked: "title",
+      className: "w-56 align-top",
+      render: (invoice) => {
+        const recipient =
+          `${invoice.recipient.firstName} ${invoice.recipient.lastName}`.trim();
+        return (
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-900">
+              {invoice.childFirstName} {invoice.childLastName}
+            </p>
+            <p className="mt-0.5 truncate text-sm text-gray-600">
+              {recipient ? `An ${recipient}` : "Ohne Empfänger"}
+            </p>
+            {invoice.number ? (
+              <p className="mt-0.5 font-mono text-xs text-gray-500">
+                {invoice.number}
+              </p>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    {
+      key: "positions",
+      header: "Positionen",
+      stacked: "field",
+      stackedLabel: false,
+      className: "align-top",
+      render: (invoice) => (
+        <ul className="min-w-0 divide-y divide-gray-100">
+          {invoice.positions.map((position) => (
+            <PositionLine
+              key={`${position.careOfferingId}-${position.serviceFrom}`}
+              position={position}
+              month={month}
+              showAmount={invoice.positions.length > 1}
+            />
+          ))}
+        </ul>
+      ),
+    },
+    {
+      key: "total",
+      header: "Betrag",
+      align: "right",
+      stacked: "meta",
+      className: "align-top",
+      render: (invoice) => (
+        <span className="font-semibold text-gray-900 tabular-nums">
+          {formatEuro(invoice.totalCents)}
+        </span>
+      ),
+    },
+  ];
 }
 
 /** One card per school with its invoices and its sum. */
@@ -173,15 +197,12 @@ export function CareRunInvoices({
           }
           collapsible={invoices.length > 8}
         >
-          <ul className="divide-y divide-gray-100">
-            {group.invoices.map((invoice) => (
-              <InvoiceRow
-                key={invoice.contractId}
-                invoice={invoice}
-                month={month}
-              />
-            ))}
-          </ul>
+          <DataTable
+            columns={invoiceColumns(month)}
+            rows={group.invoices}
+            getRowKey={(invoice) => invoice.contractId}
+            stackedOnMobile
+          />
         </SectionCard>
       ))}
     </>

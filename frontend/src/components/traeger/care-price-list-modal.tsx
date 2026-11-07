@@ -26,9 +26,7 @@ import {
   formatMonth,
   monthsFromTo,
   priceRowsAt,
-  priceStands,
   shownWeekdays,
-  standAt,
 } from "./care-billing-format";
 import { centsToEuroInput, euroInputToCents } from "./holiday-period-model";
 
@@ -98,8 +96,9 @@ export function CarePriceListModal({
   // Prefill every field with the price that holds in the chosen month.
   useEffect(() => {
     if (!school || !month) return;
-    const stand = standAt(priceStands(data, school.id), month);
-    const holding = priceRowsAt(data, school.id, stand || month);
+    // Only the prices that hold in the chosen month; a later price stays
+    // where it starts and is never copied back.
+    const holding = priceRowsAt(data, school.id, month);
     const next: Draft = {};
     for (const row of holding) {
       for (const [weekday, cents] of Object.entries(row.prices)) {

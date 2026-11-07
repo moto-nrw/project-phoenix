@@ -99,6 +99,13 @@ describe("care price matrix", () => {
     expect(february[0]?.prices).toEqual({ mon: 3600 });
   });
 
+  it("copies no later price back into a month before it", () => {
+    // The modal prefills with these rows; before the first price none holds.
+    expect(
+      priceRowsAt(data, "11", "2026-08-01").map((row) => row.prices),
+    ).toEqual([{}, {}]);
+  });
+
   it("names a booked weekday without a price", () => {
     const rows = priceRowsAt(data, "11", "2027-01-01");
     expect(rows[0] && missingPrices(rows[0])).toEqual(["sat"]);
