@@ -5465,7 +5465,7 @@ export const parentCareChangeTopic =
         "Eine Änderung am Wochenplan ist dauerhaft und gilt jede Woche.",
         "Geht es nur um einen Tag? Ändern Sie stattdessen die Abholung für diesen Tag.",
         "Eine offene Anfrage lässt sich mit `Anfrage bearbeiten` noch ändern.",
-        "Gilt Ihr Betreuungsvertrag schon? Nach der Bestätigung bekommt er eine neue Version ab dem bestätigten Tag. Die alte Version gilt bis dahin weiter.",
+        "Gilt Ihr Betreuungsvertrag schon? Dann kann auch der Träger Ihrer OGS die Anfrage bestätigen. Nach der Bestätigung bekommt der Vertrag eine neue Version ab dem bestätigten Tag. Die alte Version gilt bis dahin weiter.",
         "Betreut Ihre OGS am Wochenende? Dann gilt der Freitagsplan auch für Samstag und Sonntag.",
       ],
       differences: [
@@ -10218,7 +10218,7 @@ export const traegerBriefkopfTopic =
  * Vertrag gilt, Vertragsbedingungen je Angebot festlegen, Entwürfe aus
  * angenommenen Anmeldungen erstellen, prüfen und senden; die Unterschrift
  * der Eltern und den Papiervertrag erfassen; Versionen nach einer Änderung;
- * Kündigung und Widerruf (#4682).
+ * Kündigung und Widerruf (#4682); Änderungswünsche der Eltern freigeben (#5979).
  */
 export const traegerCareContractsTopic =
   function traegerCareContractsTopic(): HelpTopic {
@@ -10312,10 +10312,20 @@ export const traegerCareContractsTopic =
           ],
         },
         {
+          title: "Änderungswunsch der Eltern freigeben",
+          steps: [
+            "Die Eltern beantragen in der Eltern-App andere Tage oder Module. Sie oder die Schule entscheiden.",
+            "Wählen Sie in der Liste das Kind. Rechts steht die Karte `Änderungswunsch der Eltern`.",
+            "Je Modul sehen Sie die Wochentage: Haken bleibt, Plus kommt dazu, Minus fällt weg.",
+            "Wählen Sie `Freigeben`. Prüfen Sie `Gilt ab` und wählen Sie noch einmal `Freigeben`.",
+            "Oder wählen Sie `Ablehnen`. Schreiben Sie eine Begründung für die Eltern und wählen Sie `Ablehnen`.",
+            "Die Eltern bekommen eine Nachricht in der Eltern-App.",
+          ],
+        },
+        {
           title: "Wenn sich die Betreuung ändert: neue Version",
           steps: [
-            "Die Eltern beantragen in der Eltern-App andere Tage oder Zeiten. Die Schule gibt die Änderung frei.",
-            "Nach wenigen Minuten bekommt der aktive Vertrag eine neue Version. Sie gilt ab dem Tag, den die Schule freigegeben hat.",
+            "Nach einer Freigabe durch Sie oder die Schule bekommt der aktive Vertrag nach wenigen Minuten eine neue Version. Sie gilt ab dem freigegebenen Tag.",
             "Wählen Sie in der Liste das Kind. Oben steht, ab wann die neue Version gilt.",
             "Unter `Versionen` sehen Sie jede Version mit ihren Tagen. `Geändert` markiert die Wochentage, die anders sind als vorher.",
             "Mit `PDF` laden Sie eine Version als PDF.",
@@ -10353,13 +10363,15 @@ export const traegerCareContractsTopic =
         "Die Eltern bekommen sofort eine Bestätigung per Mail und in der Eltern-App. Den Text legen Sie unter `Einstellungen` → `Allgemein` im Reiter `Betreuungsverträge` fest. Die Bestätigung steht danach in der Karte `Vertrag beenden`, so wie sie verschickt wurde.",
         "Den Kündigungstermin rechnet moto aus den Bedingungen im Vertrag, nicht aus den heutigen Vertragsbedingungen. Die Widerrufsfrist beginnt frühestens mit dem Erhalt der Belehrung. Ohne Nachweis gilt die längere Frist.",
         "Eine neue Version gilt nie rückwirkend. Kommt eine Freigabe zu spät, gilt die Version ab dem Tag, an dem moto sie anlegt.",
-        "Beginnt an einem Tag schon eine Version, und die Schule gibt für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
+        "Beginnt an einem Tag schon eine Version, und Sie oder die Schule geben für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
         "Ist schon eine spätere Version geplant, gilt eine frühere Änderung nur bis dahin. Die geplante Version übernimmt sie nicht von selbst.",
       ],
       differences: [
         "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
       ],
       troubleshootingDetails: [
+        "Bei einem Änderungswunsch fehlt `Freigeben`? Die Eltern melden damit die ganze Betreuung ab. Das ist eine Kündigung. Tragen Sie sie unter `Vertrag beenden` ein, oder lehnen Sie den Wunsch ab.",
+        "Die Karte `Änderungswunsch der Eltern` fehlt? Sie steht nur bei aktiven Verträgen.",
         "`Kündigung eintragen` fehlt? Der Vertrag ist noch nicht abgeschlossen oder schon beendet. Einen Entwurf oder versendeten Vertrag verwerfen Sie oder lassen ihn liegen.",
         "Ein Brief kam nach der Widerrufsfrist an? Entscheidend ist der Absende-Tag. Tragen Sie ihn bei `Abgesendet am` ein.",
         "Die Schule hat angenommen, aber nach einigen Minuten steht kein aktiver Vertrag da? Dann fehlt etwas. Das Kind steht in `Verträge erstellen` mit dem Grund, zum Beispiel `Vertragsbedingungen fehlen`. Fehlt die E-Mail-Adresse der Eltern, ergänzt die Schule sie in der Anmeldung. moto versucht es danach von selbst noch einmal.",
@@ -10376,7 +10388,7 @@ export const traegerCareContractsTopic =
         "Der Name des Vertragspartners fehlt? Ergänzen Sie den Briefkopf. Oder verwerfen Sie den Entwurf und erstellen ihn mit eingetragenem Vertragspartner neu.",
         "Die Eltern sagen, der Link gilt nicht mehr? Er war schon benutzt oder ist abgelaufen. Wählen Sie `Erneut senden`. Die Eltern bekommen einen neuen Link. Oder sie unterschreiben in der Eltern-App unter `Dokumente`.",
         "Die Karte `Unterschrift` meldet, die Prüfsumme stimmt nicht? Der gespeicherte Nachweis wurde verändert. Melden Sie das dem moto-Team.",
-        "Die Schule hat eine Änderung freigegeben, aber es gibt keine neue Version? Neue Versionen bekommen nur aktive Verträge. Bucht das Kind ab dem Tag gar keine Betreuung mehr, ist das eine Kündigung und keine neue Version.",
+        "Eine Änderung ist freigegeben, aber es gibt keine neue Version? Neue Versionen bekommen nur aktive Verträge. Bucht das Kind ab dem Tag gar keine Betreuung mehr, ist das eine Kündigung und keine neue Version.",
       ],
       related: [
         HELP_TOPICS.traegerDocumentTemplates,
