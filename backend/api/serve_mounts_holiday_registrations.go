@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
@@ -33,7 +34,8 @@ func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity Tra
 	}
 	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, logger).Router())
 	mountParentBillingRoutes(root, organizations, settings, delivery, outcomes, healthData, logger)
-	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, audit.Log, parentsURL)
+	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, audit.Log,
+		owners.NewCareContractNoticeAddressees(persons, identity), parentsURL)
 	mountCareTimeOverrunRoutes(root, organizations, statistics, audit.Log)
 	return nil
 }

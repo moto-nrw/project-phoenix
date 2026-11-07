@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"testing"
@@ -35,6 +36,7 @@ type noticeOptionsBody struct {
 		ConfirmationText string         `json:"confirmation_text"`
 		EndDecision      string         `json:"end_decision"`
 		EndNoticeText    string         `json:"end_notice_text"`
+		EndNoticeSent    bool           `json:"end_notice_sent"`
 	} `json:"notice"`
 }
 
@@ -188,6 +190,7 @@ func TestCareContractNoticeEndIsSetByTheOfficeAfterItsCheck(t *testing.T) {
 	token := f.office.token
 	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
 	contract := concludeWithEarlyStart(t, f)
+	linkContractGuardian(t, f, contract)
 	path := "/traeger/contract-notices/" + strconv.FormatInt(contract, 10)
 	var concludedOn calendar.Date
 	require.NoError(t, f.db.NewRaw(`SELECT (concluded_at AT TIME ZONE 'Europe/Berlin')::date FROM care_contract.contracts WHERE id = ?`,
@@ -256,6 +259,7 @@ func TestCareContractNoticeReasonIsRefusedByTheOfficeOnce(t *testing.T) {
 	token := f.office.token
 	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
 	contract := concludeWithEarlyStart(t, f)
+	linkContractGuardian(t, f, contract)
 	path := "/traeger/contract-notices/" + strconv.FormatInt(contract, 10)
 	var concludedOn calendar.Date
 	require.NoError(t, f.db.NewRaw(`SELECT (concluded_at AT TIME ZONE 'Europe/Berlin')::date FROM care_contract.contracts WHERE id = ?`,
@@ -300,4 +304,58 @@ func TestCareContractNoticeReasonIsRefusedByTheOfficeOnce(t *testing.T) {
 	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM care_contract.contract_events WHERE contract_id = ? AND action = 'reject_reason'
 		AND account_id IS NOT NULL`, contract).Scan(context.Background(), &trail))
 	assert.Equal(t, 1, trail, "the refusal under the office account")
+}
+
+// linkContractGuardian makes the contract's child a student of the school
+// whose guardian holds the contract party's address and account with the
+// role of a primary guardian, which grants the enrollment submission. It
+// answers the relationship.
+func linkContractGuardian(t *testing.T, f careContractFixture, contract int64) int64 {
+	t.Helper()
+	ctx := context.Background()
+	student := testpkg.CreateTestStudentForTenant(t, f.db, f.school, "Lina", "Muster", "1a")
+	guardian := testpkg.CreateTestGuardianProfileForTenant(t, f.db, f.school, "Erika", "Muster", "erika.muster@example.org")
+	account := testpkg.CreateTestAccount(t, f.db, fmt.Sprintf("erika-konto-%d@example.org", testpkg.UniqueTestTenantID(t)))
+	_, err := f.db.ExecContext(ctx, `UPDATE users.guardian_profiles SET email = 'erika.muster@example.org', account_id = ?, has_account = true
+		WHERE id = ?`, account.ID, guardian.ID)
+	require.NoError(t, err)
+	link := testpkg.CreateTestStudentGuardianLinkForTenant(t, f.db, f.school, student.ID, guardian.ID, "primary_guardian")
+	require.True(t, link.Permissions[carecontract.GuardianPermissionEnrollmentSubmit] == true, "the preset grants the enrollment submission")
+	_, err = f.db.ExecContext(ctx, `UPDATE care_contract.contracts SET student_id = ? WHERE id = ?`, student.ID, contract)
+	require.NoError(t, err)
+	_, err = f.db.ExecContext(ctx, `UPDATE care_contract.contract_parties SET account_id = ? WHERE contract_id = ?`, account.ID, contract)
+	require.NoError(t, err)
+	return link.ID
+}
+
+// The notice of a decided end reaches only a guardian whose relationship
+// to the child still grants the enrollment submission (#4682,
+// .claude/rules/guardian-parent-permissions.md). Through the real router:
+// the school revoked the parent's right after the declaration; the office
+// sets the end, the decision stands, no mail goes to the old address, and
+// the card tells the office that the parents got no notice.
+func TestCareContractEndNoticeSkipsAParentWhoseRightWasRevoked(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Recht entzogen")
+	token := f.office.token
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	contract := concludeWithEarlyStart(t, f)
+	link := linkContractGuardian(t, f, contract)
+	path := "/traeger/contract-notices/" + strconv.FormatInt(contract, 10)
+	var concludedOn calendar.Date
+	require.NoError(t, f.db.NewRaw(`SELECT (concluded_at AT TIME ZONE 'Europe/Berlin')::date FROM care_contract.contracts WHERE id = ?`,
+		contract).Scan(context.Background(), &concludedOn))
+	rec := traegerJSON(t, f.traeger, token, http.MethodPost, path, map[string]any{"kind": "kuendigung",
+		"termination_kind": "ausserordentlich", "reason": "Umzug ins Ausland", "received_on": concludedOn.String()})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	require.NoError(t, testpkg.SetTestStudentGuardianPermissions(context.Background(), f.db, link,
+		map[string]interface{}{"parent_portal.access": true}))
+	rec = traegerJSON(t, f.traeger, token, http.MethodPut, path+"/ends-on", map[string]any{"ends_on": concludedOn.AddDays(30).String()})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	set := decodeSchoolPortalData[noticeOptionsBody](t, rec.Body.Bytes())
+	require.NotNil(t, set.Notice)
+	assert.Equal(t, carecontract.EndDecisionSet, set.Notice.EndDecision, "the decision stands")
+	assert.False(t, set.Notice.EndNoticeSent, "the office sees that no mail went out")
+	assert.Zero(t, noticeEndMails(t, f, contract), "no mail to the address of the parent whose right was revoked")
 }

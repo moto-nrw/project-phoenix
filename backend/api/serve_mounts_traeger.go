@@ -47,6 +47,9 @@ type TraegerPortalIdentity interface {
 	identityaccess.TraegerRoles
 	identityaccess.TraegerSchoolSessions
 	identityaccess.PasswordResets
+	// ListAccountEmails names the account addresses of a child's guardians
+	// for the notice of a decided contract end (#4682).
+	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 }
 
 // TraegerPersons is the People Directory read the access log names people
@@ -54,6 +57,10 @@ type TraegerPortalIdentity interface {
 type TraegerPersons interface {
 	ListPersonsByAccount(ctx context.Context, accountIDs []int64) ([]peopledirectory.Person, error)
 	ListPersonsByID(ctx context.Context, personIDs []int64) ([]peopledirectory.Person, error)
+	// The guardian relationships and profiles of a contract's accounts,
+	// for the notice of a decided contract end (#4682).
+	ListGuardianLinksByAccounts(ctx context.Context, accountIDs []int64) ([]peopledirectory.GuardianLink, error)
+	ListGuardiansByAccount(ctx context.Context, accountIDs []int64) ([]peopledirectory.Guardian, error)
 }
 
 // TraegerStaff is the School Membership read that ties a staff ID the

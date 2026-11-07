@@ -37,6 +37,8 @@ type noticeRow struct {
 	EndDecision      *string        `bun:"end_decision"`
 	EndDecidedAt     *time.Time     `bun:"end_decided_at"`
 	EndNoticeText    *string        `bun:"end_notice_text"`
+	EndNoticeOutbox  *int64         `bun:"end_notice_outbox_id"`
+	AccountID        *int64         `bun:"account_id"`
 }
 
 // NoticeState reads the first and last day of the contract's effective
@@ -52,8 +54,12 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 		ContractEnd *calendar.Date `bun:"contract_end,type:date"`
 		InformedAt  *time.Time     `bun:"withdrawal_informed_at"`
 		EarlyStart  bool           `bun:"early_start_requested"`
+		StudentID   *int64         `bun:"student_id"`
+		Party       *int64         `bun:"party_account_id"`
 	}
-	err = db.NewRaw(`SELECT c.withdrawal_informed_at, c.early_start_requested,
+	err = db.NewRaw(`SELECT c.withdrawal_informed_at, c.early_start_requested, c.student_id,
+			(SELECT p.account_id FROM care_contract.contract_parties AS p
+				WHERE p.organization_id = c.organization_id AND p.contract_id = c.id ORDER BY p.id LIMIT 1) AS party_account_id,
 			(SELECT MIN(v.effective_from) FROM care_contract.contract_versions AS v
 				WHERE v.organization_id = c.organization_id AND v.contract_id = c.id
 					AND v.status IN `+effectiveStatusSQL+`) AS first_from,
@@ -69,10 +75,14 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 	if err != nil {
 		return ports.NoticeState{}, fmt.Errorf("care contract postgres: read notice state: %w", err)
 	}
-	state := ports.NoticeState{FirstFrom: row.FirstFrom, ContractEnd: row.ContractEnd, InformedAt: row.InformedAt, EarlyStart: row.EarlyStart}
+	state := ports.NoticeState{FirstFrom: row.FirstFrom, ContractEnd: row.ContractEnd, InformedAt: row.InformedAt, EarlyStart: row.EarlyStart,
+		StudentID: row.StudentID}
+	if row.Party != nil {
+		state.Accounts = append(state.Accounts, *row.Party)
+	}
 	var notices []noticeRow
-	if err := db.NewRaw(`SELECT id, kind, notice_kind, channel, declared_at, received_on, dispatched_on, ends_on, reason, recipient_email, confirmation_text,
-			end_decision, end_decided_at, end_notice_text
+	if err := db.NewRaw(`SELECT id, account_id, kind, notice_kind, channel, declared_at, received_on, dispatched_on, ends_on, reason, recipient_email, confirmation_text,
+			end_decision, end_decided_at, end_notice_text, end_notice_outbox_id
 		FROM care_contract.contract_notices WHERE organization_id = ? AND contract_id = ? ORDER BY id DESC LIMIT 1`,
 		organizationID, contractID).Scan(ctx, &notices); err != nil {
 		return ports.NoticeState{}, fmt.Errorf("care contract postgres: read notice: %w", err)
@@ -82,9 +92,12 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 		state.Notice = &carecontract.Notice{
 			Kind: notice.Kind, Channel: notice.Channel, DeclaredAt: notice.DeclaredAt, ReceivedOn: notice.ReceivedOn,
 			DispatchedOn: notice.DispatchedOn, EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
-			EndDecidedAt: notice.EndDecidedAt,
+			EndDecidedAt: notice.EndDecidedAt, EndNoticeSent: notice.EndNoticeOutbox != nil,
 		}
 		state.NoticeID = notice.ID
+		if notice.AccountID != nil && (len(state.Accounts) == 0 || state.Accounts[0] != *notice.AccountID) {
+			state.Accounts = append(state.Accounts, *notice.AccountID)
+		}
 		if notice.EndDecision != nil {
 			state.Notice.EndDecision = *notice.EndDecision
 		}

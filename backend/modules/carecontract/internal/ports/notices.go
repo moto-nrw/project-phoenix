@@ -31,6 +31,12 @@ type NoticeState struct {
 	Notice      *carecontract.Notice
 	// NoticeID identifies Notice; zero without one.
 	NoticeID int64
+	// StudentID is the contract's child at its school, nil before the child
+	// is a student.
+	StudentID *int64
+	// Accounts are the accounts the contract names: the contract party's
+	// and the account that declared, when they have one.
+	Accounts []int64
 }
 
 // NoticeEnd is the decided end of an extraordinary termination: the last

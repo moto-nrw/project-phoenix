@@ -35,16 +35,20 @@ func init() {
 // parents' reason, and the letter is kept exactly as sent. An end set before this
 // migration counts as festgelegt and has no notice. The columns hang on
 // contract_notices, which the demo erasure removes with its contract
-// (ON DELETE CASCADE); the mail is related to the contract as well.
+// (ON DELETE CASCADE); the mail is related to the contract as well. Every
+// statement is guarded, so a second run changes nothing.
 const careContractNoticeEndDecisionUpSQL = `
 ALTER TABLE care_contract.contract_notices
-	ADD COLUMN end_decision VARCHAR(16),
-	ADD COLUMN end_decided_at TIMESTAMPTZ,
-	ADD COLUMN end_decided_by BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
-	ADD COLUMN end_notice_text TEXT,
-	ADD COLUMN end_notice_outbox_id BIGINT;
+	ADD COLUMN IF NOT EXISTS end_decision VARCHAR(16),
+	ADD COLUMN IF NOT EXISTS end_decided_at TIMESTAMPTZ,
+	ADD COLUMN IF NOT EXISTS end_decided_by BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
+	ADD COLUMN IF NOT EXISTS end_notice_text TEXT,
+	ADD COLUMN IF NOT EXISTS end_notice_outbox_id BIGINT;
 UPDATE care_contract.contract_notices SET end_decision = 'festgelegt'
-	WHERE notice_kind = 'ausserordentlich' AND ends_on IS NOT NULL;
+	WHERE notice_kind = 'ausserordentlich' AND ends_on IS NOT NULL AND end_decision IS NULL;
+ALTER TABLE care_contract.contract_notices
+	DROP CONSTRAINT IF EXISTS chk_contract_notices_end_decision,
+	DROP CONSTRAINT IF EXISTS chk_contract_notices_end_notice_text;
 ALTER TABLE care_contract.contract_notices
 	ADD CONSTRAINT chk_contract_notices_end_decision CHECK (
 		(end_decision IS NULL AND end_decided_at IS NULL AND end_notice_text IS NULL AND end_notice_outbox_id IS NULL
@@ -60,7 +64,7 @@ COMMENT ON COLUMN care_contract.contract_notices.end_notice_text IS
 GRANT UPDATE (end_decision, end_decided_at, end_decided_by, end_notice_text, end_notice_outbox_id)
 	ON care_contract.contract_notices TO phoenix_tenant;
 
-ALTER TABLE care_contract.contract_events DROP CONSTRAINT chk_contract_events_action;
+ALTER TABLE care_contract.contract_events DROP CONSTRAINT IF EXISTS chk_contract_events_action;
 ALTER TABLE care_contract.contract_events ADD CONSTRAINT chk_contract_events_action
 	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'conclude', 'sign', 'remind', 'terminate', 'withdraw', 'set_end', 'reject_reason'));
 `

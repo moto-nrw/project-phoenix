@@ -10,6 +10,7 @@
 import { CalendarX2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -348,6 +349,12 @@ function NoticeFacts({
           <span className="wrap-anywhere">{notice.recipient}</span>
         </DataField>
       </DataGrid>
+      {notice.endNoticeText && !notice.endNoticeSent ? (
+        <Alert
+          type="warning"
+          message="Die Mitteilung zum Vertragsende ging nicht raus. Keine Adresse des Vertrags gehört noch einer Bezugsperson, die für das Kind handeln darf. Teilen Sie den Eltern das Vertragsende selbst mit, zum Beispiel per Brief."
+        />
+      ) : null}
       {notice.endNoticeText ? (
         <figure
           aria-label="Mitteilung zum Vertragsende, wie sie verschickt wurde"

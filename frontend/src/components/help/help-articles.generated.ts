@@ -10372,6 +10372,7 @@ export const traegerCareContractsTopic =
         "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
       ],
       troubleshootingDetails: [
+        "In `Vertrag beenden` steht, dass die Mitteilung zum Vertragsende nicht rausging? Keine Adresse des Vertrags gehört noch einer Bezugsperson, die für das Kind handeln darf, zum Beispiel weil die Schule das Recht entzogen hat. Die Entscheidung gilt trotzdem. Teilen Sie den Eltern das Vertragsende selbst mit, zum Beispiel per Brief.",
         "`Vertragsende festlegen` oder `Grund nicht anerkennen` meldet, dass kein Ende mehr offen ist? Eine andere Person hat schon entschieden. Laden Sie die Seite neu. Die Entscheidung steht in `Vertrag beenden`.",
         "`Kündigung eintragen` fehlt? Der Vertrag ist noch nicht abgeschlossen oder schon beendet. Einen Entwurf oder versendeten Vertrag verwerfen Sie oder lassen ihn liegen.",
         "Ein Brief kam nach der Widerrufsfrist an? Entscheidend ist der Absende-Tag. Tragen Sie ihn bei `Abgesendet am` ein.",

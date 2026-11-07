@@ -72,6 +72,11 @@ const (
 	EndDecisionReinterpreted = "umgedeutet"
 )
 
+// GuardianPermissionEnrollmentSubmit is the relationship right of the
+// parents portal that lets a guardian act for a child's contract: sign,
+// terminate, and receive the notice of a decided end.
+const GuardianPermissionEnrollmentSubmit = "parent_portal.enrollment.submit"
+
 // The templates of the notices the parents get in Textform once the end of
 // an extraordinary termination is decided; NoticeTemplates reads them by
 // these kinds.
@@ -154,6 +159,11 @@ type Notice struct {
 	EndDecision   string     `json:"end_decision,omitempty"`
 	EndDecidedAt  *time.Time `json:"end_decided_at,omitempty"`
 	EndNoticeText string     `json:"end_notice_text,omitempty"`
+	// EndNoticeSent tells that the notice went out by mail. It stays false
+	// when no address of the contract still belongs to a guardian whose
+	// relationship to the child grants GuardianPermissionEnrollmentSubmit:
+	// the office then tells the parents another way.
+	EndNoticeSent bool `json:"end_notice_sent,omitempty"`
 }
 
 // NoticeOptions is what the parents (or the office for them) can still
@@ -224,6 +234,17 @@ type NoticeMailRenderer func(ctx context.Context, payload []byte) (RenderedNotic
 // NoticeTemplateReasonRejected.
 type NoticeTemplates interface {
 	NoticeTemplate(ctx context.Context, organizationID int64, kind string) (string, error)
+}
+
+// NoticeAddressees answers, in the caller's tenant transaction of the
+// child's school, the mail addresses of those of accountIDs (the contract
+// party's and the declaring parent's account) whose guardian relationship
+// to the child grants GuardianPermissionEnrollmentSubmit: the guardian
+// profile address and the account address. The notice of a decided end
+// goes only to such an address (#4682,
+// .claude/rules/guardian-parent-permissions.md).
+type NoticeAddressees interface {
+	PermittedAddresses(ctx context.Context, studentID int64, accountIDs []int64) ([]string, error)
 }
 
 // NoticeDelivery is evidence that the provider delivered a contract mail.

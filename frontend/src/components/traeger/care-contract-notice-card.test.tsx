@@ -373,6 +373,7 @@ describe("CareContractNoticeCard (#4682)", () => {
         endDecision: "umgedeutet",
         endDecidedAt: "2026-11-09T10:00:00Z",
         endNoticeText: "Ihren Grund erkennen wir nicht an.",
+        endNoticeSent: true,
       },
     });
     const onChanged = vi.fn();
@@ -470,5 +471,40 @@ describe("RejectReasonModal", () => {
       within(dialog).getByRole("button", { name: "Grund nicht anerkennen" }),
     ).toBeEnabled();
     expect(onRejected).not.toHaveBeenCalled();
+  });
+
+  it("tells the office when the notice could not go out", async () => {
+    mocks.fetchContractNoticeOptions.mockResolvedValue({
+      ...active,
+      status: "gekuendigt",
+      notice: {
+        kind: "kuendigung",
+        terminationKind: "ausserordentlich",
+        reason: "Wir ziehen nach Hamburg.",
+        channel: "eltern_app",
+        declaredAt: "2026-11-07T09:30:00Z",
+        receivedOn: "2026-11-07",
+        endsOn: "2026-12-31",
+        recipient: "birgit.jansen@email.de",
+        confirmationText: "wir bestätigen den Eingang.",
+        endDecision: "festgelegt",
+        endDecidedAt: "2026-11-09T10:00:00Z",
+        endNoticeText: "Der Vertrag endet am 31.12.2026.",
+        endNoticeSent: false,
+      },
+    } satisfies ContractNoticeOptions);
+    render(
+      <CareContractNoticeCard
+        contractId="25"
+        status="gekuendigt"
+        concludedAt="2026-11-05T03:42:00Z"
+        onChanged={vi.fn()}
+      />,
+    );
+    expect(
+      await screen.findByText(
+        /Die Mitteilung zum Vertragsende ging nicht raus/,
+      ),
+    ).toBeInTheDocument();
   });
 });

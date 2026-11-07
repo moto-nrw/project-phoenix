@@ -45,6 +45,11 @@ export interface ContractNotice {
   readonly endDecidedAt?: string | null;
   /** The notice of the decided end the parents got, as sent. */
   readonly endNoticeText?: string | null;
+  /**
+   * False when no address of the contract still belongs to a guardian with
+   * the right to act for the child: the office tells the parents itself.
+   */
+  readonly endNoticeSent?: boolean;
 }
 
 /** What can be declared on a contract today, or the declaration made. */
@@ -93,6 +98,7 @@ interface BackendNotice {
   end_decision?: EndDecision;
   end_decided_at?: string;
   end_notice_text?: string;
+  end_notice_sent?: boolean;
 }
 
 export interface BackendNoticeOptions {
@@ -142,6 +148,7 @@ export function noticeOptionsFromBackend(
           endDecision: row.notice.end_decision ?? null,
           endDecidedAt: row.notice.end_decided_at ?? null,
           endNoticeText: row.notice.end_notice_text ?? null,
+          endNoticeSent: row.notice.end_notice_sent ?? false,
         }
       : null,
   };

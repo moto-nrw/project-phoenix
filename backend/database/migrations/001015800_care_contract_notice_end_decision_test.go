@@ -84,3 +84,18 @@ func TestCareContractNoticeEndDecisionKeepsItsShape(t *testing.T) {
 		SELECT organization_id, contract_id, %d, 'reject_reason' FROM care_contract.contract_notices WHERE id = %d`, school, extraordinary)),
 		"the trail records the refusal of the reason")
 }
+
+// TestCareContractNoticeEndDecisionRunsTwice pins that 1.15.800 can run
+// again on its own result: every column, constraint and the backfill are
+// guarded. Red when a statement is not (the second ADD COLUMN fails).
+func TestCareContractNoticeEndDecisionRunsTwice(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	require.NoError(t, careContractNoticeEndDecisionUp(ctx, db), "a second run on the migrated schema")
+	require.NoError(t, careContractNoticeEndDecisionUp(ctx, db), "and a third")
+	var constraints int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM pg_constraint
+		WHERE conname IN ('chk_contract_notices_end_decision', 'chk_contract_notices_end_notice_text')`).Scan(ctx, &constraints))
+	assert.Equal(t, 2, constraints, "each constraint once")
+}

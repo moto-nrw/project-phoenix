@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -25,6 +26,11 @@ type endDecision struct {
 	decision string
 	endsOn   calendar.Date
 	expected calendar.Date
+	// permitted are the addresses that may receive the notice: those of
+	// the guardians whose relationship to the child still grants
+	// carecontract.GuardianPermissionEnrollmentSubmit, read before the
+	// decision in the school's transaction.
+	permitted []string
 }
 
 // SetNoticeEnd sets the last day of a contract the parents terminated
@@ -50,13 +56,52 @@ func (n *Notices) decideEndInTraeger(ctx context.Context, reviewer carecontract.
 	if err := n.requireOffice(); err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
+	permitted, err := n.permittedAddresses(ctx, reviewer, contractID)
+	if err != nil {
+		return carecontract.NoticeOptions{}, err
+	}
+	decision.permitted = permitted
 	var options carecontract.NoticeOptions
-	err := n.office.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
+	err = n.office.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
 		var err error
 		options, err = n.decideEnd(txCtx, reviewer, contractID, decision)
 		return err
 	})
 	return options, err
+}
+
+// permittedAddresses reads who may still receive the notice: the contract's
+// child and accounts in the Träger transaction, then those accounts' guardian
+// relationships to the child in the school's tenant transaction, never both
+// in one (ADR 0105). A child that is no student yet, or a contract without
+// an account, has no relationship to check, so no address qualifies. A
+// relationship revoked after this read and before the decision commits
+// still gets the mail; the window is the length of one request.
+func (n *Notices) permittedAddresses(ctx context.Context, reviewer carecontract.Reviewer, contractID int64) ([]string, error) {
+	if n.addressees == nil {
+		return nil, errors.New("care contract: the notice addressees are not configured")
+	}
+	var schoolID int64
+	var state ports.NoticeState
+	err := n.office.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
+		record, err := n.store.Contract(txCtx, reviewer.OrganizationID, contractID, false)
+		if err != nil {
+			return err
+		}
+		schoolID = record.Summary.SchoolID
+		state, err = n.notices.NoticeState(txCtx, reviewer.OrganizationID, contractID)
+		return err
+	})
+	if err != nil || state.StudentID == nil || len(state.Accounts) == 0 {
+		return nil, err
+	}
+	var permitted []string
+	err = n.office.runtime.WithinSchool(ctx, schoolID, func(schoolCtx context.Context) error {
+		var err error
+		permitted, err = n.addressees.PermittedAddresses(schoolCtx, *state.StudentID, state.Accounts)
+		return err
+	})
+	return permitted, err
 }
 
 // decideEnd decides the end in the caller's Träger transaction. It takes
@@ -102,37 +147,78 @@ func (n *Notices) decideEnd(ctx context.Context, reviewer carecontract.Reviewer,
 	}); err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
-	if err := n.tellEnd(ctx, reviewer, record, state, decision.decision, endsOn, traeger, text); err != nil {
+	if err := n.tellEnd(ctx, reviewer, record, state, decision, endsOn, traeger, text); err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
 	return n.options(ctx, org, record, n.today(), true)
 }
 
-// tellEnd enqueues the notice of the decided end to the address the
-// confirmation went to, once per declaration (its idempotency key), links
-// the mail to the declaration and records the decision in the trail.
+// tellEnd enqueues the notice of the decided end once per declaration (its
+// idempotency key), links the mail to the declaration and records the
+// decision in the trail. The notice goes to the address of the
+// confirmation, else the contract's newest mailing or party address, but
+// only to one that still belongs to a guardian whose relationship to the
+// child grants the enrollment submission. Without such an address no mail
+// goes out; the decision stands and the office sees that the parents got
+// no notice (Notice.EndNoticeSent).
 func (n *Notices) tellEnd(ctx context.Context, reviewer carecontract.Reviewer, record ContractRecord, state ports.NoticeState,
-	decision string, endsOn calendar.Date, traeger, text string) error {
+	decision endDecision, endsOn calendar.Date, traeger, text string) error {
 	org, notice := reviewer.OrganizationID, state.Notice
 	party, _ := recipient(record.Parties)
-	outboxID, err := n.post.EnqueueNoticeMail(ctx, carecontract.NoticeMail{
-		OrganizationID: org, ContractID: record.Summary.ID, Recipient: notice.Recipient,
-		GuardianName: fullName(party.FirstName, party.LastName), TraegerName: traeger, Kind: notice.Kind,
-		Decision: decision, ConfirmationText: text, IdempotencyKey: fmt.Sprintf("care-contract-notice-end:%d", state.NoticeID),
-	})
+	details := map[string]any{"ends_on": endsOn.String(), "termination_kind": notice.TerminationKind, "notice_id": state.NoticeID}
+	address, err := n.endAddress(ctx, org, record, notice.Recipient, party.Email, decision.permitted)
 	if err != nil {
-		return fmt.Errorf("care contract: enqueue end notice: %w", err)
-	}
-	if err := n.notices.SetEndNoticeOutbox(ctx, org, state.NoticeID, outboxID); err != nil {
 		return err
 	}
+	details["notice_sent"] = address != ""
+	if address != "" {
+		outboxID, err := n.post.EnqueueNoticeMail(ctx, carecontract.NoticeMail{
+			OrganizationID: org, ContractID: record.Summary.ID, Recipient: address,
+			GuardianName: fullName(party.FirstName, party.LastName), TraegerName: traeger, Kind: notice.Kind,
+			Decision: decision.decision, ConfirmationText: text, IdempotencyKey: fmt.Sprintf("care-contract-notice-end:%d", state.NoticeID),
+		})
+		if err != nil {
+			return fmt.Errorf("care contract: enqueue end notice: %w", err)
+		}
+		if err := n.notices.SetEndNoticeOutbox(ctx, org, state.NoticeID, outboxID); err != nil {
+			return err
+		}
+		details["outbox_id"] = outboxID
+	}
 	action := ActionSetEnd
-	if decision == carecontract.EndDecisionReinterpreted {
+	if decision.decision == carecontract.EndDecisionReinterpreted {
 		action = ActionRejectReason
 	}
-	return n.trail(ctx, org, reviewer.AccountID, record, action, map[string]any{
-		"ends_on": endsOn.String(), "termination_kind": notice.TerminationKind, "notice_id": state.NoticeID, "outbox_id": outboxID,
-	})
+	return n.trail(ctx, org, reviewer.AccountID, record, action, details)
+}
+
+// endAddress is the first of the confirmation's address, the contract's
+// newest mailing address and the party's address that a permitted
+// guardian holds, or "" when none does.
+func (n *Notices) endAddress(ctx context.Context, organizationID int64, record ContractRecord, confirmed, partyEmail string, permitted []string) (string, error) {
+	allowed := make(map[string]bool, len(permitted))
+	for _, address := range permitted {
+		if address = strings.ToLower(strings.TrimSpace(address)); address != "" {
+			allowed[address] = true
+		}
+	}
+	if len(allowed) == 0 {
+		return "", nil
+	}
+	candidates := []string{confirmed}
+	mailings, err := n.store.Mailings(ctx, organizationID, record.Summary.ID)
+	if err != nil {
+		return "", err
+	}
+	if len(mailings) > 0 {
+		candidates = append(candidates, mailings[0].Recipient)
+	}
+	for _, candidate := range append(candidates, partyEmail) {
+		if allowed[strings.ToLower(strings.TrimSpace(candidate))] {
+			return strings.TrimSpace(candidate), nil
+		}
+	}
+	return "", nil
 }
 
 // reinterpretedEnd is the last day of an extraordinary termination that

@@ -78,6 +78,7 @@ func TestUnacceptedReasonHoldsAsOrdinaryTermination(t *testing.T) {
 	assert.Nil(t, options.ReinterpretedEndsOn, "the end is decided")
 	want := "Grund nicht anerkannt für Lina Muster, eingegangen am 10.11.2026 um 11:00 Uhr. Ganztag im Quartier e.V.\n\nLetzter Betreuungstag: 31.12.2026"
 	assert.Equal(t, want, options.Notice.EndNoticeText, "the template without {Vertragsende} gets the last day appended")
+	assert.True(t, options.Notice.EndNoticeSent, "the contract party still holds the right")
 	assert.Equal(t, &end, f.state(t).endsOn)
 
 	mails := f.endMails()
@@ -174,6 +175,7 @@ func TestRefusalAgainstSetEndLetsOneWin(t *testing.T) {
 			_, err := f.parentDeclare(extraordinary)
 			require.NoError(t, err)
 			decide := func(decision endDecision) func(context.Context) error {
+				decision.permitted = []string{"erika@example.org"}
 				return func(txCtx context.Context) error {
 					_, err := f.notices.decideEnd(txCtx, f.reviewer, f.contract, decision)
 					return err
@@ -260,4 +262,29 @@ func TestEndDecisionStoresTheFullExpandedLetter(t *testing.T) {
 			assert.Equal(t, text, mails[0].ConfirmationText)
 		})
 	}
+}
+
+// Invariant: the notice of a decided end reaches only a guardian whose
+// relationship to the child still grants the enrollment submission. The
+// school revoked the right of the parent the confirmation went to: the
+// decision stands, no mail goes out, and the office sees it. Red without
+// the check in endAddress (the mail goes to the old address).
+func TestDecidedEndTellsNoParentWhoseRightWasRevoked(t *testing.T) {
+	t.Parallel()
+	f := newNoticeFixture(t, "Träger Recht entzogen", noticeToday)
+	_, err := f.parentDeclare(extraordinary)
+	require.NoError(t, err)
+	f.addressees.set("andere.bezugsperson@example.org")
+
+	options, err := f.notices.RejectNoticeReason(f.ctx, f.reviewer, f.contract, calendar.Date(""))
+	require.NoError(t, err)
+	require.NotNil(t, options.Notice)
+	assert.Equal(t, carecontract.EndDecisionReinterpreted, options.Notice.EndDecision, "the decision stands")
+	assert.NotEmpty(t, options.Notice.EndNoticeText, "the notice is kept as decided")
+	assert.False(t, options.Notice.EndNoticeSent, "the office sees that no mail went out")
+	assert.Empty(t, f.endMails(), "no mail to the parent whose right was revoked, nor to another guardian")
+	var sent string
+	require.NoError(t, f.db.NewRaw(`SELECT details->>'notice_sent' FROM care_contract.contract_events WHERE contract_id = ?
+		AND action = 'reject_reason'`, f.contract).Scan(context.Background(), &sent))
+	assert.Equal(t, "false", sent, "the trail records that the parents got no notice")
 }
