@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -214,10 +215,12 @@ export function AdminSessionEditModal({
       <div className="space-y-4 text-sm">
         <FormErrorAlert message={formErrors.error} />
         {mode === "edit" && session?.auto_checked_out && (
-          <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
-            Diese Sitzung wurde automatisch zum geplanten Dienstende
-            ausgestempelt. Bitte die tatsächliche Endzeit prüfen.
-          </p>
+          <Alert
+            type="warning"
+            size="compact"
+            announce="off"
+            message="Diese Sitzung wurde automatisch zum geplanten Dienstende ausgestempelt. Bitte die tatsächliche Endzeit prüfen."
+          />
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field

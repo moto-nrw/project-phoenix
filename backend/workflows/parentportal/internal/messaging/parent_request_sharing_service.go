@@ -96,7 +96,7 @@ func (s *Service) changeRequestSharing(
 	if !s.requestSharingConfigured() {
 		return nil, errors.New("parent: request sharing service is not configured")
 	}
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
+	child, err := s.resolveRequestSharingChild(ctx, accountID, studentID, requestType, write)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +110,41 @@ func (s *Service) changeRequestSharing(
 		return nil, fmt.Errorf("parent: change request sharing: %w", err)
 	}
 	return state, nil
+}
+
+// resolveRequestSharingChild resolves the child for a sharing read or change.
+// Reading who sees a request needs only parent_portal.access. Changing it is
+// an edit of the open request, so it needs the permission that submitting the
+// request needs: a guardian whose submit permission the school withdrew can no
+// longer widen or narrow who sees the request.
+func (s *Service) resolveRequestSharingChild(
+	ctx context.Context, accountID, studentID int64, requestType string, write bool,
+) (*Child, error) {
+	if !write {
+		return s.resolveOwnedChild(ctx, accountID, studentID)
+	}
+	permission, ok := requestSubmitPermission(requestType)
+	if !ok {
+		return nil, ErrRequestSharingInvalid
+	}
+	return s.resolvePermittedChild(ctx, accountID, studentID, permission)
+}
+
+// requestSubmitPermission names the permission each shareable request type's
+// submit and edit flows resolve the child with.
+func requestSubmitPermission(requestType string) (string, bool) {
+	switch requestType {
+	case RequestShareMasterData:
+		return care.GuardianPermissionMasterDataRequest, true
+	case RequestShareCareSchedule, RequestShareOffering:
+		return care.GuardianPermissionRequestSubmit, true
+	case RequestSharePickupChange:
+		return care.GuardianPermissionPickupManage, true
+	case RequestShareExcused:
+		return care.GuardianPermissionSickNoteSubmit, true
+	default:
+		return "", false
+	}
 }
 
 func (s *Service) requestSharingConfigured() bool {

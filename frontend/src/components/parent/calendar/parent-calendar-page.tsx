@@ -44,7 +44,8 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Skeleton } from "~/components/ui/skeleton";
+import { CardSkeleton } from "~/components/ui/page-skeletons";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   StatusBadge,
   type StatusBadgeTone,
@@ -311,27 +312,17 @@ export function ParentCalendarPage() {
     (group) => group.length > 0,
   );
 
-  if (loading && events.length === 0) {
-    return (
-      <ParentPage>
+  return (
+    <ParentPage
+      header={
         <ParentPageHeader
           kicker={t("kicker")}
           title={t("title")}
           description={t("description")}
         />
-        <CalendarPageSkeleton />
-      </ParentPage>
-    );
-  }
-
-  return (
-    <ParentPage>
-      <ParentPageHeader
-        kicker={t("kicker")}
-        title={t("title")}
-        description={t("description")}
-      />
-
+      }
+      loading={loading && events.length === 0 && <CalendarPageSkeleton />}
+    >
       {error ? (
         <LoadErrorAlert error={error} />
       ) : (
@@ -344,12 +335,12 @@ export function ParentCalendarPage() {
               onRespond={respond}
             />
           ) : (
-            <section className="moto-content-surface h-full rounded-2xl border p-5 sm:p-6">
+            <SectionCard className="h-full">
               <EmptyState
                 icon={<CalendarDotsIcon className="size-8" />}
                 title={t("empty")}
               />
-            </section>
+            </SectionCard>
           )}
 
           <div className="hidden h-full lg:col-start-2 lg:block">
@@ -383,37 +374,18 @@ export function ParentCalendarPage() {
 
 function CalendarPageSkeleton() {
   return (
-    <>
+    <div className="space-y-5">
       <div
         data-testid="parent-calendar-skeleton"
         className="grid items-stretch gap-5 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]"
-        aria-hidden="true"
       >
-        <section className="moto-content-surface h-full space-y-5 rounded-2xl border p-4">
-          {[2, 1].map((rowCount) => (
-            <div key={rowCount} className="space-y-3">
-              <Skeleton className="h-6 w-32" />
-              {Array.from({ length: rowCount }, (_, index) => (
-                <Skeleton key={index} shape="control" className="h-20 w-full" />
-              ))}
-            </div>
-          ))}
-        </section>
-        <section className="moto-content-surface hidden h-full overflow-hidden rounded-2xl border lg:block">
-          <div className="flex items-center justify-between border-b border-gray-200 p-4">
-            <Skeleton className="size-8" />
-            <Skeleton className="h-5 w-36" />
-            <Skeleton className="size-8" />
-          </div>
-          <div className="grid grid-cols-7 gap-px bg-gray-100 p-px">
-            {Array.from({ length: 42 }, (_, index) => (
-              <Skeleton key={index} shape="none" className="h-24 bg-white" />
-            ))}
-          </div>
-        </section>
+        <CardSkeleton rows={3} />
+        <div className="hidden lg:block">
+          <CardSkeleton rows={6} />
+        </div>
       </div>
-      <ParentSectionSkeleton rows={2} />
-    </>
+      <ParentSectionSkeleton rows={2} announce={false} />
+    </div>
   );
 }
 

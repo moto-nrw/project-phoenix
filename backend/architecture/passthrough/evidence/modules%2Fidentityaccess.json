@@ -1840,20 +1840,6 @@
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/domain/SchoolInvitation.Redeemable",
       "owner": "modules/identityaccess"
-    },
-    {
-      "build": "testhooks",
-      "evidence": "func (a *TokenAuth) CreateJWT(c AppClaims) (string, error) {\n\tc.IssuedAt = time.Now().Unix()\n\tc.ExpiresAt = time.Now().Add(a.JwtExpiry).Unix()\n\tclaims, err := ParseStructToMap(c)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\t_, tokenString, err := a.JwtAuth.Encode(claims)\n\treturn tokenString, err\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/sessiontoken/TokenAuth.CreateJWT",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "testhooks",
-      "evidence": "func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {\n\tc.IssuedAt = time.Now().Unix()\n\tif c.ExpiresAt \u003c= 0 {\n\t\tc.ExpiresAt = time.Now().Add(a.JwtRefreshExpiry).Unix()\n\t}\n\tclaims, err := ParseStructToMap(c)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\t_, tokenString, err := a.JwtAuth.Encode(claims)\n\treturn tokenString, err\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/sessiontoken/TokenAuth.CreateRefreshJWT",
-      "owner": "modules/identityaccess"
     }
   ]
 }

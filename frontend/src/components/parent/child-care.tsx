@@ -74,6 +74,7 @@ import {
 } from "~/components/parent/pickup-permission-fields";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -882,66 +883,55 @@ export function SickNoteModal({
       ) : (
         <div className="space-y-4">
           <p className="text-sm leading-6 text-gray-700">{t("sick.intro")}</p>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              {t("sick.kindLabel")}
-            </span>
-            <CustomSelect
-              value={status}
-              ariaLabel={t("sick.kindLabel")}
-              onChange={(value) => {
-                setStatus(value as StudentStatusKind);
-                form.clear();
-              }}
-              options={[
-                ...(sickEnabled
-                  ? [{ value: "sick", label: t("sick.kindSick") }]
-                  : []),
-                ...(excusedEnabled
-                  ? [{ value: "excused", label: t("sick.kindExcused") }]
-                  : []),
-              ]}
-            />
-          </label>
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-5 text-gray-600">
+          <CustomSelect
+            label={t("sick.kindLabel")}
+            value={status}
+            onChange={(value) => {
+              setStatus(value as StudentStatusKind);
+              form.clear();
+            }}
+            options={[
+              ...(sickEnabled
+                ? [{ value: "sick", label: t("sick.kindSick") }]
+                : []),
+              ...(excusedEnabled
+                ? [{ value: "excused", label: t("sick.kindExcused") }]
+                : []),
+            ]}
+          />
+          <InsetPanel as="p" framed className="text-sm leading-5 text-gray-600">
             {t(kindHint)}
-          </p>
+          </InsetPanel>
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-gray-700">
               {t("sick.periodLabel")}
             </legend>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700">
-                  {t("sick.from")}
-                </span>
-                <ISODatePicker
-                  {...datePicker}
-                  ariaLabel={t("sick.from")}
-                  value={from}
-                  min={initial}
-                  onChange={(next) => {
-                    setFrom(next);
-                    if (next > to) setTo(next);
-                  }}
-                  calendarLayout="popover"
-                  hideClearButton
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700">
-                  {t("sick.to")}
-                </span>
-                <ISODatePicker
-                  {...datePicker}
-                  ariaLabel={t("sick.to")}
-                  value={to}
-                  min={from}
-                  onChange={setTo}
-                  calendarLayout="popover"
-                  hideClearButton
-                />
-              </label>
+              <ISODatePicker
+                {...datePicker}
+                id={`${errorId}-from`}
+                label={t("sick.from")}
+                ariaLabel={t("sick.from")}
+                value={from}
+                min={initial}
+                onChange={(next) => {
+                  setFrom(next);
+                  if (next > to) setTo(next);
+                }}
+                calendarLayout="popover"
+                hideClearButton
+              />
+              <ISODatePicker
+                {...datePicker}
+                id={`${errorId}-to`}
+                label={t("sick.to")}
+                ariaLabel={t("sick.to")}
+                value={to}
+                min={from}
+                onChange={setTo}
+                calendarLayout="popover"
+                hideClearButton
+              />
             </div>
           </fieldset>
           <p className="text-sm text-gray-600">{dayCopy}</p>
@@ -1498,25 +1488,22 @@ export function PickupTimeModal({
           {t(departureModeEnabled ? "pickup.introWithMode" : "pickup.intro")}
         </p>
         {(!careExceptionsLoaded || !pickupChangeRequestsLoaded) && (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t("pickup.loadError")}
-          </p>
+          </InsetPanel>
         )}
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700">
-            {t("pickup.dateLabel")}
-          </span>
-          <ISODatePicker
-            {...datePicker}
-            ariaLabel={t("pickup.dateLabel")}
-            value={date}
-            min={today}
-            max={maxSelectable}
-            onChange={setDate}
-            calendarLayout="popover"
-            hideClearButton
-          />
-        </label>
+        <ISODatePicker
+          {...datePicker}
+          id={`${errorId}-date`}
+          label={t("pickup.dateLabel")}
+          ariaLabel={t("pickup.dateLabel")}
+          value={date}
+          min={today}
+          max={maxSelectable}
+          onChange={setDate}
+          calendarLayout="popover"
+          hideClearButton
+        />
 
         {/* Der Hinweis nennt eine noch offene Möglichkeit; nach der Frist
             würde er an einem anderen Tag falsch klingen. */}
@@ -1526,14 +1513,16 @@ export function PickupTimeModal({
           </p>
         )}
         {todayLocked && (
-          <p
+          <InsetPanel
+            as="p"
             role="status"
-            className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+            framed
+            className="text-sm text-gray-600"
           >
             {cutoffTime
               ? t("pickup.cutoffClosed", { time: cutoffTime })
               : t("pickup.cutoffClosedGeneric")}
-          </p>
+          </InsetPanel>
         )}
 
         {pending && (
@@ -1595,7 +1584,7 @@ export function PickupTimeModal({
           </div>
         )}
         {request?.status === "approved" && (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t(
               request.departure_mode
                 ? "pickup.statusApprovedChange"
@@ -1604,7 +1593,7 @@ export function PickupTimeModal({
             {request.pickup_person
               ? ` ${tPermission("pickupPerson.label")} ${request.pickup_person}`
               : ""}
-          </p>
+          </InsetPanel>
         )}
         {studentId && request?.signed && request.is_self !== false && (
           <PickupProofButton
@@ -1625,84 +1614,65 @@ export function PickupTimeModal({
 
         {(pending && !editing) || todayLocked ? null : alreadyHome &&
           childFirstName ? (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t("pickup.alreadyHome", { name: childFirstName })}
-          </p>
+          </InsetPanel>
         ) : staffOwned ? (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t("pickup.staffSet", {
               pickup: existing?.pickup_time ?? "–",
             })}
-          </p>
+          </InsetPanel>
         ) : (
           <div className="space-y-4">
             {modeField && (
-              <div className="block">
-                <span
-                  id={`${errorId}-mode`}
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  {t("pickup.modeLabel")}
-                </span>
-                <CustomSelect
-                  value={departureMode}
-                  options={[
-                    { value: "", label: t("pickup.modeUnchanged") },
-                    ...REQUESTABLE_DAY_DEPARTURE_MODES.map((mode) => ({
-                      value: mode,
-                      label: modeLabel(mode),
-                    })),
-                  ]}
-                  onChange={(next) => {
-                    setDepartureMode(next as DayDepartureMode | "");
-                    setSignature(null);
-                    if (next !== "" && next !== "pickup") setPickupPersonId("");
-                    if (invalidField === "pickupTime") {
-                      setInvalidField(null);
-                      form.clear();
-                    }
-                  }}
-                  ariaLabelledBy={`${errorId}-mode`}
-                />
-              </div>
+              <CustomSelect
+                label={t("pickup.modeLabel")}
+                value={departureMode}
+                options={[
+                  { value: "", label: t("pickup.modeUnchanged") },
+                  ...REQUESTABLE_DAY_DEPARTURE_MODES.map((mode) => ({
+                    value: mode,
+                    label: modeLabel(mode),
+                  })),
+                ]}
+                onChange={(next) => {
+                  setDepartureMode(next as DayDepartureMode | "");
+                  setSignature(null);
+                  if (next !== "" && next !== "pickup") setPickupPersonId("");
+                  if (invalidField === "pickupTime") {
+                    setInvalidField(null);
+                    form.clear();
+                  }
+                }}
+              />
             )}
             {departureModeEnabled && staffMode && (
-              <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+              <InsetPanel as="p" framed className="text-sm text-gray-600">
                 {t("pickup.modeStaffSet", { mode: modeLabel(staffMode) })}
-              </p>
+              </InsetPanel>
             )}
             {personField && (
-              <div className="block">
-                <span
-                  id={`${errorId}-person`}
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  {tPermission("pickupPerson.label")}
-                </span>
-                <CustomSelect
-                  value={pickupPersonId}
-                  options={[
-                    { value: "", label: tPermission("pickupPerson.none") },
-                    ...contacts.map((contact) => ({
-                      value: contact.guardian_profile_id,
-                      label:
-                        `${contact.first_name} ${contact.last_name}`.trim(),
-                    })),
-                  ]}
-                  onChange={(next) => {
-                    setPickupPersonId(next);
-                    setSignature(null);
-                    if (invalidField === "pickupTime") {
-                      setInvalidField(null);
-                      form.clear();
-                    }
-                  }}
-                  ariaLabelledBy={`${errorId}-person`}
-                />
-                <p className="mt-1 text-sm text-gray-500">
-                  {tPermission("pickupPerson.hint")}
-                </p>
-              </div>
+              <CustomSelect
+                label={tPermission("pickupPerson.label")}
+                hint={tPermission("pickupPerson.hint")}
+                value={pickupPersonId}
+                options={[
+                  { value: "", label: tPermission("pickupPerson.none") },
+                  ...contacts.map((contact) => ({
+                    value: contact.guardian_profile_id,
+                    label: `${contact.first_name} ${contact.last_name}`.trim(),
+                  })),
+                ]}
+                onChange={(next) => {
+                  setPickupPersonId(next);
+                  setSignature(null);
+                  if (invalidField === "pickupTime") {
+                    setInvalidField(null);
+                    form.clear();
+                  }
+                }}
+              />
             )}
             <TimeField
               inputRef={pickupTimeRef}

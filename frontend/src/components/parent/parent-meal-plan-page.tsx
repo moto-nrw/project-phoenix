@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useLocale, useTranslations } from "next-intl";
 import { Ban, Check, Minus, Utensils } from "lucide-react";
 import {
@@ -21,7 +22,9 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, SkeletonRows } from "~/components/ui/skeleton";
+import { SkeletonRegion } from "~/components/ui/page-skeletons";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -117,13 +120,7 @@ function DishCard({
   highlight?: boolean;
 }) {
   return (
-    <div
-      className={`rounded-lg px-3 py-2.5 ring-1 ${
-        highlight
-          ? "bg-white shadow-sm ring-gray-200"
-          : "bg-gray-50 ring-gray-100"
-      }`}
-    >
+    <InsetPanel tone={highlight ? "white" : "muted"} framed padding="compact">
       <p className="text-base leading-snug font-medium text-gray-900">
         {entry.dish}
       </p>
@@ -131,87 +128,33 @@ function DishCard({
         <p className="mt-1 text-sm leading-snug text-gray-500">{entry.note}</p>
       ) : null}
       <MealAllergenMarks allergens={entry.allergens} className="mt-1" />
-    </div>
+    </InsetPanel>
   );
 }
 
 function MealPlanWeekSkeleton({ loadingLabel }: { loadingLabel: string }) {
-  const dishWidths = ["w-4/5", "w-3/5", "w-full", "w-4/5", "w-3/4"];
-
   return (
-    <div aria-busy="true" data-testid="meal-plan-week-skeleton">
-      <div role="status" aria-label={loadingLabel} className="sr-only">
-        {loadingLabel}
-      </div>
-
-      <div className="md:hidden" aria-hidden="true">
-        <div className="border-b border-gray-200">
-          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton shape="round" className="h-5 w-12" />
-          </div>
-          <div className="p-3">
-            <div className="rounded-lg bg-gray-50 p-3 ring-1 ring-gray-100">
-              <Skeleton className="h-5 w-3/4" />
-              <Skeleton className="mt-2 h-4 w-1/2" />
-            </div>
-          </div>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {dishWidths.slice(1).map((width, index) => (
-            <div key={index} className="flex gap-3 px-4 py-3">
-              <div className="w-20 shrink-0 space-y-2">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-3 w-10" />
-              </div>
-              <div className="min-w-0 flex-1 space-y-2">
-                <Skeleton className={`h-4 ${width}`} />
-                <Skeleton className="h-3 w-1/2" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="hidden grid-cols-5 md:grid" aria-hidden="true">
-        {dishWidths.map((width, index) => (
-          <div
-            key={index}
-            className="border-r border-gray-200 last:border-r-transparent"
-          >
-            <div className="space-y-2 border-b border-gray-200 px-4 py-3">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-3 w-10" />
-            </div>
-            <div className="min-h-48 p-3">
-              <div className="rounded-lg bg-gray-50 p-3 ring-1 ring-gray-100">
-                <Skeleton className={`h-5 ${width}`} />
-                <Skeleton className="mt-2 h-4 w-2/3" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <SkeletonRegion
+      label={loadingLabel}
+      testId="meal-plan-week-skeleton"
+      className="p-4 sm:p-5"
+    >
+      <SkeletonRows rows={5} />
+    </SkeletonRegion>
   );
 }
 
-function MealPlanLoadingSection({ loadingLabel }: { loadingLabel: string }) {
+function MealParticipationDaysSkeleton({
+  loadingLabel,
+}: Readonly<{ loadingLabel: string }>) {
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border">
-      <div
-        className="flex items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5"
-        aria-hidden="true"
-      >
-        <Skeleton className="size-8" />
-        <div className="min-w-40 space-y-2 py-0.5">
-          <Skeleton className="mx-auto h-4 w-28" />
-          <Skeleton className="mx-auto h-3 w-36" />
-        </div>
-        <Skeleton className="size-8" />
-      </div>
-      <MealPlanWeekSkeleton loadingLabel={loadingLabel} />
-    </section>
+    <SkeletonRegion
+      label={loadingLabel}
+      testId="meal-participation-week-skeleton"
+      className="px-4 py-4 sm:px-5"
+    >
+      <SkeletonRows rows={participationWeekdays.length} />
+    </SkeletonRegion>
   );
 }
 
@@ -335,42 +278,6 @@ function MealParticipationEditActions({
       >
         {t("save")}
       </Button>
-    </div>
-  );
-}
-
-function MealParticipationDaysSkeleton({
-  loadingLabel,
-}: Readonly<{ loadingLabel: string }>) {
-  return (
-    <div
-      aria-busy="true"
-      data-testid="meal-participation-week-skeleton"
-      className="divide-y divide-gray-100"
-    >
-      <div role="status" aria-label={loadingLabel} className="sr-only">
-        {loadingLabel}
-      </div>
-      {participationWeekdays.map((weekday) => (
-        <div
-          key={weekday}
-          className="grid gap-3 px-4 py-4 sm:px-5 md:grid-cols-[minmax(9rem,0.7fr)_minmax(0,1.4fr)_minmax(12rem,0.9fr)] md:items-center"
-          aria-hidden="true"
-        >
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-3 w-16" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-4/5" />
-            <Skeleton className="h-3 w-1/2" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton shape="round" className="h-6 w-36" />
-            <Skeleton className="h-8 w-24" />
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -781,7 +688,7 @@ function ParticipationWeek({
     );
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       <div className="p-4 sm:p-5">
         <h2 className="text-lg font-semibold text-gray-900">
           {t("participationTitle", { name: childName })}
@@ -795,16 +702,11 @@ function ParticipationWeek({
         ) : null}
         {!participation && (loadError || saveError) ? null : loading ||
           !participation ? (
-          <div
-            className="mt-4 rounded-xl bg-gray-50 p-4"
-            aria-label={t("participationLoading")}
-          >
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="mt-2 h-5 w-52 max-w-full" />
-            <Skeleton className="mt-3 h-9 w-24" />
-          </div>
+          <SkeletonRegion label={t("participationLoading")} className="mt-4">
+            <SkeletonRows rows={2} />
+          </SkeletonRegion>
         ) : editingRegularDays ? (
-          <div className="mt-4 rounded-xl bg-gray-50 p-4">
+          <InsetPanel padding="md" className="mt-4">
             <fieldset>
               <legend className="text-sm font-semibold text-gray-900">
                 {t("editRegularDaysTitle")}
@@ -842,7 +744,7 @@ function ParticipationWeek({
                 {t("scheduleLocked")}
               </p>
             ) : null}
-          </div>
+          </InsetPanel>
         ) : (
           <div className="mt-4">
             <ParentSubsection
@@ -1155,62 +1057,70 @@ function ParticipationWeek({
                       <fieldset
                         ref={dayEditorRef}
                         tabIndex={-1}
-                        className="mt-3 rounded-xl bg-gray-50 p-3 ring-1 ring-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
+                        className="mt-3 rounded-xl focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                       >
                         <legend className="sr-only">
                           {t("editDayRegistration", { date: fullDate(date) })}
                         </legend>
-                        <div className="flex flex-wrap gap-2">
-                          {mayChangeTo(day, !displayedParticipation) ||
-                          draftChange !== null ? (
-                            <Button
-                              type="button"
-                              variant={
-                                displayedParticipation
-                                  ? "outline_danger"
-                                  : "success"
-                              }
-                              size="md"
-                              disabled={saving}
-                              onClick={() =>
-                                stageDayChange(day, !displayedParticipation)
-                              }
+                        <InsetPanel framed>
+                          <div className="flex flex-wrap gap-2">
+                            {mayChangeTo(day, !displayedParticipation) ||
+                            draftChange !== null ? (
+                              <Button
+                                type="button"
+                                variant={
+                                  displayedParticipation
+                                    ? "outline_danger"
+                                    : "success"
+                                }
+                                size="md"
+                                disabled={saving}
+                                onClick={() =>
+                                  stageDayChange(day, !displayedParticipation)
+                                }
+                              >
+                                {displayedParticipation
+                                  ? t("unregister")
+                                  : t("register")}
+                              </Button>
+                            ) : null}
+                            {displayedSource === "override" &&
+                            (regularParticipation === day.participating ||
+                              mayChangeTo(day, regularParticipation)) ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="md"
+                                disabled={saving}
+                                onClick={stageDayReset}
+                              >
+                                {t("useRegular")}
+                              </Button>
+                            ) : null}
+                          </div>
+                          {deadlineLines(day).map((line) => (
+                            <p
+                              key={line}
+                              className="mt-2 text-xs text-gray-500"
                             >
-                              {displayedParticipation
-                                ? t("unregister")
-                                : t("register")}
-                            </Button>
-                          ) : null}
-                          {displayedSource === "override" &&
-                          (regularParticipation === day.participating ||
-                            mayChangeTo(day, regularParticipation)) ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="md"
-                              disabled={saving}
-                              onClick={stageDayReset}
-                            >
-                              {t("useRegular")}
-                            </Button>
-                          ) : null}
-                        </div>
-                        {deadlineLines(day).map((line) => (
-                          <p key={line} className="mt-2 text-xs text-gray-500">
-                            {line}
+                              {line}
+                            </p>
+                          ))}
+                          <p className="mt-2 text-xs text-gray-500">
+                            {t("finishEdit")}
                           </p>
-                        ))}
-                        <p className="mt-2 text-xs text-gray-500">
-                          {t("finishEdit")}
-                        </p>
-                        <FormErrorAlert message={saveError} className="mt-2" />
-                        <MealParticipationEditActions
-                          saving={saving}
-                          onCancel={cancelDayEdit}
-                          onSave={() => void saveDayChange()}
-                          align="start"
-                          className="mt-2"
-                        />
+                          <FormErrorAlert
+                            message={saveError}
+                            className="mt-2"
+                          />
+                          <MealParticipationEditActions
+                            saving={saving}
+                            onCancel={cancelDayEdit}
+                            onSave={() => void saveDayChange()}
+                            align="start"
+                            className="mt-2"
+                          />
+                        </InsetPanel>
                       </fieldset>
                     ) : null}
                   </div>
@@ -1234,7 +1144,7 @@ function ParticipationWeek({
             : t("participationSicknessDeadline")}
         </p>
       ) : null}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -1475,47 +1385,57 @@ export function ParentMealPlanPage() {
       : t("subtitleMealsOnly");
 
   return (
-    <ParentPage>
-      <ParentPageHeader
-        kicker={t("kicker")}
-        title={t("title")}
-        description={headerDescription}
-        actions={
-          schools.length > 1 ? (
-            <CustomSelect
-              value={selectedStudent ?? ""}
-              options={schools.map((school) => ({
-                value: school.studentId,
-                label: `${school.childName} · ${school.schoolName}`,
-              }))}
-              onChange={setSelectedStudent}
-              ariaLabel={t("child")}
-              disabled={participationEditing}
-              className="w-full sm:w-60"
-            />
-          ) : undefined
-        }
-      />
-
-      {loadingSchools ? (
-        <MealPlanLoadingSection loadingLabel={t("loading")} />
-      ) : schoolsError ? (
-        <LoadErrorAlert error={schoolsError} />
-      ) : !hasLinkedChildren ? (
-        <EmptyState
-          icon={<Utensils className="h-10 w-10" />}
-          title={t("noLinkedChildrenTitle")}
-          description={t("noLinkedChildren")}
-          className="moto-content-surface rounded-2xl border px-5"
+    <ParentPage
+      header={
+        <ParentPageHeader
+          kicker={t("kicker")}
+          title={t("title")}
+          description={headerDescription}
+          actions={
+            schools.length > 1 ? (
+              <CustomSelect
+                value={selectedStudent ?? ""}
+                options={schools.map((school) => ({
+                  value: school.studentId,
+                  label: `${school.childName} · ${school.schoolName}`,
+                }))}
+                onChange={setSelectedStudent}
+                ariaLabel={t("child")}
+                disabled={participationEditing}
+                className="w-full sm:w-60"
+              />
+            ) : undefined
+          }
         />
-      ) : schools.length === 0 ? (
-        <EmptyState
-          icon={<Utensils className="h-10 w-10" />}
-          title={t("emptyTitle")}
-          description={t("empty")}
-          className="moto-content-surface rounded-2xl border px-5"
-        />
-      ) : selectedSchool?.registrationEnabled ? (
+      }
+      loading={
+        loadingSchools && (
+          <SectionCard>
+            <div data-testid="meal-plan-week-skeleton">
+              <SkeletonRows rows={5} />
+            </div>
+          </SectionCard>
+        )
+      }
+      loadingLabel={t("loading")}
+      error={loadingSchools ? null : schoolsError}
+      empty={
+        !hasLinkedChildren
+          ? {
+              icon: <Utensils className="h-10 w-10" />,
+              title: t("noLinkedChildrenTitle"),
+              description: t("noLinkedChildren"),
+            }
+          : schools.length === 0
+            ? {
+                icon: <Utensils className="h-10 w-10" />,
+                title: t("emptyTitle"),
+                description: t("empty"),
+              }
+            : null
+      }
+    >
+      {selectedSchool?.registrationEnabled ? (
         <ParticipationWeek
           key={selectedSchool.studentId}
           schoolId={selectedSchool.tenantId}

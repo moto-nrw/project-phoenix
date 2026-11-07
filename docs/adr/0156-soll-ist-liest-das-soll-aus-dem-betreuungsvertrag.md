@@ -1,8 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Soll und Ist liest das Soll aus dem Betreuungsvertrag
+
+Freigegeben von Yannick Wenger am 07.11.2026
 
 Vorschlag vom 06.11.2026 zu [#4683](https://github.com/moto-nrw/project-phoenix/issues/4683),
 Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
@@ -99,3 +101,56 @@ User Stories 56, 57 und 118. Er baut auf
   lesen, ist ein eigener Schritt.
 - Eine Toleranz je Träger wäre ein Setting; heute gelten die 15 Minuten von
   ADR 0139.
+
+## Nachtrag 07.11.2026: Ferienbuchung (#5994)
+
+Die Vorrangregel war in #4683 offen. Diese Umsetzung nimmt Option 1 aus
+[#5994](https://github.com/moto-nrw/project-phoenix/issues/5994) an; eine
+andere fachliche Entscheidung ändert diesen Abschnitt und die Tests.
+
+1. **Ferienbuchung vor Vertrag.** An einem Tag mit bestätigter Ferienbuchung
+   ist ihr Zeitmodell das Soll: Ankunft ist sein Beginn, Abholung sein Ende.
+   Vertrag und Betreuungsplan treten an diesem Tag zurück. Es gibt genau ein
+   Soll und einen Vergleich je Kind und Tag; nichts wird addiert. Ein
+   „Kommt heute nicht“ bleibt. Die Quelle heißt `holiday_booking`, die
+   Schule sieht „laut Ferienbuchung“.
+2. **Zuordnung der Feriengäste.** Buchung und Anwesenheit eines Gasts
+   verbindet seine Kopie in der ausrichtenden Schule
+   (`enrollment.holiday_guests`, ADR 0120), gelesen in deren
+   Tenant-Transaktion über `enrollment.HolidayGuestBookedCare`. Gebucht sind
+   die Tage der Woche bis zum Tag vor einer Stornierung.
+3. **Eigene Kinder.** Ein Kind der ausrichtenden Schule selbst wird nicht
+   kopiert. Migration 1.15.796 gibt der Schule die schmale Funktion
+   `enrollment.holiday_host_own_bookings`: die bestätigten Buchungen ihrer
+   eigenen Kinder in den Wochen, die sie ausrichtet, mit Namen,
+   Geburtsdatum, Woche und Zeitmodell; keine Gesundheit, keine Kontakte.
+   Sie antwortet auch nach der Woche, denn der Vergleich schaut zurück;
+   die Anmeldungen gehen 92 Tage nach dem Zeitraum (#4720) und mit ihnen
+   diese Zeilen. Das erweitert ADR 0116 nur um diesen Zweck (Nachtrag
+   vom 07.11.2026, akzeptiert). Das Kind findet
+   Enrollment nach der Regel der Teilnehmerliste (#4722): gleiche Namen
+   (Unicode NFC, ohne Groß- und Kleinschreibung und Leerzeichen am Rand) und
+   gleiches Geburtsdatum, unter den Kindern, die am jeweiligen Ferientag zur
+   Schule gehörten; gelesen in einer Abfrage aus dem People Directory und
+   nur, wenn es eigene Buchungen gibt. Passt die Buchung an einem Tag zu
+   keinem Kind, bleibt das Soll darunter; passt sie zu mehreren, wird keins
+   zugeordnet und der Tag ist für sie nicht verglichen. Die Eindeutigkeit
+   gilt für die ganze Schule, damit Klassen-, Gruppen- und Einzelansicht
+   dasselbe Soll sehen. Ein Zeitmodell aus der Spur einer Umbuchung lässt
+   sich nicht löschen, nur archivieren (Nachtrag zu ADR 0116).
+   Storniert das Träger-Büro eine bestätigte Anmeldung, bleiben die Tage vor
+   der Stornierung gebucht (wie `ended_on` bei Gästen); eine Umbuchung
+   ändert die Buchung erst ab ihrem Tag. Bestätigung, Stornierung und
+   Umbuchung stehen in der Spur der Anmeldung (ADR 0114). Die Zuordnung über
+   Name und Geburtsdatum hat Yannick Wenger am 07.11.2026 freigegeben
+   (#5994): Die Ferienanmeldung hat keine andere Verbindung zum Kind.
+4. **Ohne Buchung.** Ist ein Kind an einem Ferientag da, für den keine
+   Ferienbuchung gilt, entscheidet das Soll darunter; ohne Vertrag und Plan
+   ist der Tag „ohne Buchung“. Ein verpasster Tag einer Ferienbuchung in den
+   Schulferien zählt als „Nicht da“, nicht als geschlossen; Feiertage und
+   Schließtage bleiben geschlossen.
+5. **Abfrage-Budgets.** Gäste und eigene Buchungen kommen in einem
+   Statement je Schule. Dafür liest der Schulkalender Schließtage und
+   Ferienzeiträume jetzt in einer Abfrage (`schoolcalendar.CareCalendarQuery`);
+   die Budgets bleiben gleich. Die Namen und Geburtsdaten liest Enrollment
+   nur, wenn die Schule eigene Buchungen im Zeitraum hat.

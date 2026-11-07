@@ -11,7 +11,7 @@
 //
 // What counts as the path is named by construct, not by a list of
 // tolerated files: PATH_MODULES_RE names the three modules that implement
-// it (form-error-alert, tenant-page, toast), TOAST_PATH_MODULE_RE the toast
+// it (form-error-alert, page-body, toast), TOAST_PATH_MODULE_RE the toast
 // queue in ToastContext, KIT_DIR_RE the UI kit that renders field errors at
 // the control.
 //
@@ -84,7 +84,7 @@
 // The modules that implement the display path. They render the error Alert
 // on behalf of every caller.
 const PATH_MODULES_RE =
-  /(?:^|\/)src\/components\/ui\/(?:form-error-alert|tenant-page|toast)\.tsx$/;
+  /(?:^|\/)src\/components\/ui\/(?:form-error-alert|page-body|toast)\.tsx$/;
 
 const OUT_OF_SCOPE_RE =
   /(?:\.(?:test|spec|stories)\.[cm]?[jt]sx?$)|(?:\.d\.ts$)|(?:\/__tests__\/)|(?:\/src\/test\/)|(?:\/__mocks__\/)/;

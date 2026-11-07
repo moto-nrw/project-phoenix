@@ -26,24 +26,35 @@ import (
 // Nachweise need.
 type QualificationStaffRows interface {
 	ListAllWithPerson(ctx context.Context) ([]*peopleValues.Staff, error)
+	ListMembershipWithPerson(ctx context.Context) ([]*peopleValues.Staff, error)
 	ListStaffWithPermission(ctx context.Context, permissionName string) ([]*peopleValues.StaffWithRoleInfo, error)
 	GetStaffContactInfo(ctx context.Context, staffID int64) (*peopleValues.StaffWithRoleInfo, error)
 }
 
 // NewQualificationStaff binds Workforce's staff port to the staff rows.
-func NewQualificationStaff(rows QualificationStaffRows) workforce.QualificationStaff {
+func NewQualificationStaff(rows QualificationStaffRows, membershipOnly bool) workforce.QualificationStaff {
 	if rows == nil {
 		panic("qualification staff: staff rows are required")
 	}
-	return qualificationStaff{rows: rows}
+	return qualificationStaff{rows: rows, membershipOnly: membershipOnly}
 }
 
-type qualificationStaff struct{ rows QualificationStaffRows }
+type qualificationStaff struct {
+	rows QualificationStaffRows
+	// HTTP subject reads may omit Employment; Worker reminders retain their existing contract.
+	membershipOnly bool
+}
 
 // ListStaffMembers returns the live staff with a person, external caregivers
 // included: § 72a SGB VIII asks for their certificate of conduct as well.
 func (s qualificationStaff) ListStaffMembers(ctx context.Context) ([]workforce.QualificationStaffMember, error) {
-	rows, err := s.rows.ListAllWithPerson(ctx)
+	var rows []*peopleValues.Staff
+	var err error
+	if s.membershipOnly {
+		rows, err = s.rows.ListMembershipWithPerson(ctx)
+	} else {
+		rows, err = s.rows.ListAllWithPerson(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -97,8 +108,8 @@ func BuildQualificationReminders(
 		return nil, errors.New("qualification reminders: notifications, staff, delivery and schools are required")
 	}
 	logger = logger.With("service", "qualification_reminders")
-	return workforceCompose.NewQualifications(db.Pool(), NewQualificationStaff(staff), workforce.QualificationReminderPorts{
-		Staff:       NewQualificationStaff(staff),
+	return workforceCompose.NewQualifications(db.Pool(), NewQualificationStaff(staff, false), workforce.QualificationReminderPorts{
+		Staff:       NewQualificationStaff(staff, false),
 		Notify:      qualificationNotifier(notifications, logger),
 		Mail:        qualificationMailOutbox{outbox: outbox, from: mailFrom, identity: mailIdentity, logger: logger},
 		Schools:     payrollSchools{schools: schools},

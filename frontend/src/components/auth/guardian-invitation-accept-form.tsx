@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyState } from "~/components/ui/empty-state";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirects target tenant root, not a tenant route helper
 import { useRouter } from "next/navigation";
@@ -25,6 +26,7 @@ import {
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
+import { InvitationSummary } from "~/components/auth/invitation-summary";
 
 const logger = createLogger({ component: "GuardianInvitationAccept" });
 
@@ -210,17 +212,11 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
     >
       <FormErrorAlert message={formErrors.error} />
 
-      <section className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm">
-        <p className="font-medium text-gray-700">
-          {t("invitationFor")}{" "}
-          <span className="font-semibold text-gray-900">
-            {guardianFullName || invitation.email}
-          </span>
-        </p>
-        {guardianFullName && (
-          <p className="mt-1 text-gray-500">{invitation.email}</p>
-        )}
-      </section>
+      <InvitationSummary
+        label={t("invitationFor")}
+        name={guardianFullName}
+        email={invitation.email}
+      />
 
       <div>
         <FieldLabel
@@ -272,7 +268,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         />
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <InsetPanel framed>
         <p className="text-xs font-medium text-gray-700">
           {t("requirementsTitle")}
         </p>
@@ -304,7 +300,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             </div>
           ))}
         </div>
-      </div>
+      </InsetPanel>
 
       <Button
         type="submit"

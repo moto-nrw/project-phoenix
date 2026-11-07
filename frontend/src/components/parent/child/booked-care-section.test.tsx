@@ -501,7 +501,7 @@ describe("BookedCareSection", () => {
     renderSection();
 
     const monday = await screen.findByText("Montag");
-    expect(monday.closest("dt")).toHaveClass("flex-col", "items-start");
+    expect(monday.parentElement).toHaveClass("flex-col", "items-start");
     expect(screen.getByText("Hannah geht in die OGS")).toBeInTheDocument();
     expect(screen.getByText("Dienstag")).toBeInTheDocument();
     expect(screen.getByText("Keine Betreuung")).toBeInTheDocument();

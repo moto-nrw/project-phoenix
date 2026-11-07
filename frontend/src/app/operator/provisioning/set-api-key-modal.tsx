@@ -1,5 +1,6 @@
 import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers";
 import { useState, useCallback, useEffect, useRef } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CopyField } from "~/components/ui/copy-field";
 import { Modal } from "~/components/ui/modal";
@@ -143,12 +144,11 @@ export function SetApiKeyModal({
           API-Key für <span className="font-medium">{deviceLabel}</span> ändern.
         </p>
 
-        <div className="border-moto-amber/30 bg-moto-amber-soft rounded-lg border p-3">
-          <p className="text-moto-amber-strong text-sm">
-            Der alte Key wird sofort ungültig. Alle Geräte, die diesen Key
-            nutzen, verlieren den Zugriff.
-          </p>
-        </div>
+        <Alert
+          type="warning"
+          announce="off"
+          message="Der alte Key wird sofort ungültig. Alle Geräte, die diesen Key nutzen, verlieren den Zugriff."
+        />
 
         <p className="text-sm text-gray-600">
           Ein neuer API-Key wird automatisch erstellt und nur einmal angezeigt.

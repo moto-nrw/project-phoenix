@@ -4,11 +4,10 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Anfrage als PDF der Schule. Nur die Person, die unterschrieben hat, bekommt
 // ihn; sonst antwortet das Backend mit 404.
 //
-// Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen. Wie der
-// Nachweis der Einverständnisse: JWT serverseitig setzen, bei 401 einmal
-// erneuern, Body mit Content-Type und Content-Disposition durchreichen.
+// Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen.
 
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { NextResponse } from "next/server";
 import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
 import { withParentAuth } from "~/server/auth/parent-route";
@@ -46,13 +45,9 @@ async function GETHandler(
       cache: "no-store",
     });
 
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedParentAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
-    }
-  }
+  const upstream = await sendWithTokenRefresh(token, makeRequest, () =>
+    uncachedParentAuth(),
+  );
 
   if (!upstream.ok) {
     logger.warn("parent_pickup_proof_pdf_proxy_non_ok", {

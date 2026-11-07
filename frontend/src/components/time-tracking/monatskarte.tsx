@@ -203,7 +203,7 @@ export function Monatskarte({
   return (
     <SectionCard
       title={`Monatskarte ${monthLabel(summary.year, summary.month)}`}
-      titleClassName="text-sm"
+      titleSize="sm"
       headingLevel={3}
       actions={
         <>
@@ -341,25 +341,31 @@ export function Monatskarte({
       </div>
 
       {summary.isClosed && summary.driftMinutes !== 0 && (
-        <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong mt-3 rounded-xl border p-3 text-xs">
-          <p className="font-semibold">
-            Seit dem Abschluss wurden Zeiten in diesem Monat geändert.
-          </p>
-          <p className="mt-1">
-            Neu gerechnet wäre der Übertrag{" "}
-            <span className="font-medium tabular-nums">
-              {formatSignedDuration(summary.closingBalanceMinutes)}
-            </span>{" "}
-            ({formatSignedDuration(summary.driftMinutes)} gegenüber dem
-            abgeschlossenen Stand). Der Übertrag in den Folgemonat bleibt beim
-            eingefrorenen Wert.
-          </p>
-          <p className="mt-1">
-            Zwei Wege zur Korrektur: die Differenz im offenen Monat als Buchung
-            im Stundenkonto erfassen (Übersicht-Tab, empfohlen), oder den Monat
-            wieder öffnen, wenn der Abschluss selbst falsch war.
-          </p>
-        </div>
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-3"
+          title="Seit dem Abschluss wurden Zeiten in diesem Monat geändert."
+          message={
+            <p>
+              Neu gerechnet wäre der Übertrag{" "}
+              <span className="font-medium tabular-nums">
+                {formatSignedDuration(summary.closingBalanceMinutes)}
+              </span>{" "}
+              ({formatSignedDuration(summary.driftMinutes)} gegenüber dem
+              abgeschlossenen Stand). Der Übertrag in den Folgemonat bleibt beim
+              eingefrorenen Wert.
+            </p>
+          }
+          details={
+            <p className="mt-1">
+              Zwei Wege zur Korrektur: die Differenz im offenen Monat als
+              Buchung im Stundenkonto erfassen (Übersicht-Tab, empfohlen), oder
+              den Monat wieder öffnen, wenn der Abschluss selbst falsch war.
+            </p>
+          }
+        />
       )}
 
       {isPreAccountMonth && (

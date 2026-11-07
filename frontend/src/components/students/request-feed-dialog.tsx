@@ -19,6 +19,7 @@ import {
 } from "~/lib/request-feed-api";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import { Alert } from "~/components/ui/alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 /** Objekt der Fehlertexte aus dem Katalog (#2513). */
 const FEED_OBJECT = "das Abo";
@@ -185,7 +186,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
           Sie nur in moto.
         </p>
 
-        <div className="rounded-xl bg-gray-50 p-4">
+        <InsetPanel padding="md">
           <p className="font-semibold text-gray-800">Gut zu wissen</p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-gray-600">
             <li>Das Programm prüft selbst. Hinweise können später ankommen.</li>
@@ -193,7 +194,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
             <li>Namen und andere persönliche Daten stehen nicht im Feed.</li>
             <li>Ein Online-Dienst verarbeitet den Feed außerhalb von moto.</li>
           </ul>
-        </div>
+        </InsetPanel>
 
         {checking ? <p role="status">RSS-Link wird geprüft…</p> : null}
 

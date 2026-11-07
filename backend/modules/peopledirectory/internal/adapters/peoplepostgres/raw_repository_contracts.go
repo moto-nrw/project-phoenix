@@ -46,6 +46,7 @@ type rawStudentRepository interface {
 	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday calendar.Date) (*int64, error)
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 	FindBirthdaysOn(ctx context.Context, days []peopleBirthday.MonthDay) ([]peopleBirthday.BirthdayEntry, error)
+	FindBornOn(ctx context.Context, dates []calendar.Date) ([]directory.StudentBorn, error)
 	ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*models.Student, error)
 	ListClassRoster(ctx context.Context, schoolClass string) ([]*models.Student, error)
 	CountEnrolled(ctx context.Context) (int, error)

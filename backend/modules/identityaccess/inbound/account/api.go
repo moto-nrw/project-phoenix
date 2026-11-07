@@ -19,7 +19,6 @@ const (
 	permUsersManage = "users:manage"
 	permUsersList   = "users:list"
 	permRolesRead   = "roles:read"
-	permUsersUpdate = "users:update"
 	permRolesManage = "roles:manage"
 	pathPermissions = "/permissions"
 )
@@ -331,7 +330,10 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 
 	rs.mountRoleAndPermissionRoutes(r)
 
-	// Role permission assignments
+	// Role permission assignments. This route serves both
+	// /auth/roles/{roleId}/permissions and .../permissions/; chi prefers it
+	// over the /roles/{id} subrouter, so a second GET there would never run
+	// (#5549).
 	r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 		r.With(common.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
 		r.With(common.RequiresPermission(permRolesManage)).Put("/", rs.replaceRolePermissions)
@@ -361,7 +363,6 @@ func (rs *Resource) mountRoleAndPermissionRoutes(r chi.Router) {
 			r.With(common.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
 			r.With(common.RequiresPermission("roles:update")).Put("/", rs.updateRole)
 			r.With(common.RequiresPermission("roles:delete")).Delete("/", rs.deleteRole)
-			r.With(common.RequiresPermission(permRolesRead)).Get(pathPermissions, rs.getRolePermissions)
 		})
 	})
 
@@ -383,7 +384,12 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Account update operations
 	// This single-command handler lets the capability select its unit before
 	// any transaction starts, including cross-school organization updates.
-	r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
+	//
+	// It rewrites the login address and name, so it needs users:manage like
+	// register and link-to-tenant: under users:update, which the "user" role
+	// holds, a Betreuer could move an admin's address to their own mailbox
+	// and take the account over through a password reset.
+	r.With(common.RequiresPermission(permUsersManage)).Put("/", rs.updateAccount)
 	r.Group(rs.mountTransactionalAccountRoutes)
 }
 

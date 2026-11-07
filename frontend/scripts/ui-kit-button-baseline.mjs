@@ -28,6 +28,12 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
+    file: "src/components/ui/switch.tsx",
+    lines: [39],
+    reason: "Switch: der Kit-Baustein für An/Aus (role=switch), kein Knopf",
+  },
+  {
+    rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/FilterPanel.tsx",
     lines: [224],
     reason: "Auswahloptionen eines Filters, kein Knopf",
@@ -59,13 +65,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/guardians/guardian-picker-panel.tsx",
-    lines: [329],
+    lines: [323],
     reason: "Trefferzeile der Erziehungsberechtigten-Suche: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-message-modal.tsx",
-    lines: [379],
+    lines: [380],
     reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
   },
   {
@@ -73,12 +79,6 @@ export const buttonRatchetAllowlist = [
     file: "src/components/messaging/new-team-message-modal.tsx",
     lines: [159],
     reason: "Person in der Empfängerliste wählen: Auswahlzeile",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/announcements/parent-target-picker.tsx",
-    lines: [49],
-    reason: "Zielgruppe ankreuzen (Häkchen-Zeile): Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
@@ -99,41 +99,23 @@ export const buttonRatchetAllowlist = [
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
-    rule: "no-hand-rolled-button",
-    file: "src/components/settings/fields/boolean-field.tsx",
-    lines: [17],
-    reason: "Schalter (role=switch)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3132],
-    reason: "Schalter (role=switch)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/app/operator/provisioning/provisioning-shared.tsx",
-    lines: [218],
-    reason: "Schalter (role=switch)",
-  },
-  {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [827, 860, 960, 1141],
+    lines: [829, 862, 962, 1143],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
   {
     rule: "no-button-override",
     file: "src/components/parent/calendar/parent-calendar-page.tsx",
-    lines: [549, 799],
+    lines: [521, 771],
     reason:
       "Termin-Zeilen und Monats-Chips im Elternkalender, optisch Listeneinträge (#5529: nicht angleichen)",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/active-supervisions/spontaneous-activity-start.tsx",
-    lines: [379],
+    lines: [381],
     reason: "Startkachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
@@ -145,7 +127,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/components/class-day/class-day-overview.tsx",
-    lines: [179],
+    lines: [180],
     reason:
       "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
   },
@@ -175,14 +157,8 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/timetable/event-form/step-termin.tsx",
-    lines: [149],
-    reason: "Typauswahl im Terminformular: Auswahlkachel",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [306],
+    lines: [305],
     reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder
@@ -190,14 +166,8 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [306],
+    lines: [305],
     reason:
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/app/operator/announcements/page.tsx",
-    lines: [696, 841, 929],
-    reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
   },
 ];

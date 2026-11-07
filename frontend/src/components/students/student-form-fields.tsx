@@ -25,9 +25,9 @@ import {
   DEPARTURE_MODE_SHORT_LABELS,
 } from "~/lib/departure-plan";
 import {
-  ParentVisibleBadge,
+  VisibilityBadge,
   ParentVisibilityLegend,
-} from "~/components/ui/parent-visible-badge";
+} from "~/components/ui/visibility-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
@@ -39,6 +39,8 @@ import type {
 } from "~/lib/student-companion-api";
 import { childrenConcept } from "~/lib/concepts/children";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { InfoSection } from "~/components/ui/detail-modal-components";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface SelectOption {
   value: string;
@@ -77,15 +79,16 @@ export function PersonalInfoSection({
   };
 }>) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
-      <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+    <InfoSection
+      title="Persönliche Daten"
+      icon={
         <MotoDuotoneIcon
           icon={childrenConcept.icon}
           tone={childrenConcept.tone}
-          size={18}
+          size={16}
         />
-        Persönliche Daten
-      </h3>
+      }
+    >
       <ParentVisibilityLegend className="mb-3 md:mb-4" />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
         <TextInput
@@ -149,7 +152,7 @@ export function PersonalInfoSection({
           placeholder="Köln"
         />
       </div>
-    </div>
+    </InfoSection>
   );
 }
 
@@ -186,7 +189,7 @@ function TextInput({
           {label}
         </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <Input
@@ -260,7 +263,7 @@ function DateInput({
           {label}
         </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <ISODatePicker
@@ -319,7 +322,7 @@ function TextareaField({
           />
         </svg>
         {label}
-        {parentVisibleHint && <ParentVisibleBadge hint={parentVisibleHint} />}
+        {parentVisibleHint && <VisibilityBadge hint={parentVisibleHint} />}
       </h3>
       <Textarea
         aria-label={label}
@@ -394,15 +397,16 @@ export function PrivacyConsentSection({
 }>) {
   const retentionError = fieldError("data_retention_days");
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
-      <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+    <InfoSection
+      title="Datenschutz"
+      icon={
         <MotoDuotoneIcon
           icon={permissionsConcept.icon}
           tone={permissionsConcept.tone}
-          size={18}
+          size={16}
         />
-        Datenschutz
-      </h3>
+      }
+    >
       <div className="space-y-4">
         <label
           htmlFor="privacy-consent-accepted"
@@ -443,7 +447,7 @@ export function PrivacyConsentSection({
           />
         </div>
       </div>
-    </div>
+    </InfoSection>
   );
 }
 
@@ -515,7 +519,7 @@ export function DepartureSection({
   );
   const companionNoteId = useId();
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
+    <InsetPanel framed padding="md">
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
         <h3 className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
           <Bus
@@ -523,7 +527,7 @@ export function DepartureSection({
             style={{ color: GROUP_ROOM_SHADES.text }}
           />
           Erlaubte Heimwege
-          <ParentVisibleBadge hint={PARENT_VISIBLE_HINTS.departure} />
+          <VisibilityBadge hint={PARENT_VISIBLE_HINTS.departure} />
         </h3>
         {anySelected && (
           <span className="hidden shrink-0 sm:inline-flex">
@@ -656,6 +660,6 @@ export function DepartureSection({
           )}
         </div>
       )}
-    </div>
+    </InsetPanel>
   );
 }

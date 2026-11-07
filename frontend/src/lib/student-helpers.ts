@@ -148,6 +148,9 @@ export interface Student {
   // Privacy consent fields for form handling
   privacy_consent_accepted?: boolean;
   data_retention_days?: number | null;
+  /** Answer of the create only: false when the child was created but the
+   *  consent the form changed could not be saved (#5970). */
+  privacy_consent_saved?: false;
   // Additional fields for access control
   has_full_access?: boolean;
   has_write_access?: boolean;

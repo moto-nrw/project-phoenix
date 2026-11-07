@@ -39,6 +39,7 @@ import {
   type WeekProtocolDay,
   type WeekProtocolNotes,
 } from "~/lib/week-protocols-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Wochenprotokoll (#4769): eine Woche einer Gruppe. Jeder Tag zeigt, was der
 // Abend festgehalten hat. Im Entwurf ergänzt die Gruppenleitung die Tage und
@@ -382,9 +383,13 @@ function DayCard({
         {note === null ? (
           day.note ? (
             <DaySection title="Ergänzung">
-              <p className="rounded-xl bg-gray-50 px-3 py-2 text-sm whitespace-pre-line text-gray-900">
+              <InsetPanel
+                as="p"
+                padding="compact"
+                className="text-sm whitespace-pre-line text-gray-900"
+              >
                 {day.note}
-              </p>
+              </InsetPanel>
             </DaySection>
           ) : null
         ) : (

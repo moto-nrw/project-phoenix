@@ -12,6 +12,8 @@
  * Ablehnen und Widerrufen gehen ohne Unterschrift.
  */
 
+import { DataField, DataGrid } from "~/components/ui/data-field";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
 import { FileText } from "lucide-react";
@@ -412,20 +414,19 @@ export function DeclarationSection({
                     action: t(`done.${pending.action}`),
                   })}
             </p>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-xl bg-gray-50 px-4 py-3 text-sm">
-              <dt className="text-gray-500">{t("confirmChild")}</dt>
-              <dd className="font-semibold text-gray-900">
-                {pending.child.first_name} {pending.child.last_name}
-              </dd>
-              <dt className="text-gray-500">{t("confirmAction")}</dt>
-              <dd className="font-semibold text-gray-900">
-                {t(`done.${pending.action}`)}
-              </dd>
-              <dt className="text-gray-500">{t("confirmVersion")}</dt>
-              <dd className="font-semibold text-gray-900">
-                {t("version", { version: declaration.version.version_no })}
-              </dd>
-            </dl>
+            <InsetPanel padding="md">
+              <DataGrid columns={1}>
+                <DataField inline label={t("confirmChild")}>
+                  {pending.child.first_name} {pending.child.last_name}
+                </DataField>
+                <DataField inline label={t("confirmAction")}>
+                  {t(`done.${pending.action}`)}
+                </DataField>
+                <DataField inline label={t("confirmVersion")}>
+                  {t("version", { version: declaration.version.version_no })}
+                </DataField>
+              </DataGrid>
+            </InsetPanel>
             <p className="text-sm text-gray-600">{t("confirmRecorded")}</p>
             {declarationNeedsSignature(declaration, pending.action) && (
               <SignaturePad
@@ -512,7 +513,7 @@ function DeclarationChildCard({
       )}
 
       {child.my_action && (
-        <div className="mt-3 rounded-xl bg-gray-50 px-4 py-3">
+        <InsetPanel padding="md" className="mt-3">
           <p className="text-sm text-gray-800">
             {child.my_submitted_at
               ? t("myAction", {
@@ -528,7 +529,7 @@ function DeclarationChildCard({
             <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
             {t("proof")}
           </NavigationLink>
-        </div>
+        </InsetPanel>
       )}
 
       {declaration.signers === "all" && child.other_signers.length > 0 && (
@@ -553,7 +554,11 @@ function DeclarationChildCard({
       )}
 
       {settledByOther && (
-        <p className="mt-3 rounded-xl bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-800">
+        <InsetPanel
+          as="p"
+          padding="md"
+          className="mt-3 text-sm leading-6 text-gray-800"
+        >
           {settler?.action
             ? settler.submitted_at
               ? t(`settledOnDate.${settler.action}`, {
@@ -565,7 +570,7 @@ function DeclarationChildCard({
                 })
             : t("settledUnknown", { name: child.first_name })}{" "}
           {t("oneIsEnough")}
-        </p>
+        </InsetPanel>
       )}
 
       {decisions.length > 0 && (

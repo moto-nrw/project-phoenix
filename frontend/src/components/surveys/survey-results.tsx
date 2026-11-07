@@ -22,6 +22,7 @@ import type {
   SurveyScaleSummary,
 } from "~/lib/surveys-api";
 import { sortedSurveyQuestions } from "~/lib/survey-form";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const SCALE_LABEL: Record<number, string> = {
   1: "1 · trifft gar nicht zu",
@@ -175,12 +176,14 @@ function QuestionResultCard({
                 // Freitexte haben bewusst keine ID: nichts soll auf die Person
                 // zurückführen. Die Reihenfolge kommt zufällig vom Backend.
                 // eslint-disable-next-line react/no-array-index-key
-                <li
+                <InsetPanel
+                  as="li"
                   key={index}
-                  className="rounded-lg bg-gray-50 px-3 py-2 text-sm whitespace-pre-line text-gray-800"
+                  padding="compact"
+                  className="text-sm whitespace-pre-line text-gray-800"
                 >
                   {text}
-                </li>
+                </InsetPanel>
               ))}
             </ul>
           ))}

@@ -26,6 +26,7 @@ import {
 } from "~/components/calendar/personal-calendar";
 import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
 import { Button } from "~/components/ui/button";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -44,11 +45,8 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import {
-  ListSkeleton,
-  SkeletonRegion,
-  TableSkeleton,
-} from "~/components/ui/page-skeletons";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   errorAlertActions,
@@ -95,6 +93,7 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { useCalDAVEnabled } from "~/lib/tenant-context";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -1263,10 +1262,7 @@ function StaffCalendarPageInner() {
                         </div>
                         <div className="grid gap-3 lg:grid-cols-2">
                           {targetGroups.map((group) => (
-                            <section
-                              key={group.type}
-                              className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
-                            >
+                            <InsetPanel as="section" key={group.type} framed>
                               <h4 className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
                                 {group.label}
                               </h4>
@@ -1285,16 +1281,18 @@ function StaffCalendarPageInner() {
                                       (!selected && choice.covered);
                                     const checkboxId = `calendar-target-${choice.key.replace(/[^a-z0-9_-]/gi, "-")}`;
                                     return (
-                                      <label
+                                      <ChoiceTile
                                         key={choice.key}
                                         htmlFor={checkboxId}
-                                        className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors ${
-                                          selected
-                                            ? "border-gray-900 bg-white text-gray-950"
-                                            : choice.covered
-                                              ? "bg-moto-green-soft border-gray-200 text-gray-500"
-                                              : "border-transparent bg-white text-gray-700 hover:border-gray-200"
-                                        } ${disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
+                                        selected={selected}
+                                        disabled={disabled}
+                                        className={`gap-2 px-2 py-1.5 font-normal ${
+                                          !selected && choice.covered
+                                            ? "bg-moto-green-soft"
+                                            : selected
+                                              ? ""
+                                              : "border-transparent"
+                                        }`}
                                       >
                                         <Checkbox
                                           id={checkboxId}
@@ -1310,12 +1308,12 @@ function StaffCalendarPageInner() {
                                             bereits enthalten
                                           </span>
                                         ) : null}
-                                      </label>
+                                      </ChoiceTile>
                                     );
                                   })
                                 )}
                               </div>
-                            </section>
+                            </InsetPanel>
                           ))}
                         </div>
                       </div>

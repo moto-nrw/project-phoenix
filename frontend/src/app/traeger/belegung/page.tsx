@@ -2,8 +2,9 @@
 
 // Belegung des Träger-Portals (#4676): wie viele Kinder jede Schule, jede
 // OGS-Gruppe und jede Betreuungsform heute hat, damit das Träger-Büro planen
-// kann. Oben die Summe, darunter drei Reiter: je Schule, je Gruppe und je
-// Betreuungsform. Nur Zahlen und die Namen von Gruppen und Angeboten, keine
+// kann. Oben die Summe und die freien Plätze, darunter drei Reiter: je Schule,
+// je Gruppe und je Betreuungsform. Ein laufendes Angebot steht auch ohne
+// Buchung da, mit allen Plätzen frei (#5977). Nur Zahlen und die Namen von Gruppen und Angeboten, keine
 // Kinder. Der Export enthält dieselben Zahlen als CSV.
 
 import { type MouseEvent, type ReactNode, useMemo, useState } from "react";
@@ -21,6 +22,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { StatCard } from "~/components/ui/stat-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
   formatShare,
@@ -29,10 +31,12 @@ import {
   occupancyCareFormRows,
   occupancyCareFormSums,
   occupancyGroupRows,
+  occupancyPlaces,
   occupancyTotals,
   type OccupancyCareFormRow,
   type OccupancyCareFormSum,
   type OccupancyGroupRow,
+  type OccupancyPlaces,
   type OccupancyTotals,
 } from "~/components/traeger/occupancy-model";
 import { useTraegerOccupancy } from "~/components/traeger/use-traeger-occupancy";
@@ -40,6 +44,7 @@ import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
 import { childrenConcept } from "~/lib/concepts/children";
 import { groupsConcept } from "~/lib/concepts/groups";
+import { utilizationConcept } from "~/lib/concepts/utilization";
 import { formatBerlinTime, formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
@@ -117,6 +122,43 @@ function Figure({ value }: Readonly<{ value: number }>) {
   );
 }
 
+/**
+ * Freie Plätze einer Schule: die Summe über ihre Angebote mit Grenze, dazu
+ * wie viele davon voll sind. Ohne Angebot mit Grenze „–“.
+ */
+function FreePlacesCell({
+  school,
+}: Readonly<{ school: TraegerSchoolOccupancy }>) {
+  const places = occupancyPlaces([school]);
+  if (places.limited === 0) {
+    return (
+      <span className="text-sm text-gray-500">
+        –<span className="sr-only">, kein Angebot mit Platzgrenze</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-2 text-sm tabular-nums">
+      <span>
+        <span className="font-semibold text-gray-900">{places.free}</span>
+        <span className="text-gray-500"> von {places.places}</span>
+      </span>
+      {places.full > 0 ? (
+        <StatusBadge
+          tone="orange"
+          size="xs"
+          label={`${places.full} voll`}
+          title={
+            places.full === 1
+              ? "Bei einem Angebot sind alle Plätze vergeben."
+              : `Bei ${places.full} Angeboten sind alle Plätze vergeben.`
+          }
+        />
+      ) : null}
+    </span>
+  );
+}
+
 function WithoutLabel({ children }: Readonly<{ children: ReactNode }>) {
   return <span className="text-sm text-gray-500 italic">{children}</span>;
 }
@@ -159,6 +201,16 @@ const SCHOOL_COLUMNS: DataTableColumn<TraegerSchoolOccupancy>[] = [
       />
     ),
     sortValue: (school) => school.children - school.withoutCareForm,
+  },
+  {
+    key: "freePlaces",
+    header: "Freie Plätze",
+    align: "right",
+    render: (school) => <FreePlacesCell school={school} />,
+    sortValue: (school) => {
+      const places = occupancyPlaces([school]);
+      return places.limited === 0 ? null : places.free;
+    },
   },
   {
     key: "groupCount",
@@ -251,7 +303,7 @@ const CARE_FORM_COLUMNS: DataTableColumn<OccupancyCareFormRow>[] = [
             booked: row.children,
             capacity: row.form.capacity,
           })}
-          isActive
+          isActive={row.form.active}
           variant="progress"
         />
       ),
@@ -303,12 +355,30 @@ const SUM_COLUMNS: DataTableColumn<OccupancyCareFormSum>[] = [
   },
 ];
 
+/** „In 4 Angeboten mit Platzgrenze. Ein Angebot ist voll.“ */
+function freePlacesHint(places: OccupancyPlaces): string {
+  if (places.limited === 0) return "Kein Angebot hat eine Platzgrenze.";
+  const offers =
+    places.limited === 1
+      ? "In einem Angebot mit Platzgrenze."
+      : `In ${places.limited} Angeboten mit Platzgrenze.`;
+  if (places.full === 0) return offers;
+  return places.full === 1
+    ? `${offers} Ein Angebot ist voll.`
+    : `${offers} ${places.full} Angebote sind voll.`;
+}
+
 function TotalFigures({
   totals,
+  places,
   loading,
-}: Readonly<{ totals: OccupancyTotals; loading: boolean }>) {
+}: Readonly<{
+  totals: OccupancyTotals;
+  places: OccupancyPlaces;
+  loading: boolean;
+}>) {
   return (
-    <div className="grid gap-4 max-sm:gap-3 sm:grid-cols-3">
+    <div className="grid gap-4 max-sm:gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <div>
         <StatCard
           label="Kinder heute"
@@ -356,6 +426,23 @@ function TotalFigures({
         icon={<MotoConceptIcon concept={carePlanConcept} />}
         loading={loading}
         tone="green"
+      />
+      <StatCard
+        label="Freie Plätze"
+        value={
+          loading || places.limited === 0
+            ? "–"
+            : `${places.free} von ${places.places}`
+        }
+        hint={loading ? undefined : freePlacesHint(places)}
+        progressPct={
+          loading || places.places === 0
+            ? undefined
+            : (places.free / places.places) * 100
+        }
+        icon={<MotoConceptIcon concept={utilizationConcept} />}
+        loading={loading}
+        tone={places.limited > 0 && places.free === 0 ? "orange" : "blue"}
       />
     </div>
   );
@@ -436,8 +523,8 @@ function ViewContent({
           stackedOnMobile
           emptyState={emptyRows(
             search,
-            "Heute keine Buchungen",
-            "Kein Kind hat heute ein Betreuungsangebot gebucht.",
+            "Heute läuft kein Betreuungsangebot",
+            "Hier steht jedes Betreuungsangebot, das heute läuft. Auch eins ohne Buchung.",
           )}
         />
       </>
@@ -469,6 +556,7 @@ export default function TraegerOccupancyPage() {
     [allSchools, search],
   );
   const totals = useMemo(() => occupancyTotals(schools), [schools]);
+  const places = useMemo(() => occupancyPlaces(schools), [schools]);
 
   async function exportCsv() {
     setExporting(true);
@@ -497,11 +585,13 @@ export default function TraegerOccupancyPage() {
           Hier sehen Sie, wie viele Kinder Ihre Schulen heute betreuen. Die
           Zahlen stehen je Schule, je OGS-Gruppe und je Betreuungsform. Eine
           Betreuungsform ist ein Betreuungsangebot der Schule, das als Betreuung
-          zählt, zum Beispiel „OGS bis 16 Uhr“. Mittagessen zählt nicht. Gibt es
-          ein Angebot mit gleichem Namen an mehreren Schulen, steht es unter
-          „Betreuungsformen“ auch zusammengezählt. Es zählen dieselben Kinder
-          wie bei der Stichtagszahl. moto zeigt hier keine Namen von Kindern.
-          Mit „Herunterladen“ bekommen Sie alle Zahlen als Tabelle.
+          zählt, zum Beispiel „OGS bis 16 Uhr“. Mittagessen zählt nicht. Jedes
+          Angebot, das heute läuft, steht hier, auch ohne Buchung. Daneben sehen
+          Sie seine freien Plätze. Gibt es ein Angebot mit gleichem Namen an
+          mehreren Schulen, steht es unter „Betreuungsformen“ auch
+          zusammengezählt. Es zählen dieselben Kinder wie bei der Stichtagszahl.
+          moto zeigt hier keine Namen von Kindern. Mit „Herunterladen“ bekommen
+          Sie alle Zahlen als Tabelle.
         </>
       }
       actions={
@@ -557,7 +647,7 @@ export default function TraegerOccupancyPage() {
         label: "Ansicht der Belegung",
       }}
     >
-      <TotalFigures totals={totals} loading={loading} />
+      <TotalFigures totals={totals} places={places} loading={loading} />
       {occupancy ? (
         <ViewContent view={view} schools={schools} search={search} />
       ) : (

@@ -16,6 +16,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -300,9 +301,10 @@ func TestAuthService_EndStaffPreview(t *testing.T) {
 		_, endErr := service.EndStaffPreview(ctx, "not-a-token", "", "")
 		requirePreviewErr(t, endErr, identityaccess.ErrPreviewTokenInvalid)
 
-		regular, mintErr := testpkg.GetTestTokenAuth(t).CreateJWT(sessiontoken.AppClaims{
+		regular, mintErr := tokentest.CreateJWT(testpkg.GetTestTokenAuth(t), sessiontoken.AppClaims{
 			ID: int(admin.ID), Sub: "regular@test.local", TenantID: tenantID,
 		})
+
 		require.NoError(t, mintErr)
 		_, endErr = service.EndStaffPreview(ctx, regular, "", "")
 		requirePreviewErr(t, endErr, identityaccess.ErrPreviewTokenInvalid)

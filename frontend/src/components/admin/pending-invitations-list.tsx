@@ -307,7 +307,7 @@ export function PendingInvitationsList({
   ) {
     return (
       <SectionCard>
-        <Loading fullPage={false} message="Wird geladen…" />
+        <Loading message="Wird geladen…" />
       </SectionCard>
     );
   }

@@ -313,8 +313,19 @@ describe("ParentDocumentsPage", () => {
     };
     mocks.listMyDocuments.mockResolvedValue({
       documents: [
-        { ...contract, replaced: true },
-        { ...contract, id: "75", replaced: false },
+        {
+          ...contract,
+          contract_status: "aktiv",
+          replaced: true,
+          can_end_contract: true,
+        },
+        {
+          ...contract,
+          id: "75",
+          contract_status: "aktiv",
+          replaced: false,
+          can_end_contract: false,
+        },
       ],
       shared: [],
       failedSource: null,
@@ -330,6 +341,14 @@ describe("ParentDocumentsPage", () => {
       screen.getByText(
         "Diese Fassung gilt nicht mehr. Ab 01.03.2027 gilt eine neue Fassung. Sie enthält Ihre bestätigten Änderungen. Die neue Fassung bekommen Sie vom Träger.",
       ),
+    ).toBeInTheDocument();
+    // The button only where the relationship may end the contract (#4682);
+    // the other contract says why it has none.
+    expect(
+      screen.getAllByRole("link", { name: "Verträge hier kündigen" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByText(deMessages.parentDocuments.cancelNotPermitted),
     ).toBeInTheDocument();
     // Only the replaced version carries the mark.
     expect(screen.getAllByText("Ersetzt")).toHaveLength(1);

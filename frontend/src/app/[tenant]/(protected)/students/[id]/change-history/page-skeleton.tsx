@@ -3,9 +3,9 @@
 import { StudentHistoryLoadingBack } from "../student-history-loading-back";
 import {
   SkeletonRegion,
-  TableSkeleton,
   TenantPageHeaderSkeleton,
 } from "~/components/ui/page-skeletons";
+import { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
 
 export function ChangeHistorySkeleton() {
   return (

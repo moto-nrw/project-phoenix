@@ -1,6 +1,7 @@
 "use client";
 
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 import {
   useCallback,
@@ -23,7 +24,8 @@ import {
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, SkeletonRows } from "~/components/ui/skeleton";
+import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
@@ -473,7 +475,12 @@ export function OgsConversation({
       ref={containerRef}
       className="flex min-h-[20rem] w-full flex-col gap-3 overflow-hidden"
     >
-      <section className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border">
+      <SectionCard
+        padding="none"
+        overflow="visible"
+        className="flex min-h-0 flex-1 flex-col"
+        bodyClassName="flex min-h-0 flex-1 flex-col"
+      >
         <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
           {showBack ? <BackBar /> : null}
           {loading ? (
@@ -556,7 +563,7 @@ export function OgsConversation({
               error state when there is nothing to show. Otherwise a flaky
               refetch would wipe a visible conversation. */}
           {loading ? (
-            <ThreadSkeleton />
+            <SkeletonRows rows={3} />
           ) : messages.length > 0 ? (
             messages.map((message, index) => {
               const eventI18n =
@@ -693,15 +700,28 @@ export function OgsConversation({
               Without the conversation nobody knows who would read a message
               (#5200): no composer then; a failed load above offers the retry. */}
           {care.loading || (loading && !thread) ? (
-            <ConversationComposerSkeleton />
+            <div
+              data-testid="parent-conversation-composer-skeleton"
+              aria-hidden="true"
+            >
+              <Skeleton shape="control" className="h-16 w-full" />
+            </div>
           ) : !care.features.notes_enabled ? (
-            <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
+            <InsetPanel
+              as="p"
+              padding="md"
+              className="text-[15px] text-gray-600"
+            >
               {tm("writingDisabled")}
-            </p>
+            </InsetPanel>
           ) : !thread ? null : leadershipClosed ? (
-            <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
+            <InsetPanel
+              as="p"
+              padding="md"
+              className="text-[15px] text-gray-600"
+            >
               {leadershipClosedText}
-            </p>
+            </InsetPanel>
           ) : (
             <>
               {/* Wer mitliest, steht auch direkt am Schreibfeld: dort fällt
@@ -736,7 +756,7 @@ export function OgsConversation({
             </>
           )}
         </div>
-      </section>
+      </SectionCard>
 
       {/* Structured actions use their own status and request flows, so they do
           not create cards in the conversation. The child-care hook updates its
@@ -970,31 +990,6 @@ function EmptyThread({
       {description ? (
         <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
       ) : null}
-    </div>
-  );
-}
-
-function ThreadSkeleton() {
-  return (
-    <div className="space-y-3">
-      <Skeleton shape="card" className="h-12 w-2/3 bg-gray-100" />
-      <Skeleton shape="card" className="ml-auto h-12 w-1/2 bg-gray-100" />
-      <Skeleton shape="card" className="h-12 w-3/5 bg-gray-100" />
-    </div>
-  );
-}
-
-function ConversationComposerSkeleton() {
-  return (
-    <div
-      data-testid="parent-conversation-composer-skeleton"
-      className="moto-content-surface rounded-xl border p-3"
-      aria-hidden="true"
-    >
-      <Skeleton shape="control" className="h-16 w-full" />
-      <div className="mt-3 flex justify-end">
-        <Skeleton shape="control" className="h-9 w-24" />
-      </div>
     </div>
   );
 }

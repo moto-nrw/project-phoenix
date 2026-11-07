@@ -21,7 +21,8 @@ import { useModuleBooked } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { StatCard } from "~/components/ui/stat-card";
-import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
+import { SkeletonRegion } from "~/components/ui/page-skeletons";
+import { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
@@ -61,7 +62,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { Switch } from "~/components/ui/switch";
 import {
   formatSignedDuration,
   TargetOriginChip,
@@ -154,6 +155,7 @@ import { createLogger } from "~/lib/logger";
 import { errorStatus } from "~/lib/expected-failure";
 import { IconTile } from "~/components/ui/icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
@@ -2686,7 +2688,12 @@ function EditSessionModal({
                   {/* Felder zur Einordnung im Formular-Slide-over, kein
                       Detailbaum: nur DataField, kein DataGrid
                       (bauart/one-detail-per-type, #3115). */}
-                  <dl className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2">
+                  <InsetPanel
+                    as="dl"
+                    framed
+                    padding="md"
+                    className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                  >
                     <DataField label="Zeitraum">
                       {absence.dateStart} bis {absence.dateEnd}
                     </DataField>
@@ -2698,7 +2705,7 @@ function EditSessionModal({
                         {absence.note}
                       </DataField>
                     )}
-                  </dl>
+                  </InsetPanel>
                 </div>
               ) : (
                 <>
@@ -2757,10 +2764,10 @@ function EditSessionModal({
 
                   {/* Half day toggle */}
                   <div className="flex items-center gap-3">
-                    <BooleanField
+                    <Switch
                       ariaLabel="Halber Tag"
-                      value={absHalfDay}
-                      onChange={setAbsHalfDay}
+                      checked={absHalfDay}
+                      onCheckedChange={setAbsHalfDay}
                     />
                     <span className="text-sm font-medium text-gray-700">
                       Halber Tag
@@ -2970,10 +2977,10 @@ function CreateAbsenceModal({
 
         {/* Half day toggle */}
         <div className="flex items-center gap-3">
-          <BooleanField
+          <Switch
             ariaLabel="Halber Tag"
-            value={halfDay}
-            onChange={setHalfDay}
+            checked={halfDay}
+            onCheckedChange={setHalfDay}
           />
           <span className="text-sm font-medium text-gray-700">Halber Tag</span>
         </div>

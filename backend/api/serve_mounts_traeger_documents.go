@@ -56,7 +56,7 @@ func NewTraegerDocumentsHTTP(db transactionruntime.Database, organizations Holid
 		Downloads: traegerDocumentDownloadLedger{command: ledger},
 	})
 	return organizationTenancyTraeger.NewDocumentsResource(documents,
-		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage)), nil
+		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightDocumentsManage)), nil
 }
 
 // NewSchoolTraegerDocumentsHTTP binds the school's read of the documents

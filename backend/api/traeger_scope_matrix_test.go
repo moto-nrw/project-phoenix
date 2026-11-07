@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -24,7 +25,7 @@ func checkTraegerScopeMatrix(t *testing.T, apiInstance *goldenRuntime) {
 	tokenAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
 	mint := func(claims sessiontoken.AppClaims) string {
-		token, err := tokenAuth.CreateJWT(claims)
+		token, err := tokentest.CreateJWT(tokenAuth, claims)
 		require.NoError(t, err)
 		return token
 	}
@@ -32,6 +33,7 @@ func checkTraegerScopeMatrix(t *testing.T, apiInstance *goldenRuntime) {
 	// wildcard. The scope alone must keep every foreign door shut.
 	everyRight := append(identityaccess.TraegerRights([]string{
 		identityaccess.TraegerRoleAdministration, identityaccess.TraegerRoleBilling, identityaccess.TraegerRolePersonnel,
+		identityaccess.TraegerRoleDocuments,
 	}), "admin:*")
 	traegerToken := mint(sessiontoken.AppClaims{ID: 42, Sub: "buero@example.test", Roles: []string{identityaccess.TraegerRoleAdministration},
 		Permissions: everyRight, IsAdmin: true, Scope: tenant.ScopeOrg, OrgID: 1})

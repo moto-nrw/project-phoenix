@@ -64,6 +64,12 @@ type BillingDocument struct {
 	// Replaced marks a sent contract version that a change on its own first
 	// day replaced (#4681); it holds on no day.
 	Replaced bool
+	// EndsOn is the last day of a terminated contract (#4682). CanEndContract
+	// tells that the contract is active and the account's relationship to
+	// its child grants parent_portal.enrollment.submit, the right a
+	// declaration needs; the inbox offers „Verträge hier kündigen“ only then.
+	EndsOn         *calendar.Date
+	CanEndContract bool
 }
 
 // BillingDocumentFile is the PDF of one document.

@@ -8,33 +8,14 @@ import {
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
-  createTokenExpiredResponse,
   createUnauthorizedResponse,
 } from "./route-wrapper-utils.server";
-import { isApiResponseError } from "./api-response-error.server";
+import { executeWithTokenRefresh } from "./token-refresh-retry.server";
 
 export { isStringParam } from "./route-wrapper-utils.server";
 
-/**
- * Repeats a request with a refreshed token. Null means no new token; the
- * result is boxed because a handler may itself answer null (a DELETE's 204).
- */
-async function tryRetryWithRefreshedToken<T>(
-  originalToken: string,
-  retryFn: (token: string) => Promise<T>,
-): Promise<{ data: T } | null> {
-  const updatedSession = await uncachedAuth();
-
-  // Only retry if token was actually refreshed
-  if (
-    !updatedSession?.user?.token ||
-    updatedSession.user.token === originalToken
-  ) {
-    return null;
-  }
-
-  return { data: await retryFn(updatedSession.user.token) };
-}
+// Read on a retry only: route tests mock ~/server/auth without it.
+const readFreshTenantSession = () => uncachedAuth();
 
 /**
  * Handles GET response formatting, including special case for rooms endpoint
@@ -99,40 +80,6 @@ type ResponseFormatter<T> = (
 ) => ApiNextResponse<T>;
 
 /**
- * Executes handler with retry logic on 401 errors
- */
-async function executeWithRetry<T>(
-  request: NextRequest,
-  token: string,
-  executeHandler: (token: string) => Promise<T>,
-  formatResponse: (data: T) => ApiNextResponse<T>,
-): Promise<ApiNextResponse<T>> {
-  try {
-    const data = await executeHandler(token);
-    return formatResponse(data);
-  } catch (handlerError) {
-    if (!isApiResponseError(handlerError, 401)) {
-      throw handlerError;
-    }
-
-    try {
-      const retried = await tryRetryWithRefreshedToken(token, executeHandler);
-      if (retried !== null) {
-        return formatResponse(retried.data);
-      }
-    } catch (retryError) {
-      // A backend answer other than 401 is the real result (403, 404, ...);
-      // only a failed authentication means the session has expired.
-      if (isApiResponseError(retryError) && retryError.status !== 401) {
-        throw retryError;
-      }
-    }
-
-    return createTokenExpiredResponse(request);
-  }
-}
-
-/**
  * Base route handler for requests without body (GET, DELETE)
  */
 function createNoBodyHandler<T>(
@@ -151,11 +98,12 @@ function createNoBodyHandler<T>(
       const executeHandler = (token: string) =>
         handler(request, token, safeParams);
 
-      return await executeWithRetry(
+      return await executeWithTokenRefresh(
         request,
         session.user.token,
         executeHandler,
         (data) => formatResponse(data, request),
+        readFreshTenantSession,
       );
     } catch (error) {
       return handleApiError(error, request);
@@ -195,11 +143,12 @@ function createWithBodyHandler<T, B>(
       const executeHandler = (token: string) =>
         handler(request, body, token, safeParams);
 
-      return await executeWithRetry(
+      return await executeWithTokenRefresh(
         request,
         session.user.token,
         executeHandler,
         (data) => formatResponse(data, request),
+        readFreshTenantSession,
       );
     } catch (error) {
       return handleApiError(error, request);

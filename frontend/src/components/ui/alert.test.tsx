@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { LOCATION_COLORS, getLocationBadgeTone } from "~/lib/location-helper";
 import { Alert } from "./alert";
 
 describe("Alert", () => {
@@ -33,6 +34,12 @@ describe("Alert", () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it("renders a numeric message of zero", () => {
+    render(<Alert type="info" message={0} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("0");
+  });
+
   it("renders an optional action next to the message", () => {
     render(
       <Alert
@@ -53,6 +60,20 @@ describe("Alert", () => {
     const alert = screen.getByText("Warning message").parentElement;
     expect(alert?.className).toContain("bg-moto-orange-soft");
     expect(alert?.className).toContain("flex-wrap");
+  });
+
+  it("wraps complex actions in a block container", () => {
+    render(
+      <Alert
+        type="success"
+        message="Link wurde erstellt."
+        action={<div data-testid="complex-action">Aktion</div>}
+      />,
+    );
+
+    expect(screen.getByTestId("complex-action").parentElement?.tagName).toBe(
+      "DIV",
+    );
   });
 
   it("stays a single row without an action", () => {
@@ -119,5 +140,89 @@ describe("Alert", () => {
 
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
+  });
+
+  describe("Hinweis-Optionen (#5591)", () => {
+    it("closes through a labelled close button", () => {
+      const onDismiss = vi.fn();
+      render(
+        <Alert
+          type="warning"
+          message="Schulhof hat keine Aufsicht"
+          onDismiss={onDismiss}
+          dismissLabel="Hinweis zum Schulhof schließen"
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Hinweis zum Schulhof schließen" }),
+      );
+
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows no close button without onDismiss", () => {
+      render(<Alert type="info" message="Nur ein Hinweis" />);
+
+      expect(screen.getByRole("status")).toHaveTextContent("Nur ein Hinweis");
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("renders a custom icon instead of the type icon", () => {
+      render(
+        <Alert
+          type="info"
+          message="Von den Eltern gesetzt"
+          icon={<svg data-testid="concept-icon" />}
+        />,
+      );
+
+      const alert = screen.getByRole("status");
+      expect(screen.getByTestId("concept-icon")).toBeInTheDocument();
+      expect(alert.querySelectorAll("svg")).toHaveLength(1);
+    });
+
+    it("renders rich message content such as a list", () => {
+      render(
+        <Alert
+          type="warning"
+          announce="off"
+          message={
+            <ul>
+              <li>Erster Hinweis</li>
+              <li>Zweiter Hinweis</li>
+            </ul>
+          }
+        />,
+      );
+
+      expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    });
+
+    it("tints surface and text from a location colour", () => {
+      render(
+        <Alert
+          type="info"
+          message="Kommt heute nicht"
+          color={LOCATION_COLORS.NOT_ARRIVAL}
+        />,
+      );
+
+      const tone = getLocationBadgeTone(LOCATION_COLORS.NOT_ARRIVAL);
+      const alert = screen.getByRole("status");
+      expect(alert).toHaveStyle({
+        backgroundColor: tone.backgroundColor,
+        color: tone.textColor,
+      });
+      expect(alert.className).not.toContain("bg-moto-blue-soft");
+    });
+
+    it("keeps the message readable in the compact size", () => {
+      render(
+        <Alert type="warning" size="compact" message="Kurzer Feldhinweis" />,
+      );
+
+      expect(screen.getByRole("alert")).toHaveTextContent("Kurzer Feldhinweis");
+    });
   });
 });

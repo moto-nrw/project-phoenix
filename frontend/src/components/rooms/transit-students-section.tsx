@@ -4,7 +4,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { me as meKeys } from "~/lib/swr/me";
 import { rooms as roomsKeys } from "~/lib/swr/rooms";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
@@ -40,8 +40,9 @@ import {
 import { transitConcept } from "~/lib/concepts/transit";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Loading } from "~/components/ui/loading";
+import { Checkbox } from "~/components/ui/checkbox";
+import { SectionCard } from "~/components/ui/section-card";
 
-const DETAIL_CARD_CLASS = "moto-content-surface rounded-2xl border p-5 sm:p-6";
 const EMPTY_STUDENTS: Student[] = [];
 const EMPTY_ROOMS: Room[] = [];
 
@@ -402,225 +403,215 @@ export function TransitStudentsSection({
   };
 
   return (
-    <section aria-label="Kinder unterwegs" className={DETAIL_CARD_CLASS}>
-      {collapsible ? (
-        <button
-          type="button"
-          onClick={() => setCollapsibleExpanded((current) => !current)}
-          aria-expanded={isExpanded}
-          className="group flex w-full min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-        >
-          <ConceptIconTile
-            concept={transitConcept}
-            size="sm"
-            aria-hidden="true"
-          />
-          <span className="min-w-0 flex-1">
-            <span className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">
+    <section aria-label="Kinder unterwegs">
+      <SectionCard overflow="visible">
+        {collapsible ? (
+          <button
+            type="button"
+            onClick={() => setCollapsibleExpanded((current) => !current)}
+            aria-expanded={isExpanded}
+            className="group flex w-full min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+          >
+            <ConceptIconTile
+              concept={transitConcept}
+              size="sm"
+              aria-hidden="true"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                Kinder unterwegs
+              </span>
+              <span className="block truncate text-sm text-gray-600">
+                <span className="font-medium text-gray-900">{totalCount}</span>{" "}
+                {totalCount === 1 ? "Kind" : "Kinder"} ohne Raum
+              </span>
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 text-gray-400 transition-transform group-hover:text-gray-600 ${
+                isExpanded ? "rotate-180" : ""
+              }`}
+              aria-hidden="true"
+            />
+          </button>
+        ) : (
+          <>
+            <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
               Kinder unterwegs
-            </span>
-            <span className="block truncate text-sm text-gray-600">
-              <span className="font-medium text-gray-900">{totalCount}</span>{" "}
-              {totalCount === 1 ? "Kind" : "Kinder"} ohne Raum
-            </span>
-          </span>
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 text-gray-400 transition-transform group-hover:text-gray-600 ${
-              isExpanded ? "rotate-180" : ""
-            }`}
-            aria-hidden="true"
-          />
-        </button>
-      ) : (
-        <>
-          <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-            Kinder unterwegs
-          </h2>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <p className="text-sm text-gray-600">
-              <span className="font-medium text-gray-900">{totalCount}</span>{" "}
-              {totalCount === 1 ? "Kind" : "Kinder"} ohne Raum
-            </p>
+            </h2>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <p className="text-sm text-gray-600">
+                <span className="font-medium text-gray-900">{totalCount}</span>{" "}
+                {totalCount === 1 ? "Kind" : "Kinder"} ohne Raum
+              </p>
+            </div>
+          </>
+        )}
+
+        {isExpanded && loadError ? (
+          <div className="mt-4">
+            <LoadErrorAlert error={loadError} />
           </div>
-        </>
-      )}
+        ) : null}
 
-      {isExpanded && loadError ? (
-        <div className="mt-4">
-          <LoadErrorAlert error={loadError} />
-        </div>
-      ) : null}
-
-      {isExpanded ? (
-        <>
-          {attendanceWebEnabled ? (
-            <SelectionBar
-              ref={assignBarRef}
-              aria-label="Kinder einem Raum zuweisen"
-              placement="bottom"
-              className="mt-4 mb-4 p-3"
-              count={selectedVisibleCount}
-              label={
-                selectedVisibleCount > 0
-                  ? `${selectedVisibleCount} von ${students.length} ausgewählt`
-                  : "Kinder auswählen"
-              }
-              description="Zielraum wählen und gemeinsam zuweisen"
-              busy={submitting}
-              actions={
-                students.length > 0 ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="compact"
-                    onClick={allSelected ? clearSelection : selectAllVisible}
-                    className="shrink-0"
-                  >
-                    {allSelected ? "Aufheben" : "Alle auswählen"}
-                  </Button>
-                ) : null
-              }
-            >
-              <FormRow>
-                <DatabaseSelect
-                  id="transit-target-room"
-                  name="transit-target-room"
-                  label="Zielraum"
-                  value={targetValue}
-                  onChange={(value) => {
-                    setTargetValue(value);
-                    clearAssignErrors();
-                  }}
-                  disabled={
-                    targetsLoading || targetOptions.length === 0 || submitting
-                  }
-                  placeholder={
-                    targetsLoading
-                      ? "Aktive Räume werden geladen..."
-                      : targetOptions.length === 0
-                        ? "Keine aktiven Räume"
-                        : "Zielraum wählen"
-                  }
-                  options={targetOptions.map((option) => ({
-                    value: option.value,
-                    label: option.label,
-                  }))}
-                />
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  isLoading={submitting}
-                  loadingText="Weise zu..."
-                  onClick={() => void assignSelected()}
-                  disabled={
-                    !targetValue || selectedVisibleCount === 0 || submitting
-                  }
-                  className="w-full sm:w-auto"
-                >
-                  In Raum setzen
-                </Button>
-              </FormRow>
-              <FormErrorAlert message={assignErrors.error} className="mt-2" />
-            </SelectionBar>
-          ) : null}
-
-          <div className="mt-4 flex flex-col gap-2">
-            {studentsLoading && students.length === 0 ? (
-              <Loading fullPage={false} message="Kinder werden geladen …" />
-            ) : studentsError ? null : students.length === 0 ? (
-              <EmptyState
-                variant="dashed"
-                title="Aktuell keine Kinder unterwegs."
-              />
-            ) : (
-              students.map((student) => {
-                const studentId = student.id.toString();
-                const checked = selectedIds.has(studentId);
-                const fullName =
-                  `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
-                  "Kind";
-                return (
-                  <ChoiceTile
-                    as="div"
-                    key={student.id}
-                    selected={checked}
-                    className="gap-2"
-                  >
-                    {attendanceWebEnabled ? (
-                      <button
-                        type="button"
-                        role="checkbox"
-                        aria-checked={checked}
-                        aria-label={`${fullName} auswählen`}
-                        onClick={() => toggleSelected(studentId)}
-                        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
-                      >
-                        <span
-                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-                            checked
-                              ? "border-gray-900 bg-gray-900"
-                              : "border-gray-300 bg-white"
-                          }`}
-                          aria-hidden="true"
-                        >
-                          <Check
-                            className={`h-3.5 w-3.5 text-white transition-opacity ${
-                              checked ? "opacity-100" : "opacity-0"
-                            }`}
-                          />
-                        </span>
-                        <CompactStudentCard
-                          studentId={student.id}
-                          firstName={student.first_name}
-                          lastName={student.second_name}
-                          schoolClass={student.school_class}
-                          groupName={student.group_name ?? undefined}
-                          photoUrl={student.photo_url ?? null}
-                          chrome="plain"
-                        />
-                      </button>
-                    ) : (
-                      <div className="min-w-0 flex-1">
-                        <CompactStudentCard
-                          studentId={student.id}
-                          firstName={student.first_name}
-                          lastName={student.second_name}
-                          schoolClass={student.school_class}
-                          groupName={student.group_name ?? undefined}
-                          photoUrl={student.photo_url ?? null}
-                          chrome="plain"
-                        />
-                      </div>
-                    )}
+        {isExpanded ? (
+          <>
+            {attendanceWebEnabled ? (
+              <SelectionBar
+                ref={assignBarRef}
+                aria-label="Kinder einem Raum zuweisen"
+                placement="bottom"
+                className="mt-4 mb-4 p-3"
+                count={selectedVisibleCount}
+                label={
+                  selectedVisibleCount > 0
+                    ? `${selectedVisibleCount} von ${students.length} ausgewählt`
+                    : "Kinder auswählen"
+                }
+                description="Zielraum wählen und gemeinsam zuweisen"
+                busy={submitting}
+                actions={
+                  students.length > 0 ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="compact"
-                      onClick={() =>
-                        router.push(
-                          `/students/${student.id}?from=${encodeURIComponent(
-                            fromReferrer,
-                          )}`,
-                        )
-                      }
-                      aria-label={`${fullName} Profil öffnen`}
-                      title="Profil öffnen"
+                      onClick={allSelected ? clearSelection : selectAllVisible}
                       className="shrink-0"
                     >
-                      Profil
-                      <ExternalLink
-                        className="h-3.5 w-3.5"
-                        aria-hidden="true"
-                      />
+                      {allSelected ? "Aufheben" : "Alle auswählen"}
                     </Button>
-                  </ChoiceTile>
-                );
-              })
-            )}
-          </div>
-        </>
-      ) : null}
+                  ) : null
+                }
+              >
+                <FormRow>
+                  <DatabaseSelect
+                    id="transit-target-room"
+                    name="transit-target-room"
+                    label="Zielraum"
+                    value={targetValue}
+                    onChange={(value) => {
+                      setTargetValue(value);
+                      clearAssignErrors();
+                    }}
+                    disabled={
+                      targetsLoading || targetOptions.length === 0 || submitting
+                    }
+                    placeholder={
+                      targetsLoading
+                        ? "Aktive Räume werden geladen..."
+                        : targetOptions.length === 0
+                          ? "Keine aktiven Räume"
+                          : "Zielraum wählen"
+                    }
+                    options={targetOptions.map((option) => ({
+                      value: option.value,
+                      label: option.label,
+                    }))}
+                  />
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    isLoading={submitting}
+                    loadingText="Weise zu..."
+                    onClick={() => void assignSelected()}
+                    disabled={
+                      !targetValue || selectedVisibleCount === 0 || submitting
+                    }
+                    className="w-full sm:w-auto"
+                  >
+                    In Raum setzen
+                  </Button>
+                </FormRow>
+                <FormErrorAlert message={assignErrors.error} className="mt-2" />
+              </SelectionBar>
+            ) : null}
+
+            <div className="mt-4 flex flex-col gap-2">
+              {studentsLoading && students.length === 0 ? (
+                <Loading message="Kinder werden geladen …" />
+              ) : studentsError ? null : students.length === 0 ? (
+                <EmptyState
+                  variant="dashed"
+                  title="Aktuell keine Kinder unterwegs."
+                />
+              ) : (
+                students.map((student) => {
+                  const studentId = student.id.toString();
+                  const checked = selectedIds.has(studentId);
+                  const fullName =
+                    `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
+                    "Kind";
+                  return (
+                    <ChoiceTile
+                      as="div"
+                      key={student.id}
+                      selected={checked}
+                      className="gap-2"
+                    >
+                      {attendanceWebEnabled ? (
+                        <label
+                          htmlFor={`transit-select-${studentId}`}
+                          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+                        >
+                          <Checkbox
+                            id={`transit-select-${studentId}`}
+                            checked={checked}
+                            aria-label={`${fullName} auswählen`}
+                            onChange={() => toggleSelected(studentId)}
+                          />
+                          <CompactStudentCard
+                            studentId={student.id}
+                            firstName={student.first_name}
+                            lastName={student.second_name}
+                            schoolClass={student.school_class}
+                            groupName={student.group_name ?? undefined}
+                            photoUrl={student.photo_url ?? null}
+                            chrome="plain"
+                          />
+                        </label>
+                      ) : (
+                        <div className="min-w-0 flex-1">
+                          <CompactStudentCard
+                            studentId={student.id}
+                            firstName={student.first_name}
+                            lastName={student.second_name}
+                            schoolClass={student.school_class}
+                            groupName={student.group_name ?? undefined}
+                            photoUrl={student.photo_url ?? null}
+                            chrome="plain"
+                          />
+                        </div>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="compact"
+                        onClick={() =>
+                          router.push(
+                            `/students/${student.id}?from=${encodeURIComponent(
+                              fromReferrer,
+                            )}`,
+                          )
+                        }
+                        aria-label={`${fullName} Profil öffnen`}
+                        title="Profil öffnen"
+                        className="shrink-0"
+                      >
+                        Profil
+                        <ExternalLink
+                          className="h-3.5 w-3.5"
+                          aria-hidden="true"
+                        />
+                      </Button>
+                    </ChoiceTile>
+                  );
+                })
+              )}
+            </div>
+          </>
+        ) : null}
+      </SectionCard>
     </section>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { ShieldAlert } from "lucide-react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   useCallback,
   useEffect,
@@ -231,40 +232,36 @@ export function AdminEnrollmentDeletionModal({
               ) : null}
 
               {impact.blocking_student_ids.length > 0 ? (
-                <section className="border-moto-red/20 bg-moto-red/10 rounded-xl border p-4">
-                  <div className="flex gap-3">
-                    <ShieldAlert
-                      className="text-moto-red mt-0.5 h-5 w-5 shrink-0"
-                      aria-hidden="true"
-                    />
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900">
-                        Löschung blockiert
-                      </h4>
-                      <p className="mt-1 text-sm text-gray-700">
-                        Mindestens ein angelegtes Kind besteht noch. Löschen Sie
-                        das Kind zuerst über die Kindverwaltung; die Anmeldung
-                        löscht niemals still einen Kind-Datensatz.
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {impact.blocking_student_ids.map((studentId) => (
-                          <NavigationLink
-                            key={studentId}
-                            href={studentHref(studentId)}
-                            className="text-moto-red text-sm font-semibold underline underline-offset-2"
-                          >
-                            Kind #{studentId} öffnen
-                          </NavigationLink>
-                        ))}
-                      </div>
+                <Alert
+                  type="warning"
+                  announce="off"
+                  icon={<ShieldAlert className="h-5 w-5" aria-hidden="true" />}
+                  title="Löschung blockiert"
+                  message="Mindestens ein angelegtes Kind besteht noch. Löschen Sie das Kind zuerst über die Kindverwaltung; die Anmeldung löscht niemals still einen Kind-Datensatz."
+                  details={
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {impact.blocking_student_ids.map((studentId) => (
+                        <NavigationLink
+                          key={studentId}
+                          href={studentHref(studentId)}
+                          className="text-sm font-semibold underline underline-offset-2"
+                        >
+                          Kind #{studentId} öffnen
+                        </NavigationLink>
+                      ))}
                     </div>
-                  </div>
-                </section>
+                  }
+                />
               ) : null}
 
               {impact.preserved_guardian_profiles > 0 ||
               impact.preserved_parent_accounts > 0 ? (
-                <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                <InsetPanel
+                  as="section"
+                  framed
+                  padding="md"
+                  className="text-sm text-gray-700"
+                >
                   <h4 className="font-semibold text-gray-900">
                     Erziehungsberechtigte bleiben erhalten
                   </h4>
@@ -277,7 +274,7 @@ export function AdminEnrollmentDeletionModal({
                     den separaten Löschworkflow in der Kind- bzw.
                     Kontoverwaltung.
                   </p>
-                </section>
+                </InsetPanel>
               ) : null}
 
               {impact.can_delete ? (

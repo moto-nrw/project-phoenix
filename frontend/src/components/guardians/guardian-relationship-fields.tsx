@@ -10,8 +10,9 @@ import {
 import { FieldLabel } from "~/components/ui/field-label";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { ParentVisibleBadge } from "~/components/ui/parent-visible-badge";
+import { VisibilityBadge } from "~/components/ui/visibility-badge";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 // Shared relationship UI used by BOTH the multi-guardian form (create/edit) and
 // the existing-guardian picker (#1513). Extracting these blocks keeps the two
@@ -45,7 +46,7 @@ export function RelationshipTypeSelect({
           Beziehung zum Kind
         </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <CustomSelect
@@ -156,7 +157,7 @@ export function RelationshipPermissionsFields({
             />
           </svg>
           Berechtigungen
-          <ParentVisibleBadge hint={PARENT_VISIBLE_HINTS.guardianPermissions} />
+          <VisibilityBadge hint={PARENT_VISIBLE_HINTS.guardianPermissions} />
         </h3>
         <div className="space-y-2">
           <label
@@ -187,7 +188,12 @@ export function RelationshipPermissionsFields({
       </div>
 
       {/* Emergency Contact */}
-      <div className="border-moto-red/20 bg-moto-red-soft flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-2">
+      <ChoiceTile
+        as="div"
+        tone="red"
+        selected={isEmergencyContact}
+        className="flex-wrap justify-between gap-2 px-4 py-2 font-normal"
+      >
         <label
           htmlFor={`${idPrefix}-emergency`}
           className="group flex cursor-pointer items-center gap-3"
@@ -220,11 +226,11 @@ export function RelationshipPermissionsFields({
         </label>
         {/* This badge sits at the right edge of its row, where a left-aligned
             bubble runs off the modal. Anchor it to the right instead. */}
-        <ParentVisibleBadge
+        <VisibilityBadge
           hint={PARENT_VISIBLE_HINTS.guardianPermissions}
           bubbleClassName="left-auto right-0"
         />
-      </div>
+      </ChoiceTile>
     </>
   );
 }

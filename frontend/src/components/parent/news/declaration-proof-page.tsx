@@ -8,6 +8,9 @@
  * ist. Eine Zustimmung mit Unterschrift (#4785) zeigt das gespeicherte Bild.
  */
 
+import { SectionCard } from "~/components/ui/section-card";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { DataField, DataGrid } from "~/components/ui/data-field";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
 import { Download } from "lucide-react";
@@ -16,15 +19,10 @@ import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { Button } from "~/components/ui/button";
 import { AttachmentList } from "~/components/ui/attachment-list";
-import {
-  ParentPage,
-  ParentPageHeader,
-  ParentPageSkeleton,
-} from "~/components/parent/parent-page";
+import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -115,45 +113,46 @@ export function DeclarationProofPage({
   });
 
   return (
-    <ParentPage>
-      <ParentPageHeader
-        title={t("title")}
-        description={proof ? proof.title : undefined}
-        backHref={parentPath(
-          `/parents/news?brief=${encodeURIComponent(announcementId)}`,
-        )}
-        backLabel={t("back")}
-        actions={
-          proof ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="gap-1.5"
-              onClick={() => void download()}
-              isLoading={downloading}
-              loadingText={t("downloading")}
-              disabled={downloading}
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              {t("download")}
-            </Button>
-          ) : undefined
-        }
-      />
-
+    <ParentPage
+      header={
+        <ParentPageHeader
+          title={t("title")}
+          description={proof ? proof.title : undefined}
+          backHref={parentPath(
+            `/parents/news?brief=${encodeURIComponent(announcementId)}`,
+          )}
+          backLabel={t("back")}
+          actions={
+            proof ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                className="gap-1.5"
+                onClick={() => void download()}
+                isLoading={downloading}
+                loadingText={t("downloading")}
+                disabled={downloading}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                {t("download")}
+              </Button>
+            ) : undefined
+          }
+        />
+      }
+      loading={!proof && !notFound && !loadError}
+      error={loadError}
+    >
       {notFound && <Alert type="info" message={t("notFound")} />}
-      {loadError ? <LoadErrorAlert error={loadError} /> : null}
-      {!proof && !notFound && !loadError && <ParentPageSkeleton rows={2} />}
-
       {proof && (
-        <div className="moto-content-surface rounded-2xl border p-5">
+        <SectionCard>
           <ProofDocument
             announcementId={announcementId}
             proof={proof}
             studentId={studentId}
           />
-        </div>
+        </SectionCard>
       )}
     </ParentPage>
   );
@@ -190,25 +189,18 @@ function ProofDocument({
         ) : null}
       </header>
 
-      <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
-        <dt className="text-gray-600">{t("child")}</dt>
-        <dd className="font-semibold">{proof.child_name}</dd>
-        <dt className="text-gray-600">{t("school")}</dt>
-        <dd>{proof.school_name}</dd>
-        <dt className="text-gray-600">{t("declaration")}</dt>
-        <dd>{proof.title}</dd>
-        <dt className="text-gray-600">{t("method")}</dt>
-        <dd>{proof.method_label}</dd>
-      </dl>
+      <DataGrid>
+        <DataField label={t("child")}>{proof.child_name}</DataField>
+        <DataField label={t("school")}>{proof.school_name}</DataField>
+        <DataField label={t("declaration")}>{proof.title}</DataField>
+        <DataField label={t("method")}>{proof.method_label}</DataField>
+      </DataGrid>
 
       <section className="space-y-3">
         <h3 className="text-lg font-semibold">{t("historyTitle")}</h3>
         <ol className="space-y-3">
           {proof.submissions.map((entry) => (
-            <li
-              key={entry.id}
-              className="rounded-xl bg-gray-50 px-4 py-3 text-sm"
-            >
+            <InsetPanel as="li" padding="md" className="text-sm" key={entry.id}>
               <p className="text-base font-semibold">
                 {t("entry", {
                   action: td(`done.${entry.action}`),
@@ -248,7 +240,7 @@ function ProofDocument({
                   </figcaption>
                 </figure>
               )}
-            </li>
+            </InsetPanel>
           ))}
         </ol>
       </section>

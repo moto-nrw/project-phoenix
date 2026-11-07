@@ -25,10 +25,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { EmptyState } from "~/components/ui/empty-state";
-import {
-  FormErrorAlert,
-  LoadErrorAlert,
-} from "~/components/ui/form-error-alert";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   useApiErrorDisplay,
@@ -192,12 +189,7 @@ export default function ParentConferencePage({
   );
 
   if (loadError) {
-    return (
-      <ParentPage>
-        {header}
-        <LoadErrorAlert error={loadError} />
-      </ParentPage>
-    );
+    return <ParentPage header={header} error={loadError} />;
   }
   if (offers === null) return <ParentPageSkeleton rows={2} />;
 

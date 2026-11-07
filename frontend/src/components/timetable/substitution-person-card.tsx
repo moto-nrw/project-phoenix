@@ -16,6 +16,8 @@ import {
   isEditableAppointment,
   type PersonForm,
 } from "./substitution-deviation-input";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface PersonCardProps {
   row: InstanceStaffSummary;
@@ -155,9 +157,10 @@ function ScopeChoice({
 }: ScopeChoiceProps) {
   const id = `vp-scope-${scope}-${staffId}`;
   return (
-    <label
+    <ChoiceTile
       htmlFor={id}
-      className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white p-3"
+      selected={selected}
+      className="items-start gap-2 p-3 font-normal"
     >
       <Radio
         id={id}
@@ -171,7 +174,7 @@ function ScopeChoice({
         {title}
         <span className="block text-xs text-gray-500">{description}</span>
       </span>
-    </label>
+    </ChoiceTile>
   );
 }
 
@@ -234,7 +237,7 @@ function AppointmentList(props: AppointmentListProps) {
   const { staffId, person, appointments, onUpdate, onToggleAppointment } =
     props;
   return (
-    <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+    <InsetPanel framed className="space-y-2">
       <p className="text-xs font-semibold text-gray-700">Termine auswählen</p>
       <ul className="space-y-2">
         {appointments.map((appointment) => (
@@ -264,7 +267,7 @@ function AppointmentList(props: AppointmentListProps) {
           </span>
         </label>
       )}
-    </div>
+    </InsetPanel>
   );
 }
 

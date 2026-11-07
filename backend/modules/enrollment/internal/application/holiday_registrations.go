@@ -141,10 +141,22 @@ func (h *HolidayRegistrations) HolidayRegistrationOffer(ctx context.Context, lin
 	texts, _ := enrollment.HolidayConsentTextsOf(enrollment.HolidayConsentVersionCurrent)
 	return enrollment.HolidayRegistrationOffer{
 		Name: period.Name, RegistrationOpensOn: period.RegistrationOpensOn, RegistrationClosesOn: period.RegistrationClosesOn,
-		Binding: period.Binding, Notes: period.Notes, Weeks: period.Weeks,
+		Binding: period.Binding, Notes: period.Notes, Weeks: offeredHolidayWeeks(period.Weeks),
 		Open: !today.Before(period.RegistrationOpensOn) && !today.After(period.RegistrationClosesOn), Form: form,
 		ConsentTexts: texts,
 	}, nil
+}
+
+// offeredHolidayWeeks are the weeks with the time models parents can book:
+// an archived time model is no longer offered (#5994).
+func offeredHolidayWeeks(weeks []enrollment.HolidayWeek) []enrollment.HolidayWeek {
+	offered := make([]enrollment.HolidayWeek, len(weeks))
+	for i, week := range weeks {
+		week.TimeModels = slices.DeleteFunc(slices.Clone(week.TimeModels),
+			func(model enrollment.HolidayTimeModel) bool { return model.Archived })
+		offered[i] = week
+	}
+	return offered
 }
 
 func (h *HolidayRegistrations) publishedPeriod(ctx context.Context, link enrollment.HolidayRegistrationLink) (enrollment.HolidayPeriod, error) {
@@ -459,7 +471,7 @@ func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, peri
 // details checks no bookings: only a rebooking changes them (#5629).
 func addHolidayBookingErrors(childErrs validation.Errors, children []enrollment.HolidayChildInput, period enrollment.HolidayPeriod) {
 	for i, child := range children {
-		if bookingErr := validateHolidayBookings(child.Bookings, period); bookingErr != nil {
+		if bookingErr := validateHolidayBookings(child.Bookings, period, nil); bookingErr != nil {
 			nestHolidayChildError(childErrs, i, "bookings", bookingErr)
 		}
 	}
@@ -560,8 +572,10 @@ func validateHolidayChildren(children []enrollment.HolidayChildInput, schools []
 
 // validateHolidayBookings requires at least one week, each week of the
 // period at most once and a time model of that week. A child takes part in
-// only one of the weeks that share a day (#5689).
-func validateHolidayBookings(bookings []enrollment.HolidayBookingInput, period enrollment.HolidayPeriod) error {
+// only one of the weeks that share a day (#5689). An archived time model
+// takes no new booking; a booking of kept, the child's bookings so far, may
+// stay on it (#5994).
+func validateHolidayBookings(bookings []enrollment.HolidayBookingInput, period enrollment.HolidayPeriod, kept []enrollment.HolidayBookingInput) error {
 	if len(bookings) == 0 {
 		return errors.New("at least one week is required")
 	}
@@ -578,8 +592,8 @@ func validateHolidayBookings(bookings []enrollment.HolidayBookingInput, period e
 			errs[fmt.Sprint(i)] = errors.New("the week is not a week of this period")
 		case seen[booking.WeekID]:
 			errs[fmt.Sprint(i)] = errors.New("the week is booked twice")
-		case !holidayWeekOffers(week, booking.TimeModelID):
-			errs[fmt.Sprint(i)] = errors.New("the time model is not a time model of this week")
+		case !holidayWeekOffers(week, booking.TimeModelID, slices.Contains(kept, booking)):
+			errs[fmt.Sprint(i)] = errors.New("the time model is not a bookable time model of this week")
 		case holidayBookingOverlaps(week, bookings[:i], weeks):
 			errs[fmt.Sprint(i)] = errors.New("the week shares a day with another booked week")
 		}
@@ -591,8 +605,10 @@ func validateHolidayBookings(bookings []enrollment.HolidayBookingInput, period e
 	return errs
 }
 
-func holidayWeekOffers(week enrollment.HolidayWeek, timeModelID int64) bool {
-	return slices.ContainsFunc(week.TimeModels, func(model enrollment.HolidayTimeModel) bool { return model.ID == timeModelID })
+func holidayWeekOffers(week enrollment.HolidayWeek, timeModelID int64, kept bool) bool {
+	return slices.ContainsFunc(week.TimeModels, func(model enrollment.HolidayTimeModel) bool {
+		return model.ID == timeModelID && (!model.Archived || kept)
+	})
 }
 
 // holidayBookingOverlaps reports whether week shares a day with a week of the

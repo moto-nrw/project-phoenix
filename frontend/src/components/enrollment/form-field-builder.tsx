@@ -17,6 +17,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Alert } from "~/components/ui/alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   ArrowDown,
   ArrowUp,
@@ -493,17 +495,19 @@ export function FieldEditorRow({
           </div>
 
           {isInfo ? (
-            <div className="border-moto-blue/20 bg-moto-blue/5 rounded-xl border px-3 py-2 text-xs leading-5 text-gray-600">
-              <p className="text-moto-blue-hover font-medium">
-                Wird Eltern als Hinweis angezeigt.
-              </p>
-              <p className="mt-0.5">
-                Ein Infotext sammelt keine Antwort. Nutzen Sie ihn für
-                Erklärungen, Hinweise oder Zwischenüberschriften.
-              </p>
-            </div>
+            <Alert
+              type="info"
+              size="compact"
+              announce="off"
+              title="Wird Eltern als Hinweis angezeigt."
+              message="Ein Infotext sammelt keine Antwort. Nutzen Sie ihn für Erklärungen, Hinweise oder Zwischenüberschriften."
+            />
           ) : isTargetField ? (
-            <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-2 text-xs leading-5 text-gray-600">
+            <InsetPanel
+              framed
+              padding="compact"
+              className="text-xs leading-5 text-gray-600"
+            >
               <p className="font-medium text-gray-800">
                 Wird bei bestätigter Anmeldung in die Stammdaten übernommen.
               </p>
@@ -512,14 +516,18 @@ export function FieldEditorRow({
                 fest vorgegeben. Entfernen Sie den Vorschlag, wenn diese Angabe
                 nicht abgefragt werden soll.
               </p>
-            </div>
+            </InsetPanel>
           ) : (
-            <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-2 text-xs leading-5 text-gray-600">
+            <InsetPanel
+              framed
+              padding="compact"
+              className="text-xs leading-5 text-gray-600"
+            >
               <p className="font-medium text-gray-800">
                 {freeQuestionNote.title}
               </p>
               <p className="mt-0.5">{freeQuestionNote.text}</p>
-            </div>
+            </InsetPanel>
           )}
 
           {isInfo ? (
@@ -1292,30 +1300,26 @@ function PreviewCustomField({
 }: Readonly<{ field: FormField; badge?: ReactNode }>) {
   if (field.type === "information") {
     return (
-      <div className="border-moto-blue/20 bg-moto-blue/5 rounded-lg border px-3 py-2">
-        <div className="flex items-start justify-between gap-3">
-          {field.label.trim() ? (
-            <span className="text-sm font-semibold text-gray-900">
-              {field.label}
-            </span>
+      <Alert
+        type="info"
+        size="compact"
+        announce="off"
+        actionLayout="inline"
+        action={
+          field.visible_when ? <ConditionalBadge field={field} /> : undefined
+        }
+        title={field.label.trim() || "Infotext"}
+        message={
+          field.content?.trim() ? (
+            <p className="leading-5 whitespace-pre-line">{field.content}</p>
           ) : (
-            <span className="text-moto-blue-hover text-xs font-medium">
-              Infotext
-            </span>
-          )}
-          <ConditionalBadge field={field} />
-        </div>
-        {field.content?.trim() ? (
-          <p className="mt-1 text-xs leading-5 whitespace-pre-line text-gray-600">
-            {field.content}
-          </p>
-        ) : (
-          <p className="mt-1 text-xs leading-5 text-gray-400 italic">
-            Noch kein Text hinterlegt.
-          </p>
-        )}
-        <PreviewAttachmentNames attachments={field.attachments} />
-      </div>
+            <p className="leading-5 italic opacity-70">
+              Noch kein Text hinterlegt.
+            </p>
+          )
+        }
+        details={<PreviewAttachmentNames attachments={field.attachments} />}
+      />
     );
   }
 

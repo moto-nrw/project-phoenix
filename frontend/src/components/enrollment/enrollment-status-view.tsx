@@ -1,6 +1,8 @@
 "use client";
 
 import { EmptyState } from "~/components/ui/empty-state";
+import { Alert } from "~/components/ui/alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   useCallback,
   useEffect,
@@ -551,9 +553,7 @@ function EnrollmentStatusContent({
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
       {duplicateWarning ? (
-        <div className="border-moto-orange/30 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-sm leading-6">
-          {t("duplicateWarning")}
-        </div>
+        <Alert type="warning" message={t("duplicateWarning")} />
       ) : null}
       <EnrollmentStatusHero
         // Back to the parents app only for families who can use it: without
@@ -1510,10 +1510,7 @@ function ChangeRequestsPanel({
                 {messages.length > 0 ? (
                   <ol className="mt-4 space-y-2 border-t border-gray-100 pt-3">
                     {messages.map((message) => (
-                      <li
-                        key={message.id}
-                        className="rounded-lg bg-gray-50 px-3 py-2"
-                      >
+                      <InsetPanel as="li" padding="compact" key={message.id}>
                         <p className="text-xs font-semibold text-gray-500">
                           {t(`changeRequestAuthor.${message.author_type}`)} ·{" "}
                           {formatDateTime(message.created_at, locale)}
@@ -1521,7 +1518,7 @@ function ChangeRequestsPanel({
                         <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-gray-700">
                           {message.body}
                         </p>
-                      </li>
+                      </InsetPanel>
                     ))}
                   </ol>
                 ) : null}
@@ -1543,12 +1540,15 @@ function ChangeRequestsPanel({
                 </div>
 
                 {request.admin_decision_note ? (
-                  <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm leading-6 text-gray-700">
+                  <InsetPanel
+                    padding="compact"
+                    className="mt-3 text-sm leading-6 text-gray-700"
+                  >
                     <span className="font-semibold">
                       {t("changeRequestDecisionNote")}{" "}
                     </span>
                     {request.admin_decision_note}
-                  </div>
+                  </InsetPanel>
                 ) : null}
 
                 {request.status === "needs_parent_response" ? (

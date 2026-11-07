@@ -66,7 +66,7 @@
 //                               it (`.catch(() => toast.error(…))`) count.
 //                               Success toasts and toasts outside such
 //                               handlers (delete, toggle, load) pass.
-//                               Hard-zero; parent portal exempt.
+//                               Hard-zero.
 //
 //   bauart/no-manage-surface-in-overlay — the Stammdaten of a school are
 //                               managed on a route of the Datenverwaltung,
@@ -97,7 +97,7 @@
 //                               cannot be confused with a kit call, so the
 //                               check stays a plain element count. Hard-zero
 //                               since #3119 (the #3117 remainder is gone);
-//                               parent portal exempt.
+//                               Hard-zero.
 //
 //   bauart/no-own-skeleton — loading comes from `TenantPage.loading` with
 //                               the kit skeletons (ui/skeleton,
@@ -126,7 +126,7 @@
 //                               and global-error.tsx (no stylesheet at that
 //                               boundary) are exempt by name
 //                               (HEX_TOKEN_SOURCES). Hard-zero since #3119;
-//                               parent portal exempt, src/test/ excluded.
+//                               src/test/ excluded.
 //
 //   bauart/no-disabled-menu-item — an action that does not exist is not in
 //                               the menu (Bauart 2 Regel 7, issue #3118).
@@ -134,7 +134,7 @@
 //                               plus `onClick` or `href`) whose `disabled`
 //                               is the literal `true`; a computed
 //                               `disabled: busy` is a state and passes.
-//                               Hard-zero; parent portal exempt.
+//                               Hard-zero.
 //
 // Files under src/components/ui/ are exempt (ConfirmDeleteModal is itself
 // built on Modal and owns the final destructive button), as are tests and
@@ -142,9 +142,6 @@
 
 const UI_KIT_DIR_RE = /(?:^|\/)src\/components\/ui\//;
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
-// BAUARTEN-SPEC: „Nicht betroffen: Eltern-Portal.“ Schul- und Operator-Portal
-// rendern seit #5604 dasselbe Gerüst und unterliegen denselben Regeln.
-const OTHER_PORTAL_RE = /(?:^|\/)src\/(?:app\/parents|components\/parent)\//;
 
 // Word-bounded for letters including umlauts: JS `\b` only knows ASCII, so
 // „gelöscht“ / „Löschung“ stay out and „Löschen“, „Ja, löschen“,
@@ -313,15 +310,15 @@ const ROW_ACTION_BASELINE = new Map(
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
     // Ziele einer Ankündigung, die es nicht mehr gibt (#5604, Formularwert).
     "src/app/operator/announcements/page.tsx": [
-      "aus Zielen entfernen@764",
-      "aus Zielen entfernen@797",
+      "aus Zielen entfernen@752",
+      "aus Zielen entfernen@785",
     ],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
       "Gericht entfernen@798",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1587",
-      "Entfernen@2029",
+      "Antwort entfernen@1588",
+      "Entfernen@2033",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Bedingung löschen@2007",
@@ -336,11 +333,11 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1310"],
     "src/components/staff/stammdaten-section-forms.tsx": [
-      "Qualifikation entfernen@476",
+      "Qualifikation entfernen@477",
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@298"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@792",
+      "Erziehungsberechtigte/n entfernen@802",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@810",
@@ -480,7 +477,6 @@ const noRowActionButtons = {
   create(context) {
     if (isExempt(context)) return {};
     const key = fileKey(context);
-    if (OTHER_PORTAL_RE.test(key)) return {};
     const tolerated = new Set(ROW_ACTION_BASELINE.get(key) ?? []);
 
     return {
@@ -1170,7 +1166,6 @@ const noToastFormError = {
   },
   create(context) {
     if (isExempt(context)) return {};
-    if (OTHER_PORTAL_RE.test(fileKey(context))) return {};
 
     return {
       CallExpression(node) {
@@ -1328,7 +1323,6 @@ const noManageSurfaceInOverlay = {
   },
   create(context) {
     if (isExempt(context)) return {};
-    if (OTHER_PORTAL_RE.test(fileKey(context))) return {};
     const ownEntries = new Set(
       OWN_OBJECT_ENTRY_EXCEPTIONS.get(fileKey(context)) ?? [],
     );
@@ -1511,7 +1505,6 @@ const oneDetailPerType = {
   },
   create(context) {
     if (isExempt(context)) return {};
-    if (OTHER_PORTAL_RE.test(fileKey(context))) return {};
     const file = fileKey(context);
     const formContext = new Set(FORM_CONTEXT_EXCEPTIONS.get(file) ?? []);
 
@@ -1582,7 +1575,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1491",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1492",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
@@ -1593,13 +1586,13 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Termin bearbeiten Termin erstellen@1065",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@602",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@603",
     ],
     // Seit #5604 gilt die Regel im Schul- und Operator-Portal. Diese Formulare
     // haben keine eigene Objektroute; ein Umbau geht über das Seitengerüst
     // hinaus und ist nicht Teil von #5604.
     "src/app/operator/announcements/page.tsx": [
-      "Ankündigung bearbeiten Neue Ankündigung@532",
+      "Ankündigung bearbeiten Neue Ankündigung@534",
     ],
     "src/app/operator/provisioning/edit-organization-modal.tsx": [
       "Träger bearbeiten@83",
@@ -1614,13 +1607,13 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@268",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@995",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@998",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@951",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@952",
     ],
     "src/components/files/folder-modal.tsx": [
-      "Ordner bearbeiten Neuer Ordner@146",
+      "Ordner bearbeiten Neuer Ordner@147",
     ],
     "src/components/planning/closing-day-modal.tsx": [
       "Schließtag bearbeiten Schließtag anlegen@90",
@@ -1629,14 +1622,14 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Tagesinformation bearbeiten Neue Tagesinformation@188",
     ],
     "src/components/timetable/calendar-period-modal.tsx": [
-      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@404",
+      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@405",
     ],
     // Kontoaktionen mit eigenem Ablauf (Begründung und Rückfrage bei der
     // Zwei-Faktor-Authentifizierung, Auflösen offener Zuordnungen bei der
     // Betreuung): keine Feldgruppe des Datensatzes, aus dem Kebab der
     // Personalakte geöffnet (#3116).
     "src/components/auth/mfa-admin-override-modal.tsx": [
-      "Zwei-Faktor-Authentifizierung verwalten@385",
+      "Zwei-Faktor-Authentifizierung verwalten@386",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
       "resolve Zuordnungen auflösen: Betreuung verwalten:@334",
@@ -1675,7 +1668,6 @@ const noEditOverlay = {
   create(context) {
     if (isExempt(context)) return {};
     const key = fileKey(context);
-    if (OTHER_PORTAL_RE.test(key)) return {};
     const tolerated = new Set(EDIT_OVERLAY_BASELINE.get(key) ?? []);
 
     function report(node, title, messageId) {
@@ -1730,8 +1722,6 @@ const noLocalFieldGrid = {
   },
   create(context) {
     if (isExempt(context)) return {};
-    const key = fileKey(context);
-    if (OTHER_PORTAL_RE.test(key)) return {};
 
     return {
       JSXOpeningElement(node) {
@@ -1800,6 +1790,13 @@ function countSkeletons(node, inLoop = false, seen = new WeakSet()) {
   return count;
 }
 
+// Startseite und Kinderkarte des Elternportals bleiben laut Epic #5576 unberührt.
+// Ortsgebunden und nur hier: Alle übrigen Bauart-Regeln gelten auch dort.
+const EPIC_UNTOUCHED_PARENT_SURFACES = new Set([
+  "src/components/parent/start/parent-start-page.tsx",
+  "src/components/parent/child/child-day-card.tsx",
+]);
+
 const noOwnSkeleton = {
   meta: {
     type: "problem",
@@ -1831,7 +1828,9 @@ const noOwnSkeleton = {
         context.report({ node: className, messageId: "skeletonRadius" });
       }
     };
-    if (OTHER_PORTAL_RE.test(key)) return { JSXOpeningElement: reportRadius };
+    if (EPIC_UNTOUCHED_PARENT_SURFACES.has(key)) {
+      return { JSXOpeningElement: reportRadius };
+    }
 
     return {
       JSXOpeningElement: reportRadius,
@@ -1925,7 +1924,7 @@ const noRawStatusHex = {
   create(context) {
     if (isExempt(context)) return {};
     const key = fileKey(context);
-    if (OTHER_PORTAL_RE.test(key) || TEST_SUPPORT_DIR_RE.test(key)) return {};
+    if (TEST_SUPPORT_DIR_RE.test(key)) return {};
     if (HEX_TOKEN_SOURCES.has(key)) return {};
 
     function check(node, text) {
@@ -1976,7 +1975,6 @@ const noDisabledMenuItem = {
   },
   create(context) {
     if (isExempt(context)) return {};
-    if (OTHER_PORTAL_RE.test(fileKey(context))) return {};
 
     return {
       ObjectExpression(node) {

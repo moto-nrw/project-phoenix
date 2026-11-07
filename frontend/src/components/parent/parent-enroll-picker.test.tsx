@@ -53,13 +53,13 @@ describe("ParentEnrollPicker", () => {
     mocks.listEnrollableSchools.mockReset();
   });
 
-  it("reserves school headers and phase rows while loading", () => {
+  it("shows the kit list skeleton while loading", () => {
     mocks.listEnrollableSchools.mockReturnValue(new Promise(() => {}));
 
     render(<ParentEnrollPicker />);
 
     const skeleton = screen.getByTestId("parent-enroll-skeleton");
-    expect(skeleton.querySelectorAll(".rounded-2xl.border")).toHaveLength(2);
+    expect(screen.getByRole("status")).toContainElement(skeleton);
     expect(skeleton.querySelectorAll(".animate-pulse").length).toBeGreaterThan(
       10,
     );

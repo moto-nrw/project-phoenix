@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -306,14 +307,20 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
       warningSlot={
         <div className="space-y-3">
           {warningBullets.length > 0 && (
-            <div className="bg-moto-amber-soft text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
-              <p className="font-medium">{warningTitle}</p>
-              <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-                {warningBullets.map((bullet) => (
-                  <li key={bullet}>{bullet}</li>
-                ))}
-              </ul>
-            </div>
+            <Alert
+              type="warning"
+              announce="off"
+              message={
+                <>
+                  <p className="font-medium">{warningTitle}</p>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+                    {warningBullets.map((bullet) => (
+                      <li key={bullet}>{bullet}</li>
+                    ))}
+                  </ul>
+                </>
+              }
+            />
           )}
           {confirmDisabled && confirmDisabledReason && (
             <div className="bg-moto-red-soft text-moto-red rounded-lg px-3 py-2 text-sm">

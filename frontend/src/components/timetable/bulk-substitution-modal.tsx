@@ -51,6 +51,7 @@ import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 
 import { overlapWarningMessage } from "./substitution-deviation-input";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "BulkSubstitutionModal" });
 
@@ -446,10 +447,15 @@ export function BulkSubstitutionModal({
                     Termine werden geladen…
                   </p>
                 ) : dayGroups.length === 0 ? (
-                  <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                  <InsetPanel
+                    as="p"
+                    framed
+                    padding="compact"
+                    className="text-sm text-gray-500"
+                  >
                     Im gewählten Zeitraum gibt es keine planbaren Termine dieser
                     Person.
-                  </p>
+                  </InsetPanel>
                 ) : (
                   <ul className="max-h-64 space-y-2 overflow-y-auto pr-1">
                     {dayGroups.map((group) => {

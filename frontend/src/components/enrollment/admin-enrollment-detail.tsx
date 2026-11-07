@@ -1,6 +1,7 @@
 "use client";
 
 import { ApiError } from "~/lib/api-error";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   useCallback,
   useEffect,
@@ -592,7 +593,7 @@ function EnrollmentSummary({
   submittedAt: string;
 }>) {
   return (
-    <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+    <InsetPanel as="section" framed padding="md">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
           <MotoConceptIcon concept={parentsConcept} size={16} />
@@ -623,10 +624,7 @@ function EnrollmentSummary({
             Weitere erziehungsberechtigte Personen
           </h3>
           {data.additional_guardians.map((g: AdminRequestGuardian) => (
-            <div
-              key={g.id}
-              className="rounded-xl border border-gray-100 bg-gray-50/70 p-3"
-            >
+            <InsetPanel framed key={g.id}>
               <p className="text-sm font-semibold text-gray-900">
                 {g.first_name} {g.last_name}
               </p>
@@ -640,11 +638,11 @@ function EnrollmentSummary({
                   {g.phone && g.phone.trim() !== "" ? g.phone : "Nicht gesetzt"}
                 </span>
               </div>
-            </div>
+            </InsetPanel>
           ))}
         </div>
       )}
-    </section>
+    </InsetPanel>
   );
 }
 
@@ -754,12 +752,16 @@ function ChildInformationCard({
           />
         ) : null}
         {child.status_reason ? (
-          <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-700">
+          <InsetPanel
+            framed
+            padding="compact"
+            className="text-sm text-gray-700"
+          >
             <span className="text-xs font-medium text-gray-500">
               Begründung:{" "}
             </span>
             {child.status_reason}
-          </div>
+          </InsetPanel>
         ) : null}
         {child.reviewed_at ? (
           <p className="text-xs text-gray-500">
@@ -783,10 +785,14 @@ function ChildInformationCard({
         <ChildExtraFields child={child} schemaFields={schemaFields} />
         {terminal ? (
           <div className="space-y-3">
-            <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
+            <InsetPanel
+              framed
+              padding="compact"
+              className="text-sm text-gray-600"
+            >
               Die Entscheidung ist final. Bei bestätigten Kindern können falsche
               Anmeldedaten weiterhin gezielt korrigiert werden.
-            </div>
+            </InsetPanel>
             {canDeleteFromEnrollment ? (
               <Button
                 type="button"
@@ -969,11 +975,15 @@ function ReviewSidebar({
                 <ChildQuotaHeldBadge />
               </div>
             ) : null}
-            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
+            <InsetPanel
+              framed
+              padding="compact"
+              className="mt-3 text-sm text-gray-600"
+            >
               {TERMINAL.has(child.status)
                 ? "Entscheidung abgeschlossen"
                 : "Entscheidung ausstehend"}
-            </div>
+            </InsetPanel>
           </section>
         );
       })}
@@ -1001,7 +1011,7 @@ function DecisionPanel({
   reason: string;
 }>) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+    <InsetPanel framed padding="md">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
           <MotoConceptIcon concept={enrollmentsConcept} size={18} />
@@ -1051,7 +1061,7 @@ function DecisionPanel({
           );
         })}
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -1247,20 +1257,18 @@ export function ChildOfferings({
   const rows = [...(offerings ?? []), ...(upcomingOfferings ?? [])];
   if (unavailable) {
     return (
-      <div className="border-moto-orange/30 bg-moto-orange-soft mt-3 rounded-lg border p-3">
-        <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-          Betreuungsangebote
-        </h4>
-        <p className="text-moto-orange-strong mt-1.5 text-sm">
-          Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite
-          neu laden, bevor Sie über dieses Kind entscheiden.
-        </p>
-      </div>
+      <Alert
+        type="warning"
+        announce="off"
+        title="Betreuungsangebote"
+        message="Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, bevor Sie über dieses Kind entscheiden."
+        className="mt-3"
+      />
     );
   }
   if (rows.length === 0) return null;
   return (
-    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+    <InsetPanel framed className="mt-3">
       <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
         Betreuungsangebote
       </h4>
@@ -1302,7 +1310,7 @@ export function ChildOfferings({
           : " der Anmeldephase"}{" "}
         (Anmeldungen → Betreuungsangebote).
       </p>
-    </div>
+    </InsetPanel>
   );
 }
 

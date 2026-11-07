@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,6 +57,23 @@ func TestInboxMarksTheSentVersionReplacedByAChangeOnItsFirstDay(t *testing.T) {
 	sent := inbox()
 	assert.True(t, sent.Replaced, "the parents see that their version was replaced")
 	assert.Equal(t, aug, sent.EffectiveOn, "the changed version holds from the same day")
+	download := func() {
+		require.NoError(t, tenant.WithinTraeger(f.ctx, f.organization, func(ctx context.Context) error {
+			file, err := compose.NewInbox().InboxContractDocument(ctx, f.organization, f.contract, reader)
+			require.NoError(t, err)
+			assert.Equal(t, []byte("%PDF-1.4"), file.Data)
+			return nil
+		}))
+	}
+	var informed *time.Time
+	download()
+	require.NoError(t, f.db.NewRaw(`SELECT withdrawal_informed_at FROM care_contract.contracts WHERE id = ?`, f.contract).Scan(f.ctx, &informed))
+	assert.Nil(t, informed, "a legacy PDF contains no proven notice")
+	_, err = f.db.ExecContext(f.ctx, `UPDATE care_contract.contract_documents SET withdrawal_notice = true WHERE id = ?`, document)
+	require.NoError(t, err)
+	download()
+	require.NoError(t, f.db.NewRaw(`SELECT withdrawal_informed_at FROM care_contract.contracts WHERE id = ?`, f.contract).Scan(f.ctx, &informed))
+	assert.NotNil(t, informed, "downloading a notice-bearing PDF records actual provision")
 }
 
 func booking(offering int64, days []string, from, until *calendar.Date) carecontract.Booking {

@@ -118,7 +118,7 @@ func (h *HolidayPeriods) UpdateHolidayPeriod(ctx context.Context, organizationID
 	if err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	input = normalizeHolidayPeriod(input)
+	input = keepArchivedHolidayTimeModels(normalizeHolidayPeriod(input), current)
 	if err := validateHolidayPeriod(input, current); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
@@ -210,13 +210,13 @@ func foundHolidayPeriod(period enrollment.HolidayPeriod, found bool, err error) 
 }
 
 // holidayPeriodComplete reports a period with at least one week, each with
-// at least one time model.
+// at least one time model that is not archived.
 func holidayPeriodComplete(period enrollment.HolidayPeriod) bool {
 	if len(period.Weeks) == 0 {
 		return false
 	}
 	for _, week := range period.Weeks {
-		if len(week.TimeModels) == 0 {
+		if !slices.ContainsFunc(week.TimeModels, func(model enrollment.HolidayTimeModel) bool { return !model.Archived }) {
 			return false
 		}
 	}
@@ -230,11 +230,31 @@ func holidayInputComplete(input enrollment.HolidayPeriodInput) bool {
 		return false
 	}
 	for _, week := range input.Weeks {
-		if len(week.TimeModels) == 0 {
+		if !slices.ContainsFunc(week.TimeModels, func(model enrollment.HolidayTimeModelInput) bool { return !model.Archived }) {
 			return false
 		}
 	}
 	return true
+}
+
+// keepArchivedHolidayTimeModels marks every written time model the period
+// already archived as archived: an archived time model is never restored and
+// counts for no week (#5994).
+func keepArchivedHolidayTimeModels(input enrollment.HolidayPeriodInput, current enrollment.HolidayPeriod) enrollment.HolidayPeriodInput {
+	archived := map[int64]bool{}
+	for _, week := range current.Weeks {
+		for _, model := range week.TimeModels {
+			archived[model.ID] = model.Archived
+		}
+	}
+	for _, week := range input.Weeks {
+		for j := range week.TimeModels {
+			if archived[week.TimeModels[j].ID] {
+				week.TimeModels[j].Archived = true
+			}
+		}
+	}
+	return input
 }
 
 func normalizeHolidayPeriod(input enrollment.HolidayPeriodInput) enrollment.HolidayPeriodInput {
@@ -403,6 +423,9 @@ func validateHolidayTimeModels(models []enrollment.HolidayTimeModelInput, curren
 		modelErrs := validateHolidayTimeModel(model)
 		if model.ID != 0 && (!known[model.ID] || seenIDs[model.ID]) {
 			modelErrs["id"] = errors.New("the time model is not a time model of this week")
+		}
+		if model.ID == 0 && model.Archived {
+			modelErrs["archived"] = errors.New("only a stored time model can be archived")
 		}
 		seenIDs[model.ID] = true
 		name := strings.ToLower(model.Name)
