@@ -140,10 +140,7 @@ func (n *Notices) DeclareNotice(ctx context.Context, reviewer carecontract.Revie
 // ParentNoticeOptions reads, in the caller's Träger transaction, what the
 // parents can declare on a contract sent to them, and records the read.
 func (n *Notices) ParentNoticeOptions(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (carecontract.NoticeOptions, error) {
-	if err := n.parentContract(ctx, organizationID, contractID, &reader); err != nil {
-		return carecontract.NoticeOptions{}, err
-	}
-	record, err := n.store.Contract(ctx, organizationID, contractID, false)
+	record, err := n.parentContract(ctx, organizationID, contractID, &reader)
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
@@ -159,7 +156,7 @@ func (n *Notices) ParentNoticeOptions(ctx context.Context, organizationID, contr
 // confirms it to the declaring parent's address.
 func (n *Notices) ParentDeclareNotice(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader,
 	traeger string, input carecontract.NoticeInput) (carecontract.NoticeOptions, error) {
-	if err := n.parentContract(ctx, organizationID, contractID, &reader); err != nil {
+	if _, err := n.parentContract(ctx, organizationID, contractID, &reader); err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
 	// The parents declare today; only the office dates a received letter.
@@ -171,21 +168,22 @@ func (n *Notices) ParentDeclareNotice(ctx context.Context, organizationID, contr
 }
 
 // parentContract checks that the contract was sent to the reader's address
-// and its child is one the reader's relationships let act.
-func (n *Notices) parentContract(ctx context.Context, organizationID, contractID int64, reader *carecontract.InboxReader) error {
+// and its child is one the reader's relationships let act, and reads it
+// without its lock.
+func (n *Notices) parentContract(ctx context.Context, organizationID, contractID int64, reader *carecontract.InboxReader) (ContractRecord, error) {
 	email, err := inboxAddress(organizationID, *reader)
 	if err != nil || contractID <= 0 {
-		return carecontract.ErrInboxDocumentNotFound
+		return ContractRecord{}, carecontract.ErrInboxDocumentNotFound
 	}
 	reader.Email = email
 	found, err := n.notices.InboxContractID(ctx, organizationID, contractID, *reader)
 	if err != nil {
-		return err
+		return ContractRecord{}, err
 	}
 	if !found {
-		return carecontract.ErrInboxDocumentNotFound
+		return ContractRecord{}, carecontract.ErrInboxDocumentNotFound
 	}
-	return nil
+	return n.store.Contract(ctx, organizationID, contractID, false)
 }
 
 func (n *Notices) today() calendar.Date {

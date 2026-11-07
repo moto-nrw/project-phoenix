@@ -64,6 +64,10 @@
       "write_owner": "care-contract"
     },
     {
+      "name": "care_contract.contract_notices",
+      "write_owner": "care-contract"
+    },
+    {
       "name": "care_contract.contract_parties",
       "write_owner": "care-contract"
     },

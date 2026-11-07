@@ -62,6 +62,7 @@ var noticeToday = time.Date(2026, 11, 10, 10, 0, 0, 0, time.UTC)
 // carries the withdrawal notice, and its declarations on day now.
 func newNoticeFixture(t *testing.T, name string, now time.Time) noticeFixture {
 	t.Helper()
+	testpkg.SetupTestDB(t)
 	race := newRaceFixture(t, name)
 	require.NoError(t, testpkg.WithinTraeger(race.ctx, race.org, func(txCtx context.Context) error {
 		if _, err := race.db.NewUpdate().Table("care_contract.contract_versions").Set("effective_from = ?", calendar.NewDate(2026, 9, 1)).

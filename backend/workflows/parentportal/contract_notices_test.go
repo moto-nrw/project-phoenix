@@ -8,41 +8,21 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/api"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
-
-// confirmationTexts answers the Träger's confirmation templates.
-type confirmationTexts struct{}
-
-func (confirmationTexts) TraegerTexts(_ context.Context, _ int64, keys []string) (map[string]string, error) {
-	texts := map[string]string{}
-	for _, key := range keys {
-		texts[key] = "Bestätigung für {Kind}, eingegangen am {Eingang}. {Träger}"
-		if key == configModels.KeyCareContractTerminationConfirmation {
-			texts[key] = "Kündigung für {Kind} zum {Vertragsende}. {Träger}"
-		}
-	}
-	return texts, nil
-}
 
 // noticePortal is the parents portal with withdrawal and termination over
 // the real Betreuungsvertrag and Delivery's outbox.
 func noticePortal(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
-		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
-	})
-	require.NoError(t, err)
 	deps := documentInboxDependencies(t, db)
-	deps.ContractNotices = owners.NewParentContractNotices(confirmationTexts{}, delivery.Module)
+	notices, err := api.NewParentContractNoticesForTests(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	deps.ContractNotices = notices
 	return parentportalcompose.New(deps), db
 }
 
@@ -76,13 +56,13 @@ func TestParentsEndAContractOnlyWithTheRelationshipRight(t *testing.T) {
 
 	options, err := portal.ContractNoticeOptions(ctx, chain.AccountID, organization, own)
 	require.NoError(t, err)
-	assert.Equal(t, carecontract.StatusActive, options.Status)
+	assert.Equal(t, "aktiv", options.Status)
 	require.NotNil(t, options.OrdinaryEndsOn)
 	require.NotNil(t, options.WithdrawalUntil, "concluded today, inside the period")
 	_, err = portal.ContractNoticeOptions(ctx, chain.AccountID, organization, otherFamily)
 	assert.ErrorIs(t, err, parentService.ErrBillingDocumentNotFound, "another family's contract")
 	_, err = portal.DeclareContractNotice(ctx, chain.AccountID, organization, otherFamily,
-		parentService.ContractNoticeInput{Kind: carecontract.NoticeWithdrawal})
+		parentService.ContractNoticeInput{Kind: "widerruf"})
 	assert.ErrorIs(t, err, parentService.ErrBillingDocumentNotFound)
 
 	var link int64
@@ -92,31 +72,31 @@ func TestParentsEndAContractOnlyWithTheRelationshipRight(t *testing.T) {
 		"parent_portal.access": true, "parent_portal.enrollments.view": true,
 	}))
 	_, err = portal.DeclareContractNotice(ctx, chain.AccountID, organization, own,
-		parentService.ContractNoticeInput{Kind: carecontract.NoticeTermination, TerminationKind: carecontract.TerminationOrdinary})
+		parentService.ContractNoticeInput{Kind: "kuendigung", TerminationKind: "ordentlich"})
 	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied, "reading the inbox does not end a contract")
 
 	require.NoError(t, testpkg.SetTestStudentGuardianPermissions(ctx, db, link, map[string]interface{}{
 		"parent_portal.access": true, "parent_portal.enrollments.view": true, "parent_portal.enrollment.submit": true,
 	}))
 	done, err := portal.DeclareContractNotice(ctx, chain.AccountID, organization, own,
-		parentService.ContractNoticeInput{Kind: carecontract.NoticeTermination, TerminationKind: carecontract.TerminationOrdinary})
+		parentService.ContractNoticeInput{Kind: "kuendigung", TerminationKind: "ordentlich"})
 	require.NoError(t, err)
-	assert.Equal(t, carecontract.StatusTerminated, done.Status)
+	assert.Equal(t, "gekuendigt", done.Status)
 	require.NotNil(t, done.Notice)
-	assert.Equal(t, carecontract.ChannelParents, done.Notice.Channel)
+	assert.Equal(t, "eltern_app", done.Notice.Channel)
 	assert.Equal(t, chain.Email, done.Notice.Recipient, "the confirmation goes to the declaring parent")
 	assert.Contains(t, done.Notice.ConfirmationText, "Felix")
 	assert.NotEmpty(t, done.TraegerName)
 
 	_, err = portal.DeclareContractNotice(ctx, chain.AccountID, organization, own,
-		parentService.ContractNoticeInput{Kind: carecontract.NoticeWithdrawal})
+		parentService.ContractNoticeInput{Kind: "widerruf"})
 	assert.ErrorIs(t, err, parentService.ErrContractNotEndable, "a contract ends once")
 
 	var declarations, mails int
 	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM care_contract.contract_events WHERE contract_id = ? AND account_id = ?
 		AND action = 'terminate'`, own, chain.AccountID).Scan(ctx, &declarations))
 	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM platform.email_outbox WHERE organization_id = ? AND kind = ?
-		AND related_entity_id = ?`, organization, carecontract.MailKindNotice, own).Scan(ctx, &mails))
+		AND related_entity_id = ?`, organization, "care_contract_notice", own).Scan(ctx, &mails))
 	assert.Equal(t, 1, declarations)
 	assert.Equal(t, 1, mails)
 }

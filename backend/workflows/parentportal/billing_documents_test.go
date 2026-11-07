@@ -44,12 +44,13 @@ func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentN
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	deps := documentInboxDependencies(t, db)
-	pushes := deps.DocumentNotifier.(*recordedPushes)
+	pushes := &recordedPushes{}
+	deps.DocumentNotifier = pushes
 	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps), pushes, db
 }
 
 // documentInboxDependencies are the parents portal's dependencies of the
-// document inbox over db.
+// document inbox over db, without the push of a document.
 func documentInboxDependencies(t *testing.T, db *bun.DB) parentportalcompose.Dependencies {
 	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
@@ -67,7 +68,6 @@ func documentInboxDependencies(t *testing.T, db *bun.DB) parentportalcompose.Dep
 		Logger:              slog.Default(), CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 		BillingDocuments: owners.NewParentBillingDocuments(), ContractDocuments: owners.NewParentContractDocuments(), TraegerRuntime: owners.ParentPortalRuntime{},
 		SchoolTraeger: owners.NewParentSchoolTraeger(organizations), ParentAccounts: owners.NewParentAccounts(identity),
-		DocumentNotifier: &recordedPushes{},
 	}
 }
 

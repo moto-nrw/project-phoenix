@@ -425,8 +425,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			parent, err = owners.BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements, audit, organizations,
-				owners.NewParentContractNotices(settings.Traeger, owners.DeliveryModuleOf(delivery)))
+				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements, audit, organizations, owners.NewParentContractNotices(settings.Traeger, owners.DeliveryModuleOf(delivery)))
 			return
 		},
 		func() (err error) {
