@@ -55,7 +55,9 @@ type submissionPlan struct {
 
 func (s *Intake) submit(ctx context.Context, req SubmitRequest) (*submitOutcome, error) {
 	if !req.SkipRateLimit {
-		if err := s.enforceRateLimit(ctx, req); err != nil {
+		if err := s.enforceRateLimit(ctx, req.TenantID, func(ctx context.Context) error {
+			return s.countSubmissionAttempt(ctx, req)
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -165,25 +167,11 @@ func (s *Intake) planSubmissionContract(ctx context.Context, req *SubmitRequest,
 	if plan.legalBlocks, err = s.resolveSubmissionLegalBlocks(ctx, schema); err != nil {
 		return fmt.Errorf("submit: resolve legal blocks: %w", err)
 	}
-	if req.ExternalConsentConfirmed {
-		req.ConsentFlags = ensureRequiredConsentFlags(req.ConsentFlags, plan.legalBlocks)
-	}
-	if err := normalizeAdditionalGuardians(req); err != nil {
-		return err
-	}
-	if err := s.validateSubmission(ctx, *req, plan.legalBlocks, plan.capabilities); err != nil {
-		return err
-	}
-	if err := s.validateAndNormalizeSchoolClasses(ctx, plan.phase, req.Children); err != nil {
-		return err
-	}
-	// Eligibility runs after the class canonicalization, so it validates the
-	// stored class, not the raw client value (#1663).
-	if err := s.validatePhaseEligibility(ctx, plan.phase, *req); err != nil {
-		return err
-	}
-	req.ConsentFlags = filterConsentFlags(req.ConsentFlags, plan.legalBlocks)
-	if err := validateSubmittedFields(schema, *req, plan.openByID); err != nil {
+	if err := s.validateIntakePayload(ctx, req, intakePayload{
+		phase: plan.phase, schema: schema, legalBlocks: plan.legalBlocks,
+		capabilities: plan.capabilities, openByID: plan.openByID,
+		eligibility: submissionEligibility(*req), consentConfirmed: req.ExternalConsentConfirmed,
+	}); err != nil {
 		return err
 	}
 	if schema != nil {
@@ -194,14 +182,14 @@ func (s *Intake) planSubmissionContract(ctx context.Context, req *SubmitRequest,
 
 // validateSubmittedFields runs the required-field, companion-note and
 // schedule checks of the form.
-func validateSubmittedFields(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren ...[]*RequestChild) error {
+func validateSubmittedFields(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren []*RequestChild) error {
 	if err := validateRequiredCustomFields(schema, req, openByID); err != nil {
 		return err
 	}
 	if err := validateAccompaniedCompanionNote(schema, req, openByID); err != nil {
 		return err
 	}
-	return validateConstrainedSchedules(schema, req, openByID, existingChildren...)
+	return validateConstrainedSchedules(schema, req, openByID, existingChildren)
 }
 
 // sanitizeSubmittedAnswers drops the answers of hidden and undeclared fields

@@ -127,16 +127,13 @@ func (s *Intake) CountUploadAttempt(ctx context.Context, tenantID int64, remoteI
 	if strings.TrimSpace(remoteIP) == "" {
 		return nil
 	}
-	err := s.enforceRateLimit(ctx, SubmitRequest{uploadAttempt: true, TenantID: tenantID, RemoteIP: remoteIP})
+	err := s.enforceRateLimit(ctx, tenantID, func(ctx context.Context) error {
+		return s.countRateLimitAttempt(ctx, tenantID, uploadRateLimit, strings.TrimSpace(remoteIP))
+	})
 	if errors.Is(err, enrollmentNative.ErrRateLimited) {
 		return enrollmentNative.ErrUploadRateLimited
 	}
 	return err
-}
-
-// countUploadAttempt is the upload bucket of enforceRateLimitBuckets.
-func (s *Intake) countUploadAttempt(ctx context.Context, req SubmitRequest) error {
-	return s.countRateLimitAttempt(ctx, req.TenantID, uploadRateLimit, strings.TrimSpace(req.RemoteIP))
 }
 
 // newUploadStoredName is a random object name with the detected extension.
