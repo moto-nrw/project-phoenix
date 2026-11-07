@@ -12,6 +12,7 @@ import {
 } from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
+import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -30,7 +31,10 @@ import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 //                                     OverflowMenu from the kit
 //   ui-kit/no-hand-rolled-surface   — hand-built card surfaces
 //                                     (`rounded-xl/2xl` + `border` + `bg-white`),
-//                                     in the kit except SURFACE_KIT_CONTROLS; use
+//                                     in the kit except SURFACE_KIT_CONTROLS;
+//                                     outside the kit also rounded-md/lg,
+//                                     bg-white/NN and frames without fill
+//                                     (#5594, shrink-only baseline); use
 //                                     moto-content-surface (cards),
 //                                     AnchoredPopover or OverflowMenu (floating panels),
 //                                     ChoiceTile (selectable rows) or a kit
@@ -47,8 +51,10 @@ import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 //                                     baseline
 //   ui-kit/no-tenant-kicker         — no blue mini-heading in the tenant portal
 //   ui-kit/no-hand-rolled-page-card — no `moto-content-surface … rounded-2xl`
-//                                     spelled out in a tenant page/loading
-//                                     file; use the kit cards (unlike
+//                                     spelled out outside the kit (all of
+//                                     app/ and components/ since #5594,
+//                                     shrink-only baseline); use the kit
+//                                     cards (unlike
 //                                     no-hand-rolled-surface, which bans the
 //                                     plain-Tailwind card chain everywhere)
 //   ui-kit/no-tabs-as-value-switcher — ui/Tabs is for content panels; values
@@ -674,61 +680,229 @@ const SURFACE_KIT_CONTROLS = new Map([
   ["src/components/ui/checkbox-card.tsx", "Auswahlzeile mit Häkchen"],
 ]);
 
+// #5594 schärft die Regel außerhalb des Kits: eine Fläche ist auch
+// `rounded-md`/`rounded-lg` mit Rahmen und weißer Füllung, eine halbdurchsichtige
+// weiße Füllung (`bg-white/80`) und ein Rahmen mit Polster ganz ohne Füllung.
+// Geprüft wird das Element mit seinem className (auch über Konstanten); Knöpfe,
+// Links und Felder sind Bedienelemente, keine Fläche (eigene Regeln), ein
+// gestrichelter Rahmen ist EmptyState/InsetPanel, `moto-*-surface` ist die
+// Kit-Fläche selbst. Ein Rahmen ohne Füllung zählt nur mit Polster: ohne
+// Polster ist er die Hülle einer Liste oder Tabelle (FramedList). Das Kit
+// bleibt bei der alten Kette, es definiert die Bedienelemente. Die alte
+// Kette ist weiter hart null; nur die Schärfung trägt eine Baseline.
+const SURFACE_WIDE_ROUNDED_RE = /^rounded-(?:md|lg|xl|2xl)$/;
+const SURFACE_FRAME_RE = /^border(?:-[1-9]\d*)?$/;
+const SURFACE_WHITE_FILL_RE = /^bg-white(?:\/\d+)?$/;
+const SURFACE_CONTROL_ELEMENTS = new Set([
+  "a",
+  "button",
+  "input",
+  "label",
+  "select",
+  "textarea",
+  "Link",
+  "NavLink",
+  "NavigationLink",
+]);
+
+function isWideSurfaceTokens(tokens) {
+  if (!tokens.some((token) => SURFACE_WIDE_ROUNDED_RE.test(token))) {
+    return false;
+  }
+  if (!tokens.some((token) => SURFACE_FRAME_RE.test(token))) return false;
+  if (
+    tokens.some(
+      (token) =>
+        token === "border-dashed" || /^moto-[\w-]*surface$/.test(token),
+    )
+  ) {
+    return false;
+  }
+  if (tokens.some((token) => SURFACE_WHITE_FILL_RE.test(token))) return true;
+  const anyFill = tokens.some(
+    (token) => /(?:^|:)bg-/.test(token) && !/(?:^|:)bg-transparent$/.test(token),
+  );
+  const padded = tokens.some((token) => /^p[xytblrse]?-\d/.test(token));
+  return !anyFill && padded;
+}
+
+// Eine Konstante, deren Zeichenkette selbst die alte Kette ist, meldet der
+// Literal-Besucher schon an der Deklaration; ihre Verwendungen zählen nicht
+// noch einmal.
+function usesReportedSurfaceConstant(node, constants) {
+  let found = false;
+  const visit = (current) => {
+    if (found || !current || typeof current !== "object") return;
+    if (current.type === "Identifier") {
+      const init = constants.get(current.name);
+      const value = init ? staticStringValue(init) : null;
+      if (typeof value === "string" && isSurfaceCombo(value)) found = true;
+      return;
+    }
+    for (const [key, value] of Object.entries(current)) {
+      if (key === "parent" || key === "loc" || key === "range") continue;
+      if (Array.isArray(value)) value.forEach(visit);
+      else if (value && typeof value === "object") visit(value);
+    }
+  };
+  visit(node);
+  return found;
+}
+
+/**
+ * Shrink-only Baseline je Datei für Regeln mit eigenem Besucher (#5594): die
+ * Funde aus `count` werden gesammelt und erst gemeldet, wenn eine Datei mehr
+ * hat, als `baselines[ruleName][file]` erlaubt. Ein Fund hinter
+ * `oxlint-disable-next-line <rule>` zählt nicht mit, genau wie im Generator.
+ * Mit `countEnv=count` meldet die Regel jeden Fund; daraus schreibt
+ * `pnpm run ui-kit:surface-baseline` die Zahlen.
+ */
+function withFileBaseline({ ruleName, baselines, countEnv }, create) {
+  return (context) => {
+    const key = fileKey(context);
+    const findings = [];
+    const visitors = create(context, (descriptor) => findings.push(descriptor));
+    if (!visitors || Object.keys(visitors).length === 0) return {};
+    const exit = visitors["Program:exit"];
+    return {
+      ...visitors,
+      "Program:exit"(node) {
+        exit?.(node);
+        const disabledLines = new Set();
+        for (const comment of context.sourceCode?.getAllComments?.() ?? []) {
+          if (
+            comment.value.includes("oxlint-disable-next-line") &&
+            comment.value.includes(`ui-kit/${ruleName}`)
+          ) {
+            disabledLines.add(comment.loc.end.line + 1);
+          }
+        }
+        const counted = findings.filter(
+          (descriptor) => !disabledLines.has(descriptor.node.loc?.start.line),
+        );
+        const baseline = baselines[ruleName]?.[key] ?? 0;
+        const countMode = process.env[countEnv] === "count";
+        if (!countMode && counted.length <= baseline) return;
+        for (const descriptor of counted) {
+          context.report(
+            countMode || baseline === 0
+              ? descriptor
+              : {
+                  ...descriptor,
+                  messageId: "overBaseline",
+                  data: {
+                    found: String(counted.length),
+                    baseline: String(baseline),
+                  },
+                },
+          );
+        }
+      },
+    };
+  };
+}
+
+const SURFACE_OVER_BASELINE =
+  "Diese Datei hat {{found}} handgebaute Flächen, die Baseline erlaubt {{baseline}}. Neue Flächen aus dem Kit bauen: SectionCard, TileCard, InsetPanel oder moto-content-surface (#5594, Abbau: pnpm run ui-kit:surface-baseline).";
+
 const noHandRolledSurface = {
   meta: {
     type: "problem",
     docs: {
       description:
-        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`), in the UI kit too (#5586); use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (SectionCard).",
+        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`), in the UI kit too (#5586); outside the kit also `rounded-md/lg`, translucent white fills and frames without fill (#5594). Use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (SectionCard).",
     },
     messages: {
       handRolledSurface:
         "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), AnchoredPopover or OverflowMenu (floating panels), ChoiceTile (selectable rows and tiles) or a kit surface component (SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
+      overBaseline: SURFACE_OVER_BASELINE,
     },
     schema: [],
   },
-  create(context) {
-    const key = fileKey(context);
-    if (!key.startsWith("src/")) return {};
-    if (EXEMPT_FILE_RE.test(key)) return {};
-    if (SURFACE_KIT_CONTROLS.has(key)) return {};
+  create: withFileBaseline(
+    {
+      ruleName: "no-hand-rolled-surface",
+      baselines: surfaceBaseline,
+      countEnv: "UI_KIT_SURFACE_RATCHET",
+    },
+    (context, report) => {
+      const key = fileKey(context);
+      if (!key.startsWith("src/")) return {};
+      if (EXEMPT_FILE_RE.test(key)) return {};
+      if (SURFACE_KIT_CONTROLS.has(key)) return {};
+      // Die Eltern-Ausnahmen aus #2619 gelten nur für die Schärfung; die
+      // alte Kette bleibt auch dort hart null.
+      const widened =
+        !key.startsWith(UI_KIT_DIR) && !INSET_PARENT_EXCEPTIONS.includes(key);
+      const constants = new Map();
 
-    const check = (node, text) => {
-      if (!isSurfaceCombo(text)) return;
-      context.report({
-        node,
-        messageId: "handRolledSurface",
-        data: { match: "rounded-xl/2xl … border … bg-white" },
-      });
-    };
-
-    return {
-      Literal(node) {
-        if (typeof node.value === "string") check(node, node.value);
-      },
-      TemplateLiteral(node) {
-        for (const quasi of node.quasis) {
-          check(node, quasi.value.raw);
-        }
-      },
-      JSXAttribute(node) {
-        if (
-          node.name.type !== "JSXIdentifier" ||
-          node.name.name !== "className"
-        )
-          return;
-
+      // Die alte Kette ist hart null und meldet sofort, an der Baseline vorbei.
+      const check = (node, text) => {
+        if (!isSurfaceCombo(text)) return;
+        context.report({
+          node,
+          messageId: "handRolledSurface",
+          data: { match: "rounded-xl/2xl … border … bg-white" },
+        });
+      };
+      const renderedCombo = (value) => {
         const chunks = [];
-        collectStaticStrings(node.value, chunks);
+        collectStaticStrings(value, chunks);
         if (chunks.some((chunk) => isSurfaceCombo(chunk))) {
-          return; // already reported by the Literal/TemplateLiteral visitors
+          return { literal: true };
         }
-        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
-        const rendered = combos.find((combo) => isSurfaceCombo(combo));
-        if (rendered !== undefined) check(node, rendered);
-      },
-    };
-  },
+        const combos = classCombinations(value) ?? [chunks.join(" ")];
+        return { rendered: combos.find((combo) => isSurfaceCombo(combo)) };
+      };
+
+      return {
+        VariableDeclarator(node) {
+          if (node.id?.type === "Identifier" && node.init) {
+            constants.set(node.id.name, node.init);
+          }
+        },
+        Literal(node) {
+          if (typeof node.value === "string") check(node, node.value);
+        },
+        TemplateLiteral(node) {
+          for (const quasi of node.quasis) {
+            check(node, quasi.value.raw);
+          }
+        },
+        JSXAttribute(node) {
+          if (
+            node.name.type !== "JSXIdentifier" ||
+            node.name.name !== "className"
+          )
+            return;
+          const { literal, rendered } = renderedCombo(node.value);
+          if (literal) return; // already reported by the Literal/TemplateLiteral visitors
+          if (rendered !== undefined) check(node, rendered);
+        },
+        JSXOpeningElement(node) {
+          if (!widened) return;
+          if (SURFACE_CONTROL_ELEMENTS.has(jsxName(node.name) ?? "")) return;
+          const className = jsxAttribute(node, "className");
+          if (!className?.value) return;
+          // Die alte Kette meldet schon der Literal-/Attribut-Besucher, auch
+          // in einer Konstante: dort nicht ein zweites Mal je Verwendung.
+          const { literal, rendered } = renderedCombo(className.value);
+          if (literal || rendered !== undefined) return;
+          if (usesReportedSurfaceConstant(className.value, constants)) return;
+          const text = classText(className.value, constants);
+          if (isSurfaceCombo(text) || isWideSurfaceTokens(text.split(/\s+/))) {
+            report({
+              node: className,
+              messageId: "handRolledSurface",
+              data: {
+                match: "rounded-md…2xl … border … bg-white(/NN) oder Rahmen mit Polster",
+              },
+            });
+          }
+        },
+      };
+    },
+  ),
 };
 
 const noRounded3xl = makeClassStringRule({
@@ -1280,76 +1454,84 @@ const noTenantKicker = {
 // ui-kit/no-hand-rolled-page-card — eine Seite baut keine Kartenfläche mehr aus
 // einer eigenen Klassenkette. Für jede Form gibt es ein Kit-Bauteil:
 // SectionCard (Fläche mit oder ohne Kopf), TileCard (anklickbare Kachel),
-// StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
-// greift in Seitendateien des Tenant-, Träger-, Schul- und Operator-Portals
-// (#5146, #5604) —
-// Kit- und Komponentendateien dürfen die Fläche definieren, sie sind die
-// Quelle.
-const TENANT_PAGE_FILE_RE =
-  /app\/(?:\[tenant\]\/\(protected\)|traeger|school|operator)\/(?:.*\/)?(page|loading)\.tsx$/;
+// StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Nur das Kit
+// darf die Fläche definieren, es ist die Quelle.
 // Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
 // Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
 // (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.
 const HANDROLLED_SURFACE_RE =
   /moto-content-surface[^"'`]*rounded-2xl|rounded-2xl[^"'`]*moto-content-surface/;
 
+// #5594: die Regel gilt für jede `.tsx` unter `app/` und `components/` außer dem
+// Kit, nicht mehr nur für Seitendateien. Der Bestand steht in der shrink-only
+// Baseline (ui-kit-surface-baseline.json); die Eltern-Ausnahmen aus #2619 sind
+// dieselben wie bei no-hand-rolled-inset.
+function isPageCardScope(key) {
+  if (!/\.tsx$/.test(key) || EXEMPT_FILE_RE.test(key)) return false;
+  if (key.startsWith(UI_KIT_DIR)) return false;
+  if (INSET_PARENT_EXCEPTIONS.includes(key)) return false;
+  return key.startsWith("src/app/") || key.startsWith("src/components/");
+}
+
 const noHandRolledPageCard = {
   meta: {
     docs: {
       description:
-        "Disallow hand-rolled card surfaces in tenant page files; use the kit cards.",
+        "Disallow hand-rolled card surfaces outside the UI kit; use the kit cards.",
     },
     messages: {
       surface:
-        "Keine eigene Kartenfläche in einer Seite. SectionCard (Fläche), TileCard (anklickbare Kachel), StatCard (Kennzahl) oder TenantPageHeaderSkeleton nehmen (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
+        "Keine eigene Kartenfläche. SectionCard (Fläche, mit oder ohne Titel), TileCard (anklickbare Kachel), StatCard (Kennzahl) oder TenantPageHeaderSkeleton nehmen; innere Karten `moto-content-surface rounded-xl` (siehe .claude/rules/frontend-ui-kit.md, #5594).",
+      overBaseline: SURFACE_OVER_BASELINE,
     },
   },
-  create(context) {
-    const filename = (
-      context.filename ??
-      context.getFilename?.() ??
-      ""
-    ).replace(/\\/g, "/");
-    if (!TENANT_PAGE_FILE_RE.test(filename)) return {};
-    if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+  create: withFileBaseline(
+    {
+      ruleName: "no-hand-rolled-page-card",
+      baselines: surfaceBaseline,
+      countEnv: "UI_KIT_SURFACE_RATCHET",
+    },
+    (context, report) => {
+      if (!isPageCardScope(fileKey(context))) return {};
 
-    return {
-      Literal(node) {
-        if (
-          typeof node.value === "string" &&
-          HANDROLLED_SURFACE_RE.test(node.value)
-        ) {
-          context.report({ node, messageId: "surface" });
-        }
-      },
-      TemplateElement(node) {
-        const raw = node.value?.cooked ?? node.value?.raw ?? "";
-        if (HANDROLLED_SURFACE_RE.test(raw)) {
-          context.report({ node, messageId: "surface" });
-        }
-      },
-      JSXAttribute(node) {
-        if (
-          node.name.type !== "JSXIdentifier" ||
-          node.name.name !== "className"
-        )
-          return;
+      return {
+        Literal(node) {
+          if (
+            typeof node.value === "string" &&
+            HANDROLLED_SURFACE_RE.test(node.value)
+          ) {
+            report({ node, messageId: "surface" });
+          }
+        },
+        TemplateElement(node) {
+          const raw = node.value?.cooked ?? node.value?.raw ?? "";
+          if (HANDROLLED_SURFACE_RE.test(raw)) {
+            report({ node, messageId: "surface" });
+          }
+        },
+        JSXAttribute(node) {
+          if (
+            node.name.type !== "JSXIdentifier" ||
+            node.name.name !== "className"
+          )
+            return;
 
-        const chunks = [];
-        collectStaticStrings(node.value, chunks);
-        if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
-          return; // already reported by the Literal/TemplateElement visitors
-        }
-        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
-        const rendered = combos.find((combo) =>
-          HANDROLLED_SURFACE_RE.test(combo),
-        );
-        if (rendered !== undefined) {
-          context.report({ node, messageId: "surface" });
-        }
-      },
-    };
-  },
+          const chunks = [];
+          collectStaticStrings(node.value, chunks);
+          if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
+            return; // already reported by the Literal/TemplateElement visitors
+          }
+          const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+          const rendered = combos.find((combo) =>
+            HANDROLLED_SURFACE_RE.test(combo),
+          );
+          if (rendered !== undefined) {
+            report({ node, messageId: "surface" });
+          }
+        },
+      };
+    },
+  ),
 };
 
 // ui-kit/no-tabs-as-value-switcher — `ui/Tabs` ist Radix und schaltet
