@@ -95,7 +95,7 @@ export default function CatererInvitationPage() {
         brand={<MotoBrand />}
         formMaxWidth="max-w-[32rem]"
       >
-        <Loading fullPage={false} />
+        <Loading />
       </AuthShell>
     );
   }

@@ -85,7 +85,7 @@ export default function TraegerHandoffPage() {
             />
           </SectionCard>
         ) : (
-          <Loading message={TRAEGER_HANDOFF_OPENING} fullPage={false} />
+          <Loading message={TRAEGER_HANDOFF_OPENING} />
         )}
       </div>
     </main>

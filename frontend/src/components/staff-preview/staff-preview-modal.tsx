@@ -154,7 +154,7 @@ export function StaffPreviewModal({ isOpen, onClose }: StaffPreviewModalProps) {
             „Keine Person gefunden“ für eine Liste, die nie geladen wurde. */}
         {candidates === null ||
         (loadFailed && formErrorMessage(loadError.error) === null) ? (
-          <Loading fullPage={false} />
+          <Loading />
         ) : candidates.length === 0 && !loadFailed ? (
           <p className="text-sm text-gray-500">
             Keine Person gefunden, die Sie ansehen können.

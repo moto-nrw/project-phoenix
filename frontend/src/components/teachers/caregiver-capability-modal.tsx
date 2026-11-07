@@ -393,7 +393,7 @@ export function CaregiverCapabilityModal({
           onConfirmationVisibilityChange={setBlockerConfirmationOpen}
         />
       ) : loading ? (
-        <Loading fullPage={false} message="Wird geladen …" />
+        <Loading message="Wird geladen …" />
       ) : state ? (
         <div ref={formRef} className="space-y-4">
           {/* Current role overview */}

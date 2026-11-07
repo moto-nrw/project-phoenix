@@ -450,7 +450,7 @@ function PresentChildrenList({
   onToggleAll,
 }: PresentChildrenListProps) {
   if (load.kind === "loading") {
-    return <Loading message="Kinder werden geladen..." fullPage={false} />;
+    return <Loading message="Kinder werden geladen..." />;
   }
   if (load.kind === "failed") {
     return (
