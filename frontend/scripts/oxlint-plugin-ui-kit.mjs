@@ -6,7 +6,6 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
@@ -105,7 +104,7 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     also inside src/components/ui/; use
 //                                     IconTile or ConceptIconTile
 //
-// Three more are the shrink-only pill ratchet (#5584):
+// Three more keep one pill (#5584, hard-zero):
 //
 //   ui-kit/no-hand-rolled-pill      — tinted `span` pills outside StatusBadge
 //   ui-kit/no-pill-dot              — a dot inside a pill (#2476)
@@ -1171,7 +1170,7 @@ src/components/guardians/guardian-list.tsx|text-[10px]@462
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600 text-[10px]@734
+src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
 src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
@@ -1191,7 +1190,7 @@ src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]
 src/components/timetable/substitution-slide-over.tsx|text-[11px]@747 text-[11px]@751
 src/components/timetable/template-card.tsx|text-[11px]@131 text-[10px]@201
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@401 text-[9px]@417 text-[10px]@477 text-[11px]@477 text-[11px]@482 text-[10px]@505 text-[10px]@540 text-[11px]@540
+src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@456 text-[11px]@456 text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[10px]@282
@@ -2260,7 +2259,7 @@ const noGreyButtonFill = makeRatchetRule({
   }),
 });
 
-// --- Pillen-Ratchet (#5584) --------------------------------------------------
+// --- Pillen (#5584) -----------------------------------------------------------
 
 const PILL_KIT_FILE = "src/components/ui/status-badge.tsx";
 const PILL_RADIUS_RE = /^rounded-(?:full|md)$/;
@@ -2344,17 +2343,17 @@ function pillClassText(node, textOf) {
   return isPillShape(text) ? text : null;
 }
 
-function makePillRatchetRule(options) {
+// Hard-zero: der Bestand ist abgebaut, jede neue Stelle schlägt fehl.
+function makePillRule(options) {
   return makeRatchetRule({
     ...options,
-    baselines: pillRatchetBaseline,
+    baselines: {},
     allowlist: [],
-    countEnv: "UI_KIT_PILL_RATCHET",
     kitFile: PILL_KIT_FILE,
   });
 }
 
-const noHandRolledPill = makePillRatchetRule({
+const noHandRolledPill = makePillRule({
   ruleName: "no-hand-rolled-pill",
   description:
     "Build status pills from StatusBadge, StatusColorBadge or DataTableStatusBadge instead of a hand-styled span.",
@@ -2372,7 +2371,7 @@ const noHandRolledPill = makePillRatchetRule({
   }),
 });
 
-const noPillDot = makePillRatchetRule({
+const noPillDot = makePillRule({
   ruleName: "no-pill-dot",
   description: "Disallow a decorative dot inside a status pill (#2476).",
   message:
@@ -2504,7 +2503,7 @@ const noStatusDotOutsidePlans = {
   },
 };
 
-const noHexAlphaTint = makePillRatchetRule({
+const noHexAlphaTint = makePillRule({
   ruleName: "no-hex-alpha-tint",
   description:
     "Disallow `${color}1A`-style hex alpha tints in a pill's style; the kit tone carries the tint.",
@@ -3096,6 +3095,175 @@ const noShadowKitName = {
   },
 };
 
+// Eingabe-Bausteine (#5596): drei Muster, die es im Kit genau einmal gibt.
+
+/** Direkte JSX-Kinder, auch hinter `&&`, `?:`, Fragment und `{…}`. */
+function flatJsxChildren(element) {
+  const result = [];
+  const visit = (node) => {
+    if (!node) return;
+    if (node.type === "JSXElement") result.push(node);
+    else if (node.type === "JSXFragment") node.children.forEach(visit);
+    else if (node.type === "JSXExpressionContainer") visit(node.expression);
+    else if (node.type === "LogicalExpression") visit(node.right);
+    else if (node.type === "ConditionalExpression") {
+      visit(node.consequent);
+      visit(node.alternate);
+    }
+  };
+  element.children?.forEach(visit);
+  return result;
+}
+
+function isActionElement(element) {
+  const name = jsxName(element.openingElement.name);
+  return name === "button" || name === "Button";
+}
+
+function actionHoldsIcon(element, iconNames) {
+  return (
+    isActionElement(element) &&
+    flatJsxChildren(element).some((child) =>
+      iconNames.has(jsxName(child.openingElement.name) ?? ""),
+    )
+  );
+}
+
+/** Das Kreuz als Symbol oder als Textzeichen „×“. */
+function actionRemoves(element) {
+  return (
+    actionHoldsIcon(element, REMOVE_ICONS) ||
+    (isActionElement(element) &&
+      element.children.some(
+        (child) => child.type === "JSXText" && child.value.trim() === "×",
+      ))
+  );
+}
+
+const REMOVE_ICONS = new Set(["X", "XIcon", "CloseIcon"]);
+
+function kitInputRule({ description, message, kitFile, visitors }) {
+  return {
+    meta: {
+      type: "problem",
+      docs: { description },
+      messages: { finding: message },
+      schema: [],
+    },
+    create(context) {
+      const key = fileKey(context);
+      if (
+        EXEMPT_FILE_RE.test(key) ||
+        key.endsWith(kitFile) ||
+        key.startsWith("src/test/")
+      ) {
+        return {};
+      }
+      const constants = new Map();
+      return {
+        VariableDeclarator(node) {
+          if (node.id?.type === "Identifier" && node.init) {
+            constants.set(node.id.name, node.init);
+          }
+        },
+        ...visitors({
+          found: (node) => context.report({ node, messageId: "finding" }),
+          textOf: (value) => classText(value, constants),
+        }),
+      };
+    },
+  };
+}
+
+const noHandRolledRemovableChip = kitInputRule({
+  description:
+    "A chip with its own remove button is RemovableChip; do not rebuild it.",
+  message:
+    "Kein eigener Chip mit Entfernen-Kreuz: RemovableChip aus ~/components/ui/removable-chip nehmen (#5596, .claude/rules/frontend-ui-kit.md).",
+  kitFile: "src/components/ui/removable-chip.tsx",
+  visitors: ({ found, textOf }) => ({
+    JSXElement(node) {
+      const opening = node.openingElement;
+      if (!new Set(["span", "li", "div"]).has(jsxName(opening.name) ?? "")) {
+        return;
+      }
+      const className = jsxAttribute(opening, "className");
+      if (!className?.value) return;
+      const text = textOf(className.value);
+      const isChip =
+        /(?:^|\s)inline-flex(?:\s|$)/.test(text) &&
+        /(?:^|\s)rounded(?:-[a-z0-9]+)?(?:\s|$)/.test(text) &&
+        /(?:^|\s)(?:border|bg-[a-z])/.test(text);
+      if (!isChip) return;
+      if (flatJsxChildren(node).some(actionRemoves)) found(opening);
+    },
+  }),
+});
+
+const noHandRolledNumberStepper = kitInputRule({
+  description:
+    "Minus and plus around a number field is NumberStepper; do not rebuild it.",
+  message:
+    "Kein eigener Zahl-Stepper: NumberStepper aus ~/components/ui/number-stepper nehmen (#5596, .claude/rules/frontend-ui-kit.md).",
+  kitFile: "src/components/ui/number-stepper.tsx",
+  visitors: ({ found }) => ({
+    JSXElement(node) {
+      const children = flatJsxChildren(node);
+      const hasStep = (icon) =>
+        children.some((child) => actionHoldsIcon(child, new Set([icon])));
+      if (hasStep("Minus") && hasStep("Plus")) found(node.openingElement);
+    },
+  }),
+});
+
+const WEEKDAY_LIST_RE = /week_?(?:days?|dates)|dayOptions$/i;
+
+/** Das Element, das der `.map`-Callback direkt zurückgibt. */
+function returnedJsxElement(body) {
+  let node = body;
+  if (node?.type === "BlockStatement") {
+    node = node.body.find(
+      (statement) => statement.type === "ReturnStatement",
+    )?.argument;
+  }
+  while (node?.type === "ParenthesizedExpression") node = node.expression;
+  return node?.type === "JSXElement" ? node : null;
+}
+
+const noHandRolledWeekdayToggle = kitInputRule({
+  description:
+    "A row of weekday toggles is WeekdayToggleGroup; do not rebuild it from checkboxes or pressed buttons.",
+  message:
+    "Keine eigene Wochentagsauswahl: WeekdayToggleGroup aus ~/components/ui/weekday-toggle-group nehmen, für einen Tagesstreifen PlanningDayChip stacked (#5596, .claude/rules/frontend-ui-kit.md).",
+  kitFile: "src/components/ui/weekday-toggle-group.tsx",
+  visitors: ({ found }) => ({
+    CallExpression(node) {
+      const callee = node.callee;
+      if (
+        callee?.type !== "MemberExpression" ||
+        callee.property?.name !== "map" ||
+        callee.object?.type !== "Identifier" ||
+        !WEEKDAY_LIST_RE.test(callee.object.name)
+      ) {
+        return;
+      }
+      const element = returnedJsxElement(node.arguments[0]?.body);
+      if (!element) return;
+      const opening = element.openingElement;
+      const name = jsxName(opening.name);
+      const isCheckboxLabel =
+        name === "label" &&
+        flatJsxChildren(element).some(
+          (child) => jsxName(child.openingElement.name) === "Checkbox",
+        );
+      const isPressedButton =
+        (name === "button" || name === "Button") &&
+        jsxAttribute(opening, "aria-pressed") !== undefined;
+      if (isCheckboxLabel || isPressedButton) found(node);
+    },
+  }),
+});
+
 // ui-kit/no-hand-rolled-dropzone und ui-kit/no-hand-rolled-copy-field (#5599).
 // Eine Ablagefläche besteht aus Zieh-Zustand, Dateiauswahl und Tastaturweg; die
 // sechs Eigenbauten unterschieden sich genau darin. Ein Kopierfeld hat zwei
@@ -3191,11 +3359,14 @@ export default {
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
+    "no-hand-rolled-number-stepper": noHandRolledNumberStepper,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-pill": noHandRolledPill,
     "no-hand-rolled-portal-nav": noHandRolledPortalNav,
+    "no-hand-rolled-removable-chip": noHandRolledRemovableChip,
     "no-hand-rolled-surface": noHandRolledSurface,
+    "no-hand-rolled-weekday-toggle": noHandRolledWeekdayToggle,
     "no-hex-alpha-tint": noHexAlphaTint,
     "no-important-override": noImportantOverride,
     "no-pill-dot": noPillDot,

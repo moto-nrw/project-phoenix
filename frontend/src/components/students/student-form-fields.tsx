@@ -29,6 +29,7 @@ import {
   ParentVisibilityLegend,
 } from "~/components/ui/parent-visible-badge";
 import { Textarea } from "~/components/ui/textarea";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { CompanionPicker } from "./companion-picker";
 import type {
@@ -582,13 +583,11 @@ export function DepartureSection({
                   const active =
                     normalized[day.key]?.includes(opt.value) ?? false;
                   return (
-                    <label
+                    <ChoiceTile
                       key={opt.value}
-                      className={`flex h-8 cursor-pointer items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold transition-colors ${
-                        active
-                          ? "border-gray-900 bg-white text-gray-900"
-                          : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                      }`}
+                      tone="gray"
+                      selected={active}
+                      className="h-8 gap-2 rounded-lg px-2.5 text-xs font-semibold"
                     >
                       <Checkbox
                         checked={active}
@@ -635,7 +634,7 @@ export function DepartureSection({
                         }}
                       />
                       {opt.short}
-                    </label>
+                    </ChoiceTile>
                   );
                 })}
               </div>

@@ -14,7 +14,7 @@ import { format } from "date-fns/format";
 import { isSameDay } from "date-fns/isSameDay";
 import { startOfWeek } from "date-fns/startOfWeek";
 import { de } from "date-fns/locale/de";
-import { Pencil, Trash2, X } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -55,6 +55,7 @@ import { excusedConcept } from "~/lib/concepts/excused";
 import { classTripConcept } from "~/lib/concepts/classTrip";
 import { sickConcept } from "~/lib/concepts/sick";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { RemovableChip } from "~/components/ui/removable-chip";
 
 interface PlannedStatusDaysModalProps {
   readonly isOpen: boolean;
@@ -1056,23 +1057,20 @@ export function PlannedStatusDaysModal({
                   <div className="flex flex-wrap gap-2">
                     {selectedDates.map((date) => {
                       const key = toISODate(date);
+                      const label = format(date, "dd.MM.yyyy", { locale: de });
                       return (
-                        <Button
+                        <RemovableChip
                           key={key}
-                          type="button"
-                          variant="surface"
-                          size="compact"
-                          onClick={() =>
+                          label={label}
+                          onRemove={() =>
                             setSortedDates(
                               selectedDates.filter(
                                 (selected) => !isSameDay(selected, date),
                               ),
                             )
                           }
-                        >
-                          {format(date, "dd.MM.yyyy", { locale: de })}
-                          <X className="h-3.5 w-3.5 text-gray-400" />
-                        </Button>
+                          removeLabel={`${label} entfernen`}
+                        />
                       );
                     })}
                   </div>
