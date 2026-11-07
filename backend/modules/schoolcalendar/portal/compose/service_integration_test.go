@@ -52,7 +52,7 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarCompose.Config {
 
 	cfg := owners.NewCalendarFacts(reposPeople.Staff, reposPeople.Student,
 		owners.NewCalendarGuardianDirectory(reposPeople.GuardianProfile, owners.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
-		reposPeople.StudentGuardian, reposParents.ParentChildLinks(), owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group)
+		reposParents.ParentChildLinks(), owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group)
 	cfg = owners.BindCalendarElternAppBookings(cfg, settings.Settings)
 	cfg = owners.BindCalendarScheduleFacts(cfg, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance.Reads, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
 	cfg = owners.BindCalendarCaller(cfg, userContext)

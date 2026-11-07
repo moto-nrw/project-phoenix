@@ -2249,14 +2249,6 @@
       "target_owner": "people-directory"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarRelationshipPort.FindByGuardianProfileID",
-      "binding_digest": "91a83fb6b4837dc28cc73170b4ee42e9",
-      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.GuardianRelationships.FindByGuardianProfileID",
-      "source_owner": "school-calendar",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentGuardianRepository.FindByGuardianProfileID",
-      "target_owner": "people-directory"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarIdentityPort.GetCurrentStaff",
       "binding_digest": "c5083ed366a9bac383c00dc059527284",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Identity.GetCurrentStaff",
