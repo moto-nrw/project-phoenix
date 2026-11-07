@@ -2843,6 +2843,16 @@ describe.concurrent("ui-kit/no-uppercase-label (#5590)", () => {
     );
     expect(output).not.toContain(RULE);
   });
+
+  it("does not exempt a similarly named parent file", async () => {
+    const result = await lintProbe(
+      'export const Probe = () => <p className="text-xs tracking-wide uppercase">A</p>;',
+      "src/components/parent/child/child-day-card-v2.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
 });
 
 describe.concurrent("ui-kit/no-hand-rolled-inset (#5592)", () => {

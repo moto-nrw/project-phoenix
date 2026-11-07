@@ -2246,6 +2246,7 @@ function makeRatchetRule({
   countEnv = "UI_KIT_BUTTON_RATCHET",
   kitFile = BUTTON_KIT_FILE,
   exemptDir = null,
+  exemptDirs = [],
   exemptFiles = [],
   followStaticClassSources = false,
   onlySrc = false,
@@ -2266,7 +2267,8 @@ function makeRatchetRule({
         EXEMPT_FILE_RE.test(key) ||
         key.endsWith(kitFile) ||
         (exemptDir !== null && key.startsWith(exemptDir)) ||
-        exemptFiles.some((prefix) => key.startsWith(prefix)) ||
+        exemptDirs.some((dir) => key.startsWith(dir)) ||
+        exemptFiles.includes(key) ||
         (onlySrc && !key.startsWith("src/")) ||
         key.includes("src/test/")
       ) {
@@ -3974,11 +3976,12 @@ const noHandRolledListRow = makeRatchetRule({
 // Elternportals behalten ihre Versalien. Nie anfassen, auch nicht für das Kit.
 const UPPERCASE_LABEL_EXEMPT_FILES = [
   "src/app/start/page.tsx",
-  "src/app/help/nfc/",
   "src/components/parent/child/child-day-card.tsx",
   "src/components/parent/child/child-switcher.tsx",
   "src/components/parent/start/parent-start-page.tsx",
 ];
+
+const UPPERCASE_LABEL_EXEMPT_DIRS = ["src/app/help/nfc/"];
 
 function isUppercaseLabelText(text) {
   const utilities = classUtilities(text);
@@ -4078,6 +4081,7 @@ const noUppercaseLabel = makeRatchetRule({
   allowlist: [],
   kitFile: "src/components/ui/section-label.tsx",
   exemptDir: UI_KIT_DIR,
+  exemptDirs: UPPERCASE_LABEL_EXEMPT_DIRS,
   exemptFiles: UPPERCASE_LABEL_EXEMPT_FILES,
   onlySrc: true,
   detect: ({ constants, found }) => {
