@@ -246,7 +246,7 @@ export function PasswordChangeModal({
             title="Passwort-Anforderungen"
             message="Mindestens 8 Zeichen"
             details={
-              <ul className="mt-0.5 space-y-0.5">
+              <ul className="mt-0.5 list-disc space-y-0.5 pl-5">
                 <li>Groß- und Kleinbuchstaben empfohlen</li>
                 <li>Zahlen und Sonderzeichen empfohlen</li>
               </ul>
