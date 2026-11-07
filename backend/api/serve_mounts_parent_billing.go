@@ -114,6 +114,7 @@ func (c parentBillingCareContracts) VersionsInForce(ctx context.Context, organiz
 		versions[i] = parentbilling.CareContractVersion{
 			ContractID: period.ContractID, SchoolID: period.SchoolID, SchoolName: period.Version.SchoolName,
 			Number: period.Version.Number, ChildFirstName: period.Version.ChildFirstName, ChildLastName: period.Version.ChildLastName,
+			StudentID: period.StudentID, ChildBirthDate: period.Version.ChildBirthDate,
 			From: period.From, Until: period.Until, Services: services,
 		}
 	}

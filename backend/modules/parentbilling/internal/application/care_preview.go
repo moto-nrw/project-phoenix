@@ -1,7 +1,9 @@
 package application
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -23,11 +25,13 @@ type careMonthInput struct {
 }
 
 // careMonth is the preview of one month: the draft invoices, the bookings
-// without a price and the count of contracts already billed.
+// without a price, the children with duplicate contracts and the count of
+// contracts already billed.
 type careMonth struct {
-	invoices []parentbilling.CareInvoice
-	unpriced []parentbilling.CareUnpriced
-	billed   int
+	invoices   []parentbilling.CareInvoice
+	unpriced   []parentbilling.CareUnpriced
+	duplicates []parentbilling.CareDuplicate
+	billed     int
 }
 
 func (m careMonth) total() int64 {
@@ -50,30 +54,29 @@ func firstOfMonth(day calendar.Date) calendar.Date {
 
 // buildCareMonth bills every contract of the month by the rule of the
 // Träger. A contract an issued invoice of the month bills stays out; so
-// does one with a booked weekday without a price, which Unpriced names. Two
-// versions of one contract on one day are ErrCareVersionsOverlap: the run
-// would otherwise bill a day twice.
+// does one with a booked weekday without a price, which Unpriced names, and
+// one of a child whose contracts book a weekday of a module twice, which
+// Duplicates names. Two versions of one contract on one day are
+// ErrCareVersionsOverlap: the run would otherwise bill a day twice.
 func buildCareMonth(in careMonthInput) (careMonth, error) {
-	byContract := map[int64][]parentbilling.CareContractVersion{}
-	order := []int64{}
-	for _, version := range in.versions {
-		if _, seen := byContract[version.ContractID]; !seen {
-			order = append(order, version.ContractID)
-		}
-		byContract[version.ContractID] = append(byContract[version.ContractID], version)
-	}
-	prices := newPriceBook(in.tariffs)
-	result := careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{}}
+	byContract, order := versionsByContract(in.versions)
 	for _, contractID := range order {
-		versions := byContract[contractID]
-		if err := checkOneVersionPerDay(versions); err != nil {
+		if err := checkOneVersionPerDay(byContract[contractID]); err != nil {
 			return careMonth{}, err
 		}
+	}
+	duplicates, held := findDuplicates(in.month, byContract, order)
+	prices := newPriceBook(in.tariffs)
+	result := careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{}, duplicates: duplicates}
+	for _, contractID := range order {
 		if in.invoiced[contractID] {
 			result.billed++
 			continue
 		}
-		invoice, unpriced := billContract(in.month, in.rule, versions, prices)
+		if held[contractID] {
+			continue
+		}
+		invoice, unpriced := billContract(in.month, in.rule, byContract[contractID], prices)
 		if len(unpriced) > 0 {
 			result.unpriced = append(result.unpriced, unpriced...)
 			continue
@@ -91,6 +94,23 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	return result, nil
 }
 
+// versionsByContract groups the versions by contract, each by start, and
+// keeps the order of the contracts.
+func versionsByContract(versions []parentbilling.CareContractVersion) (map[int64][]parentbilling.CareContractVersion, []int64) {
+	byContract := map[int64][]parentbilling.CareContractVersion{}
+	order := []int64{}
+	for _, version := range versions {
+		if _, seen := byContract[version.ContractID]; !seen {
+			order = append(order, version.ContractID)
+		}
+		byContract[version.ContractID] = append(byContract[version.ContractID], version)
+	}
+	for _, contractID := range order {
+		slices.SortFunc(byContract[contractID], func(a, b parentbilling.CareContractVersion) int { return a.From.Compare(b.From) })
+	}
+	return byContract, order
+}
+
 // checkOneVersionPerDay refuses versions of one contract whose days meet.
 func checkOneVersionPerDay(versions []parentbilling.CareContractVersion) error {
 	sorted := slices.Clone(versions)
@@ -103,27 +123,225 @@ func checkOneVersionPerDay(versions []parentbilling.CareContractVersion) error {
 	return nil
 }
 
-// billedSegment is a version with the days of the month it bills.
-type billedSegment struct {
-	version parentbilling.CareContractVersion
-	from    calendar.Date
-	until   calendar.Date
+// versionOn is the version of a contract that holds on day, if any.
+func versionOn(versions []parentbilling.CareContractVersion, day calendar.Date) (parentbilling.CareContractVersion, bool) {
+	for _, version := range versions {
+		if !day.Before(version.From) && !day.After(version.Until) {
+			return version, true
+		}
+	}
+	return parentbilling.CareContractVersion{}, false
 }
 
-// segmentsOf picks the versions the rule bills: by the version on the
-// first day (or the first version of a contract that starts in the month)
-// for the full month, or every version for its own days.
-func segmentsOf(month calendar.Date, rule string, versions []parentbilling.CareContractVersion) []billedSegment {
-	sorted := slices.Clone(versions)
-	slices.SortFunc(sorted, func(a, b parentbilling.CareContractVersion) int { return a.From.Compare(b.From) })
-	if rule == parentbilling.MonthRuleProRata {
-		segments := make([]billedSegment, len(sorted))
-		for i, version := range sorted {
-			segments[i] = billedSegment{version: version, from: version.From, until: version.Until}
-		}
-		return segments
+// bookedOn reports whether a service is booked on day: its version holds,
+// the day is its weekday and its last booked day has not passed.
+func bookedOn(service parentbilling.CareContractService, day calendar.Date) bool {
+	return service.Weekday == weekdayOf(day) && (service.LastDay == nil || !service.LastDay.Before(day))
+}
+
+func weekdayOf(day calendar.Date) string {
+	return [...]string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}[day.Weekday()]
+}
+
+// childKey names a child across its contracts: its record when the
+// contract has one, else its name and date of birth.
+func childKey(version parentbilling.CareContractVersion) string {
+	if version.StudentID != nil {
+		return fmt.Sprintf("student:%d", *version.StudentID)
 	}
-	return []billedSegment{{version: sorted[0], from: month, until: monthEnd(month)}}
+	birth := ""
+	if version.ChildBirthDate != nil {
+		birth = version.ChildBirthDate.String()
+	}
+	return "name:" + strings.ToLower(strings.TrimSpace(version.ChildFirstName)) + "|" +
+		strings.ToLower(strings.TrimSpace(version.ChildLastName)) + "|" + birth
+}
+
+// slotKey is one module on one day of the month.
+type slotKey struct {
+	offeringID int64
+	day        calendar.Date
+}
+
+// findDuplicates names every child whose contracts book the same module on
+// the same day of the month (Betragsregel 1), and holds all its contracts
+// of such a pair: none of them is billed, none silently left out.
+func findDuplicates(month calendar.Date, byContract map[int64][]parentbilling.CareContractVersion, order []int64) ([]parentbilling.CareDuplicate, map[int64]bool) {
+	duplicates := []parentbilling.CareDuplicate{}
+	held := map[int64]bool{}
+	byChild := map[string][]int64{}
+	childOrder := []string{}
+	for _, contractID := range order {
+		key := childKey(byContract[contractID][0])
+		if _, seen := byChild[key]; !seen {
+			childOrder = append(childOrder, key)
+		}
+		byChild[key] = append(byChild[key], contractID)
+	}
+	for _, key := range childOrder {
+		contracts := byChild[key]
+		for i := 0; i < len(contracts); i++ {
+			for j := i + 1; j < len(contracts); j++ {
+				if duplicate, ok := sharedSlot(month, byContract[contracts[i]], byContract[contracts[j]]); ok {
+					duplicates = append(duplicates, duplicate)
+					held[contracts[i]], held[contracts[j]] = true, true
+				}
+			}
+		}
+	}
+	return duplicates, held
+}
+
+// sharedSlot finds the first module and day both contracts book.
+func sharedSlot(month calendar.Date, first, second []parentbilling.CareContractVersion) (parentbilling.CareDuplicate, bool) {
+	booked := map[slotKey]string{}
+	for day := month; !day.After(monthEnd(month)); day = day.AddDays(1) {
+		if version, ok := versionOn(first, day); ok {
+			for _, service := range version.Services {
+				if bookedOn(service, day) {
+					booked[slotKey{service.CareOfferingID, day}] = service.ModuleName
+				}
+			}
+		}
+	}
+	for day := month; !day.After(monthEnd(month)); day = day.AddDays(1) {
+		version, ok := versionOn(second, day)
+		if !ok {
+			continue
+		}
+		for _, service := range version.Services {
+			if name, both := booked[slotKey{service.CareOfferingID, day}]; both && bookedOn(service, day) {
+				a, b := first[0], version
+				return parentbilling.CareDuplicate{
+					ChildFirstName: a.ChildFirstName, ChildLastName: a.ChildLastName, ModuleName: name, Weekday: service.Weekday,
+					Contracts: []parentbilling.CareDuplicateContract{
+						{ContractID: a.ContractID, SchoolID: a.SchoolID, SchoolName: a.SchoolName},
+						{ContractID: b.ContractID, SchoolID: b.SchoolID, SchoolName: b.SchoolName},
+					},
+				}, true
+			}
+		}
+	}
+	return parentbilling.CareDuplicate{}, false
+}
+
+// moduleRun is a stretch of days a module is booked on the same weekdays.
+type moduleRun struct {
+	from, until calendar.Date
+	version     int
+	weekdays    []string
+}
+
+func (r moduleRun) days() int { return r.from.DaysUntil(r.until) + 1 }
+
+// moduleTrack is one module of a contract with its runs in the month.
+type moduleTrack struct {
+	offeringID int64
+	name       string
+	endsAt     string
+	runs       []moduleRun
+}
+
+// tracksOf follows every module of a contract through the month. Under the
+// full month the version on the first day (or the first one of a contract
+// that starts in the month) books the whole month with every module it has
+// on that day. Pro rata a module's booked weekdays are read day by day;
+// days with the same weekdays form one run, also across versions, so a
+// module that does not change is one run (Betragsregel 2).
+func tracksOf(month calendar.Date, rule string, versions []parentbilling.CareContractVersion) []moduleTrack {
+	if rule != parentbilling.MonthRuleProRata {
+		return fullMonthTracks(month, versions[0])
+	}
+	tracks := map[int64]*moduleTrack{}
+	var order []int64
+	for day := month; !day.After(monthEnd(month)); day = day.AddDays(1) {
+		version, ok := versionOn(versions, day)
+		if !ok {
+			continue
+		}
+		for offeringID, module := range modulesBookedOn(version, day) {
+			track, seen := tracks[offeringID]
+			if !seen {
+				track = &moduleTrack{offeringID: offeringID, name: module.name, endsAt: module.endsAt}
+				tracks[offeringID] = track
+				order = append(order, offeringID)
+			}
+			track.extend(day, version.Number, module.weekdays)
+		}
+	}
+	return sortedTracks(tracks, order)
+}
+
+// extend adds a day to the track: the last run grows when the day follows
+// it on the same weekdays, else a new run starts.
+func (t *moduleTrack) extend(day calendar.Date, version int, weekdays []string) {
+	if n := len(t.runs); n > 0 {
+		last := &t.runs[n-1]
+		if last.until.AddDays(1) == day && slices.Equal(last.weekdays, weekdays) {
+			last.until = day
+			return
+		}
+	}
+	t.runs = append(t.runs, moduleRun{from: day, until: day, version: version, weekdays: weekdays})
+}
+
+// bookedModule is what a version books of one module on a day.
+type bookedModule struct {
+	name     string
+	endsAt   string
+	weekdays []string
+}
+
+// modulesBookedOn lists the modules a version books on day with all their
+// booked weekdays: a module counts from its first to its last booked day.
+func modulesBookedOn(version parentbilling.CareContractVersion, day calendar.Date) map[int64]bookedModule {
+	modules := map[int64]bookedModule{}
+	for _, service := range version.Services {
+		if service.LastDay != nil && service.LastDay.Before(day) {
+			continue
+		}
+		module := modules[service.CareOfferingID]
+		module.name, module.endsAt = service.ModuleName, service.EndsAt
+		if !slices.Contains(module.weekdays, service.Weekday) {
+			module.weekdays = append(module.weekdays, service.Weekday)
+		}
+		modules[service.CareOfferingID] = module
+	}
+	for offeringID, module := range modules {
+		slices.SortFunc(module.weekdays, func(a, b string) int { return compareOrdered(weekdayOrder[a], weekdayOrder[b]) })
+		modules[offeringID] = module
+	}
+	return modules
+}
+
+// fullMonthTracks books the whole month by one version: every module it
+// books on the first billed day.
+func fullMonthTracks(month calendar.Date, version parentbilling.CareContractVersion) []moduleTrack {
+	first := month
+	if version.From.After(month) {
+		first = version.From
+	}
+	tracks := map[int64]*moduleTrack{}
+	var order []int64
+	for offeringID, module := range modulesBookedOn(version, first) {
+		tracks[offeringID] = &moduleTrack{offeringID: offeringID, name: module.name, endsAt: module.endsAt,
+			runs: []moduleRun{{from: month, until: monthEnd(month), version: version.Number, weekdays: module.weekdays}}}
+		order = append(order, offeringID)
+	}
+	return sortedTracks(tracks, order)
+}
+
+// sortedTracks orders the modules by their time band, so early care comes
+// first.
+func sortedTracks(tracks map[int64]*moduleTrack, order []int64) []moduleTrack {
+	result := make([]moduleTrack, 0, len(order))
+	for _, offeringID := range order {
+		result = append(result, *tracks[offeringID])
+	}
+	slices.SortStableFunc(result, func(a, b moduleTrack) int {
+		return firstNonZero(compareOrdered(a.endsAt, b.endsAt), compareOrdered(a.name, b.name), compareOrdered(a.offeringID, b.offeringID))
+	})
+	return result
 }
 
 // billContract computes the draft invoice of one contract, or the booked
@@ -136,105 +354,105 @@ func billContract(month calendar.Date, rule string, versions []parentbilling.Car
 	}
 	daysInMonth := month.DaysUntil(monthEnd(month)) + 1
 	var unpriced []parentbilling.CareUnpriced
-	for _, segment := range segmentsOf(month, rule, versions) {
-		for _, module := range modulesOf(segment, rule) {
-			position := parentbilling.CarePosition{
-				CareOfferingID: module.offeringID, ModuleName: module.name, VersionNumber: segment.version.Number,
-				ServiceFrom: segment.from, ServiceUntil: module.until, Weekdays: []parentbilling.CareWeekdayPrice{},
-			}
-			for _, weekday := range module.weekdays {
-				price, ok := prices.on(head.SchoolID, module.offeringID, weekday, month)
-				if !ok {
-					unpriced = append(unpriced, parentbilling.CareUnpriced{
-						ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
-						ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName,
-						CareOfferingID: module.offeringID, ModuleName: module.name, Weekday: weekday,
-					})
-					continue
-				}
-				amount := price
-				if rule == parentbilling.MonthRuleProRata {
-					amount = shareOfMonth(price, segment.from.DaysUntil(module.until)+1, daysInMonth)
-				}
-				position.Weekdays = append(position.Weekdays, parentbilling.CareWeekdayPrice{Weekday: weekday, MonthlyCents: price, AmountCents: amount})
-				position.AmountCents += amount
-			}
-			invoice.Positions = append(invoice.Positions, position)
+	for _, track := range tracksOf(month, rule, versions) {
+		missing := missingPrices(head, track, prices, month)
+		if len(missing) > 0 {
+			unpriced = append(unpriced, missing...)
+			continue
+		}
+		positions := trackPositions(head.SchoolID, track, prices, month, daysInMonth)
+		for _, position := range positions {
 			invoice.TotalCents += position.AmountCents
 		}
+		invoice.Positions = append(invoice.Positions, positions...)
 	}
 	return invoice, unpriced
 }
 
-// shareOfMonth is the part of a monthly price for days of a month with
-// daysInMonth days, rounded half up to the cent.
-func shareOfMonth(monthlyCents int64, days, daysInMonth int) int64 {
-	if days >= daysInMonth {
-		return monthlyCents
+// missingPrices names every booked weekday of a module without a price.
+func missingPrices(head parentbilling.CareContractVersion, track moduleTrack, prices priceBook, month calendar.Date) []parentbilling.CareUnpriced {
+	var missing []parentbilling.CareUnpriced
+	seen := map[string]bool{}
+	for _, run := range track.runs {
+		for _, weekday := range run.weekdays {
+			if _, ok := prices.on(head.SchoolID, track.offeringID, weekday, month); ok || seen[weekday] {
+				continue
+			}
+			seen[weekday] = true
+			missing = append(missing, parentbilling.CareUnpriced{
+				ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
+				ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName,
+				CareOfferingID: track.offeringID, ModuleName: track.name, Weekday: weekday,
+			})
+		}
 	}
-	return (monthlyCents*int64(days)*2 + int64(daysInMonth)) / (2 * int64(daysInMonth))
+	return missing
 }
 
-// bookedModule is one module of a segment with its booked weekdays and the
-// last day it bills.
-type bookedModule struct {
-	offeringID int64
-	name       string
-	endsAt     string
-	weekdays   []string
-	until      calendar.Date
+// trackPositions turns the runs of a module into positions. The module
+// costs its exact share of the month, rounded half up once; the cents go
+// to the runs and within a run to the weekdays by largest remainder, so the
+// parts add up to the module to the cent (Betragsregel 2). A run over the
+// whole month is the full monthly price.
+func trackPositions(schoolID int64, track moduleTrack, prices priceBook, month calendar.Date, daysInMonth int) []parentbilling.CarePosition {
+	// Every weekday of every run with its exact share price*days/daysInMonth.
+	shares := make([][]int64, len(track.runs))
+	runShares := make([]int64, len(track.runs))
+	var total int64
+	for i, run := range track.runs {
+		shares[i] = make([]int64, len(run.weekdays))
+		for j, weekday := range run.weekdays {
+			price, _ := prices.on(schoolID, track.offeringID, weekday, month)
+			shares[i][j] = price * int64(run.days())
+			runShares[i] += shares[i][j]
+		}
+		total += runShares[i]
+	}
+	runCents := largestRemainder(runShares, int64(daysInMonth), roundHalfUp(total, int64(daysInMonth)))
+	positions := make([]parentbilling.CarePosition, len(track.runs))
+	for i, run := range track.runs {
+		weekdayCents := largestRemainder(shares[i], int64(daysInMonth), runCents[i])
+		position := parentbilling.CarePosition{
+			CareOfferingID: track.offeringID, ModuleName: track.name, VersionNumber: run.version,
+			ServiceFrom: run.from, ServiceUntil: run.until, Weekdays: make([]parentbilling.CareWeekdayPrice, len(run.weekdays)),
+			AmountCents: runCents[i],
+		}
+		for j, weekday := range run.weekdays {
+			price, _ := prices.on(schoolID, track.offeringID, weekday, month)
+			position.Weekdays[j] = parentbilling.CareWeekdayPrice{Weekday: weekday, MonthlyCents: price, AmountCents: weekdayCents[j]}
+		}
+		positions[i] = position
+	}
+	return positions
 }
 
-// modulesOf groups the services of a segment by module, in the order of
-// their time band (end time), so early care comes first. Under the full month a module counts while it is
-// booked on the first billed day; pro rata it bills up to its last booked
-// day.
-func modulesOf(segment billedSegment, rule string) []bookedModule {
-	byOffering := map[int64]*bookedModule{}
-	var modules []*bookedModule
-	for _, service := range segment.version.Services {
-		until, booked := serviceUntil(segment, rule, service)
-		if !booked {
-			continue
-		}
-		module, ok := byOffering[service.CareOfferingID]
-		if !ok {
-			module = &bookedModule{offeringID: service.CareOfferingID, name: service.ModuleName, endsAt: service.EndsAt, until: until}
-			byOffering[service.CareOfferingID] = module
-			modules = append(modules, module)
-		}
-		if until.After(module.until) {
-			module.until = until
-		}
-		if !slices.Contains(module.weekdays, service.Weekday) {
-			module.weekdays = append(module.weekdays, service.Weekday)
-		}
+// roundHalfUp divides numerator by denominator, rounding half up.
+func roundHalfUp(numerator, denominator int64) int64 {
+	return (2*numerator + denominator) / (2 * denominator)
+}
+
+// largestRemainder shares total cents among the parts numerators[i]/denominator:
+// every part gets its floor, the cents left go one by one to the largest
+// remainders, the earlier part first on a tie. The parts add up to total.
+func largestRemainder(numerators []int64, denominator, total int64) []int64 {
+	cents := make([]int64, len(numerators))
+	order := make([]int, len(numerators))
+	var sum int64
+	for i, numerator := range numerators {
+		cents[i] = numerator / denominator
+		sum += cents[i]
+		order[i] = i
 	}
-	result := make([]bookedModule, len(modules))
-	for i, module := range modules {
-		slices.SortFunc(module.weekdays, func(a, b string) int { return compareOrdered(weekdayOrder[a], weekdayOrder[b]) })
-		result[i] = *module
-	}
-	slices.SortStableFunc(result, func(a, b bookedModule) int {
-		return firstNonZero(compareOrdered(a.endsAt, b.endsAt), compareOrdered(a.name, b.name))
+	slices.SortStableFunc(order, func(a, b int) int {
+		return compareOrdered(numerators[b]%denominator, numerators[a]%denominator)
 	})
-	return result
-}
-
-// serviceUntil is the last day a service bills in its segment, and whether
-// it bills at all: a module whose last booked day lies before the segment
-// does not; pro rata it stops after its last booked day.
-func serviceUntil(segment billedSegment, rule string, service parentbilling.CareContractService) (calendar.Date, bool) {
-	if service.LastDay == nil {
-		return segment.until, true
+	// The floors add up to at most total, and total exceeds them by less
+	// than one cent per part.
+	for k := 0; sum < total && k < len(order); k++ {
+		cents[order[k]]++
+		sum++
 	}
-	if service.LastDay.Before(segment.from) {
-		return calendar.Date(""), false
-	}
-	if rule == parentbilling.MonthRuleProRata && service.LastDay.Before(segment.until) {
-		return *service.LastDay, true
-	}
-	return segment.until, true
+	return cents
 }
 
 // priceKey names the price of one weekday of a module at a school.

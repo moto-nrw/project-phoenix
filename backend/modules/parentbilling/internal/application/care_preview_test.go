@@ -35,11 +35,15 @@ func day(t *testing.T, value string) calendar.Date {
 	return parsed
 }
 
+// sjrVersion is a version of a contract of its own child: every contract
+// names another child record unless a test gives two contracts one child.
 func sjrVersion(t *testing.T, contractID, schoolID int64, number int, from, until string, services ...parentbilling.CareContractService) parentbilling.CareContractVersion {
 	t.Helper()
+	student := contractID + 9000
 	return parentbilling.CareContractVersion{
 		ContractID: contractID, SchoolID: schoolID, SchoolName: "Grundschule Ispringen", Number: number,
-		ChildFirstName: "Mia", ChildLastName: "Beispiel", From: day(t, from), Until: day(t, until), Services: services,
+		ChildFirstName: "Mia", ChildLastName: "Beispiel", StudentID: &student,
+		From: day(t, from), Until: day(t, until), Services: services,
 	}
 }
 
@@ -270,11 +274,11 @@ func TestCareMonthModuleEndsWithinMonth(t *testing.T) {
 	assert.Equal(t, int64(3200), full.invoices[0].TotalCents)
 }
 
-func TestShareOfMonthRoundsHalfUp(t *testing.T) {
+func TestRoundHalfUp(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, int64(50), shareOfMonth(100, 15, 30))
-	assert.EqualValues(t, 2, shareOfMonth(3, 15, 30), "1.5 rounds up")
-	assert.Equal(t, int64(100), shareOfMonth(100, 31, 31))
+	assert.EqualValues(t, 50, roundHalfUp(100*15, 30))
+	assert.EqualValues(t, 2, roundHalfUp(3*15, 30), "1.5 rounds up")
+	assert.EqualValues(t, 100, roundHalfUp(100*31, 31))
 }
 
 func TestWithValidityEndsBeforeNextPrice(t *testing.T) {
@@ -351,4 +355,139 @@ func TestBilledPricesNeverChange(t *testing.T) {
 	removed := sjrTariffs(t)[1:]
 	assert.True(t, changesBilledPrice(schoolIspringen, day(t, "2026-09-01"), billed, newPriceBook(before), newPriceBook(removed)),
 		"removing the billed Monday price changes it")
+}
+
+// TestCareMonthDuplicateContractsAreHeldForReview bills a weekday of a
+// module once per child and month at most (Betragsregel 1): two active
+// contracts of one child that both book Monday until 14:00 bill nothing and
+// show the child with both contracts. Without the rule the child paid
+// 155,00 € instead of 77,50 €.
+func TestCareMonthDuplicateContractsAreHeldForReview(t *testing.T) {
+	t.Parallel()
+	first := sjrVersion(t, contractMia, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"), booked("tue", moduleUntil1630, "Betreuung bis 16:30 Uhr", "16:30"))
+	second := sjrVersion(t, contractNoah, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"), booked("tue", moduleUntil1630, "Betreuung bis 16:30 Uhr", "16:30"))
+	second.StudentID = first.StudentID
+	month, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
+		versions: []parentbilling.CareContractVersion{first, second}, tariffs: sjrTariffs(t)})
+	require.NoError(t, err)
+	assert.Empty(t, month.invoices, "neither contract is billed")
+	assert.Zero(t, month.total())
+	require.Len(t, month.duplicates, 1)
+	assert.Equal(t, "Mia", month.duplicates[0].ChildFirstName)
+	assert.Equal(t, []int64{contractMia, contractNoah},
+		[]int64{month.duplicates[0].Contracts[0].ContractID, month.duplicates[0].Contracts[1].ContractID})
+
+	// Without a child record the name and the date of birth name the child.
+	birth := day(t, "2019-03-04")
+	first.StudentID, second.StudentID = nil, nil
+	first.ChildBirthDate, second.ChildBirthDate = &birth, &birth
+	month, err = buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleProRata,
+		versions: []parentbilling.CareContractVersion{first, second}, tariffs: sjrTariffs(t)})
+	require.NoError(t, err)
+	assert.Empty(t, month.invoices)
+	require.Len(t, month.duplicates, 1)
+
+	// Another child of the same name is no duplicate.
+	other := day(t, "2020-05-06")
+	second.ChildBirthDate = &other
+	month, err = buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
+		versions: []parentbilling.CareContractVersion{first, second}, tariffs: sjrTariffs(t)})
+	require.NoError(t, err)
+	assert.Len(t, month.invoices, 2)
+	assert.Empty(t, month.duplicates)
+}
+
+// TestCareMonthContractsOfOneChildWithoutOverlapAreBilled bills one child's
+// contracts that share no module and day: the early care of one contract
+// and the afternoon of another, or the modules of two schools.
+func TestCareMonthContractsOfOneChildWithoutOverlapAreBilled(t *testing.T) {
+	t.Parallel()
+	early := sjrVersion(t, contractMia, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("mon", moduleEarly, "Frühbetreuung", "08:00"))
+	afternoon := sjrVersion(t, contractNoah, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
+	afternoon.StudentID = early.StudentID
+	elsewhere := sjrVersion(t, contractNoah+1, schoolBirkenfeld, 1, january2027, januaryLastDay2027,
+		booked("mon", 201, "Betreuung bis 14:00 Uhr", "14:00"))
+	elsewhere.StudentID = early.StudentID
+	tariffs := append(sjrTariffs(t),
+		price(t, schoolIspringen, moduleEarly, "Frühbetreuung", "mon", "2026-09-01", 1500),
+		price(t, schoolBirkenfeld, 201, "Betreuung bis 14:00 Uhr", "mon", "2026-09-01", 2800))
+	month, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
+		versions: []parentbilling.CareContractVersion{early, afternoon, elsewhere}, tariffs: tariffs})
+	require.NoError(t, err)
+	assert.Empty(t, month.duplicates)
+	assert.Equal(t, int64(1500+3200+2800), month.total())
+}
+
+// TestCareMonthUnchangedModuleKeepsOnePosition keeps a module that three
+// versions of January book alike as one position at the full monthly price
+// (Betragsregel 2); before, it cost 31,99 € in three positions. The module
+// that changes splits.
+func TestCareMonthUnchangedModuleKeepsOnePosition(t *testing.T) {
+	t.Parallel()
+	monday := booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00")
+	versions := []parentbilling.CareContractVersion{
+		sjrVersion(t, contractMia, schoolIspringen, 1, january2027, "2027-01-10", monday),
+		sjrVersion(t, contractMia, schoolIspringen, 2, "2027-01-11", "2027-01-21", monday,
+			booked("tue", moduleUntil1630, "Betreuung bis 16:30 Uhr", "16:30")),
+		sjrVersion(t, contractMia, schoolIspringen, 3, "2027-01-22", januaryLastDay2027, monday),
+	}
+	month, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleProRata,
+		versions: versions, tariffs: sjrTariffs(t)})
+	require.NoError(t, err)
+	require.Len(t, month.invoices, 1)
+	positions := month.invoices[0].Positions
+	require.Len(t, positions, 2, "Monday is one position, Tuesday its own")
+	assert.Equal(t, "Betreuung bis 14:00 Uhr", positions[0].ModuleName)
+	assert.Equal(t, int64(3200), positions[0].AmountCents, "the full monthly price, not 31,99 €")
+	assert.Equal(t, january2027, positions[0].ServiceFrom.String())
+	assert.Equal(t, januaryLastDay2027, positions[0].ServiceUntil.String())
+	assert.Equal(t, 1, positions[0].VersionNumber)
+	// Tuesday for 11 of 31 days: 4550 * 11 / 31 = 1614.52.
+	assert.Equal(t, int64(1615), positions[1].AmountCents)
+}
+
+// TestCareMonthSplitPositionsAddUpToTheCent splits a module whose weekdays
+// change and shares its exact amount by largest remainder (Betragsregel 2):
+// Monday 30,01 € all month, Tuesday 45,50 € on 11 days cost 4615.97 → 46,16 €;
+// rounding each part on its own made 46,15 €.
+func TestCareMonthSplitPositionsAddUpToTheCent(t *testing.T) {
+	t.Parallel()
+	tariffs := []parentbilling.CareTariff{
+		price(t, schoolIspringen, moduleUntil1630, "Betreuung bis 16:30 Uhr", "mon", "2026-09-01", 3001),
+		price(t, schoolIspringen, moduleUntil1630, "Betreuung bis 16:30 Uhr", "tue", "2026-09-01", 4550),
+	}
+	monday := booked("mon", moduleUntil1630, "Betreuung bis 16:30 Uhr", "16:30")
+	tuesday := booked("tue", moduleUntil1630, "Betreuung bis 16:30 Uhr", "16:30")
+	versions := []parentbilling.CareContractVersion{
+		sjrVersion(t, contractMia, schoolIspringen, 1, january2027, "2027-01-10", monday),
+		sjrVersion(t, contractMia, schoolIspringen, 2, "2027-01-11", "2027-01-21", monday, tuesday),
+		sjrVersion(t, contractMia, schoolIspringen, 3, "2027-01-22", januaryLastDay2027, monday),
+	}
+	month, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleProRata,
+		versions: versions, tariffs: tariffs})
+	require.NoError(t, err)
+	require.Len(t, month.invoices, 1)
+	positions := month.invoices[0].Positions
+	require.Len(t, positions, 3)
+	var sum int64
+	for _, position := range positions {
+		var weekdays int64
+		for _, weekday := range position.Weekdays {
+			weekdays += weekday.AmountCents
+		}
+		assert.Equal(t, position.AmountCents, weekdays, "the weekdays add up to their position")
+		sum += position.AmountCents
+	}
+	assert.Equal(t, int64(4616), sum, "(3001*10 + 7551*11 + 3001*10) / 31 = 4615.97")
+	assert.Equal(t, int64(4616), month.invoices[0].TotalCents)
+}
+
+func TestLargestRemainderKeepsTheTotal(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, []int64{968, 2680, 968}, largestRemainder([]int64{30010, 83061, 30010}, 31, 4616))
+	assert.Equal(t, []int64{3200}, largestRemainder([]int64{3200 * 31}, 31, 3200))
 }

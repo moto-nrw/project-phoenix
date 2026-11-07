@@ -214,19 +214,39 @@ type CareUnpriced struct {
 	Weekday        string `json:"weekday"`
 }
 
+// CareDuplicateContract is one of the contracts of a duplicate.
+type CareDuplicateContract struct {
+	ContractID int64  `json:"contract_id"`
+	SchoolID   int64  `json:"school_id"`
+	SchoolName string `json:"school_name"`
+}
+
+// CareDuplicate is a child whose active contracts book the same weekday of
+// the same module in the month. The run bills none of them; the Träger-Büro
+// checks the contracts (#4684, Betragsregel 1).
+type CareDuplicate struct {
+	ChildFirstName string                  `json:"child_first_name"`
+	ChildLastName  string                  `json:"child_last_name"`
+	ModuleName     string                  `json:"module_name"`
+	Weekday        string                  `json:"weekday"`
+	Contracts      []CareDuplicateContract `json:"contracts"`
+}
+
 // CareRunDetail is a run with its invoices. A calculated run shows the
 // preview of today with the rule of the Träger now; Unpriced lists the
-// bookings without a price, Billed counts the contracts an earlier run of
-// the month already billed.
+// bookings without a price, Duplicates the children with two contracts for
+// one module and weekday, Billed counts the contracts an earlier run of the
+// month already billed.
 type CareRunDetail struct {
 	CareRun
-	Invoices       []CareInvoice  `json:"invoices"`
-	Unpriced       []CareUnpriced `json:"unpriced"`
-	Billed         int            `json:"billed"`
-	PreviewCount   int            `json:"preview_count"`
-	PreviewCents   int64          `json:"preview_cents"`
-	NumberPattern  string         `json:"number_pattern"`
-	NumberRangeSet bool           `json:"number_range_set"`
+	Invoices       []CareInvoice   `json:"invoices"`
+	Unpriced       []CareUnpriced  `json:"unpriced"`
+	Duplicates     []CareDuplicate `json:"duplicates"`
+	Billed         int             `json:"billed"`
+	PreviewCount   int             `json:"preview_count"`
+	PreviewCents   int64           `json:"preview_cents"`
+	NumberPattern  string          `json:"number_pattern"`
+	NumberRangeSet bool            `json:"number_range_set"`
 }
 
 // CareContractService is a booked module of a contract version on a
@@ -249,6 +269,10 @@ type CareContractVersion struct {
 	Number         int
 	ChildFirstName string
 	ChildLastName  string
+	// StudentID names the child's record when the contract has one;
+	// ChildBirthDate tells two children of one name apart without it.
+	StudentID      *int64
+	ChildBirthDate *calendar.Date
 	From           calendar.Date
 	Until          calendar.Date
 	Services       []CareContractService

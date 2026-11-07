@@ -492,7 +492,7 @@ func (c *CareBilling) preview(ctx context.Context, organizationID int64, run par
 // detail is the run with its preview or its issued invoices and the number
 // range the release uses.
 func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.CareRun) (parentbilling.CareRunDetail, error) {
-	detail := parentbilling.CareRunDetail{CareRun: run, Unpriced: []parentbilling.CareUnpriced{}}
+	detail := parentbilling.CareRunDetail{CareRun: run, Unpriced: []parentbilling.CareUnpriced{}, Duplicates: []parentbilling.CareDuplicate{}}
 	if run.Status == parentbilling.RunReleased {
 		invoices, err := c.store.CareRunInvoices(ctx, reviewer.OrganizationID, run.ID)
 		if err != nil {
@@ -505,6 +505,7 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.CareRunDetail{}, err
 		}
 		detail.MonthRule, detail.Invoices, detail.Unpriced, detail.Billed = rule, month.invoices, month.unpriced, month.billed
+		detail.Duplicates = month.duplicates
 	}
 	for _, invoice := range detail.Invoices {
 		detail.PreviewCount++
@@ -532,7 +533,7 @@ func versionContracts(versions []parentbilling.CareContractVersion) []int64 {
 }
 
 // shownContracts names the contracts whose child a detail shows: on an
-// invoice or without a price.
+// invoice, without a price or as a duplicate.
 func shownContracts(detail parentbilling.CareRunDetail) []int64 {
 	ids := []int64{}
 	for _, invoice := range detail.Invoices {
@@ -541,6 +542,13 @@ func shownContracts(detail parentbilling.CareRunDetail) []int64 {
 	for _, unpriced := range detail.Unpriced {
 		if !slices.Contains(ids, unpriced.ContractID) {
 			ids = append(ids, unpriced.ContractID)
+		}
+	}
+	for _, duplicate := range detail.Duplicates {
+		for _, contract := range duplicate.Contracts {
+			if !slices.Contains(ids, contract.ContractID) {
+				ids = append(ids, contract.ContractID)
+			}
 		}
 	}
 	return ids

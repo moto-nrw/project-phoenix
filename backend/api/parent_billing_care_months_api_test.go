@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -482,4 +483,173 @@ func TestCareMonthlyContractLeftOutForAMissingPriceIsBilledLater(t *testing.T) {
 	assert.Equal(t, late, second.Invoices[0].ContractID)
 	assert.Equal(t, int64(4100), second.Invoices[0].TotalCents, "32,00 € Monday and 9,00 € Saturday")
 	assert.Equal(t, 1, second.Billed)
+}
+
+// Two active contracts of one child book Monday until 14:00 twice: the run
+// bills neither and shows the child as a duplicate with both contracts
+// (Betragsregel 1); a release of nothing else is refused.
+func TestCareMonthlyDuplicateContractIsShownNotBilled(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Monatsbeitrag Doppelt")
+	school := f.office.schools[0]
+	first := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	second := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()[0])
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	run := f.startRun(t, careMonth)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	detail := decodeSchoolPortalData[struct {
+		careRunBody
+		Duplicates []struct {
+			ChildFirstName string `json:"child_first_name"`
+			ModuleName     string `json:"module_name"`
+			Weekday        string `json:"weekday"`
+			Contracts      []struct {
+				ContractID int64 `json:"contract_id"`
+			} `json:"contracts"`
+		} `json:"duplicates"`
+	}](t, rec.Body.Bytes())
+	assert.Empty(t, detail.Invoices, "no invoice, no 155,00 €")
+	assert.Zero(t, detail.PreviewCents)
+	require.Len(t, detail.Duplicates, 1)
+	assert.Equal(t, "Mia", detail.Duplicates[0].ChildFirstName)
+	assert.Equal(t, "mon", detail.Duplicates[0].Weekday)
+	require.Len(t, detail.Duplicates[0].Contracts, 2)
+	assert.ElementsMatch(t, []int64{first, second},
+		[]int64{detail.Duplicates[0].Contracts[0].ContractID, detail.Duplicates[0].Contracts[1].ContractID})
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(detail.careRunBody))
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+}
+
+// Two real transactions start a monthly run for the same month and Träger
+// at once: exactly one run exists afterwards (Betragsregel 3).
+func TestCareMonthlyRunStartedTwiceAtOnceKeepsOneRun(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Monatsbeitrag Start parallel")
+	codes := make([]int, 2)
+	var wg sync.WaitGroup
+	for i := range codes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			codes[i] = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunsPath, map[string]any{"billing_month": careMonth}).Code
+		}()
+	}
+	wg.Wait()
+	assert.ElementsMatch(t, []int{http.StatusCreated, http.StatusConflict}, codes)
+	var runs int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.care_runs WHERE organization_id = ? AND billing_month = ?::date`,
+		f.office.organization, careMonth).Scan(context.Background(), &runs))
+	assert.Equal(t, 1, runs)
+}
+
+// holdCareBilling opens a transaction that holds the monthly billing of the
+// Träger the way a release or a price change does, and waitForCareBilling
+// waits until another transaction queues behind it.
+func holdCareBilling(t *testing.T, db *bun.DB, organizationID int64) bun.Tx {
+	t.Helper()
+	tx, err := db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	_, err = tx.ExecContext(context.Background(),
+		`SELECT pg_advisory_xact_lock(hashtextextended('parent_billing.care_billing:' || ?::text, 0))`, organizationID)
+	require.NoError(t, err)
+	return tx
+}
+
+func waitForCareBilling(t *testing.T, db *bun.DB, organizationID int64, done <-chan struct{}) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		var waiting bool
+		require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT 1 FROM pg_locks AS l
+			WHERE l.locktype = 'advisory' AND NOT l.granted
+				AND ((l.classid::bigint << 32) | l.objid::bigint) = hashtextextended('parent_billing.care_billing:' || ?::text, 0))`,
+			organizationID).Scan(context.Background(), &waiting))
+		if waiting {
+			return
+		}
+		select {
+		case <-done:
+			t.Fatal("the request finished without waiting for the monthly billing")
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	t.Fatal("the request never waited for the monthly billing")
+}
+
+// A release waits while a price change of the month holds the monthly
+// billing, then checks against the new price and refuses: it never issues
+// the old price for a price list that changed under it (Betragsregel 3).
+func TestCareMonthlyReleaseWaitsForAPriceChange(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Monatsbeitrag Freigabe wartet")
+	school := f.office.schools[0]
+	careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	run := f.startRun(t, careMonth)
+	preview := f.run(t, run.ID)
+	require.Equal(t, int64(7750), preview.PreviewCents)
+
+	change := holdCareBilling(t, f.db, f.office.organization)
+	_, err := change.ExecContext(context.Background(), `INSERT INTO parent_billing.care_tariffs (organization_id, school_id,
+			care_offering_id, module_name, weekday, valid_from, monthly_cents)
+		VALUES (?, ?, ?, 'Betreuung bis 14:00 Uhr', 'mon', ?::date, 3600)`, f.office.organization, school, careModuleUntil1400, careMonth)
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	var code int
+	go func() {
+		defer close(done)
+		code = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(preview)).Code
+	}()
+	waitForCareBilling(t, f.db, f.office.organization, done)
+	require.NoError(t, change.Commit())
+	<-done
+	assert.Equal(t, http.StatusConflict, code, "the release sees the new price and refuses")
+	var invoices int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.care_invoices WHERE run_id = ?`, run.ID).
+		Scan(context.Background(), &invoices))
+	assert.Zero(t, invoices, "no invoice with the old price")
+}
+
+// A price change waits while a release holds the monthly billing, then
+// sees the invoice it issued and refuses to change the billed price
+// (Betragsregel 3).
+func TestCarePriceChangeWaitsForARelease(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Monatsbeitrag Preis wartet")
+	school := f.office.schools[0]
+	contract := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	release := holdCareBilling(t, f.db, f.office.organization)
+	_, err := release.ExecContext(context.Background(), `WITH run AS (
+			INSERT INTO parent_billing.care_runs (organization_id, billing_month) VALUES (?0, ?2::date) RETURNING id),
+		invoice AS (
+			INSERT INTO parent_billing.care_invoices (organization_id, run_id, number, number_year, number_sequence, issued_on,
+				billing_month, care_contract_id, school_id, school_name, child_first_name, child_last_name,
+				recipient_first_name, recipient_last_name, recipient_email, month_rule, total_cents)
+			SELECT ?0, id, 'W-0001', 0, 1, ?2::date, ?2::date, ?3, ?1, 'Grundschule', 'Mia', 'Beispiel', 'Eva', 'Beispiel', '',
+				'version_on_first', 3200 FROM run RETURNING id)
+		INSERT INTO parent_billing.care_invoice_positions (organization_id, invoice_id, position, care_offering_id, module_name,
+			contract_version_number, service_from, service_until, weekdays, amount_cents, net_cents)
+		SELECT ?0, id, 1, ?4, 'Betreuung bis 14:00 Uhr', 1, ?2::date, ?2::date + 30,
+			'[{"weekday":"mon","monthly_cents":3200,"amount_cents":3200}]'::jsonb, 3200, 3200 FROM invoice`,
+		f.office.organization, school, careMonth, contract, careModuleUntil1400)
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	var code int
+	go func() {
+		defer close(done)
+		code = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, careMonth, 3600)).Code
+	}()
+	waitForCareBilling(t, f.db, f.office.organization, done)
+	require.NoError(t, release.Commit())
+	<-done
+	assert.Equal(t, http.StatusConflict, code, "the billed Monday keeps 32,00 €")
 }
