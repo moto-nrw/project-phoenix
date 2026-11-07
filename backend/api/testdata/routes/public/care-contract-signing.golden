@@ -1,0 +1,3 @@
+GET /public/care-contract-signing/{link}
+GET /public/care-contract-signing/{link}/document
+POST /public/care-contract-signing/{link}/sign

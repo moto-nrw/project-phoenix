@@ -46,6 +46,9 @@ const PARENT_PUBLIC_PAGES = [
   // The public holiday registration of a Träger, gated by its link (#4661).
   "/parents/ferienanmeldung",
   "/ferienanmeldung",
+  // The one-time link of a care contract mail, gated by its link (#4679).
+  "/parents/vertrag-unterschreiben",
+  "/vertrag-unterschreiben",
   // The public demo's entry page signs the visitor in itself (#3468).
   "/parents/demo",
   "/demo",

@@ -8,9 +8,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -251,4 +253,66 @@ func (a AccidentReportSignatures) AccidentSignature(ctx context.Context, student
 		Method: s.Method, TypedName: s.TypedName, SignerName: s.SignerName, PNG: s.PNG,
 		SignedAt: s.SignedAt, Intact: intact,
 	}, nil
+}
+
+// CareContractSignatures binds the Audit Platform's ledger at the Träger
+// (#4679) to the Betreuungsvertrag: the contract version is the subject,
+// the document checksum is the SHA-256 of the signed PDF, and a refused
+// image becomes the contract's error. It runs in the caller's Träger
+// transaction.
+type CareContractSignatures struct {
+	Ledger auditlog.TraegerSignatureLedger
+}
+
+var _ carecontract.SignatureLedger = CareContractSignatures{}
+
+// NewCareContractSignatures binds the ledger over the Security Runtime's
+// SHA-256 content identity.
+func NewCareContractSignatures() CareContractSignatures {
+	return CareContractSignatures{Ledger: auditCompose.NewTraegerSignatureLedger(securityruntime.Fingerprint)}
+}
+
+func (c CareContractSignatures) RecordContractSignature(ctx context.Context, entry carecontract.ContractSignatureEntry) (int64, error) {
+	image, err := auditlog.ParseSignatureImage(entry.Input.Method, entry.Input.ImagePNG, entry.Input.TypedName)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", carecontract.ErrSignatureInvalid, err)
+	}
+	stored, err := c.Ledger.RecordTraegerSignature(ctx, auditlog.TraegerSignatureEntry{
+		Purpose: auditlog.SignaturePurposeCareContract, ContractVersionID: entry.VersionID, SignerAccountID: entry.SignerAccountID,
+		SignerName: entry.SignerName, DocumentSHA256: entry.DocumentSHA256, SignedAt: entry.SignedAt, Image: image,
+	})
+	if errors.Is(err, auditlog.ErrSignatureInvalid) {
+		return 0, fmt.Errorf("%w: %v", carecontract.ErrSignatureInvalid, err)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return stored.ID, nil
+}
+
+func (c CareContractSignatures) ContractSignatureProofs(ctx context.Context, ids []int64) (map[int64]carecontract.SignatureProof, error) {
+	stored, err := c.Ledger.TraegerSignatures(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]carecontract.SignatureProof, len(stored))
+	for id, s := range stored {
+		out[id] = carecontract.SignatureProof{
+			VersionID: s.ContractVersionID, Method: s.Method, TypedName: s.TypedName, PNG: s.PNG, SignerName: s.SignerName, SignedAt: s.SignedAt,
+			DocumentSHA256: s.DocumentSHA256, Intact: s.IntegrityOK && s.Purpose == auditlog.SignaturePurposeCareContract,
+		}
+	}
+	return out, nil
+}
+
+// CareContractTokens makes the one-time links of the contract mails
+// (#4679) with the Identity & Access capability tokens.
+type CareContractTokens struct{}
+
+func (CareContractTokens) NewToken() (string, string, error) {
+	return tokenprimitives.NewOpaqueCapabilityToken()
+}
+
+func (CareContractTokens) Fingerprint(raw string) string {
+	return tokenprimitives.OpaqueCapabilityFingerprint(raw)
 }
