@@ -29,6 +29,7 @@ import {
   StudentStatusDayConflictError,
 } from "~/lib/student-status-days-api";
 import { classTripConcept } from "~/lib/concepts/classTrip";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 const logger = createLogger({ component: "ClassTripBulkStatusModal" });
 
@@ -249,25 +250,23 @@ export function ClassTripBulkStatusModal({
       }
     >
       <div className="space-y-4 p-4">
-        <div className="border-moto-blue/25 bg-moto-blue/10 flex items-start gap-3 rounded-lg border p-3 text-sm text-gray-700">
-          <MotoConceptIcon
-            concept={classTripConcept}
-            size={18}
-            className="mt-0.5"
-          />
-          {schoolReport ? (
-            <p>
-              Die OGS sieht die ausgewählten Kinder an diesen Tagen als
-              unterwegs.
-            </p>
-          ) : (
-            <p>
-              Der Status wird für alle {students.length} Schüler in{" "}
-              <strong>{targetLabel}</strong> gesetzt und über Nacht nicht
-              zurückgesetzt.
-            </p>
-          )}
-        </div>
+        <Alert
+          type="info"
+          announce="off"
+          color={LOCATION_COLORS.CLASS_TRIP}
+          icon={<MotoConceptIcon concept={classTripConcept} size={18} />}
+          message={
+            schoolReport ? (
+              "Die OGS sieht die ausgewählten Kinder an diesen Tagen als unterwegs."
+            ) : (
+              <>
+                Der Status wird für alle {students.length} Schüler in{" "}
+                <strong>{targetLabel}</strong> gesetzt und über Nacht nicht
+                zurückgesetzt.
+              </>
+            )
+          }
+        />
         <div className="grid gap-3 sm:grid-cols-2">
           <ISODatePicker
             label="Von"
