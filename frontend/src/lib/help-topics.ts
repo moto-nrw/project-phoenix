@@ -389,11 +389,11 @@ const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/ferienanmeldung", HELP_TOPICS.parentHolidayRegistration],
   // Einen Betreuungsvertrag aus den Dokumenten oder über den Link der Mail
   // unterschreiben (#4679).
-  ["/documents/", HELP_TOPICS.parentDocuments],
+  ["/documents", HELP_TOPICS.parentDocuments],
   ["/vertrag-unterschreiben", HELP_TOPICS.parentDocuments],
   // Der Nachweis eines Einverständnisses `/news/<id>/nachweis` gehört zu den
   // Elternbriefen.
-  ["/news/", HELP_TOPICS.parentNews],
+  ["/news", HELP_TOPICS.parentNews],
 ];
 
 /**
