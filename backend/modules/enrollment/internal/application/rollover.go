@@ -54,6 +54,9 @@ type (
 	RolloverDecider interface {
 		Decide(ctx context.Context, input enrollment.DecideInput) (*enrollment.DecideOutcome, error)
 		ApplyDueClassSwitches(ctx context.Context, asOf calendar.Date) (int, error)
+		// ApplyDueWeeklyPlans applies the weekly plans renewals approved
+		// before their start planned for that day (#6043).
+		ApplyDueWeeklyPlans(ctx context.Context, asOf calendar.Date) (int, error)
 	}
 )
 

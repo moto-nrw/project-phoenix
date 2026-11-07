@@ -45,6 +45,10 @@ type (
 		SetChildClassSwitch(context.Context, int64, *enrollmentNative.ClassSwitch) error
 		ChildClassSwitch(context.Context, int64) (*enrollmentNative.ClassSwitch, error)
 		DueClassSwitches(context.Context, enrollmentNative.Date) ([]enrollmentNative.DueClassSwitch, error)
+		// The planned weekly plan of an approved future re-enrollment (#6043).
+		SetChildWeeklyPlanOn(context.Context, int64, *enrollmentNative.Date) error
+		ChildWeeklyPlanOn(context.Context, int64) (*enrollmentNative.Date, error)
+		DueWeeklyPlans(context.Context, enrollmentNative.Date) ([]enrollmentNative.DueWeeklyPlan, error)
 	}
 	// DecisionGuardians reads the co-guardians of a request and stamps the
 	// guardian profile an approval resolved for one of them.
