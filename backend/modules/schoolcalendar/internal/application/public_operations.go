@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *Service) FindCalendarPeriod(ctx context.Context, id int64) (result schoolcalendar.CalendarPeriod, err error) {
@@ -674,6 +675,63 @@ func (s *Service) NonWorkingDayDates(ctx context.Context, from, to string) (map[
 		set[day] = true
 	}
 	return set, nil
+}
+
+// CareCalendarDays reads the closing days and the active holiday periods
+// touching [from, to] in one statement and expands each into a date set
+// clamped to the window (#5994).
+func (s *Service) CareCalendarDays(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, map[calendar.Date]bool, error) {
+	if from == "" || to == "" {
+		return nil, nil, invalidClosingDay("care calendar window needs both from and to dates")
+	}
+	if err := validateWindow(from.String(), to.String(), invalidClosingDay); err != nil {
+		return nil, nil, err
+	}
+	closing, holidays := map[calendar.Date]bool{}, map[calendar.Date]bool{}
+	if to.Before(from) {
+		return closing, holidays, nil
+	}
+	var closingRanges, holidayRanges []schoolcalendar.ClosingDay
+	err := s.run(ctx, "list_care_calendar_ranges", func(ctx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		var err error
+		closingRanges, holidayRanges, queryStats, err = s.store.ListCareCalendarRanges(ctx, from.String(), to.String())
+		stats.Add(queryStats)
+		return err
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := expandRanges(closing, closingRanges, from, to); err != nil {
+		return nil, nil, err
+	}
+	if err := expandRanges(holidays, holidayRanges, from, to); err != nil {
+		return nil, nil, err
+	}
+	return closing, holidays, nil
+}
+
+func expandRanges(set map[calendar.Date]bool, ranges []schoolcalendar.ClosingDay, from, to calendar.Date) error {
+	for _, r := range ranges {
+		start, err := calendar.ParseDate(r.StartDate)
+		if err != nil {
+			return fmt.Errorf("school calendar: range start %q: %w", r.StartDate, err)
+		}
+		end, err := calendar.ParseDate(r.EndDate)
+		if err != nil {
+			return fmt.Errorf("school calendar: range end %q: %w", r.EndDate, err)
+		}
+		if start.Before(from) {
+			start = from
+		}
+		if end.After(to) {
+			end = to
+		}
+		for day := start; !day.After(end); day = day.AddDays(1) {
+			set[day] = true
+		}
+	}
+	return nil
 }
 
 // tenantRegion resolves the tenant's federal state and checks that it names

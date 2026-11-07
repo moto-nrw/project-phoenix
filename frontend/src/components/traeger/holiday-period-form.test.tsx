@@ -345,4 +345,63 @@ describe("HolidayPeriodForm", () => {
     fireEvent.blur(first);
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);
   });
+
+  it("archives a booked time model instead of removing it (#5994)", async () => {
+    const booked: HolidayPeriod = {
+      ...stored,
+      weeks: [
+        {
+          ...stored.weeks[0]!,
+          timeModels: [
+            { ...stored.weeks[0]!.timeModels[0]!, protected: true },
+            {
+              id: "10",
+              name: "bis 16 Uhr",
+              startsAt: "08:00",
+              endsAt: "16:00",
+              priceCents: 6000,
+            },
+          ],
+        },
+      ],
+    };
+    mockUpdate.mockResolvedValue(booked);
+    render(
+      <ToastProvider>
+        <HolidayPeriodForm
+          period={booked}
+          schools={schools}
+          onSaved={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Zeitmodell bis 13 Uhr entfernen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Zeitmodell bis 16 Uhr entfernen" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zeitmodell bis 13 Uhr archivieren" }),
+    );
+    expect(screen.getByText("Archiviert")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    expect(mockUpdate).toHaveBeenCalledWith(
+      "5",
+      expect.objectContaining({
+        weeks: [
+          expect.objectContaining({
+            timeModels: [
+              expect.objectContaining({ id: "9", archived: true }),
+              expect.objectContaining({ id: "10", archived: false }),
+            ],
+          }),
+        ],
+      }),
+    );
+  });
 });

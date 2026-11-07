@@ -1455,6 +1455,16 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudents.HolidayStudentsBornOn",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentsByBirthDate.HolidayStudentsBornOn",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target ports.StudentRepository.FindBornOn: reads in one batch every child of the school born on the dates of the own holiday bookings, also those whose care ended, with the membership interval (#5994, rule of #4722).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindBornOn",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
       "classification": "query",
       "effect": "query",
