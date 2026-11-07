@@ -807,7 +807,7 @@ func TestLiftSuppressionPreservesAComplaintRecordedAfterTheEligibilityCheck(t *t
 // reaches moto later.
 func TestLateFailureDoesNotRerouteADeliveredOrComplainedMail(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 	store, ctx := testStore(t, db)
 	school := testpkg.Tenant(t)
 	for _, first := range []domain.EmailDeliveryState{domain.EmailDeliveryDelivered, domain.EmailDeliveryComplained} {
@@ -837,7 +837,7 @@ func TestLateFailureDoesNotRerouteADeliveredOrComplainedMail(t *testing.T) {
 // that names a blocklist can still send the mail over the fallback.
 func TestBlocklistRetryAfterAnAPIBounceReroutesAndLeavesTheList(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 	store, ctx := testStore(t, db)
 	school := testpkg.Tenant(t)
 	mail := enqueueEventMail(t, db, store, ctx, school, "api-then-blocklist", true)
