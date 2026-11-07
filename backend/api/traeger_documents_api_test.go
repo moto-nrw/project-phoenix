@@ -75,7 +75,13 @@ type traegerDocumentsFixture struct {
 
 func newTraegerDocumentsFixture(t *testing.T) traegerDocumentsFixture {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	return newTraegerDocumentsFixtureOn(t, testpkg.SetupTestDB(t))
+}
+
+// newTraegerDocumentsFixtureOn builds the fixture on db; a test that sweeps
+// across every Träger passes its own isolated database.
+func newTraegerDocumentsFixtureOn(t *testing.T, db *bun.DB) traegerDocumentsFixture {
+	t.Helper()
 	unit := testpkg.TenantRuntime(t, db)
 	portal, _ := traegerPortalOn(t, db, unit)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
