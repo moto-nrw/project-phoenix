@@ -110,6 +110,17 @@ func (s *staffDeviations) loadDeviationReadSet(
 	if err != nil {
 		return nil, timetable.DeviationInternal("load instance staff failed", err)
 	}
+	return newDeviationReadSet(staff, staffIDs, rows, instances, allRows), nil
+}
+
+// newDeviationReadSet indexes the rows of one date's Phase A read.
+func newDeviationReadSet(
+	staff map[int64]*timetable.StaffMember,
+	staffIDs []int64,
+	rows []*scheduleModel.InstanceStaff,
+	instances []*scheduleModel.ActivityInstance,
+	allRows []*scheduleModel.InstanceStaff,
+) *deviationReadSet {
 	readSet := &deviationReadSet{
 		staffExists:    make(map[int64]bool, len(staff)),
 		externalStaff:  make(map[int64]bool),
@@ -129,7 +140,7 @@ func (s *staffDeviations) loadDeviationReadSet(
 	for _, instance := range instances {
 		readSet.instances[instance.ID] = instance
 	}
-	return readSet, nil
+	return readSet
 }
 
 // orderedIDs collects distinct positive ids in first-seen order.

@@ -5427,6 +5427,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s enrollmentNotificationSettings) CareFacilityTerm(ctx context.Context) (string, error) {\n\treturn s.settings.ResolveString(ctx, configModels.KeyEnrollmentCareFacilityTerm)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentNotificationSettings.CareFacilityTerm",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (s enrollmentNotificationSettings) NotifyPerDecision(ctx context.Context) (string, error) {\n\treturn s.settings.ResolveString(ctx, configModels.KeyEnrollmentNotifyPerDecision)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentNotificationSettings.NotifyPerDecision",
