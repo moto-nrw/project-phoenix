@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
@@ -87,7 +88,7 @@ export function RequestSharingSelector({
   if (state.family_protected)
     return <Alert type="info" message={t("protected")} />;
   return (
-    <div className="rounded-xl bg-gray-50 p-3">
+    <InsetPanel>
       <SharingRecipients
         state={state}
         selected={[...selected]}
@@ -102,7 +103,7 @@ export function RequestSharingSelector({
         }
         t={t}
       />
-    </div>
+    </InsetPanel>
   );
 }
 

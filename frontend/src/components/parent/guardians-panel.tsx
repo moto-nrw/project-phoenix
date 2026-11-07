@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useTranslations } from "next-intl";
 import { Pencil, Plus, X } from "lucide-react";
 import {
@@ -668,7 +669,10 @@ function ConnectedAccountRow({
   const removable = canRemove && !account.is_primary && !account.is_self;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl bg-gray-50 p-4 sm:flex-row sm:items-center">
+    <InsetPanel
+      padding="md"
+      className="flex flex-col gap-3 sm:flex-row sm:items-center"
+    >
       <Avatar tone="neutral" size="md" decorative name={name} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900">{name}</p>
@@ -725,7 +729,7 @@ function ConnectedAccountRow({
           )}
         </div>
       ) : null}
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -774,7 +778,7 @@ function GuardianRow({
     access.guardian_role !== "social_worker" &&
     Boolean(accessEmail);
   return (
-    <div className="rounded-xl bg-gray-50 p-4">
+    <InsetPanel padding="md">
       <div className="flex items-start gap-3">
         <Avatar tone="neutral" size="md" decorative name={name} />
         <div className="min-w-0 flex-1">
@@ -975,7 +979,7 @@ function GuardianRow({
           </Button>
         </div>
       )}
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -1229,7 +1233,7 @@ function ContactModal({
               />
             </div>
             {canManagePickup ? (
-              <div className="space-y-3 rounded-xl bg-gray-50 p-3">
+              <InsetPanel className="space-y-3">
                 <label
                   htmlFor="new-contact-can-pickup"
                   className="flex items-start gap-3"
@@ -1295,7 +1299,7 @@ function ContactModal({
                     </span>
                   </span>
                 </label>
-              </div>
+              </InsetPanel>
             ) : null}
           </div>
         ) : null}

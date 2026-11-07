@@ -1,6 +1,7 @@
 "use client";
 
 import { DataField, DataGrid } from "~/components/ui/data-field";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   type Dispatch,
   type SetStateAction,
@@ -34,7 +35,6 @@ import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { SUPPORTED_LOCALES } from "~/i18n/locales";
 import { formatDate } from "~/lib/date-helpers";
-import { cn } from "~/lib/utils";
 import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
@@ -646,10 +646,10 @@ function IdentityFact({
       {value}
       {pending && (
         <div className="mt-3 font-normal">
-          <div
+          <InsetPanel
+            className="space-y-3"
             role="group"
             aria-labelledby={requestTitleId}
-            className="space-y-3 rounded-xl bg-gray-50 p-3"
           >
             <div>
               <p id={requestTitleId} className="text-sm text-gray-500">
@@ -682,7 +682,7 @@ function IdentityFact({
                 />
               </div>
             )}
-          </div>
+          </InsetPanel>
         </div>
       )}
       {pending && editing && editableValue !== null && (
@@ -1021,12 +1021,12 @@ function DepartureDays({
           (modes?.[day] ?? []).includes(mode),
         );
         return (
-          <li
+          <InsetPanel
+            as="li"
+            tone={nested ? "white" : "muted"}
+            framed={false}
+            padding="compact"
             key={day}
-            className={cn(
-              "rounded-xl px-3 py-2.5",
-              nested ? "bg-white" : "bg-gray-50",
-            )}
           >
             <DataGrid columns={1}>
               <DataField label={t(`careSchedule.weekdays.${day}`)}>
@@ -1037,7 +1037,7 @@ function DepartureDays({
                   : t("departureModes.none")}
               </DataField>
             </DataGrid>
-          </li>
+          </InsetPanel>
         );
       })}
     </ul>
