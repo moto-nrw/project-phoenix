@@ -258,8 +258,8 @@ func (s *HolidayPeriodStore) UpdateHolidayPeriod(ctx context.Context, organizati
 }
 
 const publishHolidayPeriodQuery = `UPDATE enrollment.holiday_periods
-	SET status = 'published', published_at = statement_timestamp()
-	WHERE organization_id = ? AND id = ? AND status = 'draft'`
+	SET status = ?, published_at = statement_timestamp()
+	WHERE organization_id = ? AND id = ? AND status = ?`
 
 // PublishHolidayPeriod marks a draft period published.
 func (s *HolidayPeriodStore) PublishHolidayPeriod(ctx context.Context, organizationID, periodID int64) error {
@@ -267,7 +267,7 @@ func (s *HolidayPeriodStore) PublishHolidayPeriod(ctx context.Context, organizat
 	if err != nil {
 		return err
 	}
-	if _, err := db.NewRaw(publishHolidayPeriodQuery, organizationID, periodID).Exec(ctx); err != nil {
+	if _, err := db.NewRaw(publishHolidayPeriodQuery, enrollment.HolidayPeriodPublished, organizationID, periodID, enrollment.HolidayPeriodDraft).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: publish holiday period: %w", err)
 	}
 	return nil
