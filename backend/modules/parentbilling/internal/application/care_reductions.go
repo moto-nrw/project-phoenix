@@ -18,8 +18,12 @@ const (
 )
 
 // The evidence page shows the contracts in force from evidenceLookBack days
-// back to careModuleHorizon days ahead.
-const evidenceLookBack = 92
+// back to evidenceLookAhead days ahead: one year, the span the contract
+// owner answers at once.
+const (
+	evidenceLookBack  = 92
+	evidenceLookAhead = 273
+)
 
 // CareReductionStore persists the care rules, the evidences and their trail
 // of a Träger in its Träger transaction.
@@ -86,7 +90,7 @@ func (c *CareReductions) CareRules(ctx context.Context, reviewer parentbilling.H
 	if err != nil {
 		return parentbilling.CareRuleSet{}, fmt.Errorf("parent billing: read the schools: %w", err)
 	}
-	versions, err := c.versions(ctx, reviewer.OrganizationID)
+	versions, err := c.bookedVersions(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return parentbilling.CareRuleSet{}, err
 	}
@@ -179,15 +183,29 @@ func validityOverlaps(fromA calendar.Date, untilA *calendar.Date, fromB calendar
 	return (untilA == nil || !untilA.Before(fromB)) && (untilB == nil || !untilB.Before(fromA))
 }
 
-// versions reads the contract versions the evidence page and the module
-// list look at.
-func (c *CareReductions) versions(ctx context.Context, organizationID int64) ([]parentbilling.CareContractVersion, error) {
-	today := c.today()
-	versions, err := c.contracts.VersionsInForce(ctx, organizationID, today.AddDays(-evidenceLookBack), today.AddDays(careModuleHorizon))
+// versions reads the contract versions in force between from and to.
+func (c *CareReductions) versions(ctx context.Context, organizationID int64, from, to calendar.Date) ([]parentbilling.CareContractVersion, error) {
+	versions, err := c.contracts.VersionsInForce(ctx, organizationID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("parent billing: read the contract versions: %w", err)
 	}
 	return versions, nil
+}
+
+// bookedVersions reads the versions of the year before and the year after
+// the current month, as the price list does, so the rule page offers the
+// modules the price list shows.
+func (c *CareReductions) bookedVersions(ctx context.Context, organizationID int64) ([]parentbilling.CareContractVersion, error) {
+	current := firstOfMonth(c.today())
+	earlier, err := c.versions(ctx, organizationID, calendar.NewDate(current.Year()-1, current.Month(), 1), current.AddDays(-1))
+	if err != nil {
+		return nil, err
+	}
+	later, err := c.versions(ctx, organizationID, current, current.AddDays(careModuleHorizon))
+	if err != nil {
+		return nil, err
+	}
+	return append(earlier, later...), nil
 }
 
 // CareEvidences lists the contracts in force with their evidences and the
@@ -196,7 +214,8 @@ func (c *CareReductions) CareEvidences(ctx context.Context, reviewer parentbilli
 	if err := validReviewer(reviewer); err != nil {
 		return parentbilling.CareEvidenceSet{}, err
 	}
-	versions, err := c.versions(ctx, reviewer.OrganizationID)
+	today := c.today()
+	versions, err := c.versions(ctx, reviewer.OrganizationID, today.AddDays(-evidenceLookBack), today.AddDays(evidenceLookAhead))
 	if err != nil {
 		return parentbilling.CareEvidenceSet{}, err
 	}
