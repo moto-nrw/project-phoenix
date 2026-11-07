@@ -17,7 +17,7 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import { fieldLabelBaseline } from "./ui-kit-field-label-baseline.mjs";
+import { uppercaseLabelBaseline } from "./ui-kit-uppercase-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import {
   lintSource as lintProbe,
@@ -2701,14 +2701,135 @@ describe.concurrent("ui-kit/no-hand-rolled-field-label (#5589)", () => {
     expect(output).not.toContain(RULE);
   });
 
+  // Hard-zero seit #5590: auch die früheren Baseline-Dateien haben keinen
+  // erlaubten Fund mehr.
+  it.each([
+    "src/components/surveys/survey-editor-fields.tsx",
+    "src/components/timetable/bulk-substitution-modal.tsx",
+  ])("fails the first finding in %s", async (file) => {
+    const result = await lintSource(
+      'export const Probe = () => <label htmlFor="f" className="block text-sm font-medium">A</label>;',
+      file,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+});
+
+describe.concurrent("ui-kit/no-uppercase-label (#5590)", () => {
+  const RULE = "ui-kit(no-uppercase-label)";
+  const lintProbe = (
+    source: string,
+    file = "src/components/probe-section.tsx",
+  ) => lintSource(source, file);
+
+  it.each([
+    '<h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">Gruppe</h3>',
+    '<p className="mb-2 text-[11px] font-bold tracking-wider uppercase">Gruppe</p>',
+    '<span className={cn("uppercase", "tracking-widest")}>Tag</span>',
+    '<legend className={open ? "tracking-wide uppercase" : "text-sm"}>Gruppe</legend>',
+    '<SectionCard titleClassName="uppercase tracking-wide" title="A" />',
+  ])("reports %s", async (element) => {
+    const { output } = await lintProbe(
+      `import { cn } from "~/lib/utils";
+      import { SectionCard } from "~/components/ui/section-card";
+      const open = true;
+      export const Probe = () => ${element};
+      void cn; void SectionCard; void open;`,
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it.each([
+    '<h3 className="text-sm font-semibold text-gray-600">Gruppe</h3>',
+    '<span className="uppercase">Nur Versalien</span>',
+    '<span className="tracking-wide">Nur Laufweite</span>',
+    '<span className="normal-case tracking-tight">Normal</span>',
+  ])("accepts %s", async (element) => {
+    const { output } = await lintProbe(
+      `export const Probe = () => ${element};`,
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  it("accepts mutually exclusive conditional classes", async () => {
+    const { output } = await lintProbe(`
+      const condensed = true;
+      export const Probe = () => (
+        <span className={condensed ? "uppercase" : "tracking-wide"}>
+          Gruppe
+        </span>
+      );
+    `);
+    expect(output).not.toContain(RULE);
+  });
+
+  it("keeps conditional cn() arguments on separate class paths", async () => {
+    const { output } = await lintProbe(`
+      import { cn } from "~/lib/utils";
+      const condensed = true;
+      export const Probe = () => (
+        <span className={cn("text-xs", condensed ? "uppercase" : "tracking-wide")}>
+          Gruppe
+        </span>
+      );
+      void cn;
+    `);
+    expect(output).not.toContain(RULE);
+  });
+
+  it("reports a complete class chain within one conditional cn() path", async () => {
+    const { output } = await lintProbe(`
+      import { cn } from "~/lib/utils";
+      const condensed = true;
+      export const Probe = () => (
+        <span className={cn("uppercase", condensed ? "tracking-wide" : "text-sm")}>
+          Gruppe
+        </span>
+      );
+      void cn;
+    `);
+    expect(output).toContain(RULE);
+  });
+
+  it("reports a class chain in a constant once", async () => {
+    const { output } = await lintProbe(`
+      const LABEL = "text-xs tracking-wide uppercase";
+      export const Probe = () => <p className={LABEL}>Gruppe</p>;
+    `);
+    expect(output.split(RULE).length - 1).toBe(1);
+  });
+
+  it("reports a class chain split across a className constant", async () => {
+    const { output } = await lintProbe(`
+      import { cn } from "~/lib/utils";
+      const classes = cn("uppercase", "tracking-wide");
+      export const Probe = () => <span className={classes}>Gruppe</span>;
+      void cn;
+    `);
+    expect(output.split(RULE).length - 1).toBe(1);
+  });
+
+  it.each([
+    ["the kit", "src/components/ui/section-card.tsx"],
+    ["the /start page", "src/app/start/page.tsx"],
+    ["the NFC print guide", "src/app/help/nfc/erste-schritte/page.tsx"],
+  ])("leaves %s alone", async (_name, file) => {
+    const { output } = await lintProbe(
+      'export const Probe = () => <p className="text-xs tracking-wide uppercase">Kicker</p>;',
+      file,
+    );
+    expect(output).not.toContain(RULE);
+  });
+
   it("fails one finding more than a file's baseline", async () => {
     const [file, allowed] = Object.entries(
-      fieldLabelBaseline["no-hand-rolled-field-label"]!,
+      uppercaseLabelBaseline["no-uppercase-label"]!,
     )[0]!;
     const labels = Array.from(
       { length: allowed + 1 },
-      (_, index) =>
-        `<label htmlFor="f${index}" className="block text-sm font-medium">A</label>`,
+      () => '<p className="text-xs tracking-wide uppercase">A</p>',
     ).join("");
     const result = await lintSource(
       `export const Probe = () => <>${labels}</>;`,
@@ -2720,12 +2841,15 @@ describe.concurrent("ui-kit/no-hand-rolled-field-label (#5589)", () => {
   });
 });
 
-describe("ui-kit/no-hand-rolled-field-label baseline is current (#5589)", () => {
+describe("ui-kit/no-uppercase-label baseline is current (#5590)", () => {
   // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken.
   it("records exactly the findings each file still has", () => {
     const result = spawnSync(
       process.execPath,
-      [resolve("scripts/ui-kit-field-label-baseline-update.mjs"), "--check"],
+      [
+        resolve("scripts/ui-kit-uppercase-label-baseline-update.mjs"),
+        "--check",
+      ],
       { encoding: "utf8" },
     );
 
