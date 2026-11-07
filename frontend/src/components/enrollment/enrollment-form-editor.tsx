@@ -3092,7 +3092,7 @@ function InlineCheckbox({
     <label
       className={`inline-flex min-w-0 items-center gap-2 text-left text-sm font-medium ${
         muted ? "text-gray-700" : "text-gray-800"
-      } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+      } ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
     >
       <Checkbox
         checked={checked}

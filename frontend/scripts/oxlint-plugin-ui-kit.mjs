@@ -3926,10 +3926,12 @@ const noHandRolledToggleControl = makeRatchetRule({
   exemptDir: UI_KIT_DIR,
   detect: ({ classText, found }) => ({
     JSXElement(node) {
-      const role = staticAttributeValue(
-        jsxAttribute(node.openingElement, "role"),
-      );
-      if (role && TOGGLE_ROLES.has(role)) {
+      // Auch `role={on ? "switch" : undefined}`: jeder Text im Ausdruck zählt.
+      const roleAttribute = jsxAttribute(node.openingElement, "role");
+      const roles = roleAttribute?.value
+        ? classText(roleAttribute.value).split(/\s+/)
+        : [];
+      if (roles.some((role) => TOGGLE_ROLES.has(role))) {
         found(node.openingElement);
         return;
       }

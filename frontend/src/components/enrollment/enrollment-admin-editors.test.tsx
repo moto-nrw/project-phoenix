@@ -4161,7 +4161,7 @@ describe("EnrollmentFormEditor", () => {
     );
   });
 
-  it("uses compact right-side controls for inherited standard legal blocks", async () => {
+  it("uses right-side kit switches and icon menus for inherited standard legal blocks", async () => {
     mocks.listSchemas.mockResolvedValue([]);
     mocks.listPhases.mockResolvedValue([]);
 

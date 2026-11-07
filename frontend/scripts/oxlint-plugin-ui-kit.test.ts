@@ -1287,6 +1287,7 @@ describe.concurrent("ui-kit/no-hand-rolled-toggle-control", () => {
         return <>
           <button type="button" role="switch" aria-checked={on} aria-label="An" />
           <div role="checkbox" aria-checked={on} aria-label="Wahl" tabIndex={0} />
+          <div role={on ? "checkbox" : undefined} aria-label="Wahl" tabIndex={0} />
           <span className="flex h-4 w-4 items-center justify-center rounded border">
             {on && <Check />}
           </span>
@@ -1299,7 +1300,7 @@ describe.concurrent("ui-kit/no-hand-rolled-toggle-control", () => {
     expect(result.status).toBe(1);
     expect(
       result.output.match(/ui-kit\(no-hand-rolled-toggle-control\)/g),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
   });
 
   it("allows round status marks and the kit itself", async () => {
