@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   Check,
   ChevronRight,
-  Loader2,
   LogIn,
   Minus,
   Plus,
@@ -43,6 +42,7 @@ import {
   DEPARTURE_MODE_LABELS,
   type DepartureMode,
 } from "~/lib/departure-plan";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 /**
  * What changed for today only (#3946): the Gehzeit, the Abholart (#3945) or
@@ -388,10 +388,7 @@ export function StudentCard({
           data-checkin-tap-strip="true"
         >
           {isCheckinPending ? (
-            <Loader2
-              className="h-4 w-4 flex-shrink-0 animate-spin"
-              aria-hidden="true"
-            />
+            <SpinnerIcon className="h-4 w-4 flex-shrink-0" />
           ) : tapStrip.action === "anmelden" ? (
             <Plus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
           ) : (

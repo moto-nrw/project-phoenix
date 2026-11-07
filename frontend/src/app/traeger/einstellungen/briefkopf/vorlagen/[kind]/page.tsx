@@ -382,9 +382,11 @@ function TemplateEditorPage({
                       variant="outline"
                       size="md"
                       disabled={saving || previewing || !previewStale}
+                      isLoading={previewing}
+                      loadingText="Vorschau lädt…"
                       onClick={() => void showPreview()}
                     >
-                      {previewing ? "Vorschau lädt…" : "Vorschau zeigen"}
+                      Vorschau zeigen
                     </Button>
                     {canEdit && changed ? (
                       <EditActions

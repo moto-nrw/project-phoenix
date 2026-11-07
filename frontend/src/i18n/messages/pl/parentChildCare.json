@@ -29,7 +29,8 @@
     "reasonRequiredError": "Proszę wpisać krótką uwagę dla OGS.",
     "requestSentTitle": "Prośba wysłana",
     "requestSentBody": "OGS musi jeszcze potwierdzić nieobecność. Do tego czasu OGS oczekuje Państwa dziecka.",
-    "errorObject": "zgłoszenie nieobecności"
+    "errorObject": "zgłoszenie nieobecności",
+    "submitting": "Zgłaszanie …"
   },
   "summary": {
     "none": "Brak zwolnienia",
@@ -93,7 +94,9 @@
     "modeStaffSet": "OGS ustaliła już sposób odbioru na ten dzień: {mode}.",
     "pendingMode": "Nowy sposób odbioru: {to}",
     "statusApprovedChange": "Potwierdzono, zmiana obowiązuje.",
-    "errorStaffConflictGeneric": "OGS wpisała już zmianę na ten dzień. Proszę skontaktować się z zespołem OGS."
+    "errorStaffConflictGeneric": "OGS wpisała już zmianę na ten dzień. Proszę skontaktować się z zespołem OGS.",
+    "submitting": "Wysyłanie …",
+    "savingEdit": "Zapisywanie …"
   },
   "actions": {
     "sick": {

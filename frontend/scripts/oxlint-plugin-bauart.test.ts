@@ -1184,6 +1184,106 @@ describe.concurrent("bauart rules", () => {
       }
     });
 
+    it("rejects rows rebuilt from several Skeletons in an own surface", async () => {
+      for (const surface of [
+        "moto-content-surface rounded-2xl border p-4",
+        "rounded-xl bg-gray-50/50 px-3 py-2",
+        "rounded-lg border border-gray-100 p-4",
+      ]) {
+        const { status, output } = await lintSource(
+          `import { Skeleton } from "~/components/ui/skeleton";
+          export function Probe() {
+            return (
+              <div className="${surface}">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            );
+          }`,
+        );
+
+        expect(status).toBe(1);
+        expect(output).toContain("bauart(no-own-skeleton)");
+      }
+    });
+
+    it("counts one Skeleton in a loop as several rows", async () => {
+      const { status, output } = await lintSource(
+        `import { Skeleton } from "~/components/ui/skeleton";
+        export function Probe() {
+          return (
+            <div className="moto-content-surface rounded-2xl border p-4">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-4 w-24" />
+              ))}
+            </div>
+          );
+        }`,
+      );
+
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-own-skeleton)");
+    });
+
+    it("lets Skeletons in a kit card, a plain layout and a positioned plan block through", async () => {
+      const source = `import { SectionCard } from "~/components/ui/section-card";
+      import { Skeleton } from "~/components/ui/skeleton";
+      export function Probe() {
+        return (
+          <>
+            <SectionCard>
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+            </SectionCard>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+            <div className="moto-content-surface absolute left-2 rounded-xl border p-2">
+              <Skeleton className="h-3 w-2/5" />
+              <Skeleton className="mt-2 h-2.5 w-1/4" />
+            </div>
+          </>
+        );
+      }`;
+
+      expect((await lintSource(source)).output).not.toContain(
+        "bauart(no-own-skeleton)",
+      );
+    });
+
+    it("rejects a radius class on Skeleton, in the other portals too", async () => {
+      for (const path of [
+        "src/components/probe.tsx",
+        "src/components/parent/probe.tsx",
+        "src/app/operator/probe.tsx",
+      ]) {
+        for (const className of ["rounded", "rounded-full", "sm:rounded-xl"]) {
+          const { status, output } = await lintSource(
+            `import { Skeleton } from "~/components/ui/skeleton";
+            export function Probe() {
+              return <Skeleton className="h-4 ${className}" />;
+            }`,
+            path,
+          );
+
+          expect(status).toBe(1);
+          expect(output).toContain("bauart(no-own-skeleton)");
+        }
+      }
+    });
+
+    it("lets the shape prop through", async () => {
+      const source = `import { Skeleton } from "~/components/ui/skeleton";
+      export function Probe() {
+        return <Skeleton shape="round" className="h-10 w-10" />;
+      }`;
+
+      expect((await lintSource(source)).output).not.toContain(
+        "bauart(no-own-skeleton)",
+      );
+    });
+
     it("keeps no per-file tolerance: a formerly baselined file fails on its first block", async () => {
       // birthday-list.tsx carried one pulse block until #3119; the baseline is
       // gone, so the first hand-written placeholder fails again.

@@ -1354,14 +1354,14 @@ function AnnouncementSkeletons() {
       {Array.from({ length: 3 }, (_, i) => (
         <div key={i} className="moto-content-surface rounded-2xl border p-5">
           <div className="space-y-3">
-            <Skeleton className="h-5 w-3/5 rounded" />
+            <Skeleton className="h-5 w-3/5" />
             <div className="flex gap-2">
-              <Skeleton className="h-5 w-20 rounded-full" />
-              <Skeleton className="h-5 w-16 rounded-full" />
-              <Skeleton className="h-5 w-24 rounded-full" />
+              <Skeleton shape="round" className="h-5 w-20" />
+              <Skeleton shape="round" className="h-5 w-16" />
+              <Skeleton shape="round" className="h-5 w-24" />
             </div>
-            <Skeleton className="h-4 w-full rounded" />
-            <Skeleton className="h-4 w-4/5 rounded" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
           </div>
         </div>
       ))}

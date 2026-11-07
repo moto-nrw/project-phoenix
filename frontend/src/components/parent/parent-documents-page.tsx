@@ -114,8 +114,8 @@ export function ParentDocumentsPage() {
       {error ? <LoadErrorAlert error={error} /> : null}
       {documents === null ? (
         <div className="space-y-3" aria-busy="true">
-          <Skeleton className="h-36 w-full rounded-2xl" />
-          <Skeleton className="h-36 w-full rounded-2xl" />
+          <Skeleton shape="card" className="h-36 w-full" />
+          <Skeleton shape="card" className="h-36 w-full" />
         </div>
       ) : documents.length === 0 ? (
         error ? null : (

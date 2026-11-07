@@ -2341,6 +2341,79 @@ describe.concurrent(
   },
 );
 
+describe.concurrent("ui-kit/no-own-spinner (#5588)", () => {
+  it.each([
+    [
+      "a border spinner",
+      `<div className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />`,
+    ],
+    [
+      "animate-spin on an icon",
+      `<svg className="h-4 w-4 animate-spin text-white" />`,
+    ],
+    [
+      "a computed class",
+      `<span className={\`h-3 w-3 animate-spin \${tone}\`} />`,
+    ],
+  ])("fails %s", async (_name, element) => {
+    const result = await lintSource(
+      `function Probe({ tone }: { tone: string }) {
+        void tone;
+        return ${element};
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-own-spinner");
+  });
+
+  it.each([
+    ["lucide-react", "Loader2"],
+    ["lucide-react", "LoaderCircle"],
+    ["@phosphor-icons/react/ssr", "CircleNotchIcon"],
+  ])("fails the %s icon %s", async (source, name) => {
+    const result = await lintSource(
+      `import { ${name} } from "${source}";
+      void ${name};`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-own-spinner");
+  });
+
+  it("accepts the kit pieces, other icons and the kit folder", async () => {
+    const accepted = await lintSource(
+      `import { Check } from "lucide-react";
+      import { SpinnerIcon } from "~/components/ui/icons";
+      import { Loading } from "~/components/ui/loading";
+      function Probe() {
+        return (
+          <>
+            <SpinnerIcon className="h-4 w-4" />
+            <Loading fullPage={false} message="Wird geladen" />
+            <Check className="h-4 w-4" />
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const kit = await lintSource(
+      `function Probe() {
+        return <svg className="h-4 w-4 animate-spin" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(accepted.output).not.toContain("no-own-spinner");
+    expect(kit.output).not.toContain("no-own-spinner");
+  });
+});
+
 describe.concurrent("ui-kit Eingabe-Bausteine (#5596)", () => {
   it.each([
     [

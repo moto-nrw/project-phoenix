@@ -38,7 +38,7 @@ export function BirthdayList({
     return (
       <div className="space-y-2" aria-hidden="true">
         {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-8 rounded-lg" />
+          <Skeleton key={i} shape="control" className="h-8" />
         ))}
       </div>
     );

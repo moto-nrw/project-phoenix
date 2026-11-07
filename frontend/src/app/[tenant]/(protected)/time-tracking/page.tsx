@@ -153,12 +153,15 @@ import { formatWeekLabel } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
 import { errorStatus } from "~/lib/expected-failure";
 import { IconTile } from "~/components/ui/icon-tile";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
 const WeekChart = dynamic(() => import("./week-chart"), {
   ssr: false,
-  loading: () => <Skeleton className="min-h-[280px] rounded-2xl" aria-hidden />,
+  loading: () => (
+    <Skeleton shape="card" className="min-h-[280px]" aria-hidden />
+  ),
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1014,7 +1017,7 @@ function ClockInCard({
                 aria-label="Einstempeln"
               >
                 {actionLoading ? (
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  <SpinnerIcon className="h-5 w-5" />
                 ) : (
                   <svg
                     className="ml-0.5 h-7 w-7"
@@ -1160,7 +1163,7 @@ function ClockInCard({
                 aria-label="Ausstempeln"
               >
                 {actionLoading ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  <SpinnerIcon className="h-4 w-4" />
                 ) : (
                   <svg
                     className="h-4 w-4"

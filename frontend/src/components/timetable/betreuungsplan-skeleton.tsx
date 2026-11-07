@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   timetableSurface,
@@ -27,11 +28,11 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
                 <Skeleton className="h-4 w-40" />
                 <Skeleton className="h-3 w-28" />
               </div>
-              <Skeleton className="h-8 w-8 rounded-lg" />
+              <Skeleton shape="control" className="h-8 w-8" />
             </div>
             <div className="mt-5 space-y-2">
-              <Skeleton className="h-10 w-full rounded-xl" />
-              <Skeleton className="h-10 w-11/12 rounded-xl" />
+              <Skeleton shape="inner" className="h-10 w-full" />
+              <Skeleton shape="inner" className="h-10 w-11/12" />
             </div>
           </div>
         ))}
@@ -63,7 +64,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
           <div aria-hidden />
           <div className="flex items-center justify-center gap-2 border-l border-gray-200 px-2 py-2">
             <Skeleton className="h-3 w-10" />
-            <Skeleton className="h-6 w-6 rounded-full" />
+            <Skeleton shape="round" className="h-6 w-6" />
           </div>
         </div>
         <div className="relative grid h-[560px] grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_minmax(0,1fr)]">
@@ -155,7 +156,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
               className="flex items-center justify-center gap-2 border-l border-gray-200 px-2 py-2"
             >
               <Skeleton className="h-3 w-6" />
-              <Skeleton className="h-6 w-6 rounded-full" />
+              <Skeleton shape="round" className="h-6 w-6" />
             </div>
           ))}
         </div>
@@ -222,13 +223,13 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
             key={day}
             className="min-h-[112px] border-r border-b border-gray-100 bg-white p-2"
           >
-            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton shape="round" className="h-5 w-5" />
             <div className="mt-5 space-y-1.5">
               {day % 3 === 0 && (
-                <Skeleton className="h-5 w-full rounded-full" />
+                <Skeleton shape="round" className="h-5 w-full" />
               )}
               {day % 4 === 0 && (
-                <Skeleton className="h-5 w-10/12 rounded-full" />
+                <Skeleton shape="round" className="h-5 w-10/12" />
               )}
             </div>
           </div>
@@ -261,24 +262,30 @@ export function PlanningContextBarSkeleton({
       aria-label={announce ? ariaLabel : undefined}
       aria-hidden={announce ? undefined : true}
       data-testid={testId}
-      className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-5"
     >
       {announce ? <span className="sr-only">{ariaLabel}</span> : null}
-      <div>
-        <Skeleton className="h-7 w-40" />
-        <Skeleton className="mt-2 h-4 w-56" />
-      </div>
-      <div className="flex min-h-9 flex-wrap items-center gap-3">
-        <Skeleton className="h-9 w-28 rounded-lg" />
-        <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-9 w-48 rounded-lg" />
-        <Skeleton className="ml-auto h-9 w-24 rounded-lg bg-gray-300" />
-      </div>
-      <div className="border-t border-gray-100 pt-2">
-        <div className="min-h-8">
-          <Skeleton className="h-5 w-32" />
+      <SectionCard padding="none">
+        <div className="flex flex-col gap-4 p-5">
+          <div>
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="mt-2 h-4 w-56" />
+          </div>
+          <div className="flex min-h-9 flex-wrap items-center gap-3">
+            <Skeleton shape="control" className="h-9 w-28" />
+            <Skeleton className="h-6 w-40" />
+            <Skeleton shape="control" className="h-9 w-48" />
+            <Skeleton
+              shape="control"
+              className="ml-auto h-9 w-24 bg-gray-300"
+            />
+          </div>
+          <div className="border-t border-gray-100 pt-2">
+            <div className="min-h-8">
+              <Skeleton className="h-5 w-32" />
+            </div>
+          </div>
         </div>
-      </div>
+      </SectionCard>
     </div>
   );
 }

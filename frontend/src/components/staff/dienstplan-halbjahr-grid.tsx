@@ -18,6 +18,7 @@ import {
   ResourceGrid,
   type ResourceGridColumn,
 } from "~/components/ui/planning/resource-grid";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
@@ -578,15 +579,7 @@ export function DienstplanHalbjahrGrid({
   ]);
 
   if (periodsLoading || (!periods && !periodsError)) {
-    return (
-      <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-        </div>
-      </div>
-    );
+    return <SectionCard loading />;
   }
 
   if (periodsError) {

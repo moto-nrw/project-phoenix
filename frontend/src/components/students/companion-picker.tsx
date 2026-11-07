@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Plus, Search, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -23,6 +23,7 @@ import {
 } from "~/lib/student-companion-api";
 import { getGermanWeekdayAdverb } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "CompanionPicker" });
 
@@ -382,7 +383,7 @@ export function CompanionPicker({
             </p>
           ) : searching ? (
             <div className="flex items-center gap-2 text-xs text-gray-500">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              <SpinnerIcon className="h-3.5 w-3.5" />
               Suche...
             </div>
           ) : searchError.error ? (
