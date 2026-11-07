@@ -35,10 +35,11 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
-  EnrollmentForm,
+  prefetchedDataFromBootstrap,
   type EnrollmentFormPrefetchedData,
-} from "~/components/enrollment/enrollment-form";
+} from "~/components/enrollment/enrollment-form-config";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import {
   type CareOfferingBookingStats,
@@ -415,23 +416,21 @@ export function ManualApprovedEnrollmentModal({
 function toManualPrefetchedData(
   bootstrap: Awaited<ReturnType<typeof fetchManualEnrollmentBootstrap>>,
 ): EnrollmentFormPrefetchedData {
-  return {
-    schema: bootstrap.schema,
-    offerings: bootstrap.offerings,
-    careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
-    collectGradeLevel: bootstrap.collect_grade_level,
-    careOfferingsEnabled: bootstrap.care_offerings_enabled,
-    captchaConfig: null,
-    legalTexts: {
-      ...bootstrap.legal_texts,
-      blocks: (bootstrap.legal_texts.blocks ?? []).map((block) => ({
-        ...block,
-        required: false,
-      })),
+  // The school confirms consent outside the form, so no block is required.
+  // Staff entry bypasses the phase's audience and grade gates.
+  return prefetchedDataFromBootstrap(
+    {
+      ...bootstrap,
+      legal_texts: {
+        ...bootstrap.legal_texts,
+        blocks: (bootstrap.legal_texts.blocks ?? []).map((block) => ({
+          ...block,
+          required: false,
+        })),
+      },
     },
-    profile: null,
-    schoolClass: bootstrap.school_class,
-  };
+    { phaseRestrictions: false },
+  );
 }
 
 function buildLateInviteUrl(phaseUrl: string, token: string): string {

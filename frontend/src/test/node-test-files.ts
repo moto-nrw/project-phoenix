@@ -293,6 +293,7 @@ export const nodeLogicTestFiles = [
   "src/app/[tenant]/(protected)/students/[id]/student-referrer.test.ts",
   "src/components/class-day/class-handover.test.ts",
   "src/components/class-day/school-day.test.ts",
+  "src/components/enrollment/enrollment-form-field-names.test.ts",
   "src/components/enrollment/file-field-editor.test.ts",
   "src/components/staff-onboarding/staff-onboarding-steps.test.ts",
   "src/components/students/accident-report-form.test.ts",

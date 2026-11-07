@@ -7,10 +7,8 @@ import { Check, Mail } from "lucide-react";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale, useTranslations } from "next-intl";
-import {
-  EnrollmentForm,
-  type EnrollmentFormPrefetchedData,
-} from "~/components/enrollment/enrollment-form";
+import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
+import { prefetchedDataFromBootstrap } from "~/components/enrollment/enrollment-form-config";
 import {
   PublicEnrollmentBrand,
   PublicEnrollmentLocaleSwitcher,
@@ -116,32 +114,16 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
   const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
     ? resolvedGradeLevelMax
     : null;
-  const prefetchedData = useMemo<
-    EnrollmentFormPrefetchedData | undefined
-  >(() => {
-    if (!bootstrap) return undefined;
-    return {
-      schema: bootstrap.schema,
-      offerings: bootstrap.offerings,
-      careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
-      collectGradeLevel: bootstrap.collect_grade_level,
-      careOfferingsEnabled: bootstrap.care_offerings_enabled,
-      captchaConfig: bootstrap.captcha_config,
-      legalTexts: bootstrap.legal_texts,
-      profile: bootstrap.profile ?? null,
-      lateInvite: bootstrap.late_invite,
-      schoolClass: bootstrap.school_class,
-      // Carry the phase audience through so the form can suppress the
-      // existing-child reuse panel on a new_students phase — a signed-in
-      // dual-role guardian on the tenant-public path can have linked
-      // children the server would always reject (#1663). Mirrors the
-      // parent-portal mapper.
-      audience: bootstrap.phase.audience,
-      // Same for the grade restriction, so the grade select offers only the
-      // grades the phase accepts (#1663).
-      eligibleGradeLevels: bootstrap.phase.eligible_grade_levels ?? [],
-    };
-  }, [bootstrap]);
+  const prefetchedData = useMemo(
+    () =>
+      bootstrap
+        ? prefetchedDataFromBootstrap(bootstrap, {
+            profile: bootstrap.profile ?? null,
+            captchaConfig: bootstrap.captcha_config,
+          })
+        : undefined,
+    [bootstrap],
+  );
 
   const handleSubmitted = (statusURL: string) => {
     try {

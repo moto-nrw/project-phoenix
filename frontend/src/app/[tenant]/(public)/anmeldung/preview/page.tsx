@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Eye, Info } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -60,7 +60,6 @@ function EnrollmentPreviewPageContent() {
     clear: clearLoadError,
   } = useApiLoadError();
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const previewProfileFetcher = useCallback(() => Promise.resolve(null), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,7 +184,6 @@ function EnrollmentPreviewPageContent() {
               gradeLevelMax={gradeLevelMax}
               localizedCopy
               onSubmitted={() => undefined}
-              profileFetcher={previewProfileFetcher}
               previewMode
               previewSchema={previewSchema}
               skipCaptcha

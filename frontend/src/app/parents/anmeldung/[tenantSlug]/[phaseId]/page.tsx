@@ -4,10 +4,11 @@ import { Suspense, use, useCallback, useEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- parent portal uses bare paths, no tenant-router
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
-  EnrollmentForm,
+  prefetchedDataFromBootstrap,
   type EnrollmentFormPrefetchedData,
-} from "~/components/enrollment/enrollment-form";
+} from "~/components/enrollment/enrollment-form-config";
 import {
   ParentPage,
   ParentPageHeader,
@@ -21,10 +22,7 @@ import {
   fetchParentEnrollmentProfile,
   submitParentEnrollment,
 } from "~/lib/parent-api";
-import {
-  fetchParentEnrollmentBootstrap,
-  type PublicEnrollmentBootstrap,
-} from "~/lib/enrollment-submission-api";
+import { fetchParentEnrollmentBootstrap } from "~/lib/enrollment-submission-api";
 import { parentPath } from "~/lib/parent-url";
 import { resolveTenant, type TenantInfo } from "~/lib/tenant-api";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -116,7 +114,9 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
         }
         setLoaded({
           tenant,
-          prefetchedData: toParentPrefetchedData(bootstrap, profile),
+          // Autofill comes from the parent API only, never from the shared
+          // public bootstrap shape.
+          prefetchedData: prefetchedDataFromBootstrap(bootstrap, { profile }),
           targetPath,
         });
       })
@@ -208,29 +208,4 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
       </ParentPage>
     </TenantProvider>
   );
-}
-
-function toParentPrefetchedData(
-  bootstrap: PublicEnrollmentBootstrap,
-  profile: Awaited<ReturnType<typeof fetchParentEnrollmentProfile>>,
-): EnrollmentFormPrefetchedData {
-  return {
-    schema: bootstrap.schema,
-    offerings: bootstrap.offerings,
-    careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
-    collectGradeLevel: bootstrap.collect_grade_level,
-    careOfferingsEnabled: bootstrap.care_offerings_enabled,
-    captchaConfig: null,
-    legalTexts: bootstrap.legal_texts,
-    // Ignore any profile on the shared bootstrap shape. Parent autofill stays
-    // scoped to the parent API, independent of public metadata transport.
-    profile,
-    lateInvite: bootstrap.late_invite,
-    schoolClass: bootstrap.school_class,
-    // Carry the phase audience so the form can suppress linked-child reuse
-    // on a new_students phase instead of letting the parent adopt an
-    // already-enrolled child the server would reject (#1663).
-    audience: bootstrap.phase.audience,
-    eligibleGradeLevels: bootstrap.phase.eligible_grade_levels ?? [],
-  };
 }
