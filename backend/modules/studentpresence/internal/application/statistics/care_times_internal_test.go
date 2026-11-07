@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -383,4 +384,23 @@ func TestClassifyCareTimeDayWithoutABookedEnd(t *testing.T) {
 
 func (shortRetention) PrefetchCareTimeSettings(ctx context.Context) (context.Context, error) {
 	return ctx, nil
+}
+
+// No audit, no data (ADR 0088 section 7, #4683): a failed write or lookup of
+// the access log fails the read of one child's care times.
+func TestStudentCareTimesFailsWithoutItsAuditEntry(t *testing.T) {
+	t.Parallel()
+	for name, audit := range map[string]*reportAudit{
+		"write fails":  {recordErr: errors.New("audit store down")},
+		"lookup fails": {lookupErr: errors.New("audit store down")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cfg, from, to := careTimeWeek()
+			cfg.AccessLog = audit
+			result, err := NewService(cfg).StudentCareTimes(context.Background(), 7, from, to, careTimeActor)
+			require.ErrorIs(t, err, studentpresence.ErrStatisticsAuditFailed)
+			assert.Nil(t, result, "the care times never leave without their access log entry")
+		})
+	}
 }
