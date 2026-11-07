@@ -12,7 +12,7 @@ func ArrivalScheduleRecords(r carePlanBindingPorts.ArrivalScheduleRecords) Effec
 
 func ArrivalExceptionRecords(r carePlanBindingPorts.ArrivalScheduleRecords) ExceptionRecords[careplan.ArrivalException, *careplan.ArrivalException] {
 	return NewExceptionRecords[careplan.ArrivalException, *careplan.ArrivalException](RecordFuncs[careplan.ArrivalException]{Find: r.FindArrivalException, List: r.ListArrivalExceptions,
-		Create: r.CreateArrivalException, Update: r.UpdateArrivalException, Remove: r.DeleteArrivalException, RemoveByStudent: r.DeleteArrivalExceptionsByStudent})
+		Create: r.CreateArrivalException, Update: r.UpdateArrivalException, Remove: r.DeleteArrivalException, RemoveIDs: r.DeleteArrivalExceptions, RemoveByStudent: r.DeleteArrivalExceptionsByStudent})
 }
 
 func ArrivalNoteRecords(r carePlanBindingPorts.ArrivalScheduleRecords) NoteRecords[careplan.ArrivalNote, *careplan.ArrivalNote] {

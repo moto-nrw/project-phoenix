@@ -12,7 +12,7 @@ func PickupScheduleRecords(r carePlanBindingPorts.PickupScheduleRecords) Effecti
 
 func PickupExceptionRecords(r carePlanBindingPorts.PickupScheduleRecords) ExceptionRecords[careplan.PickupException, *careplan.PickupException] {
 	return NewExceptionRecords[careplan.PickupException, *careplan.PickupException](RecordFuncs[careplan.PickupException]{Find: r.FindPickupException, List: r.ListPickupExceptions,
-		Create: r.CreatePickupException, Update: r.UpdatePickupException, Remove: r.DeletePickupException, RemoveByStudent: r.DeletePickupExceptionsByStudent})
+		Create: r.CreatePickupException, Update: r.UpdatePickupException, Remove: r.DeletePickupException, RemoveIDs: r.DeletePickupExceptions, RemoveByStudent: r.DeletePickupExceptionsByStudent})
 }
 
 func PickupNoteRecords(r carePlanBindingPorts.PickupScheduleRecords) NoteRecords[careplan.PickupNote, *careplan.PickupNote] {

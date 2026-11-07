@@ -208,6 +208,8 @@ type ArrivalExceptionsCommand interface {
 	CreateArrivalException(context.Context, ArrivalException) (ArrivalException, error)
 	UpdateArrivalException(context.Context, ArrivalException) error
 	DeleteArrivalException(context.Context, int64) error
+	// DeleteArrivalExceptions deletes the exceptions with the given IDs in one statement.
+	DeleteArrivalExceptions(context.Context, []int64) error
 	DeleteArrivalExceptionsByStudent(context.Context, int64) error
 }
 
@@ -233,6 +235,8 @@ type PickupExceptionsCommand interface {
 	CreatePickupException(context.Context, PickupException) (PickupException, error)
 	UpdatePickupException(context.Context, PickupException) error
 	DeletePickupException(context.Context, int64) error
+	// DeletePickupExceptions deletes the exceptions with the given IDs in one statement.
+	DeletePickupExceptions(context.Context, []int64) error
 	DeletePickupExceptionsByStudent(context.Context, int64) error
 }
 

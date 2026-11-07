@@ -345,6 +345,25 @@ func (s *Service) DeleteArrivalException(ctx context.Context, id int64) error {
 	})
 }
 
+func (s *Service) DeleteArrivalExceptions(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	for _, id := range ids {
+		if id <= 0 {
+			return scheduleInvalid()
+		}
+	}
+
+	return s.withinTenant(ctx, func(tx context.Context) error {
+		return s.run(tx, "delete_arrival_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
+			q, err := s.store.DeleteArrivalExceptions(ctx, ids)
+			stats.Add(q)
+			return err
+		})
+	})
+}
+
 func (s *Service) DeleteArrivalExceptionsByStudent(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return scheduleInvalid()
@@ -535,6 +554,25 @@ func (s *Service) DeletePickupException(ctx context.Context, id int64) error {
 	return s.withinTenant(ctx, func(tx context.Context) error {
 		return s.run(tx, "delete_pickup_exception", func(ctx context.Context, stats *domain.OperationStats) error {
 			q, err := s.store.DeletePickupException(ctx, id)
+			stats.Add(q)
+			return err
+		})
+	})
+}
+
+func (s *Service) DeletePickupExceptions(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	for _, id := range ids {
+		if id <= 0 {
+			return scheduleInvalid()
+		}
+	}
+
+	return s.withinTenant(ctx, func(tx context.Context) error {
+		return s.run(tx, "delete_pickup_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
+			q, err := s.store.DeletePickupExceptions(ctx, ids)
 			stats.Add(q)
 			return err
 		})

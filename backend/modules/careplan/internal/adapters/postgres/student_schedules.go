@@ -386,6 +386,13 @@ func (s *Store) DeleteArrivalException(ctx context.Context, id int64) (domain.Op
 	}
 	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).Where(`"student_arrival_exception".id = ?`, id).Where(`"student_arrival_exception".tenant_id = ?`, tid), "delete arrival exception")
 }
+func (s *Store) DeleteArrivalExceptions(ctx context.Context, ids []int64) (domain.OperationStats, error) {
+	db, tid, err := s.databaseForWrite(ctx, "delete arrival exceptions")
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).Where(`"student_arrival_exception".id IN (?)`, bun.List(ids)).Where(`"student_arrival_exception".tenant_id = ?`, tid), "delete arrival exceptions")
+}
 func (s *Store) DeleteArrivalExceptionsByStudent(ctx context.Context, id int64) (domain.OperationStats, error) {
 	db, tid, err := s.databaseForWrite(ctx, "delete arrival exceptions by student")
 	if err != nil {
