@@ -1,6 +1,7 @@
 "use client";
 
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { formatDate } from "~/lib/date-helpers";
 import {
   useDraftOfferingPreview,
@@ -120,7 +121,7 @@ function PreviewPanel({
   onAddOfferings?: (offeringIds: string[]) => void;
 }>) {
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3">
+    <InsetPanel framed className="flex flex-col gap-2">
       <p className="text-xs font-semibold text-gray-700">
         {preview
           ? `Das ändert sich ab ${formatDate(preview.from)} an der Kinderliste`
@@ -144,6 +145,6 @@ function PreviewPanel({
           ) : null}
         </>
       ) : null}
-    </div>
+    </InsetPanel>
   );
 }
