@@ -28,6 +28,7 @@ import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
 import {
   CHECK_ADDRESS_AT_GUARDIAN,
+  correctedAddressCopy,
   mailStatusCopy,
   STOP_SHARED_NOTE,
   TELL_THE_OGS_ABOUT_THE_ADDRESS,
@@ -468,19 +469,45 @@ function ChildRow({ child }: { readonly child: LetterChild }) {
   );
 }
 
-function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
-  // Fall back rather than crash: the backend may add a status this build does
-  // not know yet, and an unknown value must not take the whole page down.
-  const mailedTo = recipient.mailed_to ?? recipient.email;
-  const addressChanged = !!recipient.email && mailedTo !== recipient.email;
-  // The result belongs to the address the mail went to. A mark belongs to the
-  // current address, so it never reads as the result of the old one.
-  const mailCopy = mailStatusCopy(
+/**
+ * The result belongs to the address the mail went to. A mark belongs to the
+ * current address, so it never reads as the result of the old one. After a
+ * correction the row also says what the current address allows.
+ */
+function recipientMailCopy(
+  recipient: LetterRecipient,
+  addressChanged: boolean,
+) {
+  if (addressChanged) {
+    const resendReaches =
+      recipient.email_status === "failed" &&
+      !recipient.address_mark &&
+      !recipient.stopped &&
+      recipient.provider_block !== "active" &&
+      recipient.provider_block !== "unreadable";
+    const corrected = resendReaches
+      ? correctedAddressCopy(recipient.mail_outcome)
+      : null;
+    if (corrected) return corrected;
+    // The current address refused an earlier mail of this letter.
+    if (recipient.provider_block === "active") {
+      return mailStatusCopy("provider_blocked", "", false, "active");
+    }
+  }
+  return mailStatusCopy(
     recipient.mail_outcome,
     addressChanged ? "" : recipient.address_mark,
     recipient.stopped,
     recipient.provider_block,
   );
+}
+
+function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
+  // Fall back rather than crash: the backend may add a status this build does
+  // not know yet, and an unknown value must not take the whole page down.
+  const mailedTo = recipient.mailed_to ?? recipient.email;
+  const addressChanged = !!recipient.email && mailedTo !== recipient.email;
+  const mailCopy = recipientMailCopy(recipient, addressChanged);
   const email = mailCopy
     ? { label: mailCopy.label, tone: mailCopy.tone, title: undefined }
     : (EMAIL_LABELS[recipient.email_status] ?? {

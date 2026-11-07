@@ -102,3 +102,25 @@ func TestProviderResultPersistsFallbackReceipt(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, `{"provider_message_id":"provider-1","used_fallback":true,"status_code":202}`, string(encoded))
 }
+
+// A request the fallback can no longer answer ends on this try: a retry over the same
+// configuration cannot change that.
+func TestProviderEndsAFallbackRequestWithoutAFallback(t *testing.T) {
+	t.Parallel()
+	provider := MailPushProvider{
+		Registry: NewTemplateRegistry(map[string]Renderer{"security": &recordingMailRenderer{}}),
+		Mailer:   removedFallbackTransport{}, Tenants: contextCheckingMailTransactions{}, Logger: slog.Default(),
+	}
+	_, err := provider.SendEmail(context.Background(), deliveryContract.ClaimedIntent{
+		TenantID: 42, Template: "security", Security: true, UseFallback: true, EmailPayload: json.RawMessage(`{}`),
+	})
+	require.ErrorIs(t, err, deliveryContract.ErrPermanent)
+	require.NotErrorIs(t, err, deliveryContract.ErrRecipientRejected, "the address is not at fault")
+}
+
+type removedFallbackTransport struct{}
+
+func (removedFallbackTransport) Send(email.Message) error { panic("ReceiptMailer must be used") }
+func (removedFallbackTransport) SendWithReceipt(context.Context, email.Message) (email.Receipt, error) {
+	return email.Receipt{}, email.ErrFallbackRemoved
+}
