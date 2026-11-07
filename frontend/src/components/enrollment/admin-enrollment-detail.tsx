@@ -63,14 +63,13 @@ import {
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
-  formatOfferingOccupancy,
-  offeringIsFull,
 } from "~/lib/care-offering-booking-stats";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { supportedGradeLevelMax } from "~/lib/grade-level";
 import {
   BLOCKED_OFFERING_ROW_TONE,
+  OfferingOccupancyLine,
   OfferingRowShell,
 } from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -685,10 +684,7 @@ function ChildInformationCard({
 }>) {
   const terminal = isTerminalChildStatus(child.status);
   const canDeleteFromEnrollment =
-    child.created_student_id === undefined &&
-    (child.status === "rejected" ||
-      child.status === "withdrawn" ||
-      child.status === "approved");
+    terminal && child.created_student_id === undefined;
   const tenantPath = useTenantAwarePath();
   const studentHref = tenantPath(
     child.created_student_id
@@ -1335,22 +1331,6 @@ function OfferingAttributePills({
  * nothing when there is no stats entry, so a failed stats load degrades to
  * the previous UI instead of an empty placeholder (#2186).
  */
-function OfferingOccupancyLine({
-  stats,
-}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
-  const label = formatOfferingOccupancy(stats);
-  if (!label) return null;
-  return (
-    <span
-      className={`mt-1 block text-xs ${
-        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
-      }`}
-    >
-      {label}
-    </span>
-  );
-}
-
 /**
  * An offering the child's grade level rules out. Parents never see these;
  * admins must, or a configured restriction reads as a missing feature
@@ -1453,9 +1433,7 @@ export function ChildOfferingAdjustment({
   // The tenant's configured ceiling, so a blocked-offering reason names only
   // grades this school actually has (#2186 review).
   const { tenant } = useTenant();
-  const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
-    ? tenant.gradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(tenant?.gradeLevelMax);
   // Der Bearbeiten-Zustand der Fläche (Bauart 2 Regel 3, #3119): die
   // Auswahl erscheint an Ort und Stelle, kein Modal.
   const [editing, setEditing] = useState(false);

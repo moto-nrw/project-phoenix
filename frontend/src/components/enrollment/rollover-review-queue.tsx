@@ -1,6 +1,7 @@
 "use client";
 
 import { useRefreshPhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
+import { MAX_SUPPORTED_GRADE_LEVEL } from "~/lib/grade-level";
 import {
   useCallback,
   useEffect,
@@ -266,7 +267,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
                     type="number"
                     controlSize="compact"
                     min={1}
-                    max={13}
+                    max={MAX_SUPPORTED_GRADE_LEVEL}
                     value={overrideValue}
                     onChange={(e) =>
                       setClassOverrides((prev) => ({
