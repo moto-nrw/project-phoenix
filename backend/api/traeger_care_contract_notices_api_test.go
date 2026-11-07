@@ -103,7 +103,13 @@ func TestCareContractNoticeNeedsTheRightStaysWithItsTraegerAndIsAudited(t *testi
 	assert.Equal(t, carecontract.StatusActive, options.Status)
 	assert.True(t, options.EarlyStart, "the ticked early start is stored with the agreement")
 	require.NotNil(t, options.WithdrawalUntil)
-	assert.Equal(t, concludedOn.AddDays(carecontract.WithdrawalDays), *options.WithdrawalUntil)
+	// 14 days after the delivered notice; a Saturday, Sunday or nationwide
+	// holiday moves the end to the next working day (§ 193 BGB).
+	base := concludedOn.AddDays(carecontract.WithdrawalDays)
+	until := *options.WithdrawalUntil
+	assert.False(t, until.Before(base), "never shorter than 14 days")
+	assert.LessOrEqual(t, base.DaysUntil(until), 4, "moved by weekend and holidays only")
+	assert.NotContains(t, []time.Weekday{time.Saturday, time.Sunday}, until.Weekday(), "ends on a working day")
 	require.NotNil(t, options.OrdinaryEndsOn)
 
 	billing := traegerColleague(t, f.reviewFixture, identityaccess.TraegerRoleBilling)
