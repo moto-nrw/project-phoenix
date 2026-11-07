@@ -127,29 +127,30 @@ func (Store) InsertNotice(ctx context.Context, organizationID int64, notice port
 
 // SetNoticeEnd sets the end of an extraordinary termination the Träger
 // checked: on the declaration whose end is open and on the terminated
-// contract, both of organizationID.
+// contract, both of organizationID. Both statements run before either
+// count is checked, so each guard (the Träger, the open end) shows on its
+// own row; a count other than one rolls the caller's transaction back.
 func (Store) SetNoticeEnd(ctx context.Context, organizationID, contractID int64, endsOn calendar.Date) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
 	}
-	result, err := db.ExecContext(ctx, `UPDATE care_contract.contract_notices SET ends_on = ?
+	notice, err := db.ExecContext(ctx, `UPDATE care_contract.contract_notices SET ends_on = ?
 		WHERE organization_id = ? AND contract_id = ? AND notice_kind = ? AND ends_on IS NULL`,
 		endsOn, organizationID, contractID, carecontract.TerminationExtraordinary)
 	if err != nil {
 		return fmt.Errorf("care contract postgres: set notice end: %w", err)
 	}
-	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
-		return carecontract.ErrNoticeEndNotOpen
-	}
-	result, err = db.ExecContext(ctx, `UPDATE care_contract.contracts SET ends_on = ?
+	contract, err := db.ExecContext(ctx, `UPDATE care_contract.contracts SET ends_on = ?
 		WHERE organization_id = ? AND id = ? AND status = ? AND ends_on IS NULL`,
 		endsOn, organizationID, contractID, carecontract.StatusTerminated)
 	if err != nil {
 		return fmt.Errorf("care contract postgres: set contract end: %w", err)
 	}
-	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
-		return carecontract.ErrNoticeEndNotOpen
+	for _, result := range []sql.Result{notice, contract} {
+		if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+			return carecontract.ErrNoticeEndNotOpen
+		}
 	}
 	return nil
 }

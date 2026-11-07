@@ -3,11 +3,13 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/adapters/postgres"
@@ -18,6 +20,28 @@ import (
 // The extraordinary termination (#4682, § 312k Abs. 2 BGB) and the receipt
 // with its time (§ 312k Abs. 4 BGB) on the real store, and the Träger
 // filter of the declarations beneath RLS.
+
+// errRollback ends a transaction a test only looked into.
+var errRollback = errors.New("test: roll back")
+
+// endsWithin reads the end of A's declaration and of A's contract in the
+// transaction of txCtx, so a test sees what a statement wrote before the
+// rollback hides it. The caller has dropped the request role.
+func (f noticeFixture) endsWithin(t *testing.T, txCtx context.Context) (notice, contract *calendar.Date) {
+	t.Helper()
+	raw, ok := testpkg.TransactionFromContext(txCtx)
+	require.True(t, ok, "a transaction is required")
+	tx, ok := raw.(bun.Tx)
+	require.True(t, ok, "a bun transaction is required")
+	var row struct {
+		Notice   *calendar.Date `bun:"notice_end,type:date"`
+		Contract *calendar.Date `bun:"contract_end,type:date"`
+	}
+	require.NoError(t, tx.NewRaw(`SELECT n.ends_on AS notice_end, c.ends_on AS contract_end
+		FROM care_contract.contracts AS c JOIN care_contract.contract_notices AS n ON n.contract_id = c.id
+		WHERE c.id = ?`, f.contract).Scan(txCtx, &row))
+	return row.Notice, row.Contract
+}
 
 var extraordinary = carecontract.NoticeInput{Kind: carecontract.NoticeTermination,
 	TerminationKind: carecontract.TerminationExtraordinary, Reason: "  Wir ziehen nach Hamburg.  "}
@@ -141,8 +165,17 @@ func TestNoticesOfAnotherTraegerFindNothingBeneathRLS(t *testing.T) {
 		return err
 	})
 	assert.ErrorIs(t, err, carecontract.ErrContractNotFound, "B reads no state of A's contract")
-	err = beneath(func(txCtx context.Context) error { return store.SetNoticeEnd(txCtx, other, f.contract, end) })
-	assert.ErrorIs(t, err, carecontract.ErrNoticeEndNotOpen, "B ends no declaration of A")
+	// Each statement of SetNoticeEnd shows on its own row, read in the same
+	// transaction before its rollback: the declaration's end and the
+	// contract's end of A stay open.
+	err = beneath(func(txCtx context.Context) error {
+		assert.ErrorIs(t, store.SetNoticeEnd(txCtx, other, f.contract, end), carecontract.ErrNoticeEndNotOpen, "B ends no declaration of A")
+		notice, contract := f.endsWithin(t, txCtx)
+		assert.Nil(t, notice, "the declaration's statement keeps to its Träger")
+		assert.Nil(t, contract, "the contract's statement keeps to its Träger")
+		return errRollback
+	})
+	require.ErrorIs(t, err, errRollback)
 	require.NoError(t, beneath(func(txCtx context.Context) error {
 		return store.MarkWithdrawalInformed(txCtx, other, f.contract, f.conclusion.At.AddDate(0, 0, -1))
 	}))
@@ -167,4 +200,63 @@ func TestNoticesOfAnotherTraegerFindNothingBeneathRLS(t *testing.T) {
 	assert.True(t, row.Informed, "A's notice provision stays")
 	require.NotNil(t, row.Outbox)
 	assert.NotEqual(t, int64(999), *row.Outbox, "A's confirmation mail stays")
+}
+
+// The end of an extraordinary termination is set once (#4682). In the
+// store, each statement keeps its own guard (ends_on IS NULL): a second end
+// overwrites neither the declaration's nor the contract's day, each read in
+// the transaction before its rollback. Red when either guard is dropped.
+func TestNoticeEndIsSetOnceInTheStore(t *testing.T) {
+	t.Parallel()
+	f := newNoticeFixture(t, "Träger Ende einmal", noticeToday)
+	_, err := f.parentDeclare(extraordinary)
+	require.NoError(t, err)
+	store := postgres.NewStore()
+	first, second := calendar.NewDate(2026, 12, 31), calendar.NewDate(2027, 1, 31)
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(txCtx context.Context) error {
+		return store.SetNoticeEnd(txCtx, f.org, f.contract, first)
+	}))
+
+	err = testpkg.WithinTraeger(f.ctx, f.org, func(txCtx context.Context) error {
+		assert.ErrorIs(t, store.SetNoticeEnd(txCtx, f.org, f.contract, second), carecontract.ErrNoticeEndNotOpen, "the end is set once")
+		require.NoError(t, testpkg.WithoutRequestRole(txCtx))
+		notice, contract := f.endsWithin(t, txCtx)
+		assert.Equal(t, &first, notice, "the declaration keeps its first end")
+		assert.Equal(t, &first, contract, "the contract keeps its first end")
+		return errRollback
+	})
+	require.ErrorIs(t, err, errRollback)
+}
+
+// The application refuses a second end on its own (openEnd), before the
+// store is asked; red when that guard alone is dropped. It also refuses an
+// end for any declaration but an extraordinary termination and an end
+// before the day the declaration arrived.
+func TestOpenEndRefusesAnEndAlreadySet(t *testing.T) {
+	t.Parallel()
+	received := calendar.NewDate(2026, 11, 10)
+	end := calendar.NewDate(2026, 12, 31)
+	terminated := ContractRecord{Summary: carecontract.ContractSummary{Status: carecontract.StatusTerminated}}
+	open := carecontract.Notice{Kind: carecontract.NoticeTermination, TerminationKind: carecontract.TerminationExtraordinary,
+		ReceivedOn: received}
+
+	notice, err := openEnd(terminated, &open, end)
+	require.NoError(t, err)
+	assert.Equal(t, &open, notice)
+
+	set := open
+	set.EndsOn = &end
+	_, err = openEnd(terminated, &set, end)
+	assert.ErrorIs(t, err, carecontract.ErrNoticeEndNotOpen, "an end already set is not set again")
+	ordinary := open
+	ordinary.TerminationKind = carecontract.TerminationOrdinary
+	_, err = openEnd(terminated, &ordinary, end)
+	assert.ErrorIs(t, err, carecontract.ErrNoticeEndNotOpen, "an ordinary termination has its end")
+	_, err = openEnd(ContractRecord{Summary: carecontract.ContractSummary{Status: carecontract.StatusActive}}, &open, end)
+	assert.ErrorIs(t, err, carecontract.ErrNoticeEndNotOpen, "an active contract has no termination")
+	_, err = openEnd(terminated, nil, end)
+	assert.ErrorIs(t, err, carecontract.ErrNoticeEndNotOpen, "no declaration, no end")
+	var invalid *carecontract.ValidationError
+	_, err = openEnd(terminated, &open, received.AddDays(-1))
+	assert.ErrorAs(t, err, &invalid, "no end before the receipt")
 }
