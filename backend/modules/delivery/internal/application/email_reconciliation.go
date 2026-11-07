@@ -229,23 +229,22 @@ func (r *EmailReconciliation) alarms(run *reconcileRun) error {
 	return nil
 }
 
-// The provider is asked about one address at a time. A list asks once per distinct
-// address and only for mails that ran into a block, within these limits; whatever
-// they leave out counts as unreadable and is not offered.
-const (
-	providerBlockReads  = 10
-	providerBlockBudget = 3 * time.Second
-)
-
 // ProviderEmailBlocks reads the provider's current block of the addresses. Without
 // a provider no such block exists. It answers for every address and has no error:
 // an address it could not read is EmailProviderBlockUnreadable. The caller only asks
 // about addresses its own mail ran into, so this says nothing about anyone else's.
+//
+// Callers read this inside their transaction, because the routes run in one and the
+// answer belongs to the check next to the write. That is a named exception to
+// keeping provider calls out of transactions (#5957): it happens only for an address
+// whose mail left a block, and deliveryContract.ProviderBlockBudget bounds each call,
+// or a whole request that shares one. The provider is asked about one address at a
+// time, once per distinct address of a call; whatever the budget leaves out counts as
+// unreadable and is not offered. The runbook (monitoring/runbooks/email-delivery.md)
+// states the limit.
 func (r *EmailReconciliation) ProviderEmailBlocks(ctx context.Context, addresses []string) map[string]deliveryContract.EmailProviderBlock {
 	blocks := make(map[string]deliveryContract.EmailProviderBlock, len(addresses))
-	ctx, cancel := context.WithTimeout(ctx, providerBlockBudget)
-	defer cancel()
-	reads, stop := 0, false
+	budget := deliveryContract.ProviderBlockBudgetOf(ctx)
 	for _, address := range addresses {
 		key := deliveryContract.NormalizedEmailAddress(address)
 		if _, known := blocks[key]; known || key == "" {
@@ -255,25 +254,33 @@ func (r *EmailReconciliation) ProviderEmailBlocks(ctx context.Context, addresses
 			blocks[key] = deliveryContract.EmailProviderBlockNone
 			continue
 		}
-		blocks[key] = deliveryContract.EmailProviderBlockUnreadable
-		if stop || reads >= providerBlockReads {
-			continue
-		}
-		reads++
-		active, err := r.api.SuppressionActive(ctx, key)
-		switch {
-		case errors.Is(err, domain.ErrProviderNotFound):
-			blocks[key] = deliveryContract.EmailProviderBlockNone
-		case err != nil:
-			stop = errors.Is(err, domain.ErrProviderRateLimited) || ctx.Err() != nil
-			r.logger.Warn("the provider's block could not be read", slog.String("error", err.Error()))
-		case active:
-			blocks[key] = deliveryContract.EmailProviderBlockActive
-		default:
-			blocks[key] = deliveryContract.EmailProviderBlockNone
-		}
+		blocks[key] = r.readProviderBlock(ctx, budget, key)
 	}
 	return blocks
+}
+
+func (r *EmailReconciliation) readProviderBlock(ctx context.Context, budget *deliveryContract.ProviderBlockBudget, address string) deliveryContract.EmailProviderBlock {
+	active := false
+	err := budget.Attempt(ctx, func(readCtx context.Context) error {
+		var err error
+		active, err = r.api.SuppressionActive(readCtx, address)
+		return err
+	})
+	switch {
+	case errors.Is(err, deliveryContract.ErrProviderBlockBudgetSpent):
+		return deliveryContract.EmailProviderBlockUnreadable
+	case errors.Is(err, domain.ErrProviderNotFound):
+		return deliveryContract.EmailProviderBlockNone
+	case err != nil:
+		if errors.Is(err, domain.ErrProviderRateLimited) {
+			budget.Stop()
+		}
+		r.logger.Warn("the provider's block could not be read", slog.String("error", err.Error()))
+		return deliveryContract.EmailProviderBlockUnreadable
+	case active:
+		return deliveryContract.EmailProviderBlockActive
+	}
+	return deliveryContract.EmailProviderBlockNone
 }
 
 // LiftEmailSuppression frees an address someone at the school checked: first at
