@@ -388,7 +388,7 @@ func (s *arrivalScheduleService) CreateOrReclaimException(
 	staffID int64,
 	resolveStaffID func() (int64, error),
 ) (*careplan.ArrivalException, error) {
-	return s.createOrReclaimException(
+	return s.createOrReclaimOne(
 		ctx,
 		studentID,
 		date,
@@ -411,7 +411,7 @@ func (s *arrivalScheduleService) CreateOrReclaimExceptionForClass(
 	if err != nil {
 		return nil, err
 	}
-	return s.createOrReclaimException(ctx, studentID, date, arrivalTime, reason, staffID, resolveStaffID, func(txCtx context.Context) error {
+	return s.createOrReclaimOne(ctx, studentID, date, arrivalTime, reason, staffID, resolveStaffID, func(txCtx context.Context) error {
 		return authorize(txCtx, studentID)
 	})
 }
@@ -427,10 +427,11 @@ func (s *arrivalScheduleService) CreateOrReclaimExceptionsForClass(
 	if err != nil {
 		return err
 	}
-	return s.createOrReclaimExceptions(ctx, exceptionBatch{
+	_, err = s.createOrReclaimException(ctx, exceptionBatch{
 		studentIDs: studentIDs, date: date, value: arrivalTime, reason: reason, staffID: staffID,
 		resolveStaffID: resolveStaffID, authorize: authorize, isRejection: isClassMembershipRejection,
 	})
+	return err
 }
 
 // classStudentCheck authorizes the current student row of a school-class

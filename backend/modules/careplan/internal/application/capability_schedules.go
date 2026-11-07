@@ -355,12 +355,12 @@ func (s *Service) DeleteArrivalExceptions(ctx context.Context, ids []int64) erro
 		}
 	}
 
-	return s.withinTenant(ctx, func(tx context.Context) error {
-		return s.run(tx, "delete_arrival_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
-			q, err := s.store.DeleteArrivalExceptions(ctx, ids)
-			stats.Add(q)
-			return err
-		})
+	// The deletion runs inside the caller's exception command; run joins
+	// that unit or opens the tenant's own.
+	return s.run(ctx, "delete_arrival_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
+		q, err := s.store.DeleteArrivalExceptions(ctx, ids)
+		stats.Add(q)
+		return err
 	})
 }
 
@@ -570,12 +570,12 @@ func (s *Service) DeletePickupExceptions(ctx context.Context, ids []int64) error
 		}
 	}
 
-	return s.withinTenant(ctx, func(tx context.Context) error {
-		return s.run(tx, "delete_pickup_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
-			q, err := s.store.DeletePickupExceptions(ctx, ids)
-			stats.Add(q)
-			return err
-		})
+	// The deletion runs inside the caller's exception command; run joins
+	// that unit or opens the tenant's own.
+	return s.run(ctx, "delete_pickup_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
+		q, err := s.store.DeletePickupExceptions(ctx, ids)
+		stats.Add(q)
+		return err
 	})
 }
 
