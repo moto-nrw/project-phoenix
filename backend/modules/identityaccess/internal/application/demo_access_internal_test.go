@@ -90,9 +90,10 @@ func TestDemoAccessRedeemLocksTheSchoolBeforeItUsesTheAccess(t *testing.T) {
 
 type movingDemoAccessStore struct {
 	ports.DemoAccessStore
-	accesses []domain.DemoAccess
-	locks    []string
-	reads    int
+	accesses     []domain.DemoAccess
+	locks        []string
+	reads        int
+	addressLocks int
 }
 
 func (s *movingDemoAccessStore) FindDemoAccessByTokenHash(context.Context, string) (domain.DemoAccess, bool, error) {
@@ -107,6 +108,11 @@ func (s *movingDemoAccessStore) LockDemoSchool(_ context.Context, slug string) e
 }
 
 func (s *movingDemoAccessStore) FindActiveDemoAccessByEmail(context.Context, string, time.Time) (domain.DemoAccess, bool, error) {
+	s.addressLocks++
+	return s.RereadActiveDemoAccessByEmail(context.Background(), "", time.Time{})
+}
+
+func (s *movingDemoAccessStore) RereadActiveDemoAccessByEmail(context.Context, string, time.Time) (domain.DemoAccess, bool, error) {
 	access := s.accesses[s.reads]
 	s.reads++
 	return access, true, nil
@@ -136,4 +142,6 @@ func TestDemoAccessLocksTheReplacementSchoolAfterAConcurrentReset(t *testing.T) 
 	assert.False(t, coolingDown)
 	assert.Equal(t, "ogs-sued-b8n2lt", access.SchoolSlug)
 	assert.Equal(t, []string{"ogs-nord-k3m9xp", "ogs-sued-b8n2lt"}, store.locks)
+	assert.Equal(t, 1, store.addressLocks)
+	assert.Equal(t, 3, store.reads, "each school lock retains its fresh read")
 }
