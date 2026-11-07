@@ -13,6 +13,7 @@ import { redirect } from "next/navigation";
 
 import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
 import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -563,26 +564,17 @@ function OpeningBalanceImportPageContent() {
         description="Spalten: Personalnummer (optional), Vorname, Nachname, Stundensaldo, Jahresanspruch, Vorjahresübertrag, Resturlaub. Eine leere Zelle lässt die jeweilige Seite unangetastet."
         icon={Download}
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="sm:w-64">
-            <label
-              id="template-format-label"
-              htmlFor="template-format"
-              className="mb-1.5 block text-sm font-medium text-gray-700"
-            >
-              Format wählen
-            </label>
-            <CustomSelect
-              id="template-format"
-              ariaLabelledBy="template-format-label"
-              value={templateFormat}
-              options={[
-                { value: "csv", label: "CSV (Komma-getrennt)" },
-                { value: "xlsx", label: "Excel (.xlsx)" },
-              ]}
-              onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
-            />
-          </div>
+        <FormRow className="sm:max-w-md">
+          <CustomSelect
+            id="template-format"
+            label="Format wählen"
+            value={templateFormat}
+            options={[
+              { value: "csv", label: "CSV (Komma-getrennt)" },
+              { value: "xlsx", label: "Excel (.xlsx)" },
+            ]}
+            onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
+          />
           <Button
             type="button"
             variant="outline"
@@ -591,7 +583,7 @@ function OpeningBalanceImportPageContent() {
           >
             Vorlage herunterladen
           </Button>
-        </div>
+        </FormRow>
       </SectionCard>
 
       {/* Schritt 2: Stichtag und Begründung */}

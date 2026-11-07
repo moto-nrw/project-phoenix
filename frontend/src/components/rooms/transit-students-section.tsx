@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
 import { SelectionBar } from "~/components/ui/selection-bar";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/database/database-select";
@@ -479,7 +480,7 @@ export function TransitStudentsSection({
                 ) : null
               }
             >
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <FormRow>
                 <DatabaseSelect
                   id="transit-target-room"
                   name="transit-target-room"
@@ -518,7 +519,7 @@ export function TransitStudentsSection({
                 >
                   In Raum setzen
                 </Button>
-              </div>
+              </FormRow>
               <FormErrorAlert message={assignErrors.error} className="mt-2" />
             </SelectionBar>
           ) : null}

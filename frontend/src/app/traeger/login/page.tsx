@@ -10,17 +10,14 @@
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
 import {
   credentialError,
   LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -336,7 +333,7 @@ function LoginForm() {
                   }
                   revealable
                 />
-                <AuthFieldError
+                <FieldErrorHint
                   id="password-error"
                   message={formErrors.fieldError("password")}
                 />

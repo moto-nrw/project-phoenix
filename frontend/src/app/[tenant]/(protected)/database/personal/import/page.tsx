@@ -13,6 +13,7 @@ import { redirect } from "next/navigation";
 import { Download, Info, ListChecks, RefreshCw } from "lucide-react";
 import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
 import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { SectionCard } from "~/components/ui/section-card";
@@ -485,54 +486,35 @@ export default function StaffImportPage() {
 
       {/* Download Template */}
       <SectionCard title="Vorlage herunterladen" icon={Download}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <div className="flex-1">
-            <label
-              id="format-select-label"
-              htmlFor="format-select"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Format wählen
-            </label>
-            <CustomSelect
-              id="format-select"
-              ariaLabelledBy="format-select-label"
-              value={templateFormat}
-              options={[
-                { value: "csv", label: "CSV (Komma-getrennt)" },
-                { value: "xlsx", label: "Excel (.xlsx)" },
-              ]}
-              onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
-            />
-            <p className="mt-2 text-sm text-gray-500">
-              Pflicht: <span className="font-medium">Vorname</span>,{" "}
-              <span className="font-medium">Nachname</span>,{" "}
-              <span className="font-medium">Rolle</span>. Alle weiteren Spalten
-              (E-Mail, Personalnummer, Adresse, Vertrag, Qualifikationen) sind
-              optional und im Blatt „Hinweise“ erklärt
-            </p>
-          </div>
-          <div className="flex-1">
-            {/* Spacer matches the format-select label height so the button
-                aligns with the dropdown on the sm+ row layout. */}
-            <span
-              aria-hidden="true"
-              className="mb-2 hidden text-sm font-medium text-gray-700 sm:block"
-            >
-              {"\u00A0"}
-            </span>
-            <Button
-              type="button"
-              variant="primary"
-              size="field"
-              onClick={() => void handleDownloadTemplate()}
-              className="w-full gap-2"
-            >
-              <Download className="h-5 w-5" aria-hidden="true" />
-              Vorlage herunterladen
-            </Button>
-          </div>
-        </div>
+        <FormRow>
+          <CustomSelect
+            id="format-select"
+            label="Format wählen"
+            value={templateFormat}
+            options={[
+              { value: "csv", label: "CSV (Komma-getrennt)" },
+              { value: "xlsx", label: "Excel (.xlsx)" },
+            ]}
+            onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
+          />
+          <Button
+            type="button"
+            variant="primary"
+            size="field"
+            onClick={() => void handleDownloadTemplate()}
+            className="gap-2"
+          >
+            <Download className="h-5 w-5" aria-hidden="true" />
+            Vorlage herunterladen
+          </Button>
+        </FormRow>
+        <p className="mt-3 text-sm text-gray-500">
+          Pflicht: <span className="font-medium">Vorname</span>,{" "}
+          <span className="font-medium">Nachname</span>,{" "}
+          <span className="font-medium">Rolle</span>. Alle weiteren Spalten
+          (E-Mail, Personalnummer, Adresse, Vertrag, Qualifikationen) sind
+          optional und im Blatt „Hinweise“ erklärt
+        </p>
       </SectionCard>
 
       <SectionCard title="Was soll der Import tun?" icon={RefreshCw}>

@@ -6,6 +6,10 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import {
+  fieldLabelAllowlist,
+  fieldLabelBaseline,
+} from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
@@ -1193,7 +1197,7 @@ src/components/students/school-checkin-fab.tsx|text-[10px]@200
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@371
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-[11px]@310
-src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
+src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
 src/components/timetable/instance-detail-modal.tsx|text-[11px]@1356 text-[11px]@1382 text-[11px]@1555 text-[10px]@1664 text-[11px]@1687
@@ -3318,6 +3322,84 @@ const noHandRolledStickyBar = {
   },
 };
 
+// ui-kit/no-hand-rolled-field-label (#5589) — die Beschriftung eines Felds kommt
+// aus `FieldLabel` oder der `label`-Prop. Fund: `<label>` mit text-xs/text-sm und
+// font-medium/font-semibold, ein `<span>` dieser Art mit `block` und `mb-*` über
+// dem Feld, oder als erstes Kind oder mit `block` in einem `<label>`. Kein Fund: Zeilen
+// (Checkbox plus Text), `sr-only`, ein `<label>` in Knopfoptik (Datei wählen).
+// Start mit shrink-only Baseline je Datei, Abbau je Bereich in Sub-Issues.
+const FIELD_LABEL_SIZE = new Set(["text-xs", "text-sm"]);
+const FIELD_LABEL_WEIGHT = new Set(["font-medium", "font-semibold"]);
+const FIELD_LABEL_ROW_RE = /^(?:inline-)?(?:flex|grid)$/;
+const FIELD_LABEL_CONTROL_LOOK_RE = /^(?:p[xy]?-|border|bg-|rounded|ring)/;
+
+function isFieldLabelRow(utilities) {
+  // Eine gestapelte Beschriftung (`flex flex-col`) ist keine Zeile.
+  if (utilities.includes("flex-col") && !utilities.includes("flex-row")) {
+    return false;
+  }
+  return utilities.some((token) => FIELD_LABEL_ROW_RE.test(token));
+}
+
+function classUtilities(text) {
+  return text.split(/\s+/).filter(Boolean).map(bareUtility);
+}
+
+function parentJsxElement(openingElement) {
+  const parent = openingElement.parent?.parent;
+  return parent?.type === "JSXElement" ? parent.openingElement : null;
+}
+
+const noHandRolledFieldLabel = makeRatchetRule({
+  ruleName: "no-hand-rolled-field-label",
+  description:
+    "Build field labels from FieldLabel or the label prop instead of styling a label or span by hand.",
+  message:
+    "Keine eigene Feldbeschriftung: `label`-Prop von Input, Textarea oder CustomSelect, sonst FieldLabel aus ~/components/ui/field-label. Immer normal geschrieben, nie in Versalien (#5589, .claude/rules/frontend-ui-kit.md).",
+  baselines: fieldLabelBaseline,
+  allowlist: fieldLabelAllowlist,
+  countEnv: "UI_KIT_FIELD_LABEL_RATCHET",
+  kitFile: "src/components/ui/field-label.tsx",
+  detect: ({ classText: textOf, found }) => ({
+    JSXOpeningElement(node) {
+      const tag = jsxName(node.name);
+      if (tag !== "label" && tag !== "span") return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      const utilities = classUtilities(textOf(className.value));
+      if (
+        !utilities.some((token) => FIELD_LABEL_SIZE.has(token)) ||
+        !utilities.some((token) => FIELD_LABEL_WEIGHT.has(token)) ||
+        utilities.includes("sr-only") ||
+        isFieldLabelRow(utilities) ||
+        utilities.some((token) => FIELD_LABEL_CONTROL_LOOK_RE.test(token))
+      ) {
+        return;
+      }
+      if (tag === "label") {
+        found(node);
+        return;
+      }
+      const isBlock = utilities.includes("block");
+      if (isBlock && utilities.some((token) => token.startsWith("mb-"))) {
+        found(node);
+        return;
+      }
+      const parent = parentJsxElement(node);
+      if (!parent || jsxName(parent.name) !== "label") return;
+      const firstChild = node.parent.parent.children.find(
+        (child) => child.type === "JSXElement",
+      );
+      if (!isBlock && firstChild !== node.parent) return;
+      const parentClass = jsxAttribute(parent, "className");
+      const parentUtilities = parentClass?.value
+        ? classUtilities(textOf(parentClass.value))
+        : [];
+      if (!isFieldLabelRow(parentUtilities)) found(node);
+    },
+  }),
+});
+
 // ui-kit/no-arbitrary-slide-over-width — ein Slide-over nimmt seine Breite aus
 // `size` (#5602). Freie Breiten waren acht verschiedene Werte für drei Größen.
 const noArbitrarySlideOverWidth = {
@@ -3922,6 +4004,7 @@ export default {
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
+    "no-hand-rolled-field-label": noHandRolledFieldLabel,
     "no-hand-rolled-menu": noHandRolledMenu,
     "no-hand-rolled-number-stepper": noHandRolledNumberStepper,
     "no-hand-rolled-overlay": noHandRolledOverlay,

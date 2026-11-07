@@ -105,14 +105,9 @@ export function MonthCloseReasonModal({
         <FormErrorAlert message={formErrors.error} />
         <div className="space-y-2 text-sm text-gray-600">{description}</div>
         <div>
-          <label
-            htmlFor="month-close-reason"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Begründung (Pflicht)
-          </label>
           <Textarea
             id="month-close-reason"
+            label="Begründung (Pflicht)"
             name="reason"
             error={formErrors.fieldError("reason")}
             value={reason}

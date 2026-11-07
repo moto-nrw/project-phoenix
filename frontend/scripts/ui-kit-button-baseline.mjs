@@ -29,7 +29,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/FilterPanel.tsx",
-    lines: [223],
+    lines: [224],
     reason: "Auswahloptionen eines Filters, kein Knopf",
   },
   {
@@ -41,7 +41,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [442],
+    lines: [443],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
@@ -95,7 +95,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/auth/auth-shell.tsx",
-    lines: [365],
+    lines: [349],
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
@@ -225,7 +225,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/timetable/event-form/step-termin.tsx",
-    lines: [140],
+    lines: [149],
     reason: "Typauswahl im Terminformular: Auswahlkachel",
   },
   {

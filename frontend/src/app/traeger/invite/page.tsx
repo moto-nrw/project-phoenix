@@ -14,11 +14,8 @@ import {
   useState,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import {
@@ -193,7 +190,7 @@ function InviteForm({
           revealed={showPassword}
           onRevealedChange={setShowPassword}
         />
-        <AuthFieldError
+        <FieldErrorHint
           id="password-error"
           message={formErrors.fieldError("password")}
         />
@@ -220,7 +217,7 @@ function InviteForm({
                   : undefined
               }
             />
-            <AuthFieldError
+            <FieldErrorHint
               id="confirm-password-error"
               message={formErrors.fieldError("confirm_password")}
             />

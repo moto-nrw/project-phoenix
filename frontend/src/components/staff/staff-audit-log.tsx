@@ -397,59 +397,36 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-56">
-          <label
-            htmlFor="audit-staff"
-            className="mb-1 block text-xs font-medium text-gray-600"
-          >
-            Mitarbeiter:in
-          </label>
           <CustomSelect
             id="audit-staff"
+            label="Mitarbeiter:in"
             value={staffId}
             options={staffSelectOptions}
             onChange={setStaffId}
-            ariaLabel="Nach Mitarbeiter:in filtern"
           />
         </div>
         <div className="w-56">
-          <label
-            htmlFor="audit-actor"
-            className="mb-1 block text-xs font-medium text-gray-600"
-          >
-            Bearbeitet von
-          </label>
           <CustomSelect
             id="audit-actor"
+            label="Bearbeitet von"
             value={actorId}
             options={staffSelectOptions}
             onChange={setActorId}
-            ariaLabel="Nach bearbeitender Person filtern"
           />
         </div>
         <div className="w-48">
-          <label
-            htmlFor="audit-source"
-            className="mb-1 block text-xs font-medium text-gray-600"
-          >
-            Bereich
-          </label>
           <CustomSelect
             id="audit-source"
+            label="Bereich"
             value={source}
             options={sourceOptions}
             onChange={setSource}
-            ariaLabel="Nach Bereich filtern"
           />
         </div>
         <div>
-          <label
-            htmlFor="audit-from"
-            className="mb-1 block text-xs font-medium text-gray-600"
-          >
-            Von
-          </label>
           <ISODatePicker
             id="audit-from"
+            label="Von"
             value={from}
             onChange={setFrom}
             max={to || undefined}
@@ -459,14 +436,9 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
           />
         </div>
         <div>
-          <label
-            htmlFor="audit-to"
-            className="mb-1 block text-xs font-medium text-gray-600"
-          >
-            Bis
-          </label>
           <ISODatePicker
             id="audit-to"
+            label="Bis"
             value={to}
             onChange={setTo}
             min={from || undefined}

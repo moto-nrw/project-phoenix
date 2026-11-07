@@ -7,7 +7,7 @@ paths:
 
 **RULE: All new frontend UI MUST be built from the shared kit in `frontend/src/components/ui/` (and `frontend/src/components/ui/page-header/`). Do NOT hand-roll a button, card, tab bar, modal, input, badge, table, or menu when a kit component exists. Do NOT import React components from the `@moto-nrw/design-system` package — that package is consumed for CSS tokens only.**
 
-This kit is the de-facto MOTO design system for project-phoenix. It encodes the correct radii, brand colors, shadows, and interaction patterns. Hand-rolling chrome is the drift.
+This kit is the MOTO design system.
 
 [ADR 0149](../../docs/adr/0149-ui-kit-entscheidet-jede-konkurrierende-variante-einmal.md) decides between competing kit variants, including pieces not built yet; read it before adding or migrating kit pieces.
 
@@ -98,6 +98,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 |---|---|---|
 | Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
 | Text input | `Input`, multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
+| Field label, hint | `label`/`hint` prop of `Input`, `Textarea`, `CustomSelect` (`ISODatePicker`: `label`); else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group's `<legend>` ends in `RequiredMark`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
 | Checkbox | `Checkbox` — gray-900 checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
 | Consent or confirmation a person ticks (Einwilligung, „verbindlich“) | `ConsentCheckbox` — `required`, `error`, `action` for the legal text button; both public Anmeldungen use it | `~/components/ui/consent-checkbox` |
@@ -308,6 +309,8 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 **CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on drift patterns, first these five — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-hand-rolled-surface` (unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element, also across conditional branches; use `moto-content-surface`, `AnchoredPopover`, `ChoiceTile` or a kit surface component — #2933), `ui-kit/no-rounded-3xl` (off-scale radius, `rounded-t-3xl` too), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes; a Checkbox inside a label-shaped `ChoiceTile` counts as labeled). These five are hard-zero. A deliberate non-card match (white pill) may stay behind `{/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- <reason> */}` with the reason in the PR description; no baseline. Test/stories files are exempt from the class-string rules.
 `bauart/*` exempts only the parent portal (#5604). The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading outside the parent portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a portal page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline). `ui-kit/green-fill-white-text` (#5141, hard-zero) keeps text on opaque green surfaces white and on the dark fill steps. #5577: `no-dynamic-color-class`, `no-white-on-warm-fill` (white on orange only `-strong`). #5531: button ratchet, see [Buttons](#buttons). #5579: `no-shadcn-tokens`, `no-raw-z-index` (`z-[n]`). #5580: `no-select-override` (no look classes on selects, `DateRangePicker`). #5581: `no-important-override` (`!` on kit components, baseline), `no-section-card-bleed`. #5605: `no-control-height-override` (`h-8`/`h-9`/`!size-*`). #5582: `no-hand-rolled-icon-tile` (also in `ui/`). #5583: `no-shadow-kit-name` (no local name equal to a kit export). #5584 (hard-zero): `no-hand-rolled-pill`, `no-pill-dot`, `no-hex-alpha-tint`. #5596 (hard-zero): `no-hand-rolled-weekday-toggle` (`.map` over weekdays returning a checkbox label or pressed button), `no-hand-rolled-removable-chip` (chip with its own X), `no-hand-rolled-number-stepper` (minus/plus around a field). #5599: `no-hand-rolled-dropzone` (`onDrop`), `no-hand-rolled-copy-field` (framed `<code>`, `navigator.clipboard`). #5602: `no-hand-rolled-sticky-bar`, `no-arbitrary-slide-over-width`, `no-slide-over-row-override`. `ui-kit/no-raw-input` (#5217, hard-zero) fails a hand-built `<input>`/`<textarea>` except in the primitives of `RAW_INPUT_KIT_PRIMITIVES`; `type="hidden"` and `type="file"` stay native. A field with no kit counterpart (OTP grid) stays behind `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`. A form jumps to its first failed field only through `FormErrorAlert`; there is no second scroll hook.
 
+`ui-kit/no-hand-rolled-field-label` (#5589, shrink-only): `ui-kit-field-label-baseline.json`, lower it with `pnpm run ui-kit:field-label-baseline`.
+
 `ui-kit/no-radix-outside-kit` (#5604, hard-zero): `@radix-ui/*` only under `components/ui/`.
 
 `ui-kit/no-raw-table` (#5600, hard-zero): no `<table>` outside `ui/`.
@@ -321,11 +324,6 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 `ui-kit/no-hand-rolled-dot` fails a hand-built dot or colour bar outside `ui/` (hard-zero); `ui-kit/no-status-dot-outside-plans` keeps `StatusDot` to the legends and plans listed in the plugin (ADR 0149).
 
 `moto-content-surface` and `moto-popover-surface` are unlayered CSS classes, so they beat every Tailwind utility on the same element for border color, background and shadow and ring; `ui-kit/no-dead-surface-utility` fails such utilities beside them (focus: `outline-2`, override: `!`). Never put `moto-content-surface` on an element that needs a tinted branch (`danger ? "border-moto-red/20 bg-moto-red/10" : …`) — put it in the neutral branch only. It also adds `backdrop-filter: blur(8px)`, which turns the element into the containing block for `position: fixed` descendants (kit `Modal` is portal-rendered and unaffected).
-
-```bash
-# Components imported from the design-system package — should be ZERO (tokens only)
-rg -n "from ['\"]@moto-nrw/design-system['\"]" frontend/src -g '*.tsx' -g '*.ts'
-```
 
 ## Mandatory visual check — do not skip
 
@@ -343,9 +341,8 @@ Apply before marking UI work complete or approving it:
 - [ ] No marketing-style hero / decorative cards — it reads as an operational school tool
 - [ ] Works on mobile
 - [ ] Dense enough for daily operational use (not airy / landing-page)
-- [ ] Mandatory visual check done
 - [ ] **Missverständnis-Check** passed and recorded in the PR description: every visible block explains its purpose in one sentence, nothing read-only looks clickable, preconditions are stated in the product, no two labels share a word stem without a visible boundary, copy follows `moto-einfache-sprache` — full checklist in `.claude/rules/verstaendlichkeit.md`
 
 ## When to deviate
 
-Only with explicit reviewer approval recorded in the PR description, citing this rule and the reason. "It was faster to inline it" is not a reason — add the missing piece to the kit instead. The whole frontend pays for every bespoke one-off.
+Only with explicit reviewer approval recorded in the PR description, citing this rule and the reason. "It was faster to inline it" is not a reason — add the missing piece to the kit instead.

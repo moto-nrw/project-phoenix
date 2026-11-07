@@ -1,5 +1,6 @@
 "use client";
 
+import { FieldLabel } from "./field-label";
 import { Z_INDEX, Z_LAYER } from "./overlay-styles";
 import {
   Suspense,
@@ -763,11 +764,13 @@ export function ISODatePicker({
   readonly labels?: DatePickerLabels;
 }) {
   const errorId = error && rest.id ? `${rest.id}-error` : undefined;
+  const describedBy =
+    [rest.ariaDescribedBy, errorId].filter(Boolean).join(" ") || undefined;
   const picker = (
     <DatePicker
       {...rest}
       invalid={rest.invalid ?? Boolean(error)}
-      ariaDescribedBy={rest.ariaDescribedBy ?? errorId}
+      ariaDescribedBy={describedBy}
       value={toDateOrNull(value)}
       defaultMonth={toDateOrNull(defaultMonth) ?? undefined}
       minDate={toDateOrNull(min) ?? undefined}
@@ -785,12 +788,13 @@ export function ISODatePicker({
   return (
     <div>
       {label && (
-        <label
+        <FieldLabel
           htmlFor={rest.id}
-          className="mb-2 block text-sm font-medium text-gray-700"
+          required={rest.required}
+          invalid={Boolean(error)}
         >
           {label}
-        </label>
+        </FieldLabel>
       )}
       {picker}
       {error && (
@@ -903,12 +907,7 @@ export function ISODateInput({
 
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="mb-2 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <Input

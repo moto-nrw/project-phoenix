@@ -14,11 +14,8 @@ import {
 } from "react";
 import { useParams } from "next/navigation";
 import { Check } from "lucide-react";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import {
@@ -340,7 +337,7 @@ function AcceptForm({
           required
           revealable
         />
-        <AuthFieldError id="password-error" message={passwordError} />
+        <FieldErrorHint id="password-error" message={passwordError} />
       </div>
 
       {existing ? null : (
@@ -369,7 +366,7 @@ function AcceptForm({
               required
               revealable
             />
-            <AuthFieldError id="confirmPassword-error" message={confirmError} />
+            <FieldErrorHint id="confirmPassword-error" message={confirmError} />
           </div>
 
           <PasswordRequirements

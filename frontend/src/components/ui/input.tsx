@@ -10,6 +10,8 @@ import { FieldLabel, isInvalidAria, isRequiredField } from "./field-label";
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   readonly label?: string;
   readonly error?: string;
+  /** A line under the field that stays visible, read out with the field. */
+  readonly hint?: string;
   /**
    * Read the hint out the moment it appears (`role="alert"`), for a check
    * that runs while the person types. A hint after Speichern stays quiet:
@@ -37,6 +39,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     name,
     id,
     error,
+    hint,
     errorLive = false,
     className = "",
     controlSize = "default",
@@ -60,6 +63,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   const [ownRevealed, setOwnRevealed] = useState(false);
   const isRevealed = revealed ?? ownRevealed;
   const errorId = error && inputId ? `${inputId}-error` : undefined;
+  const hintId = hint && inputId ? `${inputId}-hint` : undefined;
 
   const controlClassName =
     controlSize === "compact"
@@ -77,7 +81,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       {...props}
       aria-invalid={error ? true : ariaInvalid}
       aria-describedby={
-        [describedBy, errorId].filter(Boolean).join(" ") || undefined
+        [describedBy, hintId, errorId].filter(Boolean).join(" ") || undefined
       }
       className={`${controlClassName} ${revealable ? revealPadding : ""} ${className}`}
     />
@@ -115,6 +119,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         </div>
       ) : (
         control
+      )}
+      {hint && (
+        <p id={hintId} className="mt-1 text-xs text-gray-600">
+          {hint}
+        </p>
       )}
       {error && (
         <p
