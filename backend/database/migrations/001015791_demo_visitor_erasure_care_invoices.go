@@ -14,7 +14,7 @@ func init() {
 		Version:     demoVisitorErasureCareInvoicesVersion,
 		Description: "Demo-Besuch löschen: Monatsrechnungen und Laufspur der Demo-Schule entfernen",
 		DependsOn: []string{
-			parentBillingCareMonthsVersion,         // the tables it deletes from
+			parentBillingCareMonthsVersion,         // the tables it deletes from, care_run_holds too
 			demoVisitorErasureCareContractsVersion, // the function this one replaces
 		},
 	})
@@ -27,7 +27,9 @@ func init() {
 // recipient and mail address and outlives the contract, so nothing removes
 // it with the school; its positions go by cascade. A read in the trail of a
 // monthly run names the contracts it showed and goes with them, before the
-// contracts do. The run and its other events name no one and stay. The
+// contracts do. The snapshot of a child a release held back names the child
+// and goes with any of its schools. The run and its other events name no
+// one and stay. The
 // erasure holds the monthly billing of each Träger like a release does, so
 // a release under way cannot insert an invoice after the cleanup.
 //
@@ -232,6 +234,10 @@ const demoVisitorErasureCareInvoicesUpSQL = `
 					-- the Träger's number range, which ADR 0119 accepts here.
 					DELETE FROM parent_billing.care_invoices
 					WHERE school_id = ANY (hidden_schools);
+					-- A child a release held back keeps its name in the run's
+					-- snapshot (ADR 0158 E5); it goes with any school it names.
+					DELETE FROM parent_billing.care_run_holds
+					WHERE school_ids && hidden_schools;
 					DELETE FROM parent_billing.care_run_events AS event
 					USING care_contract.contracts AS contract
 					WHERE contract.school_id = ANY (hidden_schools)

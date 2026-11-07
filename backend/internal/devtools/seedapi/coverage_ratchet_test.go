@@ -148,6 +148,7 @@ var seedCoverageTransient = map[string]string{
 	"auth.invitation_tokens":                "short-lived invitation state; the seed accepts some and leaves some open",
 	"care_contract.contract_reminders":      "reminders of an unsigned care contract (#4679) go out only once the Träger's reminder days passed since the last mail; the seed sends its contracts minutes before the check",
 	"parent_billing.care_invoices":          "monthly invoices bill only active contracts (#4684); the Worker concludes the contracts of Weg b on its five-minute tick (#4680), so a seed run may finish before the first one is active, and a later seed run issues them",
+	"parent_billing.care_run_holds":         "children a release held back for a duplicate contract (#4684, ADR 0158 E5); present only after a release that found one, which the seed's contracts never are",
 	"parent_billing.care_invoice_positions": "positions of the monthly invoices above (#4684); present exactly when an invoice is",
 	"platform.push_outbox":                  "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
 	"platform.email_suppressions":           "addresses that bounced for good or complained (#5932); the local mail catcher never refuses an address",

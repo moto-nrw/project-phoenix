@@ -11,8 +11,8 @@ import (
 
 // The billing unit child-month (ADR 0158, Nachtrag Kind-Monat): the monthly
 // run bills each child once a month. childMonthHolds decides which children
-// it holds back for a duplicate contract (E1 to E4); heldView is what a
-// released run shows of them (E5). Both are pure: they read only their
+// it holds back for a duplicate contract (E1 to E4); holdSnapshot is what a
+// release stores of them and holdView what a released run shows (E5). Both are pure: they read only their
 // arguments.
 
 // childMonthHolds groups the contracts of the month by child (E1), lays
@@ -45,19 +45,41 @@ func childMonthHolds(month calendar.Date, rule string, byContract map[int64][]pa
 	return duplicates, held
 }
 
-// heldView is what a released run shows of the contracts it held back
-// (E5): only those, grouped by child, from the versions given. A contract
-// that came after the release is not among them.
-func heldView(held []int64, versions []parentbilling.CareContractVersion) []parentbilling.CareDuplicate {
-	byContract, order := versionsByContract(slices.DeleteFunc(slices.Clone(versions), func(version parentbilling.CareContractVersion) bool {
-		return !slices.Contains(held, version.ContractID)
-	}))
+// holdSnapshot is what a release stores of the children it holds back
+// (E5): per child, in the order of the run, its name, every contract with
+// its school and the modules and weekdays billed twice.
+func holdSnapshot(duplicates []parentbilling.CareDuplicate) []parentbilling.CareRunHold {
+	holds := []parentbilling.CareRunHold{}
+	index := map[int64]int{}
+	for _, duplicate := range duplicates {
+		key := duplicate.Contracts[0].ContractID
+		i, seen := index[key]
+		if !seen {
+			i = len(holds)
+			index[key] = i
+			holds = append(holds, parentbilling.CareRunHold{
+				Position: i + 1, Reason: parentbilling.HoldReasonDuplicateContract,
+				ChildFirstName: duplicate.ChildFirstName, ChildLastName: duplicate.ChildLastName,
+				Contracts: slices.Clone(duplicate.Contracts), Slots: []parentbilling.CareHeldSlot{},
+			})
+		}
+		holds[i].Slots = append(holds[i].Slots, parentbilling.CareHeldSlot{ModuleName: duplicate.ModuleName, Weekday: duplicate.Weekday})
+	}
+	return holds
+}
+
+// holdView is what a released run shows of the children it held back: the
+// stored snapshot and nothing else (E5), one entry per module and weekday
+// billed twice, as the preview showed it at the release.
+func holdView(holds []parentbilling.CareRunHold) []parentbilling.CareDuplicate {
 	shown := []parentbilling.CareDuplicate{}
-	for _, child := range childrenOf(byContract, order) {
-		head := byContract[child[0]][0]
-		shown = append(shown, parentbilling.CareDuplicate{
-			ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, Contracts: childContracts(child, byContract),
-		})
+	for _, hold := range holds {
+		for _, slot := range hold.Slots {
+			shown = append(shown, parentbilling.CareDuplicate{
+				ChildFirstName: hold.ChildFirstName, ChildLastName: hold.ChildLastName,
+				ModuleName: slot.ModuleName, Weekday: slot.Weekday, Contracts: slices.Clone(hold.Contracts),
+			})
+		}
 	}
 	return shown
 }

@@ -148,10 +148,6 @@ type CareRun struct {
 	DocumentCount *int           `json:"document_count"`
 	TotalCents    *int64         `json:"total_cents"`
 	MonthRule     string         `json:"month_rule"`
-	// HeldContractIDs are the contracts the release left out for a
-	// duplicate (Betragsregel 1); a released run shows them until a later
-	// run of the month bills them.
-	HeldContractIDs []int64 `json:"-"`
 }
 
 // CareRunList is the list of the monthly runs, the latest month first,
@@ -236,6 +232,29 @@ type CareDuplicate struct {
 	ModuleName     string                  `json:"module_name"`
 	Weekday        string                  `json:"weekday"`
 	Contracts      []CareDuplicateContract `json:"contracts"`
+}
+
+// HoldReasonDuplicateContract is why a release held a child back: two of
+// its contracts bill the same module on the same day (ADR 0158 E3).
+const HoldReasonDuplicateContract = "duplicate_contract"
+
+// CareHeldSlot is a module and weekday two contracts of a held child bill
+// on the same day.
+type CareHeldSlot struct {
+	ModuleName string `json:"module_name"`
+	Weekday    string `json:"weekday"`
+}
+
+// CareRunHold is a child a release held back, as it was at the release
+// (ADR 0158 E5): its name, every contract with its school, the reason and
+// the modules and weekdays billed twice. It never changes.
+type CareRunHold struct {
+	Position       int
+	Reason         string
+	ChildFirstName string
+	ChildLastName  string
+	Contracts      []CareDuplicateContract
+	Slots          []CareHeldSlot
 }
 
 // CareRunDetail is a run with its invoices. A calculated run shows the

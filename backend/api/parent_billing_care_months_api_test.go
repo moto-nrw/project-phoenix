@@ -761,3 +761,54 @@ func TestCareMonthlyReleaseBillsTheValidChildrenAndKeepsTheDuplicateInSight(t *t
 		GROUP BY care_contract_id ORDER BY care_contract_id`, valid, kept).Scan(context.Background(), &perContract))
 	assert.Equal(t, []int{1, 1}, perContract, "every child has one invoice for the month")
 }
+
+// E5 of ADR 0158 (Nachtrag Kind-Monat): a released run shows the children
+// its release held back from the snapshot it stored, not from the
+// contracts. After the release Mia's second contract is withdrawn and her
+// first one names her Mila; the released run still shows Mia with both
+// contracts and Monday until 14:00 billed twice.
+func TestCareMonthlyReleasedRunKeepsItsSnapshot(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Monatsbeitrag Momentaufnahme")
+	school := f.office.schools[0]
+	careContract(t, f.db, f.office.organization, school, "Noah", careMonth, sjrServices()...)
+	kept := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	twice := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()[0])
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	run := f.startRun(t, careMonth)
+	preview := f.run(t, run.ID)
+	require.Equal(t, 1, preview.DuplicateChildren)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(preview))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	type shownDuplicates struct {
+		Duplicates []struct {
+			ChildFirstName string `json:"child_first_name"`
+			ModuleName     string `json:"module_name"`
+			Weekday        string `json:"weekday"`
+			Contracts      []struct {
+				ContractID int64  `json:"contract_id"`
+				SchoolName string `json:"school_name"`
+			} `json:"contracts"`
+		} `json:"duplicates"`
+	}
+	shown := func() shownDuplicates {
+		rec := traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, ""), nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return decodeSchoolPortalData[shownDuplicates](t, rec.Body.Bytes())
+	}
+	atRelease := shown()
+	require.Len(t, atRelease.Duplicates, 1)
+	assert.Equal(t, "Mia", atRelease.Duplicates[0].ChildFirstName)
+	assert.Equal(t, "mon", atRelease.Duplicates[0].Weekday)
+	require.Len(t, atRelease.Duplicates[0].Contracts, 2)
+
+	ctx := context.Background()
+	_, err := f.db.NewRaw(`UPDATE care_contract.contracts SET status = 'widerrufen' WHERE id = ?`, twice).Exec(ctx)
+	require.NoError(t, err)
+	_, err = f.db.NewRaw(`UPDATE care_contract.contract_versions SET child_first_name = 'Mila' WHERE contract_id = ?`, kept).Exec(ctx)
+	require.NoError(t, err)
+
+	assert.Equal(t, atRelease, shown(), "the released run shows its snapshot, not the contracts now")
+}

@@ -281,6 +281,7 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.care_invoice_positions":                 parent("parent_billing.care_invoices"),
 	"parent_billing.care_invoices":                          own("an issued monthly invoice never changes and stays when its contract goes (§ 147 AO, ADR 0088 section 9, ADR 0119); it goes with platform.organizations when the Träger is erased after its export (#4657); the period of a single invoice follows with #4720"),
 	"parent_billing.care_run_events":                        own("the trail of a monthly run stays with the issued invoices it documents (ADR 0119); it goes with platform.organizations when the Träger is erased (#4657); actor_account_id SET NULL on account delete"),
+	"parent_billing.care_run_holds":                         own("the snapshot of a child a release held back stays with its run as the record why the child was not billed (ADR 0158 E5); it goes with platform.organizations when the Träger is erased (#4657) and with a retired demo school (1.15.791)"),
 	"parent_billing.care_runs":                              notPersonal("monthly run of a Träger (#4684): month, status, issue date and sums, no person"),
 	"parent_billing.care_tariffs":                           notPersonal("monthly price of a care module per school and weekday (#4684), no person"),
 	"parent_billing.contribution_rules":                     notPersonal("contribution rule of a Träger (#4664): kind, parameters, validity and the note of an exemption, no person"),

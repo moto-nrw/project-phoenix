@@ -39,7 +39,11 @@ type CareStore interface {
 	InvoicedContracts(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]bool, error)
 	InsertCareRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
 	IssueCareInvoices(ctx context.Context, organizationID int64, run parentbilling.CareRun, rule string, year int, first int64, invoices []parentbilling.CareInvoice) error
-	MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string, held []int64) (parentbilling.CareRun, error)
+	MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string) (parentbilling.CareRun, error)
+	// InsertCareRunHolds stores the children a release held back, as they
+	// are at the release; CareRunHolds reads them (ADR 0158 E5).
+	InsertCareRunHolds(ctx context.Context, organizationID, runID int64, holds []parentbilling.CareRunHold) error
+	CareRunHolds(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareRunHold, error)
 	CareRunInvoices(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareInvoice, error)
 	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
 	ReserveNumbers(ctx context.Context, organizationID int64, service string, year, count int) (int64, error)
@@ -430,8 +434,11 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 		return parentbilling.CareRunDetail{}, err
 	}
 	released, err := c.store.MarkCareRunReleased(ctx, reviewer.OrganizationID, run.ID, *month.invoices[0].IssuedOn,
-		len(month.invoices), month.total(), rule, heldContracts(month.duplicates))
+		len(month.invoices), month.total(), rule)
 	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	if err := c.store.InsertCareRunHolds(ctx, reviewer.OrganizationID, run.ID, holdSnapshot(month.duplicates)); err != nil {
 		return parentbilling.CareRunDetail{}, err
 	}
 	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRelease,
@@ -508,15 +515,14 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		}
 		detail.Invoices = invoices
 		// A released run shows what its release stored (E5): its invoices
-		// and the contracts it held back, by child. Nothing is computed
-		// again, and a contract that came later is not among them.
-		if len(run.HeldContractIDs) > 0 {
-			versions, err := c.contracts.VersionsInForce(ctx, reviewer.OrganizationID, run.BillingMonth, monthEnd(run.BillingMonth))
-			if err != nil {
-				return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: read the held contracts: %w", err)
-			}
-			detail.Duplicates = heldView(run.HeldContractIDs, versions)
+		// and the snapshot of the children it held back. It reads no
+		// contract again, so a later change, withdrawal or new contract
+		// does not reach it.
+		holds, err := c.store.CareRunHolds(ctx, reviewer.OrganizationID, run.ID)
+		if err != nil {
+			return parentbilling.CareRunDetail{}, err
 		}
+		detail.Duplicates = holdView(holds)
 	} else {
 		rule, month, err := c.preview(ctx, reviewer.OrganizationID, run)
 		if err != nil {
@@ -539,20 +545,6 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		detail.NumberPattern, detail.NumberRangeSet = pattern, true
 	}
 	return detail, nil
-}
-
-// heldContracts are the contracts of the duplicates, sorted.
-func heldContracts(duplicates []parentbilling.CareDuplicate) []int64 {
-	ids := []int64{}
-	for _, duplicate := range duplicates {
-		for _, contract := range duplicate.Contracts {
-			if !slices.Contains(ids, contract.ContractID) {
-				ids = append(ids, contract.ContractID)
-			}
-		}
-	}
-	slices.Sort(ids)
-	return ids
 }
 
 // duplicateChildren counts the children behind duplicate entries: contracts

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -59,13 +60,12 @@ type careRunRow struct {
 	DocumentCount      *int           `bun:"document_count"`
 	TotalCents         *int64         `bun:"total_cents"`
 	MonthRule          *string        `bun:"month_rule"`
-	HeldContractIDs    []int64        `bun:"held_contract_ids,array"`
 }
 
 func (r careRunRow) run() parentbilling.CareRun {
 	run := parentbilling.CareRun{
 		ID: r.ID, BillingMonth: r.BillingMonth, Status: r.Status, CreatedAt: r.CreatedAt, ReleasedAt: r.ReleasedAt,
-		IssuedOn: r.IssuedOn, DocumentCount: r.DocumentCount, TotalCents: r.TotalCents, HeldContractIDs: r.HeldContractIDs,
+		IssuedOn: r.IssuedOn, DocumentCount: r.DocumentCount, TotalCents: r.TotalCents,
 	}
 	if r.MonthRule != nil {
 		run.MonthRule = *r.MonthRule
@@ -272,8 +272,7 @@ func (s *Store) InsertCareRun(ctx context.Context, organizationID, accountID int
 	if err != nil {
 		return parentbilling.CareRun{}, err
 	}
-	row := &careRunRow{OrganizationID: organizationID, BillingMonth: month, Status: parentbilling.RunCalculated, CreatedByAccountID: &accountID,
-		HeldContractIDs: []int64{}}
+	row := &careRunRow{OrganizationID: organizationID, BillingMonth: month, Status: parentbilling.RunCalculated, CreatedByAccountID: &accountID}
 	if _, err := db.NewInsert().Model(row).Returning("id, created_at").Exec(ctx); err != nil {
 		if constraintOf(err) == openCareRunIndex {
 			return parentbilling.CareRun{}, parentbilling.ErrCareRunOpen
@@ -440,7 +439,7 @@ func carePositionRows(organizationID int64, rows []careInvoiceRow, invoices []pa
 
 // MarkCareRunReleased closes a calculated run with its issue date, sums
 // and the rule it billed by.
-func (s *Store) MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string, held []int64) (parentbilling.CareRun, error) {
+func (s *Store) MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string) (parentbilling.CareRun, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return parentbilling.CareRun{}, err
@@ -449,7 +448,6 @@ func (s *Store) MarkCareRunReleased(ctx context.Context, organizationID, runID i
 	if err := db.NewUpdate().Model(row).
 		Set("status = ?", parentbilling.RunReleased).Set("released_at = CURRENT_TIMESTAMP").Set("issued_on = ?", issuedOn).
 		Set("document_count = ?", count).Set("total_cents = ?", totalCents).Set("month_rule = ?", rule).
-		Set("held_contract_ids = ?", pgdialect.Array(nonNilIDs(held))).
 		Where("organization_id = ?", organizationID).Where("id = ?", runID).Where("status = ?", parentbilling.RunCalculated).
 		Returning("*").Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -479,8 +477,10 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	for i, row := range rows {
 		ids[i] = row.ID
 	}
+	// The positions belong to the invoices just read under the Träger's
+	// filter; their IDs are unique across Träger, so they name the Träger.
 	var positions []careInvoicePositionRow
-	if err := db.NewSelect().Model(&positions).Where("organization_id = ?", organizationID).
+	if err := db.NewSelect().Model(&positions).
 		Where("invoice_id = ANY(?)", pgdialect.Array(ids)).OrderExpr("invoice_id, position").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read care invoice positions: %w", err)
 	}
@@ -511,10 +511,68 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	return invoices, nil
 }
 
-// nonNilIDs binds an empty array for no IDs.
-func nonNilIDs(ids []int64) []int64 {
-	if ids == nil {
-		return []int64{}
+type careRunHoldRow struct {
+	bun.BaseModel `bun:"table:parent_billing.care_run_holds"`
+
+	ID             int64                                 `bun:"id,pk,autoincrement"`
+	OrganizationID int64                                 `bun:"organization_id"`
+	RunID          int64                                 `bun:"run_id"`
+	Position       int                                   `bun:"position"`
+	Reason         string                                `bun:"reason"`
+	SchoolIDs      []int64                               `bun:"school_ids,array"`
+	ChildFirstName string                                `bun:"child_first_name"`
+	ChildLastName  string                                `bun:"child_last_name"`
+	Contracts      []parentbilling.CareDuplicateContract `bun:"contracts,type:jsonb"`
+	Slots          []parentbilling.CareHeldSlot          `bun:"slots,type:jsonb"`
+}
+
+// InsertCareRunHolds stores the children a release held back as they are
+// now (ADR 0158 E5); the rows never change.
+func (s *Store) InsertCareRunHolds(ctx context.Context, organizationID, runID int64, holds []parentbilling.CareRunHold) error {
+	if len(holds) == 0 {
+		return nil
 	}
-	return ids
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	rows := make([]careRunHoldRow, len(holds))
+	for i, hold := range holds {
+		schools := []int64{}
+		for _, contract := range hold.Contracts {
+			if !slices.Contains(schools, contract.SchoolID) {
+				schools = append(schools, contract.SchoolID)
+			}
+		}
+		slots := hold.Slots
+		if slots == nil {
+			slots = []parentbilling.CareHeldSlot{}
+		}
+		rows[i] = careRunHoldRow{OrganizationID: organizationID, RunID: runID, Position: hold.Position, Reason: hold.Reason,
+			SchoolIDs: schools, ChildFirstName: hold.ChildFirstName, ChildLastName: hold.ChildLastName,
+			Contracts: hold.Contracts, Slots: slots}
+	}
+	if _, err := db.NewInsert().Model(&rows).Exec(ctx); err != nil {
+		return fmt.Errorf("insert care run holds: %w", err)
+	}
+	return nil
+}
+
+// CareRunHolds reads the children a release held back, in their order.
+func (s *Store) CareRunHolds(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareRunHold, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []careRunHoldRow
+	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).Where("run_id = ?", runID).
+		OrderExpr("position").Scan(ctx); err != nil {
+		return nil, fmt.Errorf("read care run holds: %w", err)
+	}
+	holds := make([]parentbilling.CareRunHold, len(rows))
+	for i, row := range rows {
+		holds[i] = parentbilling.CareRunHold{Position: row.Position, Reason: row.Reason, ChildFirstName: row.ChildFirstName,
+			ChildLastName: row.ChildLastName, Contracts: row.Contracts, Slots: row.Slots}
+	}
+	return holds, nil
 }

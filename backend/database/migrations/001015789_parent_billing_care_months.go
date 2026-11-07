@@ -37,6 +37,8 @@ func init() {
 //   - care_invoice_positions: one position per booked module, with the
 //     booked weekdays and their prices; never one line per calendar day.
 //   - care_run_events: the trail of every read and change of a run.
+//   - care_run_holds: the children a release held back for a duplicate
+//     contract, as they were at the release (ADR 0158 E5).
 //
 // Invoices, positions and released runs never change, for any role
 // (parent_billing.refuse_issued_change, ADR 0119 point 7).
@@ -73,7 +75,6 @@ CREATE TABLE parent_billing.care_runs (
 	billing_month DATE NOT NULL,
 	status VARCHAR(16) NOT NULL DEFAULT 'calculated',
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	held_contract_ids BIGINT[] NOT NULL DEFAULT '{}',
 	created_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	released_at TIMESTAMPTZ,
 	issued_on DATE,
@@ -108,6 +109,28 @@ CREATE TABLE parent_billing.care_run_events (
 CREATE INDEX idx_care_run_events_run ON parent_billing.care_run_events (run_id, occurred_at);
 COMMENT ON TABLE parent_billing.care_run_events IS
 	'Trail of a monthly run: who started, read and released it, with the contracts it read (#4684).';
+
+CREATE TABLE parent_billing.care_run_holds (
+	id BIGSERIAL PRIMARY KEY,
+	organization_id BIGINT NOT NULL,
+	run_id BIGINT NOT NULL,
+	position SMALLINT NOT NULL,
+	reason VARCHAR(24) NOT NULL,
+	school_ids BIGINT[] NOT NULL,
+	child_first_name TEXT NOT NULL,
+	child_last_name TEXT NOT NULL,
+	contracts JSONB NOT NULL,
+	slots JSONB NOT NULL,
+	CONSTRAINT fk_care_run_holds_run FOREIGN KEY (organization_id, run_id)
+		REFERENCES parent_billing.care_runs (organization_id, id) ON DELETE CASCADE,
+	CONSTRAINT uq_care_run_holds_position UNIQUE (run_id, position),
+	CONSTRAINT chk_care_run_holds_reason CHECK (reason IN ('duplicate_contract')),
+	CONSTRAINT chk_care_run_holds_shape CHECK (cardinality(school_ids) >= 1
+		AND jsonb_typeof(contracts) = 'array' AND jsonb_array_length(contracts) >= 1 AND jsonb_typeof(slots) = 'array')
+);
+CREATE INDEX idx_care_run_holds_schools ON parent_billing.care_run_holds USING GIN (school_ids);
+COMMENT ON TABLE parent_billing.care_run_holds IS
+	'Snapshot of a child a release held back with its contracts and the modules and weekdays billed twice (#4684, ADR 0158 E5); never changes.';
 
 CREATE TABLE parent_billing.care_invoices (
 	id BIGSERIAL PRIMARY KEY,
@@ -190,6 +213,9 @@ BEGIN
 END;
 $$;
 REVOKE ALL ON FUNCTION parent_billing.refuse_released_care_run_change() FROM PUBLIC;
+CREATE TRIGGER refuse_parent_billing_care_run_hold_change
+	BEFORE UPDATE ON parent_billing.care_run_holds
+	FOR EACH ROW EXECUTE FUNCTION parent_billing.refuse_issued_change();
 CREATE TRIGGER refuse_parent_billing_released_care_run_change
 	BEFORE UPDATE ON parent_billing.care_runs
 	FOR EACH ROW WHEN (OLD.status = 'released')
@@ -210,6 +236,11 @@ ALTER TABLE parent_billing.care_run_events FORCE ROW LEVEL SECURITY;
 CREATE POLICY traeger_isolation_parent_billing_care_run_events ON parent_billing.care_run_events FOR ALL
 	USING (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint)
 	WITH CHECK (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint);
+ALTER TABLE parent_billing.care_run_holds ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_billing.care_run_holds FORCE ROW LEVEL SECURITY;
+CREATE POLICY traeger_isolation_parent_billing_care_run_holds ON parent_billing.care_run_holds FOR ALL
+	USING (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint)
+	WITH CHECK (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint);
 ALTER TABLE parent_billing.care_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parent_billing.care_invoices FORCE ROW LEVEL SECURITY;
 CREATE POLICY traeger_isolation_parent_billing_care_invoices ON parent_billing.care_invoices FOR ALL
@@ -222,13 +253,13 @@ CREATE POLICY traeger_isolation_parent_billing_care_invoice_positions ON parent_
 	WITH CHECK (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint);
 
 REVOKE ALL ON parent_billing.care_tariffs, parent_billing.care_runs, parent_billing.care_run_events,
-	parent_billing.care_invoices, parent_billing.care_invoice_positions FROM PUBLIC;
+	parent_billing.care_run_holds, parent_billing.care_invoices, parent_billing.care_invoice_positions FROM PUBLIC;
 GRANT SELECT, INSERT, DELETE ON parent_billing.care_tariffs TO phoenix_tenant;
 GRANT SELECT, INSERT, UPDATE ON parent_billing.care_runs TO phoenix_tenant;
-GRANT SELECT, INSERT ON parent_billing.care_run_events, parent_billing.care_invoices,
+GRANT SELECT, INSERT ON parent_billing.care_run_events, parent_billing.care_run_holds, parent_billing.care_invoices,
 	parent_billing.care_invoice_positions TO phoenix_tenant;
 GRANT USAGE ON SEQUENCE parent_billing.care_tariffs_id_seq, parent_billing.care_runs_id_seq,
-	parent_billing.care_run_events_id_seq, parent_billing.care_invoices_id_seq,
+	parent_billing.care_run_events_id_seq, parent_billing.care_run_holds_id_seq, parent_billing.care_invoices_id_seq,
 	parent_billing.care_invoice_positions_id_seq TO phoenix_tenant;
 GRANT ALL ON ALL TABLES IN SCHEMA parent_billing TO phoenix_admin;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA parent_billing TO phoenix_admin;
@@ -236,7 +267,7 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA parent_billing TO phoenix_admin;
 
 const parentBillingCareMonthsDownSQL = `
 DROP TABLE IF EXISTS parent_billing.care_invoice_positions, parent_billing.care_invoices,
-	parent_billing.care_run_events, parent_billing.care_runs, parent_billing.care_tariffs;
+	parent_billing.care_run_holds, parent_billing.care_run_events, parent_billing.care_runs, parent_billing.care_tariffs;
 DROP FUNCTION IF EXISTS parent_billing.refuse_released_care_run_change();
 DELETE FROM parent_billing.number_range_counters WHERE service = 'care';
 DELETE FROM parent_billing.number_ranges WHERE service = 'care';

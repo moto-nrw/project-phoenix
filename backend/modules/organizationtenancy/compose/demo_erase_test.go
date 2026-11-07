@@ -53,6 +53,10 @@ var visitorTraceCounts = map[string]string{
 	"parent_billing.care_invoice_positions": `SELECT count(*) FROM parent_billing.care_invoice_positions AS position
 		JOIN parent_billing.care_invoices AS invoice ON invoice.id = position.invoice_id
 		WHERE invoice.school_id = ?0`,
+	// A child a release held back keeps its name in the run's snapshot
+	// (ADR 0158 E5).
+	"parent_billing.care_run_holds": `SELECT count(*) FROM parent_billing.care_run_holds
+		WHERE school_ids @> ARRAY[?0]::bigint[] AND child_first_name = 'Mia' AND child_last_name = 'Schneider'`,
 	// A read of the monthly run names the contracts it showed; once the
 	// contract is gone, the ID is a trace with no row left to count it by.
 	"parent_billing.care_run_events": `SELECT count(*) FROM parent_billing.care_run_events AS event
@@ -159,6 +163,13 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 			contract_version_number, service_from, service_until, weekdays, amount_cents, net_cents)
 		SELECT organization_id, id, 1, 1, 'Betreuung bis 14:00 Uhr', 1, DATE '2026-09-01', DATE '2026-09-30',
 			'[{"weekday":"mon","monthly_cents":3200,"amount_cents":3200}]'::jsonb, 3200, 3200 FROM invoice`,
+		// The release held Mia back for a duplicate contract (#4684).
+		`INSERT INTO parent_billing.care_run_holds (organization_id, run_id, position, reason, school_ids,
+			child_first_name, child_last_name, contracts, slots)
+		SELECT invoice.organization_id, invoice.run_id, 1, 'duplicate_contract', ARRAY[?0]::bigint[], 'Mia', 'Schneider',
+			jsonb_build_array(jsonb_build_object('contract_id', invoice.care_contract_id, 'school_id', ?0, 'school_name', 'OGS')),
+			'[{"module_name":"Betreuung bis 14:00 Uhr","weekday":"mon"}]'::jsonb
+		FROM parent_billing.care_invoices AS invoice WHERE invoice.school_id = ?0`,
 	} {
 		_, err := db.NewRaw(statement, schoolID, student.ID, guardian.ID, parent.ID).Exec(ctx)
 		require.NoError(t, err, statement)

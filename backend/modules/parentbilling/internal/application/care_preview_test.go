@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -713,19 +714,35 @@ func TestCareMonthChildMonthTable(t *testing.T) {
 		})
 	}
 
-	// E5: the release of "three contracts" stored A, B and C. After it, Mia
-	// gets a fourth contract D and another child E one of its own; the
-	// released run still shows Mia with A, B and C only, and not E.
+	// E5: the release of "three contracts" stores Mia with A, B and C and
+	// Monday until 14:00 billed twice. The released run shows exactly that
+	// from the snapshot, whatever the contracts are later: holdView reads
+	// nothing but the snapshot.
 	t.Run("release snapshot", func(t *testing.T) {
-		later := append(threeContracts(),
-			tableContract(t, tableD, schoolIspringen, january2027, januaryLastDay2027, early),
-			tableContract(t, tableE, schoolIspringen, january2027, januaryLastDay2027, until1400))
-		shown := heldView([]int64{tableA, tableB, tableC}, later)
-		require.Len(t, shown, 1, "one child, Mia")
+		month, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: full, versions: threeContracts(), tariffs: tariffs})
+		require.NoError(t, err)
+		snapshot := holdSnapshot(month.duplicates)
+		require.Len(t, snapshot, 1, "one child, Mia")
 		var contracts []int64
-		for _, contract := range shown[0].Contracts {
+		for _, contract := range snapshot[0].Contracts {
 			contracts = append(contracts, contract.ContractID)
 		}
 		assert.Equal(t, []int64{tableA, tableB, tableC}, contracts)
+		assert.Equal(t, []parentbilling.CareHeldSlot{{ModuleName: "Betreuung bis 14:00 Uhr", Weekday: "mon"}}, snapshot[0].Slots)
+		assert.Equal(t, month.duplicates, holdView(snapshot), "the released run shows what the preview showed at the release")
 	})
+}
+
+// heldContracts are the contracts of the duplicates, sorted.
+func heldContracts(duplicates []parentbilling.CareDuplicate) []int64 {
+	ids := []int64{}
+	for _, duplicate := range duplicates {
+		for _, contract := range duplicate.Contracts {
+			if !slices.Contains(ids, contract.ContractID) {
+				ids = append(ids, contract.ContractID)
+			}
+		}
+	}
+	slices.Sort(ids)
+	return ids
 }

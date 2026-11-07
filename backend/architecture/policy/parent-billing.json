@@ -57,6 +57,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_run_holds",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_runs",
       "write_owner": "parent-billing"
     },
