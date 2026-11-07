@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ func TestExceptionQueriesShareTenantAndTransactionWithoutStatusSlotCommands(t *t
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback() }()
-	txCtx := tenant.WithTransactionForTest(ctx, tx)
+	txCtx := tenanttest.WithTransaction(ctx, tx)
 	date := careplan.Date("2031-02-03")
 	pickup, err := module.CreatePickupException(txCtx, careplan.PickupException{StudentID: student.ID, ExceptionDate: date, CreatedBy: staff.ID})
 	require.NoError(t, err)
@@ -47,7 +48,7 @@ func TestExceptionQueriesShareTenantAndTransactionWithoutStatusSlotCommands(t *t
 	statuses, err := queries.ListStudentStatusDays(txCtx, careplan.StudentStatusDayFilter{StudentIDs: []int64{student.ID}, ActiveOnly: true})
 	require.NoError(t, err)
 	require.Len(t, statuses, 1)
-	foreignCtx := tenant.WithTransactionForTest(otherCtx, tx)
+	foreignCtx := tenanttest.WithTransaction(otherCtx, tx)
 	_, err = queries.FindPickupException(foreignCtx, pickup.ID, false)
 	require.ErrorIs(t, err, careplan.ErrStudentScheduleNotFound)
 	_, err = queries.FindStudentStatusDay(foreignCtx, status.ID, true)

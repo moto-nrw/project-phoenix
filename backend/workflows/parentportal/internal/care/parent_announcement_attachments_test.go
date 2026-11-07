@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -69,7 +68,7 @@ func TestGuardianAnnouncementTenant_DraftAndDisabledFeatureHideTheFile(t *testin
 
 	// A draft is not live, so its attachments are not reachable either — an
 	// attachment must never become the back door to an unpublished message.
-	draft := &communication.ParentAnnouncementFixture{
+	draft := &api.ParentAnnouncementFixture{
 		Title:     "Noch nicht raus",
 		Body:      "Entwurf.",
 		Priority:  "info",
@@ -78,7 +77,7 @@ func TestGuardianAnnouncementTenant_DraftAndDisabledFeatureHideTheFile(t *testin
 	}
 	draft.TenantID = chain.TenantID
 	require.NoError(t, testpkg.TenantCommand1(t, seedCtx, db, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).Create, draft))
-	require.NoError(t, testpkg.TenantCommand3(t, seedCtx, db, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).ReplaceTargets, chain.TenantID, draft.ID, []*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}}))
+	require.NoError(t, testpkg.TenantCommand3(t, seedCtx, db, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).ReplaceTargets, chain.TenantID, draft.ID, []*api.ParentAnnouncementTargetFixture{{TargetType: "school_all"}}))
 	t.Cleanup(func() { _ = testpkg.TenantCommand1(t, seedCtx, db, repos.ParentAnnouncement.Delete, draft.ID) })
 
 	tenantID, err := svc.GuardianAnnouncementTenant(ctx, chain.AccountID, draft.ID)

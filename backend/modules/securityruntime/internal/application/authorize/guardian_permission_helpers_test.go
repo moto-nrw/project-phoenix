@@ -1,9 +1,7 @@
-//go:build testhooks
-
 package authorize
 
-// Fixture role assignment stays available to test builds only. Production
-// workflows bind canonical role decisions through public Security Runtime.
+// Fixture role assignment for this package's tests. Production workflows bind
+// canonical role decisions through public Security Runtime.
 func ApplyStudentGuardianRole(sg studentGuardianRecord, role string) {
 	if sg == nil {
 		return

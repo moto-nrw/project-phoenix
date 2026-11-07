@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	postgresNative "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
@@ -34,7 +34,7 @@ func TestTenantAmbientDatabaseJoinsTheCallersTransaction(t *testing.T) {
 	t.Run("unusable transaction values return errors", func(t *testing.T) {
 		var missing *bun.Tx
 		for _, raw := range []any{missing, struct{}{}} {
-			resolved, err := resolve(tenant.WithTransactionForTest(context.Background(), raw))
+			resolved, err := resolve(tenanttest.WithTransaction(context.Background(), raw))
 			assert.Nil(t, resolved)
 			assert.Error(t, err)
 		}

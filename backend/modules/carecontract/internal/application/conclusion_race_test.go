@@ -68,6 +68,9 @@ func (p *racePost) EnqueueContractMail(context.Context, carecontract.ContractMai
 	return p.next, nil
 }
 
+// ShareMailBlockLimit shares nothing: no provider is asked.
+func (p *racePost) ShareMailBlockLimit(ctx context.Context) context.Context { return ctx }
+
 // ContractMailBlock holds no address back.
 func (p *racePost) ContractMailBlock(context.Context, int64, string, string) (string, error) {
 	return "", nil

@@ -100,6 +100,10 @@ type EmailDeliveryStatus struct {
 	// StopShared says another holder of the address carries no stop, so mail to the
 	// address still goes out.
 	StopShared bool `json:"stop_shared,omitempty"`
+	// CurrentAddressRefused says an earlier mail of this entity to RecipientEmail
+	// ended in an unsubscribe or a complaint. Only the provider's current block then
+	// says whether a new mail may go there, whatever the last mail's result is.
+	CurrentAddressRefused bool `json:"-"`
 }
 
 type GuardianDisplay struct {

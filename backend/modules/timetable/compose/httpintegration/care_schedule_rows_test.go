@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 
 	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -625,7 +625,7 @@ func runExceptionRowsSuite[E any](t *testing.T, kind exceptionKind[E]) {
 			// timezone can no longer shift the stored or queried day. The SET LOCAL
 			// stays to pin exactly that: the roundtrip is session-TZ-independent.
 			err := db.RunInTx(ctx, nil, func(_ context.Context, tx bun.Tx) error {
-				txCtx := tenant.WithTransactionForTest(ctx, &tx)
+				txCtx := tenanttest.WithTransaction(ctx, &tx)
 				_, err := tx.NewRaw(`SET LOCAL timezone = 'Europe/Berlin'`).Exec(txCtx)
 				if err != nil {
 					return err

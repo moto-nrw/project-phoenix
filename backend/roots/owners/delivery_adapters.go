@@ -72,12 +72,12 @@ func (a announcementDeliveryAdapter) ListForEntity(ctx context.Context, tenantID
 }
 
 // providerBlocks asks the provider about the addresses another mail would go to,
-// if the provider withheld the last mail to exactly that address. A new address has
-// no such history: it is no question for the provider.
+// if a mail to exactly that address left a block there. A new address has no such
+// history: it is no question for the provider.
 func (a announcementDeliveryAdapter) providerBlocks(ctx context.Context, rows []deliveryContract.EmailDeliveryStatus) map[string]deliveryContract.EmailProviderBlock {
 	var held []string
 	for _, row := range rows {
-		if sameAddress(row.MailedTo, row.RecipientEmail) && row.Outcome.HeldAtProvider() {
+		if asksTheProvider(row) {
 			held = append(held, *row.RecipientEmail)
 		}
 	}
@@ -88,10 +88,19 @@ func (a announcementDeliveryAdapter) providerBlocks(ctx context.Context, rows []
 }
 
 func letterProviderBlock(row deliveryContract.EmailDeliveryStatus, blocks map[string]deliveryContract.EmailProviderBlock) string {
-	if !sameAddress(row.MailedTo, row.RecipientEmail) || !row.Outcome.HeldAtProvider() {
+	if !asksTheProvider(row) {
 		return ""
 	}
 	return string(blocks[deliveryContract.NormalizedEmailAddress(*row.RecipientEmail)])
+}
+
+// asksTheProvider names a row whose current address has a history at the provider:
+// the last mail went there and left a block, or an earlier one was refused there.
+func asksTheProvider(row deliveryContract.EmailDeliveryStatus) bool {
+	if row.RecipientEmail == nil {
+		return false
+	}
+	return row.CurrentAddressRefused || (sameAddress(row.MailedTo, row.RecipientEmail) && row.Outcome.HeldAtProvider())
 }
 
 func sameAddress(a, b *string) bool {

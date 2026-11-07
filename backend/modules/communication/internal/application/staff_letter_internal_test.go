@@ -803,6 +803,35 @@ func TestResendFailedEmailsLeavesAStoppedOrMarkedAddressAlone(t *testing.T) {
 	}
 }
 
+// After an unsubscribe or a complaint only a corrected address gets a new mail: the
+// status names it failed, and the provider's answer about a refused address counts.
+func TestResendFailedEmailsSendsARefusedLetterOnlyToTheCorrectedAddress(t *testing.T) {
+	t.Parallel()
+
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(StaffParentAnnouncementDeliveryLetter, StaffEmailAudiencePortalOnly)
+	a.PublishedAt = &published
+	old, corrected, refused := "alt@example.test", "neu@example.test", "abgemeldet@example.test"
+	deliveries := &letterDeliveries{list: []EmailDeliveryStatus{
+		{DeliveryID: 1, RecipientEmail: &old, MailedTo: &old, EmailStatus: "sent", MailOutcome: "unsubscribed", ProviderBlock: "none"},
+		{DeliveryID: 2, RecipientEmail: &corrected, MailedTo: &old, EmailStatus: "failed", MailOutcome: "complained"},
+		{DeliveryID: 3, RecipientEmail: &refused, MailedTo: &corrected, EmailStatus: "failed", MailOutcome: "send_failed", ProviderBlock: "active"},
+	}}
+	outbox := &letterOutbox{}
+	svc := newLetterService(&letterRepo{announcement: a}, outbox, deliveries)
+
+	count, err := svc.ResendFailedEmails(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("ResendFailedEmails: %v", err)
+	}
+	if count != 1 || len(outbox.requests) != 1 {
+		t.Fatalf("queued %d addresses in %d request(s), want only the corrected one", count, len(outbox.requests))
+	}
+	if got, _ := outbox.requests[0].Payload[emailPayloadRecipient].(string); got != corrected {
+		t.Errorf("resent to %q, want %q", got, corrected)
+	}
+}
+
 func TestResendFailedEmailsDeduplicatesSharedAddress(t *testing.T) {
 	t.Parallel()
 

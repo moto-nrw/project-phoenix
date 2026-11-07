@@ -308,7 +308,6 @@ const ROW_ACTION_BASELINE = new Map(
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
-    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1355"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
       "Gericht entfernen@797",
     ],
@@ -327,7 +326,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Entfernen@593",
       "Telefonnummer entfernen@868",
     ],
-    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1316"],
+    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1314"],
     "src/components/staff/stammdaten-section-forms.tsx": [
       "Qualifikation entfernen@485",
     ],
@@ -1222,7 +1221,7 @@ const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
     "src/components/students/planned-status-days-modal.tsx": [
-      "Bearbeiten@1181",
+      "Bearbeiten@1179",
     ],
   }),
 );
@@ -1605,7 +1604,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schließtag bearbeiten Schließtag anlegen@90",
     ],
     "src/components/staff-notices/staff-notice-modal.tsx": [
-      "Tagesinformation bearbeiten Neue Tagesinformation@186",
+      "Tagesinformation bearbeiten Neue Tagesinformation@187",
     ],
     "src/components/timetable/calendar-period-modal.tsx": [
       "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@403",

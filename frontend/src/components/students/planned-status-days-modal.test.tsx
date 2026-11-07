@@ -716,7 +716,9 @@ describe("PlannedStatusDaysModal", () => {
     );
 
     fireEvent.click(screen.getByText("Nicht zusammenhängende Tage auswählen"));
-    fireEvent.click(screen.getByRole("button", { name: "26.05.2026" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "26.05.2026 entfernen" }),
+    );
     await clickEnabledButton("Krankmelden");
 
     await waitFor(() => {

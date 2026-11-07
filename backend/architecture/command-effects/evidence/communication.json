@@ -618,7 +618,15 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
-      "binding_digest": "54b76e6b8d02adafef4505aa11fe9a07",
+      "binding_digest": "c5b85cdfbfcf459fe259d4a6b933ee9c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
+      "binding_digest": "6a2791ce35c1c7916e59558533b07ce0",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
@@ -634,7 +642,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
-      "binding_digest": "08d7c90565e641924562fe655b252c1a",
+      "binding_digest": "69e4e947364696ce7cb96574cc915f84",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",

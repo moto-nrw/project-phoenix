@@ -58,7 +58,8 @@ type EmailOutcomes interface {
 	// ProviderEmailBlocks reads the provider's current block of each address, exactly
 	// for that address, keyed by normalized address. It is the one read here that
 	// waits for the provider: within a small budget and only for addresses the
-	// caller's own mail ran into. Ask for nothing else.
+	// caller's own mail ran into. Ask for nothing else. A context from
+	// deliveryContract.WithProviderBlockBudget shares that budget across calls.
 	ProviderEmailBlocks(ctx context.Context, addresses []string) map[string]deliveryContract.EmailProviderBlock
 }
 

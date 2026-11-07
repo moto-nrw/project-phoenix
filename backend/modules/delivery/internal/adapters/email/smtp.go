@@ -144,6 +144,15 @@ func (m *SMTPMailer) SendContext(ctx context.Context, email mailcontract.Message
 
 // SendWithReceipt sends the mail and reports the Message-ID it carried.
 func (m *SMTPMailer) SendWithReceipt(ctx context.Context, email mailcontract.Message) (mailcontract.Receipt, error) {
+	// A fallback's mailer answers a request before the provider sees it. Reaching the
+	// provider means the deployment has no fallback any more, while the request is
+	// older. Sending would queue the same mail again after every acceptance.
+	if email.UseFallback && m.fixedFrom == "" {
+		m.logger.Error("security mail fallback request ended",
+			slog.String("template", email.Template),
+			slog.String("reason", "fallback_not_configured"))
+		return mailcontract.Receipt{}, mailcontract.ErrFallbackRemoved
+	}
 	if email.From.Address == "" {
 		email.From = m.defaultFrom
 	}

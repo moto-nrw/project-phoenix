@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -151,7 +152,7 @@ func TestStaffMonthCloseService_CloseAnnouncesTimeTrackingChange(t *testing.T) {
 
 	broadcaster := &recordingTimeTrackingPublisher{}
 	service := newBroadcastMonthCloseService(&broadcastMonthCloseSnapshotRepo{}, broadcaster)
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 
@@ -173,7 +174,7 @@ func TestStaffMonthCloseService_ReopenAnnouncesTimeTrackingChange(t *testing.T) 
 			Month:   8,
 		},
 	}, broadcaster)
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 
