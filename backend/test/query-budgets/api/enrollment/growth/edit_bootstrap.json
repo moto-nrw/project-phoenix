@@ -1,0 +1,6 @@
+{
+  "scenario": "api.enrollment.growth.edit_bootstrap",
+  "max": 25,
+  "exact": true,
+  "description": "Positive mounted handler with real settings and persistence, all SQL including transaction envelope; N3/N8 offerings or sibling children. JWT verification performs no SQL."
+}

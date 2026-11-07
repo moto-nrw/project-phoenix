@@ -82,6 +82,6 @@ func (q careScheduleQueue) History(ctx context.Context, filter requestreview.Que
 }
 
 func (q careScheduleQueue) OpenCount(ctx context.Context, today requestreview.Date) (int, error) {
-	items, _, err := q.query.ListPending(ctx, careplan.RequestQueueFilter{UrgentDate: today.String()})
+	items, _, err := q.query.ListPending(ctx, careplan.RequestQueueFilter{UrgentDate: today.String(), OmitDiff: true})
 	return len(items), err
 }

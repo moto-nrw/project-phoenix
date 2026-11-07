@@ -38,9 +38,8 @@ func TestListInstancesQueryBudget(t *testing.T) {
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	// Pickup cutoffs are read once per distinct date (bounded by the range
-	// cap), so both runs spread their instances over the same three days and
-	// the count must stay flat as instances per day grow.
+	// Pickup cutoffs use one window read. Both runs cover three distinct
+	// days and the count must stay flat as instances per day grow.
 	created := 0
 	addInstances := func(n int) {
 		for range n {

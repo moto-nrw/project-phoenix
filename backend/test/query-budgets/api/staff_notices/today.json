@@ -1,0 +1,6 @@
+{
+  "scenario": "api.staff_notices.today",
+  "max": 6,
+  "exact": true,
+  "description": "GET /api/staff-notices/today: BEGIN, combined role/tenant set_config, date/audience-filtered notices SELECT, one real active calendar-period lookup for week patterns, one batched own-acknowledgement lookup, COMMIT. No management counts. Measured at N=3 and N=8, guarded by the same exact contract and equality assertion. Full protected resource request, excluding outer server/session-family liveness; no gain or SQL floor claimed."
+}

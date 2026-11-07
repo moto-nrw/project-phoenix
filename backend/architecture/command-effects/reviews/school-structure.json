@@ -1559,7 +1559,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
-      "reason": "Read-only already reviewed target: school-structure reaches modules/peopledirectory.Staff.SetTenantID (people-directory) through roots/owners.EducationTeachers.ListTeachers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed teacher hydration extraction: the legacy detail/all-list paths still read School Membership ListStaff with their original tombstone filter, then resolve People persons through the extracted hydrateTeacherPersons helper. The new kiosk-only roster path is separate. This binding remains a tenant-scoped nonlocking read without writes or detached effects.",
       "source_owner": "school-structure",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory"
@@ -1579,7 +1579,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
-      "reason": "Read-only already reviewed target: school-structure reaches modules/peopledirectory/ports.PersonRepository.FindByIDs (people-directory) through roots/owners.EducationTeachers.ListTeachers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed teacher hydration extraction: the legacy detail/all-list paths still read School Membership ListStaff with their original tombstone filter, then resolve People persons through the extracted hydrateTeacherPersons helper. The new kiosk-only roster path is separate. This binding remains a tenant-scoped nonlocking read without writes or detached effects.",
       "source_owner": "school-structure",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
       "target_owner": "people-directory"
@@ -1599,7 +1599,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
-      "reason": "Read-only already reviewed target: school-structure reaches modules/schoolmembership.Capability.ListStaff (school-membership) through roots/owners.EducationTeachers.ListTeachers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed teacher hydration extraction: the legacy detail/all-list paths still read School Membership ListStaff with their original tombstone filter, then resolve People persons through the extracted hydrateTeacherPersons helper. The new kiosk-only roster path is separate. This binding remains a tenant-scoped nonlocking read without writes or detached effects.",
       "source_owner": "school-structure",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -1619,7 +1619,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
-      "reason": "Read-only already reviewed target: school-structure reaches modules/schoolmembership.Owner.ListStaff (school-membership) through roots/owners.EducationTeachers.ListTeachers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed teacher hydration extraction: the legacy detail/all-list paths still read School Membership ListStaff with their original tombstone filter, then resolve People persons through the extracted hydrateTeacherPersons helper. The new kiosk-only roster path is separate. This binding remains a tenant-scoped nonlocking read without writes or detached effects.",
       "source_owner": "school-structure",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"

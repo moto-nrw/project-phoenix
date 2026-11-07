@@ -433,6 +433,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 			t.Run("timetable conflict wiring", func(t *testing.T) { checkTimetableConflictWiring(t, api) })
 			t.Run("class day write seam wiring", func(t *testing.T) { checkClassDayWriteSeamWiring(t, api) })
 			t.Run("former late-bound mounts", func(t *testing.T) { checkFormerLateBoundMounts(t, api) })
+			t.Run("meal plan read query budgets", func(t *testing.T) { checkMealPlanReadQueryBudgets(t, api) })
 			t.Run("meal plan allergens", func(t *testing.T) { checkMealPlanAllergens(t, api) })
 			t.Run("class list entry administration", func(t *testing.T) { checkClassListEntryAdministration(t, api) })
 			t.Run("enrollment submission", func(t *testing.T) { checkEnrollmentSubmissionGolden(t, api) })

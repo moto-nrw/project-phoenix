@@ -173,6 +173,12 @@ func (s *Store) CountStaffAbsences(ctx context.Context, filter domain.StaffAbsen
 }
 
 func applyStaffAbsenceFilter(query *bun.SelectQuery, filter domain.StaffAbsenceFilter) *bun.SelectQuery {
+	if filter.IDs != nil {
+		if len(filter.IDs) == 0 {
+			return query.Where("FALSE")
+		}
+		query = query.Where(`"staff_absence".id IN (?)`, bun.List(filter.IDs))
+	}
 	if filter.StaffID > 0 {
 		query = query.Where(`"staff_absence".staff_id = ?`, filter.StaffID)
 	}

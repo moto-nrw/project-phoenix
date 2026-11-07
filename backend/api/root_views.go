@@ -212,7 +212,7 @@ func buildClassDayViews(
 		Timetable: NewClassDayTimetableRows(classDayReads), Presence: presence.Presence, CarePlan: carePlan,
 		Students: persons, Persons: persons, Groups: groups, Rooms: rooms, CareDays: schedules.CareDay,
 		PickupTimes: schedules.Pickups, ArrivalTimes: schedules.Arrivals, PickupBaselines: schedules.PickupBaselines,
-		Settings: ClassDaySlotListSettings{Settings: settings}, Access: ClassDaySlotListAccess{Staff: caller},
+		Settings: settingsCompose.NewSlotListSettings(settings), Access: ClassDaySlotListAccess{Staff: caller},
 		ListExport: ClassDaySlotListRenderer{Renderer: renderer}, EnrolledOn: ClassDayEnrolledOn,
 	})
 	return ClassDayViews{ClassDay: classDay, SlotLists: slotLists}, nil

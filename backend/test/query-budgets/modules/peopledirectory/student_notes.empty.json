@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.peopledirectory.student_notes.empty",
+  "max": 1,
+  "exact": true,
+  "description": "Empty student note card through the real owner composition: one authoritative note SELECT and no author lookup. This filtered business budget excludes the unchanged tenant transaction frame. The public result remains a nonnil empty slice."
+}

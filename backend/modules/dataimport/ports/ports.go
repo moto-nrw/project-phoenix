@@ -25,6 +25,7 @@ import (
 type (
 	Person                   = peopledirectory.Person
 	PersonFilter             = peopledirectory.PersonFilter
+	PersonName               = peopledirectory.PersonName
 	CreatePerson             = peopledirectory.CreatePerson
 	UpdatePerson             = peopledirectory.UpdatePerson
 	Student                  = peopledirectory.Student
@@ -79,6 +80,7 @@ type GuardianDirectory interface {
 	FindGuardianByEmail(context.Context, string) (Guardian, error)
 	ListGuardiansByID(context.Context, []int64) ([]Guardian, error)
 	ListGuardianPhones(context.Context, int64) ([]GuardianPhone, error)
+	// ListStudentGuardians includes each linked profile's phone numbers.
 	ListStudentGuardians(context.Context, int64) ([]GuardianWithLink, error)
 	CreateGuardian(context.Context, GuardianInput) (Guardian, error)
 	UpdateGuardian(context.Context, int64, GuardianInput) error

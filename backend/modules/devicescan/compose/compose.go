@@ -33,6 +33,7 @@ type Fleet = application.Fleet
 
 // Presence is the part of the Student Presence capability the scans read.
 type Presence interface {
+	ListVisitLocations(context.Context, studentpresence.VisitLocationFilter) ([]studentpresence.VisitLocation, error)
 	application.Presence
 	roomSessionQuery
 }
@@ -98,7 +99,6 @@ func New(deps Dependencies, bindings Bindings) DeviceScan {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	clock := bindings.Clock
 	var activities application.ActivityCatalog
 	if deps.Activities != nil {
 		activities = deps.Activities
@@ -119,7 +119,7 @@ func New(deps Dependencies, bindings Bindings) DeviceScan {
 		OpenRooms:  deps.OpenRooms,
 		Settings:   settings{settings: deps.Settings, presenceModes: deps.Active},
 		UnitOfWork: unitOfWork{},
-		Clock:      clock,
+		Clock:      bindings.Clock,
 		Logger:     logger,
 	})
 }

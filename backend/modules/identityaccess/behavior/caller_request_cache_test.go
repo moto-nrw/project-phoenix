@@ -108,10 +108,8 @@ func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 	ctx := testpkg.WithRequestIdentityCache(callerCtx(t, account.ID))
 	resolveFullChain(t, ctx, rows)
 
-	// Each stage must be loaded exactly once per request. MyGroupIDs and
-	// SubstitutedGroupIDs each read substitutions and are memoized at their
-	// own result level, so 2 is the per-request floor. Sharing one read
-	// between them is out of scope.
+	// Each stage is loaded once per request. Group reach and the unassigned
+	// substitution facet share the complete successful substitution read.
 	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.persons", counter.bucket("persons"))
 	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.staff", counter.bucket("staff"))
 	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.teachers", counter.bucket("teachers"))

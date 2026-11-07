@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.careplan.arrival.stored_data.date",
+  "max": 6,
+  "exact": true,
+  "description": "Stored arrival data date fallback without a baseline reader, including tenant transaction. Full stored DTO and empty/foreign-tenant plans verified."
+}

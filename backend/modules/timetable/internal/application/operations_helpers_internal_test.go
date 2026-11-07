@@ -14,6 +14,46 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// The owner, not the root, chooses the caller shortcut and keeps the original
+// directory failure when the caller is unavailable or belongs to another account.
+func TestTimetableOperationsResolveCallerStaff(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{"caller", "other_account", "no_verified_account", "caller_failure", "invalid_account"} {
+		t.Run(scenario, func(t *testing.T) {
+			deps := newTimetableOpsDeps()
+			directoryErr := errors.New("original directory failure")
+			deps.personService.accountPerson = &timetable.Person{ID: 505}
+			deps.personService.staffErr = directoryErr
+			deps.service.deps.Session = helperRequestSession{accountID: 683}
+			deps.service.deps.CallerStaff = helperCallerStaff{id: 97}
+			accountID := int64(683)
+			switch scenario {
+			case "other_account":
+				accountID++
+			case "no_verified_account":
+				deps.service.deps.Session = helperRequestSession{}
+			case "caller_failure":
+				deps.service.deps.CallerStaff = helperCallerStaff{err: errors.New("caller lookup failed")}
+			case "invalid_account":
+				accountID = 0
+			}
+			staffID, hasStaff, err := deps.service.resolveStaffID(context.Background(), accountID)
+			switch scenario {
+			case "caller":
+				require.NoError(t, err)
+				assert.Equal(t, int64(97), staffID)
+				assert.True(t, hasStaff)
+			case "invalid_account":
+				require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
+			default:
+				require.ErrorIs(t, err, directoryErr)
+				assert.Zero(t, staffID)
+				assert.False(t, hasStaff)
+			}
+		})
+	}
+}
+
 // Overdue metadata is computed from the block's own date: a block right after
 // midnight is ten minutes ahead, not a day overdue.
 func TestTimetableOperationsPlannedNowOverdueMetadataUsesInstanceDate(t *testing.T) {
