@@ -329,8 +329,10 @@ func TestHolidayBillingRunNeedsTheBillingRightAndStaysWithItsTraeger(t *testing.
 	ranges := decodeSchoolPortalData[[]struct {
 		Pattern string `json:"pattern"`
 	}](t, rec.Body.Bytes())
-	require.Len(t, ranges, 1)
-	assert.Empty(t, ranges[0].Pattern, "the number range of another Träger stays its own")
+	require.Len(t, ranges, 2, "the holiday care and the monthly care have a number range each (#4684)")
+	for _, numberRange := range ranges {
+		assert.Empty(t, numberRange.Pattern, "the number range of another Träger stays its own")
+	}
 
 	var corrections, documents int
 	require.NoError(t, f.db.NewRaw(`SELECT

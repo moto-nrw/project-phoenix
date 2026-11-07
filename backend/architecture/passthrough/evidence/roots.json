@@ -1157,6 +1157,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (c parentBillingCareContracts) Recipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]parentbilling.CareRecipient, error) {\n\tparties, err := c.contracts.BillingRecipients(ctx, organizationID, contractIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trecipients := make(map[int64]parentbilling.CareRecipient, len(parties))\n\tfor contractID, party := range parties {\n\t\trecipients[contractID] = parentbilling.CareRecipient{FirstName: party.FirstName, LastName: party.LastName, Email: party.Email}\n\t}\n\treturn recipients, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingCareContracts.Recipients",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s parentBillingCareSchools) TraegerSchools(ctx context.Context, organizationID int64) ([]parentbilling.CareSchool, error) {\n\tschools, err := s.organizations.ListSchoolsByOrganization(ctx, organizationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]parentbilling.CareSchool, 0, len(schools))\n\tfor _, school := range schools {\n\t\tif !school.IsDeleted() {\n\t\t\tresult = append(result, parentbilling.CareSchool{ID: school.ID, Name: school.Name})\n\t\t}\n\t}\n\tslices.SortFunc(result, func(a, b parentbilling.CareSchool) int {\n\t\treturn strings.Compare(a.Name, b.Name)\n\t})\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingCareSchools.TraegerSchools",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (b parentBillingHolidayRegistrations) CancelHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64) (parentbilling.HolidayRegistration, error) {\n\tdetail, err := b.review.ChangeHolidayRegistration(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, enrollmentOwner.HolidayAuditCancel)\n\tif err != nil {\n\t\treturn parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)\n\t}\n\treturn parentBillingRegistration(detail), nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingHolidayRegistrations.CancelHolidayRegistration",
@@ -1230,6 +1244,13 @@
       "evidence": "func (s parentBillingSettings) AsksDebtorNumber(ctx context.Context, organizationID int64) (bool, error) {\n\tvalues, err := s.settings.TraegerBools(ctx, organizationID, []string{configModels.KeyParentBillingDebtorNumberOnConfirm})\n\tif err != nil {\n\t\treturn false, err\n\t}\n\treturn values[configModels.KeyParentBillingDebtorNumberOnConfirm], nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingSettings.AsksDebtorNumber",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s parentBillingSettings) CareMonthRule(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingCareMonthChange})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyParentBillingCareMonthChange], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingSettings.CareMonthRule",
       "owner": "roots"
     },
     {

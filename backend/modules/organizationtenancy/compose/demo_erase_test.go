@@ -46,6 +46,21 @@ var visitorTraceCounts = map[string]string{
 		JOIN care_contract.contracts AS contract ON contract.id = outbox.related_entity_id
 		WHERE outbox.related_entity_type = 'care_contract' AND contract.school_id = ?0
 			AND outbox.recipient->>'name' = '` + visitorFull + `'`,
+	// The monthly invoice of the contract copies child, recipient and mail
+	// address (#4684) and outlives the contract; its positions go with it.
+	"parent_billing.care_invoices": `SELECT count(*) FROM parent_billing.care_invoices
+		WHERE school_id = ?0 AND recipient_first_name = '` + visitorFirst + `' AND recipient_last_name = '` + visitorLast + `'`,
+	"parent_billing.care_invoice_positions": `SELECT count(*) FROM parent_billing.care_invoice_positions AS position
+		JOIN parent_billing.care_invoices AS invoice ON invoice.id = position.invoice_id
+		WHERE invoice.school_id = ?0`,
+	// A read of the monthly run names the contracts it showed; once the
+	// contract is gone, the ID is a trace with no row left to count it by.
+	"parent_billing.care_run_events": `SELECT count(*) FROM parent_billing.care_run_events AS event
+		JOIN platform.schools AS school ON school.organization_id = event.organization_id AND school.id = ?0
+		WHERE EXISTS (
+			SELECT 1 FROM jsonb_array_elements_text(event.details->'contract_ids') AS shown(id)
+			LEFT JOIN care_contract.contracts AS contract ON contract.id = shown.id::bigint
+			WHERE contract.id IS NULL OR contract.school_id = ?0)`,
 }
 
 type visitorAccounts struct {
@@ -119,6 +134,31 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 			FROM document JOIN outbox ON outbox.contract_id = document.contract_id)
 		INSERT INTO care_contract.contract_events (organization_id, contract_id, school_id, account_id, action)
 		SELECT organization_id, id, ?0, ?3, 'send' FROM contract`,
+		// The Träger billed the contract for a month and read the run
+		// (#4684): invoice, position and the read in the trail.
+		`WITH contract AS (
+			SELECT id, organization_id FROM care_contract.contracts WHERE school_id = ?0),
+		run AS (
+			INSERT INTO parent_billing.care_runs (organization_id, billing_month, status, released_at, issued_on,
+				document_count, total_cents, month_rule)
+			SELECT organization_id, DATE '2026-09-01', 'released', NOW(), DATE '2026-09-01', 1, 3200, 'version_on_first'
+			FROM contract RETURNING id, organization_id),
+		event AS (
+			INSERT INTO parent_billing.care_run_events (organization_id, run_id, action, details)
+			SELECT run.organization_id, run.id, 'read', jsonb_build_object('contract_ids', jsonb_build_array(contract.id))
+			FROM run JOIN contract ON contract.organization_id = run.organization_id),
+		invoice AS (
+			INSERT INTO parent_billing.care_invoices (organization_id, run_id, number, number_year, number_sequence, issued_on,
+				billing_month, care_contract_id, school_id, school_name, child_first_name, child_last_name,
+				recipient_first_name, recipient_last_name, recipient_email, month_rule, total_cents)
+			SELECT run.organization_id, run.id, 'M-' || ?0, 2026, ?0, DATE '2026-09-01', DATE '2026-09-01', contract.id, ?0,
+				'OGS', 'Mia', 'Schneider', '` + visitorFirst + `', '` + visitorLast + `', 'eltern@example.org', 'version_on_first', 3200
+			FROM run JOIN contract ON contract.organization_id = run.organization_id
+			RETURNING id, organization_id)
+		INSERT INTO parent_billing.care_invoice_positions (organization_id, invoice_id, position, care_offering_id, module_name,
+			contract_version_number, service_from, service_until, weekdays, amount_cents, net_cents)
+		SELECT organization_id, id, 1, 1, 'Betreuung bis 14:00 Uhr', 1, DATE '2026-09-01', DATE '2026-09-30',
+			'[{"weekday":"mon","monthly_cents":3200,"amount_cents":3200}]'::jsonb, 3200, 3200 FROM invoice`,
 	} {
 		_, err := db.NewRaw(statement, schoolID, student.ID, guardian.ID, parent.ID).Exec(ctx)
 		require.NoError(t, err, statement)
