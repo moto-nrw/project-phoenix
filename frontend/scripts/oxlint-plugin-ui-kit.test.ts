@@ -2762,6 +2762,16 @@ describe.concurrent("ui-kit/no-uppercase-label (#5590)", () => {
     expect(output.split(RULE).length - 1).toBe(1);
   });
 
+  it("reports a class chain split across a className constant", async () => {
+    const { output } = await lintProbe(`
+      import { cn } from "~/lib/utils";
+      const classes = cn("uppercase", "tracking-wide");
+      export const Probe = () => <span className={classes}>Gruppe</span>;
+      void cn;
+    `);
+    expect(output.split(RULE).length - 1).toBe(1);
+  });
+
   it.each([
     ["the kit", "src/components/ui/section-card.tsx"],
     ["the /start page", "src/app/start/page.tsx"],

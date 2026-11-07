@@ -3898,6 +3898,53 @@ function isUppercaseLabelText(text) {
   );
 }
 
+// A complete static chain is reported by the Literal/TemplateLiteral visitor.
+// Recognise it through the same shallow constant lookup as classText() so the
+// className visitor can report split cn(...) arguments without double-counting
+// a direct `const label = "uppercase tracking-wide"` reference.
+function containsStaticUppercaseLabelText(
+  node,
+  constants,
+  seen = new WeakSet(),
+  depth = 0,
+) {
+  if (!node || typeof node !== "object" || seen.has(node)) return false;
+  seen.add(node);
+
+  if (node.type === "Literal") {
+    return typeof node.value === "string" && isUppercaseLabelText(node.value);
+  }
+  if (node.type === "TemplateLiteral") {
+    return isUppercaseLabelText(
+      node.quasis.map((quasi) => quasi.value.raw).join(" "),
+    );
+  }
+  if (node.type === "Identifier" && depth < 2) {
+    const init = constants.get(node.name);
+    return init
+      ? containsStaticUppercaseLabelText(init, constants, seen, depth + 1)
+      : false;
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent" || key === "loc" || key === "range") continue;
+    if (Array.isArray(value)) {
+      if (
+        value.some((child) =>
+          containsStaticUppercaseLabelText(child, constants, seen, depth),
+        )
+      ) {
+        return true;
+      }
+    } else if (
+      containsStaticUppercaseLabelText(value, constants, seen, depth)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function isClassNameAttribute(node) {
   return (
     node?.type === "JSXAttribute" &&
@@ -3927,7 +3974,7 @@ const noUppercaseLabel = makeRatchetRule({
   exemptDir: UI_KIT_DIR,
   exemptFiles: UPPERCASE_LABEL_EXEMPT_FILES,
   onlySrc: true,
-  detect: ({ found }) => {
+  detect: ({ classText: textOf, constants, found }) => {
     const check = (node, text) => {
       if (insideClassNameAttribute(node)) return;
       if (isUppercaseLabelText(text)) found(node);
@@ -3935,9 +3982,12 @@ const noUppercaseLabel = makeRatchetRule({
     return {
       JSXAttribute(node) {
         if (!isClassNameAttribute(node) || !node.value) return;
-        const chunks = [];
-        collectStaticStrings(node.value, chunks);
-        if (isUppercaseLabelText(chunks.join(" "))) found(node);
+        if (
+          isUppercaseLabelText(textOf(node.value)) &&
+          !containsStaticUppercaseLabelText(node.value, constants)
+        ) {
+          found(node);
+        }
       },
       Literal(node) {
         if (typeof node.value === "string") check(node, node.value);
