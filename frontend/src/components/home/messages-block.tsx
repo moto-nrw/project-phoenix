@@ -1,7 +1,7 @@
 "use client";
 
 import { EmptyState } from "~/components/ui/empty-state";
-import Link from "~/components/ui/navigation-link";
+import { ListRow } from "~/components/ui/list-row";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
@@ -79,9 +79,11 @@ export function MessagesBlock() {
         <ul className="space-y-2">
           {rows.map((row) => (
             <li key={row.key}>
-              <Link
+              <ListRow
                 href={row.href}
-                className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                trailing={
+                  <StatusBadge tone="blue" label={`${row.count} ungelesen`} />
+                }
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-gray-900">
@@ -91,8 +93,7 @@ export function MessagesBlock() {
                     {row.hint}
                   </span>
                 </span>
-                <StatusBadge tone="blue" label={`${row.count} ungelesen`} />
-              </Link>
+              </ListRow>
             </li>
           ))}
         </ul>

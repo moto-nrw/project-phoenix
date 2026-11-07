@@ -7,7 +7,8 @@
 // nicht. Auch kein Startknopf pro Zeile — man tippt die Aufsicht an und
 // startet sie dort, wo man dann ohnehin arbeitet. Ein Weg, nicht zwei.
 
-import { ChevronRight } from "lucide-react";
+import { FramedList } from "~/components/ui/framed-list";
+import { ListRowLink } from "~/components/ui/list-row-link";
 import { useSession } from "next-auth/react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
@@ -51,52 +52,53 @@ function SupervisionRow({
 
   return (
     <li>
-      <button
-        type="button"
+      <ListRowLink
         onClick={onOpen}
-        className="flex w-full items-center gap-3 border-b border-gray-100 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <span className="w-[4.25rem] shrink-0 sm:w-24">
-          <span className="block text-sm font-semibold text-gray-900 tabular-nums">
-            {instance.startTime}
-          </span>
-          <span className="block text-xs text-gray-500 tabular-nums">
-            bis {instance.endTime}
-          </span>
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-gray-900">
-            {instance.title}
-          </span>
-          <span className="block truncate text-xs text-gray-500">{detail}</span>
-          {proximity ? (
-            <span className="block text-xs font-medium text-gray-600">
-              {proximity}
+        icon={
+          <span className="w-[4.25rem] shrink-0 sm:w-24">
+            <span className="block text-sm font-semibold text-gray-900 tabular-nums">
+              {instance.startTime}
             </span>
-          ) : null}
-          {/* Auf schmalen Geräten steht das Etikett unter dem Namen statt
-              neben ihm: der Name ist das, wonach man sucht. */}
-          {badge ? (
-            <span className="mt-1 flex sm:hidden">
-              <StatusColorBadge label={badge.label} color={badge.color} />
+            <span className="block text-xs text-gray-500 tabular-nums">
+              bis {instance.endTime}
             </span>
-          ) : null}
-        </span>
-        {instance.isSubstitute ? (
-          <span className="hidden shrink-0 text-xs text-gray-500 lg:block">
-            Vertretung
           </span>
-        ) : null}
-        {badge ? (
-          <span className="hidden shrink-0 sm:flex">
-            <StatusColorBadge label={badge.label} color={badge.color} />
-          </span>
-        ) : null}
-        <ChevronRight
-          className="h-4 w-4 shrink-0 text-gray-400"
-          aria-hidden="true"
-        />
-      </button>
+        }
+        title={instance.title}
+        subtitle={
+          <>
+            <span className="block truncate">{detail}</span>
+            {proximity ? (
+              <span className="block font-medium text-gray-600">
+                {proximity}
+              </span>
+            ) : null}
+            {/* Auf schmalen Geräten steht das Etikett unter dem Namen statt
+                neben ihm: der Name ist das, wonach man sucht. */}
+            {badge ? (
+              <span className="mt-1 flex sm:hidden">
+                <StatusColorBadge label={badge.label} color={badge.color} />
+              </span>
+            ) : null}
+          </>
+        }
+        badge={
+          instance.isSubstitute || badge ? (
+            <span className="flex items-center gap-3">
+              {instance.isSubstitute ? (
+                <span className="hidden text-xs text-gray-500 lg:block">
+                  Vertretung
+                </span>
+              ) : null}
+              {badge ? (
+                <span className="hidden sm:flex">
+                  <StatusColorBadge label={badge.label} color={badge.color} />
+                </span>
+              ) : null}
+            </span>
+          ) : undefined
+        }
+      />
     </li>
   );
 }
@@ -152,20 +154,19 @@ export function SupervisionsOverview({
             />
           </div>
 
-          <div className="moto-content-surface overflow-hidden rounded-2xl border">
-            <h2 className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-900">
-              Ihr Tag
-            </h2>
-            <ul>
-              {instances.map((instance) => (
-                <SupervisionRow
-                  key={instance.id}
-                  instance={instance}
-                  onOpen={() => onOpen(instance.id)}
-                />
-              ))}
-            </ul>
-          </div>
+          <FramedList
+            header={
+              <h2 className="text-sm font-semibold text-gray-900">Ihr Tag</h2>
+            }
+          >
+            {instances.map((instance) => (
+              <SupervisionRow
+                key={instance.id}
+                instance={instance}
+                onOpen={() => onOpen(instance.id)}
+              />
+            ))}
+          </FramedList>
         </div>
       )}
     </SectionCard>

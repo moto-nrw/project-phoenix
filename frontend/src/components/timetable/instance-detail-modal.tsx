@@ -9,6 +9,8 @@
  * assigned staff, children, attendance state, and admin corrections.
  */
 
+import type { ListRowTone } from "~/components/ui/list-row-styles";
+import { ListRow } from "~/components/ui/list-row";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import {
@@ -346,17 +348,14 @@ function careDayLabel(status: InstanceStudentSummary["careDayStatus"]): string {
   return status === "cancelled" ? "Heute abgemeldet" : "Heute nicht eingeplant";
 }
 
-/** Neutral surface for rows grouped as "heute nicht eingeplant". */
-const NOT_SCHEDULED_TONE = "border-gray-200 bg-gray-50 text-gray-600";
-
-function attendanceTone(status: InstanceStudentSummary["status"]): string {
+function attendanceTone(status: InstanceStudentSummary["status"]): ListRowTone {
   switch (status) {
     case "present":
-      return "border-moto-green/20 bg-moto-green/10 text-moto-green-strong";
+      return "success";
     case "absent":
-      return "border-moto-red/20 bg-moto-red/10 text-moto-red-strong";
+      return "danger";
     case "expected":
-      return "border-gray-200 bg-gray-50 text-gray-600";
+      return "muted";
   }
 }
 
@@ -1366,14 +1365,13 @@ function StudentGroup({
           studentNames.get(student.studentId) ?? `Kind #${student.studentId}`;
 
         return (
-          <div
+          <ListRow
             key={student.studentId}
-            className={`flex flex-wrap items-center justify-between gap-2 ${NESTED_SURFACE_BASE} px-3 py-2 ${
-              // A non-booking is not an attendance outcome: a row that landed
-              // here carrying a status-day 'absent' must not be tinted like a
-              // real absence (#1747).
-              careDayGroup ? NOT_SCHEDULED_TONE : attendanceTone(student.status)
-            }`}
+            // A non-booking is not an attendance outcome: a row that landed
+            // here carrying a status-day 'absent' must not be tinted like a
+            // real absence (#1747).
+            tone={careDayGroup ? "muted" : attendanceTone(student.status)}
+            className="flex-wrap gap-2"
           >
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-gray-900">
@@ -1459,7 +1457,7 @@ function StudentGroup({
                 )}
               </div>
             )}
-          </div>
+          </ListRow>
         );
       })}
     </div>

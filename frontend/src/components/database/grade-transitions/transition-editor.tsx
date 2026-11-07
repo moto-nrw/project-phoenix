@@ -1,4 +1,5 @@
 "use client";
+import { FramedList } from "~/components/ui/framed-list";
 import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 
 // Editor for a Jahrgangswechsel draft: one row per class with the target
@@ -320,7 +321,7 @@ export function TransitionEditor({
           )}
 
           {rows !== null && (
-            <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
+            <FramedList>
               {rows.length === 0 && (
                 <li className="p-4 text-sm text-gray-500">
                   Keine Klassen mit Kindern gefunden.
@@ -385,7 +386,7 @@ export function TransitionEditor({
                   </div>
                 </li>
               ))}
-            </ul>
+            </FramedList>
           )}
 
           {rows !== null && addableClasses.length > 0 && (

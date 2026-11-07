@@ -1200,12 +1200,12 @@ src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1356 text-[11px]@1382 text-[11px]@1555 text-[10px]@1664 text-[11px]@1687
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1355 text-[11px]@1380 text-[11px]@1553 text-[10px]@1662 text-[11px]@1685
 src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[10px]@246 text-[11px]@255 text-[10px]@297 text-[10px]@321 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@411 text-[11px]@478
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
-src/components/timetable/substitution-slide-over.tsx|text-[11px]@742 text-[11px]@746
+src/components/timetable/substitution-slide-over.tsx|text-[11px]@743 text-[11px]@747
 src/components/timetable/template-card.tsx|text-[11px]@131 text-[10px]@201
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@456 text-[11px]@456 text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
@@ -3739,6 +3739,156 @@ const noHandRolledPopover = makeRatchetRule({
   }),
 });
 
+// Listen-Bausteine (#5593): drei Muster, die es im Kit genau einmal gibt.
+
+const ARBITRARY_SHADOW_RE = /(?:^|[\s:"'`!])shadow-[[(]/;
+
+/** Fundstelle in jedem Klassen-Literal, auch in Template-Teilen. */
+function classLiteralVisitor(found, matches) {
+  return {
+    Literal(node) {
+      if (typeof node.value === "string" && matches(node.value)) found(node);
+    },
+    TemplateElement(node) {
+      if (matches(node.value.raw)) found(node);
+    },
+  };
+}
+
+/**
+ * Prüft den ganzen `className` eines Elements: auch über `cn("…", "…")`,
+ * Template-Teile und Konstanten hinweg.
+ */
+function classNameVisitor({ classText, found }, matches) {
+  return {
+    JSXAttribute(node) {
+      if (node.name?.name !== "className" || !node.value) return;
+      if (matches(classText(node.value).split(/\s+/))) found(node);
+    },
+  };
+}
+
+const noArbitraryShadow = makeRatchetRule({
+  ruleName: "no-arbitrary-shadow",
+  description: "Shadows come from the scale, never from an arbitrary value.",
+  message:
+    "Kein Schatten mit freiem Wert: `shadow-sm`, `shadow-md` oder ein Kit-Baustein; ein Leuchtrand ist `ring-*` (#5593, .claude/rules/frontend-ui-kit.md).",
+  baselines: {},
+  allowlist: [],
+  // Die Signaturen der Portal-Navigation in dieser Datei sind keine Oberfläche.
+  kitFile: "scripts/oxlint-plugin-ui-kit.mjs",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ found }) =>
+    classLiteralVisitor(found, (value) => ARBITRARY_SHADOW_RE.test(value)),
+});
+
+function isHandRolledListRowClass(tokens) {
+  return (
+    tokens.includes("bg-gray-50/50") &&
+    tokens.includes("rounded-xl") &&
+    tokens.some((token) => /^(?:px|p)-3$/.test(token)) &&
+    !tokens.includes("border")
+  );
+}
+
+const noHandRolledListRow = makeRatchetRule({
+  ruleName: "no-hand-rolled-list-row",
+  description: "List rows with their own surface come from ListRow.",
+  message:
+    "Keine eigene Listenzeile: `ListRow` (`href`, `onClick`, `tone`, `trailing`), beim Laden `SkeletonRows` (#5593, .claude/rules/frontend-ui-kit.md).",
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/list-row.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: (tools) => classNameVisitor(tools, isHandRolledListRowClass),
+});
+
+function isHandRolledFramedListClass(tokens) {
+  return (
+    tokens.includes("divide-y") &&
+    tokens.includes("border") &&
+    tokens.some((token) => /^rounded-(?:md|lg|xl)$/.test(token))
+  );
+}
+
+const noHandRolledFramedList = makeRatchetRule({
+  ruleName: "no-hand-rolled-framed-list",
+  description: "Framed lists with dividers come from FramedList.",
+  message:
+    "Keine eigene umrandete Liste: `FramedList` (`maxHeight`, `header`) (#5593, .claude/rules/frontend-ui-kit.md).",
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/framed-list.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: (tools) => classNameVisitor(tools, isHandRolledFramedListClass),
+});
+
+const NAV_ROW_ELEMENTS = new Set(["a", "button", "Link", "NavigationLink"]);
+const NAV_ROW_ARROWS = new Set([
+  "CaretRightIcon",
+  "ChevronRight",
+  "ChevronRightIcon",
+]);
+
+/** Kinder einer Zeile, auch hinter `&&`, `?:` und einer lokalen Konstante. */
+function navRowChildren(element, constants) {
+  const direct = [...flatJsxChildren(element)];
+  for (const child of element.children ?? []) {
+    if (
+      child.type === "JSXExpressionContainer" &&
+      child.expression.type === "Identifier"
+    ) {
+      const init = constants.get(child.expression.name);
+      if (init?.type === "JSXElement") direct.push(init);
+    }
+  }
+  return direct;
+}
+
+function isNavRowArrow(element) {
+  if (NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return true;
+  return element.children.some(
+    (inner) => inner.type === "JSXText" && inner.value.trim() === "›",
+  );
+}
+
+const noHandRolledNavRow = makeRatchetRule({
+  ruleName: "no-hand-rolled-nav-row",
+  description: "Rows that lead elsewhere with an arrow come from ListRowLink.",
+  message:
+    "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
+  // Shrink-only: Auswahlzustand (DatabaseListItem), eigene Kante (Tagesplan) und
+  // Ungelesen-Zeilen des Elternportals passen noch nicht in `ListRowLink`.
+  baselines: {
+    "no-hand-rolled-nav-row": {
+      "src/components/database/database-list-item.tsx": 2,
+      "src/components/parent/messages/group-threads-section.tsx": 1,
+      "src/components/parent/messages/parent-messages-page.tsx": 1,
+      "src/components/timetable/tagesplan-view.tsx": 1,
+    },
+  },
+  allowlist: [],
+  kitFile: "src/components/ui/list-row-link.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ classText, constants, found }) => ({
+    JSXElement(node) {
+      if (!NAV_ROW_ELEMENTS.has(jsxName(node.openingElement.name))) return;
+      // Eine Zeile füllt die Breite; „Heute öffnen ›“ neben einem Titel nicht.
+      const className = node.openingElement.attributes.find(
+        (attr) =>
+          attr.type === "JSXAttribute" && attr.name.name === "className",
+      );
+      if (!className?.value) return;
+      const tokens = classText(className.value).split(/\s+/);
+      if (!tokens.includes("w-full") && !tokens.includes("justify-between")) {
+        return;
+      }
+      const arrow = navRowChildren(node, constants).find(isNavRowArrow);
+      if (arrow) found(node);
+    },
+  }),
+});
+
 // Eingabe-Bausteine (#5596): drei Muster, die es im Kit genau einmal gibt.
 
 /** Direkte JSX-Kinder, auch hinter `&&`, `?:`, Fragment und `{…}`. */
@@ -4009,6 +4159,10 @@ export default {
     "no-hand-rolled-number-stepper": noHandRolledNumberStepper,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
+    "no-arbitrary-shadow": noArbitraryShadow,
+    "no-hand-rolled-framed-list": noHandRolledFramedList,
+    "no-hand-rolled-list-row": noHandRolledListRow,
+    "no-hand-rolled-nav-row": noHandRolledNavRow,
     "no-hand-rolled-popover": noHandRolledPopover,
     "no-hand-rolled-pill": noHandRolledPill,
     "no-hand-rolled-portal-nav": noHandRolledPortalNav,

@@ -14,7 +14,7 @@ import { StaffTodayBlock } from "~/components/home/staff-today-block";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import Link from "~/components/ui/navigation-link";
+import { ListRow } from "~/components/ui/list-row";
 import { SectionCard } from "~/components/ui/section-card";
 import { SkeletonRows } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
@@ -149,9 +149,13 @@ function RecentActivityCard({ data }: { readonly data: HomeBlockData }) {
               // Diese Zeile fuehrt nirgendwohin: eine Bewegung ist ein
               // Ereignis, keine Seite. Darum auch kein Hover-Effekt, der
               // etwas anderes verspricht.
-              <div
+              <ListRow
                 key={`${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`}
-                className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
+                trailing={
+                  <span className="text-xs text-gray-500">
+                    {formatRecentActivityTime(activity.timestamp)}
+                  </span>
+                }
               >
                 <p className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
                   <span className="truncate font-medium text-gray-900">
@@ -166,10 +170,7 @@ function RecentActivityCard({ data }: { readonly data: HomeBlockData }) {
                     </span>
                   )}
                 </p>
-                <span className="flex-shrink-0 text-xs text-gray-500">
-                  {formatRecentActivityTime(activity.timestamp)}
-                </span>
-              </div>
+              </ListRow>
             );
           })}
         </div>
@@ -195,11 +196,10 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
       ) : (
         <div className="space-y-2">
           {shown.map((activity) => (
-            <Link
+            <ListRow
               key={activity.id}
               href={data.tenantPath("/activities")}
               aria-label={`${activity.name}, ${ACTIVITY_STATUS_LABEL[activity.status] ?? UNKNOWN_STATUS_LABEL}: Aktivitäten öffnen`}
-              className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50"
             >
               <p className="min-w-0 flex-1 truncate text-sm">
                 <span className="font-medium text-gray-900">
@@ -226,7 +226,7 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
                 size="lg"
                 decorative
               />
-            </Link>
+            </ListRow>
           ))}
           <HomeMoreRow
             hidden={hidden}
@@ -269,11 +269,10 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
       ) : (
         <div className="space-y-2">
           {shown.map((group) => (
-            <Link
+            <ListRow
               key={`${group.type}-${group.name}`}
               href={data.tenantPath("/ogs-groups")}
               aria-label={`${group.name}, ${GROUP_STATUS_LABEL[group.status] ?? UNKNOWN_STATUS_LABEL}: Betreuung öffnen`}
-              className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50"
             >
               <p className="min-w-0 flex-1 truncate text-sm">
                 <span className="font-medium text-gray-900">{group.name}</span>
@@ -301,7 +300,7 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
                 size="lg"
                 decorative
               />
-            </Link>
+            </ListRow>
           ))}
           <HomeMoreRow
             hidden={hidden}

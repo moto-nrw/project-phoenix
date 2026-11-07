@@ -1,5 +1,7 @@
 "use client";
 
+import { FramedList } from "~/components/ui/framed-list";
+import { ListRowLink } from "~/components/ui/list-row-link";
 import { studentKeys } from "~/lib/swr/portal-keys";
 import type React from "react";
 import { schoolClassLabel } from "~/lib/school-class-label";
@@ -232,26 +234,6 @@ function FieldHistoryInfo({
         )}
       </AnchoredPopover>
     </span>
-  );
-}
-
-function ChevronRightIcon({
-  className = "h-4 w-4",
-}: Readonly<{ className?: string }>) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M9 5l7 7-7 7"
-      />
-    </svg>
   );
 }
 
@@ -1146,33 +1128,16 @@ function HistoryButton({
   disabled = false,
   onClick,
 }: Readonly<HistoryButtonProps>) {
-  const baseClasses = "flex items-center justify-between rounded-lg border p-3";
-  const stateClasses = disabled
-    ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
-    : "cursor-pointer border-gray-200 bg-white transition-colors hover:bg-gray-50";
-
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`${baseClasses} ${stateClasses}`}
-    >
-      <div className="flex items-center gap-3">
-        <ConceptIconTile concept={concept} size="section" />
-        <div className="min-w-0 flex-1 text-left">
-          <p
-            className={`text-sm font-medium sm:text-base ${
-              disabled ? "text-gray-400" : "text-gray-900"
-            }`}
-          >
-            {title}
-          </p>
-          <p className="text-xs text-gray-400">{description}</p>
-        </div>
-      </div>
-      <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-gray-300" />
-    </button>
+    <li>
+      <ListRowLink
+        icon={<ConceptIconTile concept={concept} size="section" />}
+        title={title}
+        subtitle={description}
+        disabled={disabled}
+        onClick={onClick}
+      />
+    </li>
   );
 }
 
@@ -1205,7 +1170,7 @@ export function StudentHistorySection({
 
   return (
     <SectionCard title="Historien" concept={changeHistoryConcept}>
-      <div className="grid grid-cols-1 gap-2">
+      <FramedList>
         <HistoryButton
           concept={roomsConcept}
           title="Anwesenheitsprotokoll"
@@ -1261,7 +1226,7 @@ export function StudentHistorySection({
               : undefined
           }
         />
-      </div>
+      </FramedList>
     </SectionCard>
   );
 }

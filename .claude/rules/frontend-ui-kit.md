@@ -60,14 +60,14 @@ The full conversion spec, including what to do when a page's head lives in a vie
 
 **Before building or changing any UI, open the relevant file(s) below and match their structure, density, spacing, color use, component choice, and restraint.** These are the bar for "looks like the rest of the app."
 
-| Pattern           | File                                                           | Why it's canonical                                                                                                                                          |
-| ----------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx`         | `PageHeaderWithSearch` + filter chips + `DataTable`; compact and operational                                                                                |
-| Detail page       | `frontend/src/app/[tenant]/(protected)/staff/[id]/page.tsx`    | `ui/Tabs` + `detail-modal-components` field layout                                                                                                          |
-| Dense dashboard   | `frontend/src/app/[tenant]/(protected)/time-tracking/page.tsx` | KPI/Saldo cards, charts, tables, modals — how a complex operational screen stays dense, not decorative |
-| Page scaffold     | `frontend/src/components/ui/tenant-page.tsx`                   | the root every tenant page renders                                                                                                                          |
-| Card primitive    | `frontend/src/components/ui/section-card.tsx`                  | the canonical card surface                                                                                                                                  |
-| Table primitive   | `frontend/src/components/ui/data-table.tsx`                    | the canonical table                                                                                                                                         |
+| Pattern | File | Why it's canonical |
+| --- | --- | --- |
+| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx` | `PageHeaderWithSearch` + filter chips + `DataTable`; compact and operational |
+| Detail page | `frontend/src/app/[tenant]/(protected)/staff/[id]/page.tsx` | `ui/Tabs` + `detail-modal-components` field layout |
+| Dense dashboard | `frontend/src/app/[tenant]/(protected)/time-tracking/page.tsx` | KPI/Saldo cards, charts, tables, modals — how a complex operational screen stays dense, not decorative |
+| Page scaffold | `frontend/src/components/ui/tenant-page.tsx` | the root every tenant page renders |
+| Card primitive | `frontend/src/components/ui/section-card.tsx` | the canonical card surface |
+| Table primitive | `frontend/src/components/ui/data-table.tsx` | the canonical table |
 
 ## Visual references — look at the real UI
 
@@ -103,6 +103,9 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Checkbox | `Checkbox` — gray-900 checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
 | Consent or confirmation a person ticks (Einwilligung, „verbindlich“) | `ConsentCheckbox` — `required`, `error`, `action` for the legal text button; both public Anmeldungen use it | `~/components/ui/consent-checkbox` |
 | Inline alert / banner (one notice) | `Alert` (`type`, `message`); a notice that needs attention is `type="warning"` (orange), never an amber box; several notices of the same kind follow [Several notices of the same kind](#several-notices-of-the-same-kind) | `~/components/ui/alert` |
+| Row as its own surface (start page, roster, persons in a panel); own button beside a link: no `href`, link in `children` | `ListRow` — `href`, `onClick`, `tone`, `density`, `trailing`; loading: `SkeletonRows`, `ListRowSkeleton` | `~/components/ui/list-row`, `ui/skeleton` |
+| Framed list with dividers, inside a card or panel | `FramedList` — `maxHeight`, `header` | `~/components/ui/framed-list` |
+| Row leading elsewhere: icon, title, subtitle, badge, arrow | `ListRowLink`, alone `framed` | `~/components/ui/list-row-link` |
 | Rows with their own actions in a desktop column | `ResponsiveActionList` | `~/components/ui/responsive-action-list` |
 | Transient feedback | `Toast` — presentational surface only; queue, lifetime, and placement stay in `ToastProvider` | `~/components/ui/toast` |
 | Modal dialog | `Modal`, `ConfirmationModal` (header `icon`, `description`) | `~/components/ui/modal` |
@@ -312,6 +315,8 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 `ui-kit/no-hand-rolled-field-label` (#5589, shrink-only): `ui-kit-field-label-baseline.json`, lower it with `pnpm run ui-kit:field-label-baseline`.
 
 `ui-kit/no-radix-outside-kit` (#5604, hard-zero): `@radix-ui/*` only under `components/ui/`.
+
+`ui-kit/no-arbitrary-shadow`, `no-hand-rolled-list-row`, `no-hand-rolled-framed-list` (#5593, hard-zero): no `shadow-[…]`, hand-built list row or framed list outside `ui/`. `ui-kit/no-hand-rolled-nav-row` (#5593, shrink-only): no full-width row with an arrow; use `ListRowLink`.
 
 `ui-kit/no-raw-table` (#5600, hard-zero): no `<table>` outside `ui/`.
 

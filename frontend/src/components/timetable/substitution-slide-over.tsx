@@ -18,6 +18,7 @@
  * is a radio branch, not a checkbox that silently disables the rest.
  */
 
+import { ListRow } from "~/components/ui/list-row";
 import { RotateCcw } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -766,100 +767,102 @@ export function SubstitutionSlideOver({
                             const inactive =
                               (row.isAbsent && !restored) || removed;
                             return (
-                              <li
-                                key={row.staffId}
-                                className={`flex flex-col items-stretch gap-2 rounded-lg px-3 py-2 ${
-                                  inactive ? "bg-gray-100" : "bg-moto-green/10"
-                                }`}
-                              >
-                                <span
-                                  className={`truncate text-sm font-medium ${
-                                    inactive
-                                      ? "text-gray-400 line-through"
-                                      : "text-gray-900"
-                                  }`}
+                              <li key={row.staffId}>
+                                <ListRow
+                                  tone={inactive ? "muted" : "success"}
+                                  className="flex-col items-stretch gap-2"
                                 >
-                                  {staffLabel(staffNames, row.staffId)}
-                                </span>
-                                <div className="flex flex-wrap items-center justify-end gap-2">
-                                  {removed ? (
-                                    <StatusBadge
-                                      label="Wird entfernt"
-                                      tone="gray"
-                                      size="xs"
-                                    />
-                                  ) : row.isAbsent && !restored ? (
-                                    <StatusBadge
-                                      label="Abwesend"
-                                      tone="red"
-                                      size="xs"
-                                    />
-                                  ) : restored ? (
-                                    <StatusBadge
-                                      label="Wird wiederhergestellt"
-                                      tone="green"
-                                      size="xs"
-                                    />
-                                  ) : (
-                                    <StatusBadge
-                                      label="Ersatz"
-                                      tone="green"
-                                      size="xs"
-                                    />
-                                  )}
-                                  {canEdit && !row.isSickAbsence && (
-                                    <OverflowMenu
-                                      ariaLabel={`Aktionen für ${staffLabel(staffNames, row.staffId)}`}
-                                      triggerSize="sm"
-                                      items={[
-                                        {
-                                          label: removed
-                                            ? "Rückgängig"
-                                            : "Entfernen",
-                                          icon: removed ? (
-                                            <RotateCcw
-                                              className="h-3.5 w-3.5"
-                                              aria-hidden
-                                            />
-                                          ) : (
-                                            <MotoConceptIcon
-                                              concept={substitutionConcept}
-                                              size={14}
-                                            />
-                                          ),
-                                          onClick: () =>
-                                            toggleRemoveSub(row.staffId),
-                                        },
-                                        ...(row.isAbsent &&
-                                        !removed &&
-                                        canRestore
-                                          ? [
-                                              {
-                                                label: restored
-                                                  ? "Rückgängig"
-                                                  : "Anwesend melden",
-                                                icon: restored ? (
-                                                  <MotoConceptIcon
-                                                    concept={
-                                                      substitutionConcept
-                                                    }
-                                                    size={14}
-                                                  />
-                                                ) : (
-                                                  <RotateCcw
-                                                    className="h-3.5 w-3.5"
-                                                    aria-hidden
-                                                  />
-                                                ),
-                                                onClick: () =>
-                                                  toggleRestoreSub(row.staffId),
-                                              },
-                                            ]
-                                          : []),
-                                      ]}
-                                    />
-                                  )}
-                                </div>
+                                  <span
+                                    className={`truncate text-sm font-medium ${
+                                      inactive
+                                        ? "text-gray-400 line-through"
+                                        : "text-gray-900"
+                                    }`}
+                                  >
+                                    {staffLabel(staffNames, row.staffId)}
+                                  </span>
+                                  <div className="flex flex-wrap items-center justify-end gap-2">
+                                    {removed ? (
+                                      <StatusBadge
+                                        label="Wird entfernt"
+                                        tone="gray"
+                                        size="xs"
+                                      />
+                                    ) : row.isAbsent && !restored ? (
+                                      <StatusBadge
+                                        label="Abwesend"
+                                        tone="red"
+                                        size="xs"
+                                      />
+                                    ) : restored ? (
+                                      <StatusBadge
+                                        label="Wird wiederhergestellt"
+                                        tone="green"
+                                        size="xs"
+                                      />
+                                    ) : (
+                                      <StatusBadge
+                                        label="Ersatz"
+                                        tone="green"
+                                        size="xs"
+                                      />
+                                    )}
+                                    {canEdit && !row.isSickAbsence && (
+                                      <OverflowMenu
+                                        ariaLabel={`Aktionen für ${staffLabel(staffNames, row.staffId)}`}
+                                        triggerSize="sm"
+                                        items={[
+                                          {
+                                            label: removed
+                                              ? "Rückgängig"
+                                              : "Entfernen",
+                                            icon: removed ? (
+                                              <RotateCcw
+                                                className="h-3.5 w-3.5"
+                                                aria-hidden
+                                              />
+                                            ) : (
+                                              <MotoConceptIcon
+                                                concept={substitutionConcept}
+                                                size={14}
+                                              />
+                                            ),
+                                            onClick: () =>
+                                              toggleRemoveSub(row.staffId),
+                                          },
+                                          ...(row.isAbsent &&
+                                          !removed &&
+                                          canRestore
+                                            ? [
+                                                {
+                                                  label: restored
+                                                    ? "Rückgängig"
+                                                    : "Anwesend melden",
+                                                  icon: restored ? (
+                                                    <MotoConceptIcon
+                                                      concept={
+                                                        substitutionConcept
+                                                      }
+                                                      size={14}
+                                                    />
+                                                  ) : (
+                                                    <RotateCcw
+                                                      className="h-3.5 w-3.5"
+                                                      aria-hidden
+                                                    />
+                                                  ),
+                                                  onClick: () =>
+                                                    toggleRestoreSub(
+                                                      row.staffId,
+                                                    ),
+                                                },
+                                              ]
+                                            : []),
+                                        ]}
+                                      />
+                                    )}
+                                  </div>
+                                </ListRow>
                               </li>
                             );
                           })}
