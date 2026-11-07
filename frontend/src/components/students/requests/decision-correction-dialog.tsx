@@ -144,27 +144,19 @@ export function DecisionCorrectionDialog({
             ]}
           />
         </div>
-        <label
-          htmlFor="correction-reason"
-          className="block space-y-1 text-sm font-medium text-gray-800"
-        >
-          <span>
-            Warum korrigieren Sie?
-            {reasonRequired ? "" : " Pflicht bei einer Korrektur."}
-          </span>
-          <Textarea
-            id="correction-reason"
-            name="reason"
-            value={reason}
-            rows={2}
-            disabled={saving}
-            error={errors.fieldError("reason")}
-            onChange={(event) => {
-              setReason(event.target.value);
-              errors.clear();
-            }}
-          />
-        </label>
+        <Textarea
+          label={`Warum korrigieren Sie?${reasonRequired ? "" : " Pflicht bei einer Korrektur."}`}
+          id="correction-reason"
+          name="reason"
+          value={reason}
+          rows={2}
+          disabled={saving}
+          error={errors.fieldError("reason")}
+          onChange={(event) => {
+            setReason(event.target.value);
+            errors.clear();
+          }}
+        />
         <p className="text-sm text-gray-600">
           Die alte Entscheidung bleibt im Verlauf stehen.
         </p>

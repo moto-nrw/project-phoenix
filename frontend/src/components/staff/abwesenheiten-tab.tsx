@@ -1272,13 +1272,8 @@ function VacationOpeningModal({
           Der Jahresanspruch bleibt unverändert.
         </p>
         <div>
-          <label
-            htmlFor="vacation-opening-date"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Stichtag
-          </label>
           <ISODatePicker
+            label="Stichtag"
             id="vacation-opening-date"
             min={`${year}-01-01`}
             max={maxEffectiveDateKey}
@@ -1292,29 +1287,22 @@ function VacationOpeningModal({
             Der Stichtag muss im Jahr {year} und vor dem heutigen Tag liegen.
           </p>
         </div>
-        <div>
-          <label
-            htmlFor="vacation-opening-remaining"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Resturlaub zum Stichtag (Tage)
-          </label>
-          <Input
-            id="vacation-opening-remaining"
-            name="remaining_days"
-            type="text"
-            inputMode="decimal"
-            controlSize="compact"
-            value={remainingDays}
-            onChange={(e) => setRemainingDays(e.target.value)}
-            placeholder="z. B. 12,5"
-            error={
-              remainingDays.trim() !== "" && !remainingValid
-                ? REMAINING_RANGE_HINT
-                : formErrors.fieldError("remaining_days")
-            }
-          />
-        </div>
+        <Input
+          label="Resturlaub zum Stichtag (Tage)"
+          id="vacation-opening-remaining"
+          name="remaining_days"
+          type="text"
+          inputMode="decimal"
+          controlSize="compact"
+          value={remainingDays}
+          onChange={(e) => setRemainingDays(e.target.value)}
+          placeholder="z. B. 12,5"
+          error={
+            remainingDays.trim() !== "" && !remainingValid
+              ? REMAINING_RANGE_HINT
+              : formErrors.fieldError("remaining_days")
+          }
+        />
         <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
           <p>
             Jahresanspruch inklusive Übertrag:{" "}
@@ -1339,23 +1327,16 @@ function VacationOpeningModal({
             </p>
           )}
         </div>
-        <div>
-          <label
-            htmlFor="vacation-opening-note"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Begründung (Pflicht)
-          </label>
-          <Textarea
-            id="vacation-opening-note"
-            name="note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={2}
-            placeholder="z. B. Übernahme aus Urlaubsliste, Stand 31.07."
-            error={formErrors.fieldError("note")}
-          />
-        </div>
+        <Textarea
+          label="Begründung (Pflicht)"
+          id="vacation-opening-note"
+          name="note"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          placeholder="z. B. Übernahme aus Urlaubsliste, Stand 31.07."
+          error={formErrors.fieldError("note")}
+        />
       </div>
     </Modal>
   );
