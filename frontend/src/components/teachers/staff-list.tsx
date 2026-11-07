@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import { DatabaseListLayout } from "~/components/database/database-list-layout";
 import {
@@ -136,9 +137,7 @@ export function StaffList({
         }}
         keyFor={keyForTeacher}
         emptyState={
-          <div className="text-center text-sm text-gray-500">
-            Kein Personal gefunden.
-          </div>
+          <EmptyState variant="compact" title="Kein Personal gefunden." />
         }
       />
     </DatabaseListLayout>

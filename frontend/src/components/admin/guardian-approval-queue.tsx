@@ -16,6 +16,7 @@ import {
 } from "@/lib/guardian-api";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   formErrorMessage,
   type FormErrorInput,
@@ -106,7 +107,7 @@ function ApprovalsEmptyState({
   const { configuredAway, title, description } = emptyStateCopy(inviteMode);
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+    <SectionCard>
       <EmptyState
         icon={
           <ConceptIconTile
@@ -131,7 +132,7 @@ function ApprovalsEmptyState({
           ) : undefined
         }
       />
-    </div>
+    </SectionCard>
   );
 }
 
