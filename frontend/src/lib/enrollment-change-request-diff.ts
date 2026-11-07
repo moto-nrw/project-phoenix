@@ -1,3 +1,4 @@
+import { WEEKDAY_CODES, weekdayShortLabel } from "~/lib/weekdays";
 export interface EnrollmentChangeRequestDiffInput {
   readonly baseSnapshot: Record<string, unknown>;
   readonly proposedSnapshot: Record<string, unknown>;
@@ -73,15 +74,9 @@ export const DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY: EnrollmentChangeReques
       phone: "Telefon",
       selected_days: "Tage",
     },
-    weekdayLabels: {
-      mon: "Mo",
-      tue: "Di",
-      wed: "Mi",
-      thu: "Do",
-      fri: "Fr",
-      sat: "Sa",
-      sun: "So",
-    },
+    weekdayLabels: Object.fromEntries(
+      WEEKDAY_CODES.map((code) => [code, weekdayShortLabel(code)]),
+    ),
     childEntryLabel: "Kind",
     additionalGuardianEntryLabel: "Weitere Person",
     emptyLabel: "Nicht gesetzt",

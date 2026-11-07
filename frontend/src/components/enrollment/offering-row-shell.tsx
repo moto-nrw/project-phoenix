@@ -10,6 +10,11 @@
 // is enrollment vocabulary, not a general-purpose primitive.
 
 import type { ReactNode } from "react";
+import {
+  type CareOfferingBookingStats,
+  formatOfferingOccupancy,
+  offeringIsFull,
+} from "~/lib/care-offering-booking-stats";
 
 export function OfferingRowShell({
   tone,
@@ -34,3 +39,23 @@ export function OfferingRowShell({
 /** The muted, dashed look every "not selectable for this child" row uses. */
 export const BLOCKED_OFFERING_ROW_TONE =
   "border-dashed border-gray-300 bg-gray-50";
+
+/**
+ * Occupancy under an offering in the admin flows (#2186); nothing without
+ * stats, so the parent form and a failed stats load show no line.
+ */
+export function OfferingOccupancyLine({
+  stats,
+}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
+  const label = formatOfferingOccupancy(stats);
+  if (!label) return null;
+  return (
+    <span
+      className={`mt-1 block text-xs ${
+        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}

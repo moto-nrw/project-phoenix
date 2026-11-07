@@ -16,7 +16,7 @@ import {
 import { BackLink } from "~/components/ui/back-link";
 import { useTenant } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { supportedGradeLevelMax } from "~/lib/grade-level";
 import {
   fetchEnrollmentPreviewBootstrap,
   schemaToPublicFormSchema,
@@ -44,9 +44,7 @@ function EnrollmentPreviewPageContent() {
   const { tenant } = useTenant();
   const tenantPath = useTenantAwarePath();
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
-  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
-    ? resolvedGradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(resolvedGradeLevelMax);
   const [schema, setSchema] = useState<FormSchema | null>(null);
   const [assignedPhaseCount, setAssignedPhaseCount] = useState(0);
   const [activeAssignedPhaseCount, setActiveAssignedPhaseCount] = useState(0);

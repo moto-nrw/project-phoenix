@@ -321,7 +321,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Entfernen@2033",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@1987",
+      "Bedingung löschen@1984",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2514",
@@ -1607,10 +1607,10 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@268",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@974",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@975",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@953",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@951",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@147",
