@@ -22,7 +22,9 @@ const (
 // visitor's name to (#4048), as SQL counting the rows of the school ?0 that
 // still hold it. The signed declarations of the parent are a seventh place;
 // they need a whole declaration of Communication, so the seed-smoke job
-// covers them with a real seed.
+// covers them with a real seed. The table a count reads first is its place;
+// TestVisitorTraceCountsCountEveryRowHoldingTheVisitor fails when a row
+// leaveVisitorTraces writes holds the name and no count reads it (#6015).
 var visitorTraceCounts = map[string]string{
 	"users.persons": `SELECT count(*) FROM users.persons
 		WHERE tenant_id = ?0 AND first_name = '` + visitorFirst + `' AND last_name = '` + visitorLast + `'`,
@@ -46,6 +48,23 @@ var visitorTraceCounts = map[string]string{
 		JOIN care_contract.contracts AS contract ON contract.id = outbox.related_entity_id
 		WHERE outbox.related_entity_type = 'care_contract' AND contract.school_id = ?0
 			AND outbox.recipient->>'name' = '` + visitorFull + `'`,
+	// A holiday registration belongs to the Träger and outlives the school
+	// too; the visitor reaches it through the public holiday link (#6015).
+	// It names the school only as the home school of a child.
+	"enrollment.holiday_registrations": `SELECT count(*) FROM enrollment.holiday_registrations AS registration
+		WHERE registration.guardian_first_name = '` + visitorFirst + `' AND registration.guardian_last_name = '` + visitorLast + `'
+			AND registration.id IN (SELECT holiday_registration_id FROM enrollment.holiday_registration_children WHERE home_school_id = ?0)`,
+	"enrollment.holiday_registration_contacts": `SELECT count(*) FROM enrollment.holiday_registration_contacts AS contact
+		WHERE contact.name = '` + visitorFull + `'
+			AND contact.holiday_registration_id IN (SELECT holiday_registration_id FROM enrollment.holiday_registration_children WHERE home_school_id = ?0)`,
+	"enrollment.holiday_registration_proofs": `SELECT count(*) FROM enrollment.holiday_registration_proofs AS proof
+		WHERE proof.filename = 'Bescheid ` + visitorFull + `.pdf'
+			AND proof.holiday_registration_id IN (SELECT holiday_registration_id FROM enrollment.holiday_registration_children WHERE home_school_id = ?0)`,
+	// Its invoice copies the family and names the registration only by ID,
+	// so it would stay after the registration went.
+	"parent_billing.documents": `SELECT count(*) FROM parent_billing.documents AS document
+		WHERE document.recipient_first_name = '` + visitorFirst + `' AND document.recipient_last_name = '` + visitorLast + `'
+			AND document.number = 'F-' || ?0`,
 }
 
 type visitorAccounts struct {
@@ -125,7 +144,64 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 	}
 	_, err = db.NewRaw(`UPDATE audit.guardian_changes SET actor_account_id = ? WHERE tenant_id = ?`, parent.ID, schoolID).Exec(ctx)
 	require.NoError(t, err)
+	leaveVisitorHolidayRegistration(t, db, schoolID)
 	return visitorAccounts{caregiver: caregiver.ID, parent: parent.ID}
+}
+
+// leaveVisitorHolidayRegistration registers the visitor's child of the
+// school through the public holiday link of its Träger (#6015), with the
+// visitor as guardian and contact, a proof named after the visitor and the
+// invoice of a billing run. A registration names its home school only while
+// the school is open, so a closed school opens for the insert.
+func leaveVisitorHolidayRegistration(t *testing.T, db *bun.DB, schoolID int64) {
+	t.Helper()
+	ctx := t.Context()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.NewRaw(`CREATE TEMP TABLE closed_school ON COMMIT DROP AS
+		SELECT deleted_at FROM platform.schools WHERE id = ?`, schoolID).Exec(ctx)
+	require.NoError(t, err)
+	for _, statement := range []string{
+		`UPDATE platform.schools SET deleted_at = NULL WHERE id = ?0`,
+		`WITH period AS (
+			INSERT INTO enrollment.holiday_periods (organization_id, name, registration_opens_on, registration_closes_on, status, published_at)
+			SELECT organization_id, 'Sommerferien ' || id, DATE '2026-06-01', DATE '2026-07-31', 'published', NOW()
+			FROM platform.schools WHERE id = ?0
+			RETURNING organization_id, id),
+		registration AS (
+			INSERT INTO enrollment.holiday_registrations (organization_id, holiday_period_id, guardian_first_name, guardian_last_name,
+				guardian_email, guardian_phone, privacy_consent_at)
+			SELECT organization_id, id, '` + visitorFirst + `', '` + visitorLast + `', 'besuch@example.org', '0151 0000009', NOW() FROM period
+			RETURNING organization_id, holiday_period_id, id),
+		child AS (
+			INSERT INTO enrollment.holiday_registration_children (organization_id, holiday_period_id, holiday_registration_id,
+				position, first_name, last_name, birth_date, home_school_id)
+			SELECT organization_id, holiday_period_id, id, 1, 'Mia', 'Schneider', DATE '2018-04-12', ?0 FROM registration),
+		contact AS (
+			INSERT INTO enrollment.holiday_registration_contacts (organization_id, holiday_registration_id, kind, position, name)
+			SELECT organization_id, id, 'pickup', 1, '` + visitorFull + `' FROM registration),
+		proof AS (
+			INSERT INTO enrollment.holiday_registration_proofs (organization_id, holiday_period_id, holiday_registration_id,
+				filename, content_type, size_bytes, content, claimed_at)
+			SELECT organization_id, holiday_period_id, id, 'Bescheid ` + visitorFull + `.pdf', 'application/pdf', 3, '\x255044'::bytea, NOW()
+			FROM registration),
+		run AS (
+			INSERT INTO parent_billing.runs (organization_id, service, holiday_period_id, period_name, service_from, service_until)
+			SELECT organization_id, 'holiday', holiday_period_id, 'Sommerferien', DATE '2026-07-01', DATE '2026-07-31' FROM registration
+			RETURNING organization_id, id, holiday_period_id)
+		INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year, number_sequence, issued_on,
+			holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name, recipient_email,
+			service_from, service_until, total_cents)
+		SELECT run.organization_id, run.id, 'holiday', 'F-' || ?0, 2026, ?0, DATE '2026-06-15', run.holiday_period_id, registration.id,
+			'` + visitorFirst + `', '` + visitorLast + `', 'besuch@example.org', DATE '2026-07-01', DATE '2026-07-31', 12000
+		FROM run JOIN registration ON registration.holiday_period_id = run.holiday_period_id`,
+		`UPDATE platform.schools SET deleted_at = (SELECT deleted_at FROM closed_school) WHERE id = ?0`,
+	} {
+		_, err := tx.NewRaw(statement, schoolID).Exec(ctx)
+		require.NoError(t, err, statement)
+	}
+	require.NoError(t, tx.Commit())
 }
 
 // visitorTraces counts, per place, the rows of the school that still hold
