@@ -20,6 +20,10 @@ const maxWebhookBody = 1 << 20
 // ErrBodyTooLarge reports a delivery above maxWebhookBody.
 var ErrBodyTooLarge = errors.New("the webhook body is too large")
 
+// ErrBodyUnreadable reports a body that broke off or timed out while it was read.
+// The provider has to send it again, so it must not answer like a refusal.
+var ErrBodyUnreadable = errors.New("the webhook body could not be read")
+
 // Ingest is Delivery's narrow capability for one webhook delivery.
 type Ingest interface {
 	IngestEmailWebhook(ctx context.Context, provider string, header func(string) string, body []byte) error
@@ -51,12 +55,7 @@ func (rs *Resource) Router() chi.Router {
 func (rs *Resource) deliver(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxWebhookBody))
 	if err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			rs.failed(w, r, ErrBodyTooLarge)
-		} else {
-			rs.failed(w, r, err)
-		}
+		rs.failed(w, r, readFailure(err))
 		return
 	}
 	if err := rs.ingest.IngestEmailWebhook(r.Context(), chi.URLParam(r, "provider"), r.Header.Get, body); err != nil {
@@ -64,4 +63,14 @@ func (rs *Resource) deliver(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// readFailure keeps the one answer the provider does not retry to a body that is
+// really too large: any other read failure would lose the event with it.
+func readFailure(err error) error {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		return ErrBodyTooLarge
+	}
+	return ErrBodyUnreadable
 }

@@ -3,7 +3,8 @@
 // Ein Betreuungsvertrag (#4678, ADR 0153): was der Vertrag festhält, an wen
 // er geht, wann er versendet wurde, und das PDF, das die Eltern bekommen.
 // Ein Entwurf lässt sich senden oder verwerfen; ein versendeter Vertrag
-// behält sein PDF und lässt sich erneut senden.
+// behält sein PDF und lässt sich erneut senden. Ein abgeschlossener Vertrag
+// (#4680) zeigt, wann und wie er zustande kam; erneut senden lässt er sich mit demselben PDF.
 
 import { Download, RotateCw, Send, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -15,6 +16,7 @@ import {
   MAIL_STATE_TONES,
   SEND_SKIP_LABELS,
   childName,
+  formatConclusion,
   formatModules,
   formatNotice,
   formatService,
@@ -214,7 +216,8 @@ export default function TraegerVertragPage() {
   };
 
   const isDraft = contract?.status === "entwurf";
-  const canSend = isDraft || contract?.status === "versendet";
+  const canSend =
+    isDraft || contract?.status === "versendet" || contract?.status === "aktiv";
   const lastMail = contract?.mailings[0];
   const party = contract?.parties[0];
 
@@ -331,12 +334,19 @@ export default function TraegerVertragPage() {
                 concept={careContractsConcept}
                 title="Vertragsangaben"
                 description={
-                  contract.documentFrozen
-                    ? "So steht es im versendeten Vertrag."
-                    : "So steht es im Vertrag, wenn Sie ihn senden."
+                  contract.concluded
+                    ? "So steht es im abgeschlossenen Vertrag."
+                    : contract.documentFrozen
+                      ? "So steht es im versendeten Vertrag."
+                      : "So steht es im Vertrag, wenn Sie ihn senden."
                 }
               >
                 <DataGrid>
+                  {contract.concluded ? (
+                    <DataField label="Abgeschlossen">
+                      {formatConclusion(contract.concluded)}
+                    </DataField>
+                  ) : null}
                   <DataField label="Kind">{childName(contract)}</DataField>
                   <DataField label="Geboren am">
                     {contract.version.childBirthDate
@@ -475,7 +485,8 @@ export default function TraegerVertragPage() {
                     ))}
                   </ol>
                 ) : null}
-                {contract.status === "versendet" &&
+                {!isDraft &&
+                canSend &&
                 lastMail?.state === "failed" &&
                 lastMail.sendBlock !== "stopped" ? (
                   <form
@@ -614,6 +625,14 @@ function StatusNotice({
       <Alert
         type="warning"
         message={`Die Mail an ${last.recipient} kam nicht an. Prüfen Sie die Adresse. Unter „Versand“ können Sie eine andere Adresse verwenden.`}
+      />
+    );
+  }
+  if (contract.concluded?.method === "mit_anmeldung") {
+    return (
+      <Alert
+        type="success"
+        message={`Der Vertrag gilt seit der Annahme der Anmeldung am ${formatBerlinDate(contract.concluded.at)}. Die Eltern bekommen ihn per E-Mail und in der Eltern-App. Sie müssen nichts unterschreiben.`}
       />
     );
   }

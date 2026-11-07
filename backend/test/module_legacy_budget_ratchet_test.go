@@ -215,7 +215,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // add exactly 32 LOC. ADR 0157: the shared document constructors of
 // modules/organizationtenancy/compose (+10) and the shared document port of
 // workflows/parentportal/compose (+1) add exactly 11 LOC.
-const moduleComposeBudgetTotal = 12962
+// #4680 lowers modules/carecontract/compose by 3 LOC.
+const moduleComposeBudgetTotal = 12959
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -280,7 +281,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0126: the document inbox constructor (+6).
 	// Added by ADR 0153: construction of the care contract owner, with the
 	// ports of the contract reads for the schools' access logs.
-	"modules/carecontract/compose":                53,
+	"modules/carecontract/compose":                50,
 	"modules/parentbilling/compose":               50,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.

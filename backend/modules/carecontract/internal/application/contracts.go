@@ -311,6 +311,8 @@ func (c *Contracts) ResendContract(ctx context.Context, reviewer carecontract.Re
 
 func (c *Contracts) sendContracts(ctx context.Context, reviewer carecontract.Reviewer, ids []int64, destination string) (carecontract.SendResult, error) {
 	result := carecontract.SendResult{Sent: []int64{}, Skipped: []carecontract.SendSkip{}}
+	// The send holds its transaction, so the whole batch shares the provider's limits.
+	ctx = c.post.ShareMailBlockLimit(ctx)
 	for _, id := range ids {
 		err := c.send(ctx, reviewer, id, destination)
 		switch {
@@ -350,7 +352,17 @@ func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, co
 	if err != nil {
 		return err
 	}
-	if record.Summary.Status != carecontract.StatusDraft && record.Summary.Status != carecontract.StatusSent {
+	return c.deliver(ctx, reviewer, record, destination)
+}
+
+// deliver sends the contract read under its row lock: it freezes the PDF of
+// a draft, enqueues the mail and records the send.
+func (c *Contracts) deliver(ctx context.Context, reviewer carecontract.Reviewer, record ContractRecord, destination string) error {
+	contractID := record.Summary.ID
+	if record.Summary.Status != carecontract.StatusDraft && record.Summary.Status != carecontract.StatusSent && record.Summary.Status != carecontract.StatusActive {
+		return carecontract.ErrContractNotSendable
+	}
+	if record.Summary.Status == carecontract.StatusActive && record.DocumentID == nil {
 		return carecontract.ErrContractNotSendable
 	}
 	party, previousSends, err := c.deliveryParty(ctx, reviewer.OrganizationID, record, destination)
@@ -371,6 +383,7 @@ func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, co
 		ChildName: fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
 		Modules:   joinGerman(ModuleNames(record.Version.Services)), Filename: file.Filename, PDF: file.Data,
 		IdempotencyKey: fmt.Sprintf("care-contract:%d:%d", contractID, previousSends+1),
+		Concluded:      record.Concluded != nil,
 	})
 	if err != nil {
 		return fmt.Errorf("care contract: enqueue mail: %w", err)
@@ -400,7 +413,7 @@ func (c *Contracts) deliveryParty(ctx context.Context, organizationID int64, rec
 	if len(mailings) > 0 && mailings[0].State == carecontract.MailQueued {
 		return carecontract.Party{}, 0, carecontract.ErrMailPending
 	}
-	if destination != "" && (record.Summary.Status != carecontract.StatusSent || record.DocumentID == nil || len(mailings) == 0 || mailings[0].State != carecontract.MailFailed) {
+	if destination != "" && ((record.Summary.Status != carecontract.StatusSent && record.Summary.Status != carecontract.StatusActive) || record.DocumentID == nil || len(mailings) == 0 || mailings[0].State != carecontract.MailFailed) {
 		return carecontract.Party{}, 0, carecontract.ErrContractNotSendable
 	}
 	if len(mailings) > 0 {
@@ -409,24 +422,20 @@ func (c *Contracts) deliveryParty(ctx context.Context, organizationID int64, rec
 	if destination != "" {
 		party.Email = destination
 	}
-	if err := c.refuseHeldMail(ctx, organizationID, party.Email, mailings, destination); err != nil {
+	if err := c.refuseHeldMail(ctx, organizationID, party.Email, mailings); err != nil {
 		return carecontract.Party{}, 0, err
 	}
 	return party, len(mailings), nil
 }
 
 // refuseHeldMail stops a mail that would stay back or arrive twice. The state of the
-// address now decides, not what became of an older mail: a new destination has no
-// history of its own, so the last mail's result does not count for it.
-func (c *Contracts) refuseHeldMail(ctx context.Context, organizationID int64, address string, mailings []carecontract.Mailing, destination string) error {
-	block := ""
-	if len(mailings) > 0 && destination == "" {
-		block = mailings[0].SendBlock
-	} else {
-		var err error
-		if block, err = c.post.ContractMailBlock(ctx, organizationID, address, ""); err != nil {
-			return fmt.Errorf("care contract: mail block: %w", err)
-		}
+// address now decides, not what became of an older mail: an address without a mail
+// has no history of its own, and one the contract already went to keeps it, however
+// the correction spells it.
+func (c *Contracts) refuseHeldMail(ctx context.Context, organizationID int64, address string, mailings []carecontract.Mailing) error {
+	block, err := c.mailBlock(ctx, organizationID, address, mailings)
+	if err != nil {
+		return fmt.Errorf("care contract: mail block: %w", err)
 	}
 	switch block {
 	case "":
@@ -438,6 +447,25 @@ func (c *Contracts) refuseHeldMail(ctx context.Context, organizationID int64, ad
 	default:
 		return carecontract.ErrMailBlocked
 	}
+}
+
+// mailBlock reads the block of the address with the result of its newest mail. The
+// newest mailing of all already holds its block.
+func (c *Contracts) mailBlock(ctx context.Context, organizationID int64, address string, mailings []carecontract.Mailing) (string, error) {
+	for i, mailing := range mailings {
+		if !sameMailAddress(mailing.Recipient, address) {
+			continue
+		}
+		if i == 0 {
+			return mailing.SendBlock, nil
+		}
+		return c.post.ContractMailBlock(ctx, organizationID, address, mailing.Outcome)
+	}
+	return c.post.ContractMailBlock(ctx, organizationID, address, "")
+}
+
+func sameMailAddress(a, b string) bool {
+	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
 }
 
 // frozenDocument is the stored PDF, rendered and stored at the first send.

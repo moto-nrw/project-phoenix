@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { defineEntityConfig } from "@/lib/database/types";
 import type { Device } from "@/lib/iot-helpers";
@@ -202,11 +203,10 @@ export const devicesConfig = defineEntityConfig<Device>({
           {
             label: "Status",
             value: (device) => (
-              <span
-                className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getDeviceStatusColor(device.status)}`}
-              >
-                {getDeviceStatusDisplayName(device.status)}
-              </span>
+              <StatusColorBadge
+                label={getDeviceStatusDisplayName(device.status)}
+                color={getDeviceStatusColor(device.status)}
+              />
             ),
           },
         ],
