@@ -24,7 +24,7 @@ const (
 // of a concluded contract, by the parents in the parents portal or by the
 // Träger-Büro for a declaration it received.
 type Notices struct {
-	store     Store
+	store     ContractStore
 	notices   NoticeStore
 	templates carecontract.NoticeTemplates
 	post      carecontract.NoticePost
@@ -45,7 +45,7 @@ type NoticePorts struct {
 
 // NewNotices builds the declarations. office, the contracts of the
 // Träger-Büro, may be nil for the parents portal alone.
-func NewNotices(store Store, notices NoticeStore, noticePorts NoticePorts, clock Clock, office *Contracts) *Notices {
+func NewNotices(store ContractStore, notices NoticeStore, noticePorts NoticePorts, clock Clock, office *Contracts) *Notices {
 	if store == nil || notices == nil || noticePorts.Templates == nil || noticePorts.Post == nil {
 		panic("care contract: the store, the notice store, the templates and the post are required")
 	}
@@ -423,6 +423,9 @@ func (n *Notices) noticeState(ctx context.Context, organizationID, contractID in
 		return state, err
 	}
 	recorded := state.InformedAt
+	if err := n.signedNotice(ctx, organizationID, contractID, &state); err != nil {
+		return state, err
+	}
 	mailings, err := n.store.Mailings(ctx, organizationID, contractID)
 	if err != nil {
 		return state, err
@@ -451,4 +454,21 @@ func (n *Notices) noticeState(ctx context.Context, organizationID, contractID in
 		err = n.store.MarkWithdrawalInformed(ctx, organizationID, contractID, *state.InformedAt)
 	}
 	return state, err
+}
+
+// signedNotice joins the online signature (#4679): the parents acknowledged
+// the withdrawal notice when they signed, so the period starts then, and
+// the wish to begin care within it is stored with the signature. A paper
+// contract carries no acknowledgement; its period follows the notice proofs.
+func (n *Notices) signedNotice(ctx context.Context, organizationID, contractID int64, state *ports.NoticeState) error {
+	signature, err := n.store.Signature(ctx, organizationID, contractID, 0)
+	if err != nil || signature == nil || signature.Method == carecontract.SignaturePaper {
+		return err
+	}
+	state.EarlyStart = state.EarlyStart || signature.EarlyStartRequested
+	if at := signature.WithdrawalNoticeAt; at != nil && (state.InformedAt == nil || at.Before(*state.InformedAt)) {
+		informed := *at
+		state.InformedAt = &informed
+	}
+	return nil
 }
