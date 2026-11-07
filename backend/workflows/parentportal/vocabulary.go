@@ -49,6 +49,8 @@ type (
 	ReleaseNoticeAudience           = care.ReleaseNoticeAudience
 	ReleaseSchoolsPort              = care.ReleaseSchools
 	ReleaseRecipientsPort           = care.ReleaseRecipients
+	ReleaseFanOutPort               = care.ReleaseFanOut
+	TraegerDocumentNotifierPort     = care.TraegerDocumentNotifier
 	BillingDocumentReader           = care.BillingDocumentReader
 	BillingDocumentsPort            = care.BillingDocuments
 	ContractDocumentsPort           = care.ContractDocuments
@@ -289,4 +291,7 @@ type DocumentNotices interface {
 	// NotifyTraegerDocumentRelease sends the push of a release for parents
 	// (#5941).
 	NotifyTraegerDocumentRelease(ctx context.Context, organizationID, releaseID int64) error
+	// NotifyTraegerDocumentReleaseAccount sends the push of a release to one
+	// account the release fanned out to (#5941).
+	NotifyTraegerDocumentReleaseAccount(ctx context.Context, organizationID, releaseID, accountID int64) error
 }

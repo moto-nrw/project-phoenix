@@ -80,11 +80,28 @@ type ReleaseRecipients interface {
 	GuardianAccounts(ctx context.Context, schoolID int64, groupID *int64) ([]int64, error)
 }
 
+// TraegerDocumentNotifier sends the push of a contract or a release through
+// the school's router, with the account's consent, in the caller's tenant
+// transaction. sent tells whether a device push was enqueued there: a school
+// with notifications switched off or without the Eltern-App enqueues none.
+type TraegerDocumentNotifier interface {
+	NotifyTraegerDocument(ctx context.Context, push BillingDocumentPush) (sent bool, err error)
+}
+
+// ReleaseFanOut puts one deferred push per candidate account of a release on
+// Delivery's outbox, in the caller's Träger transaction. Each account then
+// runs as its own outbox entry with its own retries, so a large audience
+// never shares one send's time limit and a retry never repeats the accounts
+// already done.
+type ReleaseFanOut interface {
+	EnqueueReleaseAccounts(ctx context.Context, organizationID, releaseID int64, accountIDs []int64) error
+}
+
 // NotifyContractDocument sends the push of a contract sent to recipientEmail.
 // An address without an account, a contract no longer in the inbox, a child
 // of another Träger or a relationship without the inbox right gets nothing.
 func (s *Service) NotifyContractDocument(ctx context.Context, organizationID, contractID int64, recipientEmail string) error {
-	if s.SchoolTraeger == nil || s.ParentAccounts == nil || s.DocumentNotifier == nil || s.TraegerRuntime == nil || s.ContractInboxNotices == nil {
+	if s.SchoolTraeger == nil || s.ParentAccounts == nil || s.TraegerDocumentNotifier == nil || s.TraegerRuntime == nil || s.ContractInboxNotices == nil {
 		return errors.New("parent: contract notice is not configured")
 	}
 	email := strings.TrimSpace(recipientEmail)
@@ -115,19 +132,21 @@ func (s *Service) NotifyContractDocument(ctx context.Context, organizationID, co
 	if index < 0 {
 		return nil
 	}
-	return s.notifyDocumentAt(ctx, DocumentPushContract, target.SchoolID, accountID, contractID, access.children[target.SchoolID][index:index+1])
+	_, err = s.notifyDocumentAt(ctx, DocumentPushContract, target.SchoolID, accountID, contractID, access.children[target.SchoolID][index:index+1])
+	return err
 }
 
-// NotifyTraegerDocumentRelease sends the push of a release for parents to
-// every account it newly shows the document. A revoked release, a deleted
-// document or a release for schools reaches nobody.
+// NotifyTraegerDocumentRelease fans the push of a release for parents out
+// to one outbox entry per candidate account at the schools the release
+// names. A revoked release, a deleted document or a release for schools
+// reaches nobody. Each entry is checked again when it runs
+// (NotifyTraegerDocumentReleaseAccount).
 func (s *Service) NotifyTraegerDocumentRelease(ctx context.Context, organizationID, releaseID int64) error {
-	if s.TraegerRuntime == nil || s.ReleaseNotices == nil || s.ReleaseSchools == nil || s.ReleaseRecipients == nil || s.DocumentNotifier == nil ||
-		s.SchoolTraeger == nil || s.StudentRepo == nil {
-		return errors.New("parent: release notice is not configured")
+	if err := s.releaseNoticeConfigured(organizationID, releaseID); err != nil {
+		return err
 	}
-	if organizationID <= 0 || releaseID <= 0 {
-		return errors.New("parent: release notice needs a Träger and a release")
+	if s.ReleaseFanOut == nil || s.ReleaseRecipients == nil {
+		return errors.New("parent: release fan-out is not configured")
 	}
 	audience, found, err := s.activeRelease(ctx, organizationID, releaseID)
 	if err != nil || !found {
@@ -138,13 +157,45 @@ func (s *Service) NotifyTraegerDocumentRelease(ctx context.Context, organization
 		return err
 	}
 	accounts, err := s.releaseCandidates(ctx, schools, audience.GroupID)
+	if err != nil || len(accounts) == 0 {
+		return err
+	}
+	err = s.TraegerRuntime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
+		return s.ReleaseFanOut.EnqueueReleaseAccounts(txCtx, organizationID, releaseID, accounts)
+	})
+	if err != nil {
+		return fmt.Errorf("parent: fan out release notice: %w", err)
+	}
+	return nil
+}
+
+// NotifyTraegerDocumentReleaseAccount sends the push of a release to one
+// account, after reading the release and the account's relationships again.
+func (s *Service) NotifyTraegerDocumentReleaseAccount(ctx context.Context, organizationID, releaseID, accountID int64) error {
+	if err := s.releaseNoticeConfigured(organizationID, releaseID); err != nil {
+		return err
+	}
+	if accountID <= 0 {
+		return errors.New("parent: release notice needs an account")
+	}
+	audience, found, err := s.activeRelease(ctx, organizationID, releaseID)
+	if err != nil || !found {
+		return err
+	}
+	schools, err := s.releaseSchools(ctx, organizationID, audience)
 	if err != nil {
 		return err
 	}
-	for _, accountID := range accounts {
-		if err := s.notifyReleaseTo(ctx, organizationID, releaseID, accountID, schools, audience.GroupID); err != nil {
-			return err
-		}
+	return s.notifyReleaseTo(ctx, organizationID, releaseID, accountID, schools, audience.GroupID)
+}
+
+func (s *Service) releaseNoticeConfigured(organizationID, releaseID int64) error {
+	if s.TraegerRuntime == nil || s.ReleaseNotices == nil || s.ReleaseSchools == nil || s.TraegerDocumentNotifier == nil ||
+		s.SchoolTraeger == nil || s.StudentRepo == nil {
+		return errors.New("parent: release notice is not configured")
+	}
+	if organizationID <= 0 || releaseID <= 0 {
+		return errors.New("parent: release notice needs a Träger and a release")
 	}
 	return nil
 }
@@ -197,8 +248,10 @@ func (s *Service) releaseCandidates(ctx context.Context, schools []int64, groupI
 }
 
 // notifyReleaseTo checks one account through its own relationships and the
-// release's coverage and sends it the push at the first school, in
-// ascending order, where the release reaches one of its children.
+// release's coverage and sends it one push: at the first school, in
+// ascending order, where the release reaches one of its children and the
+// push can go out. A school with notifications switched off or without the
+// Eltern-App passes the push on to the next one.
 func (s *Service) notifyReleaseTo(ctx context.Context, organizationID, releaseID, accountID int64, schools []int64, groupID *int64) error {
 	reached, reader, err := s.releaseChildren(ctx, organizationID, accountID, schools, groupID)
 	if err != nil || len(reached) == 0 {
@@ -216,9 +269,19 @@ func (s *Service) notifyReleaseTo(ctx context.Context, organizationID, releaseID
 	if !isNew {
 		return nil
 	}
-	schoolID := reached[0].TenantID
-	children := slices.DeleteFunc(slices.Clone(reached), func(child *ChildSummary) bool { return child.TenantID != schoolID })
-	return s.notifyDocumentAt(ctx, DocumentPushRelease, schoolID, accountID, releaseID, children)
+	for start := 0; start < len(reached); {
+		schoolID := reached[start].TenantID
+		end := start
+		for end < len(reached) && reached[end].TenantID == schoolID {
+			end++
+		}
+		sent, err := s.notifyDocumentAt(ctx, DocumentPushRelease, schoolID, accountID, releaseID, reached[start:end])
+		if err != nil || sent {
+			return err
+		}
+		start = end
+	}
+	return nil
 }
 
 // releaseChildren resolves, in one administrative transaction, the account's
@@ -274,19 +337,23 @@ func (s *Service) reachedChildren(ctx context.Context, children []*ChildSummary,
 }
 
 // notifyDocumentAt sends the push of one document at one school in its
-// tenant transaction, in the language the guardian chose there.
-func (s *Service) notifyDocumentAt(ctx context.Context, kind string, schoolID, accountID, documentID int64, children []*ChildSummary) error {
+// tenant transaction, in the language the guardian chose there, and tells
+// whether a device push was enqueued.
+func (s *Service) notifyDocumentAt(ctx context.Context, kind string, schoolID, accountID, documentID int64, children []*ChildSummary) (bool, error) {
 	studentIDs := make([]int64, len(children))
 	for i, child := range children {
 		studentIDs[i] = child.StudentID
 	}
-	return s.Runtime.WithinTenant(ctx, schoolID, func(txCtx context.Context) error {
+	var sent bool
+	err := s.Runtime.WithinTenant(ctx, schoolID, func(txCtx context.Context) error {
 		locale, err := s.guardianLocale(txCtx, children[0].GuardianProfileID)
 		if err != nil {
 			return err
 		}
-		return s.DocumentNotifier.NotifyBillingDocument(txCtx, BillingDocumentPush{
+		sent, err = s.TraegerDocumentNotifier.NotifyTraegerDocument(txCtx, BillingDocumentPush{
 			Kind: kind, TenantID: schoolID, AccountID: accountID, StudentIDs: studentIDs, DocumentID: documentID, Locale: locale,
 		})
+		return err
 	})
+	return sent, err
 }

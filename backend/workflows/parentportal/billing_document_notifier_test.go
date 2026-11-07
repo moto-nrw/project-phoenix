@@ -72,3 +72,38 @@ func TestParentDocumentNotifierAsksForConsentAndNamesNoChild(t *testing.T) {
 	require.NoError(t, owners.NewParentDocumentNotifier(disabled, documentPreferencesDouble{optedIn: []int64{7301}}).NotifyBillingDocument(context.Background(), push),
 		"a school that switched notifications off leaves the document in the inbox without a push")
 }
+
+// The pushes of a contract and of a release (#5941) share the letters'
+// type, consent and copy; their keys and related types name their kind, so
+// equal numeric IDs never collide. A school that switched notifications off
+// enqueues nothing, which the release's fallback reads as not sent.
+func TestTraegerDocumentNotifierKeysEachKindAndReportsWhatWentOut(t *testing.T) {
+	t.Parallel()
+	router := &documentNotificationsDouble{}
+	notifier, ok := owners.NewParentDocumentNotifier(router, documentPreferencesDouble{optedIn: []int64{7301}}).(parentService.TraegerDocumentNotifierPort)
+	require.True(t, ok)
+	for _, kind := range []string{parentService.DocumentPushBilling, parentService.DocumentPushContract, parentService.DocumentPushRelease} {
+		sent, err := notifier.NotifyTraegerDocument(context.Background(), parentService.BillingDocumentPush{Kind: kind, TenantID: 21, AccountID: 7301, StudentIDs: []int64{11}, DocumentID: 31})
+		require.NoError(t, err)
+		assert.True(t, sent, kind)
+	}
+	require.Len(t, router.events, 3)
+	assert.Equal(t, []string{"parent-billing-document:31:7301", "parent-care-contract-document:31:7301", "parent-traeger-document-release:31:7301"},
+		[]string{router.events[0].IdempotencyKey, router.events[1].IdempotencyKey, router.events[2].IdempotencyKey})
+	assert.Equal(t, []string{"parent_billing_document", "care_contract_document", "traeger_document_release"},
+		[]string{router.events[0].RelatedType, router.events[1].RelatedType, router.events[2].RelatedType})
+	for _, event := range router.events {
+		assert.Equal(t, "parent_billing_document", event.Type, "one consent for every kind")
+		assert.Equal(t, "/documents", event.DeepLink)
+	}
+
+	disabled := &documentNotificationsDouble{err: deliveryPolicy.ErrNotificationsDisabled}
+	sent, err := owners.NewParentDocumentNotifier(disabled, documentPreferencesDouble{optedIn: []int64{7301}}).(parentService.TraegerDocumentNotifierPort).
+		NotifyTraegerDocument(context.Background(), parentService.BillingDocumentPush{Kind: parentService.DocumentPushRelease, TenantID: 21, AccountID: 7301, DocumentID: 31})
+	require.NoError(t, err)
+	assert.False(t, sent, "a school with notifications off sends nothing, so the next school is tried")
+	sent, err = owners.NewParentDocumentNotifier(router, documentPreferencesDouble{}).(parentService.TraegerDocumentNotifierPort).
+		NotifyTraegerDocument(context.Background(), parentService.BillingDocumentPush{Kind: parentService.DocumentPushRelease, TenantID: 21, AccountID: 7301, DocumentID: 31})
+	require.NoError(t, err)
+	assert.False(t, sent, "no consent, no push")
+}

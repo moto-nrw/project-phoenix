@@ -19,10 +19,21 @@ import (
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
-// recordedPushes records the pushes the document notice sends.
+// recordedPushes records the pushes the document notice sends; a school in
+// unsent enqueues no device push there (#5941).
 type recordedPushes struct {
 	mu     sync.Mutex
 	pushes []parentService.BillingDocumentPush
+	unsent map[int64]bool
+}
+
+func (r *recordedPushes) NotifyTraegerDocument(ctx context.Context, push parentService.BillingDocumentPush) (bool, error) {
+	if err := r.NotifyBillingDocument(ctx, push); err != nil {
+		return false, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return !r.unsent[push.TenantID], nil
 }
 
 func (r *recordedPushes) NotifyBillingDocument(_ context.Context, push parentService.BillingDocumentPush) error {

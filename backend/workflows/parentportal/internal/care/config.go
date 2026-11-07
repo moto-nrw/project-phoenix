@@ -94,6 +94,10 @@ type Config struct {
 	ReleaseNotices       ReleaseNotices
 	ReleaseSchools       ReleaseSchools
 	ReleaseRecipients    ReleaseRecipients
+	ReleaseFanOut        ReleaseFanOut
+	// TraegerDocumentNotifier sends those two pushes and tells whether one
+	// went out at a school.
+	TraegerDocumentNotifier TraegerDocumentNotifier
 
 	// Owner commands. Care Plan records absences, the guardian leg of a
 	// day's pickup exception and the Stammdaten requests; People Directory

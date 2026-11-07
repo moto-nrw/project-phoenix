@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +24,47 @@ import (
 // Identity & Access and the parent audience projection, with the pushes
 // recorded. The notices run as the Delivery worker runs them.
 
-func traegerDocumentNotices(t *testing.T) (parentService.DocumentNotices, *recordedPushes, *bun.DB) {
+// recordedFanOut records the accounts a release fans out to.
+type recordedFanOut struct {
+	mu       sync.Mutex
+	accounts map[int64][]int64
+}
+
+func (f *recordedFanOut) EnqueueReleaseAccounts(_ context.Context, _, releaseID int64, accountIDs []int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.accounts == nil {
+		f.accounts = map[int64][]int64{}
+	}
+	f.accounts[releaseID] = append(f.accounts[releaseID], accountIDs...)
+	return nil
+}
+
+func (f *recordedFanOut) of(releaseID int64) []int64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]int64(nil), f.accounts[releaseID]...)
+}
+
+// releaseNotices runs a release's push as the worker does: the fan-out,
+// then the entry of each account it fanned out to. The shared school of the
+// fixtures has the parents of other tests too; only the given accounts run.
+type releaseNotices struct {
+	parentService.DocumentNotices
+	fan *recordedFanOut
+}
+
+func (n releaseNotices) send(t *testing.T, ctx context.Context, organization, release int64, accounts ...int64) {
+	t.Helper()
+	require.NoError(t, n.NotifyTraegerDocumentRelease(ctx, organization, release))
+	for _, account := range n.fan.of(release) {
+		if slices.Contains(accounts, account) {
+			require.NoError(t, n.NotifyTraegerDocumentReleaseAccount(ctx, organization, release, account))
+		}
+	}
+}
+
+func traegerDocumentNotices(t *testing.T) (releaseNotices, *recordedPushes, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	deps := documentInboxDependencies(t, db, &owners.CareContractTestMails{})
@@ -31,13 +73,16 @@ func traegerDocumentNotices(t *testing.T) (parentService.DocumentNotices, *recor
 	require.NoError(t, err)
 	pushes := &recordedPushes{}
 	deps.DocumentNotifier = pushes
+	deps.TraegerDocumentNotifier = pushes
+	fan := &recordedFanOut{}
+	deps.ReleaseFanOut = fan
 	deps.StudentRepo = owners.NewParentStudentReads(people.Student)
 	deps.ContractInboxNotices = owners.NewParentContractInboxNotices()
 	deps.ReleaseNotices = owners.NewParentReleaseNotices()
 	deps.ReleaseSchools = owners.NewParentReleaseSchools(organizations)
 	deps.ReleaseRecipients = owners.NewParentReleaseRecipients(owners.NewParentGroupAudience(testpkg.NewDatabase(t, db)))
 	deps.Logger = slog.Default()
-	return parentportalcompose.NewDocumentNotices(deps), pushes, db
+	return releaseNotices{DocumentNotices: parentportalcompose.NewDocumentNotices(deps), fan: fan}, pushes, db
 }
 
 // to keeps the pushes to one account: the shared school of the fixtures has
@@ -144,7 +189,7 @@ func TestReleaseNoticeFollowsTheRelationshipAndTheActiveRelease(t *testing.T) {
 
 	letter := own.document("Elternbrief")
 	forSchool := own.release(letter, "parents", chain.TenantID, nil)
-	require.NoError(t, notices.NotifyTraegerDocumentRelease(ctx, organization, forSchool))
+	notices.send(t, ctx, organization, forSchool, chain.AccountID)
 	require.Equal(t, []parentService.BillingDocumentPush{{
 		Kind: parentService.DocumentPushRelease, TenantID: chain.TenantID, AccountID: chain.AccountID,
 		StudentIDs: []int64{chain.StudentID}, DocumentID: forSchool,
@@ -152,7 +197,7 @@ func TestReleaseNoticeFollowsTheRelationshipAndTheActiveRelease(t *testing.T) {
 
 	trip := own.document("Ausflug")
 	forGroup := own.release(trip, "parents", chain.TenantID, group)
-	require.NoError(t, notices.NotifyTraegerDocumentRelease(ctx, organization, forGroup))
+	notices.send(t, ctx, organization, forGroup, chain.AccountID)
 	require.Len(t, pushes.to(chain.AccountID), 2, "the child's group")
 
 	silent := map[string]int64{
@@ -171,14 +216,14 @@ func TestReleaseNoticeFollowsTheRelationshipAndTheActiveRelease(t *testing.T) {
 	require.NoError(t, err)
 	silent["deleted document"] = deleted
 	for name, release := range silent {
-		require.NoError(t, notices.NotifyTraegerDocumentRelease(ctx, organization, release), name)
+		notices.send(t, ctx, organization, release, chain.AccountID)
 		assert.Len(t, pushes.to(chain.AccountID), 2, name)
 	}
 	foreign := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
 		Name: "Fremder Träger Push", Slug: fmt.Sprintf("traeger-push-%d", testpkg.UniqueTestTenantID(t)),
 	}).ID
 	testpkg.OwnTraegerDocuments(t, db, foreign)
-	require.NoError(t, notices.NotifyTraegerDocumentRelease(ctx, foreign, forSchool), "the release under another Träger")
+	notices.send(t, ctx, foreign, forSchool, chain.AccountID)
 	assert.Len(t, pushes.to(chain.AccountID), 2)
 
 	// A new release after the revocation of the only one is a new document
@@ -186,7 +231,7 @@ func TestReleaseNoticeFollowsTheRelationshipAndTheActiveRelease(t *testing.T) {
 	own.revoke(forSchool)
 	own.revoke(silent["already seen"])
 	again := own.release(letter, "parents", chain.TenantID, nil)
-	require.NoError(t, notices.NotifyTraegerDocumentRelease(ctx, organization, again))
+	notices.send(t, ctx, organization, again, chain.AccountID)
 	require.Len(t, pushes.to(chain.AccountID), 3)
 	assert.Equal(t, again, pushes.to(chain.AccountID)[2].DocumentID)
 
@@ -196,6 +241,59 @@ func TestReleaseNoticeFollowsTheRelationshipAndTheActiveRelease(t *testing.T) {
 		WHERE relationship_id IN (SELECT id FROM users.student_guardian_relationships WHERE guardian_profile_id = ?)`, chain.GuardianProfileID)
 	require.NoError(t, err)
 	late := own.release(own.document("Nach Rechteentzug"), "parents", chain.TenantID, nil)
-	require.NoError(t, notices.NotifyTraegerDocumentRelease(ctx, organization, late))
+	notices.send(t, ctx, organization, late, chain.AccountID)
 	assert.Len(t, pushes.to(chain.AccountID), 3, "a removed right stops the push")
+}
+
+// TestReleaseFansOutAndFallsBackToASchoolThatSends pins the two reliability
+// guards of #5941 for releases: a release fans out to one entry per
+// candidate account, never twice; an account with children at two schools of
+// a release for every school gets exactly one push, at the next school when
+// the first one enqueues none (notifications off or no Eltern-App there).
+func TestReleaseFansOutAndFallsBackToASchoolThatSends(t *testing.T) {
+	t.Parallel()
+	notices, pushes, db := traegerDocumentNotices(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	organization := organizationOf(t, db, chain.TenantID)
+	testpkg.OwnTraegerDocuments(t, db, organization)
+	second := testpkg.CreateTestSchoolInOrganization(t, db, organization, "Zweite OGS Push")
+	sibling := testpkg.CreateTestStudentForTenant(t, db, second, "Mia", "Schneider", "2b")
+	profile := testpkg.CreateTestGuardianProfileForTenant(t, db, second, "Sabine", "Schneider", "zweite-schule")
+	_, err := db.ExecContext(ctx, `UPDATE users.guardian_profiles SET account_id = ?, has_account = true WHERE id = ?`, chain.AccountID, profile.ID)
+	require.NoError(t, err)
+	testpkg.CreateTestStudentGuardianLinkForTenant(t, db, second, sibling.ID, profile.ID, "primary_guardian")
+	testpkg.EnsureAccountTenant(t, db, chain.AccountID, second)
+	first, later := chain.TenantID, second
+	if later < first {
+		first, later = later, first
+	}
+	own := sharedDocumentTraeger{t: t, db: db, organization: organization}
+
+	everywhere := own.release(own.document("Für alle"), "parents", nil, nil)
+	notices.send(t, ctx, organization, everywhere, chain.AccountID)
+	assert.Equal(t, 1, countOf(notices.fan.of(everywhere), chain.AccountID), "one entry per account, also with two schools")
+	sent := pushes.to(chain.AccountID)
+	require.Len(t, sent, 1, "one push for two children at two schools")
+	assert.Equal(t, first, sent[0].TenantID, "the first school that sends")
+
+	pushes.mu.Lock()
+	pushes.unsent = map[int64]bool{first: true}
+	pushes.mu.Unlock()
+	fallback := own.release(own.document("Rückfall"), "parents", nil, nil)
+	notices.send(t, ctx, organization, fallback, chain.AccountID)
+	sent = pushes.to(chain.AccountID)
+	require.Len(t, sent, 3, "the first school is tried, then the next one")
+	assert.Equal(t, []int64{first, later}, []int64{sent[1].TenantID, sent[2].TenantID})
+	assert.Equal(t, fallback, sent[2].DocumentID)
+}
+
+func countOf(values []int64, value int64) int {
+	n := 0
+	for _, v := range values {
+		if v == value {
+			n++
+		}
+	}
+	return n
 }

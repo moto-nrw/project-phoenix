@@ -83,12 +83,14 @@ type Dependencies struct {
 	ParentAccounts    care.ParentAccounts
 	DocumentNotifier  care.BillingDocumentNotifier
 	// The push of a sent contract and of a release for parents (#5941).
-	ContractInboxNotices care.ContractInboxNotices
-	ReleaseNotices       care.ReleaseNotices
-	ReleaseSchools       care.ReleaseSchools
-	ReleaseRecipients    care.ReleaseRecipients
-	GuardianInvites      care.GuardianAccess
-	GuardianInvitations  care.GuardianInvitationReads
+	ContractInboxNotices    care.ContractInboxNotices
+	ReleaseNotices          care.ReleaseNotices
+	ReleaseSchools          care.ReleaseSchools
+	ReleaseRecipients       care.ReleaseRecipients
+	ReleaseFanOut           care.ReleaseFanOut
+	TraegerDocumentNotifier care.TraegerDocumentNotifier
+	GuardianInvites         care.GuardianAccess
+	GuardianInvitations     care.GuardianInvitationReads
 
 	// Messaging: conversation, announcements, surveys, request-sharing reads.
 	MessageThreadRepo         messaging.MessageThreadAccess
@@ -214,5 +216,6 @@ func NewDocumentNotices(deps Dependencies) parentportal.DocumentNotices {
 	return &care.Service{Config: care.Config{Runtime: deps.Runtime, ChildRepo: deps.ChildRepo, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, GuardianProfileRepo: deps.GuardianProfileRepo, DocumentNotifier: deps.DocumentNotifier,
 		TraegerRuntime: deps.TraegerRuntime, StudentRepo: deps.StudentRepo, ContractInboxNotices: deps.ContractInboxNotices,
-		ReleaseNotices: deps.ReleaseNotices, ReleaseSchools: deps.ReleaseSchools, ReleaseRecipients: deps.ReleaseRecipients, Logger: deps.Logger}}
+		ReleaseNotices: deps.ReleaseNotices, ReleaseSchools: deps.ReleaseSchools, ReleaseRecipients: deps.ReleaseRecipients,
+		ReleaseFanOut: deps.ReleaseFanOut, TraegerDocumentNotifier: deps.TraegerDocumentNotifier, Logger: deps.Logger}}
 }

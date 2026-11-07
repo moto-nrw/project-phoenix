@@ -221,16 +221,25 @@ func NewParentDocumentNotifier(notifications deliveryPolicy.NotificationCommands
 }
 
 func (n parentDocumentNotifier) NotifyBillingDocument(ctx context.Context, push parentportal.BillingDocumentPush) error {
+	_, err := n.NotifyTraegerDocument(ctx, push)
+	return err
+}
+
+// NotifyTraegerDocument sends the push of any document kind (#5941) and
+// tells whether a device push was enqueued at the school. Without consent,
+// with notifications switched off at the school or outside its active window
+// none is.
+func (n parentDocumentNotifier) NotifyTraegerDocument(ctx context.Context, push parentportal.BillingDocumentPush) (bool, error) {
 	optedIn, err := n.preferences.FilterOptedIn(ctx, parentBillingDocumentType, []int64{push.AccountID})
 	if err != nil || len(optedIn) == 0 {
-		return err
+		return false, err
 	}
 	keyPrefix, relatedType, err := documentPushIdentity(push.Kind)
 	if err != nil {
-		return err
+		return false, err
 	}
 	title, body := deliveryPolicy.ParentDeliveryPolicy{}.ParentBillingDocumentCopy(push.Locale)
-	_, err = n.notifications.NotifyEventDurably(ctx, deliveryPolicy.NotificationEvent{
+	accepted, err := n.notifications.NotifyEventDurably(ctx, deliveryPolicy.NotificationEvent{
 		Type:           parentBillingDocumentType,
 		IdempotencyKey: fmt.Sprintf("%s:%d:%d", keyPrefix, push.DocumentID, push.AccountID),
 		RelatedType:    relatedType, RelatedID: push.DocumentID,
@@ -241,9 +250,9 @@ func (n parentDocumentNotifier) NotifyBillingDocument(ctx context.Context, push 
 	})
 	policy := deliveryPolicy.ParentDeliveryPolicy{}
 	if policy.IsNotificationsDisabled(err) || policy.IsOutsideActiveWindow(err) {
-		return nil
+		return false, nil
 	}
-	return err
+	return accepted > 0 && err == nil, err
 }
 
 // parentDocumentPushes routes the Träger's deferred push that a document
@@ -274,20 +283,22 @@ func (p parentDocumentPushes) send(ctx context.Context, intent deliveryContract.
 // school that does not book the Eltern-App.
 func BuildParentDocumentNotices(
 	db transactionruntime.Database, env RootEnvironment, portal carePlanCompose.ParentPortalRepositories, organizations organizationtenancy.Query,
-	identity identityaccess.GuardianAccessQuery, people PeopleRows, notifications DeliveryNotifications,
+	identity identityaccess.GuardianAccessQuery, people PeopleRows, notifications DeliveryNotifications, outbox DeferredPushOutbox,
 ) parentportal.DocumentNotices {
+	notifier := parentDocumentNotifier{notifications: notifications.Notifier, preferences: notifications.Preferences}
 	return parentportalcompose.NewDocumentNotices(parentportalcompose.Dependencies{
 		Runtime: ParentPortalRuntime{}, ChildRepo: NewParentChildReads(carePlanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)),
 		SchoolTraeger: NewParentSchoolTraeger(organizations), ParentAccounts: NewParentAccounts(identity),
 		GuardianProfileRepo: NewParentGuardianProfileReads(people.GuardianProfiles),
-		DocumentNotifier:    NewParentDocumentNotifier(notifications.Notifier, notifications.Preferences),
+		DocumentNotifier:    notifier,
 		// The pushes of a sent contract and of a release (#5941).
 		TraegerRuntime: ParentPortalRuntime{}, StudentRepo: NewParentStudentReads(people.Students),
 		ContractInboxNotices: NewParentContractInboxNotices(),
 		ReleaseNotices:       NewParentReleaseNotices(),
 		ReleaseSchools:       NewParentReleaseSchools(organizations),
 		ReleaseRecipients:    NewParentReleaseRecipients(NewParentGroupAudience(db)),
-		Logger:               env.Logger.With("service", "parent-document-notices"),
+		ReleaseFanOut:        ParentReleaseFanOut{Delivery: outbox}, TraegerDocumentNotifier: notifier,
+		Logger: env.Logger.With("service", "parent-document-notices"),
 	})
 }
 

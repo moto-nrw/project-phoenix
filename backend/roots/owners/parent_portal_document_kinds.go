@@ -38,7 +38,8 @@ func documentPushIdentity(kind string) (string, string, error) {
 // isTraegerDocumentPush tells the outbox kinds the parents portal sends.
 func isTraegerDocumentPush(template string) bool {
 	switch template {
-	case parentbilling.PushKindBillingDocument, carecontract.PushKindContractDocument, organizationtenancy.PushKindTraegerDocumentRelease:
+	case parentbilling.PushKindBillingDocument, carecontract.PushKindContractDocument, organizationtenancy.PushKindTraegerDocumentRelease,
+		pushKindTraegerDocumentReleaseAccount:
 		return true
 	}
 	return false
@@ -61,6 +62,15 @@ func (p parentDocumentPushes) route(ctx context.Context, intent deliveryContract
 			return err
 		}
 		return p.notices.NotifyTraegerDocumentRelease(ctx, notice.OrganizationID, notice.ReleaseID)
+	case pushKindTraegerDocumentReleaseAccount:
+		var notice releaseAccountNotice
+		if err := p.scoped(intent, organizationtenancy.PushRelatedTraegerDocumentRelease, &notice, func() (int64, int64) { return notice.OrganizationID, notice.ReleaseID }); err != nil {
+			return err
+		}
+		if notice.AccountID <= 0 {
+			return fmt.Errorf("%w: release notice without an account", deliveryContract.ErrCancelled)
+		}
+		return p.notices.NotifyTraegerDocumentReleaseAccount(ctx, notice.OrganizationID, notice.ReleaseID, notice.AccountID)
 	default:
 		return p.send(ctx, intent)
 	}
@@ -132,4 +142,40 @@ func (n TraegerDocumentReleaseNotices) EnqueueReleaseNotice(ctx context.Context,
 func contractDocumentNoticeKey(contractID int64, address string) string {
 	sum := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(address))))
 	return fmt.Sprintf("care-contract-document:%d:%s", contractID, hex.EncodeToString(sum[:8]))
+}
+
+// pushKindTraegerDocumentReleaseAccount is the outbox kind of the push of a
+// release to one account: the release fans out to one entry per candidate,
+// so every account has its own time limit and retries (#5941).
+const pushKindTraegerDocumentReleaseAccount = "traeger_document_release_account"
+
+// releaseAccountNotice is the payload of that entry.
+type releaseAccountNotice struct {
+	OrganizationID int64 `json:"organization_id"`
+	ReleaseID      int64 `json:"release_id"`
+	AccountID      int64 `json:"account_id"`
+}
+
+// ParentReleaseFanOut binds the fan-out of a release to Delivery's outbox in
+// the caller's Träger transaction. The key names the release and the
+// account, so a retried fan-out adds no entry twice.
+type ParentReleaseFanOut struct {
+	Delivery DeferredPushOutbox
+}
+
+func (f ParentReleaseFanOut) EnqueueReleaseAccounts(ctx context.Context, organizationID, releaseID int64, accountIDs []int64) error {
+	for _, accountID := range accountIDs {
+		payload, err := json.Marshal(releaseAccountNotice{OrganizationID: organizationID, ReleaseID: releaseID, AccountID: accountID})
+		if err != nil {
+			return fmt.Errorf("release account notice payload: %w", err)
+		}
+		if _, err := f.Delivery.EnqueueDeferredPush(ctx, deliveryContract.DeferredPushIntent{
+			OrganizationID: organizationID, Template: pushKindTraegerDocumentReleaseAccount,
+			IdempotencyKey: fmt.Sprintf("traeger-document-release:%d:account:%d", releaseID, accountID), Payload: payload,
+			Related: deliveryContract.RelatedEntity{Type: organizationtenancy.PushRelatedTraegerDocumentRelease, ID: releaseID},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

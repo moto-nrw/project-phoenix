@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,11 @@ func (d *documentNoticesDouble) NotifyContractDocument(_ context.Context, organi
 
 func (d *documentNoticesDouble) NotifyTraegerDocumentRelease(_ context.Context, organizationID, releaseID int64) error {
 	d.got = append(d.got, recordedDocumentNotice{organizationID, releaseID, "release"})
+	return nil
+}
+
+func (d *documentNoticesDouble) NotifyTraegerDocumentReleaseAccount(_ context.Context, organizationID, releaseID, accountID int64) error {
+	d.got = append(d.got, recordedDocumentNotice{organizationID, releaseID, fmt.Sprintf("release-account:%d", accountID)})
 	return nil
 }
 
