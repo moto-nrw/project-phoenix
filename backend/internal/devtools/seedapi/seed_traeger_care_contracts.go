@@ -16,7 +16,10 @@ import (
 // Worker's conclusion checks their acceptance evidence. Legacy demo
 // submissions without a ticked, checksummed conditions block stay candidates.
 // A fresh submission accepts the saved conditions before its approval; the
-// seed never fabricates retrospective parental consent.
+// seed never fabricates retrospective parental consent. Lina Amini, whose
+// parents' change of care the school approved (parent enrollment seed), is
+// reserved there too: once her contract is active, the Worker's next run
+// gives it version 2 from the day of the change (#4681).
 type seedTraegerCareContractsStep struct{}
 
 func (seedTraegerCareContractsStep) Name() string { return "Seeding the Träger care contracts" }
@@ -34,6 +37,14 @@ type seedCareContractCandidate struct {
 	SchoolID       int64  `json:"school_id"`
 	RequestChildID int64  `json:"request_child_id"`
 	TemplateIssue  string `json:"template_issue"`
+	ChildFirstName string `json:"child_first_name"`
+	ChildLastName  string `json:"child_last_name"`
+}
+
+// seedChangedCare names the child whose parents changed the care with an
+// approved request; her contract is concluded so it can follow the change.
+func (c seedCareContractCandidate) seedChangedCare() bool {
+	return c.ChildFirstName == "Lina" && c.ChildLastName == "Amini" && c.TemplateIssue == ""
 }
 
 func (seedTraegerCareContractsStep) Run(_ context.Context, rt *Runtime) error {
@@ -132,13 +143,23 @@ func seedCareContractDrafts(rt *Runtime, auth AuthRef) (int, error) {
 	return len(created.Data.Created), seedConclusionAtAcceptance(rt, onAcceptance)
 }
 
-// seedConclusionCandidates picks the school with the highest ID among the
-// candidates and reserves its last three candidates for the conclusion at
+// seedConclusionCandidates picks the school of the child with the changed
+// care, else the school with the highest ID among the candidates, and
+// reserves that child and its last three candidates for the conclusion at
 // the acceptance; they get no draft.
 func seedConclusionCandidates(candidates []seedCareContractCandidate) (int64, map[int64]bool) {
 	var school int64
+	changed := int64(0)
 	for _, candidate := range candidates {
 		school = max(school, candidate.SchoolID)
+		if candidate.seedChangedCare() {
+			changed = candidate.RequestChildID
+		}
+	}
+	for _, candidate := range candidates {
+		if candidate.RequestChildID == changed {
+			school = candidate.SchoolID
+		}
 	}
 	ids := []int64{}
 	for _, candidate := range candidates {
@@ -150,6 +171,9 @@ func seedConclusionCandidates(candidates []seedCareContractCandidate) (int64, ma
 	reserved := map[int64]bool{}
 	for _, id := range ids[max(0, len(ids)-3):] {
 		reserved[id] = true
+	}
+	if changed > 0 {
+		reserved[changed] = true
 	}
 	return school, reserved
 }

@@ -20,6 +20,8 @@
   "startsOn": "Początek",
   "lettersErrorObject": "pisma",
   "contractsErrorObject": "umowy opieki",
+  "replaced": "Zastąpiona",
+  "replacedNote": "Ta wersja już nie obowiązuje. Od {date} obowiązuje nowa wersja. Zawiera ona Państwa potwierdzone zmiany. Nową wersję otrzymają Państwo od organizatora.",
   "sharedSender": "Udostępnione rodzicom przez: {traeger}",
   "file": "Plik",
   "releasedAt": "Udostępniono",

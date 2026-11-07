@@ -17,7 +17,9 @@ import (
 // acceptance (Weg b, #4680, ADR 0088 section 6) over the ports the portal
 // routes bind (NewCareContractConclusion). A run walks every active Träger;
 // a Träger whose run fails leaves its children candidates for the next run
-// and does not stop the other Träger.
+// and does not stop the other Träger. After the conclusion the same run
+// brings every active contract in line with an approved change of its
+// booked care (#4681, Conclusion.AmendFromBookings); the count covers both.
 func CareContractConclusionJob(logger *slog.Logger) owners.CareContractConclusionBuilder {
 	return func(organizations organizationtenancy.Capability, settings owners.SettingsOwner,
 		delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) schedulerPorts.CareContractConclusion {
@@ -26,7 +28,9 @@ func CareContractConclusionJob(logger *slog.Logger) owners.CareContractConclusio
 		}
 		conclusion := NewCareContractConclusion(organizations, settings.Traeger, settings.Service, delivery, outcomes, accessLog)
 		return func(ctx context.Context) (int, error) {
-			return concludeEveryTraeger(ctx, organizations, conclusion, logger)
+			concluded, concludeErr := concludeEveryTraeger(ctx, organizations, conclusion, logger)
+			amended, amendErr := amendEveryTraeger(ctx, organizations, conclusion, logger)
+			return concluded + amended, errors.Join(concludeErr, amendErr)
 		}
 	}
 }
@@ -58,4 +62,33 @@ func concludeEveryTraeger(ctx context.Context, organizations organizationtenancy
 		}
 	}
 	return concluded, errors.Join(failures...)
+}
+
+// amendEveryTraeger runs the amendments for every active Träger and counts
+// the new versions; the failures of single Träger are joined.
+func amendEveryTraeger(ctx context.Context, organizations organizationtenancy.Capability, amendments carecontract.Conclusion,
+	logger *slog.Logger) (int, error) {
+	found, err := organizations.ListOrganizations(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("care contract amendments: list Träger: %w", err)
+	}
+	amended, failures := 0, []error{}
+	for _, organization := range found {
+		if !organization.Active || organization.IsDeleted() {
+			continue
+		}
+		run, err := amendments.AmendFromBookings(ctx, organization.ID)
+		amended += len(run.Amended)
+		if err != nil {
+			failures = append(failures, fmt.Errorf("care contract amendments of Träger %d: %w", organization.ID, err))
+			continue
+		}
+		if len(run.Skipped) > 0 {
+			logger.Debug("care contract amendments held back",
+				"organization_id", organization.ID,
+				"skipped", len(run.Skipped),
+			)
+		}
+	}
+	return amended, errors.Join(failures...)
 }

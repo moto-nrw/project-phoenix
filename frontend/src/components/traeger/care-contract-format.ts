@@ -105,17 +105,21 @@ export interface ServiceDay {
 
 /**
  * The weekdays of a contract as the PDF prints them: Monday to Friday
- * always, Saturday and Sunday only when booked. A day without services has
- * no care.
+ * always, Saturday and Sunday only when booked or named in `include` (a
+ * weekend day another version books). A day without services has no care.
  */
 export function serviceDays(
   services: readonly ContractService[],
+  include: readonly Weekday[] = [],
 ): ServiceDay[] {
   return WEEKDAY_ORDER.map((weekday) => ({
     weekday,
     label: WEEKDAY_LONG[weekday],
     services: services.filter((service) => service.weekday === weekday),
-  })).filter((day, index) => index < 5 || day.services.length > 0);
+  })).filter(
+    (day, index) =>
+      index < 5 || day.services.length > 0 || include.includes(day.weekday),
+  );
 }
 
 /** One module of a day: „Kurzbetreuung bis 14:00 Uhr“. */

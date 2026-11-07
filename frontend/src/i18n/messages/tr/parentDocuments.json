@@ -20,6 +20,8 @@
   "startsOn": "Başlangıç",
   "lettersErrorObject": "yazılar",
   "contractsErrorObject": "bakım sözleşmeleri",
+  "replaced": "Değiştirildi",
+  "replacedNote": "Bu sürüm artık geçerli değil. {date} tarihinden itibaren yeni bir sürüm geçerlidir. Onaylanan değişikliklerinizi içerir. Yeni sürümü kurumdan alırsınız.",
   "sharedSender": "{traeger} tarafından velilerle paylaşıldı",
   "file": "Dosya",
   "releasedAt": "Paylaşım tarihi",

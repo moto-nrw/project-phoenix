@@ -166,22 +166,7 @@ func (Store) InsertContract(ctx context.Context, organizationID, accountID int64
 	if err != nil {
 		return 0, fmt.Errorf("care contract postgres: insert contract: %w", err)
 	}
-	version, terms := contract.Version, contract.Version.Terms
-	var versionID int64
-	if err := db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id, contract_id,
-			version_number, status, effective_from, ends_on, child_first_name, child_last_name, child_birth_date,
-			school_name, phase_name, price_cents, term_kind, term_months, notice_months, notice_to, special_termination,
-			special_termination_note, statute_required, statute_title, statute_url, contract_partner)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-		organizationID, id, version.Number, version.Status, version.EffectiveFrom, version.EndsOn,
-		version.ChildFirstName, version.ChildLastName, version.ChildBirthDate, version.SchoolName, version.PhaseName,
-		version.PriceCents,
-		terms.TermKind, terms.TermMonths, terms.NoticeMonths, terms.NoticeTo, terms.SpecialTermination,
-		terms.SpecialTerminationNote, terms.StatuteRequired, terms.StatuteTitle, terms.StatuteURL,
-		terms.ContractPartner).Scan(ctx, &versionID); err != nil {
-		return 0, fmt.Errorf("care contract postgres: insert version: %w", err)
-	}
-	if err := insertServices(ctx, db, organizationID, versionID, version.Services); err != nil {
+	if _, err := insertVersion(ctx, db, organizationID, id, contract.Version); err != nil {
 		return 0, err
 	}
 	party := contract.Party
@@ -226,15 +211,15 @@ const moduleNamesSQL = `ARRAY(SELECT s.module_name FROM care_contract.contract_v
 		GROUP BY s.module_name
 		ORDER BY MIN(array_position(ARRAY['mon','tue','wed','thu','fri','sat','sun']::text[], s.weekday::text)), s.module_name)`
 
-// summarySQL reads a contract with its current version and its first
+// summarySQL reads a contract with its current version (currentVersionOrderSQL) and its first
 // party; the filter follows.
 const summarySQL = `SELECT c.id, c.status, c.school_id, c.created_at, c.sent_at, c.concluded_at, c.conclusion_method,
 	v.school_name, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.effective_from,
 	COALESCE(p.first_name || ' ' || p.last_name, '') AS party_name, COALESCE(p.email, '') AS party_email
 	FROM care_contract.contracts AS c
-	JOIN LATERAL (SELECT * FROM care_contract.contract_versions AS cv
-		WHERE cv.organization_id = c.organization_id AND cv.contract_id = c.id
-		ORDER BY cv.version_number DESC LIMIT 1) AS v ON true
+	JOIN LATERAL (SELECT * FROM care_contract.contract_versions AS v
+		WHERE v.organization_id = c.organization_id AND v.contract_id = c.id
+		ORDER BY ` + currentVersionOrderSQL + ` LIMIT 1) AS v ON true
 	LEFT JOIN LATERAL (SELECT * FROM care_contract.contract_parties AS cp
 		WHERE cp.organization_id = c.organization_id AND cp.contract_id = c.id
 		ORDER BY cp.id LIMIT 1) AS p ON true
