@@ -120,13 +120,9 @@ func (s *service) fillOccupancySection(ctx context.Context, report *studentprese
 // occupancyRetention resolves how far back the status days and the
 // attendance reach.
 func (s *service) occupancyRetention(ctx context.Context) (int, int, error) {
-	planDays, err := s.cfg.Retention.StatusDayRetentionDays(ctx)
+	planDays, actualDays, err := s.cfg.Retention.OccupancyRetentionDays(ctx)
 	if err != nil {
-		return 0, 0, fmt.Errorf("load status day retention: %w", err)
-	}
-	actualDays, err := s.cfg.Retention.AttendanceRetentionDays(ctx)
-	if err != nil {
-		return 0, 0, fmt.Errorf("load attendance retention: %w", err)
+		return 0, 0, fmt.Errorf("load status day and attendance retention: %w", err)
 	}
 	return planDays, actualDays, nil
 }

@@ -216,7 +216,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/organizationtenancy/compose (+10) and the shared document port of
 // workflows/parentportal/compose (+1) add exactly 11 LOC.
 // #4680 lowers modules/carecontract/compose by 3 LOC.
-const moduleComposeBudgetTotal = 12959
+// ADR 0156: the booked care read and the overrun evaluation of
+// modules/carecontract/compose (+19) and the contract Soll port of
+// modules/studentpresence/compose (+4) add exactly 23 LOC.
+const moduleComposeBudgetTotal = 12982
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -281,7 +284,8 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0126: the document inbox constructor (+6).
 	// Added by ADR 0153: construction of the care contract owner, with the
 	// ports of the contract reads for the schools' access logs.
-	"modules/carecontract/compose":                50,
+	// ADR 0156: the booked care read and the overrun evaluation (+19).
+	"modules/carecontract/compose":                69,
 	"modules/parentbilling/compose":               50,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
@@ -307,7 +311,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentdirectoryview/compose": 9,
 	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
 	// ADR 0151: the school figure constructor (+13).
-	"modules/studentpresence/compose":                 263,
+	// ADR 0156: the contract Soll port (+4).
+	"modules/studentpresence/compose":                 267,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
 	// Raised by ADR 0128: the student template days constructor (+5) and by

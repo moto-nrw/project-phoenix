@@ -643,6 +643,17 @@ func (s *service) roomRetentionDays(ctx context.Context, students []studentprese
 }
 
 func (s *service) recordAccess(ctx context.Context, filters studentpresence.StatisticsFilters, actor studentpresence.StatisticsActor, action, format string, dedup bool) error {
+	return s.recordAccessOf(ctx, filters, actor, action, format, dedup, nil)
+}
+
+// recordStudentAccess records a read of one child's care times (#4683, ADR
+// 0088 section 7): the child travels as the entry's student and in the
+// metadata, so reads of different children never deduplicate each other.
+func (s *service) recordStudentAccess(ctx context.Context, filters studentpresence.StatisticsFilters, actor studentpresence.StatisticsActor, studentID int64) error {
+	return s.recordAccessOf(ctx, filters, actor, "view_student", "", true, &studentID)
+}
+
+func (s *service) recordAccessOf(ctx context.Context, filters studentpresence.StatisticsFilters, actor studentpresence.StatisticsActor, action, format string, dedup bool, studentID *int64) error {
 	if s.cfg.AccessLog == nil {
 		return fmt.Errorf("%w: access log not configured", studentpresence.ErrStatisticsAuditFailed)
 	}
@@ -651,6 +662,9 @@ func (s *service) recordAccess(ctx context.Context, filters studentpresence.Stat
 		role = "unknown"
 	}
 	meta := accessMetadata(filters, action)
+	if studentID != nil {
+		meta["student_id"] = strconv.FormatInt(*studentID, 10)
+	}
 	now := s.cfg.Now()
 	if dedup {
 		exists, err := s.cfg.AccessLog.SeenStatisticsAccessSince(ctx, actor.AccountID, meta, now.Add(-viewDedupWindow))
@@ -662,6 +676,7 @@ func (s *service) recordAccess(ctx context.Context, filters studentpresence.Stat
 		}
 	}
 	entry := ports.StatisticsAccessEvent{
+		StudentID:      studentID,
 		ActorAccountID: actor.AccountID,
 		ActorRole:      role,
 		RangeStart:     filters.From.BerlinMidnight(),
