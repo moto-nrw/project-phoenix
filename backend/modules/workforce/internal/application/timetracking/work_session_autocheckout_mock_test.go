@@ -881,3 +881,44 @@ func TestAutoCheckout_BalanceLockFailureAbortsBeforeRowLocks(t *testing.T) {
 	require.ErrorIs(t, err, lockErr)
 	assert.Zero(t, count)
 }
+
+// A sick report cancels the shift under the staff balance lock. A tick that
+// listed the session as due before that lock must decide on the shifts it
+// reads under the lock, so it does not check out against the cancelled shift.
+func TestAutoCheckout_RereadsShiftsUnderBalanceLock(t *testing.T) {
+	t.Parallel()
+
+	day := NewDate(2026, time.March, 2)
+	shift := shiftFor(7, day, 8, 16)
+	service, sessionRepo, _, auditRepo, shiftRepo := autoCheckoutFixture(
+		[]*WorkSession{autoCheckoutSessionAt(42, 7, day, 8)},
+		nil,
+	)
+	service.nowFunc = func() time.Time { return day.BerlinMidnight().Add(18 * time.Hour) }
+	locked := false
+	sessionRepo.lockBalanceWritesFunc = func(context.Context, int64) error {
+		locked = true
+		return nil
+	}
+	shiftRepo.findByStaffIDsAndDateFunc = func(context.Context, []int64, Date) ([]*TimeTrackingShift, error) {
+		if !locked {
+			return []*TimeTrackingShift{shift}, nil
+		}
+		cancelled := *shift
+		cancelled.Cancelled = true
+		return []*TimeTrackingShift{&cancelled}, nil
+	}
+	sessionRepo.closeSessionFunc = func(context.Context, int64, time.Time, bool) (bool, error) {
+		t.Fatal("a shift cancelled under the balance lock must not close the session")
+		return true, nil
+	}
+	auditRepo.createBatchFunc = func(context.Context, []*WorkSessionEdit) error {
+		t.Fatal("no auto-checkout audit against a cancelled shift")
+		return nil
+	}
+
+	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
+
+	require.NoError(t, err)
+	assert.Zero(t, count)
+}

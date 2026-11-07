@@ -135,14 +135,19 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	}
 
 	run := autoCheckoutRun{now: now, grace: grace, latestEndByDate: latestEndByDate, tenantID: tenant.FromContext(ctx)}
-	// Only sessions whose listed row is due are locked; autoCheckoutSession
-	// checks each again on its freshly locked row. A session that became due
-	// after the list waits for the next tick (#5823).
+	// Only sessions whose listed row is due are locked (#5823). A sick report
+	// cancels shifts under the same balance lock, so the candidates' shifts
+	// are read again once it is held, and autoCheckoutSession decides on that
+	// fresh map and the freshly locked row. A session that became due after
+	// the list waits for the next tick.
 	candidates := run.dueSessions(openSessions)
 	if len(candidates) == 0 {
 		return 0, nil
 	}
 	if err := s.lockStaffBalanceWritesOrdered(ctx, sessionStaffIDs(candidates)); err != nil {
+		return 0, err
+	}
+	if run.latestEndByDate, err = s.latestShiftEndsByDate(ctx, candidates); err != nil {
 		return 0, err
 	}
 
