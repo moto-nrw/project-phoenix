@@ -35,9 +35,30 @@ func oversizedXLSX(t *testing.T) []byte {
 	return out.Bytes()
 }
 
-func TestXLSXParsersRejectOversizedUnzip(t *testing.T) {
+// sparseWideXLSX returns a workbook of a few KB whose rows each hold one value
+// in the last column (XFD), which excelize pads to 16,384 cells per row.
+func sparseWideXLSX(t *testing.T) []byte {
+	t.Helper()
+	f, err := newExcelSheet("Sheet1")
+	require.NoError(t, err)
+	sheet := f.GetSheetName(0)
+	rows := xlsxCellBudget/16384 + 1
+	for r := 1; r <= rows; r++ {
+		cell, err := excelCellName(16384, r)
+		require.NoError(t, err)
+		require.NoError(t, f.SetCellStr(sheet, cell, "x"))
+	}
+	buf := new(bytes.Buffer)
+	require.NoError(t, f.Write(buf))
+	return buf.Bytes()
+}
+
+func TestXLSXParsersRejectDecompressionBombs(t *testing.T) {
 	t.Parallel()
-	file := oversizedXLSX(t)
+	files := map[string][]byte{
+		"unzip size exceeds the 67108864 bytes limit": oversizedXLSX(t),
+		errXLSXTooManyCells.Error():                   sparseWideXLSX(t),
+	}
 
 	parsers := map[string]func(io.Reader) error{
 		"students": func(r io.Reader) error { _, err := NewXLSXParser().ParseStudents(r); return err },
@@ -51,11 +72,13 @@ func TestXLSXParsersRejectOversizedUnzip(t *testing.T) {
 			return err
 		},
 	}
-	for name, parse := range parsers {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			err := parse(bytes.NewReader(file))
-			require.ErrorContains(t, err, "unzip size exceeds the 67108864 bytes limit")
-		})
+	for want, file := range files {
+		for name, parse := range parsers {
+			t.Run(name+"/"+want, func(t *testing.T) {
+				t.Parallel()
+				err := parse(bytes.NewReader(file))
+				require.ErrorContains(t, err, want)
+			})
+		}
 	}
 }

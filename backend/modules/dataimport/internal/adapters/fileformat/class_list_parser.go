@@ -113,7 +113,7 @@ func ParseClassListXLSX(reader io.Reader) ([]importModels.ClassListEntryImportRo
 		return nil, fmt.Errorf("no sheets found in Excel file")
 	}
 
-	sheetRows, err := f.GetRows(sheetName)
+	sheetRows, err := readXLSXRows(f, sheetName)
 	if err != nil {
 		return nil, fmt.Errorf("read rows: %w", err)
 	}

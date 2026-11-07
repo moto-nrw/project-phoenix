@@ -53,7 +53,7 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 	}
 
 	// Read all rows from the sheet
-	rows, err := f.GetRows(sheetName)
+	rows, err := readXLSXRows(f, sheetName)
 	if err != nil {
 		return nil, fmt.Errorf("read rows: %w", err)
 	}
