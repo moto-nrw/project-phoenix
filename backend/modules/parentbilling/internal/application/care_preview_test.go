@@ -555,3 +555,15 @@ func TestLargestRemainderKeepsTheTotal(t *testing.T) {
 	assert.Equal(t, []int64{968, 2680, 968}, largestRemainder([]int64{30010, 83061, 30010}, 31, 4616))
 	assert.Equal(t, []int64{3200}, largestRemainder([]int64{3200 * 31}, 31, 3200))
 }
+
+// TestDuplicateChildrenCountsChildrenNotEntries counts a child once however
+// many entries and contracts its duplicate has: three contracts of Mia that
+// meet on Monday and Tuesday are one child, Noah's pair is another.
+func TestDuplicateChildrenCountsChildrenNotEntries(t *testing.T) {
+	t.Parallel()
+	pair := func(a, b int64) parentbilling.CareDuplicate {
+		return parentbilling.CareDuplicate{Contracts: []parentbilling.CareDuplicateContract{{ContractID: a}, {ContractID: b}}}
+	}
+	assert.Zero(t, duplicateChildren(nil))
+	assert.Equal(t, 2, duplicateChildren([]parentbilling.CareDuplicate{pair(1, 2), pair(1, 2), pair(2, 3), pair(1, 3), pair(7, 8)}))
+}

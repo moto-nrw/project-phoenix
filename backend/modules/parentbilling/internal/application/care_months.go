@@ -435,7 +435,8 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 		return parentbilling.CareRunDetail{}, err
 	}
 	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRelease,
-		map[string]any{"document_count": len(month.invoices), "total_cents": month.total(), "month_rule": rule}); err != nil {
+		map[string]any{"document_count": len(month.invoices), "total_cents": month.total(), "month_rule": rule,
+			"duplicate_children": duplicateChildren(month.duplicates)}); err != nil {
 		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record care release: %w", err)
 	}
 	return c.detail(ctx, reviewer, released)
@@ -465,6 +466,13 @@ func (c *CareBilling) preview(ctx context.Context, organizationID int64, run par
 	if err != nil {
 		return "", careMonth{}, fmt.Errorf("parent billing: read the month rule: %w", err)
 	}
+	return c.monthWith(ctx, organizationID, run, rule)
+}
+
+// monthWith computes the month of a run under a month rule: the drafts of
+// the contracts no invoice of the month bills yet, the bookings without a
+// price and the children with a duplicate contract.
+func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run parentbilling.CareRun, rule string) (string, careMonth, error) {
 	if rule != parentbilling.MonthRuleVersionOnFirst && rule != parentbilling.MonthRuleProRata {
 		return "", careMonth{}, fmt.Errorf("parent billing: unknown month rule %q", rule)
 	}
@@ -499,6 +507,14 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.CareRunDetail{}, err
 		}
 		detail.Invoices = invoices
+		// The release left the children with a duplicate contract out; they
+		// stay in sight under the rule it applied until a later run of the
+		// month bills them (Betragsregel 1).
+		_, month, err := c.monthWith(ctx, reviewer.OrganizationID, run, run.MonthRule)
+		if err != nil {
+			return parentbilling.CareRunDetail{}, err
+		}
+		detail.Duplicates = month.duplicates
 	} else {
 		rule, month, err := c.preview(ctx, reviewer.OrganizationID, run)
 		if err != nil {
@@ -507,6 +523,7 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		detail.MonthRule, detail.Invoices, detail.Unpriced, detail.Billed = rule, month.invoices, month.unpriced, month.billed
 		detail.Duplicates = month.duplicates
 	}
+	detail.DuplicateChildren = duplicateChildren(detail.Duplicates)
 	for _, invoice := range detail.Invoices {
 		detail.PreviewCount++
 		detail.PreviewCents += invoice.TotalCents
@@ -520,6 +537,36 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		detail.NumberPattern, detail.NumberRangeSet = pattern, true
 	}
 	return detail, nil
+}
+
+// duplicateChildren counts the children behind duplicate entries: contracts
+// that meet in an entry, directly or through a third one, are one child.
+func duplicateChildren(duplicates []parentbilling.CareDuplicate) int {
+	child := map[int64]int64{}
+	var root func(int64) int64
+	root = func(id int64) int64 {
+		for child[id] != id {
+			id = child[id]
+		}
+		return id
+	}
+	for _, duplicate := range duplicates {
+		for _, contract := range duplicate.Contracts {
+			if _, seen := child[contract.ContractID]; !seen {
+				child[contract.ContractID] = contract.ContractID
+			}
+		}
+		for _, contract := range duplicate.Contracts[1:] {
+			child[root(contract.ContractID)] = root(duplicate.Contracts[0].ContractID)
+		}
+	}
+	children := 0
+	for id := range child {
+		if root(id) == id {
+			children++
+		}
+	}
+	return children
 }
 
 func versionContracts(versions []parentbilling.CareContractVersion) []int64 {

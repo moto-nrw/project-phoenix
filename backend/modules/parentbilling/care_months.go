@@ -239,14 +239,17 @@ type CareDuplicate struct {
 // month already billed.
 type CareRunDetail struct {
 	CareRun
-	Invoices       []CareInvoice   `json:"invoices"`
-	Unpriced       []CareUnpriced  `json:"unpriced"`
-	Duplicates     []CareDuplicate `json:"duplicates"`
-	Billed         int             `json:"billed"`
-	PreviewCount   int             `json:"preview_count"`
-	PreviewCents   int64           `json:"preview_cents"`
-	NumberPattern  string          `json:"number_pattern"`
-	NumberRangeSet bool            `json:"number_range_set"`
+	Invoices   []CareInvoice   `json:"invoices"`
+	Unpriced   []CareUnpriced  `json:"unpriced"`
+	Duplicates []CareDuplicate `json:"duplicates"`
+	// DuplicateChildren counts the children of Duplicates: the run, and its
+	// release, bills none of them.
+	DuplicateChildren int    `json:"duplicate_children"`
+	Billed            int    `json:"billed"`
+	PreviewCount      int    `json:"preview_count"`
+	PreviewCents      int64  `json:"preview_cents"`
+	NumberPattern     string `json:"number_pattern"`
+	NumberRangeSet    bool   `json:"number_range_set"`
 }
 
 // CareContractService is a booked module of a contract version on a
