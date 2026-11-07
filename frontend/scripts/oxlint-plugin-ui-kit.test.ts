@@ -2760,7 +2760,7 @@ describe.concurrent("ui-kit sticky bars and slide-over layout (#5602)", () => {
 
   it("allows size and the modal width", async () => {
     const output = await outputOf(
-      `<><SlideOverContent size="lg" /><Modal widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg" /></>`,
+      `<><SlideOverContent size="lg" /><Modal widthClass="sm:w-[640px]" /></>`,
     );
     expect(output).not.toContain("no-arbitrary-slide-over-width");
   });

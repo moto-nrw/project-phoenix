@@ -3346,7 +3346,7 @@ const noArbitrarySlideOverWidth = {
         const isPanel = jsxName(node.name) === "SlideOverContent";
         for (const attribute of node.attributes) {
           const name = attribute.name?.name;
-          if (name !== "widthClass" && !(isPanel && name === "className")) {
+          if (!isPanel || (name !== "widthClass" && name !== "className")) {
             continue;
           }
           if (!attribute.value) continue;

@@ -90,14 +90,24 @@ function useSlideOverDirection(): {
 const SlideOverDirectionContext = React.createContext<"right" | "bottom">(
   "right",
 );
+const SlideOverDismissContext = React.createContext(false);
+
+type SlideOverProps = React.ComponentProps<typeof DrawerPrimitive.Root> & {
+  /**
+   * Sperrt alle Wege zum Schließen, während eine Mutation läuft. Das X zeigt
+   * den Zustand auch als deaktiviert an.
+   */
+  isDismissDisabled?: boolean;
+};
 
 const SlideOver = ({
   shouldScaleBackground = false,
   open: openProp,
   defaultOpen = false,
   onOpenChange,
+  isDismissDisabled = false,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
+}: SlideOverProps) => {
   const { direction: preferredDirection, isResolved } = useSlideOverDirection();
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
   const open = openProp ?? uncontrolledOpen;
@@ -126,25 +136,28 @@ const SlideOver = ({
 
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
+      if (!nextOpen && isDismissDisabled) return;
       setUncontrolledOpen(nextOpen);
       onOpenChange?.(nextOpen);
     },
-    [onOpenChange],
+    [isDismissDisabled, onOpenChange],
   );
 
   return (
     <SlideOverDirectionContext.Provider value={direction}>
-      <DrawerPrimitive.Root
-        // Vaul liest die Richtung beim Mount für Drag-Achse und Animation.
-        // Der Key baut die Instanz erst nach dem Schließen für einen inzwischen
-        // geänderten Breakpoint neu auf.
-        key={direction}
-        direction={direction}
-        shouldScaleBackground={shouldScaleBackground}
-        open={open}
-        onOpenChange={handleOpenChange}
-        {...props}
-      />
+      <SlideOverDismissContext.Provider value={isDismissDisabled}>
+        <DrawerPrimitive.Root
+          // Vaul liest die Richtung beim Mount für Drag-Achse und Animation.
+          // Der Key baut die Instanz erst nach dem Schließen für einen inzwischen
+          // geänderten Breakpoint neu auf.
+          key={direction}
+          direction={direction}
+          shouldScaleBackground={shouldScaleBackground}
+          open={open}
+          onOpenChange={handleOpenChange}
+          {...props}
+        />
+      </SlideOverDismissContext.Provider>
     </SlideOverDirectionContext.Provider>
   );
 };
@@ -278,24 +291,29 @@ SlideOverContent.displayName = "SlideOverContent";
 const SlideOverCloseButton = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Close>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Close>
->(({ className, children, ...props }, ref) => (
-  <DrawerPrimitive.Close
-    ref={ref}
-    type="button"
-    aria-label="Schließen"
-    // Daran findet die Tour der ersten Schritte (#2832) das Schließen.
-    data-overlay-close=""
-    data-icon-only=""
-    className={buttonClassName({
-      variant: "ghost",
-      size: "icon",
-      className: cn("shrink-0", className),
-    })}
-    {...props}
-  >
-    {children ?? <CloseIcon />}
-  </DrawerPrimitive.Close>
-));
+>(({ className, children, disabled = false, ...props }, ref) => {
+  const isDismissDisabled = React.useContext(SlideOverDismissContext);
+
+  return (
+    <DrawerPrimitive.Close
+      ref={ref}
+      type="button"
+      aria-label="Schließen"
+      disabled={disabled || isDismissDisabled}
+      // Daran findet die Tour der ersten Schritte (#2832) das Schließen.
+      data-overlay-close=""
+      data-icon-only=""
+      className={buttonClassName({
+        variant: "ghost",
+        size: "icon",
+        className: cn("shrink-0", className),
+      })}
+      {...props}
+    >
+      {children ?? <CloseIcon />}
+    </DrawerPrimitive.Close>
+  );
+});
 SlideOverCloseButton.displayName = "SlideOverCloseButton";
 
 const DEFAULT_CLOSE = <SlideOverCloseButton />;

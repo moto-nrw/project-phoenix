@@ -358,6 +358,24 @@ describe("SlideOver", () => {
     ).toBeInTheDocument();
   });
 
+  it("disables every dismissal path while saving", () => {
+    const onOpenChange = vi.fn();
+
+    render(
+      <SlideOver open isDismissDisabled onOpenChange={onOpenChange}>
+        <SlideOverContent>
+          <SlideOverHeader>
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+
+    expect(screen.getByRole("button", { name: "Schließen" })).toBeDisabled();
+    fireEvent.click(screen.getByTestId("vaul-dismiss"));
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
   it("takes its own close control and can go without one", () => {
     const { rerender } = render(
       <SlideOver open>

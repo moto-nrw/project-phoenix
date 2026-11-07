@@ -87,6 +87,7 @@ export function SurveyCreateSlideOver({
   return (
     <SlideOver
       open
+      isDismissDisabled={saving}
       onOpenChange={(open) => {
         if (!open && !saving) onClose();
       }}

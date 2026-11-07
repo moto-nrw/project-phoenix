@@ -2503,6 +2503,7 @@ function EditSessionModal({
   return (
     <SlideOver
       open={isOpen}
+      isDismissDisabled={saving || absenceSaving || absenceDeleting}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) onClose();
       }}

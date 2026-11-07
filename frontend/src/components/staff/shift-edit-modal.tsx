@@ -1053,6 +1053,7 @@ export function ShiftEditModal({
           this modal's body. */}
       <SlideOver
         open={isOpen && !confirmDeleteOpen && !scopeOverlayOpen}
+        isDismissDisabled={isSaving || isDeleting}
         onOpenChange={(next) => {
           if (!next) onClose();
         }}
