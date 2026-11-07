@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { handleApiError, problemResponse } from "~/lib/api-helpers.server";
@@ -46,16 +47,11 @@ export const GET = withTenantAuth(
           },
         });
 
-      let response = await makeRequest(session.user.token);
-      if (response.status === 401) {
-        const refreshed = await uncachedAuth();
-        if (
-          refreshed?.user?.token &&
-          refreshed.user.token !== session.user.token
-        ) {
-          response = await makeRequest(refreshed.user.token);
-        }
-      }
+      const response = await sendWithTokenRefresh(
+        session.user.token,
+        makeRequest,
+        () => uncachedAuth(),
+      );
 
       if (!response.ok) {
         return forwardBackendResponse(response, _request);

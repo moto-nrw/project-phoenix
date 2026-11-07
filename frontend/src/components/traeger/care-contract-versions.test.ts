@@ -22,6 +22,34 @@ function version(overrides: Partial<ContractVersion>): ContractVersion {
 }
 
 describe("versionPhase", () => {
+  it("cuts every version by the end of the contract (#4682)", () => {
+    const today = "2026-09-09";
+    const withdrawn = { withdrawn: true, endsOn: null };
+    expect(versionPhase(version({}), today, withdrawn)).toBe("withdrawn");
+    const terminated = { withdrawn: false, endsOn: "2026-08-31" };
+    expect(versionPhase(version({}), today, terminated)).toBe("ended");
+    // The backend cuts the last version at the end of the contract.
+    expect(
+      versionPhase(version({ validUntil: "2026-08-31" }), today, terminated),
+    ).toBe("ended");
+    // A version a change replaced before the end stays replaced.
+    expect(
+      versionPhase(version({ validUntil: "2026-08-15" }), today, terminated),
+    ).toBe("past");
+    expect(
+      versionPhase(version({ effectiveFrom: "2026-10-01" }), today, {
+        withdrawn: false,
+        endsOn: "2026-09-30",
+      }),
+    ).toBe("ended");
+    expect(
+      versionPhase(version({}), today, {
+        withdrawn: false,
+        endsOn: "2026-12-31",
+      }),
+    ).toBe("current");
+  });
+
   it("never places a replaced version on a day", () => {
     expect(
       versionPhase(

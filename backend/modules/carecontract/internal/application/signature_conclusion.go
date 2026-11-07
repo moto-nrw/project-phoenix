@@ -50,9 +50,12 @@ func versionChecksum(fingerprint func([]byte) string, version carecontract.Versi
 }
 
 // withdrawalEnd is the last day of the 14-day withdrawal period that starts
-// with the conclusion of a distance contract (§ 355 section 2 BGB).
+// with the conclusion of a distance contract (§ 355 section 2 BGB); a last
+// day on a Saturday, Sunday or nationwide holiday moves to the next working
+// day (§ 193 BGB), the day the withdrawal and termination page names too
+// (#4682).
 func withdrawalEnd(signedAt time.Time) calendar.Date {
-	return calendar.DateFromTime(signedAt).AddDays(14)
+	return nextWorkingDay(calendar.DateFromTime(signedAt).AddDays(carecontract.WithdrawalDays))
 }
 
 // withdrawalNotice is the notice of the right of withdrawal (Art. 246a § 1

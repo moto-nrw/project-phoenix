@@ -9,7 +9,7 @@ const { retrySchools, schoolsState, sessionState, router, deleteDocument } =
     retrySchools: vi.fn(),
     schoolsState: { failed: true },
     sessionState: {
-      permissions: ["traeger_overview:read", "traeger_enrollment:manage"],
+      permissions: ["traeger_overview:read", "traeger_documents:manage"],
     },
     router: { push: vi.fn(), replace: vi.fn() },
     deleteDocument: vi.fn(),
@@ -122,7 +122,7 @@ beforeEach(() => {
   schoolsState.failed = true;
   sessionState.permissions = [
     "traeger_overview:read",
-    "traeger_enrollment:manage",
+    "traeger_documents:manage",
   ];
 });
 
@@ -239,7 +239,7 @@ it("keeps the dialog with the reason when the deletion fails", async () => {
   ).toBeInTheDocument();
 });
 
-// Only the Verwaltung deletes: a role that only reads gets no menu.
+// Only the role Dokumente deletes: a role that only reads gets no menu.
 it("offers no deletion without the right to manage", async () => {
   schoolsState.failed = false;
   sessionState.permissions = ["traeger_overview:read"];
@@ -250,6 +250,34 @@ it("offers no deletion without the right to manage", async () => {
   ).toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "Weitere Aktionen zum Dokument" }),
+  ).not.toBeInTheDocument();
+});
+
+// #5992: "Anmeldung verwalten" alone no longer writes documents. The
+// Verwaltung without the role Dokumente reads and downloads, sees no write
+// action and learns who may change the releases.
+it("offers no write action to the Verwaltung without the role Dokumente", async () => {
+  schoolsState.failed = false;
+  sessionState.permissions = [
+    "traeger_overview:read",
+    "traeger_enrollment:manage",
+  ];
+  renderPage();
+
+  expect(
+    await screen.findByRole("button", { name: "Herunterladen" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Ändern kann, wer die Rolle „Dokumente“ hat\./),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Freigeben" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Weitere Aktionen zum Dokument" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /^Freigabe zurücknehmen/ }),
   ).not.toBeInTheDocument();
 });
 

@@ -1,7 +1,11 @@
 package architecture
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -320,6 +324,66 @@ func TestCompareRatchetBudgetsRetiresOnlyUnderAnAddedADR(t *testing.T) {
 			raises := strings.Join(compareRatchetBudgets(base, candidate, tt.adrs), "\n")
 			if tt.want == "" && raises != "" || !strings.Contains(raises, tt.want) {
 				t.Fatalf("want %q, got %q", tt.want, raises)
+			}
+		})
+	}
+}
+
+// The register of the demo erasure guard (#6015) only falls: the ratchet
+// compares the real file, so a raised budget or a new exception fails and a
+// lowered one passes.
+func TestDemoErasureRegisterOnlyFalls(t *testing.T) {
+	t.Parallel()
+	source, err := os.ReadFile(filepath.Join("..", "..", "test", "demo_erasure_ratchet_test.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	budget := regexp.MustCompile(`const demoErasureExceptionBudget = (\d+)`).FindSubmatch(source)
+	if budget == nil {
+		t.Fatal("the register file declares no demoErasureExceptionBudget")
+	}
+	count, err := strconv.Atoi(string(budget[1]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstEntry := regexp.MustCompile(`(?m)^\t"[a-z_]+\.[a-z_]+":[^\n]*\n`).Find(source)
+	if firstEntry == nil {
+		t.Fatal("the register file has no entry")
+	}
+	withBudget := func(source []byte, budget int) []byte {
+		return []byte(strings.Replace(string(source), fmt.Sprintf("const demoErasureExceptionBudget = %d", count), fmt.Sprintf("const demoErasureExceptionBudget = %d", budget), 1))
+	}
+	raised := withBudget([]byte(strings.Replace(string(source), string(firstEntry), string(firstEntry)+"\t\"demo.new_table\": \"kept\",\n", 1)), count+1)
+	lowered := withBudget([]byte(strings.Replace(string(source), string(firstEntry), "", 1)), count-1)
+	for _, tt := range []struct {
+		name      string
+		candidate []byte
+		want      []string
+	}{
+		{"unchanged", source, nil},
+		{"lowered with an entry gone", lowered, nil},
+		{"raised with a new entry", raised, []string{
+			fmt.Sprintf("constant demoErasureExceptionBudget: %d -> %d", count, count+1),
+			fmt.Sprintf("demoErasureExceptions: %d -> %d entries", count, count+1),
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base, candidate := newRatchetBudgets(), newRatchetBudgets()
+			if err := base.add("test/demo_erasure_ratchet_test.go", source); err != nil {
+				t.Fatal(err)
+			}
+			if err := candidate.add("test/demo_erasure_ratchet_test.go", tt.candidate); err != nil {
+				t.Fatal(err)
+			}
+			raises := strings.Join(compareRatchetBudgets(base, candidate, nil), "\n")
+			if len(tt.want) == 0 && raises != "" {
+				t.Fatalf("want no raise, got %q", raises)
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(raises, want) {
+					t.Fatalf("want %q, got %q", want, raises)
+				}
 			}
 		})
 	}

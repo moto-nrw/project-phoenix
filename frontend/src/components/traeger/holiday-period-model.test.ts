@@ -124,7 +124,7 @@ describe("holiday period model", () => {
     expect(errors["weeks.1.starts_on"]).toBeUndefined();
   });
 
-  it("calls a period complete only with weeks that all have a time model", () => {
+  it("calls a period complete only with weeks that all have a bookable time model", () => {
     const base = {
       id: "1",
       name: "Ferien",
@@ -165,5 +165,19 @@ describe("holiday period model", () => {
         ],
       }),
     ).toBe(true);
+    const archived = {
+      id: "4",
+      name: "bis 16 Uhr",
+      startsAt: "08:00",
+      endsAt: "16:00",
+      priceCents: 6000,
+      archived: true,
+    };
+    expect(
+      holidayPeriodComplete({
+        ...base,
+        weeks: [{ ...week, timeModels: [archived] }],
+      }),
+    ).toBe(false);
   });
 });

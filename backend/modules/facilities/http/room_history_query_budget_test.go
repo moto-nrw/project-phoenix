@@ -195,7 +195,7 @@ func TestRoomHistoryQueryBudget(t *testing.T) {
 		faultRequest.URL.RawQuery = faultQuery.Encode()
 		faultRequest = faultRequest.WithContext(counter.Context(faultRequest.Context()))
 		faultResponse := testutil.ExecuteWithAuth(t, router, faultRequest, claims)
-		assertRoomEmploymentReadFailure(t, counter, faultResponse)
+		assertRoomEmploymentReadIndependent(t, counter, faultResponse)
 	})
 	add(3, 8)
 	large := measure(8)

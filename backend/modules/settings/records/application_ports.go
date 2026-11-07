@@ -80,6 +80,8 @@ type PayrollDispatchSettings struct {
 // PayrollStatusGetter reports the payroll configuration state.
 type PayrollStatusGetter interface {
 	GetPayrollStatus(ctx context.Context) (*PayrollStatus, error)
+	// GetPayrollConfigurationStatus resolves settings without staff completeness counts.
+	GetPayrollConfigurationStatus(ctx context.Context) (*PayrollStatus, error)
 }
 
 type SettingsChangedNotifier func(context.Context, int64, string)

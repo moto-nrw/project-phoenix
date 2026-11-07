@@ -1,0 +1,3 @@
+GET /traeger/contract-notices/{id}
+POST /traeger/contract-notices/{id}
+PUT /traeger/contract-notices/{id}/ends-on

@@ -657,6 +657,10 @@
       "class": "utility"
     },
     {
+      "path": "golang.org/x/image/webp",
+      "class": "utility"
+    },
+    {
       "path": "golang.org/x/sync/singleflight",
       "class": "concurrency"
     },
@@ -691,6 +695,10 @@
     {
       "path": "gopkg.in/yaml.v3",
       "class": "utility"
+    },
+    {
+      "path": "hash/crc32",
+      "class": "standard"
     },
     {
       "path": "hash/fnv",

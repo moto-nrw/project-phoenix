@@ -1,5 +1,5 @@
 // Router-level tests for the documents a Träger shares with parents and
-// schools (#4692): the Verwaltung uploads a file and releases it for the
+// schools (#4692): the role Dokumente (#5992) uploads a file and releases it for the
 // parents of all schools, of a school or of a group, or for the schools; a
 // release is revoked, which ends the access at once. A school's OGS-Leitung
 // reads only what a release covers for its school; a role without the right
@@ -100,7 +100,7 @@ func newTraegerDocumentsFixtureOn(t *testing.T, db *bun.DB) traegerDocumentsFixt
 	require.NoError(t, mountTraegerDocumentRoutes(router, tenantRouter, testpkg.NewDatabase(t, db), organizations, audit.DataAccessLog, ledger))
 	router.Mount("/api", tenantRouter)
 	f := traegerDocumentsFixture{db: db, portal: portal, router: testpkg.SessionVerifier(router)}
-	f.office = f.newOffice(t, "Träger Dokumente", identityaccess.TraegerRoleAdministration)
+	f.office = f.newOffice(t, "Träger Dokumente", identityaccess.TraegerRoleDocuments)
 	return f
 }
 
@@ -287,8 +287,8 @@ func TestTraegerDocumentsReachOnlyTheReleasedSchool(t *testing.T) {
 	assert.Len(t, f.schoolDocuments(t, suedLead), 1)
 }
 
-// TestTraegerDocumentsNeedTheirRights pins the rights of #4692: a Träger role
-// without "Anmeldung verwalten" reads but neither uploads, releases nor
+// TestTraegerDocumentsNeedTheirRights pins the rights of #4692 and #5992: a
+// Träger role without "Dokumente verwalten" reads but neither uploads, releases nor
 // revokes; school staff without the right to manage the school's files gets
 // 403; another Träger reaches no document, release or file of this one.
 func TestTraegerDocumentsNeedTheirRights(t *testing.T) {
@@ -308,7 +308,7 @@ func TestTraegerDocumentsNeedTheirRights(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, f.schoolGet(t, teacher, "/").Code, "the school's documents need files:manage")
 	assert.Equal(t, http.StatusForbidden, f.schoolGet(t, teacher, fmt.Sprintf("/%d/file", document.ID)).Code)
 
-	other := f.newOffice(t, "Träger Fremd", identityaccess.TraegerRoleAdministration)
+	other := f.newOffice(t, "Träger Fremd", identityaccess.TraegerRoleDocuments)
 	assert.Empty(t, f.documents(t, other.token), "another Träger lists nothing of this one")
 	rec := traegerJSON(t, f.router, other.token, http.MethodGet, fmt.Sprintf("/traeger/documents/%d/file", document.ID), nil)
 	assert.Equal(t, http.StatusNotFound, rec.Code)

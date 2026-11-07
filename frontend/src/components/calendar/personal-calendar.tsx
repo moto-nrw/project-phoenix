@@ -50,6 +50,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 
 export type CalendarViewMode = "day" | "week" | "month";
 
@@ -778,14 +779,11 @@ function MobileAgenda({
     <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border">
       {groups.map(({ day, allDay, timed, count }) => (
         <section key={toISODate(day)} className="divide-y divide-gray-100">
-          <div className="flex items-baseline justify-between gap-2 bg-gray-50 px-4 py-2">
-            <h2 className="text-sm font-semibold text-gray-900">
-              {formatDayHeader(day)}
-            </h2>
-            <span className="shrink-0 text-xs text-gray-500">
-              {count === 1 ? "1 Eintrag" : `${count} Einträge`}
-            </span>
-          </div>
+          <ListGroupHeader
+            as="h2"
+            title={formatDayHeader(day)}
+            meta={count === 1 ? "1 Eintrag" : `${count} Einträge`}
+          />
           {[...allDay, ...timed].map((event) => (
             <AgendaRow
               key={`${event.id}-${toISODate(day)}`}

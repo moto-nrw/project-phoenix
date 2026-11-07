@@ -89,6 +89,14 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.classListEntryStudents.ListStudentIDsByNamesAndClasses",
+      "binding_digest": "8fe05cd4e472aacaad0dcfcedecb64e4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ClassListEntryStudents.ListStudentIDsByNamesAndClasses",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrolledStudentIDsByNamesAndClasses",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.classListEntryAuditTrail.AppendClassListEntryChange",
       "binding_digest": "10c6f4b2f7ae9d437c584ff58537314a",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ClassListEntryTrail.AppendClassListEntryChange",

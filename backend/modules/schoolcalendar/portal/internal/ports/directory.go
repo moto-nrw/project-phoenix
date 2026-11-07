@@ -116,9 +116,6 @@ type GuardianDirectory interface {
 	FindActivePortalProfilesByIDs(context.Context, []int64) (map[int64]*GuardianProfile, error)
 	FindByIDs(context.Context, []int64) (map[int64]*GuardianProfile, error)
 }
-type GuardianRelationships interface {
-	FindByGuardianProfileID(context.Context, int64) ([]*StudentGuardian, error)
-}
 type Children interface {
 	ListByAccount(context.Context, int64) ([]*ChildSummary, error)
 }

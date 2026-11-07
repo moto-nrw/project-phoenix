@@ -42,7 +42,7 @@ type PayrollExportSettings struct {
 }
 
 func (s PayrollExportSettings) GetPayrollConfiguration(ctx context.Context) (*workforceCompose.PayrollExportConfiguration, error) {
-	status, err := s.Source.GetPayrollStatus(ctx)
+	status, err := s.Source.GetPayrollConfigurationStatus(ctx)
 	if err != nil {
 		return nil, err
 	}

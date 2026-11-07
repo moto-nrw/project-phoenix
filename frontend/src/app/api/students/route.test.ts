@@ -446,12 +446,42 @@ describe("POST /api/students", () => {
     );
 
     // The child exists; the screen must show the consent that is stored,
-    // not the one the form asked for.
+    // not the one the form asked for, and the marker lets the form say that
+    // the input was lost (#5970).
     expect(response.status).toBe(200);
     expect((await response.json()).data).toMatchObject({
       id: "44",
       privacy_consent_accepted: false,
       data_retention_days: 30,
+      privacy_consent_saved: false,
     });
+  });
+
+  it("carries no consent marker when the consent write succeeded", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      data: buildBackendStudent({ id: 46 }),
+    });
+    mockApiPut.mockResolvedValueOnce({});
+    mockApiGet.mockResolvedValueOnce({
+      data: { accepted: true, data_retention_days: 7 },
+    });
+
+    const response = await POST(
+      createMockRequest("/api/students", {
+        method: "POST",
+        body: {
+          first_name: "Ida",
+          second_name: "Neu",
+          school_class: "1a",
+          privacy_consent_accepted: true,
+          data_retention_days: 7,
+        },
+      }),
+      createMockContext(),
+    );
+
+    const data = (await response.json()).data;
+    expect(data).toMatchObject({ id: "46", data_retention_days: 7 });
+    expect(data).not.toHaveProperty("privacy_consent_saved");
   });
 });

@@ -110,6 +110,7 @@ func (d parentContractDocuments) ListContractDocuments(ctx context.Context, orga
 			Number: "Nr. " + strconv.FormatInt(contract.ID, 10), PeriodName: strings.Join(contract.ModuleNames, ", ") + " · " + contract.SchoolName,
 			ServiceFrom: contract.EffectiveOn, ChildNames: contract.ChildNames, SentAt: contract.SentAt,
 			ContractStatus: contract.Status, SignedAt: contract.SignedAt, CanSign: contract.CanSign, Replaced: contract.Replaced,
+			EndsOn: contract.EndsOn, CanEndContract: contract.CanEnd,
 		}
 	}
 	return documents, nil
@@ -123,7 +124,7 @@ func (d parentContractDocuments) ContractDocumentFile(ctx context.Context, organ
 	if err != nil {
 		return parentportal.BillingDocumentFile{}, err
 	}
-	return parentportal.BillingDocumentFile(file), nil
+	return parentportal.BillingDocumentFile{Filename: file.Filename, ContentType: file.ContentType, Data: file.Data}, nil
 }
 
 // parentSchoolTraeger binds the Träger of a school to Organisation &

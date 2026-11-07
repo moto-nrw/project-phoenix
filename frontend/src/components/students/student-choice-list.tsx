@@ -206,7 +206,7 @@ export function StudentChoiceList({
         autoFocus={autoFocus}
       />
       {load.kind === "loading" ? (
-        <Loading message="Kinder werden geladen..." fullPage={false} />
+        <Loading message="Kinder werden geladen..." />
       ) : null}
       {load.kind === "failed" ? <LoadErrorAlert error={loadError} /> : null}
       {/* Die Zahl und der leere Treffer werden beim Tippen angesagt. */}

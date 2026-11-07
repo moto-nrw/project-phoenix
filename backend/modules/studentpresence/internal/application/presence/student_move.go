@@ -56,6 +56,7 @@ type studentMovePlan struct {
 	stale          map[int64]struct{}
 	openAttendance map[int64]studentpresence.Attendance
 	currentVisits  map[int64]*studentpresence.Visit
+	guard          moveVisitGuard
 }
 
 func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization, openRoomTarget bool) (*StudentMoveResult, error) {
@@ -66,7 +67,8 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 	if err != nil {
 		return nil, err
 	}
-	if err := s.rejectInactiveMoveStudents(ctx, uniqueIDs); err != nil {
+	lockedStudents, err := s.rejectInactiveMoveStudents(ctx, uniqueIDs)
+	if err != nil {
 		return nil, err
 	}
 
@@ -75,6 +77,7 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 	if err != nil {
 		return nil, err
 	}
+	plan.guard.students = lockedStudents
 	if restricted {
 		if len(plan.studentIDs) == 0 {
 			return plan.staleResult(), nil
@@ -109,14 +112,15 @@ func normalizeMoveStudentIDs(studentIDs []int64, op string) ([]int64, error) {
 
 // rejectInactiveMoveStudents locks the children and rejects the move of a
 // graduate or of a child whose care has ended. Moving a departed child between
-// rooms is a presence write like any other (#2487).
-func (s *service) rejectInactiveMoveStudents(ctx context.Context, studentIDs []int64) error {
+// rooms is a presence write like any other (#2487). It returns the locked
+// rows, nil without a student repository.
+func (s *service) rejectInactiveMoveStudents(ctx context.Context, studentIDs []int64) (map[int64]*StudentRecord, error) {
 	if s.StudentRepo == nil {
-		return nil
+		return nil, nil
 	}
 	lockedStudents, err := s.StudentRepo.FindByIDsForUpdate(ctx, studentIDs)
 	if err != nil {
-		return &ActiveError{Op: opMoveStudents, Err: err}
+		return nil, &ActiveError{Op: opMoveStudents, Err: err}
 	}
 	today := calendar.TodayDate()
 	for _, studentID := range studentIDs {
@@ -125,13 +129,13 @@ func (s *service) rejectInactiveMoveStudents(ctx context.Context, studentIDs []i
 			continue
 		}
 		if student.IsAlumnus() {
-			return &ActiveError{Op: opMoveStudents, Err: ErrStudentGraduated}
+			return nil, &ActiveError{Op: opMoveStudents, Err: ErrStudentGraduated}
 		}
 		if student.CareEndedOn(today) {
-			return &ActiveError{Op: opMoveStudents, Err: ErrStudentCareEnded}
+			return nil, &ActiveError{Op: opMoveStudents, Err: ErrStudentCareEnded}
 		}
 	}
-	return nil
+	return lockedStudents, nil
 }
 
 // lockStudentMovePlan locks attendance, visits, room advisories and sorted
@@ -277,7 +281,7 @@ func (s *service) moveStudentIntoGroup(ctx context.Context, plan *studentMovePla
 		ActiveGroupID: plan.target.ID,
 		EntryTime:     time.Now(),
 	}
-	if err := s.createVisitWithoutAttendanceMutation(ctx, visit); err != nil {
+	if err := s.createMoveVisit(ctx, visit, &plan.guard); err != nil {
 		if errors.Is(err, ErrStudentAlreadyActive) {
 			result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipConflict})
 			return nil
@@ -585,20 +589,34 @@ func (s *service) lockActiveGroupForMove(ctx context.Context, activeGroupID int6
 	return group, nil
 }
 
-// createVisitWithoutAttendanceMutation inserts a visit for a student whose
-// attendance is already open, without touching attendance rows. Callers hold
-// the target group's row lock (lockActiveGroupForMove) and this helper takes
-// no student row lock — CreateVisit locks student-then-group, so re-acquiring
-// the student lock under the group lock would invert that order and deadlock
-// against a concurrent check-in.
-func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visit *studentpresence.Visit) error {
+// moveVisitGuard carries what one bulk move already verified for all its
+// visits (#5848). students are the children's rows the move locked: a locked
+// row proves the child exists and names its education group, so neither is
+// read again per child. checkedGroup is the target session once it passed the
+// existence check; the move holds its row lock, so the answer cannot change.
+// groups are education groups read for the children in one statement; with
+// groupsKnown false each visit looks its child's group up itself.
+type moveVisitGuard struct {
+	students     map[int64]*StudentRecord
+	checkedGroup int64
+	groups       map[int64]int64
+	groupsKnown  bool
+}
+
+// createMoveVisit inserts a visit for a student whose attendance is already
+// open, without touching attendance rows. Callers hold the target group's row
+// lock (lockActiveGroupForMove) and this helper takes no student row lock —
+// CreateVisit locks student-then-group, so re-acquiring the student lock under
+// the group lock would invert that order and deadlock against a concurrent
+// check-in. A nil guard checks the child and the session itself.
+//
+// The guard's checks keep their order: the child, then the target session.
+func (s *service) createMoveVisit(ctx context.Context, visit *studentpresence.Visit, guard *moveVisitGuard) error {
 	if !validPresenceVisit(visit) {
 		return &ActiveError{Op: "CreateMoveVisit", Err: ErrInvalidData}
 	}
-	if err := s.validateStudentExists(ctx, visit.StudentID); err != nil {
-		return &ActiveError{Op: "CreateMoveVisit", Err: err}
-	}
-	if err := s.validateActiveGroupExists(ctx, visit.ActiveGroupID); err != nil {
+	locked, err := s.checkMoveVisit(ctx, visit, guard)
+	if err != nil {
 		return &ActiveError{Op: "CreateMoveVisit", Err: err}
 	}
 
@@ -620,8 +638,56 @@ func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visi
 			return &ActiveError{Op: "CreateMoveVisit", Err: errors.Join(ErrDatabaseOperation, err)}
 		}
 	}
+	if groupID, known := guard.educationGroup(locked, visit.StudentID); known {
+		s.broadcastVisitCreated(ctx, visit, snapshot, groupID)
+		return nil
+	}
 	s.broadcastVisitCreated(ctx, visit, snapshot)
 	return nil
+}
+
+// checkMoveVisit checks the child, then the target session, skipping what
+// the guard already knows. It returns the child's locked row when the move
+// holds one.
+func (s *service) checkMoveVisit(ctx context.Context, visit *studentpresence.Visit, guard *moveVisitGuard) (*StudentRecord, error) {
+	locked := guard.lockedStudent(visit.StudentID)
+	if locked == nil {
+		if err := s.validateStudentExists(ctx, visit.StudentID); err != nil {
+			return nil, err
+		}
+	}
+	if guard != nil && guard.checkedGroup == visit.ActiveGroupID {
+		return locked, nil
+	}
+	if err := s.validateActiveGroupExists(ctx, visit.ActiveGroupID); err != nil {
+		return nil, err
+	}
+	if guard != nil {
+		guard.checkedGroup = visit.ActiveGroupID
+	}
+	return locked, nil
+}
+
+func (g *moveVisitGuard) lockedStudent(studentID int64) *StudentRecord {
+	if g == nil {
+		return nil
+	}
+	return g.students[studentID]
+}
+
+// educationGroup is the child's education group for the visit event when the
+// move already knows it: from the locked row, or from the group read.
+func (g *moveVisitGuard) educationGroup(locked *StudentRecord, studentID int64) (*int64, bool) {
+	if locked != nil {
+		return locked.GroupID, true
+	}
+	if g == nil || !g.groupsKnown {
+		return nil, false
+	}
+	if groupID, found := g.groups[studentID]; found {
+		return &groupID, true
+	}
+	return nil, true
 }
 
 // PrepareOpenRoomMove is the workflow prefix, before its activity/session
@@ -638,7 +704,7 @@ func (s *service) PrepareOpenRoomMove(ctx context.Context, studentIDs []int64, r
 	if err != nil {
 		return err
 	}
-	if err := s.rejectInactiveMoveStudents(ctx, ids); err != nil {
+	if _, err := s.rejectInactiveMoveStudents(ctx, ids); err != nil {
 		return err
 	}
 	if _, err := s.lockOpenAttendance(ctx, ids); err != nil {

@@ -1,7 +1,6 @@
 "use client";
 
 import { EmptyState } from "~/components/ui/empty-state";
-import { ChevronRight } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -18,6 +17,7 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   useApiFormError,
@@ -283,9 +283,7 @@ export function RolePermissionsTab({
   });
 
   if (loading || (loadFailed && !loadError)) {
-    return (
-      <Loading fullPage={false} message="Berechtigungen werden geladen..." />
-    );
+    return <Loading message="Berechtigungen werden geladen..." />;
   }
 
   if (loadError) {
@@ -392,45 +390,37 @@ export function RolePermissionsTab({
                 key={resource}
                 className="border-b border-gray-100 last:border-b-0"
               >
-                <div className="flex items-center justify-between gap-2 bg-gray-50 px-3 py-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="compact"
-                    className="min-w-0 flex-1 justify-start"
-                    aria-expanded={!isCollapsed}
-                    onClick={() =>
+                <ListGroupHeader
+                  title={groupLabel}
+                  addon={
+                    <span className="text-xs text-gray-500">
+                      {groupChecked}/{permissions.length}
+                    </span>
+                  }
+                  collapsible={{
+                    expanded: !isCollapsed,
+                    onToggle: () =>
                       setCollapsed((current) => ({
                         ...current,
                         [resource]: !isCollapsed,
-                      }))
-                    }
-                  >
-                    <ChevronRight
-                      className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${isCollapsed ? "" : "rotate-90"}`}
-                      aria-hidden
-                    />
-                    <span className="truncate text-sm font-semibold text-gray-700">
-                      {groupLabel}
-                    </span>
-                    <span className="text-xs font-normal text-gray-500">
-                      {groupChecked}/{permissions.length}
-                    </span>
-                  </Button>
-                  <label
-                    htmlFor={`role-permission-group-${resource}`}
-                    className="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-gray-600"
-                  >
-                    <Checkbox
-                      id={`role-permission-group-${resource}`}
-                      checked={allGroupChecked}
-                      disabled={saving}
-                      onChange={() => toggleMany(permissions)}
-                      aria-label={`Alle Berechtigungen für ${groupLabel} auswählen`}
-                    />
-                    Alle
-                  </label>
-                </div>
+                      })),
+                  }}
+                  meta={
+                    <label
+                      htmlFor={`role-permission-group-${resource}`}
+                      className="flex cursor-pointer items-center gap-2 text-xs text-gray-600"
+                    >
+                      <Checkbox
+                        id={`role-permission-group-${resource}`}
+                        checked={allGroupChecked}
+                        disabled={saving}
+                        onChange={() => toggleMany(permissions)}
+                        aria-label={`Alle Berechtigungen für ${groupLabel} auswählen`}
+                      />
+                      Alle
+                    </label>
+                  }
+                />
                 {isCollapsed
                   ? null
                   : permissions.map((permission) => {

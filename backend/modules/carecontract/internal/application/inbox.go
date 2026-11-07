@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 )
@@ -67,6 +68,12 @@ func (in *Inbox) InboxContractDocument(ctx context.Context, organizationID, cont
 	if err != nil {
 		return carecontract.File{}, err
 	}
+	if file.WithdrawalNotice {
+		if err := in.store.MarkWithdrawalInformed(ctx, organizationID, contractID, time.Now()); err != nil {
+			return carecontract.File{}, err
+		}
+	}
+
 	if err := in.store.InsertEvents(ctx, organizationID, []Event{{
 		ContractID: &contractID, AccountID: reader.AccountID, Action: ActionRead, Details: map[string]any{"inbox": "download"},
 	}}); err != nil {

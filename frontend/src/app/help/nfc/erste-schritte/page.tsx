@@ -13,6 +13,7 @@ import {
 import { OnepagerHeader } from "~/components/help/onepager-header";
 import { buttonStyles } from "~/components/ui/button-styles";
 import { IconTile } from "~/components/ui/icon-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const quickstartPdf = {
   href: "/help/pdfs/nfc-erste-schritte.pdf",
@@ -193,9 +194,13 @@ export default function NfcQuickstartPage() {
                         <p className="mt-3 text-[15px] leading-6 text-gray-700 print:mt-2 print:text-[13px] print:leading-5">
                           {step.text}
                         </p>
-                        <p className="mt-3 rounded-xl bg-gray-50 px-4 py-3 text-sm leading-5 font-medium text-gray-700 print:mt-2 print:px-3 print:py-2 print:text-xs print:leading-4">
+                        <InsetPanel
+                          as="p"
+                          padding="md"
+                          className="mt-3 text-sm leading-5 font-medium text-gray-700 print:mt-2 print:px-3 print:py-2 print:text-xs print:leading-4"
+                        >
                           {step.detail}
-                        </p>
+                        </InsetPanel>
                       </div>
                     </div>
                   </article>
@@ -208,9 +213,11 @@ export default function NfcQuickstartPage() {
                 const Icon =
                   index === 0 ? ShieldCheck : index === 1 ? BadgeCheck : Wrench;
                 return (
-                  <div
+                  <InsetPanel
                     key={hint}
-                    className="rounded-2xl border border-gray-200 bg-gray-50 p-4 print:rounded-xl print:p-3"
+                    framed
+                    padding="md"
+                    className="print:p-3"
                   >
                     <Icon
                       className="text-moto-green-strong h-5 w-5"
@@ -219,12 +226,17 @@ export default function NfcQuickstartPage() {
                     <p className="mt-3 text-xs leading-5 font-medium text-gray-700 print:mt-2 print:text-[11px] print:leading-4">
                       {hint}
                     </p>
-                  </div>
+                  </InsetPanel>
                 );
               })}
             </section>
 
-            <section className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-5 print:mt-4 print:p-4">
+            <InsetPanel
+              as="section"
+              framed
+              padding="md"
+              className="mt-6 print:mt-4"
+            >
               <div className="flex items-start gap-4 print:gap-3">
                 <IconTile
                   size="page"
@@ -258,7 +270,7 @@ export default function NfcQuickstartPage() {
                   </p>
                 </div>
               </div>
-            </section>
+            </InsetPanel>
 
             <footer className="mt-auto flex items-end justify-between gap-6 pt-5 text-xs text-gray-500 print:pt-3 print:text-[11px]">
               <p className="max-w-[620px]">

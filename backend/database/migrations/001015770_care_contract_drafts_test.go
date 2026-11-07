@@ -127,6 +127,6 @@ func TestCareContractsStayWithTheirTraeger(t *testing.T) {
 	assert.ErrorContains(t, asRequestRole("app.current_org_id", ownOrg, `INSERT INTO care_contract.contract_version_services
 			(organization_id, contract_version_id, weekday, care_offering_id, module_name) VALUES (?, ?, 'xyz', 7, 'Bis 14 Uhr')`,
 		own, sentVersion), "chk_contract_version_services_weekday", "a service names a weekday")
-	assert.ErrorContains(t, asRequestRole("app.current_org_id", ownOrg, `UPDATE care_contract.contracts SET status = 'gekuendigt' WHERE id = ?`, sent),
+	assert.ErrorContains(t, asRequestRole("app.current_org_id", ownOrg, `UPDATE care_contract.contracts SET status = 'storniert' WHERE id = ?`, sent),
 		"chk_contracts_status", "a contract takes only the states of ADR 0088")
 }

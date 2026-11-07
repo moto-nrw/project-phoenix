@@ -164,17 +164,21 @@ func (rs *Resource) listEntries(w http.ResponseWriter, r *http.Request) {
 		rs.failure(w, r, FailureInternal, err, schoolmembership.ErrorCode(err))
 		return
 	}
-	out := make([]EntryResponse, 0, len(entries))
-	for _, entry := range entries {
-		matches, err := rs.entries.MatchingStudentIDs(ctx, schoolmembership.ClassListEntryFields{
+	fields := make([]schoolmembership.ClassListEntryFields, len(entries))
+	for i, entry := range entries {
+		fields[i] = schoolmembership.ClassListEntryFields{
 			FirstName: entry.FirstName, LastName: entry.LastName, SchoolClass: entry.SchoolClass,
-		})
-		if err != nil {
-			rs.runtime.Log.Error("class list entries: list failed", "error", err.Error())
-			rs.failure(w, r, FailureInternal, err, "internal_error")
-			return
 		}
-		out = append(out, entryResponse(entry, matches))
+	}
+	matches, err := rs.entries.MatchingStudentIDsForEntries(ctx, fields)
+	if err != nil {
+		rs.runtime.Log.Error("class list entries: list failed", "error", err.Error())
+		rs.failure(w, r, FailureInternal, err, "internal_error")
+		return
+	}
+	out := make([]EntryResponse, 0, len(entries))
+	for i, entry := range entries {
+		out = append(out, entryResponse(entry, matches[i]))
 	}
 	rs.respond(w, r, http.StatusOK, out, "Class list entries retrieved successfully")
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Holiday guests of the hosting school (#4666, ADR 0120). Every statement
@@ -516,6 +517,71 @@ func (s *HolidayGuestStore) ReadGuest(ctx context.Context, schoolID, studentID i
 		appendContact(&guest.Emergency, &guest.Pickup, contact)
 	}
 	return guest, true, nil
+}
+
+type holidayBookingRow struct {
+	Kind      string         `bun:"kind"`
+	StudentID *int64         `bun:"student_id"`
+	StartsOn  calendar.Date  `bun:"starts_on,type:date"`
+	EndsOn    calendar.Date  `bun:"ends_on,type:date"`
+	EndedOn   *calendar.Date `bun:"ended_on,type:date"`
+	StartsAt  string         `bun:"starts_at"`
+	EndsAt    string         `bun:"ends_at"`
+	FirstName string         `bun:"first_name"`
+	LastName  string         `bun:"last_name"`
+	BirthDate *calendar.Date `bun:"birth_date,type:date"`
+}
+
+// holidayBookingsSQL reads both kinds of confirmed holiday booking of the
+// school in one statement (#5994): the copies of its guests among the
+// children asked for, and the bookings of its own children in the weeks it
+// hosts (enrollment.holiday_host_own_bookings, migration 1.15.796). The
+// guests carry the school once more, beside the tenant policy.
+const holidayBookingsSQL = `SELECT 'guest' AS kind, guest.student_id, guest.starts_on, guest.ends_on, guest.ended_on,
+		guest.time_model_starts_at AS starts_at, guest.time_model_ends_at AS ends_at,
+		'' AS first_name, '' AS last_name, NULL::date AS birth_date
+	FROM enrollment.holiday_guests AS guest
+	WHERE guest.tenant_id = ? AND guest.student_id IN (?) AND guest.starts_on <= ? AND guest.ends_on >= ?
+	UNION ALL
+	SELECT 'own', NULL, own.starts_on, own.ends_on, NULL, to_char(own.starts_at, 'HH24:MI'), to_char(own.ends_at, 'HH24:MI'),
+		own.first_name, own.last_name, own.birth_date
+	FROM enrollment.holiday_host_own_bookings(?, ?) AS own
+	ORDER BY 1, 2, 3`
+
+// ListHolidayBookings lists the confirmed holiday bookings that overlap
+// [from, to] at the school whose tenant transaction the caller holds: the
+// guests among studentIDs, and the bookings of the school's own children.
+// An ended guest stays: its days before the end were booked.
+func (s *HolidayGuestStore) ListHolidayBookings(ctx context.Context, studentIDs []int64, from, to calendar.Date) ([]enrollment.HolidayGuest, []enrollment.HolidayOwnBooking, error) {
+	school, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("enrollment postgres: the tenant transaction of the hosting school is required: %w", err)
+	}
+	db, err := hostDB(ctx, school.Int64())
+	if err != nil {
+		return nil, nil, err
+	}
+	var rows []holidayBookingRow
+	if err := db.NewRaw(holidayBookingsSQL, school.Int64(), bun.List(studentIDs), to, from, from, to).Scan(ctx, &rows); err != nil {
+		return nil, nil, fmt.Errorf("enrollment postgres: list holiday bookings: %w", err)
+	}
+	var guests []enrollment.HolidayGuest
+	var own []enrollment.HolidayOwnBooking
+	for _, row := range rows {
+		if row.Kind == "guest" && row.StudentID != nil {
+			guests = append(guests, enrollment.HolidayGuest{StudentID: *row.StudentID, StartsOn: row.StartsOn, EndsOn: row.EndsOn,
+				EndedOn: row.EndedOn, TimeModelStarts: row.StartsAt, TimeModelEnds: row.EndsAt})
+			continue
+		}
+		if row.BirthDate == nil {
+			continue
+		}
+		own = append(own, enrollment.HolidayOwnBooking{
+			Identity: enrollment.HolidayStudentIdentity{FirstName: row.FirstName, LastName: row.LastName, BirthDate: *row.BirthDate},
+			StartsOn: row.StartsOn, EndsOn: row.EndsOn, StartsAt: row.StartsAt, EndsAt: row.EndsAt,
+		})
+	}
+	return guests, own, nil
 }
 
 // ListCurrentGuests lists the child and the school fields of every guest of

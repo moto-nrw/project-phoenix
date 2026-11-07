@@ -143,7 +143,7 @@ func (Store) Contract(ctx context.Context, organizationID, contractID int64, for
 		return ports.ContractRecord{}, err
 	}
 	record := ports.ContractRecord{Summary: summary.summary(), Version: current, Parties: []carecontract.Party{},
-		Concluded: summary.concluded()}
+		Concluded: summary.concluded(), EarlyStart: summary.EarlyStart}
 	for _, party := range parties {
 		record.Parties = append(record.Parties, carecontract.Party{
 			FirstName: party.FirstName, LastName: party.LastName, Email: party.Email, HasAccount: party.AccountID != nil,
@@ -185,17 +185,19 @@ func (Store) Mailings(ctx context.Context, organizationID, contractID int64) ([]
 		return nil, err
 	}
 	var rows []struct {
-		OutboxID       int64     `bun:"outbox_id"`
-		RecipientEmail string    `bun:"recipient_email"`
-		SentAt         time.Time `bun:"sent_at"`
+		WithdrawalNotice bool      `bun:"withdrawal_notice"`
+		OutboxID         int64     `bun:"outbox_id"`
+		RecipientEmail   string    `bun:"recipient_email"`
+		SentAt           time.Time `bun:"sent_at"`
 	}
-	if err := db.NewRaw(`SELECT outbox_id, recipient_email, sent_at FROM care_contract.contract_mailings
-		WHERE organization_id = ? AND contract_id = ? ORDER BY sent_at DESC, id DESC`, organizationID, contractID).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(`SELECT m.outbox_id, m.recipient_email, m.sent_at, d.withdrawal_notice FROM care_contract.contract_mailings AS m
+		JOIN care_contract.contract_documents AS d ON d.organization_id = m.organization_id AND d.id = m.contract_document_id
+		WHERE m.organization_id = ? AND m.contract_id = ? ORDER BY m.sent_at DESC, m.id DESC`, organizationID, contractID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read mailings: %w", err)
 	}
 	result := make([]ports.StoredMailing, len(rows))
 	for i, row := range rows {
-		result[i] = ports.StoredMailing{OutboxID: row.OutboxID, Recipient: row.RecipientEmail, SentAt: row.SentAt}
+		result[i] = ports.StoredMailing{OutboxID: row.OutboxID, Recipient: row.RecipientEmail, SentAt: row.SentAt, WithdrawalNotice: row.WithdrawalNotice}
 	}
 	return result, nil
 }
@@ -208,8 +210,8 @@ func (Store) InsertDocument(ctx context.Context, organizationID, accountID int64
 	}
 	var id int64
 	if err := db.NewRaw(`INSERT INTO care_contract.contract_documents (organization_id, contract_id, contract_version_id,
-			template_version, filename, pdf, created_by_account_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`, organizationID, record.Summary.ID, record.Version.ID, templateVersion,
+			template_version, filename, pdf, created_by_account_id, withdrawal_notice)
+		VALUES (?, ?, ?, ?, ?, ?, ?, true) RETURNING id`, organizationID, record.Summary.ID, record.Version.ID, templateVersion,
 		file.Filename, file.Data, accountRef(accountID)).Scan(ctx, &id); err != nil {
 		return 0, fmt.Errorf("care contract postgres: insert document: %w", err)
 	}
@@ -223,14 +225,15 @@ func (Store) Document(ctx context.Context, organizationID, contractID int64) (ca
 		return carecontract.File{}, err
 	}
 	var row documentRow
-	err = db.NewRaw(`SELECT d.filename, d.pdf FROM care_contract.contract_documents AS d
+	err = db.NewRaw(`SELECT d.filename, d.pdf, d.withdrawal_notice FROM care_contract.contract_documents AS d
 		WHERE d.organization_id = ? AND d.contract_id = ? ORDER BY d.id DESC LIMIT 1`, organizationID, contractID).Scan(ctx, &row)
 	return row.file(err, carecontract.ErrContractNotFound)
 }
 
 type documentRow struct {
-	Filename string `bun:"filename"`
-	PDF      []byte `bun:"pdf"`
+	WithdrawalNotice bool   `bun:"withdrawal_notice"`
+	Filename         string `bun:"filename"`
+	PDF              []byte `bun:"pdf"`
 }
 
 func (r documentRow) file(err error, notFound error) (carecontract.File, error) {
@@ -240,7 +243,7 @@ func (r documentRow) file(err error, notFound error) (carecontract.File, error) 
 	if err != nil {
 		return carecontract.File{}, fmt.Errorf("care contract postgres: read document: %w", err)
 	}
-	return carecontract.File{Filename: r.Filename, ContentType: "application/pdf", Data: r.PDF}, nil
+	return carecontract.File{Filename: r.Filename, ContentType: "application/pdf", Data: r.PDF, WithdrawalNotice: r.WithdrawalNotice}, nil
 }
 
 // InsertMailing records one send of a document.
@@ -257,7 +260,7 @@ func (Store) InsertMailing(ctx context.Context, organizationID, accountID, contr
 	return nil
 }
 
-// MarkSent moves a draft to versendet.
+// MarkSent records enqueueing, not provision of the withdrawal notice.
 func (Store) MarkSent(ctx context.Context, organizationID, contractID int64, at time.Time) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -294,9 +297,10 @@ func (Store) DeleteDraft(ctx context.Context, organizationID, contractID int64) 
 // it. Names, modules and date come from the version whose PDF was sent last
 // to the address, so the list matches the PDF the parents open (#4681).
 const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.school_name,
-	v.effective_from, v.status = '` + carecontract.VersionReplaced + `' AS replaced, m.first_sent AS sent_at, c.status,
+	v.effective_from, v.status = '` + carecontract.VersionReplaced + `' AS replaced, m.first_sent AS sent_at, c.status, c.ends_on,
 	(c.status = 'versendet' AND ` + inboxChildScopeSQL + ` AND EXISTS (SELECT 1 FROM care_contract.contract_signing_links AS l
 		WHERE l.organization_id = c.organization_id AND l.contract_id = c.id)) AS can_sign,
+	(c.status = '` + carecontract.StatusActive + `' AND ` + inboxChildScopeSQL + `) AS can_end,
 	(SELECT MAX(s.signed_at) FROM care_contract.contract_signatures AS s
 		WHERE s.organization_id = c.organization_id AND s.contract_id = c.id) AS signed_at
 	FROM care_contract.contracts AS c
@@ -317,21 +321,24 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 		return nil, err
 	}
 	var rows []struct {
-		ID             int64         `bun:"id"`
-		ChildFirstName string        `bun:"child_first_name"`
-		ChildLastName  string        `bun:"child_last_name"`
-		ModuleNames    []string      `bun:"module_names,array"`
-		SchoolName     string        `bun:"school_name"`
-		EffectiveFrom  calendar.Date `bun:"effective_from,type:date"`
-		Replaced       bool          `bun:"replaced"`
-		SentAt         time.Time     `bun:"sent_at"`
-		Status         string        `bun:"status"`
-		SignedAt       *time.Time    `bun:"signed_at"`
-		CanSign        bool          `bun:"can_sign"`
+		ID             int64          `bun:"id"`
+		ChildFirstName string         `bun:"child_first_name"`
+		ChildLastName  string         `bun:"child_last_name"`
+		ModuleNames    []string       `bun:"module_names,array"`
+		SchoolName     string         `bun:"school_name"`
+		EffectiveFrom  calendar.Date  `bun:"effective_from,type:date"`
+		Replaced       bool           `bun:"replaced"`
+		SentAt         time.Time      `bun:"sent_at"`
+		Status         string         `bun:"status"`
+		EndsOn         *calendar.Date `bun:"ends_on,type:date"`
+		SignedAt       *time.Time     `bun:"signed_at"`
+		CanSign        bool           `bun:"can_sign"`
+		CanEnd         bool           `bun:"can_end"`
 	}
 	schools, students := inboxChildScope(reader.Children)
 	signingSchools, signingStudents := inboxChildScope(reader.SigningChildren)
-	if err := db.NewRaw(inboxSQL, pgdialect.Array(signingSchools), pgdialect.Array(signingStudents), organizationID, reader.Email, reader.Email,
+	if err := db.NewRaw(inboxSQL, pgdialect.Array(signingSchools), pgdialect.Array(signingStudents),
+		pgdialect.Array(signingSchools), pgdialect.Array(signingStudents), organizationID, reader.Email, reader.Email,
 		organizationID, pgdialect.Array(schools), pgdialect.Array(students)).
 		Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read inbox: %w", err)
@@ -341,7 +348,7 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 		result[i] = carecontract.InboxContract{
 			ID: row.ID, ChildNames: []string{row.ChildFirstName}, ModuleNames: nonNil(row.ModuleNames),
 			SchoolName: row.SchoolName, SentAt: row.SentAt, EffectiveOn: row.EffectiveFrom, Replaced: row.Replaced,
-			Status: row.Status, SignedAt: row.SignedAt, CanSign: row.CanSign,
+			Status: row.Status, EndsOn: row.EndsOn, SignedAt: row.SignedAt, CanSign: row.CanSign, CanEnd: row.CanEnd,
 		}
 	}
 	return result, nil
@@ -355,7 +362,7 @@ func (Store) InboxDocument(ctx context.Context, organizationID, contractID int64
 	}
 	var row documentRow
 	schools, students := inboxChildScope(reader.Children)
-	err = db.NewRaw(`SELECT d.filename, d.pdf FROM care_contract.contract_mailings AS m
+	err = db.NewRaw(`SELECT d.filename, d.pdf, d.withdrawal_notice FROM care_contract.contract_mailings AS m
 		JOIN care_contract.contract_documents AS d ON d.organization_id = m.organization_id AND d.id = m.contract_document_id
 		JOIN care_contract.contracts AS c ON c.organization_id = m.organization_id AND c.id = m.contract_id
 		WHERE m.organization_id = ? AND m.contract_id = ? AND lower(m.recipient_email) = lower(?) AND `+inboxChildScopeSQL+`

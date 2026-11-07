@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -91,4 +92,21 @@ func TestPayrollStatus_CountsStaffWithoutPersonnelNumber(t *testing.T) {
 	assert.Equal(t, before.StaffTotal+2, after.StaffTotal)
 	assert.Equal(t, before.StaffWithoutPersonnelNumber+1, after.StaffWithoutPersonnelNumber,
 		"exactly one of the two new staff lacks a personnel number")
+}
+
+// E1 (#5889): the export consumes configuration, not personnel completeness.
+func TestPayrollConfigurationDoesNotReadDiscardedStaffCounts(t *testing.T) {
+	t.Parallel()
+	settings := &fakeSettingsService{opts: fakeSettingsServiceOpts{}}
+	settings.resolveString = func(context.Context, string) (string, error) { return "", nil }
+	failure := errors.New("staff completeness unavailable")
+	calls := 0
+	service := NewPayrollStatusService(settings, func(context.Context) (int, int, error) { calls++; return 0, 0, failure })
+	configuration, err := service.GetPayrollConfigurationStatus(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, configuration)
+	require.Zero(t, calls)
+	_, err = service.GetPayrollStatus(context.Background())
+	require.ErrorIs(t, err, failure)
+	require.Equal(t, 1, calls)
 }

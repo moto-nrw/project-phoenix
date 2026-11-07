@@ -86,12 +86,20 @@ func (r *SupervisionRepository) FindByActiveGroupIDs(ctx context.Context, ids []
 	if err != nil {
 		return nil, err
 	}
-	return rows, r.attachStaff(ctx, rows)
+	return rows, r.AttachStaff(ctx, rows)
 }
 
-// attachStaff resolves the staff members behind the rows through the bound
+// FindActiveByGroupIDWithoutStaff reads a group's supervisions active today,
+// the rows FindByActiveGroupID(ctx, id, true) returns, and leaves their staff
+// members unresolved.
+func (r *SupervisionRepository) FindActiveByGroupIDWithoutStaff(ctx context.Context, activeGroupID int64) ([]*ports.GroupSupervisor, error) {
+	day := r.today()
+	return r.querySupervisions(ctx, ports.GroupSupervisionFilter{GroupIDs: []int64{activeGroupID}, ActiveOn: &day})
+}
+
+// AttachStaff resolves the staff members behind the rows through the bound
 // directory; without one the rows stay as read.
-func (r *SupervisionRepository) attachStaff(ctx context.Context, rows []*ports.GroupSupervisor) error {
+func (r *SupervisionRepository) AttachStaff(ctx context.Context, rows []*ports.GroupSupervisor) error {
 	if r.staff == nil {
 		return nil
 	}

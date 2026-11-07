@@ -17,6 +17,10 @@ type uploadOpenStub struct {
 	upload *capability.RequestUpload
 }
 
+func (s uploadOpenStub) CountUploadAttempt(context.Context, int64, string) error {
+	return errors.New("not implemented")
+}
+
 func (s uploadOpenStub) PrepareUpload(context.Context, capability.UploadInput) (*capability.PreparedUpload, error) {
 	return nil, errors.New("not implemented")
 }
