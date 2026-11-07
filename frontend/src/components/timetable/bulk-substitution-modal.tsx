@@ -350,6 +350,7 @@ export function BulkSubstitutionModal({
   return (
     <SlideOver
       open={isOpen}
+      isDismissDisabled={saving}
       onOpenChange={(open) => {
         // Der Save ist EIN atomarer Request: ein während des Speicherns
         // geschlossenes Panel sähe abgebrochen aus, während der Server noch

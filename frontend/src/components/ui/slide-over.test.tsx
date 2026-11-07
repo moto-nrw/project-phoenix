@@ -23,10 +23,12 @@ vi.mock("vaul", async () => {
         children,
         direction,
         onOpenChange,
+        dismissible,
       }: {
         children: React.ReactNode;
         direction?: string;
         onOpenChange?: (open: boolean) => void;
+        dismissible?: boolean;
       }) => {
         const interactOutsideHandler = React.useRef<
           ((event: Event) => void) | undefined
@@ -34,7 +36,7 @@ vi.mock("vaul", async () => {
         return (
           <OpenChangeContext.Provider value={onOpenChange}>
             <InteractOutsideContext.Provider value={interactOutsideHandler}>
-              <div data-direction={direction}>
+              <div data-direction={direction} data-dismissible={dismissible}>
                 {/* Vaul schließt selbst bei Escape und Klick auf den Hintergrund
                   und meldet das über onOpenChange. Das echte Vaul lässt sich in
                   jsdom nicht fahren, prüfbar ist aber das, was uns gehört: dass
@@ -372,6 +374,9 @@ describe("SlideOver", () => {
     );
 
     expect(screen.getByRole("button", { name: "Schließen" })).toBeDisabled();
+    expect(
+      screen.getByText("Titel").closest("[data-direction]"),
+    ).toHaveAttribute("data-dismissible", "false");
     fireEvent.click(screen.getByTestId("vaul-dismiss"));
     expect(onOpenChange).not.toHaveBeenCalled();
   });

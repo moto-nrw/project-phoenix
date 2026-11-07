@@ -106,6 +106,7 @@ const SlideOver = ({
   defaultOpen = false,
   onOpenChange,
   isDismissDisabled = false,
+  dismissible = true,
   ...props
 }: SlideOverProps) => {
   const { direction: preferredDirection, isResolved } = useSlideOverDirection();
@@ -155,6 +156,7 @@ const SlideOver = ({
           shouldScaleBackground={shouldScaleBackground}
           open={open}
           onOpenChange={handleOpenChange}
+          dismissible={dismissible && !isDismissDisabled}
           {...props}
         />
       </SlideOverDismissContext.Provider>
@@ -247,9 +249,10 @@ const SlideOverContent = React.forwardRef<
                 ),
             className,
           )}
-          // Nicht `dismissible={false}` an der Wurzel: Vaul sperrt damit jedes
-          // Schließen, auch X und Escape. Radix schließt bei einem Außenklick
-          // nur, solange dieses Ereignis nicht abgewiesen wurde.
+          // `dismissible={false}` an der Wurzel wäre für einen reinen
+          // Hintergrundschutz zu breit: Es sperrt auch X und Escape. Radix
+          // schließt bei einem Außenklick nur, solange dieses Ereignis nicht
+          // abgewiesen wurde.
           onInteractOutside={
             isBackdropDismissDisabled
               ? (
