@@ -1,6 +1,7 @@
 "use client";
 
-import { Button } from "~/components/ui/button";
+import { Trash2 } from "lucide-react";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { useMemo } from "react";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { DataTable } from "~/components/ui/data-table";
@@ -110,22 +111,18 @@ export function PersonsTable({
         header: "Aktionen",
         align: "right",
         render: (row) => (
-          <div
-            className="flex justify-end"
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-            role="presentation"
-          >
-            <Button
-              type="button"
-              variant="ghost_danger"
-              size="compact"
-              onClick={() => onDelete(row)}
-              title="Person löschen"
-            >
-              Löschen
-            </Button>
-          </div>
+          <OverflowMenu
+            items={[
+              {
+                label: "Löschen",
+                icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                destructive: true,
+                onClick: () => onDelete(row),
+              },
+            ]}
+            triggerSize="sm"
+            ariaLabel={`Aktionen für ${row.firstName} ${row.lastName}`}
+          />
         ),
       });
     }

@@ -12,11 +12,7 @@
 import type React from "react";
 
 import { ChoiceTile } from "~/components/ui/choice-tile";
-import { DataTableSkeleton } from "~/components/ui/data-table";
-import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 import { Skeleton } from "~/components/ui/skeleton";
-
-export { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 
 // Deterministic width cycle — varied line lengths read as real text without
 // Math.random() (which would break SSR hydration and test snapshots).
@@ -299,30 +295,5 @@ export function HistorySkeleton() {
         </div>
       </div>
     </div>
-  );
-}
-
-/**
- * Full generic list page: header + table. The right default when a page's
- * loaded state is a PageHeaderWithSearch over a DataTable.
- */
-export function ListPageSkeleton({
-  label,
-  chips = 0,
-  rows = 8,
-  columns = 5,
-  testId,
-}: Readonly<{
-  label: string;
-  chips?: number;
-  rows?: number;
-  columns?: number;
-  testId?: string;
-}>) {
-  return (
-    <SkeletonRegion label={label} testId={testId}>
-      <PageHeaderSkeleton chips={chips} />
-      <DataTableSkeleton rows={rows} columns={columns} />
-    </SkeletonRegion>
   );
 }

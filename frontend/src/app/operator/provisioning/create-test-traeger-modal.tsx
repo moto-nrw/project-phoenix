@@ -100,6 +100,7 @@ export function CreateTestTraegerModal({
         logger.warn("test_traeger_sample_children_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
+        // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Träger ist angelegt, der Dialog schließt, die Meldung nennt den Folgeschritt auf der Seite des Trägers.
         toastWarning(
           "Der Test-Träger ist angelegt, die Beispielkinder fehlen noch. Legen Sie sie auf der Seite des Trägers an.",
         );

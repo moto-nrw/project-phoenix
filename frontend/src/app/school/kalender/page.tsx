@@ -33,9 +33,12 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { EditActions } from "~/components/ui/edit-actions";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverFooter,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
@@ -280,19 +283,11 @@ export default function SchoolCalendarPage() {
   const classesError = formErrors.fieldError("classes");
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-            Kalender
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Termine der OGS, Schließtage, Ferien und Ihre Schultermine.
-          </p>
-        </div>
-        {/* Neben der Überschrift statt in der Zeitleiste: auf dem Handy
-            bleibt dort sonst kein Platz für Tag, Woche und Monat. */}
-        <div className="flex flex-wrap gap-2">
+    <TenantPage
+      title="Kalender"
+      info={<p>Termine der OGS, Schließtage, Ferien und Ihre Schultermine.</p>}
+      actions={
+        <>
           {/* Der Elternsprechtag (#4801) hat keinen eigenen Platz in der
               Navigation: die mobile Leiste fasst kein achtes Ziel. */}
           <ButtonLink
@@ -312,9 +307,295 @@ export default function SchoolCalendarPage() {
             <Plus className="h-4 w-4" aria-hidden />
             Neuer Termin
           </Button>
-        </div>
-      </div>
+        </>
+      }
+      overlays={
+        <>
+          {/* Das Formular hat mehr als sechs Felder und steht deshalb im Panel
+          neben dem Kalender, wie im OGS-Portal. */}
+          <SlideOver
+            open={formOpen}
+            onOpenChange={(open) => {
+              if (!open && !submitting) closeForm();
+            }}
+          >
+            <SlideOverContent size="md">
+              <SlideOverHeader
+                close={<SlideOverCloseButton disabled={submitting} />}
+              >
+                <SlideOverTitle>
+                  {creating ? "Schultermin anlegen" : "Schultermin bearbeiten"}
+                </SlideOverTitle>
+              </SlideOverHeader>
+              <form
+                className="flex min-h-0 flex-1 flex-col"
+                onSubmit={handleSubmit}
+                noValidate
+              >
+                <SlideOverBody error={formErrors.error}>
+                  <div ref={formRef}>
+                    <div className="space-y-5">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <Input
+                          label="Titel"
+                          name="title"
+                          value={draft.title}
+                          onChange={(event) =>
+                            update({ title: event.target.value })
+                          }
+                          error={formErrors.fieldError("title")}
+                          disabled={submitting}
+                          required
+                        />
+                        <label htmlFor="school-event-type" className="block">
+                          <span className="mb-2 block text-sm font-medium text-gray-700">
+                            Art
+                          </span>
+                          <CustomSelect
+                            id="school-event-type"
+                            ariaLabel="Art"
+                            value={draft.eventType}
+                            onChange={(next) =>
+                              update({ eventType: next as SchoolEventType })
+                            }
+                            disabled={submitting}
+                            options={eventTypeOptions}
+                          />
+                        </label>
+                        <ISODatePicker
+                          label="Erster Tag"
+                          id="school-start-date"
+                          name="start_date"
+                          controlSize="lg"
+                          value={draft.startDate}
+                          error={formErrors.fieldError("start_date")}
+                          onChange={(next) =>
+                            update({
+                              startDate: next,
+                              ...(draft.endDate < next
+                                ? { endDate: next }
+                                : {}),
+                            })
+                          }
+                          disabled={submitting}
+                          calendarLayout="popover"
+                          hideClearButton
+                          required
+                        />
+                        <ISODatePicker
+                          label="Letzter Tag"
+                          id="school-end-date"
+                          name="end_date"
+                          controlSize="lg"
+                          value={draft.endDate}
+                          error={formErrors.fieldError("end_date")}
+                          min={draft.startDate}
+                          onChange={(next) => update({ endDate: next })}
+                          disabled={submitting}
+                          calendarLayout="popover"
+                          hideClearButton
+                          required
+                        />
+                      </div>
 
+                      <label
+                        htmlFor="school-all-day"
+                        className="flex items-center gap-2 text-sm font-medium text-gray-700"
+                      >
+                        <Checkbox
+                          id="school-all-day"
+                          checked={draft.allDay}
+                          onChange={(event) =>
+                            update({ allDay: event.target.checked })
+                          }
+                          disabled={submitting}
+                        />
+                        Ganztägig
+                      </label>
+
+                      {draft.allDay ? null : (
+                        <div className="grid grid-cols-2 gap-4">
+                          <Input
+                            label="Beginn"
+                            name="start_time"
+                            type="time"
+                            value={draft.startTime}
+                            error={formErrors.fieldError("start_time")}
+                            onChange={(event) =>
+                              update({ startTime: event.target.value })
+                            }
+                            disabled={submitting}
+                            required
+                          />
+                          <Input
+                            label="Ende"
+                            name="end_time"
+                            type="time"
+                            value={draft.endTime}
+                            error={formErrors.fieldError("end_time")}
+                            onChange={(event) =>
+                              update({ endTime: event.target.value })
+                            }
+                            disabled={submitting}
+                            required
+                          />
+                        </div>
+                      )}
+
+                      <Input
+                        label="Ort"
+                        name="location"
+                        value={draft.location}
+                        onChange={(event) =>
+                          update({ location: event.target.value })
+                        }
+                        error={formErrors.fieldError("location")}
+                        disabled={submitting}
+                      />
+                      <Textarea
+                        label="Beschreibung"
+                        name="description"
+                        value={draft.description}
+                        onChange={(event) =>
+                          update({ description: event.target.value })
+                        }
+                        error={formErrors.fieldError("description")}
+                        disabled={submitting}
+                        rows={3}
+                      />
+
+                      <fieldset className="space-y-3">
+                        <legend className="text-sm font-medium text-gray-700">
+                          Wer sieht den Termin?
+                        </legend>
+                        <p className="text-sm text-gray-600">
+                          Die OGS und alle Lehrkräfte sehen ihn immer.
+                          {creating
+                            ? " Wählen Sie, ob auch Eltern ihn sehen."
+                            : " Wer ihn sieht, bleibt beim Ändern gleich."}
+                        </p>
+                        {creating ? (
+                          <div className="grid gap-2">
+                            {parentOptions.map((option) => {
+                              const noClasses =
+                                option.value === "classes" &&
+                                classes.length === 0;
+                              return (
+                                <ChoiceTile
+                                  key={option.value}
+                                  htmlFor={`school-parents-${option.value}`}
+                                  selected={draft.parents === option.value}
+                                  disabled={submitting || noClasses}
+                                >
+                                  <Radio
+                                    id={`school-parents-${option.value}`}
+                                    name="parents"
+                                    value={option.value}
+                                    checked={draft.parents === option.value}
+                                    disabled={submitting || noClasses}
+                                    onChange={() =>
+                                      update({
+                                        parents: option.value,
+                                        classes: [],
+                                      })
+                                    }
+                                  />
+                                  <span className="min-w-0 flex-1">
+                                    {option.label}
+                                    {noClasses ? (
+                                      <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                                        Ihnen ist keine Klasse zugeordnet.
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                </ChoiceTile>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                        {creating && draft.parents === "classes" ? (
+                          <div
+                            role="group"
+                            aria-label="Klassen"
+                            aria-describedby={
+                              classesError ? "school-classes-error" : undefined
+                            }
+                            className="flex flex-wrap gap-2"
+                          >
+                            {classes.map((schoolClass) => {
+                              const checked =
+                                draft.classes.includes(schoolClass);
+                              const id = `school-class-${schoolClass}`;
+                              return (
+                                <ChoiceTile
+                                  key={schoolClass}
+                                  htmlFor={id}
+                                  selected={checked}
+                                  disabled={submitting}
+                                >
+                                  <Checkbox
+                                    id={id}
+                                    checked={checked}
+                                    disabled={submitting}
+                                    onChange={(event) =>
+                                      update({
+                                        classes: event.target.checked
+                                          ? [...draft.classes, schoolClass]
+                                          : draft.classes.filter(
+                                              (value) => value !== schoolClass,
+                                            ),
+                                      })
+                                    }
+                                  />
+                                  {schoolClassLabel(schoolClass)}
+                                </ChoiceTile>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                        <FieldErrorHint
+                          id="school-classes-error"
+                          message={creating ? classesError : null}
+                        />
+                      </fieldset>
+                    </div>
+                  </div>
+                </SlideOverBody>
+                <SlideOverFooter>
+                  <EditActions
+                    onCancel={closeForm}
+                    saving={submitting}
+                    saveLabel="Speichern"
+                    savingLabel="Speichert…"
+                  />
+                </SlideOverFooter>
+              </form>
+            </SlideOverContent>
+          </SlideOver>
+
+          <ConfirmDeleteModal
+            isOpen={deleteTarget !== null}
+            title="Termin löschen"
+            description={
+              <p className="text-gray-700">
+                Der Termin wird gelöscht. Danach sieht ihn niemand mehr.
+              </p>
+            }
+            gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+            confirmLabel="Endgültig löschen"
+            onConfirm={() => void confirmDelete()}
+            onClose={() => {
+              if (!busyAppointmentId) {
+                setDeleteTarget(null);
+                deleteErrors.clear();
+              }
+            }}
+            loading={Boolean(busyAppointmentId)}
+            error={deleteErrors.error}
+          />
+        </>
+      }
+    >
       <SectionCard>
         <PersonalCalendarChrome
           events={events}
@@ -357,284 +638,6 @@ export default function SchoolCalendarPage() {
       )}
 
       <CalendarSubscribePanel audience="school" />
-
-      {/* Das Formular hat mehr als sechs Felder und steht deshalb im Panel
-          neben dem Kalender, wie im OGS-Portal. */}
-      <SlideOver
-        open={formOpen}
-        onOpenChange={(open) => {
-          if (!open && !submitting) closeForm();
-        }}
-      >
-        <SlideOverContent size="md">
-          <SlideOverHeader
-            close={<SlideOverCloseButton disabled={submitting} />}
-          >
-            <SlideOverTitle>
-              {creating ? "Schultermin anlegen" : "Schultermin bearbeiten"}
-            </SlideOverTitle>
-          </SlideOverHeader>
-          <SlideOverBody error={formErrors.error}>
-            <div ref={formRef}>
-              <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Input
-                    label="Titel"
-                    name="title"
-                    value={draft.title}
-                    onChange={(event) => update({ title: event.target.value })}
-                    error={formErrors.fieldError("title")}
-                    disabled={submitting}
-                    required
-                  />
-                  <label htmlFor="school-event-type" className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">
-                      Art
-                    </span>
-                    <CustomSelect
-                      id="school-event-type"
-                      ariaLabel="Art"
-                      value={draft.eventType}
-                      onChange={(next) =>
-                        update({ eventType: next as SchoolEventType })
-                      }
-                      disabled={submitting}
-                      options={eventTypeOptions}
-                    />
-                  </label>
-                  <ISODatePicker
-                    label="Erster Tag"
-                    id="school-start-date"
-                    name="start_date"
-                    controlSize="lg"
-                    value={draft.startDate}
-                    error={formErrors.fieldError("start_date")}
-                    onChange={(next) =>
-                      update({
-                        startDate: next,
-                        ...(draft.endDate < next ? { endDate: next } : {}),
-                      })
-                    }
-                    disabled={submitting}
-                    calendarLayout="popover"
-                    hideClearButton
-                    required
-                  />
-                  <ISODatePicker
-                    label="Letzter Tag"
-                    id="school-end-date"
-                    name="end_date"
-                    controlSize="lg"
-                    value={draft.endDate}
-                    error={formErrors.fieldError("end_date")}
-                    min={draft.startDate}
-                    onChange={(next) => update({ endDate: next })}
-                    disabled={submitting}
-                    calendarLayout="popover"
-                    hideClearButton
-                    required
-                  />
-                </div>
-
-                <label
-                  htmlFor="school-all-day"
-                  className="flex items-center gap-2 text-sm font-medium text-gray-700"
-                >
-                  <Checkbox
-                    id="school-all-day"
-                    checked={draft.allDay}
-                    onChange={(event) =>
-                      update({ allDay: event.target.checked })
-                    }
-                    disabled={submitting}
-                  />
-                  Ganztägig
-                </label>
-
-                {draft.allDay ? null : (
-                  <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      label="Beginn"
-                      name="start_time"
-                      type="time"
-                      value={draft.startTime}
-                      error={formErrors.fieldError("start_time")}
-                      onChange={(event) =>
-                        update({ startTime: event.target.value })
-                      }
-                      disabled={submitting}
-                      required
-                    />
-                    <Input
-                      label="Ende"
-                      name="end_time"
-                      type="time"
-                      value={draft.endTime}
-                      error={formErrors.fieldError("end_time")}
-                      onChange={(event) =>
-                        update({ endTime: event.target.value })
-                      }
-                      disabled={submitting}
-                      required
-                    />
-                  </div>
-                )}
-
-                <Input
-                  label="Ort"
-                  name="location"
-                  value={draft.location}
-                  onChange={(event) => update({ location: event.target.value })}
-                  error={formErrors.fieldError("location")}
-                  disabled={submitting}
-                />
-                <Textarea
-                  label="Beschreibung"
-                  name="description"
-                  value={draft.description}
-                  onChange={(event) =>
-                    update({ description: event.target.value })
-                  }
-                  error={formErrors.fieldError("description")}
-                  disabled={submitting}
-                  rows={3}
-                />
-
-                <fieldset className="space-y-3">
-                  <legend className="text-sm font-medium text-gray-700">
-                    Wer sieht den Termin?
-                  </legend>
-                  <p className="text-sm text-gray-600">
-                    Die OGS und alle Lehrkräfte sehen ihn immer.
-                    {creating
-                      ? " Wählen Sie, ob auch Eltern ihn sehen."
-                      : " Wer ihn sieht, bleibt beim Ändern gleich."}
-                  </p>
-                  {creating ? (
-                    <div className="grid gap-2">
-                      {parentOptions.map((option) => {
-                        const noClasses =
-                          option.value === "classes" && classes.length === 0;
-                        return (
-                          <ChoiceTile
-                            key={option.value}
-                            htmlFor={`school-parents-${option.value}`}
-                            selected={draft.parents === option.value}
-                            disabled={submitting || noClasses}
-                          >
-                            <Radio
-                              id={`school-parents-${option.value}`}
-                              name="parents"
-                              value={option.value}
-                              checked={draft.parents === option.value}
-                              disabled={submitting || noClasses}
-                              onChange={() =>
-                                update({ parents: option.value, classes: [] })
-                              }
-                            />
-                            <span className="min-w-0 flex-1">
-                              {option.label}
-                              {noClasses ? (
-                                <span className="mt-0.5 block text-xs font-normal text-gray-500">
-                                  Ihnen ist keine Klasse zugeordnet.
-                                </span>
-                              ) : null}
-                            </span>
-                          </ChoiceTile>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                  {creating && draft.parents === "classes" ? (
-                    <div
-                      role="group"
-                      aria-label="Klassen"
-                      aria-describedby={
-                        classesError ? "school-classes-error" : undefined
-                      }
-                      className="flex flex-wrap gap-2"
-                    >
-                      {classes.map((schoolClass) => {
-                        const checked = draft.classes.includes(schoolClass);
-                        const id = `school-class-${schoolClass}`;
-                        return (
-                          <ChoiceTile
-                            key={schoolClass}
-                            htmlFor={id}
-                            selected={checked}
-                            disabled={submitting}
-                          >
-                            <Checkbox
-                              id={id}
-                              checked={checked}
-                              disabled={submitting}
-                              onChange={(event) =>
-                                update({
-                                  classes: event.target.checked
-                                    ? [...draft.classes, schoolClass]
-                                    : draft.classes.filter(
-                                        (value) => value !== schoolClass,
-                                      ),
-                                })
-                              }
-                            />
-                            {schoolClassLabel(schoolClass)}
-                          </ChoiceTile>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                  <FieldErrorHint
-                    id="school-classes-error"
-                    message={creating ? classesError : null}
-                  />
-                </fieldset>
-
-                <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={closeForm}
-                    disabled={submitting}
-                  >
-                    Abbrechen
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="md"
-                    isLoading={submitting}
-                    loadingText="Speichert…"
-                  >
-                    Speichern
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </SlideOverBody>
-        </SlideOverContent>
-      </SlideOver>
-
-      <ConfirmDeleteModal
-        isOpen={deleteTarget !== null}
-        title="Termin löschen"
-        description={
-          <p className="text-gray-700">
-            Der Termin wird gelöscht. Danach sieht ihn niemand mehr.
-          </p>
-        }
-        gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
-        confirmLabel="Endgültig löschen"
-        onConfirm={() => void confirmDelete()}
-        onClose={() => {
-          if (!busyAppointmentId) {
-            setDeleteTarget(null);
-            deleteErrors.clear();
-          }
-        }}
-        loading={Boolean(busyAppointmentId)}
-        error={deleteErrors.error}
-      />
-    </div>
+    </TenantPage>
   );
 }

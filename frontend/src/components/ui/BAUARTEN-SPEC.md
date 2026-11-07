@@ -8,7 +8,7 @@ Grundsatz: **Es gibt vier Bauarten. Jede Fläche entscheidet sich für genau
 eine und erfindet innen nichts Eigenes.** Wer eine fünfte braucht, ändert
 diesen Spec — nicht seine Seite.
 
-Nicht betroffen: Eltern-Portal, Schul-Portal, Operator-Portal.
+Nicht betroffen: Eltern-Portal. Schul- und Operator-Portal gelten seit #5604 wie das Tenant-Portal.
 
 ## Warum
 

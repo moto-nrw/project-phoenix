@@ -122,7 +122,6 @@ export function SupervisionsOverview({
 
   return (
     <SectionCard
-      kicker="Meine Aufsichten"
       title={`${greeting}, ${getUserDisplayName(session)}`}
       description={description}
     >

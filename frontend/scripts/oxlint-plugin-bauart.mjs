@@ -31,10 +31,10 @@
 //                               Location-bound exception list
 //                               (ROW_ACTION_BASELINE) for form-internal
 //                               remove buttons only; the #3111 remainder is
-//                               gone since #3119. Scope is the
-//                               tenant portal: operator, parents and school
-//                               portal files are exempt (the spec does not
-//                               cover them).
+//                               gone since #3119. Parent portal
+//                               files are exempt (the spec does not cover
+//                               them); operator and school follow since
+//                               #5604.
 //
 //   bauart/no-unconfirmed-destructive-click — a button or menu item whose
 //                               label removes something (löschen, entfernen,
@@ -66,7 +66,7 @@
 //                               it (`.catch(() => toast.error(…))`) count.
 //                               Success toasts and toasts outside such
 //                               handlers (delete, toggle, load) pass.
-//                               Hard-zero; tenant portal only.
+//                               Hard-zero; parent portal exempt.
 //
 //   bauart/no-manage-surface-in-overlay — the Stammdaten of a school are
 //                               managed on a route of the Datenverwaltung,
@@ -97,7 +97,7 @@
 //                               cannot be confused with a kit call, so the
 //                               check stays a plain element count. Hard-zero
 //                               since #3119 (the #3117 remainder is gone);
-//                               tenant portal only.
+//                               parent portal exempt.
 //
 //   bauart/no-own-skeleton — loading comes from `TenantPage.loading` with
 //                               the kit skeletons (ui/skeleton,
@@ -126,7 +126,7 @@
 //                               and global-error.tsx (no stylesheet at that
 //                               boundary) are exempt by name
 //                               (HEX_TOKEN_SOURCES). Hard-zero since #3119;
-//                               tenant portal only, src/test/ excluded.
+//                               parent portal exempt, src/test/ excluded.
 //
 //   bauart/no-disabled-menu-item — an action that does not exist is not in
 //                               the menu (Bauart 2 Regel 7, issue #3118).
@@ -134,7 +134,7 @@
 //                               plus `onClick` or `href`) whose `disabled`
 //                               is the literal `true`; a computed
 //                               `disabled: busy` is a state and passes.
-//                               Hard-zero; tenant portal only.
+//                               Hard-zero; parent portal exempt.
 //
 // Files under src/components/ui/ are exempt (ConfirmDeleteModal is itself
 // built on Modal and owns the final destructive button), as are tests and
@@ -142,10 +142,9 @@
 
 const UI_KIT_DIR_RE = /(?:^|\/)src\/components\/ui\//;
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
-// BAUARTEN-SPEC: „Nicht betroffen: Eltern-Portal, Schul-Portal,
-// Operator-Portal.“
-const OTHER_PORTAL_RE =
-  /(?:^|\/)src\/(?:app\/(?:operator|parents|school)|components\/(?:operator|parent|school))\//;
+// BAUARTEN-SPEC: „Nicht betroffen: Eltern-Portal.“ Schul- und Operator-Portal
+// rendern seit #5604 dasselbe Gerüst und unterliegen denselben Regeln.
+const OTHER_PORTAL_RE = /(?:^|\/)src\/(?:app\/parents|components\/parent)\//;
 
 // Word-bounded for letters including umlauts: JS `\b` only knows ASCII, so
 // „gelöscht“ / „Löschung“ stay out and „Löschen“, „Ja, löschen“,
@@ -312,6 +311,11 @@ const ROW_ACTION_BASELINE = new Map(
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
+    // Ziele einer Ankündigung, die es nicht mehr gibt (#5604, Formularwert).
+    "src/app/operator/announcements/page.tsx": [
+      "aus Zielen entfernen@839",
+      "aus Zielen entfernen@872",
+    ],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
       "Gericht entfernen@798",
     ],
@@ -733,13 +737,12 @@ const noUnconfirmedDestructiveClick = {
 // (`void search(q)`) pass; the search field of a list is not a save.
 //
 // Exempt: the settings page (the one Bauart that auto-saves, and says so), the
-// portals outside the spec (operator), the UI kit itself, tests and stories.
+// UI kit itself, tests and stories. Operator and school follow since #5604.
 // The remaining named files are the shrink-only baseline: flächen that name
 // their auto-save on screen and are documented in issue #3112. New entries
 // need the same sentence on the surface and a reviewer's approval.
 
-const AUTOSAVE_EXEMPT_DIR_RE =
-  /(?:^|\/)src\/(?:components\/settings\/|components\/operator\/|app\/operator\/)/;
+const AUTOSAVE_EXEMPT_DIR_RE = /(?:^|\/)src\/components\/settings\//;
 
 const AUTOSAVE_BASELINE = new Set([
   // Bauart 4 by decision (#3112): Lohnarten are configuration. Both cards
@@ -1591,6 +1594,21 @@ const EDIT_OVERLAY_BASELINE = new Map(
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
       "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@602",
+    ],
+    // Seit #5604 gilt die Regel im Schul- und Operator-Portal. Diese Formulare
+    // haben keine eigene Objektroute; ein Umbau geht über das Seitengerüst
+    // hinaus und ist nicht Teil von #5604.
+    "src/app/operator/announcements/page.tsx": [
+      "Ankündigung bearbeiten Neue Ankündigung@546",
+    ],
+    "src/app/operator/provisioning/edit-organization-modal.tsx": [
+      "Träger bearbeiten@83",
+    ],
+    "src/app/operator/provisioning/edit-school-modal.tsx": [
+      "Schule bearbeiten@157",
+    ],
+    "src/app/school/kalender/page.tsx": [
+      "Schultermin anlegen Schultermin bearbeiten@326",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@267",
