@@ -195,19 +195,14 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
 
       {isChangeRequestMode ? (
         <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            {t("changeRequestEyebrow")}
-          </p>
-          <div className="mt-3">
-            <Textarea
-              label={t("changeRequestReasonLabel")}
-              value={changeReason}
-              onChange={(event) => setChangeReason(event.target.value)}
-              rows={3}
-              placeholder={t("changeRequestReasonPlaceholder")}
-              className="resize-y"
-            />
-          </div>
+          <Textarea
+            label={t("changeRequestReasonLabel")}
+            value={changeReason}
+            onChange={(event) => setChangeReason(event.target.value)}
+            rows={3}
+            placeholder={t("changeRequestReasonPlaceholder")}
+            className="resize-y"
+          />
         </section>
       ) : null}
 

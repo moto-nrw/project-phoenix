@@ -148,8 +148,10 @@ type CareUsageRow struct {
 	// CareDays is the display-only set of weekdays used by the compact
 	// export. Unlike EffectiveDays, it includes every weekday when care is
 	// not constrained by an active offering catalog.
-	CareDays          []string          `json:"-"`
-	DayCount          int               `json:"day_count"`
+	CareDays []string `json:"-"`
+	DayCount int      `json:"day_count"`
+	// PickupByDay is the Gehzeit the request asks for: the answer to a
+	// pickup question, else the Gehzeit of the booked offerings (#6044).
 	PickupByDay       map[string]string `json:"pickup_by_day"`
 	GuardianFirstName string            `json:"guardian_first_name"`
 	GuardianLastName  string            `json:"guardian_last_name"`
@@ -159,8 +161,8 @@ type CareUsageRow struct {
 	// SchedulePickupByDay is the maintained Kind-Gehzeit (manual rows and
 	// rolled-out Angebots-Gehzeiten, #2290) of the student linked to this
 	// request child, when one exists. Display-only enrichment for the
-	// compact export (#2215): filters and totals keep using the
-	// enrollment-form snapshot in PickupByDay.
+	// compact export (#2215): filters and totals keep using the requested
+	// Gehzeit in PickupByDay.
 	SchedulePickupByDay map[string]string `json:"schedule_pickup_by_day"`
 	// Guardians are all guardian contacts on the request (primary plus
 	// additional request guardians), mirroring the class-roster contact

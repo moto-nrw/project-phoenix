@@ -125,7 +125,7 @@ export function TemplateCard({
             <h3 className="truncate text-sm font-semibold text-gray-900">
               {template.name}
             </h3>
-            <p className="mt-0.5 text-[11px] font-medium tracking-wide text-gray-500 uppercase">
+            <p className="mt-0.5 text-xs text-gray-500">
               {TYPE_LABELS[template.type]}
               {template.categoryName ? ` · ${template.categoryName}` : ""}
             </p>
