@@ -59,6 +59,86 @@ export default function OperatorOperatorsPage() {
     "die Liste der Operatoren",
     () => void mutate(),
   );
+  const [revokeTarget, setRevokeTarget] =
+    useState<PendingOperatorInvitation | null>(null);
+  const [revokeLoading, setRevokeLoading] = useState(false);
+  const {
+    error: revokeError,
+    show: showRevokeError,
+    clear: clearRevokeError,
+  } = useApiFormError();
+  const [deactivateTarget, setDeactivateTarget] = useState<OperatorInfo | null>(
+    null,
+  );
+  const [deactivateLoading, setDeactivateLoading] = useState(false);
+  const {
+    error: deactivateError,
+    show: showDeactivateError,
+    clear: clearDeactivateError,
+  } = useApiFormError();
+  const { success: toastSuccess } = useToast();
+
+  const openRevoke = useCallback(
+    (invitation: PendingOperatorInvitation) => {
+      clearRevokeError();
+      setRevokeTarget(invitation);
+    },
+    [clearRevokeError],
+  );
+
+  const handleRevoke = useCallback(async () => {
+    if (!revokeTarget) return;
+    clearRevokeError();
+    setRevokeLoading(true);
+    try {
+      await revokeOperatorInvitation(revokeTarget.id);
+      toastSuccess("Einladung wurde widerrufen.");
+      setRevokeTarget(null);
+      void mutate();
+    } catch (err) {
+      logger.error("revoke_invitation_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showRevokeError(err, { object: "das Widerrufen der Einladung" });
+    } finally {
+      setRevokeLoading(false);
+    }
+  }, [clearRevokeError, mutate, revokeTarget, showRevokeError, toastSuccess]);
+
+  const openDeactivate = useCallback(
+    (operator: OperatorInfo) => {
+      clearDeactivateError();
+      setDeactivateTarget(operator);
+    },
+    [clearDeactivateError],
+  );
+
+  const handleDeactivate = useCallback(async () => {
+    if (!deactivateTarget) return;
+    clearDeactivateError();
+    setDeactivateLoading(true);
+    try {
+      await deactivateOperator(deactivateTarget.id);
+      toastSuccess(`${deactivateTarget.displayName} wurde deaktiviert.`);
+      setDeactivateTarget(null);
+      void mutate();
+    } catch (err) {
+      logger.error("deactivate_operator_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showDeactivateError(err, {
+        object: "das Deaktivieren des Kontos",
+      });
+    } finally {
+      setDeactivateLoading(false);
+    }
+  }, [
+    clearDeactivateError,
+    deactivateTarget,
+    mutate,
+    showDeactivateError,
+    toastSuccess,
+  ]);
 
   return (
     <TenantPage
@@ -66,6 +146,47 @@ export default function OperatorOperatorsPage() {
       info={<p>Neue Operatoren einladen und bestehende anzeigen.</p>}
       loading={isLoading}
       loadingLabel="Operatoren werden geladen"
+      overlays={
+        <>
+          <ConfirmationModal
+            isOpen={revokeTarget !== null}
+            onClose={() => setRevokeTarget(null)}
+            onConfirm={() => void handleRevoke()}
+            title="Einladung widerrufen"
+            confirmText="Widerrufen"
+            confirmVariant="danger"
+            isConfirmLoading={revokeLoading}
+            isConfirmDisabled={revokeLoading}
+          >
+            <p>
+              Möchtest du die Einladung an{" "}
+              <strong>{revokeTarget?.email ?? ""}</strong> wirklich widerrufen?
+            </p>
+            <FormErrorAlert message={revokeError} className="mt-3" />
+          </ConfirmationModal>
+
+          <ConfirmationModal
+            isOpen={deactivateTarget !== null}
+            onClose={() => setDeactivateTarget(null)}
+            onConfirm={() => void handleDeactivate()}
+            title="Konto deaktivieren"
+            confirmText="Deaktivieren"
+            confirmVariant="danger"
+            isConfirmLoading={deactivateLoading}
+            isConfirmDisabled={deactivateLoading}
+          >
+            <p>
+              Möchtest du das Konto von{" "}
+              <strong>{deactivateTarget?.email ?? ""}</strong> deaktivieren?
+            </p>
+            <p className="mt-2">
+              Die Person kann sich danach nicht mehr anmelden. Ohne erneute
+              Aktivierung löscht moto das Konto nach Ende des nächsten Jahres.
+            </p>
+            <FormErrorAlert message={deactivateError} className="mt-3" />
+          </ConfirmationModal>
+        </>
+      }
     >
       <InviteForm onCreated={() => void mutate()} />
 
@@ -77,11 +198,13 @@ export default function OperatorOperatorsPage() {
             <PendingInvitationsList
               invitations={data.invitations}
               onMutate={() => void mutate()}
+              onRevoke={openRevoke}
             />
           )}
           <OperatorsList
             operators={data.operators}
             onMutate={() => void mutate()}
+            onDeactivate={openDeactivate}
           />
         </>
       )}
@@ -188,17 +311,15 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
 function PendingInvitationsList({
   invitations,
   onMutate,
+  onRevoke,
 }: {
   readonly invitations: PendingOperatorInvitation[];
   readonly onMutate: () => void;
+  readonly onRevoke: (invitation: PendingOperatorInvitation) => void;
 }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [revokeTarget, setRevokeTarget] =
-    useState<PendingOperatorInvitation | null>(null);
   const { success: toastSuccess } = useToast();
   const { show: showResendError } = useApiErrorDisplay();
-  const revokeErrors = useApiFormError();
-  const { show: showRevokeError, clear: clearRevokeError } = revokeErrors;
 
   const handleResend = useCallback(
     async (id: string) => {
@@ -221,33 +342,6 @@ function PendingInvitationsList({
     },
     [onMutate, toastSuccess, showResendError],
   );
-
-  const openRevoke = useCallback(
-    (invitation: PendingOperatorInvitation) => {
-      clearRevokeError();
-      setRevokeTarget(invitation);
-    },
-    [clearRevokeError],
-  );
-
-  const handleRevoke = useCallback(async () => {
-    if (!revokeTarget) return;
-    clearRevokeError();
-    setActionLoading(revokeTarget.id);
-    try {
-      await revokeOperatorInvitation(revokeTarget.id);
-      toastSuccess("Einladung wurde widerrufen.");
-      setRevokeTarget(null);
-      onMutate();
-    } catch (err) {
-      logger.error("revoke_invitation_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showRevokeError(err, { object: "das Widerrufen der Einladung" });
-    } finally {
-      setActionLoading(null);
-    }
-  }, [revokeTarget, onMutate, toastSuccess, showRevokeError, clearRevokeError]);
 
   return (
     <SectionCard title="Offene Einladungen" concept={operatorsConcept}>
@@ -290,7 +384,7 @@ function PendingInvitationsList({
                 variant="outline_danger"
                 size="compact"
                 disabled={actionLoading === inv.id}
-                onClick={() => openRevoke(inv)}
+                onClick={() => onRevoke(inv)}
               >
                 Widerrufen
               </Button>
@@ -298,21 +392,6 @@ function PendingInvitationsList({
           </div>
         ))}
       </div>
-
-      <ConfirmationModal
-        isOpen={revokeTarget !== null}
-        onClose={() => setRevokeTarget(null)}
-        onConfirm={() => void handleRevoke()}
-        title="Einladung widerrufen"
-        confirmText="Widerrufen"
-        confirmVariant="danger"
-      >
-        <p>
-          Möchtest du die Einladung an{" "}
-          <strong>{revokeTarget?.email ?? ""}</strong> wirklich widerrufen?
-        </p>
-        <FormErrorAlert message={revokeErrors.error} className="mt-3" />
-      </ConfirmationModal>
     </SectionCard>
   );
 }
@@ -329,52 +408,15 @@ const berlinDate: Intl.DateTimeFormatOptions = {
 function OperatorsList({
   operators,
   onMutate,
+  onDeactivate,
 }: {
   readonly operators: OperatorInfo[];
   readonly onMutate: () => void;
+  readonly onDeactivate: (operator: OperatorInfo) => void;
 }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [deactivateTarget, setDeactivateTarget] = useState<OperatorInfo | null>(
-    null,
-  );
   const { success: toastSuccess } = useToast();
   const { show: showReactivateError } = useApiErrorDisplay();
-  const deactivateErrors = useApiFormError();
-  const { show: showDeactivateError, clear: clearDeactivateError } =
-    deactivateErrors;
-
-  const openDeactivate = useCallback(
-    (operator: OperatorInfo) => {
-      clearDeactivateError();
-      setDeactivateTarget(operator);
-    },
-    [clearDeactivateError],
-  );
-
-  const handleDeactivate = useCallback(async () => {
-    if (!deactivateTarget) return;
-    clearDeactivateError();
-    setActionLoading(deactivateTarget.id);
-    try {
-      await deactivateOperator(deactivateTarget.id);
-      toastSuccess(`${deactivateTarget.displayName} wurde deaktiviert.`);
-      setDeactivateTarget(null);
-      onMutate();
-    } catch (err) {
-      logger.error("deactivate_operator_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showDeactivateError(err, { object: "das Deaktivieren des Kontos" });
-    } finally {
-      setActionLoading(null);
-    }
-  }, [
-    deactivateTarget,
-    onMutate,
-    toastSuccess,
-    showDeactivateError,
-    clearDeactivateError,
-  ]);
 
   const handleReactivate = useCallback(
     async (operator: OperatorInfo) => {
@@ -461,7 +503,7 @@ function OperatorsList({
                               label: "Deaktivieren",
                               destructive: true,
                               disabled: actionLoading === op.id,
-                              onClick: () => openDeactivate(op),
+                              onClick: () => onDeactivate(op),
                             }
                           : {
                               label: "Wieder aktivieren",
@@ -477,27 +519,6 @@ function OperatorsList({
           ))}
         </div>
       )}
-
-      <ConfirmationModal
-        isOpen={deactivateTarget !== null}
-        onClose={() => setDeactivateTarget(null)}
-        onConfirm={() => void handleDeactivate()}
-        title="Konto deaktivieren"
-        confirmText="Deaktivieren"
-        confirmVariant="danger"
-        isConfirmLoading={actionLoading === deactivateTarget?.id}
-        isConfirmDisabled={actionLoading === deactivateTarget?.id}
-      >
-        <p>
-          Möchtest du das Konto von{" "}
-          <strong>{deactivateTarget?.email ?? ""}</strong> deaktivieren?
-        </p>
-        <p className="mt-2">
-          Die Person kann sich danach nicht mehr anmelden. Ohne erneute
-          Aktivierung löscht moto das Konto nach Ende des nächsten Jahres.
-        </p>
-        <FormErrorAlert message={deactivateErrors.error} className="mt-3" />
-      </ConfirmationModal>
     </SectionCard>
   );
 }

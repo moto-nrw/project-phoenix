@@ -379,6 +379,27 @@ describe("OperatorOperatorsPage", () => {
     expect(modal.textContent).toContain("pending@example.com");
   });
 
+  it("keeps the revoke confirmation open while the list reloads", () => {
+    const swrState = {
+      data: sampleData as OperatorInvitationsData | undefined,
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: mockMutate,
+    };
+    mockUseSWR.mockImplementation(() => swrState);
+    const view = render(<OperatorOperatorsPage />);
+
+    fireEvent.click(screen.getByText("Widerrufen"));
+    swrState.data = undefined;
+    swrState.isLoading = true;
+    view.rerender(<OperatorOperatorsPage />);
+
+    expect(screen.getByTestId("confirmation-modal")).toHaveTextContent(
+      "pending@example.com",
+    );
+  });
+
   it("handles revoke confirmation", async () => {
     setupSWR(sampleData);
     mockRevokeInvitation.mockResolvedValue(undefined);
@@ -460,6 +481,28 @@ describe("OperatorOperatorsPage", () => {
       await screen.findByText("Colleague User wurde deaktiviert."),
     ).toBeInTheDocument();
     expect(mockMutate).toHaveBeenCalled();
+  });
+
+  it("keeps the deactivation confirmation open while the list reloads", () => {
+    const swrState = {
+      data: sampleData as OperatorInvitationsData | undefined,
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: mockMutate,
+    };
+    mockUseSWR.mockImplementation(() => swrState);
+    const view = render(<OperatorOperatorsPage />);
+
+    openActions("Colleague User");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Deaktivieren" }));
+    swrState.data = undefined;
+    swrState.isLoading = true;
+    view.rerender(<OperatorOperatorsPage />);
+
+    expect(screen.getByTestId("confirmation-modal")).toHaveTextContent(
+      "colleague@example.com",
+    );
   });
 
   it("disables the deactivation confirmation while the request runs", async () => {
