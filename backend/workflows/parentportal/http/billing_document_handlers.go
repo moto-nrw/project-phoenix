@@ -31,6 +31,8 @@ type BillingDocumentResponse struct {
 	TotalCents     int64         `json:"total_cents"`
 	ChildNames     []string      `json:"child_names"`
 	SentAt         time.Time     `json:"sent_at"`
+	// Replaced marks a contract version replaced by a later change (#4681).
+	Replaced bool `json:"replaced"`
 }
 
 // listBillingDocuments answers the letters in the inbox of the account.
@@ -62,6 +64,7 @@ func (rs *Resource) respondInbox(w http.ResponseWriter, r *http.Request, inbox p
 			TraegerName: document.TraegerName, Kind: document.Kind, Number: document.Number, PeriodName: document.PeriodName,
 			ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil, IssuedOn: document.IssuedOn,
 			TotalCents: document.TotalCents, ChildNames: document.ChildNames, SentAt: document.SentAt,
+			Replaced: document.Replaced,
 		}
 	}
 	common.Respond(w, r, http.StatusOK, out, "Documents retrieved")

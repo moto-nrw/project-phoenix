@@ -1958,10 +1958,11 @@ describe("released room with running blocks (#3281)", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByTestId("timetable-roster")).not.toBeInTheDocument();
     expect(rosterKeysRequested()).toEqual([]);
-    // The one supervision of the room keeps its head action.
+    // The one supervision of the room keeps its action in the head's kebab.
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
     expect(
-      screen.getAllByRole("button", { name: "Betreuer hinzufügen" }),
-    ).toHaveLength(1);
+      screen.getByRole("menuitem", { name: "Betreuer hinzufügen" }),
+    ).toBeInTheDocument();
     // The kiosk Freispiel is the yard's supervision: the head keeps its
     // release action.
     expect(

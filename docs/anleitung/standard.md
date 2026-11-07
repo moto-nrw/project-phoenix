@@ -72,7 +72,7 @@ Per Excel oder CSV importieren:
 
 1. Öffnen Sie `Datenverwaltung`.
 2. Öffnen Sie `Kinder`.
-3. Klicken Sie auf `Importieren`.
+3. Öffnen Sie oben das Menü mit den drei Punkten und wählen Sie `Importieren`.
 4. Wählen Sie `Excel (.xlsx)` oder `CSV (Komma-getrennt)`.
 5. Klicken Sie auf `Vorlage herunterladen`.
 6. Füllen Sie die Vorlage aus.

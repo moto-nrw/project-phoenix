@@ -51,6 +51,7 @@ import { Input } from "~/components/ui/input";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
@@ -813,61 +814,57 @@ export function SubstitutionSlideOver({
                                     />
                                   )}
                                   {canEdit && !row.isSickAbsence && (
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="compact"
-                                      onClick={() =>
-                                        toggleRemoveSub(row.staffId)
-                                      }
-                                    >
-                                      {removed ? (
-                                        <>
-                                          <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                                          Rückgängig
-                                        </>
-                                      ) : (
-                                        <>
-                                          <MotoConceptIcon
-                                            concept={substitutionConcept}
-                                            size={14}
-                                            className="mr-1"
-                                          />
-                                          Entfernen
-                                        </>
-                                      )}
-                                    </Button>
-                                  )}
-                                  {canEdit &&
-                                    row.isAbsent &&
-                                    !row.isSickAbsence &&
-                                    !removed &&
-                                    canRestore && (
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="compact"
-                                        onClick={() =>
-                                          toggleRestoreSub(row.staffId)
-                                        }
-                                      >
-                                        {restored ? (
-                                          <>
+                                    <OverflowMenu
+                                      ariaLabel={`Aktionen für ${staffLabel(staffNames, row.staffId)}`}
+                                      triggerSize="sm"
+                                      items={[
+                                        {
+                                          label: removed
+                                            ? "Rückgängig"
+                                            : "Entfernen",
+                                          icon: removed ? (
+                                            <RotateCcw
+                                              className="h-3.5 w-3.5"
+                                              aria-hidden
+                                            />
+                                          ) : (
                                             <MotoConceptIcon
                                               concept={substitutionConcept}
                                               size={14}
-                                              className="mr-1"
                                             />
-                                            Rückgängig
-                                          </>
-                                        ) : (
-                                          <>
-                                            <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                                            Anwesend melden
-                                          </>
-                                        )}
-                                      </Button>
-                                    )}
+                                          ),
+                                          onClick: () =>
+                                            toggleRemoveSub(row.staffId),
+                                        },
+                                        ...(row.isAbsent &&
+                                        !removed &&
+                                        canRestore
+                                          ? [
+                                              {
+                                                label: restored
+                                                  ? "Rückgängig"
+                                                  : "Anwesend melden",
+                                                icon: restored ? (
+                                                  <MotoConceptIcon
+                                                    concept={
+                                                      substitutionConcept
+                                                    }
+                                                    size={14}
+                                                  />
+                                                ) : (
+                                                  <RotateCcw
+                                                    className="h-3.5 w-3.5"
+                                                    aria-hidden
+                                                  />
+                                                ),
+                                                onClick: () =>
+                                                  toggleRestoreSub(row.staffId),
+                                              },
+                                            ]
+                                          : []),
+                                      ]}
+                                    />
+                                  )}
                                 </div>
                               </li>
                             );
