@@ -176,8 +176,8 @@ function EnrollmentPreviewPageContent() {
             </div>
             <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
               Hier sehen Sie nur die Fragen dieses Formulars. Die
-              Betreuungsangebote fehlen hier. Eltern sehen sie über den Link
-              der Anmeldephase.
+              Betreuungsangebote fehlen hier. Eltern sehen sie über den Link der
+              Anmeldephase.
             </p>
           </div>
 
@@ -254,13 +254,27 @@ function phaseCount(count: number, adjective = ""): string {
   return `${count} ${adjective}Anmeldephase${count === 1 ? "" : "n"}`;
 }
 
-// Families of these phases come only through an invitation or their parents'
-// account, so the plain phase link shows them nothing (phases-editor.tsx).
-function hasPublicLink(phase: Phase): boolean {
-  return (
-    phase.audience !== "existing_students" &&
-    phase.audience !== "linked_parents"
-  );
+// Match the public form's audience, activity and half-open window gates.
+function parentViewUnavailableReason(phase: Phase, now: number): string | null {
+  if (
+    phase.audience === "existing_students" ||
+    phase.audience === "linked_parents"
+  ) {
+    return "Nur mit Einladungslink erreichbar.";
+  }
+  if (!phase.is_active) {
+    return "Schalten Sie unter Anmeldephasen bei dieser Phase „Aktiv“ ein.";
+  }
+  if (phase.enrollment_open_at && now < Date.parse(phase.enrollment_open_at)) {
+    return "Die Elternansicht ist erst ab der Öffnung erreichbar. Prüfen Sie unter Anmeldephasen „Öffnung“ und „Schließung“.";
+  }
+  if (
+    phase.enrollment_close_at &&
+    now >= Date.parse(phase.enrollment_close_at)
+  ) {
+    return "Das Anmeldefenster ist geschlossen. Prüfen Sie unter Anmeldephasen „Öffnung“ und „Schließung“.";
+  }
+  return null;
 }
 
 function PhaseParentViewLinks({
@@ -293,31 +307,42 @@ function PhaseParentViewLinks({
     <>
       So sehen Eltern das Formular mit Ihren Angeboten:
       <ul className="mt-3 space-y-2">
-        {phases.map((phase) => (
-          <li key={phase.id}>
-            {hasPublicLink(phase) ? (
-              <a
-                href={hrefFor(phase)}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`Elternansicht von „${phase.name}“ öffnen`}
-                className={buttonClassName({
-                  variant: "outline",
-                  size: "md",
-                  className: "w-full justify-between gap-2",
-                })}
-              >
-                <span className="truncate">{phase.name}</span>
-                <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
-              </a>
-            ) : (
-              <span className="block text-sm text-gray-600">
-                <span className="font-medium text-gray-900">{phase.name}</span>
-                <span className="block">Nur mit Einladungslink erreichbar.</span>
-              </span>
-            )}
-          </li>
-        ))}
+        {phases.map((phase) => {
+          const unavailableReason = parentViewUnavailableReason(
+            phase,
+            Date.now(),
+          );
+          return (
+            <li key={phase.id}>
+              {unavailableReason === null ? (
+                <a
+                  href={hrefFor(phase)}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Elternansicht von „${phase.name}“ öffnen`}
+                  className={buttonClassName({
+                    variant: "outline",
+                    size: "md",
+                    className: "w-full justify-between gap-2",
+                  })}
+                >
+                  <span className="truncate">{phase.name}</span>
+                  <ExternalLink
+                    className="h-4 w-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                </a>
+              ) : (
+                <span className="block text-sm text-gray-600">
+                  <span className="font-medium text-gray-900">
+                    {phase.name}
+                  </span>
+                  <span className="block">{unavailableReason}</span>
+                </span>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </>
   );
