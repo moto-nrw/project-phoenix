@@ -55,7 +55,9 @@ The 19-file glob is not the gate inventory: for example,
 Keep that 28-module contract-test inventory and the hermetic fixture gates too.
 A successor must have positive and negative fixtures, a base comparison and
 relocation tests before a predecessor disappears. ADR 0070's new-ADR requirement
-for budget changes or measurement retirement remains in force.
+for budget changes or measurement retirement remains in force. Query budgets retire
+only with their route, as
+[ADR 0160](0160-ein-query-budget-faellt-nur-mit-seiner-route-weg.md) states.
 
 ## 2. Supplement structural checks with typed command effects
 
