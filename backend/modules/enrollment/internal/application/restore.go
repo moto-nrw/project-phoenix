@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -137,7 +136,7 @@ func (d *Decisions) lockWithdrawnChildren(ctx context.Context, requestID int64) 
 // The error stays name-free on purpose: it flows into handler logs and the
 // API response, and student names must not reach Info-level logs.
 func (d *Decisions) checkRestoreDuplicates(ctx context.Context, phase *enrollmentNative.Phase, request *Request, withdrawn []*RequestChild) error {
-	emailLC := strings.ToLower(strings.TrimSpace(request.GuardianEmail))
+	emailLC := guardianEmailKey(request.GuardianEmail)
 	if err := d.deps.Requests.AcquireSubmissionDedupLock(ctx, phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("restore: acquire dedup lock: %w", err)
 	}

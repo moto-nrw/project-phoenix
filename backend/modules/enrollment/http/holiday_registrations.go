@@ -28,11 +28,11 @@ type HolidayRegistrationResource struct {
 }
 
 // HolidayProofUploads stores a proof of benefits of the public link
-// (#5238). The root opens the Träger units of each call: the upload counts
-// in a unit of its own before the body is read, so a refused upload still
-// counts, like the uploads of the online registration (#4783).
+// (#5238) in a Träger unit the root opens. The route counts the upload
+// before it reads the body, in a unit of its own (countAttempt), so a
+// refused upload still counts, like the uploads of the online registration
+// (#4783).
 type HolidayProofUploads interface {
-	CountHolidayProofUpload(ctx context.Context, link capability.HolidayRegistrationLink, remoteIP string) error
 	UploadHolidayProof(ctx context.Context, link capability.HolidayRegistrationLink, upload capability.HolidayProofUpload) (capability.HolidayProofReceipt, error)
 }
 
@@ -323,7 +323,9 @@ func (rs *HolidayRegistrationResource) submit(w http.ResponseWriter, r *http.Req
 		return
 	}
 	remoteIP := remoteIPFromRequest(r)
-	if err := rs.countAttempt(r.Context(), link.OrganizationID, remoteIP, req.Guardian.Email); err != nil {
+	if err := rs.countAttempt(r.Context(), link.OrganizationID, func(txCtx context.Context) error {
+		return rs.registrations.CountHolidayRegistrationAttempt(txCtx, link.OrganizationID, remoteIP, req.Guardian.Email)
+	}); err != nil {
 		renderHolidayRegistrationError(w, r, err)
 		return
 	}
@@ -344,12 +346,14 @@ func (rs *HolidayRegistrationResource) submit(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusCreated, HolidayRegistrationReceiptResponse(receipt), "Holiday registration received")
 }
 
-// countAttempt commits the attempt even when it crosses the limit.
-func (rs *HolidayRegistrationResource) countAttempt(ctx context.Context, organizationID int64, remoteIP, email string) error {
+// countAttempt runs one abuse counter of the public link, a registration or
+// a proof upload, in a Träger transaction of its own that commits even when
+// the count refuses, so a refused attempt still counts.
+func (rs *HolidayRegistrationResource) countAttempt(ctx context.Context, organizationID int64, count func(context.Context) error) error {
 	var limitErr error
 	err := withinTraeger(ctx, organizationID, func(txCtx context.Context) error {
-		limitErr = rs.registrations.CountHolidayRegistrationAttempt(txCtx, organizationID, remoteIP, email)
-		if errors.Is(limitErr, capability.ErrRateLimited) {
+		limitErr = count(txCtx)
+		if errors.Is(limitErr, capability.ErrRateLimited) || errors.Is(limitErr, capability.ErrUploadRateLimited) {
 			return nil
 		}
 		return limitErr
