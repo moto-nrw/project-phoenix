@@ -106,7 +106,7 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 // Three more keep one pill (#5584, hard-zero):
 //
-//   ui-kit/no-hand-rolled-pill      — tinted `span` pills outside StatusBadge
+//   ui-kit/no-hand-rolled-pill      — tinted `span`/`div` pills outside StatusBadge
 //   ui-kit/no-pill-dot              — a dot inside a pill (#2476)
 //   ui-kit/no-hex-alpha-tint        — `${color}1A` tints in a pill's style
 //
@@ -2016,6 +2016,7 @@ function makeRatchetRule({
   countEnv = "UI_KIT_BUTTON_RATCHET",
   kitFile = BUTTON_KIT_FILE,
   exemptDir = null,
+  followStaticClassSources = false,
 }) {
   return {
     meta: {
@@ -2052,6 +2053,9 @@ function makeRatchetRule({
             if (statement.type === "ImportDeclaration") {
               buttonRatchetImports(statement, bindings);
             }
+          }
+          if (followStaticClassSources) {
+            collectStaticClassSources(node, constants, context);
           }
         },
         VariableDeclarator(node) {
@@ -2333,14 +2337,112 @@ function hasHexAlphaTemplate(node) {
   return false;
 }
 
+// A hint box and a pill share their classes on a `div`. Only a pill sizes to
+// its label: fully round, or inline. A shadow or blur marks a floating surface
+// such as the brand chips in auth-shell, not a status.
+const DIV_PILL_INLINE_RE = /^(?:inline-flex|inline-block|w-fit)$/;
+const FLOATING_SURFACE_RE = /^(?:shadow|backdrop-blur)(?:-|$)/;
+
+function isDivPill(text) {
+  const tokens = pillTokens(text);
+  return (
+    (tokens.includes("rounded-full") ||
+      tokens.some((token) => DIV_PILL_INLINE_RE.test(token))) &&
+    !tokens.some((token) => FLOATING_SURFACE_RE.test(token))
+  );
+}
+
 function pillClassText(node, textOf) {
-  if (jsxName(node.name) !== "span") return null;
+  const name = jsxName(node.name);
+  if (name !== "span" && name !== "div") return null;
   if (staticAttributeValue(jsxAttribute(node, "role")) === "tooltip")
     return null;
   const className = jsxAttribute(node, "className");
   if (!className?.value) return null;
   const text = textOf(className.value);
-  return isPillShape(text) ? text : null;
+  if (!isPillShape(text)) return null;
+  return name === "span" || isDivPill(text) ? text : null;
+}
+
+// Static sources of a pill's classes beyond a `const` above the element:
+// declarations further down the file and exported helpers or lookup tables of
+// another module (`getDeviceStatusColor(status)`). A helper's own strings count;
+// a table it reads from elsewhere in its module does not.
+const CLASS_MODULE_EXTENSIONS = [".ts", ".tsx", "/index.ts", "/index.tsx"];
+const classModuleCache = new Map();
+
+function readClassModule(path) {
+  if (!classModuleCache.has(path)) {
+    let source = null;
+    for (const extension of CLASS_MODULE_EXTENSIONS) {
+      try {
+        source = readFileSync(path + extension, "utf8");
+        break;
+      } catch {
+        // Next candidate; a module outside the project stays unresolved.
+      }
+    }
+    classModuleCache.set(path, source);
+  }
+  return classModuleCache.get(path);
+}
+
+function resolveClassModule(specifier, filePath) {
+  if (specifier.startsWith("~/") || specifier.startsWith("@/")) {
+    const root = filePath.lastIndexOf("/src/");
+    return root === -1
+      ? null
+      : `${filePath.slice(0, root)}/src/${specifier.slice(2)}`;
+  }
+  return specifier.startsWith(".")
+    ? normalize(join(dirname(filePath), specifier))
+    : null;
+}
+
+function exportedStrings(source, name) {
+  const start = new RegExp(
+    String.raw`^export (?:async )?(?:function|const) ${name}\b`,
+    "m",
+  ).exec(source);
+  if (!start) return null;
+  const rest = source.slice(start.index + start[0].length);
+  const end = rest.search(/^(?:export|function|const|interface|type) /m);
+  const declaration = end === -1 ? rest : rest.slice(0, end);
+  return (declaration.match(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g) ?? [])
+    .map((literal) => literal.slice(1, -1))
+    .join(" ");
+}
+
+function collectStaticClassSources(program, constants, context) {
+  const filePath = String(
+    context.physicalFilename ?? context.filename ?? "",
+  ).replaceAll("\\", "/");
+  for (const statement of program.body) {
+    const declaration =
+      statement.type === "ExportNamedDeclaration"
+        ? statement.declaration
+        : statement;
+    if (declaration?.type === "FunctionDeclaration" && declaration.id) {
+      constants.set(declaration.id.name, declaration);
+    }
+    if (declaration?.type === "VariableDeclaration") {
+      for (const { id, init } of declaration.declarations) {
+        if (id.type === "Identifier" && init) constants.set(id.name, init);
+      }
+    }
+    if (statement.type !== "ImportDeclaration") continue;
+    const path = resolveClassModule(String(statement.source.value), filePath);
+    const source = path === null ? null : readClassModule(path);
+    if (source === null) continue;
+    for (const specifier of statement.specifiers) {
+      if (specifier.type !== "ImportSpecifier") continue;
+      const imported = specifier.imported.name ?? specifier.imported.value;
+      const value = exportedStrings(source, imported);
+      if (value) {
+        constants.set(specifier.local.name, { type: "Literal", value });
+      }
+    }
+  }
 }
 
 // Hard-zero: der Bestand ist abgebaut, jede neue Stelle schlägt fehl.
@@ -2350,13 +2452,14 @@ function makePillRule(options) {
     baselines: {},
     allowlist: [],
     kitFile: PILL_KIT_FILE,
+    followStaticClassSources: true,
   });
 }
 
 const noHandRolledPill = makePillRule({
   ruleName: "no-hand-rolled-pill",
   description:
-    "Build status pills from StatusBadge, StatusColorBadge or DataTableStatusBadge instead of a hand-styled span.",
+    "Build status pills from StatusBadge, StatusColorBadge or DataTableStatusBadge instead of a hand-styled span or div.",
   message:
     "Keine eigene Pille: StatusBadge (Töne blue, green, orange, red, gray, purple, cyan, outline; size xs für dichte Raster) oder StatusColorBadge (Farbe aus LOCATION_COLORS, amber über LOCATION_COLORS.WARNING) nehmen (#5584, .claude/rules/frontend-ui-kit.md).",
   detect: ({ classText: textOf, found, constants }) => ({
