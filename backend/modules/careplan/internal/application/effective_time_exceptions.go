@@ -308,7 +308,12 @@ func (c *effectiveTimeCore[S, E, N, D]) deleteAllExceptions(
 		if err := c.lockExceptionSnapshot(txCtx, studentID, candidates); err != nil {
 			return err
 		}
-		return c.deleteSnapshotExceptions(txCtx, candidates)
+		for _, row := range candidates {
+			if err := c.deleteSnapshotException(txCtx, row.id); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -399,46 +404,19 @@ func (c *effectiveTimeCore[S, E, N, D]) lockExceptionSnapshot(ctx context.Contex
 	return nil
 }
 
-// deleteSnapshotExceptions re-reads the snapshot rows under their row locks
-// in one statement, in snapshot (date) order, and deletes them in one more
-// (#5901). As with one lock-and-delete per row, a row deleted in the
-// meantime is skipped and a partial absence stops the deletion: the rows
-// before it are deleted, it and the later rows stay.
-func (c *effectiveTimeCore[S, E, N, D]) deleteSnapshotExceptions(ctx context.Context, candidates []exceptionDeletionCandidate) error {
-	if len(candidates) == 0 {
-		return nil
-	}
-	ids := make([]int64, 0, len(candidates))
-	for _, row := range candidates {
-		ids = append(ids, row.id)
-	}
-	locked, err := c.exceptions.FindByIDsForUpdate(ctx, ids)
+func (c *effectiveTimeCore[S, E, N, D]) deleteSnapshotException(ctx context.Context, id int64) error {
+	fresh, err := c.exceptions.FindByIDForUpdate(ctx, id)
 	if err != nil {
+		if c.transactions.IsNotFound(err) {
+			return nil
+		}
 		return &careplan.ScheduleError{Op: c.operation("get student %s exception by id"), Err: err}
 	}
-	fresh := make(map[int64]E, len(locked))
-	for _, row := range locked {
-		if !isZeroEntity(row) {
-			fresh[c.domain.ExceptionFields(row).ID] = row
-		}
+	if isZeroEntity(fresh) {
+		return nil
 	}
-	deletable := make([]int64, 0, len(candidates))
-	var stop error
-	for _, row := range candidates {
-		current, found := fresh[row.id]
-		if !found {
-			continue
-		}
-		if c.domain.ExceptionFields(current).ExcusedFrom != nil {
-			stop = careplan.ErrCareExceptionContainsPartialAbsence
-			break
-		}
-		deletable = append(deletable, row.id)
+	if c.domain.ExceptionFields(fresh).ExcusedFrom != nil {
+		return careplan.ErrCareExceptionContainsPartialAbsence
 	}
-	if len(deletable) > 0 {
-		if err := c.exceptions.DeleteByIDs(ctx, deletable); err != nil {
-			return &careplan.ScheduleError{Op: c.operation("delete student %s exception"), Err: err}
-		}
-	}
-	return stop
+	return c.deleteExceptionRow(ctx, id)
 }

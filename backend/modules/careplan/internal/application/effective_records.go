@@ -23,7 +23,6 @@ type RecordFuncs[T any] struct {
 	Upsert          func(context.Context, T) (T, error)
 	Update          func(context.Context, T) error
 	Remove          func(context.Context, int64) error
-	RemoveIDs       func(context.Context, []int64) error
 	RemoveByStudent func(context.Context, int64) error
 }
 
@@ -36,7 +35,6 @@ type EffectiveRecords[T any, P validated[T]] struct {
 	upsert          func(context.Context, T) (T, error)
 	update          func(context.Context, T) error
 	remove          func(context.Context, int64) error
-	removeIDs       func(context.Context, []int64) error
 	removeByStudent func(context.Context, int64) error
 }
 
@@ -44,7 +42,7 @@ type EffectiveRecords[T any, P validated[T]] struct {
 func NewEffectiveRecords[T any, P validated[T]](funcs RecordFuncs[T]) EffectiveRecords[T, P] {
 	return EffectiveRecords[T, P]{
 		find: funcs.Find, list: funcs.List, create: funcs.Create, upsert: funcs.Upsert,
-		update: funcs.Update, remove: funcs.Remove, removeIDs: funcs.RemoveIDs, removeByStudent: funcs.RemoveByStudent,
+		update: funcs.Update, remove: funcs.Remove, removeByStudent: funcs.RemoveByStudent,
 	}
 }
 
@@ -91,15 +89,6 @@ func (r EffectiveRecords[T, P]) FindByID(ctx context.Context, id int64) (*T, err
 }
 func (r EffectiveRecords[T, P]) FindByIDForUpdate(ctx context.Context, id int64) (*T, error) {
 	return r.findByID(ctx, id, true)
-}
-
-// FindByIDsForUpdate locks the existing rows of ids in date order; a
-// vanished ID is no row.
-func (r EffectiveRecords[T, P]) FindByIDsForUpdate(ctx context.Context, ids []int64) ([]*T, error) {
-	if len(ids) == 0 {
-		return []*T{}, nil
-	}
-	return r.rows(ctx, careplan.StudentScheduleFilter{IDs: ids, LockForUpdate: true})
 }
 func (r EffectiveRecords[T, P]) FindByStudentID(ctx context.Context, id int64) ([]*T, error) {
 	return r.rows(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}})
@@ -163,16 +152,6 @@ func (r EffectiveRecords[T, P]) Delete(ctx context.Context, id int64) error {
 		return careplan.ErrInvalidStudentSchedule
 	}
 	return r.remove(ctx, id)
-}
-
-// DeleteByIDs deletes the rows of ids in one statement.
-func (r EffectiveRecords[T, P]) DeleteByIDs(ctx context.Context, ids []int64) error {
-	for _, id := range ids {
-		if id <= 0 {
-			return careplan.ErrInvalidStudentSchedule
-		}
-	}
-	return r.removeIDs(ctx, ids)
 }
 func (r EffectiveRecords[T, P]) DeleteByStudentID(ctx context.Context, id int64) error {
 	return r.removeByStudent(ctx, id)

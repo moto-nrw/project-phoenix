@@ -18,7 +18,6 @@ type ArrivalScheduleRecords interface {
 	ListArrivalExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.ArrivalException, error)
 	CreateArrivalException(context.Context, careplan.ArrivalException) (careplan.ArrivalException, error)
 	DeleteArrivalException(context.Context, int64) error
-	DeleteArrivalExceptions(context.Context, []int64) error
 	DeleteArrivalExceptionsByStudent(context.Context, int64) error
 	UpdateArrivalException(context.Context, careplan.ArrivalException) error
 	FindArrivalNote(context.Context, int64) (careplan.ArrivalNote, error)
@@ -45,7 +44,6 @@ type PickupScheduleRecords interface {
 	ListPickupExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupException, error)
 	CreatePickupException(context.Context, careplan.PickupException) (careplan.PickupException, error)
 	DeletePickupException(context.Context, int64) error
-	DeletePickupExceptions(context.Context, []int64) error
 	DeletePickupExceptionsByStudent(context.Context, int64) error
 	UpdatePickupException(context.Context, careplan.PickupException) error
 	FindPickupNote(context.Context, int64) (careplan.PickupNote, error)

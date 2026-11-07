@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/uptrace/bun"
 )
 
 func (s *Store) CreatePickupException(ctx context.Context, v careplan.PickupException) (careplan.PickupException, domain.OperationStats, error) {
@@ -35,13 +34,6 @@ func (s *Store) DeletePickupException(ctx context.Context, id int64) (domain.Ope
 		return domain.OperationStats{}, err
 	}
 	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).Where(`"student_pickup_exception".id = ?`, id).Where(`"student_pickup_exception".tenant_id = ?`, tid), "delete pickup exception")
-}
-func (s *Store) DeletePickupExceptions(ctx context.Context, ids []int64) (domain.OperationStats, error) {
-	db, tid, err := s.databaseForWrite(ctx, "delete pickup exceptions")
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).Where(`"student_pickup_exception".id IN (?)`, bun.List(ids)).Where(`"student_pickup_exception".tenant_id = ?`, tid), "delete pickup exceptions")
 }
 func (s *Store) DeletePickupExceptionsByStudent(ctx context.Context, id int64) (domain.OperationStats, error) {
 	db, tid, err := s.databaseForWrite(ctx, "delete pickup exceptions by student")

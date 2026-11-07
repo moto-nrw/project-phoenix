@@ -345,25 +345,6 @@ func (s *Service) DeleteArrivalException(ctx context.Context, id int64) error {
 	})
 }
 
-func (s *Service) DeleteArrivalExceptions(ctx context.Context, ids []int64) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	for _, id := range ids {
-		if id <= 0 {
-			return scheduleInvalid()
-		}
-	}
-
-	// The deletion runs inside the caller's exception command; run joins
-	// that unit or opens the tenant's own.
-	return s.run(ctx, "delete_arrival_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
-		q, err := s.store.DeleteArrivalExceptions(ctx, ids)
-		stats.Add(q)
-		return err
-	})
-}
-
 func (s *Service) DeleteArrivalExceptionsByStudent(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return scheduleInvalid()
@@ -557,25 +538,6 @@ func (s *Service) DeletePickupException(ctx context.Context, id int64) error {
 			stats.Add(q)
 			return err
 		})
-	})
-}
-
-func (s *Service) DeletePickupExceptions(ctx context.Context, ids []int64) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	for _, id := range ids {
-		if id <= 0 {
-			return scheduleInvalid()
-		}
-	}
-
-	// The deletion runs inside the caller's exception command; run joins
-	// that unit or opens the tenant's own.
-	return s.run(ctx, "delete_pickup_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
-		q, err := s.store.DeletePickupExceptions(ctx, ids)
-		stats.Add(q)
-		return err
 	})
 }
 

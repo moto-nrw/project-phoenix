@@ -26,7 +26,6 @@ type EffectiveScheduleRepository[S EffectiveTimeEntity] interface {
 type EffectiveExceptionRepository[E EffectiveTimeEntity] interface {
 	FindByID(context.Context, int64) (E, error)
 	FindByIDForUpdate(context.Context, int64) (E, error)
-	FindByIDsForUpdate(context.Context, []int64) ([]E, error)
 	FindByStudentID(context.Context, int64) ([]E, error)
 	FindUpcomingByStudentID(context.Context, int64) ([]E, error)
 	FindByStudentIDAndDate(context.Context, int64, calendar.Date) (E, error)
@@ -34,7 +33,6 @@ type EffectiveExceptionRepository[E EffectiveTimeEntity] interface {
 	Create(context.Context, E) error
 	Update(context.Context, E) error
 	Delete(context.Context, int64) error
-	DeleteByIDs(context.Context, []int64) error
 	DeleteByStudentID(context.Context, int64) error
 }
 

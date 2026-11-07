@@ -30,7 +30,7 @@ func pickupExceptionsOn(t *testing.T, ctx context.Context, service careplan.Pick
 }
 
 // Deleting all exceptions of a child stops at the first one that carries a
-// partial absence (#5901). The exceptions before it are already deleted when
+// partial absence. This is the contract a batched deletion (#5901) must keep. The exceptions before it are already deleted when
 // the refusal is returned, the one with the partial absence and the later
 // ones stay: the result of one lock-and-delete per exception in date order.
 func TestDeleteAllPickupExceptionsStopsAtThePartialAbsence(t *testing.T) {
@@ -66,32 +66,6 @@ func TestDeleteAllPickupExceptionsStopsAtThePartialAbsence(t *testing.T) {
 	require.ErrorIs(t, deleteErr, careplan.ErrCareExceptionContainsPartialAbsence)
 	assert.Equal(t, []int64{partial.ID, after[0]}, remaining, "the exception before the partial absence is deleted, the rest stays")
 	assert.NotContains(t, remaining, before[0])
-}
-
-// The deletion locks each day as before, but reads and deletes the locked
-// rows in one statement each instead of two per exception.
-func TestDeleteAllPickupExceptionsStatementsPerException(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.Ctx(t)
-	staffID := createPickupServiceTestStaffID(t, db)
-	counter := testpkg.CaptureQueriesForContext(t, db)
-	deleteAll := func(days int) int {
-		student := testpkg.CreateTestStudent(t, db, "Viele", "Ausnahmen", "1a")
-		pickupExceptionsOn(t, ctx, service, db, student.ID, staffID, calendar.NewDate(2099, 3, 9), days)
-		counter.Reset()
-		require.NoError(t, testpkg.TenantCommand1(t, counter.Context(ctx), db, service.DeleteAllStudentPickupExceptions, student.ID))
-		total := counter.Total()
-		rows, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentPickupExceptions, student.ID)
-		require.NoError(t, err)
-		assert.Empty(t, rows)
-		return total
-	}
-	n3 := deleteAll(3)
-	n8 := deleteAll(8)
-	t.Logf("delete all pickup exceptions: N3=%d N8=%d", n3, n8)
-	assert.Equal(t, 2*5, n8-n3, "each further exception costs only its student and day locks")
 }
 
 // A storage failure of the deletion ends it with that failure, and the
