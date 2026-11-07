@@ -21,6 +21,17 @@ import (
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
+// justNow is an instant of today shortly before the request, so an open stay
+// that starts there belongs to the day the figures read.
+func justNow() (calendar.Date, time.Time) {
+	today := calendar.TodayDate()
+	at := time.Now().Add(-time.Minute)
+	if midnight := today.BerlinMidnight(); at.Before(midnight) {
+		at = midnight
+	}
+	return today, at
+}
+
 // traegerSchoolsAlerts reads GET /traeger/schools/alerts with the session's
 // token; a counter, when given, counts the statements of the request.
 func traegerSchoolsAlerts(t *testing.T, router http.Handler, token string, counter *testpkg.QueryCounter) *httptest.ResponseRecorder {
