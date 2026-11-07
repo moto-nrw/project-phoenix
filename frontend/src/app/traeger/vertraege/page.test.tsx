@@ -96,6 +96,7 @@ const CANDIDATE: ContractCandidate = {
   effectiveFrom: "2027-08-01",
   templateIssue: null,
   acceptanceIssue: null,
+  mailBlock: null,
 };
 
 function renderPage() {
@@ -334,6 +335,55 @@ describe("TraegerVertraegePage", () => {
     expect(
       screen.getByText(/sind hier keine Entwürfe nötig/),
     ).toBeInTheDocument();
+  });
+
+  it("names the children whose contract waits for a corrected mail address", async () => {
+    api.fetchConclusionModes.mockResolvedValue([
+      { schoolId: "3", schoolName: "OGS Am Lindenhof", mode: "bei_annahme" },
+    ]);
+    api.fetchContractCandidates.mockResolvedValue([
+      CANDIDATE,
+      {
+        ...CANDIDATE,
+        requestChildId: "47",
+        childFirstName: "Jona",
+        mailBlock: "address",
+      },
+      {
+        ...CANDIDATE,
+        requestChildId: "48",
+        childFirstName: "Lea",
+        mailBlock: "stopped",
+      },
+    ]);
+    renderPage();
+    await screen.findAllByText("Lina Muster");
+    fireEvent.click(screen.getByRole("button", { name: /Verträge erstellen/ }));
+    expect(await screen.findByLabelText("Jona Kern auswählen")).toBeDisabled();
+
+    // Only the child whose mail goes out is promised a contract in minutes.
+    expect(screen.getAllByText("Entsteht bei der Annahme")).toHaveLength(1);
+    expect(screen.getAllByText("Mail-Adresse gesperrt")).toHaveLength(2);
+    expect(
+      screen.getByText(
+        "Die Verträge für Jona Kern und Lea Kern kommen erst, wenn die Mail-Adressen der Eltern korrigiert sind. Mails an diese Adressen kommen gerade nicht an. Die Schule korrigiert sie in der Anmeldung.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the held mail out of a school that sends later", async () => {
+    api.fetchConclusionModes.mockResolvedValue([
+      { schoolId: "3", schoolName: "OGS Am Lindenhof", mode: "nachtraeglich" },
+    ]);
+    api.fetchContractCandidates.mockResolvedValue([
+      { ...CANDIDATE, mailBlock: "address" },
+    ]);
+    renderPage();
+    await screen.findAllByText("Lina Muster");
+    fireEvent.click(screen.getByRole("button", { name: /Verträge erstellen/ }));
+    expect(await screen.findByLabelText("Mia Kern auswählen")).toBeEnabled();
+    expect(screen.getByText("Mia Kern")).toBeInTheDocument();
+    expect(screen.queryByText("Mail-Adresse gesperrt")).not.toBeInTheDocument();
   });
 
   it("names an active contract with the day it was concluded", async () => {

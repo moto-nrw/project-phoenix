@@ -235,6 +235,9 @@ export default function TraegerVertraegePage() {
                           ? ("recipient_missing" as const)
                           : null) ??
                         candidate.acceptanceIssue ??
+                        (candidate.mailBlock
+                          ? ("mail_blocked" as const)
+                          : null) ??
                         ("conclusion_automatic" as const),
                     }
                   : candidate,

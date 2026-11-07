@@ -58,6 +58,18 @@ function bySchool(candidates: readonly ContractCandidate[]): SchoolGroup[] {
 }
 
 /** The warning when children get no draft yet, with the reason. */
+/**
+ * Which children wait for a corrected mail address before their contract
+ * comes at the acceptance (#4680), and who acts next.
+ */
+function heldMailMessage(children: readonly ContractCandidate[]): string {
+  const names = children.map(childName);
+  if (names.length === 1) {
+    return `Der Vertrag für ${names[0]} kommt erst, wenn die Mail-Adresse der Eltern korrigiert ist. Mails an diese Adresse kommen gerade nicht an. Die Schule korrigiert sie in der Anmeldung.`;
+  }
+  return `Die Verträge für ${names.slice(0, -1).join(", ")} und ${names.at(-1)} kommen erst, wenn die Mail-Adressen der Eltern korrigiert sind. Mails an diese Adressen kommen gerade nicht an. Die Schule korrigiert sie in der Anmeldung.`;
+}
+
 function conditionsMessage(missing: number, differing: number): string {
   const children = (count: number) =>
     count === 1 ? "1 Kind" : `${count} Kinder`;
@@ -111,6 +123,9 @@ export function CareContractCreateModal({
   const differing = candidates.filter(
     (candidate) => candidate.templateIssue === "templates_differ",
   ).length;
+  const heldMail = candidates.filter(
+    (candidate) => candidate.templateIssue === "mail_blocked",
+  );
   const toggle = (key: string) =>
     setSelected((current) => {
       const next = new Set(current);
@@ -203,6 +218,9 @@ export function CareContractCreateModal({
               </Button>
             }
           />
+        ) : null}
+        {heldMail.length > 0 ? (
+          <Alert type="warning" message={heldMailMessage(heldMail)} />
         ) : null}
         {ready.length > 1 ? (
           <label className="flex items-center gap-3 text-sm font-medium text-gray-900">

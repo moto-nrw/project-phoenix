@@ -52,6 +52,16 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.MailBlocks.ContractMailBlocks",
+      "reason": "Read-only delivery state: the Träger reads in one statement whether its schools hold the given addresses, as two booleans each, in its Träger transaction, for the candidates the conclusion at the acceptance could send (#4680). No persistent, lock or scope effect.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.TraegerMailHoldsOf",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailBlock",
       "classification": "query",
       "effect": "query",

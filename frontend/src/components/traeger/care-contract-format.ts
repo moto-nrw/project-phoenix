@@ -166,6 +166,7 @@ export const TEMPLATE_ISSUE_LABELS: Record<TemplateIssue, string> = {
   acceptance_missing: "Zustimmung zum Vertrag fehlt",
   acceptance_changed: "Bedingungen nach der Anmeldung geändert",
   recipient_missing: "E-Mail-Adresse der Eltern fehlt",
+  mail_blocked: "Mail-Adresse gesperrt",
 };
 
 /**

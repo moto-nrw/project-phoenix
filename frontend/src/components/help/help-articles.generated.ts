@@ -10257,6 +10257,7 @@ export const traegerCareContractsTopic =
       ],
       troubleshootingDetails: [
         "Die Schule hat angenommen, aber nach einigen Minuten steht kein aktiver Vertrag da? Dann fehlt etwas. Das Kind steht in `Verträge erstellen` mit dem Grund, zum Beispiel `Vertragsbedingungen fehlen`. Fehlt die E-Mail-Adresse der Eltern, ergänzt die Schule sie in der Anmeldung. moto versucht es danach von selbst noch einmal.",
+        "Ein Kind zeigt `Mail-Adresse gesperrt`? Mails an die Adresse der Eltern kommen gerade nicht an. Der Vertrag kommt erst, wenn die Schule die Adresse in der Anmeldung korrigiert hat. Danach entsteht er von selbst.",
         "Ein Kind zeigt `Zustimmung zum Vertrag fehlt` oder `Bedingungen nach der Anmeldung geändert`? Die Eltern haben in der Anmeldung den Vertragsbedingungen nicht zugestimmt, oder Sie haben die Bedingungen danach geändert. Dann entsteht kein aktiver Vertrag. Stellen Sie die Schule auf `Später verschicken` und schicken Sie den Vertrag. Eine frühere Anmeldung wird nicht nachträglich verbindlich.",
         "Nach Änderungen an den Bedingungen: Speichern Sie diese zuerst. Ersetzen Sie danach den Text im Anmeldeformular durch den neuen gespeicherten Text. Unverändertes Speichern lässt eine passende Zustimmung weiter gelten.",
         "Schulen mit `Bei der Annahme` erlauben keine manuellen Entwürfe. Bereits vorhandene Entwürfe werden nicht automatisch abgeschlossen. Prüfen und verwerfen Sie diese bei Bedarf.",
