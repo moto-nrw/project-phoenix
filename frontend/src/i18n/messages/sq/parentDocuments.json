@@ -1,6 +1,6 @@
 {
   "title": "Dokumentet",
-  "description": "Këtu gjeni letrat dhe kontratat që ju ka dërguar ofruesi. Për shembull konfirmimin e kujdesit gjatë pushimeve.",
+  "description": "Këtu gjeni letra, kontrata dhe dokumente nga ofruesi. Për shembull konfirmimin e kujdesit gjatë pushimeve ose rregulloren.",
   "emptyTitle": "Ende nuk ka dokumente",
   "emptyDescription": "Kur ofruesi ju dërgon një letër, e gjeni këtu. E merrni edhe me email.",
   "confirmationLetter": "Konfirmim: {period}",
@@ -19,5 +19,11 @@
   "bookedCare": "Kujdesi i rezervuar",
   "startsOn": "Fillimi",
   "lettersErrorObject": "shkresat",
-  "contractsErrorObject": "kontratat e kujdesit"
+  "contractsErrorObject": "kontratat e kujdesit",
+  "sharedSender": "Ndarë me prindërit nga {traeger}",
+  "file": "Skedari",
+  "releasedAt": "Ndarë më",
+  "downloadFile": "Shkarko",
+  "sharedErrorObject": "dokumentet e ofruesit",
+  "image": "Imazh"
 }

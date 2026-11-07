@@ -3,6 +3,11 @@
   "already_member": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "bank_account_label_taken": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "bank_account_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "document_already_released": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "document_audience_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "document_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "document_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "document_release_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "document_template_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "document_template_kind_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "document_template_unchanged": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -15,5 +20,6 @@
   "member_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "no_membership": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
   "school_not_found": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-  "second_factor_required": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+  "second_factor_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "shared_document_not_found": "Kurum bu belgeyi artık paylaşmıyor. Lütfen sayfayı yenileyin."
 }

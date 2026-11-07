@@ -1,0 +1,6 @@
+{
+  "scenario": "api.school.traeger_documents",
+  "max": 2,
+  "exact": true,
+  "description": "modules/organizationtenancy — GET /api/traeger-documents/ (#4692): the\ntenant binding of the school transaction, then the database function that\nreturns every active release covering the school with its document in one\nstatement. Flat in the number of documents and releases."
+}

@@ -1162,6 +1162,21 @@
     },
     {
       "decision": "0084",
+      "id": "api/traegerDocumentAccessLog.RecordAccess",
+      "reason": "ADR 0084 (#4692): Consumer-port adapter that writes a download of the Träger-Büro into the access log of a school as audit.data_access_log entry of the Träger portal (ADR 0084 section 7)."
+    },
+    {
+      "decision": "0084",
+      "id": "api/traegerDocumentDownloadLedger.RecordDownload",
+      "reason": "ADR 0084 (#4692): Consumer-port adapter that appends a download of the Träger-Büro to the Träger document download ledger of the Audit Platform in the caller's Träger transaction (ADR 0157)."
+    },
+    {
+      "decision": "0084",
+      "id": "api/traegerDocumentGroups.SchoolGroups",
+      "reason": "ADR 0084 (#4692): Consumer-port adapter that lists the groups of the school of the tenant transaction through School Structure and translates them into the groups a Träger document release may name."
+    },
+    {
+      "decision": "0084",
       "id": "api/traegerGroupNames.GroupsByTenant",
       "reason": "ADR 0084 (#4676): Consumer-port adapter of the Träger projection's group names port; it translates School Structure's named groups of each school into the projection's NamedGroup vocabulary."
     },
@@ -4509,6 +4524,16 @@
       "decision": "0090",
       "id": "roots/owners/parentPhaseReads.ListEnrollable",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0084",
+      "id": "roots/owners/parentSharedDocuments.ListSharedDocuments",
+      "reason": "ADR 0084 (#4692): Consumer-port adapter that lists the documents a Träger released for the parent through Organisation \u0026 Tenancy and translates them into the shared documents of the parents portal's inbox."
+    },
+    {
+      "decision": "0084",
+      "id": "roots/owners/parentSharedDocuments.SharedDocumentFile",
+      "reason": "ADR 0084 (#4692): root translation of the parent's opening of a shared document and of its refusal onto the parents portal contract (ErrSharedDocumentNotFound)."
     },
     {
       "decision": "0090",
