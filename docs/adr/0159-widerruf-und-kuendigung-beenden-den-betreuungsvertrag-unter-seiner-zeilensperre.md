@@ -1,8 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Widerruf und Kündigung beenden den Betreuungsvertrag unter seiner Zeilensperre
+
+Freigegeben von Yannick Wenger am 07.11.2026
 
 Vorschlag vom 07.11.2026 zu [#4682](https://github.com/moto-nrw/project-phoenix/issues/4682),
 Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
