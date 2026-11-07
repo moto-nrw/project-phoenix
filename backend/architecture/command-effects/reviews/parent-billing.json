@@ -198,7 +198,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.VersionsInForce",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.ContractBilling.VersionsInForce: the effective versions of the Träger's active and ended contracts in force within the billed month, one per contract and day, read in the caller's Träger transaction (#4681, #4684).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.ContractBilling.VersionsInForce: the effective versions of the Träger's active and ended contracts in force within the billed month, one per contract and day, with the child record and date of birth that tell two contracts of one child apart, read in the caller's Träger transaction (#4681, #4684).",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.VersionsInForce",
       "target_owner": "care-contract"

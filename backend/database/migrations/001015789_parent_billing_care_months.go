@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/uptrace/bun"
 )
@@ -15,9 +14,8 @@ func init() {
 		Version:     parentBillingCareMonthsVersion,
 		Description: "Elternabrechnung: Monatsbeitrag aus dem Betreuungsvertrag mit Tarifen je Träger (#4684)",
 		DependsOn: []string{
-			careContractAmendmentsVersion,          // the versions in force the monthly run reads
-			parentBillingHolidayRunsVersion,        // the number ranges and the refusal of a change
-			demoVisitorErasureCareContractsVersion, // the demo erasure this one extends
+			careContractAmendmentsVersion,   // the versions in force the monthly run reads
+			parentBillingHolidayRunsVersion, // the number ranges and the refusal of a change
 		},
 	})
 	Migrations.MustRegister(parentBillingCareMonthsUp, parentBillingCareMonthsDown)
@@ -231,63 +229,14 @@ ALTER TABLE parent_billing.number_range_counters DROP CONSTRAINT chk_number_rang
 ALTER TABLE parent_billing.number_range_counters ADD CONSTRAINT chk_number_range_counters_service CHECK (service IN ('holiday'));
 `
 
-// careMonthsDemoErasureAnchor is the statement of 1.15.786 that locks the
-// contracts of the retired demo schools; the monthly invoices go right after
-// it, while the contracts they name still exist.
-const careMonthsDemoErasureAnchor = `
-					PERFORM 1 FROM care_contract.contracts AS contract
-					WHERE contract.school_id = ANY (hidden_schools)
-					ORDER BY contract.id
-					FOR UPDATE;
-`
-
-// careMonthsDemoErasureSQL also deletes what the monthly contribution keeps
-// of a retired demo school (#4684). An invoice copies child, recipient and
-// mail address and outlives the contract, so nothing removes it with the
-// school: the invoices of the school go, their positions by cascade. A read
-// in the trail of a run names the contracts it showed; such an event goes
-// with the contracts of the school. The run and its other events name no
-// one and stay. The numbers of a demo school's invoices leave a gap in the
-// number range of its Träger; ADR 0119 accepts that for demo schools as for
-// holiday invoices.
-const careMonthsDemoErasureSQL = careMonthsDemoErasureAnchor + `					DELETE FROM parent_billing.care_invoices
-					WHERE school_id = ANY (hidden_schools);
-					DELETE FROM parent_billing.care_run_events AS event
-					USING care_contract.contracts AS contract
-					WHERE contract.school_id = ANY (hidden_schools)
-						AND event.organization_id = contract.organization_id
-						AND event.details->'contract_ids' @> to_jsonb(contract.id);
-`
-
-// careMonthsDemoErasureUpSQL is platform.erase_closed_demo_visitors of
-// 1.15.786 with the deletions of careMonthsDemoErasureSQL.
-func careMonthsDemoErasureUpSQL() (string, error) {
-	if strings.Count(demoVisitorErasureCareContractsUpSQL, careMonthsDemoErasureAnchor) != 1 {
-		return "", fmt.Errorf("the demo erasure of %s lost its contract lock", demoVisitorErasureCareContractsVersion)
-	}
-	return strings.Replace(demoVisitorErasureCareContractsUpSQL, careMonthsDemoErasureAnchor, careMonthsDemoErasureSQL, 1), nil
-}
-
 func parentBillingCareMonthsUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, parentBillingCareMonthsUpSQL); err != nil {
 		return fmt.Errorf("create parent billing care months: %w", err)
 	}
-	erasure, err := careMonthsDemoErasureUpSQL()
-	if err != nil {
-		return err
-	}
-	if _, err := db.ExecContext(ctx, erasure); err != nil {
-		return fmt.Errorf("erase the monthly invoices of retired demo schools: %w", err)
-	}
 	return nil
 }
 
-// parentBillingCareMonthsDown reinstalls the erasure of 1.15.786 before it
-// drops the tables that erasure no longer knows.
 func parentBillingCareMonthsDown(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, demoVisitorErasureCareContractsUpSQL); err != nil {
-		return fmt.Errorf("restore the demo visitor erasure of %s: %w", demoVisitorErasureCareContractsVersion, err)
-	}
 	if _, err := db.ExecContext(ctx, parentBillingCareMonthsDownSQL); err != nil {
 		return fmt.Errorf("drop parent billing care months: %w", err)
 	}

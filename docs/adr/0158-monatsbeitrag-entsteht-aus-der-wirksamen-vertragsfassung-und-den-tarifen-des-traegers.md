@@ -70,7 +70,17 @@ und #4681. Er führt keinen Owner ein und hält fest, was er in den Registern
    `/traeger/care-billing-runs` verlangen das Träger-Recht „Abrechnung“ und
    laufen in der Träger-Transaktion. Jedes Lesen eines Laufs schreibt
    `parent_billing.care_run_events` mit Konto und den gezeigten Verträgen.
-10. **Abgrenzung.** Prüfphase mit Standortwahl, Rechnungsdatum, Ausschluss
+10. **Betragsregeln.** Ein gebuchter Wochentag eines Moduls zählt je Kind
+   und Monat höchstens einmal. Buchen zwei aktive Verträge desselben Kindes
+   (Schülerakte, sonst Name und Geburtsdatum) dasselbe Modul am selben Tag,
+   rechnet der Lauf keinen von beiden ab und zeigt sie als „Doppelter
+   Vertrag – bitte prüfen“. Ein Modul, das über alle Fassungen des Monats
+   gleich bleibt, ist eine Position zum vollen Monatspreis; geteilte
+   Positionen ergeben zusammen den Betrag des Moduls auf den Cent (größter
+   Rest). Die Demo-Löschung (ADR 0062) entfernt Monatsrechnungen und die
+   Lesungen der Laufspur stillgelegter Demo-Schulen; die Nummernlücke nimmt
+   sie wie ADR 0119 hin.
+11. **Abgrenzung.** Prüfphase mit Standortwahl, Rechnungsdatum, Ausschluss
    und Prüfexport (#5916), Senden und Druck der Schreiben, Empfänger und
    Zahlungsweg (#4689) sowie Ermäßigungen und Geschwister (#4685) bauen auf
    diesen Rechnungen auf und sind nicht Teil dieser Entscheidung.
@@ -103,4 +113,4 @@ und #4681. Er führt keinen Owner ein und hält fest, was er in den Registern
 - Query-Budgets `api.traeger.care_billing_runs` (2, exact) und
   `api.traeger.care_tariffs` (6, exact).
 - Datenlebenszyklus und Aufbewahrung: je fünf Einträge.
-- Migration `1.15.789`.
+- Migrationen `1.15.789` (Tabellen) und `1.15.791` (`platform.erase_closed_demo_visitors`).

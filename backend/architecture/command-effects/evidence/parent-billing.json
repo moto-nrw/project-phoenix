@@ -154,7 +154,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareContracts.VersionsInForce",
-      "binding_digest": "42e171ce5a9af8c1e1bc5bc2c6800458",
+      "binding_digest": "d77d5dc09499f902935d1212ca40fb3e",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.VersionsInForce",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.VersionsInForce",
