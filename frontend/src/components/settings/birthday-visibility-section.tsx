@@ -16,6 +16,7 @@ import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { fetchBirthdayOptOut, updateBirthdayOptOut } from "~/lib/birthdays-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "BirthdayVisibilitySection" });
 
@@ -126,7 +127,7 @@ export function BirthdayVisibilitySection() {
       ) : loadFailed ? (
         <LoadErrorAlert error={loadError} />
       ) : (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200/50 bg-gray-50/50 p-3">
+        <InsetPanel framed className="flex items-center justify-between gap-3">
           <span className="text-sm text-gray-800">
             Meinen Geburtstag auf der Startseite anzeigen
           </span>
@@ -136,7 +137,7 @@ export function BirthdayVisibilitySection() {
             disabled={busy}
             ariaLabel="Meinen Geburtstag auf der Startseite anzeigen"
           />
-        </div>
+        </InsetPanel>
       )}
     </SectionCard>
   );

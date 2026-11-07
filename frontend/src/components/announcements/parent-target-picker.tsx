@@ -20,6 +20,7 @@ import type { Group } from "~/lib/api";
 import type { Student } from "~/lib/student-helpers";
 import type { Activity } from "~/lib/activity-helpers";
 import type { AnnouncementTarget } from "~/lib/parent-announcements-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 /*
  * Die Empfängerwahl für Eltern: ganze Schule, Klassen, Gruppen, AGs und
@@ -368,10 +369,10 @@ export function ParentTargetPicker({
         </>
       )}
 
-      <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+      <InsetPanel as="p" padding="compact" className="text-sm text-gray-700">
         Ausgewählt:{" "}
         <span className="font-medium">{summarizeTargets(targets)}</span>
-      </p>
+      </InsetPanel>
     </div>
   );
 }

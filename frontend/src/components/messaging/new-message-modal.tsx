@@ -40,6 +40,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Loading } from "~/components/ui/loading";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "NewMessageModal" });
 
@@ -335,14 +336,14 @@ export function NewMessageModal({
                   <ArrowLeft className="h-4 w-4" /> Anderes Kind wählen
                 </Button>
               )}
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <InsetPanel framed>
                 <p className="text-sm font-semibold text-gray-900">
                   {student.name}
                 </p>
                 {student.detail ? (
                   <p className="text-xs text-gray-500">{student.detail}</p>
                 ) : null}
-              </div>
+              </InsetPanel>
               {leadershipChoice || audience === "leadership" ? (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">
