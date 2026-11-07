@@ -1,5 +1,7 @@
 "use client";
 
+import { Check } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -12,7 +14,6 @@ import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { credentialError, MFA_STEP_REFUSALS } from "./credential-error";
 import {
@@ -189,34 +190,14 @@ export function MFAEnrollmentScreen({
 
       {step === "success" ? (
         <div className="space-y-5 text-center">
-          <div
-            className="mx-auto flex h-14 w-14 items-center justify-center rounded-full"
-            style={{ backgroundColor: `${LOCATION_COLORS.GROUP_ROOM}22` }}
-            aria-hidden="true"
-          >
-            <svg
-              className="h-7 w-7"
-              fill="none"
-              stroke={LOCATION_COLORS.GROUP_ROOM}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </div>
-          <div className="space-y-1.5">
-            <h2 className="text-xl font-semibold text-gray-900">
-              2FA erfolgreich aktiviert
-            </h2>
-            <p className="text-sm leading-relaxed text-gray-600">
-              Beim nächsten Login erhalten Sie zusätzlich zu Ihrem Passwort
-              einen Code per E-Mail.
-            </p>
-          </div>
+          <EmptyState
+            tone="success"
+            icon={<Check aria-hidden="true" />}
+            titleAs="h2"
+            title="2FA erfolgreich aktiviert"
+            description="Beim nächsten Login erhalten Sie zusätzlich zu Ihrem Passwort einen Code per E-Mail."
+            className="py-0"
+          />
           <FormErrorAlert message={formErrors.error} />
           <Button
             type="button"

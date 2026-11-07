@@ -39,7 +39,8 @@ func newRaceFixture(t *testing.T) raceFixture {
 		child: testpkg.UniqueTestTenantID(t), offering: testpkg.UniqueTestTenantID(t)}
 	contract := activeContract(t, ctx, organization, school)
 	conclusion := compose.NewConclusion(
-		compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtimeDouble{}, Access: school},
+		compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtimeDouble{}, Access: school,
+			Ledger: ledgerDouble{}, Links: testSigningLinks()},
 		compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: modesDouble{}, Mail: noMailBlocks{}})
 	return raceFixture{db: db, ctx: ctx, organization: organization, contract: contract, conclusion: conclusion}
 }

@@ -219,7 +219,12 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0156: the booked care read and the overrun evaluation of
 // modules/carecontract/compose (+19) and the contract Soll port of
 // modules/studentpresence/compose (+4) add exactly 23 LOC.
-const moduleComposeBudgetTotal = 12957
+// ADR 0155: the signature constructors of modules/carecontract/compose (+58:
+// link, inbox signing, paper signature, reminders and their ports) and the
+// Träger signature ledger of modules/auditlog/compose (+8) add exactly 66 LOC,
+// and the test hook that stores the signing link of a contract a test wrote
+// directly (+17, testhooks).
+const moduleComposeBudgetTotal = 13040
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -231,7 +236,8 @@ const moduleComposeBudgetTotal = 12957
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose": 45,
 	// ADR 0103: the signature ledger constructor, construction only.
-	"modules/auditlog/compose": 189,
+	// ADR 0155: the signature ledger at the Träger (+8).
+	"modules/auditlog/compose": 197,
 	// Raised by ADR 0128: the manual plans port of the booking materialization (+1).
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0153: the contract offerings constructor (+9).
@@ -285,7 +291,9 @@ var moduleComposeBudgets = map[string]int{
 	// Added by ADR 0153: construction of the care contract owner, with the
 	// ports of the contract reads for the schools' access logs.
 	// ADR 0156: the booked care read and the overrun evaluation (+19); #4681 lowers it by 2.
-	"modules/carecontract/compose":                67,
+	// ADR 0155: the signature, the paper contract and the reminders (+58),
+	// the test hook of the signing link (+17).
+	"modules/carecontract/compose":                142,
 	"modules/parentbilling/compose":               50,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.

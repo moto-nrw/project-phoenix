@@ -16,6 +16,7 @@
  * (gleiches Problemfeld wie PR #1962).
  */
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TriangleAlert, UserPlus } from "lucide-react";
 
@@ -418,9 +419,11 @@ function PoolSection({
       </button>
       {expanded &&
         (entries.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-gray-200 px-3 py-2 text-xs text-gray-400">
-            {emptyText}
-          </p>
+          <EmptyState
+            variant="dashed"
+            title={emptyText}
+            className="px-3 py-2"
+          />
         ) : (
           <div className="space-y-1.5">
             {entries.map((entry) => (

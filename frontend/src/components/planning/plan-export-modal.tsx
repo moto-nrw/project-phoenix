@@ -210,37 +210,23 @@ export function PlanExportModal({
 
         {rangeMode === "range" && (
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                htmlFor="plan-export-from"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Von
-              </label>
-              <ISODatePicker
-                id="plan-export-from"
-                controlSize="lg"
-                value={from}
-                onChange={setFrom}
-                calendarLayout="popover"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="plan-export-to"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Bis
-              </label>
-              <ISODatePicker
-                id="plan-export-to"
-                controlSize="lg"
-                value={to}
-                min={from || undefined}
-                onChange={setTo}
-                calendarLayout="popover"
-              />
-            </div>
+            <ISODatePicker
+              id="plan-export-from"
+              label="Von"
+              controlSize="lg"
+              value={from}
+              onChange={setFrom}
+              calendarLayout="popover"
+            />
+            <ISODatePicker
+              id="plan-export-to"
+              label="Bis"
+              controlSize="lg"
+              value={to}
+              min={from || undefined}
+              onChange={setTo}
+              calendarLayout="popover"
+            />
           </div>
         )}
 

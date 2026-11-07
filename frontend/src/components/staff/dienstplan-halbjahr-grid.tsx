@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { RotateCw } from "lucide-react";
 import {
   useCallback,
@@ -601,25 +602,22 @@ export function DienstplanHalbjahrGrid({
   // card with a jump to the calendar-period management. No artwork.
   if (!period) {
     return (
-      <div className="moto-content-surface rounded-2xl border p-6 sm:p-8">
-        <div className="flex flex-col items-center gap-3 py-6 text-center">
-          <p className="text-sm font-semibold text-gray-900">
-            Kein Planungszeitraum für dieses Datum
-          </p>
-          <p className="max-w-md text-sm leading-relaxed text-gray-600">
-            Für den {formatDate(dayISO)} ist kein Planungszeitraum hinterlegt.
-            Lege einen Kalenderzeitraum an, um die Halbjahres-Sicht zu nutzen.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() => router.push("/calendar-periods")}
-          >
-            Zu den Planungszeiträumen
-          </Button>
-        </div>
-      </div>
+      <SectionCard>
+        <EmptyState
+          title="Kein Planungszeitraum für dieses Datum"
+          description={`Für den ${formatDate(dayISO)} ist kein Planungszeitraum hinterlegt. Lege einen Kalenderzeitraum an, um die Halbjahres-Sicht zu nutzen.`}
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => router.push("/calendar-periods")}
+            >
+              Zu den Planungszeiträumen
+            </Button>
+          }
+        />
+      </SectionCard>
     );
   }
 

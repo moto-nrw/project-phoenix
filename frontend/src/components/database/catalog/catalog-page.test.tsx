@@ -219,6 +219,15 @@ describe("CatalogPage", () => {
     expect(screen.getByText("Kategorien ordnen Termine ein.")).toBeVisible();
   });
 
+  it("keeps horizontal space around the unselected detail pane", () => {
+    renderPage();
+
+    expect(
+      screen.getByRole("heading", { name: "Kategorie auswählen" })
+        .parentElement,
+    ).toHaveClass("px-12");
+  });
+
   it("keeps the open entry while the search hides its row", () => {
     renderPage({ selectedId: "1" });
 

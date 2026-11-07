@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 
+import { FieldLabel } from "~/components/ui/field-label";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceModal } from "~/components/ui/choice-modal";
@@ -1610,9 +1611,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase">
-        {label}
-      </span>
+      <FieldLabel>{label}</FieldLabel>
       {children}
     </label>
   );
@@ -1632,9 +1631,7 @@ function FieldGroup({
 }) {
   return (
     <div>
-      <span className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase">
-        {label}
-      </span>
+      <FieldLabel>{label}</FieldLabel>
       {children}
     </div>
   );

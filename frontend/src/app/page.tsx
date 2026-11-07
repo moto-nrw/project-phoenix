@@ -6,6 +6,7 @@
  */
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -83,9 +84,10 @@ export default function RootPage() {
             Backend nicht erreichbar. Bitte versuchen Sie es später erneut.
           </p>
         ) : !loading && tenants.length === 0 ? (
-          <p className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-            Aktuell sind keine Einrichtungen verfügbar.
-          </p>
+          <EmptyState
+            variant="compact"
+            description="Aktuell sind keine Einrichtungen verfügbar."
+          />
         ) : (
           <>
             <div className="text-left">

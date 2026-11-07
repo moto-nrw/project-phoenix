@@ -98,13 +98,13 @@ function invoicesDescription(released: boolean, canPreview: boolean) {
 /** The empty letter frame beside the list before a row is chosen. */
 function LetterPreviewPlaceholder() {
   return (
-    <div className="flex aspect-[210/297] w-full items-center justify-center rounded-xl border border-dashed border-gray-300 p-8">
-      <EmptyState
-        icon={<FileText className="h-10 w-10" aria-hidden="true" />}
-        title="Noch kein Schreiben gewählt"
-        description="Wählen Sie links eine Rechnung. Hier sehen Sie dann ihr Schreiben mit Nummer, Beträgen und Gestaltung."
-      />
-    </div>
+    <EmptyState
+      variant="dashed"
+      icon={<FileText className="h-10 w-10" aria-hidden="true" />}
+      title="Noch kein Schreiben gewählt"
+      description="Wählen Sie links eine Rechnung. Hier sehen Sie dann ihr Schreiben mit Nummer, Beträgen und Gestaltung."
+      className="aspect-[210/297] w-full justify-center p-8"
+    />
   );
 }
 

@@ -106,19 +106,15 @@ function ReasonField({
   readonly onChange: (value: string) => void;
 }) {
   return (
-    <label className="block" htmlFor="pickup-adjustment-reason">
-      <span className="mb-1 block text-sm font-medium text-gray-700">
-        Grund (optional)
-      </span>
-      <Input
-        id="pickup-adjustment-reason"
-        type="text"
-        controlSize="compact"
-        maxLength={255}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
+    <Input
+      id="pickup-adjustment-reason"
+      label="Grund (optional)"
+      type="text"
+      controlSize="compact"
+      maxLength={255}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
   );
 }
 

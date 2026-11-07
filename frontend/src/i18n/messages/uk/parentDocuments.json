@@ -27,5 +27,11 @@
   "releasedAt": "Оприлюднено",
   "downloadFile": "Завантажити",
   "sharedErrorObject": "документи організації",
-  "image": "Зображення"
+  "image": "Зображення",
+  "awaitingSignature": "Очікує на ваш підпис",
+  "signed": "Підписано",
+  "concluded": "Договір укладено",
+  "signNow": "Прочитати й підписати",
+  "signedAt": "Підписано",
+  "status": "Статус"
 }
