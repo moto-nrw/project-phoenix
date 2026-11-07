@@ -5,6 +5,7 @@ import { createLogger } from "~/lib/logger";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 
 const logger = createLogger({ component: "StatisticsDownloadProxy" });
 
@@ -30,20 +31,10 @@ export function statisticsQuery(
   return query ? `?${query}` : "";
 }
 
-async function proxyDownload(
+function downloadResponse(
+  backendResponse: Response,
   request: NextRequest,
-  backendPath: string,
-  query: string,
-  token: string,
-): Promise<Response> {
-  const backendResponse = await fetch(
-    `${getServerApiUrl()}${backendPath}${query}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    },
-  );
-
+): Response {
   if (!backendResponse.ok) {
     const response = forwardBackendResponse(backendResponse, request);
     response.headers.set("Cache-Control", "no-store");
@@ -83,23 +74,18 @@ export async function proxyStatisticsDownload(
       return problemResponse(401, "Unauthorized", request);
     }
 
-    const query = statisticsQuery(request, keys);
-    const response = await proxyDownload(
+    const url = `${getServerApiUrl()}${backendPath}${statisticsQuery(request, keys)}`;
+    const send = (bearer: string) =>
+      fetch(url, {
+        headers: { Authorization: `Bearer ${bearer}` },
+        cache: "no-store",
+      });
+    return downloadResponse(
+      await sendWithTokenRefresh(session.user.token, send, () =>
+        uncachedAuth(),
+      ),
       request,
-      backendPath,
-      query,
-      session.user.token,
     );
-    if (response.status !== 401) return response;
-
-    const refreshed = await uncachedAuth();
-    if (
-      !refreshed?.user?.token ||
-      refreshed.user.token === session.user.token
-    ) {
-      return response;
-    }
-    return proxyDownload(request, backendPath, query, refreshed.user.token);
   } catch (error) {
     captureBffException(error, request);
     logger.error("statistics_export_proxy_failed", {

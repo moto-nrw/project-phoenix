@@ -7,6 +7,7 @@ import { createPutHandler } from "~/lib/route-wrapper.server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import {
   createTokenExpiredResponse,
   createUnauthorizedResponse,
@@ -104,25 +105,13 @@ export const DELETE = withTenantAuth(
           cache: "no-store",
         });
 
-      let response = await makeRequest(session.user.token);
-      if (response.status === 401) {
-        const refreshed = await uncachedAuth();
-        if (
-          refreshed?.user?.token &&
-          refreshed.user.token !== session.user.token
-        ) {
-          response = await makeRequest(refreshed.user.token);
-        } else {
-          return createTokenExpiredResponse(request);
-        }
-      }
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return createTokenExpiredResponse(request);
-        }
-        return forwardBackendResponse(response, request);
-      }
+      const response = await sendWithTokenRefresh(
+        session.user.token,
+        makeRequest,
+        () => uncachedAuth(),
+      );
+      if (response.status === 401) return createTokenExpiredResponse(request);
+      if (!response.ok) return forwardBackendResponse(response, request);
 
       return NextResponse.json({ success: true });
     } catch (error) {

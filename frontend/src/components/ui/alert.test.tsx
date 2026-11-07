@@ -62,6 +62,20 @@ describe("Alert", () => {
     expect(alert?.className).toContain("flex-wrap");
   });
 
+  it("wraps complex actions in a block container", () => {
+    render(
+      <Alert
+        type="success"
+        message="Link wurde erstellt."
+        action={<div data-testid="complex-action">Aktion</div>}
+      />,
+    );
+
+    expect(screen.getByTestId("complex-action").parentElement?.tagName).toBe(
+      "DIV",
+    );
+  });
+
   it("stays a single row without an action", () => {
     render(<Alert type="info" message="Info message" />);
 

@@ -118,6 +118,10 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
 		// #5128: records change events in active.visit_revision_events, which
 		// the plan deletes after active.visits ("after" edge).
 		"active.visits:active.record_visit_revision",
+		// #5994: refuses to delete a holiday time model the trail of a
+		// rebooking names while its period lives; Träger data, outside the
+		// plan of a school.
+		"enrollment.holiday_week_time_models:enrollment.holiday_time_model_keeps_booked_history",
 		"enrollment.request_uploads:enrollment.queue_request_upload_cleanup",
 		// #5628: drops a sibling group of a Träger left with one holiday
 		// registration; Träger data, outside the plan of a school.

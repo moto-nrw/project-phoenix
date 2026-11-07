@@ -7,8 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
 )
 
-// Ports the composition root binds for Enrollment's decision flow, restore,
-// rollover and deletions (#3564).
+// Ports the composition root binds for Enrollment's decision flow, restore, rollover and deletions (#3564).
 type (
 	DecisionDependencies      = application.DecisionDependencies
 	DecisionRequests          = application.DecisionRequests
@@ -84,8 +83,7 @@ type (
 	CapacityPeaks     = application.CapacityPeaks
 )
 
-// Role presets, deletion actors and scopes the root binding maps onto the
-// stored values.
+// Role presets, deletion actors and scopes the root binding maps onto the stored values.
 const (
 	GuardianRolePrimary    = application.GuardianRolePrimary
 	GuardianRoleEmergency  = application.GuardianRoleEmergency
@@ -98,8 +96,7 @@ const (
 	DeletionScopeChild   = application.DeletionScopeChild
 )
 
-// Decisions is Enrollment's decision flow: the public Decisions and
-// ApprovedChildChanges capabilities in one value.
+// Decisions is Enrollment's decision flow: the public Decisions and ApprovedChildChanges capabilities in one value.
 type Decisions = application.Decisions
 
 // NewDecisions composes the decision flow in the ambient tenant transaction.
@@ -114,8 +111,7 @@ func NewRollovers(deps RolloverDependencies) enrollment.Rollovers {
 	return application.NewRollovers(deps)
 }
 
-// NewDeletionPreview composes the impact preview of a deletion for the
-// tenant in context.
+// NewDeletionPreview composes the impact preview of a deletion for the tenant in context.
 func NewDeletionPreview(deps DeletionPreviewDependencies) *DeletionPreview {
 	deps.Runtime = tenantRuntime()
 	return application.NewDeletionPreview(deps)
@@ -133,9 +129,8 @@ func NewRejectedCleanup(deps RejectedCleanupDependencies) enrollment.RejectedEnr
 	return application.NewRejectedCleanup(deps)
 }
 
-// NewOfferingCapacity composes the capacity gate a submission shares with
-// the restore. A nil waitlistEnabled fails a waitlist-mode phase with a
-// configuration error.
+// NewOfferingCapacity composes the capacity gate a submission shares with the restore.
+// A nil waitlistEnabled fails a waitlist-mode phase with a configuration error.
 func NewOfferingCapacity(offerings CapacityOfferings, peaks CapacityPeaks, waitlistEnabled func(context.Context) (bool, error)) enrollment.OfferingCapacity {
 	return application.NewOfferingCapacity(offerings, peaks, waitlistEnabled)
 }

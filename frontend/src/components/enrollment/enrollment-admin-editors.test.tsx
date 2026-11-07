@@ -3055,6 +3055,30 @@ describe("EnrollmentFormEditor", () => {
     });
   });
 
+  it("shows an error when unsaved changes cannot be saved as a valid template", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Freie Zusatzfrage" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zurück zur Übersicht" }),
+    );
+
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent(
+      "Bitte geben Sie zuerst einen Namen für die Vorlage ein.",
+    );
+    expect(error).toHaveClass("bg-moto-red-soft");
+    expect(
+      screen.getByRole("button", { name: "Speichern und fortfahren" }),
+    ).toBeDisabled();
+  });
+
   it("creates, previews, updates, and deletes schemas", async () => {
     const initialSchema = schema();
     mocks.listSchemas.mockResolvedValue([initialSchema]);
