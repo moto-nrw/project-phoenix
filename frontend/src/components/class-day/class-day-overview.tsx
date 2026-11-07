@@ -14,7 +14,13 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -402,17 +408,116 @@ export interface ClassDayOverviewProps {
   ) => Promise<void>;
 }
 
-export function ClassDayOverview({
+function ClassDayOverviewInfo() {
+  const dateISO = classDayDateParam(useSearchParams().get("tag"));
+
+  return (
+    <p>
+      Ihre Übergabe nach Unterricht am {formatDate(dateISO)}. Öffnen Sie eine
+      Klasse, um zu sehen, wer in Randstunde oder Ganztag bleibt und wer nach
+      Hause geht.
+    </p>
+  );
+}
+
+function ClassDayOverviewActions() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const dateISO = classDayDateParam(searchParams.get("tag"));
+  const openList = schoolDayListParam(searchParams.get("liste"));
+  const selectedDate = parseISODate(dateISO);
+
+  const goToDate = (next: string) => {
+    router.replace(schoolPath(schoolDayListPath(next, openList)), {
+      scroll: false,
+    });
+  };
+  const shiftDay = (delta: number) => {
+    const next = new Date(selectedDate);
+    next.setDate(next.getDate() + delta);
+    goToDate(toISODate(next));
+  };
+
+  return (
+    <div className="flex w-full items-center gap-1 lg:w-auto">
+      <Button
+        type="button"
+        variant="surface"
+        size="icon"
+        aria-label="Vorheriger Tag"
+        onClick={() => shiftDay(-1)}
+        className="shrink-0"
+      >
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+      </Button>
+      <DatePicker
+        value={selectedDate}
+        onChange={(date) => {
+          if (date) goToDate(toISODate(date));
+        }}
+        calendarLayout="popover"
+        hideClearButton
+        className="min-w-0 flex-1 sm:w-44 sm:flex-none"
+      />
+      <Button
+        type="button"
+        variant="surface"
+        size="icon"
+        aria-label="Nächster Tag"
+        onClick={() => shiftDay(1)}
+        className="shrink-0"
+      >
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    </div>
+  );
+}
+
+function ClassDayOverviewLoading() {
+  return (
+    <SectionCard>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    </SectionCard>
+  );
+}
+
+export function ClassDayOverview({ notices, ...props }: ClassDayOverviewProps) {
+  const greeting = useTimeBasedGreeting();
+  const { data: session } = useSession();
+
+  return (
+    <TenantPage
+      title={`${greeting}, ${getUserDisplayName(session)}`}
+      prominent
+      info={
+        <Suspense fallback={null}>
+          <ClassDayOverviewInfo />
+        </Suspense>
+      }
+      actions={
+        <Suspense fallback={null}>
+          <ClassDayOverviewActions />
+        </Suspense>
+      }
+    >
+      {notices}
+      <Suspense fallback={<ClassDayOverviewLoading />}>
+        <ClassDayOverviewContent {...props} />
+      </Suspense>
+    </TenantPage>
+  );
+}
+
+function ClassDayOverviewContent({
   fetchClasses,
   fetchClassDay,
   fetchSchoolDay,
   reportAbsence,
   withdrawAbsenceReport,
-  notices,
-}: ClassDayOverviewProps) {
-  const greeting = useTimeBasedGreeting();
-  const { data: session } = useSession();
-  const router = useRouter();
+}: Omit<ClassDayOverviewProps, "notices">) {
   const searchParams = useSearchParams();
   // Der Tag steht in der Adresse, nicht nur im Zustand: nur so führt der
   // Zurück-Weg aus einer Klasse auf denselben Tag zurück.
@@ -512,20 +617,6 @@ export function ClassDayOverview({
   const loadError = classesLoadError ?? schoolDayLoadError;
   const hasLoadFailure = Boolean(loadError);
 
-  const selectedDate = parseISODate(dateISO);
-  // Eine geöffnete Liste bleibt beim Tageswechsel offen: dieselbe Frage
-  // für den nächsten Tag.
-  const goToDate = (next: string) => {
-    router.replace(schoolPath(schoolDayListPath(next, openList)), {
-      scroll: false,
-    });
-  };
-  const shiftDay = (delta: number) => {
-    const next = new Date(selectedDate);
-    next.setDate(next.getDate() + delta);
-    goToDate(toISODate(next));
-  };
-
   const noClasses = classes !== undefined && classes.length === 0;
 
   // Die Zahlen der ganzen Schule für die Schulverwaltung (#4802). Jede Zahl
@@ -539,68 +630,7 @@ export function ClassDayOverview({
     schoolDay && open ? schoolDayChildrenByClass(schoolDay, open) : [];
 
   return (
-    <TenantPage
-      title={`${greeting}, ${getUserDisplayName(session)}`}
-      prominent
-      info={
-        <p>
-          Ihre Übergabe nach Unterricht am {formatDate(dateISO)}. Öffnen Sie
-          eine Klasse, um zu sehen, wer in Randstunde oder Ganztag bleibt und
-          wer nach Hause geht.
-        </p>
-      }
-      actions={
-        <div className="flex w-full items-center gap-1 lg:w-auto">
-          <Button
-            type="button"
-            variant="surface"
-            size="icon"
-            aria-label="Vorheriger Tag"
-            onClick={() => shiftDay(-1)}
-            className="shrink-0"
-          >
-            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          </Button>
-          <DatePicker
-            value={selectedDate}
-            onChange={(date) => {
-              if (date) goToDate(toISODate(date));
-            }}
-            calendarLayout="popover"
-            hideClearButton
-            className="min-w-0 flex-1 sm:w-44 sm:flex-none"
-          />
-          <Button
-            type="button"
-            variant="surface"
-            size="icon"
-            aria-label="Nächster Tag"
-            onClick={() => shiftDay(1)}
-            className="shrink-0"
-          >
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </div>
-      }
-      overlays={
-        <ConfirmationModal
-          isOpen={canReportAbsences && absenceReports.withdrawTarget !== null}
-          onClose={absenceReports.closeWithdraw}
-          onConfirm={() => void absenceReports.confirmWithdraw()}
-          title="Meldung zurücknehmen?"
-          confirmText="Zurücknehmen"
-          isConfirmLoading={absenceReports.withdrawing}
-        >
-          <FormErrorAlert message={absenceReports.error} className="mb-3" />
-          <p className="text-sm text-gray-700">
-            {absenceReports.withdrawTarget
-              ? `${absenceReports.withdrawTarget.child.first_name} ${absenceReports.withdrawTarget.child.last_name} steht dann wieder unter „Fehlen ohne Meldung“. Die OGS sieht den Status nicht mehr.`
-              : null}
-          </p>
-        </ConfirmationModal>
-      }
-    >
-      {notices}
+    <>
       <SectionCard>
         <div
           className="contents"
@@ -831,6 +861,21 @@ export function ClassDayOverview({
             )}
         </div>
       </SectionCard>
-    </TenantPage>
+      <ConfirmationModal
+        isOpen={canReportAbsences && absenceReports.withdrawTarget !== null}
+        onClose={absenceReports.closeWithdraw}
+        onConfirm={() => void absenceReports.confirmWithdraw()}
+        title="Meldung zurücknehmen?"
+        confirmText="Zurücknehmen"
+        isConfirmLoading={absenceReports.withdrawing}
+      >
+        <FormErrorAlert message={absenceReports.error} className="mb-3" />
+        <p className="text-sm text-gray-700">
+          {absenceReports.withdrawTarget
+            ? `${absenceReports.withdrawTarget.child.first_name} ${absenceReports.withdrawTarget.child.last_name} steht dann wieder unter „Fehlen ohne Meldung“. Die OGS sieht den Status nicht mehr.`
+            : null}
+        </p>
+      </ConfirmationModal>
+    </>
   );
 }

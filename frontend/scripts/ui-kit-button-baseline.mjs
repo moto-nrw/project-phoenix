@@ -145,7 +145,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/components/class-day/class-day-overview.tsx",
-    lines: [173],
+    lines: [179],
     reason:
       "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
   },
