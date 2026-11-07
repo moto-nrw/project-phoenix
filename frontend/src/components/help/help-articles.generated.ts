@@ -2728,6 +2728,7 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Die Anmeldungen laufen am Computer.",
       "Eine Phase trägt `Aktiv` oder nichts. Nur eine aktive Phase nimmt Anmeldungen an.",
+      "Gilt die Phase nur für `Nur bereits angemeldete Kinder` oder `Nur Eltern mit Konto an der Schule`, fehlen `Formular ansehen`, `Elternansicht öffnen` und der Link zum Kopieren. Diese Eltern melden sich im Elternportal an.",
     ],
     troubleshootingDetails: [
       "Der Überblick sagt `Noch keine Anmeldephase`? Dann legen Sie zuerst eine Phase an.",

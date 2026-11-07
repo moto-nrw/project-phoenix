@@ -47,7 +47,7 @@ export function isTerminalChildStatus(status: string): boolean {
  * Waits for a decision of the school, as the school's list counts „Offen“
  * (`OpenEnrollmentChildStatuses`). Waitlisted and renewal states do not.
  */
-export function isOpenChildStatus(status: string): boolean {
+function isOpenChildStatus(status: string): boolean {
   return OPEN_CHILD_STATUSES.has(status);
 }
 
