@@ -20,7 +20,7 @@ export type TerminationKind =
  * set the last day, or it did not accept the reason and the declaration
  * holds as an ordinary termination (Umdeutung, § 140 BGB).
  */
-export type EndDecision = "festgelegt" | "umgedeutet";
+type EndDecision = "festgelegt" | "umgedeutet";
 
 /** A declaration as recorded, with its confirmation as sent. */
 export interface ContractNotice {
