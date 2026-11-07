@@ -121,7 +121,7 @@ function DatevReportPanel({
     );
   }
   if (state.status === "idle" || state.status === "loading") {
-    return <Loading fullPage={false} message="Bericht wird geladen …" />;
+    return <Loading message="Bericht wird geladen …" />;
   }
   const { report } = state;
   return (

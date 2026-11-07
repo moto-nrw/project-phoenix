@@ -133,7 +133,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Number with minus and plus (except time tracking's break stepper) | `NumberStepper` | `~/components/ui/number-stepper` |
 | Day strip on a phone | `PlanningDayChip stacked` (`marker`, `statusLabel`, `today`) | `~/components/ui/planning/planning-context-bar` |
 | Date / range picker | `DatePicker`, `DateRangePicker` (selection gray-900, today blue); with time: `DateTimePicker` | `~/components/ui/<kebab-name>` |
-| Loading | Area: `Loading fullPage={false}`; beside text or in icon button: `SpinnerIcon`; text button: `Button isLoading loadingText`; known shape: `SectionCard loading`, `page-skeletons` in `SkeletonRegion`, `Skeleton` (`shape`), `SkeletonRows` | `~/components/ui/`: `loading`, `icons`, `button`, `page-skeletons`, `skeleton` |
+| Loading | Area: `Loading`; whole screen (guards only): `Loading fullPage`; beside text or in icon button: `SpinnerIcon`; text button: `Button isLoading loadingText`; known shape: `SectionCard loading`, `page-skeletons` in `SkeletonRegion`, `Skeleton` (`shape`), `SkeletonRows` | `~/components/ui/`: `loading`, `icons`, `button`, `page-skeletons`, `skeleton` |
 | Avatar | `Avatar` (`tone`) | `~/components/ui/avatar` |
 | Who sees a field | `VisibilityBadge audience` | `~/components/ui/visibility-badge` |
 | File drop or choice | `Dropzone`; caller checks beyond `accept` | `~/components/ui/dropzone` |

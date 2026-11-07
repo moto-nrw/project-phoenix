@@ -252,9 +252,7 @@ function LoginForm() {
         variant="tenant"
         brand={<MotoBrand />}
       >
-        {isCheckingAuth && (
-          <Loading fullPage={false} message="Sitzung wird überprüft..." />
-        )}
+        {isCheckingAuth && <Loading message="Sitzung wird überprüft..." />}
 
         <div
           className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
@@ -419,7 +417,7 @@ export default function SchoolLoginPage() {
           variant="tenant"
           brand={<MotoBrand />}
         >
-          <Loading fullPage={false} message="Anmeldung wird vorbereitet …" />
+          <Loading message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >
