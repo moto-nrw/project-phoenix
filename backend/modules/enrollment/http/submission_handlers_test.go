@@ -647,17 +647,16 @@ func TestSignatureProofDocument_IncludesSignedAnswersAndOfferingChoices(t *testi
 	assert.Contains(t, childFields, lists.Field{Label: "Abholzeit", Value: "Mo 15:00"})
 }
 
-// TestSubmitCarriesTheChecksumsOfTheShownLegalTexts: the checksum the form
-// reports for each shown legal text reaches the owner (#4680), so the
-// snapshot proves which wording the parent ticked.
-func TestSubmitCarriesTheChecksumsOfTheShownLegalTexts(t *testing.T) {
+// TestSubmitCarriesTheShownFormVersion: the form version the page showed
+// reaches the owner (#4680), so the snapshot proves which legal texts the
+// parent ticked.
+func TestSubmitCarriesTheShownFormVersion(t *testing.T) {
 	t.Parallel()
 	wire := &SubmitEnrollmentRequest{}
-	require.NoError(t, json.Unmarshal([]byte(`{"phase_id":42,"consent_flags":{"terms":true},
-		"legal_text_sha256":{"terms":"abc123"},"children":[]}`), wire))
+	require.NoError(t, json.Unmarshal([]byte(`{"phase_id":42,"form_schema_id":81,"consent_flags":{"terms":true},"children":[]}`), wire))
 	out, err := buildServiceRequest(wire, 7, "203.0.113.5")
 	require.NoError(t, err)
 	encoded, err := encodeSubmitRequest(out)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"terms": "abc123"}, encoded.DisplayedTextSHA256)
+	assert.Equal(t, int64(81), encoded.DisplayedFormSchemaID)
 }

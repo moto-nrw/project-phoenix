@@ -326,7 +326,7 @@ func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest,
 		id := plan.schema.ID
 		schemaID = &id
 	}
-	snapshotEntry, err := legalBlocksSnapshotEntry(plan.legalBlocks, req.ConsentFlags, req.DisplayedTextSHA256, time.Now(), s.deps.Fingerprint)
+	snapshotEntry, err := legalBlocksSnapshotEntry(plan.legalBlocks, req.ConsentFlags, formsOf(plan.schema, req.DisplayedFormSchemaID), time.Now(), s.deps.Fingerprint)
 	if err != nil {
 		return nil, fmt.Errorf("submit: create request: %w", err)
 	}

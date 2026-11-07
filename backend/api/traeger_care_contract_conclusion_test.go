@@ -344,10 +344,9 @@ func recordCareContractTextAcceptance(t *testing.T, f careContractFixture, text 
 	require.NoError(t, f.db.NewRaw(`SELECT NOW()`).Scan(ctx, &submitted))
 	accepted := submitted.Add(time.Hour)
 	snapshot, err := json.Marshal([]enrollment.LegalBlocksSnapshotEntry{{
-		SnapshotAt: submitted, ConsentFlags: json.RawMessage(`{"terms":true}`),
-		Blocks: []enrollment.LegalBlockSnapshot{{Key: "terms", Kind: enrollment.LegalBlockKindTerms,
-			Required: true, Text: text, TextSHA256: securityruntime.Fingerprint([]byte(text)),
-			DisplayedSHA256: securityruntime.Fingerprint([]byte(text))}},
+		SnapshotAt: submitted, ConsentFlags: json.RawMessage(`{"terms":true}`), FormSchemaID: 81, DisplayedFormSchemaID: 81,
+		Blocks: []enrollment.LegalBlockSnapshot{{Key: "terms", Kind: enrollment.LegalBlockKindTerms, Source: enrollment.LegalBlockSourceCustom,
+			Required: true, Text: text, TextSHA256: securityruntime.Fingerprint([]byte(text))}},
 	}})
 	require.NoError(t, err)
 	_, err = f.db.ExecContext(ctx, `UPDATE enrollment.requests SET legal_blocks_snapshot = ?::jsonb, submission_source = 'public'

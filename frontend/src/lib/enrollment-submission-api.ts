@@ -102,11 +102,11 @@ export interface SubmitEnrollmentPayload {
   additional_guardians?: SubmitGuardianPayload[];
   consent_flags?: Record<string, unknown>;
   /**
-   * SHA-256 (hex) of each legal text the form showed, keyed like
-   * `consent_flags`. The server stores it beside the text in force, so the
-   * evidence shows the parent ticked exactly that wording (#4680).
+   * The form version the page showed. The server stores it beside the
+   * version in force, so the evidence shows the parent ticked exactly these
+   * legal texts (#4680).
    */
-  legal_text_sha256?: Record<string, string>;
+  form_schema_id?: number;
   custom_data?: Record<string, unknown>;
   children: SubmitChildPayload[];
   captcha_token?: string;
@@ -883,28 +883,4 @@ export async function confirmRenewal(token: string): Promise<number> {
   }
   const payload = (await response.json()) as { confirmed?: number };
   return payload.confirmed ?? 0;
-}
-
-/**
- * The SHA-256 (hex) of every shown legal text, keyed by its block. Without
- * Web Crypto (no secure context) the form reports none; the submission still
- * goes through, it only proves no contract consent (#4680).
- */
-export async function legalTextChecksums(
-  blocks: readonly { key: string; text?: string | null }[],
-): Promise<Record<string, string> | undefined> {
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle) return undefined;
-  const out: Record<string, string> = {};
-  for (const block of blocks) {
-    if (!block.text) continue;
-    const digest = await subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(block.text),
-    );
-    out[block.key] = Array.from(new Uint8Array(digest), (byte) =>
-      byte.toString(16).padStart(2, "0"),
-    ).join("");
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
 }

@@ -15,12 +15,12 @@ import (
 
 // SubmitRequest is one submission as the intake receives it.
 type SubmitRequest struct {
-	// DisplayedTextSHA256 maps a legal block's key to the SHA-256 of the
-	// text the form showed the parent (#4680). The snapshot records it next
-	// to the stored text, so the evidence shows whether both are the same.
-	DisplayedTextSHA256 map[string]string
-	TenantID            int64
-	PhaseID             int64
+	// DisplayedFormSchemaID is the form version the parent's form showed
+	// (#4680). Versions never change, so the snapshot proves the shown legal
+	// texts are the stored ones only when it equals the version in force.
+	DisplayedFormSchemaID int64
+	TenantID              int64
+	PhaseID               int64
 	// RemoteIP is the parent's source IP. Empty disables IP-based rate
 	// limiting for that submission.
 	RemoteIP string

@@ -72,9 +72,8 @@ type SubmitEnrollmentRequest struct {
 	GuardianPhone       *string                 `json:"guardian_phone,omitempty"`
 	AdditionalGuardians []SubmitGuardianRequest `json:"additional_guardians,omitempty"`
 	ConsentFlags        map[string]any          `json:"consent_flags,omitempty"`
-	// LegalTextSHA256 is the SHA-256 of each legal text the form showed,
-	// keyed like ConsentFlags (#4680).
-	LegalTextSHA256 map[string]string    `json:"legal_text_sha256,omitempty"`
+	// FormSchemaID is the form version the page showed (#4680).
+	FormSchemaID    int64                `json:"form_schema_id,omitempty"`
 	CustomData      map[string]any       `json:"custom_data,omitempty"`
 	Children        []SubmitChildRequest `json:"children"`
 	CaptchaToken    string               `json:"captcha_token,omitempty"`
@@ -207,18 +206,18 @@ func bindSubmitEnrollmentRequest(r *http.Request) (string, *SubmitEnrollmentRequ
 // shape. Parses date strings; surfaces a typed error on bad input.
 func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remoteIP string) (SubmitRequest, error) {
 	out := SubmitRequest{
-		TenantID:            tenantID,
-		PhaseID:             wireReq.PhaseID,
-		RemoteIP:            remoteIP,
-		GuardianFirstName:   wireReq.GuardianFirstName,
-		GuardianLastName:    wireReq.GuardianLastName,
-		GuardianEmail:       wireReq.GuardianEmail,
-		GuardianPhone:       wireReq.GuardianPhone,
-		ConsentFlags:        wireReq.ConsentFlags,
-		CustomData:          wireReq.CustomData,
-		LateInviteToken:     wireReq.LateInviteToken,
-		DisplayedTextSHA256: wireReq.LegalTextSHA256,
-		Signature:           wireReq.Signature.value(),
+		TenantID:              tenantID,
+		PhaseID:               wireReq.PhaseID,
+		RemoteIP:              remoteIP,
+		GuardianFirstName:     wireReq.GuardianFirstName,
+		GuardianLastName:      wireReq.GuardianLastName,
+		GuardianEmail:         wireReq.GuardianEmail,
+		GuardianPhone:         wireReq.GuardianPhone,
+		ConsentFlags:          wireReq.ConsentFlags,
+		CustomData:            wireReq.CustomData,
+		LateInviteToken:       wireReq.LateInviteToken,
+		DisplayedFormSchemaID: wireReq.FormSchemaID,
+		Signature:             wireReq.Signature.value(),
 	}
 	for _, g := range wireReq.AdditionalGuardians {
 		out.AdditionalGuardians = append(out.AdditionalGuardians, SubmitGuardian{

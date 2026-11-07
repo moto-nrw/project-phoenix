@@ -21,13 +21,15 @@ func TestContractAcceptancesRequireUnchangedParentEvidenceBeforeApproval(t *test
 		return "different-text-fingerprint"
 	}
 	entry := LegalBlocksSnapshotEntry{SnapshotAt: submitted, ConsentFlags: json.RawMessage(`{"contract":true}`),
-		Blocks: []LegalBlockSnapshot{{Key: "contract", Kind: LegalBlockKindTerms, Required: true,
-			Text: text, TextSHA256: "known-text-fingerprint", DisplayedSHA256: "known-text-fingerprint"}}}
+		FormSchemaID: 81, DisplayedFormSchemaID: 81,
+		Blocks: []LegalBlockSnapshot{{Key: "contract", Kind: LegalBlockKindTerms, Required: true, Source: LegalBlockSourceCustom,
+			Text: text, TextSHA256: "known-text-fingerprint"}}}
 	tests := map[string]func(*LegalBlocksSnapshotEntry){
 		"valid":                              func(*LegalBlocksSnapshotEntry) {},
 		"old snapshot without checksum":      func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].TextSHA256 = "" },
-		"form showed no checksum":            func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].DisplayedSHA256 = "" },
-		"form showed an older text":          func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].DisplayedSHA256 = "different-text-fingerprint" },
+		"form showed an older version":       func(e *LegalBlocksSnapshotEntry) { e.DisplayedFormSchemaID = 80 },
+		"form reported no version":           func(e *LegalBlocksSnapshotEntry) { e.DisplayedFormSchemaID = 0 },
+		"standard text is no own consent":    func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].Source = LegalBlockSourceStandard },
 		"altered wording":                    func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].Text += " Neue Bedingungen." },
 		"no consent":                         func(e *LegalBlocksSnapshotEntry) { e.ConsentFlags = json.RawMessage(`{"contract":false}`) },
 		"privacy is not agreement":           func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].Kind = LegalBlockKindPrivacyNotice },

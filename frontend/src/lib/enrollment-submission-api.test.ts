@@ -11,7 +11,6 @@ import {
   EMPTY_SCHOOL_CLASS_CONFIG,
   fetchPublicPhases,
   fetchStatus,
-  legalTextChecksums,
   listEnrollmentChangeRequests,
   patchStatus,
   replyEnrollmentChangeRequest,
@@ -697,24 +696,5 @@ describe("enrollment-submission-api", () => {
       message: "Bestätigung nicht möglich (HTTP 410)",
       code: "general.business_rejection",
     });
-  });
-});
-
-describe("legalTextChecksums", () => {
-  it("reports the SHA-256 of each shown legal text, keyed by its block", async () => {
-    await expect(
-      legalTextChecksums([
-        { key: "terms", text: "abc" },
-        { key: "notice", text: "" },
-      ]),
-    ).resolves.toEqual({
-      terms: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-    });
-  });
-
-  it("reports nothing without a shown text", async () => {
-    await expect(legalTextChecksums([{ key: "terms" }])).resolves.toBe(
-      undefined,
-    );
   });
 });
