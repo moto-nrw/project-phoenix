@@ -984,41 +984,49 @@ export function StepPersonalKinder({
             />
           )}
           {coverageWarningCount > 0 && (
+            // Eine Meldung für alle Lücken (#5591): Zahl oben, die ersten drei
+            // Beispiele als Liste, der Rest aufklappbar.
             <Alert
               type="warning"
-              message={`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Speichern ist weiterhin möglich.`}
               announce="off"
+              message={
+                <>
+                  <p>{`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Speichern ist weiterhin möglich.`}</p>
+                  {coverageWarnings.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {coverageWarnings.slice(0, 3).map((warning) => (
+                        <li
+                          key={`shift-coverage-example-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
+                        >
+                          {shiftCoverageWarningText(warning)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {coverageWarningCount > 3 && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer font-medium focus-visible:ring-2 focus-visible:ring-current focus-visible:outline-none">
+                        {coverageWarningCount - 3} weitere Lücken anzeigen
+                      </summary>
+                      <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto overscroll-contain pr-1">
+                        {coverageWarnings.slice(3).map((warning) => (
+                          <li
+                            key={`shift-coverage-detail-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
+                          >
+                            {shiftCoverageWarningText(warning)}
+                          </li>
+                        ))}
+                        {coverageWarningCount > coverageWarnings.length && (
+                          <li className="font-medium">
+                            Es werden höchstens 100 Beispiele angezeigt.
+                          </li>
+                        )}
+                      </ul>
+                    </details>
+                  )}
+                </>
+              }
             />
-          )}
-          {coverageWarnings.slice(0, 3).map((warning) => (
-            <p
-              key={`shift-coverage-example-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
-              className="border-moto-amber/20 bg-moto-amber/5 rounded-lg border px-3 py-2 text-sm text-gray-700"
-            >
-              {shiftCoverageWarningText(warning)}
-            </p>
-          ))}
-          {coverageWarningCount > 3 && (
-            <details className="border-moto-amber/20 bg-moto-amber/5 rounded-lg border px-3 py-2 text-sm text-gray-700">
-              <summary className="focus-visible:ring-moto-amber cursor-pointer font-medium focus-visible:ring-2 focus-visible:outline-none">
-                {coverageWarningCount - 3} weitere Lücken anzeigen
-              </summary>
-              <div className="mt-2 max-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1">
-                {coverageWarnings.slice(3).map((warning) => (
-                  <p
-                    key={`shift-coverage-detail-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
-                    className="border-moto-amber/20 border-t pt-2 first:border-t-0 first:pt-0"
-                  >
-                    {shiftCoverageWarningText(warning)}
-                  </p>
-                ))}
-                {coverageWarningCount > coverageWarnings.length && (
-                  <p className="border-moto-amber/20 border-t pt-2 font-medium">
-                    Es werden höchstens 100 Beispiele angezeigt.
-                  </p>
-                )}
-              </div>
-            </details>
           )}
           {coverageCheckFailed && (
             <Alert
