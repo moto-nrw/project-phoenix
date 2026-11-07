@@ -151,6 +151,15 @@ function pickSubstitute(triggerName: string, optionName: string) {
   fireEvent.click(screen.getByRole("option", { name: optionName }));
 }
 
+function openSubstituteActions(name: string) {
+  fireEvent.click(screen.getByRole("button", { name: `Aktionen für ${name}` }));
+}
+
+function chooseSubstituteAction(name: string, action: string) {
+  openSubstituteActions(name);
+  fireEvent.click(screen.getByRole("menuitem", { name: action }));
+}
+
 describe("SubstitutionSlideOver", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -661,7 +670,7 @@ describe("SubstitutionSlideOver", () => {
     });
     renderEditor({ instance, dayInstances: [instance], onApply });
 
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    chooseSubstituteAction("Bernd Neu", "Entfernen");
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
@@ -685,10 +694,11 @@ describe("SubstitutionSlideOver", () => {
     });
     renderEditor({ instance, dayInstances: [instance], onApply });
 
+    openSubstituteActions("Bernd Neu");
     expect(
-      screen.queryByRole("button", { name: "Anwesend melden" }),
+      screen.queryByRole("menuitem", { name: "Anwesend melden" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
@@ -719,7 +729,7 @@ describe("SubstitutionSlideOver", () => {
     // Anker: die kranke Vertretung steht als Zeile in der Liste.
     expect(screen.getByText("Bernd Neu")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Entfernen" }),
+      screen.queryByRole("button", { name: "Aktionen für Bernd Neu" }),
     ).not.toBeInTheDocument();
   });
 
@@ -742,7 +752,7 @@ describe("SubstitutionSlideOver", () => {
     });
 
     expect(
-      screen.getByRole("button", { name: "Entfernen" }),
+      screen.getByRole("button", { name: "Aktionen für Bernd Neu" }),
     ).toBeInTheDocument();
   });
 
@@ -760,7 +770,7 @@ describe("SubstitutionSlideOver", () => {
     });
     renderEditor({ instance, dayInstances: [instance], onApply });
 
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    chooseSubstituteAction("Bernd Neu", "Entfernen");
     pickSubstitute("Vertretung für Anna Alt", "Carla Klar");
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 

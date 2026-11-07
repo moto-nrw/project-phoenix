@@ -124,6 +124,12 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     or ListboxDropdown outside the kit;
 //                                     pick controlSize, pass layout only
 //
+// One more keeps the control height in the kit (#5605):
+//
+//   ui-kit/no-control-height-override — no `h-8`, `h-9` or `!size-*` on Input,
+//                                     selects, DateRangePicker or OverflowMenu;
+//                                     hard-zero
+//
 // Two more keep SectionCard the only card head (#5581):
 //
 //   ui-kit/no-important-override   — no `!` utility on a kit component; the
@@ -1194,7 +1200,7 @@ src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 t
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@199 text-[10px]@215 text-[11px]@224 text-[10px]@266 text-[10px]@290 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@471
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
-src/components/timetable/substitution-slide-over.tsx|text-[11px]@747 text-[11px]@751
+src/components/timetable/substitution-slide-over.tsx|text-[11px]@748 text-[11px]@752
 src/components/timetable/template-card.tsx|text-[11px]@131 text-[10px]@201
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@456 text-[11px]@456 text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
@@ -2887,6 +2893,103 @@ const noSelectOverride = {
   },
 };
 
+// --- ui-kit/no-control-height-override (#5605) -----------------------------
+//
+// Spec R17: Es gibt eine Bedienhöhe. Input wählt sie über `controlSize`, die
+// Auswahlfelder ebenso, OverflowMenu über `triggerSize`. `h-8`, `h-9` und
+// `!size-*` an diesen Bauteilen stellten 36- und 28-px-Felder neben die
+// 40er. Hart null.
+
+const CONTROL_HEIGHT_MODULES = new Map([
+  ["~/components/ui/input", "Input"],
+  ["@/components/ui/input", "Input"],
+  ["~/components/ui/custom-select", "CustomSelect"],
+  ["@/components/ui/custom-select", "CustomSelect"],
+  ["~/components/ui/multi-select", "MultiSelect"],
+  ["@/components/ui/multi-select", "MultiSelect"],
+  ["~/components/ui/date-range-picker", "DateRangePicker"],
+  ["@/components/ui/date-range-picker", "DateRangePicker"],
+  ["~/components/ui/page-header/OverflowMenu", "OverflowMenu"],
+  ["@/components/ui/page-header/OverflowMenu", "OverflowMenu"],
+]);
+const CONTROL_HEIGHT_CLASS_PROPS = [
+  "className",
+  "triggerClassName",
+  "containerClassName",
+];
+
+function controlHeightTokens(text) {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => {
+      const utility = token.replace(/^(?:[^\s:]+:)+/, "");
+      return /^!?h-[89]$/.test(utility) || /^!size-/.test(utility);
+    });
+}
+
+const noControlHeightOverride = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Keep the height of inputs, selects and overflow menus in the kit.",
+    },
+    messages: {
+      override:
+        'Keine eigene Bedienhöhe ({{tokens}}): Input und Auswahlfelder nehmen controlSize="compact" (40 px), OverflowMenu triggerSize (#5605, .claude/rules/frontend-ui-kit.md).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    const constants = new Map();
+    const controls = new Set();
+    const pending = [];
+    return {
+      ImportDeclaration(node) {
+        const source =
+          node.source.type === "Literal" ? String(node.source.value) : "";
+        const exported = CONTROL_HEIGHT_MODULES.get(source);
+        if (!exported) return;
+        for (const specifier of node.specifiers) {
+          if (specifier.type !== "ImportSpecifier") continue;
+          const imported =
+            specifier.imported.type === "Identifier"
+              ? specifier.imported.name
+              : String(specifier.imported.value);
+          if (imported === exported) controls.add(specifier.local.name);
+        }
+      },
+      VariableDeclarator(node) {
+        if (node.id?.type === "Identifier" && node.init) {
+          constants.set(node.id.name, node.init);
+        }
+      },
+      JSXOpeningElement(node) {
+        if (controls.has(jsxName(node.name) ?? "")) pending.push(node);
+      },
+      "Program:exit"() {
+        for (const node of pending) {
+          const tokens = CONTROL_HEIGHT_CLASS_PROPS.flatMap((name) => {
+            const attribute = jsxAttribute(node, name);
+            if (!attribute?.value) return [];
+            return controlHeightTokens(classText(attribute.value, constants));
+          });
+          if (tokens.length > 0) {
+            context.report({
+              node,
+              messageId: "override",
+              data: { tokens: [...new Set(tokens)].join(" ") },
+            });
+          }
+        }
+      },
+    };
+  },
+};
+
 // --- ui-kit/no-important-override + ui-kit/no-section-card-bleed (#5581) ---
 //
 // Fehlt einer Kit-Komponente eine Prop, wird sie im Kit ergänzt, nicht von
@@ -3521,6 +3624,7 @@ export default {
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-hand-rolled-weekday-toggle": noHandRolledWeekdayToggle,
     "no-hex-alpha-tint": noHexAlphaTint,
+    "no-control-height-override": noControlHeightOverride,
     "no-important-override": noImportantOverride,
     "no-pill-dot": noPillDot,
     "no-raw-input": noRawInput,

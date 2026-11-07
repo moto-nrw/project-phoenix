@@ -573,22 +573,25 @@ export default function ClassListEntriesPage() {
       filters={filterConfigs}
       actions={
         canCreate ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <ButtonLink
-              href={tenantPath("/database/students/class-list/import")}
-              variant="outline"
-              size="md"
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" aria-hidden="true" />
-              Sammelimport
-            </ButtonLink>
+          <>
             <DatabaseCreateAction
               label="Eintrag"
               ariaLabel="Klassenlisteneintrag anlegen"
               onClick={openCreate}
             />
-          </div>
+            <OverflowMenu
+              ariaLabel="Weitere Aktionen"
+              items={[
+                {
+                  label: "Sammelimport",
+                  icon: <Upload className="h-4 w-4" aria-hidden />,
+                  href: tenantPath("/database/students/class-list/import"),
+                  // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                  onClick: () => undefined,
+                },
+              ]}
+            />
+          </>
         ) : undefined
       }
       back
