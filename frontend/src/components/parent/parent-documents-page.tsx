@@ -301,9 +301,11 @@ function ContractNoticeRow({
         label={
           status === "widerrufen"
             ? t("withdrawn")
-            : t("terminatedOn", {
-                date: formatDate(document.ends_on ?? "", false, locale),
-              })
+            : document.ends_on
+              ? t("terminatedOn", {
+                  date: formatDate(document.ends_on, false, locale),
+                })
+              : t("terminationInReview")
         }
         tone={status === "widerrufen" ? "red" : "orange"}
       />

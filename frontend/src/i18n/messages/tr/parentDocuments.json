@@ -32,5 +32,6 @@
   "cancelNotPermitted": "Yalnızca çocuğu kaydettirme hakkı olan veliler iptal edebilir. Lütfen okula sorun.",
   "terminatedOn": "{date} itibarıyla feshedildi",
   "withdrawn": "Cayıldı",
-  "showConfirmation": "Onayı görüntüle"
+  "showConfirmation": "Onayı görüntüle",
+  "terminationInReview": "Feshedildi, bitiş tarihi inceleniyor"
 }

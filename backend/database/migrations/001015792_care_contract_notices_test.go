@@ -59,23 +59,35 @@ func TestCareContractNoticesKeepTheirTraegerAndTheirStates(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT withdrawal_informed_at IS NULL FROM care_contract.contracts WHERE id = ?`, active).Scan(ctx, &informed))
 	assert.True(t, informed, "conclusion alone proves no notice provision")
 
-	assert.ErrorContains(t, as(own, fmt.Sprintf(`UPDATE care_contract.contracts SET status = 'gekuendigt' WHERE id = %d`, active)),
-		"chk_contracts_terminated", "a terminated contract names its last day")
 	assert.ErrorContains(t, as(own, fmt.Sprintf(`UPDATE care_contract.contracts SET status = 'widerrufen' WHERE id = %d`, sent)),
 		"chk_contracts_notice_concluded", "only a concluded contract is withdrawn")
 	assert.ErrorContains(t, as(own, fmt.Sprintf(`UPDATE care_contract.contracts SET status = 'aktiv', ends_on = '2026-12-31' WHERE id = %d`, active)),
 		"chk_contracts_terminated", "an active contract has no last day")
 
-	notice := func(organization int64, kind, noticeKind, endsOn string) string {
+	notice := func(organization int64, kind, noticeKind, endsOn string, reason ...string) string {
+		why := "NULL"
+		if len(reason) == 1 {
+			why = reason[0]
+		}
 		return fmt.Sprintf(`INSERT INTO care_contract.contract_notices (organization_id, contract_id, kind, notice_kind, channel,
-			declared_at, received_on, ends_on, recipient_email, confirmation_text)
-			VALUES (%d, %d, '%s', %s, 'traeger_buero', NOW(), '2026-11-10', %s, 'erika@example.org', 'Bestätigung')`,
-			organization, active, kind, noticeKind, endsOn)
+			declared_at, received_on, ends_on, reason, recipient_email, confirmation_text)
+			VALUES (%d, %d, '%s', %s, 'traeger_buero', NOW(), '2026-11-10', %s, %s, 'erika@example.org', 'Bestätigung')`,
+			organization, active, kind, noticeKind, endsOn, why)
 	}
 	assert.ErrorContains(t, as(own, notice(own, "kuendigung", "NULL", "'2026-12-31'")), "chk_contract_notices_notice_kind",
 		"a termination names its kind")
 	assert.ErrorContains(t, as(own, notice(own, "widerruf", "NULL", "'2026-12-31'")), "chk_contract_notices_notice_kind",
 		"a withdrawal has no last day")
+	assert.ErrorContains(t, as(own, notice(own, "kuendigung", "'ordentlich'", "NULL")), "chk_contract_notices_notice_kind",
+		"an ordinary termination names its last day")
+	// § 312k Abs. 2 BGB: an extraordinary termination carries its reason and
+	// may wait for its end; no other declaration carries a reason.
+	assert.ErrorContains(t, as(own, notice(own, "kuendigung", "'ausserordentlich'", "NULL")), "chk_contract_notices_reason",
+		"an extraordinary termination names its reason")
+	assert.ErrorContains(t, as(own, notice(own, "kuendigung", "'ausserordentlich'", "NULL", "' '")), "chk_contract_notices_reason",
+		"a blank reason is no reason")
+	assert.ErrorContains(t, as(own, notice(own, "kuendigung", "'ordentlich'", "'2026-12-31'", "'Umzug'")), "chk_contract_notices_reason",
+		"an ordinary termination needs no reason")
 	assert.Error(t, as(other, notice(own, "widerruf", "NULL", "NULL")), "another Träger writes no declaration here")
 	require.NoError(t, as(own, notice(own, "kuendigung", "'ordentlich'", "'2026-12-31'"),
 		fmt.Sprintf(`UPDATE care_contract.contracts SET status = 'gekuendigt', ends_on = '2026-12-31' WHERE id = %d`, active)))

@@ -237,21 +237,16 @@ func (n *Notices) newNotice(record ContractRecord, state ports.NoticeState, d de
 		ContractID: d.contractID, Kind: d.input.Kind, Channel: d.channel, AccountID: d.accountID,
 		DeclaredAt: n.clock.now(), ReceivedOn: received,
 	}
+	if d.input.Kind != carecontract.NoticeTermination || d.input.TerminationKind != carecontract.TerminationExtraordinary {
+		if strings.TrimSpace(d.input.Reason) != "" {
+			return ports.NewNotice{}, &carecontract.ValidationError{Fields: map[string]string{"reason": "not_allowed"}}
+		}
+	}
 	switch d.input.Kind {
 	case carecontract.NoticeTermination:
-		ordinary, special := noticeDates(record.Version.Terms, received, state.ContractEnd)
-		switch d.input.TerminationKind {
-		case carecontract.TerminationOrdinary:
-			notice.EndsOn = &ordinary
-		case carecontract.TerminationSpecial:
-			if special == nil {
-				return ports.NewNotice{}, carecontract.ErrSpecialTerminationClosed
-			}
-			notice.EndsOn = special
-		default:
-			return ports.NewNotice{}, &carecontract.ValidationError{Fields: map[string]string{"termination_kind": "unknown"}}
+		if err := dateTermination(&notice, record, state, d.input, received); err != nil {
+			return ports.NewNotice{}, err
 		}
-		notice.TerminationKind = d.input.TerminationKind
 	case carecontract.NoticeWithdrawal:
 		dispatched, err := withdrawalDispatch(d.input.DispatchedOn, received, calendar.DateFromTime(record.Concluded.At))
 		if err != nil {
@@ -269,6 +264,36 @@ func (n *Notices) newNotice(record ContractRecord, state ports.NoticeState, d de
 		return ports.NewNotice{}, &carecontract.ValidationError{Fields: map[string]string{"expected_ends_on": "changed"}}
 	}
 	return notice, nil
+}
+
+// dateTermination dates a termination: to the next date the terms allow, to the
+// special date, or, for an extraordinary termination, with the parents'
+// reason and without an end: the Träger sets it after its check
+// (§ 312k Abs. 2 BGB, #4682).
+func dateTermination(notice *ports.NewNotice, record ContractRecord, state ports.NoticeState, input carecontract.NoticeInput, received calendar.Date) error {
+	ordinary, special := noticeDates(record.Version.Terms, received, state.ContractEnd)
+	switch input.TerminationKind {
+	case carecontract.TerminationOrdinary:
+		notice.EndsOn = &ordinary
+	case carecontract.TerminationSpecial:
+		if special == nil {
+			return carecontract.ErrSpecialTerminationClosed
+		}
+		notice.EndsOn = special
+	case carecontract.TerminationExtraordinary:
+		reason := strings.TrimSpace(input.Reason)
+		if reason == "" {
+			return &carecontract.ValidationError{Fields: map[string]string{"reason": "required"}}
+		}
+		if len([]rune(reason)) > carecontract.ReasonMaxLength {
+			return &carecontract.ValidationError{Fields: map[string]string{"reason": "too_long"}}
+		}
+		notice.Reason = reason
+	default:
+		return &carecontract.ValidationError{Fields: map[string]string{"termination_kind": "unknown"}}
+	}
+	notice.TerminationKind = input.TerminationKind
+	return nil
 }
 
 // withdrawalDispatch keeps postal dispatch separate from receipt. Without
@@ -315,13 +340,14 @@ func (n *Notices) confirm(ctx context.Context, record ContractRecord, d declarat
 	if traeger == "" {
 		traeger = record.Version.Terms.ContractPartner
 	}
-	template, err := n.templates.NoticeTemplate(ctx, d.organizationID, notice.Kind)
+	template, err := n.templates.NoticeTemplate(ctx, d.organizationID, templateKind(*notice))
 	if err != nil {
 		return err
 	}
 	text, err := confirmationText(template, confirmationValues{
 		Child: fullName(record.Version.ChildFirstName, record.Version.ChildLastName), Modules: joinGerman(ModuleNames(record.Version.Services)),
-		School: record.Version.SchoolName, EndsOn: notice.EndsOn, ReceivedOn: notice.ReceivedOn, Traeger: traeger,
+		School: record.Version.SchoolName, EndsOn: notice.EndsOn, Received: receipt(*notice), Traeger: traeger,
+		Reason: notice.Reason, NeedsReason: notice.TerminationKind == carecontract.TerminationExtraordinary,
 	})
 	if err != nil {
 		return err
@@ -342,17 +368,27 @@ func (n *Notices) confirm(ctx context.Context, record ContractRecord, d declarat
 	if err := n.notices.SetNoticeOutbox(ctx, d.organizationID, noticeID, outboxID); err != nil {
 		return err
 	}
-	action := ActionWithdraw
-	details := map[string]any{"notice_id": noticeID, "channel": d.channel, "received_on": notice.ReceivedOn.String(),
-		"version_id": record.Version.ID, "outbox_id": outboxID}
+	action, details := noticeTrail(*notice, d.channel, record.Version.ID, noticeID, outboxID)
+	return n.trail(ctx, d.organizationID, d.accountID, record, action, details)
+}
+
+// noticeTrail is the trail entry of a declaration: its kind, channel and
+// days, and the mail that confirmed it. The reason stays with the
+// declaration; the trail names only the kind.
+func noticeTrail(notice ports.NewNotice, channel string, versionID, noticeID, outboxID int64) (string, map[string]any) {
+	details := map[string]any{"notice_id": noticeID, "channel": channel, "received_on": notice.ReceivedOn.String(),
+		"version_id": versionID, "outbox_id": outboxID}
 	if notice.DispatchedOn != nil {
 		details["dispatched_on"] = notice.DispatchedOn.String()
 	}
-	if notice.Kind == carecontract.NoticeTermination {
-		action = ActionTerminate
-		details["termination_kind"], details["ends_on"] = notice.TerminationKind, notice.EndsOn.String()
+	if notice.Kind != carecontract.NoticeTermination {
+		return ActionWithdraw, details
 	}
-	return n.trail(ctx, d.organizationID, d.accountID, record, action, details)
+	details["termination_kind"] = notice.TerminationKind
+	if notice.EndsOn != nil {
+		details["ends_on"] = notice.EndsOn.String()
+	}
+	return ActionTerminate, details
 }
 
 // options calculates declaration choices on the receipt day, or returns

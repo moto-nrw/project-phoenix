@@ -103,8 +103,10 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/traeger/contracts/{id}"}:                          notCaptured,
 	{http.MethodPut, "/traeger/contract-templates/{schoolId}/{offeringId}"}: notCaptured,
 	// Withdrawal and termination (#4682): the Träger-Büro records a
-	// declaration it received; the parents' own one in the parents portal.
+	// declaration it received and sets the end of an extraordinary
+	// termination it checked; the parents' own one in the parents portal.
 	{http.MethodPost, "/traeger/contract-notices/{id}"}:                                      notCaptured,
+	{http.MethodPut, "/traeger/contract-notices/{id}/ends-on"}:                               notCaptured,
 	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/notice"}: notCaptured,
 }
 

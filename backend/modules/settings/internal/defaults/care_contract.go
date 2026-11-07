@@ -16,7 +16,7 @@ func init() {
 // noticeConfirmationPattern admits the placeholders the Betreuungsvertrag
 // fills in (carecontract application, notice_text.go) and nothing else in
 // curly braces.
-var noticeConfirmationPattern = `^(?:[^{}]|\{(?:Kind|Module|Schule|Vertragsende|Eingang|Träger)\})+$`
+var noticeConfirmationPattern = `^(?:[^{}]|\{(?:Kind|Module|Schule|Vertragsende|Eingang|Grund|Träger)\})+$`
 
 // noticeConfirmationMaxLength keeps the confirmation a short letter; the
 // table refuses more than 8000 characters.
@@ -51,6 +51,19 @@ var careContractNoticeDefinitions = []config.Definition{
 		Tab:             "vertraege",
 		Category:        "vertrag-bestaetigungen",
 		SortOrder:       20,
+		Validation:      &config.ValidationRules{Required: true, Pattern: &noticeConfirmationPattern, MaxLength: &noticeConfirmationMaxLength},
+	}, {
+		Key:             config.KeyCareContractExtraordinaryConfirmation,
+		Levels:          config.LevelTraeger,
+		Label:           "Bestätigung einer außerordentlichen Kündigung",
+		Description:     "Diesen Text bekommen Eltern per E-Mail, wenn sie einen Betreuungsvertrag außerordentlich kündigen. Das Vertragsende legen Sie erst nach der Prüfung fest. Erlaubte Platzhalter: {Kind}, {Module}, {Schule}, {Eingang}, {Grund}, {Träger}.",
+		Type:            config.FieldTextarea,
+		Default:         "wir bestätigen den Eingang Ihrer außerordentlichen Kündigung des Betreuungsvertrags für {Kind} ({Module}, {Schule}).\n\nIhre Kündigung ist am {Eingang} bei uns eingegangen. Ihr Grund: {Grund}\n\nWir prüfen Ihren Grund. Danach legen wir fest, wann der Vertrag endet. Das Datum sehen Sie dann in der Eltern-App. Bis dahin findet die Betreuung wie gebucht statt.\n\nMit freundlichen Grüßen\n{Träger}",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "vertraege",
+		Category:        "vertrag-bestaetigungen",
+		SortOrder:       15,
 		Validation:      &config.ValidationRules{Required: true, Pattern: &noticeConfirmationPattern, MaxLength: &noticeConfirmationMaxLength},
 	},
 }

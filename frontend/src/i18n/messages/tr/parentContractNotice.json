@@ -9,7 +9,7 @@
   "bookedCare": "Rezerve edilen bakım",
   "noticeTerms": "Fesih süresi",
   "chooseTitle": "Ne yapmak istiyorsunuz?",
-  "ordinary": "{date} itibarıyla feshet",
+  "ordinary": "{date} tarihine olağan fesih",
   "ordinaryHint": "Bu, mümkün olan en yakın tarihtir.",
   "special": "{date} itibarıyla özel fesih",
   "specialHint": "Sadece sözleşmedeki bir sebeple, örneğin taşınma.",
@@ -34,5 +34,18 @@
   "declaredAt": "Ulaştığı tarih",
   "sentTo": "Onayın gönderildiği adres",
   "confirmationTitle": "Onayınız",
-  "datesChanged": "Tarihler değişti. Lütfen yeniden seçin."
+  "datesChanged": "Tarihler değişti. Lütfen yeniden seçin.",
+  "extraordinary": "Önemli bir nedenle feshet",
+  "extraordinaryHint": "Sadece önemli bir nedenle. Kurum nedeni kontrol eder ve sonra bitiş tarihini belirler.",
+  "reasonLabel": "Nedeniniz",
+  "reasonHint": "Sözleşmeyi neden bitirdiğinizi kısaca yazın.",
+  "reasonRequired": "Lütfen nedeninizi yazın.",
+  "summaryExtraordinary": "Kurum nedeninizi kontrol eder. Sonra sözleşmenin ne zaman biteceğini belirler. O zamana kadar bakım rezerve edildiği gibi devam eder.",
+  "doneExtraordinary": "Feshiniz alındı. Kurum nedeninizi kontrol eder ve sonra bitiş tarihini belirler.",
+  "kindLabel": "Fesih türü",
+  "kindOrdinary": "Olağan",
+  "kindSpecial": "Özel fesih",
+  "kindExtraordinary": "Önemli bir nedenle",
+  "endsOpen": "Kurum kontrolden sonra belirler",
+  "declaredAtValue": "{date}, saat {time}"
 }

@@ -32,5 +32,6 @@
   "cancelNotPermitted": "Wypowiedzieć mogą tylko rodzice, którzy mogą zapisać dziecko. Proszę zapytać szkołę.",
   "terminatedOn": "Wypowiedziana na {date}",
   "withdrawn": "Odstąpiono",
-  "showConfirmation": "Zobacz potwierdzenie"
+  "showConfirmation": "Zobacz potwierdzenie",
+  "terminationInReview": "Wypowiedziano, data końca w sprawdzeniu"
 }

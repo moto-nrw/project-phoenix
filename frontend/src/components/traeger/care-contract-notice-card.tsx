@@ -37,6 +37,21 @@ const RecordNoticeModal = dynamic(
   { ssr: false },
 );
 
+const SetNoticeEndModal = dynamic(
+  () =>
+    import("./care-contract-notice-modal").then(
+      (module) => module.SetNoticeEndModal,
+    ),
+  { ssr: false },
+);
+
+/** How the parents terminated, as the office reads it. */
+const TERMINATION_LABELS = {
+  ordentlich: "Ordentlich",
+  sonderkuendigung: "Sonderkündigung",
+  ausserordentlich: "Außerordentlich, aus wichtigem Grund",
+} as const;
+
 /** Who declared, as the office reads it. */
 const CHANNEL_LABELS = {
   eltern_app: "Von den Eltern in der Eltern-App",
@@ -57,6 +72,7 @@ export function CareContractNoticeCard({
 }>) {
   const [options, setOptions] = useState<ContractNoticeOptions | null>(null);
   const [open, setOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
   const { error, show, clear } = useApiLoadError();
 
   const load = useCallback(async () => {
@@ -79,6 +95,9 @@ export function CareContractNoticeCard({
 
   const notice = options?.notice ?? null;
   const active = options?.status === "aktiv";
+  // An extraordinary termination waits for the end the office sets.
+  const endPending =
+    notice?.terminationKind === "ausserordentlich" && notice.endsOn === null;
 
   return (
     <SectionCard
@@ -108,6 +127,21 @@ export function CareContractNoticeCard({
               Eltern selbst.
             </p>
           </div>
+        ) : endPending ? (
+          <div className="space-y-2">
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              className="w-full"
+              onClick={() => setEndOpen(true)}
+            >
+              Vertragsende festlegen
+            </Button>
+            <p className="text-center text-sm text-gray-500">
+              Prüfen Sie zuerst den Grund der Eltern.
+            </p>
+          </div>
         ) : null
       }
     >
@@ -124,6 +158,19 @@ export function CareContractNoticeCard({
           onRecorded={(next) => {
             setOptions(next);
             setOpen(false);
+            onChanged();
+          }}
+        />
+      ) : null}
+      {notice && endPending && endOpen ? (
+        <SetNoticeEndModal
+          isOpen={endOpen}
+          onClose={() => setEndOpen(false)}
+          contractId={contractId}
+          receivedOn={notice.receivedOn}
+          onSet={(next) => {
+            setOptions(next);
+            setEndOpen(false);
             onChanged();
           }}
         />
@@ -172,15 +219,26 @@ function NoticeFacts({
     <div className="space-y-4">
       <DataGrid columns={1}>
         <DataField label={withdrawn ? "Widerrufen" : "Gekündigt zum"}>
-          <span className="flex flex-wrap items-center gap-2">
-            {withdrawn
-              ? "Aufgehoben vom ersten Tag an"
-              : formatDate(notice.endsOn ?? "")}
-            {notice.terminationKind === "sonderkuendigung" ? (
-              <StatusBadge label="Sonderkündigung" tone="outline" />
-            ) : null}
-          </span>
+          {withdrawn ? (
+            "Aufgehoben vom ersten Tag an"
+          ) : notice.endsOn ? (
+            formatDate(notice.endsOn)
+          ) : (
+            <StatusBadge label="Ende noch offen" tone="orange" />
+          )}
         </DataField>
+        {notice.terminationKind ? (
+          <DataField label="Art der Kündigung">
+            {TERMINATION_LABELS[notice.terminationKind]}
+          </DataField>
+        ) : null}
+        {notice.reason ? (
+          <DataField label="Grund der Eltern">
+            <span className="wrap-anywhere whitespace-pre-line">
+              {notice.reason}
+            </span>
+          </DataField>
+        ) : null}
         <DataField label="Eingegangen am">
           {formatDate(notice.receivedOn)}
           <span className="block text-sm font-normal text-gray-500">

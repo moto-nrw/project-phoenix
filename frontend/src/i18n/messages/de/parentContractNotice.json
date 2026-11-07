@@ -9,7 +9,7 @@
   "bookedCare": "Gebuchte Betreuung",
   "noticeTerms": "Kündigungsfrist",
   "chooseTitle": "Was möchten Sie tun?",
-  "ordinary": "Kündigen zum {date}",
+  "ordinary": "Ordentlich kündigen zum {date}",
   "ordinaryHint": "Das ist der nächste mögliche Termin.",
   "special": "Sonderkündigung zum {date}",
   "specialHint": "Nur mit einem Grund aus dem Vertrag, zum Beispiel einem Umzug.",
@@ -34,5 +34,18 @@
   "declaredAt": "Eingegangen am",
   "sentTo": "Bestätigung geschickt an",
   "confirmationTitle": "Ihre Bestätigung",
-  "datesChanged": "Die Termine haben sich geändert. Bitte wählen Sie erneut."
+  "datesChanged": "Die Termine haben sich geändert. Bitte wählen Sie erneut.",
+  "extraordinary": "Außerordentlich kündigen",
+  "extraordinaryHint": "Nur aus einem wichtigen Grund. Der Träger prüft ihn und legt dann das Vertragsende fest.",
+  "reasonLabel": "Ihr Grund",
+  "reasonHint": "Schreiben Sie kurz, warum Sie den Vertrag beenden.",
+  "reasonRequired": "Bitte schreiben Sie Ihren Grund.",
+  "summaryExtraordinary": "Der Träger prüft Ihren Grund. Danach legt er fest, wann der Vertrag endet. Bis dahin findet die Betreuung wie gebucht statt.",
+  "doneExtraordinary": "Ihre Kündigung ist eingegangen. Der Träger prüft Ihren Grund und legt dann das Vertragsende fest.",
+  "kindLabel": "Art der Kündigung",
+  "kindOrdinary": "Ordentlich",
+  "kindSpecial": "Sonderkündigung",
+  "kindExtraordinary": "Außerordentlich",
+  "endsOpen": "Legt der Träger nach der Prüfung fest",
+  "declaredAtValue": "{date} um {time} Uhr"
 }

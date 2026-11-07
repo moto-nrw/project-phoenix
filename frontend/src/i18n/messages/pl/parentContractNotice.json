@@ -9,7 +9,7 @@
   "bookedCare": "Zarezerwowana opieka",
   "noticeTerms": "Okres wypowiedzenia",
   "chooseTitle": "Co chcesz zrobić?",
-  "ordinary": "Wypowiedz na dzień {date}",
+  "ordinary": "Wypowiedzieć zwykle na dzień {date}",
   "ordinaryHint": "To najbliższy możliwy termin.",
   "special": "Wypowiedzenie nadzwyczajne na dzień {date}",
   "specialHint": "Tylko z powodu podanego w umowie, na przykład przeprowadzki.",
@@ -34,5 +34,18 @@
   "declaredAt": "Wpłynęło",
   "sentTo": "Potwierdzenie wysłane do",
   "confirmationTitle": "Twoje potwierdzenie",
-  "datesChanged": "Terminy się zmieniły. Proszę wybrać ponownie."
+  "datesChanged": "Terminy się zmieniły. Proszę wybrać ponownie.",
+  "extraordinary": "Wypowiedzieć z ważnego powodu",
+  "extraordinaryHint": "Tylko z ważnego powodu. Organizator sprawdzi go i ustali datę zakończenia.",
+  "reasonLabel": "Twój powód",
+  "reasonHint": "Napisz krótko, dlaczego kończysz umowę.",
+  "reasonRequired": "Proszę wpisać powód.",
+  "summaryExtraordinary": "Organizator sprawdzi Twój powód. Potem ustali, kiedy umowa się kończy. Do tego czasu opieka odbywa się jak zarezerwowano.",
+  "doneExtraordinary": "Twoje wypowiedzenie wpłynęło. Organizator sprawdzi powód i ustali datę zakończenia.",
+  "kindLabel": "Rodzaj wypowiedzenia",
+  "kindOrdinary": "Zwykłe",
+  "kindSpecial": "Wypowiedzenie specjalne",
+  "kindExtraordinary": "Z ważnego powodu",
+  "endsOpen": "Ustali organizator po sprawdzeniu",
+  "declaredAtValue": "{date} o {time}"
 }

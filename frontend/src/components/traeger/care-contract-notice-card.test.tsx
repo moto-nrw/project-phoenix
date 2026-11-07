@@ -18,11 +18,13 @@ function render(ui: React.ReactElement) {
 const mocks = vi.hoisted(() => ({
   fetchContractNoticeOptions: vi.fn(),
   recordContractNotice: vi.fn(),
+  setContractNoticeEnd: vi.fn(),
 }));
 
 vi.mock("~/lib/care-contract-notices-api", () => ({
   fetchContractNoticeOptions: mocks.fetchContractNoticeOptions,
   recordContractNotice: mocks.recordContractNotice,
+  setContractNoticeEnd: mocks.setContractNoticeEnd,
 }));
 
 import { parseISODate, toISODate } from "~/lib/date-helpers";
@@ -278,5 +280,65 @@ describe("CareContractNoticeCard (#4682)", () => {
         dispatchedOn: "2026-09-01",
       }),
     );
+  });
+
+  // An extraordinary termination shows its kind and reason with an open
+  // end; the office sets the end after its check, once (#4682).
+  it("lets the office set the end of an extraordinary termination", async () => {
+    const pending: ContractNoticeOptions = {
+      ...active,
+      status: "gekuendigt",
+      notice: {
+        kind: "kuendigung",
+        terminationKind: "ausserordentlich",
+        reason: "Wir ziehen nach Hamburg.",
+        channel: "eltern_app",
+        declaredAt: "2026-11-07T09:30:00Z",
+        receivedOn: "2026-11-07",
+        endsOn: null,
+        recipient: "birgit.jansen@email.de",
+        confirmationText: "wir bestätigen den Eingang.",
+      },
+    };
+    mocks.fetchContractNoticeOptions.mockResolvedValue(pending);
+    const ended = {
+      ...pending,
+      notice: { ...pending.notice!, endsOn: "2026-12-31" },
+    };
+    mocks.setContractNoticeEnd.mockResolvedValue(ended);
+    const onChanged = vi.fn();
+    render(
+      <CareContractNoticeCard
+        contractId="25"
+        status="gekuendigt"
+        concludedAt="2026-11-05T03:42:00Z"
+        onChanged={onChanged}
+      />,
+    );
+    expect(await screen.findByText("Ende noch offen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Außerordentlich, aus wichtigem Grund"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Wir ziehen nach Hamburg.")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Vertragsende festlegen" }),
+    );
+    fireEvent.change(await screen.findByLabelText(/Letzter Tag/), {
+      target: { value: "2026-12-31" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Vertragsende eintragen" }),
+    );
+    await waitFor(() =>
+      expect(mocks.setContractNoticeEnd).toHaveBeenCalledWith(
+        "25",
+        "2026-12-31",
+      ),
+    );
+    expect(await screen.findByText("31.12.2026")).toBeInTheDocument();
+    expect(onChanged).toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Vertragsende festlegen" }),
+    ).not.toBeInTheDocument();
   });
 });

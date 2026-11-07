@@ -13,7 +13,10 @@ const KeyCareContractConclusionMode = "care_contract.conclusion_mode"
 // confirmation the parents receive in Textform after a termination or a
 // withdrawal (#4682, § 312k BGB). Only the Träger sets them (LevelTraeger);
 // the Betreuungsvertrag fills in the fixed placeholders.
+// KeyCareContractExtraordinaryConfirmation confirms an extraordinary
+// termination, whose end the Träger sets after it checked the reason.
 const (
-	KeyCareContractTerminationConfirmation = "care_contract.termination_confirmation"
-	KeyCareContractWithdrawalConfirmation  = "care_contract.withdrawal_confirmation"
+	KeyCareContractTerminationConfirmation   = "care_contract.termination_confirmation"
+	KeyCareContractWithdrawalConfirmation    = "care_contract.withdrawal_confirmation"
+	KeyCareContractExtraordinaryConfirmation = "care_contract.extraordinary_termination_confirmation"
 )

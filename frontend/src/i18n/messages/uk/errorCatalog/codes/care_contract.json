@@ -5,6 +5,7 @@
   "contract_not_endable": "Цей договір уже розірвано або відкликано чи ще не укладено. Будь ласка, оновіть сторінку.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+  "notice_end_not_open": "Для цього договору більше немає відкритої дати завершення. Будь ласка, оновіть сторінку.",
   "notice_template_missing": "Організація ще не має тексту підтвердження. Будь ласка, зверніться до організації.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
   "recipient_missing": "У цього договору немає адреси електронної пошти. Без адреси підтвердження надіслати не можна.",

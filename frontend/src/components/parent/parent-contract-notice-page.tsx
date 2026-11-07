@@ -27,13 +27,19 @@ import {
 } from "~/components/ui/form-error-alert";
 import { Radio } from "~/components/ui/radio";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import type {
   ContractNotice,
   ContractNoticeOptions,
 } from "~/lib/care-contract-notices";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
-import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  formatBerlinDate,
+  formatBerlinTime,
+  formatDate,
+} from "~/lib/date-helpers";
 import {
   declareMyContractNotice,
   fetchMyContractNoticeOptions,
@@ -41,9 +47,19 @@ import {
 
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
-type Choice = "ordentlich" | "sonderkuendigung" | "widerruf";
+type Choice =
+  "ordentlich" | "sonderkuendigung" | "ausserordentlich" | "widerruf";
+
+/** The reason of an extraordinary termination may not grow longer. */
+const REASON_MAX_LENGTH = 2000;
 
 const DOCUMENTS_HREF = "/documents";
+
+const KIND_LABELS = {
+  ordentlich: "kindOrdinary",
+  sonderkuendigung: "kindSpecial",
+  ausserordentlich: "kindExtraordinary",
+} as const;
 
 export function ParentContractNoticePage({
   organizationId,
@@ -176,6 +192,9 @@ function NoticeForm({
     requireSelection ? null : "ordentlich",
   );
   const [sending, setSending] = useState(false);
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string | undefined>();
+  const reasonField = useRef<HTMLTextAreaElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const errors = useApiFormError(form);
   const date = (iso: string | null) =>
@@ -187,6 +206,13 @@ function NoticeForm({
       await onRefresh();
       return;
     }
+    // § 312k Abs. 2 BGB: an extraordinary termination names its reason.
+    if (choice === "ausserordentlich" && reason.trim() === "") {
+      setReasonError(t("reasonRequired"));
+      reasonField.current?.focus();
+      return;
+    }
+    setReasonError(undefined);
     errors.clear();
     setSending(true);
     try {
@@ -196,11 +222,17 @@ function NoticeForm({
           contractId,
           choice === "widerruf"
             ? { kind: "widerruf" }
-            : {
-                kind: "kuendigung",
-                terminationKind: choice,
-                expectedEndsOn: endsOn ?? undefined,
-              },
+            : choice === "ausserordentlich"
+              ? {
+                  kind: "kuendigung",
+                  terminationKind: choice,
+                  reason: reason.trim(),
+                }
+              : {
+                  kind: "kuendigung",
+                  terminationKind: choice,
+                  expectedEndsOn: endsOn ?? undefined,
+                },
         ),
       );
       window.scrollTo({ top: 0 });
@@ -232,6 +264,12 @@ function NoticeForm({
       title: t("special", { date: date(options.specialEndsOn) }),
       hint: t("specialHint"),
       shown: options.specialEndsOn !== null,
+    },
+    {
+      value: "ausserordentlich",
+      title: t("extraordinary"),
+      hint: t("extraordinaryHint"),
+      shown: true,
     },
     {
       value: "widerruf",
@@ -285,6 +323,24 @@ function NoticeForm({
                   </ChoiceTile>
                 ))}
             </fieldset>
+            {choice === "ausserordentlich" ? (
+              <Textarea
+                ref={reasonField}
+                id="notice-reason"
+                label={t("reasonLabel")}
+                hint={t("reasonHint")}
+                required
+                autoGrow
+                rows={3}
+                maxLength={REASON_MAX_LENGTH}
+                value={reason}
+                error={reasonError}
+                onChange={(event) => {
+                  setReason(event.target.value);
+                  if (reasonError) setReasonError(undefined);
+                }}
+              />
+            ) : null}
             <Alert
               type="info"
               message={
@@ -292,7 +348,9 @@ function NoticeForm({
                   ? options.earlyStart
                     ? t("summaryWithdrawalEarly")
                     : t("summaryWithdrawal")
-                  : t("summaryTermination", { date: date(endsOn) })
+                  : choice === "ausserordentlich"
+                    ? t("summaryExtraordinary")
+                    : t("summaryTermination", { date: date(endsOn) })
               }
             />
             <div className="flex flex-col gap-3 sm:flex-row-reverse sm:items-center sm:justify-start">
@@ -326,6 +384,8 @@ function NoticeDone({
   const t = useTranslations("parentContractNotice");
   const locale = useLocale();
   const withdrawn = notice.kind === "widerruf";
+  // The Träger sets the end of an extraordinary termination after its check.
+  const endOpen = !withdrawn && notice.endsOn === null;
   return (
     <>
       <Alert
@@ -333,9 +393,11 @@ function NoticeDone({
         message={
           withdrawn
             ? t("doneWithdrawal")
-            : t("doneTermination", {
-                date: formatDate(notice.endsOn ?? "", false, locale),
-              })
+            : endOpen
+              ? t("doneExtraordinary")
+              : t("doneTermination", {
+                  date: formatDate(notice.endsOn ?? "", false, locale),
+                })
         }
       />
       <ParentSection
@@ -350,13 +412,34 @@ function NoticeDone({
             tone={withdrawn ? "red" : "orange"}
           />
           <DataGrid>
+            {notice.terminationKind ? (
+              <DataField label={t("kindLabel")}>
+                {t(KIND_LABELS[notice.terminationKind])}
+              </DataField>
+            ) : null}
             <DataField label={withdrawn ? t("withdrawnLabel") : t("endsOn")}>
               {withdrawn
                 ? t("withdrawnValue")
-                : formatDate(notice.endsOn ?? "", false, locale)}
+                : endOpen
+                  ? t("endsOpen")
+                  : formatDate(notice.endsOn ?? "", false, locale)}
             </DataField>
+            {notice.reason ? (
+              <DataField label={t("reasonLabel")}>
+                <span className="wrap-anywhere whitespace-pre-line">
+                  {notice.reason}
+                </span>
+              </DataField>
+            ) : null}
             <DataField label={t("declaredAt")}>
-              {formatDate(notice.receivedOn, false, locale)}
+              {/* § 312k Abs. 4 BGB: date and time of a declaration with the
+                  button; a letter the Träger recorded has only its day. */}
+              {notice.channel === "eltern_app"
+                ? t("declaredAtValue", {
+                    date: formatBerlinDate(notice.declaredAt, locale),
+                    time: formatBerlinTime(notice.declaredAt, locale),
+                  })
+                : formatDate(notice.receivedOn, false, locale)}
             </DataField>
             <DataField label={t("bookedCare")}>{options.modules}</DataField>
             <DataField label={t("sentTo")}>

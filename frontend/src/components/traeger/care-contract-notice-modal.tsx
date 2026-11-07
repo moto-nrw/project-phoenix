@@ -14,6 +14,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Radio } from "~/components/ui/radio";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { Textarea } from "~/components/ui/textarea";
 import {
   useApiFormError,
   useApiLoadError,
@@ -27,6 +28,7 @@ import type {
 import {
   fetchContractNoticeOptions,
   recordContractNotice,
+  setContractNoticeEnd,
 } from "~/lib/care-contract-notices-api";
 import {
   berlinTodayISO,
@@ -64,6 +66,7 @@ export function RecordNoticeModal({
     useState<TerminationKind>("ordentlich");
   const [receivedOn, setReceivedOn] = useState<string>(today);
   const [dispatchedOn, setDispatchedOn] = useState("");
+  const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const form = useRef<HTMLFormElement>(null);
@@ -117,12 +120,16 @@ export function RecordNoticeModal({
     showOptionsError,
   ]);
 
+  const extraordinary =
+    kind === "kuendigung" && terminationKind === "ausserordentlich";
+
   const submit = async () => {
     if (
       savingRef.current ||
       !choices ||
       optionsError ||
-      (kind === "widerruf" && !dispatchedOn)
+      (kind === "widerruf" && !dispatchedOn) ||
+      (extraordinary && !reason.trim())
     )
       return;
     savingRef.current = true;
@@ -135,13 +142,15 @@ export function RecordNoticeModal({
         receivedOn,
         ...(kind === "widerruf"
           ? { dispatchedOn }
-          : {
-              // The end date the office saw: the backend refuses a changed one.
-              expectedEndsOn:
-                (terminationKind === "sonderkuendigung"
-                  ? choices?.specialEndsOn
-                  : choices?.ordinaryEndsOn) ?? undefined,
-            }),
+          : extraordinary
+            ? { reason: reason.trim() }
+            : {
+                // The end date the office saw: the backend refuses a changed one.
+                expectedEndsOn:
+                  (terminationKind === "sonderkuendigung"
+                    ? choices?.specialEndsOn
+                    : choices?.ordinaryEndsOn) ?? undefined,
+              }),
       });
       success(
         kind === "widerruf"
@@ -191,7 +200,8 @@ export function RecordNoticeModal({
               saving ||
               !choices ||
               Boolean(optionsError) ||
-              (kind === "widerruf" && !dispatchedOn)
+              (kind === "widerruf" && !dispatchedOn) ||
+              (extraordinary && !reason.trim())
             }
             isLoading={saving}
             loadingText="Wird eingetragen …"
@@ -303,9 +313,43 @@ export function RecordNoticeModal({
                     </span>
                   </ChoiceTile>
                 ) : null}
-                <p className="text-sm text-gray-500">
-                  Die Termine gelten für den gewählten Eingangstag.
-                </p>
+                <ChoiceTile
+                  selected={terminationKind === "ausserordentlich"}
+                  className="p-3"
+                >
+                  <Radio
+                    name="termination_kind"
+                    value="ausserordentlich"
+                    checked={terminationKind === "ausserordentlich"}
+                    onChange={() => setTerminationKind("ausserordentlich")}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-gray-900">
+                      Außerordentlich, aus wichtigem Grund
+                    </span>
+                    <span className="block font-normal text-gray-500">
+                      Das Vertragsende legen Sie nach der Prüfung fest.
+                    </span>
+                  </span>
+                </ChoiceTile>
+                {extraordinary ? (
+                  <Textarea
+                    id="care-contract-notice-reason"
+                    label="Grund der Eltern"
+                    hint="So, wie er im Schreiben steht."
+                    required
+                    autoGrow
+                    rows={3}
+                    maxLength={2000}
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    error={formErrors.fieldError("reason")}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    Die Termine gelten für den gewählten Eingangstag.
+                  </p>
+                )}
               </fieldset>
             ) : (
               <div className="space-y-4">
@@ -352,6 +396,119 @@ export function RecordNoticeModal({
         <Alert
           type="warning"
           message="Die Eltern bekommen sofort eine Bestätigung per E-Mail. Das lässt sich nicht rückgängig machen."
+        />
+      </form>
+    </FormModal>
+  );
+}
+
+/**
+ * Sets the last day of a contract the parents terminated extraordinarily,
+ * after the office checked their reason. The parents see it in the parents
+ * app; the end cannot be changed afterwards.
+ */
+export function SetNoticeEndModal({
+  isOpen,
+  onClose,
+  contractId,
+  receivedOn,
+  onSet,
+}: Readonly<{
+  isOpen: boolean;
+  onClose: () => void;
+  contractId: string;
+  /** No end before the day the declaration arrived. */
+  receivedOn: string;
+  onSet: (next: ContractNoticeOptions) => void;
+}>) {
+  const [endsOn, setEndsOn] = useState("");
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const form = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(form);
+  const { success } = useToast();
+
+  const submit = async () => {
+    if (savingRef.current || !endsOn) return;
+    savingRef.current = true;
+    formErrors.clear();
+    setSaving(true);
+    try {
+      const next = await setContractNoticeEnd(contractId, endsOn);
+      success(`Das Vertragsende ist eingetragen: ${formatDate(endsOn)}.`);
+      onSet(next);
+    } catch (err) {
+      logger.error("traeger_care_contract_notice_end_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void formErrors.show(err, { object: "das Vertragsende" });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
+
+  return (
+    <FormModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Vertragsende festlegen"
+      size="sm"
+      closeDisabled={saving}
+      isBackdropDismissDisabled
+      error={formErrors.error}
+      footer={
+        <div className="flex w-full flex-wrap justify-end gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            type="submit"
+            form="care-contract-notice-end-form"
+            variant="primary"
+            size="md"
+            disabled={saving || !endsOn}
+            isLoading={saving}
+            loadingText="Wird eingetragen …"
+          >
+            Vertragsende eintragen
+          </Button>
+        </div>
+      }
+    >
+      <form
+        id="care-contract-notice-end-form"
+        ref={form}
+        noValidate
+        className="space-y-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <div className="space-y-1.5">
+          <FieldLabel htmlFor="care-contract-notice-ends-on" required>
+            Letzter Tag des Vertrags
+          </FieldLabel>
+          <DatePicker
+            id="care-contract-notice-ends-on"
+            name="ends_on"
+            value={endsOn ? parseISODate(endsOn) : undefined}
+            onChange={(date) => setEndsOn(date ? toISODate(date) : "")}
+            minDate={parseISODate(receivedOn)}
+            required
+            invalid={Boolean(formErrors.fieldError("ends_on"))}
+          />
+        </div>
+        <Alert
+          type="warning"
+          message="Bis zu diesem Tag gilt die gebuchte Betreuung. Die Eltern sehen das Datum in der Eltern-App. Sie können es danach nicht mehr ändern."
         />
       </form>
     </FormModal>

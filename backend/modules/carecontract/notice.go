@@ -45,12 +45,20 @@ const (
 	NoticeWithdrawal  = "widerruf"
 )
 
-// The kinds of a termination: to the next date the terms allow, or the
-// special termination to the half year when the template provides one.
+// The kinds of a termination: to the next date the terms allow, the
+// special termination to the half year when the template provides one, or
+// the extraordinary termination for a reason the parents name (§ 312k
+// Abs. 2 BGB). How an extraordinary termination ends the contract is open
+// (#4682): it is received as declared, and the Träger sets the end after it
+// checked the reason (SetNoticeEnd). Until then the contract holds.
 const (
-	TerminationOrdinary = "ordentlich"
-	TerminationSpecial  = "sonderkuendigung"
+	TerminationOrdinary      = "ordentlich"
+	TerminationSpecial       = "sonderkuendigung"
+	TerminationExtraordinary = "ausserordentlich"
 )
+
+// ReasonMaxLength bounds the reason of an extraordinary termination.
+const ReasonMaxLength = 2000
 
 // Who made the declaration: the parents with the button in the parents
 // portal, or the Träger-Büro for a declaration it received in Textform.
@@ -79,6 +87,9 @@ var (
 	// ErrNoticeTemplateMissing reports that the Träger has no confirmation
 	// template; its setting has an empty value.
 	ErrNoticeTemplateMissing = errors.New("the Träger has no confirmation template")
+	// ErrNoticeEndNotOpen reports SetNoticeEnd on a contract without an
+	// extraordinary termination whose end is still open.
+	ErrNoticeEndNotOpen = errors.New("the contract has no termination with an open end")
 )
 
 // NoticeInput is a declaration. Kind is NoticeTermination or
@@ -92,17 +103,23 @@ type NoticeInput struct {
 	ExpectedEndsOn  calendar.Date `json:"expected_ends_on"`
 	Kind            string        `json:"kind"`
 	TerminationKind string        `json:"termination_kind"`
-	ReceivedOn      calendar.Date `json:"received_on"`
+	// Reason is the parents' reason of an extraordinary termination; no
+	// other declaration carries one.
+	Reason     string        `json:"reason"`
+	ReceivedOn calendar.Date `json:"received_on"`
 }
 
 // Notice is a declaration as recorded, with its confirmation.
 type Notice struct {
-	DispatchedOn     *calendar.Date `json:"dispatched_on,omitempty"`
-	Kind             string         `json:"kind"`
-	TerminationKind  string         `json:"termination_kind,omitempty"`
-	Channel          string         `json:"channel"`
-	DeclaredAt       time.Time      `json:"declared_at"`
-	ReceivedOn       calendar.Date  `json:"received_on"`
+	DispatchedOn    *calendar.Date `json:"dispatched_on,omitempty"`
+	Kind            string         `json:"kind"`
+	TerminationKind string         `json:"termination_kind,omitempty"`
+	Reason          string         `json:"reason,omitempty"`
+	Channel         string         `json:"channel"`
+	DeclaredAt      time.Time      `json:"declared_at"`
+	ReceivedOn      calendar.Date  `json:"received_on"`
+	// EndsOn is nil for a withdrawal and for an extraordinary termination
+	// the Träger has not checked yet.
 	EndsOn           *calendar.Date `json:"ends_on"`
 	Recipient        string         `json:"recipient"`
 	ConfirmationText string         `json:"confirmation_text"`
@@ -160,8 +177,9 @@ type RenderedNoticeMail struct {
 type NoticeMailRenderer func(ctx context.Context, payload []byte) (RenderedNoticeMail, error)
 
 // NoticeTemplates reads the Träger's confirmation templates in the
-// caller's Träger transaction (setting care_contract.notice_confirmation_*,
-// ADR 0086): never an environment value.
+// caller's Träger transaction (setting care_contract.*_confirmation, ADR
+// 0086): never an environment value. kind is NoticeTermination,
+// NoticeWithdrawal or TerminationExtraordinary.
 type NoticeTemplates interface {
 	NoticeTemplate(ctx context.Context, organizationID int64, kind string) (string, error)
 }
@@ -190,4 +208,8 @@ type Notices interface {
 	// ParentDeclareNotice confirms in the name traeger, the Träger the
 	// parents portal resolved from the relationships.
 	ParentDeclareNotice(ctx context.Context, organizationID, contractID int64, reader InboxReader, traeger string, input NoticeInput) (NoticeOptions, error)
+	// SetNoticeEnd sets the last day of a contract the parents terminated
+	// extraordinarily, after the Träger checked their reason; it takes the
+	// contract's row lock first, as every declaration does.
+	SetNoticeEnd(ctx context.Context, reviewer Reviewer, contractID int64, endsOn calendar.Date) (NoticeOptions, error)
 }

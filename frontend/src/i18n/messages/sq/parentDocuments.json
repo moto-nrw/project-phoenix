@@ -32,5 +32,6 @@
   "cancelNotPermitted": "Vetëm prindërit që mund ta regjistrojnë fëmijën mund ta anulojnë. Ju lutemi pyesni shkollën.",
   "terminatedOn": "E ndërprerë më {date}",
   "withdrawn": "E tërhequr",
-  "showConfirmation": "Shiko konfirmimin"
+  "showConfirmation": "Shiko konfirmimin",
+  "terminationInReview": "Anuluar, data e mbarimit në kontroll"
 }

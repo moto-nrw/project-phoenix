@@ -68,7 +68,9 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
     render(<ParentContractNoticePage organizationId="2" contractId="27" />);
 
     expect(
-      await screen.findByRole("radio", { name: /Kündigen zum 31\.12\.2026/ }),
+      await screen.findByRole("radio", {
+        name: /Ordentlich kündigen zum 31\.12\.2026/,
+      }),
     ).toBeChecked();
     expect(
       screen.getByText(
@@ -116,9 +118,72 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
     });
     render(<ParentContractNoticePage organizationId="2" contractId="27" />);
     expect(
-      await screen.findByRole("radio", { name: /Kündigen zum/ }),
+      await screen.findByRole("radio", { name: /Ordentlich kündigen zum/ }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("radio")).toHaveLength(1);
+    expect(
+      screen.queryByRole("radio", { name: /Widerrufen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  // § 312k Abs. 2 BGB: the parents name the kind of their termination, and
+  // the reason of an extraordinary one. Its end is open until the Träger
+  // checked the reason; the confirmation repeats kind, reason and the
+  // receipt with its time (§ 312k Abs. 4 BGB).
+  it("terminates extraordinarily only with a reason and shows it confirmed", async () => {
+    mocks.fetchMyContractNoticeOptions.mockResolvedValue(active);
+    mocks.declareMyContractNotice.mockResolvedValue({
+      ...active,
+      status: "gekuendigt",
+      notice: {
+        kind: "kuendigung",
+        terminationKind: "ausserordentlich",
+        reason: "Wir ziehen nach Hamburg.",
+        channel: "eltern_app",
+        declaredAt: "2026-11-07T09:30:00Z",
+        receivedOn: "2026-11-07",
+        endsOn: null,
+        recipient: "priya.kumar@email.de",
+        confirmationText: "wir bestätigen den Eingang Ihrer Kündigung.",
+      },
+    });
+    render(<ParentContractNoticePage organizationId="2" contractId="27" />);
+
+    fireEvent.click(
+      await screen.findByRole("radio", { name: /Außerordentlich kündigen/ }),
+    );
+    expect(
+      screen.getByText(
+        "Der Träger prüft Ihren Grund. Danach legt er fest, wann der Vertrag endet. Bis dahin findet die Betreuung wie gebucht statt.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt kündigen" }));
+    expect(
+      await screen.findByText("Bitte schreiben Sie Ihren Grund."),
+    ).toBeInTheDocument();
+    expect(mocks.declareMyContractNotice).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/Ihr Grund/), {
+      target: { value: "  Wir ziehen nach Hamburg. " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt kündigen" }));
+    await waitFor(() =>
+      expect(mocks.declareMyContractNotice).toHaveBeenCalledWith("2", "27", {
+        kind: "kuendigung",
+        terminationKind: "ausserordentlich",
+        reason: "Wir ziehen nach Hamburg.",
+      }),
+    );
+    expect(
+      await screen.findByText(
+        "Ihre Kündigung ist eingegangen. Der Träger prüft Ihren Grund und legt dann das Vertragsende fest.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Außerordentlich")).toBeInTheDocument();
+    expect(screen.getByText("Wir ziehen nach Hamburg.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Legt der Träger nach der Prüfung fest"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("07.11.2026 um 10:30 Uhr")).toBeInTheDocument();
   });
   it("refreshes at Berlin midnight and requires a new choice when dates change", async () => {
     setTestClock("2026-11-30T22:59:30Z");

@@ -709,6 +709,14 @@ function StatusNotice({
       />
     );
   }
+  if (contract.status === "gekuendigt") {
+    return (
+      <Alert
+        type="warning"
+        message="Außerordentlich gekündigt. Prüfen Sie den Grund der Eltern und legen Sie unter „Vertrag beenden“ fest, wann der Vertrag endet. Bis dahin gilt die gebuchte Betreuung."
+      />
+    );
+  }
   if (contract.status === "widerrufen") {
     return (
       <Alert

@@ -31,6 +31,22 @@ export async function fetchContractNoticeOptions(
   );
 }
 
+/**
+ * Sets the last day of a contract the parents terminated extraordinarily,
+ * after the office checked their reason.
+ */
+export async function setContractNoticeEnd(
+  id: string,
+  endsOn: string,
+): Promise<ContractNoticeOptions> {
+  return noticeOptionsFromBackend(
+    await traegerRequest<BackendNoticeOptions>(`${officePath(id)}/ends-on`, {
+      method: "PUT",
+      body: { ends_on: endsOn },
+    }),
+  );
+}
+
 /** Records a declaration the office received by mail or letter on a day. */
 export async function recordContractNotice(
   id: string,

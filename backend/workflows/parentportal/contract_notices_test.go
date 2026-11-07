@@ -78,6 +78,9 @@ func TestParentsEndAContractOnlyWithTheRelationshipRight(t *testing.T) {
 	require.NoError(t, testpkg.SetTestStudentGuardianPermissions(ctx, db, link, map[string]interface{}{
 		"parent_portal.access": true, "parent_portal.enrollments.view": true, "parent_portal.enrollment.submit": true,
 	}))
+	_, err = portal.DeclareContractNotice(ctx, chain.AccountID, organization, own,
+		parentService.ContractNoticeInput{Kind: "kuendigung", TerminationKind: "ordentlich", Reason: "Umzug"})
+	require.Error(t, err, "an ordinary termination carries no reason")
 	done, err := portal.DeclareContractNotice(ctx, chain.AccountID, organization, own,
 		parentService.ContractNoticeInput{Kind: "kuendigung", TerminationKind: "ordentlich"})
 	require.NoError(t, err)
@@ -136,4 +139,39 @@ func TestInboxOffersTheEndOnlyWithTheRelationshipRight(t *testing.T) {
 		require.Len(t, documents, 1, tc.name)
 		assert.Equal(t, tc.submit, documents[0].CanEndContract, tc.name)
 	}
+}
+
+// The parents' extraordinary termination reaches the Betreuungsvertrag with
+// its reason (§ 312k Abs. 2 BGB) and comes back with an open end and the
+// receipt with its time in the confirmation (§ 312k Abs. 4 BGB).
+func TestParentsTerminateExtraordinarilyWithTheirReason(t *testing.T) {
+	t.Parallel()
+	portal, db := noticePortal(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	contract := activeInboxContract(t, db, organization, chain.TenantID, chain.StudentID, "Felix", chain.Email)
+	var link int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM users.student_guardian_relationships WHERE student_id = ? AND guardian_profile_id = ?`,
+		chain.StudentID, chain.GuardianProfileID).Scan(ctx, &link))
+	require.NoError(t, testpkg.SetTestStudentGuardianPermissions(ctx, db, link, map[string]interface{}{
+		"parent_portal.access": true, "parent_portal.enrollments.view": true, "parent_portal.enrollment.submit": true,
+	}))
+
+	done, err := portal.DeclareContractNotice(ctx, chain.AccountID, organization, contract,
+		parentService.ContractNoticeInput{Kind: "kuendigung", TerminationKind: "ausserordentlich", Reason: "Wir ziehen um."})
+	require.NoError(t, err)
+	require.NotNil(t, done.Notice)
+	assert.Equal(t, "ausserordentlich", done.Notice.TerminationKind)
+	assert.Equal(t, "Wir ziehen um.", done.Notice.Reason)
+	assert.Nil(t, done.Notice.EndsOn, "the Träger sets the end after its check")
+	assert.Contains(t, done.Notice.ConfirmationText, "Wir ziehen um.")
+	assert.Regexp(t, `\d{2}\.\d{2}\.\d{4} um \d{2}:\d{2} Uhr`, done.Notice.ConfirmationText, "date and time of the receipt")
+	documents, err := portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxContracts)
+	require.NoError(t, err)
+	require.Len(t, documents, 1)
+	assert.Equal(t, "gekuendigt", documents[0].ContractStatus)
+	assert.Nil(t, documents[0].EndsOn, "the inbox shows the open end")
 }

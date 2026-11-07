@@ -7,6 +7,7 @@ const CodeCareContractContractNotDraft = "care_contract.contract_not_draft"
 const CodeCareContractContractNotEndable = "care_contract.contract_not_endable"
 const CodeCareContractContractNotFound = "care_contract.contract_not_found"
 const CodeCareContractLetterheadTooLong = "care_contract.letterhead_too_long"
+const CodeCareContractNoticeEndNotOpen = "care_contract.notice_end_not_open"
 const CodeCareContractNoticeTemplateMissing = "care_contract.notice_template_missing"
 const CodeCareContractOfferingNotFound = "care_contract.offering_not_found"
 const CodeCareContractRecipientMissing = "care_contract.recipient_missing"
@@ -22,6 +23,7 @@ var errorCodeClassesCareContract = []errorCodeClass{
 	{CodeCareContractContractNotEndable, "business_rejection"},
 	{CodeCareContractContractNotFound, "business_rejection"},
 	{CodeCareContractLetterheadTooLong, "business_rejection"},
+	{CodeCareContractNoticeEndNotOpen, "business_rejection"},
 	{CodeCareContractNoticeTemplateMissing, "business_rejection"},
 	{CodeCareContractOfferingNotFound, "business_rejection"},
 	{CodeCareContractRecipientMissing, "business_rejection"},

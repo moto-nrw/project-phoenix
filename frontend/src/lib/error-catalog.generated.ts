@@ -40,6 +40,8 @@ export const ERROR_CATALOG = {
         "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
       "care_contract.letterhead_too_long":
         "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
+      "care_contract.notice_end_not_open":
+        "Für diesen Vertrag gibt es kein offenes Vertragsende mehr. Bitte laden Sie die Seite neu.",
       "care_contract.notice_template_missing":
         "Der Träger hat noch keinen Text für die Bestätigung. Bitte melden Sie sich beim Träger.",
       "care_contract.offering_not_found":
@@ -1678,6 +1680,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "This contract has no open end date any more. Please reload the page.",
       "care_contract.notice_template_missing":
         "The provider has no confirmation text yet. Please contact the provider.",
       "care_contract.offering_not_found":
@@ -2246,6 +2250,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "Для этого договора больше нет открытой даты окончания. Пожалуйста, обновите страницу.",
       "care_contract.notice_template_missing":
         "У организации ещё нет текста подтверждения. Пожалуйста, свяжитесь с организацией.",
       "care_contract.offering_not_found":
@@ -2707,6 +2713,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "Kjo kontratë nuk ka më datë mbarimi të hapur. Ju lutemi rifreskoni faqen.",
       "care_contract.notice_template_missing":
         "Ofruesi nuk ka ende tekst konfirmimi. Ju lutemi kontaktoni ofruesin.",
       "care_contract.offering_not_found":
@@ -3183,6 +3191,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "Dla tej umowy nie ma już otwartej daty zakończenia. Proszę odświeżyć stronę.",
       "care_contract.notice_template_missing":
         "Organizator nie ma jeszcze tekstu potwierdzenia. Proszę skontaktować się z organizatorem.",
       "care_contract.offering_not_found":
@@ -3646,6 +3656,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "Bu sözleşmenin artık açık bir bitiş tarihi yok. Lütfen sayfayı yenileyin.",
       "care_contract.notice_template_missing":
         "Kurumun henüz onay metni yok. Lütfen kurumla iletişime geçin.",
       "care_contract.offering_not_found":
@@ -4115,6 +4127,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "Для цього договору більше немає відкритої дати завершення. Будь ласка, оновіть сторінку.",
       "care_contract.notice_template_missing":
         "Організація ще не має тексту підтвердження. Будь ласка, зверніться до організації.",
       "care_contract.offering_not_found":

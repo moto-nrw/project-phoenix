@@ -25,6 +25,9 @@ func init() {
 //
 //   - gekuendigt: the contract was terminated and ends on ends_on, the last
 //     day it holds. The versions stay as they are; the contract cuts them.
+//     An extraordinary termination (§ 312k Abs. 2 BGB: the parents name
+//     the kind and their reason) has no end yet: the Träger sets ends_on
+//     after it checked the reason, until then the contract holds.
 //   - widerrufen: the parents withdrew within the withdrawal period
 //     (§ 355 BGB). The contract is undone from its start and holds on no day.
 //   - withdrawal_informed_at is when the parents received the withdrawal
@@ -49,10 +52,10 @@ ALTER TABLE care_contract.contracts
 	ADD COLUMN withdrawal_informed_at TIMESTAMPTZ,
 	ADD COLUMN early_start_requested BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE care_contract.contracts
-	ADD CONSTRAINT chk_contracts_terminated CHECK ((status = 'gekuendigt') = (ends_on IS NOT NULL)),
+	ADD CONSTRAINT chk_contracts_terminated CHECK (ends_on IS NULL OR status = 'gekuendigt'),
 	ADD CONSTRAINT chk_contracts_notice_concluded CHECK (status NOT IN ('gekuendigt', 'widerrufen') OR concluded_at IS NOT NULL);
 COMMENT ON COLUMN care_contract.contracts.ends_on IS
-	'Last day a terminated contract holds (#4682); set only with status gekuendigt.';
+	'Last day a terminated contract holds (#4682); set only with status gekuendigt, open while the Träger checks an extraordinary termination.';
 COMMENT ON COLUMN care_contract.contracts.withdrawal_informed_at IS
 	'When the parents received the withdrawal notice with the contract PDF (§ 356 Abs. 3 BGB, #4682).';
 COMMENT ON COLUMN care_contract.contracts.early_start_requested IS
@@ -71,6 +74,7 @@ CREATE TABLE care_contract.contract_notices (
 	received_on DATE NOT NULL,
 	dispatched_on DATE,
 	ends_on DATE,
+	reason TEXT,
 	recipient_email VARCHAR(320) NOT NULL,
 	confirmation_text TEXT NOT NULL,
 	outbox_id BIGINT,
@@ -80,7 +84,11 @@ CREATE TABLE care_contract.contract_notices (
 	CONSTRAINT chk_contract_notices_kind CHECK (kind IN ('kuendigung', 'widerruf')),
 	CONSTRAINT chk_contract_notices_notice_kind CHECK (
 		(kind = 'kuendigung' AND notice_kind IS NOT NULL AND notice_kind IN ('ordentlich', 'sonderkuendigung') AND ends_on IS NOT NULL)
+		OR (kind = 'kuendigung' AND notice_kind IS NOT NULL AND notice_kind = 'ausserordentlich')
 		OR (kind = 'widerruf' AND notice_kind IS NULL AND ends_on IS NULL)),
+	CONSTRAINT chk_contract_notices_reason CHECK (
+		(notice_kind IS NOT NULL AND notice_kind = 'ausserordentlich') = (reason IS NOT NULL)
+		AND (reason IS NULL OR (BTRIM(reason) <> '' AND char_length(reason) <= 2000))),
 	CONSTRAINT chk_contract_notices_channel CHECK (channel IN ('eltern_app', 'traeger_buero')),
 	CONSTRAINT chk_contract_notices_text CHECK (BTRIM(confirmation_text) <> '' AND char_length(confirmation_text) <= 8000)
 );
@@ -111,20 +119,20 @@ CREATE POLICY traeger_isolation_care_contract_contract_notices ON care_contract.
 	WITH CHECK (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint);
 REVOKE ALL ON care_contract.contract_notices FROM PUBLIC;
 GRANT SELECT, INSERT ON care_contract.contract_notices TO phoenix_tenant;
-GRANT UPDATE (outbox_id) ON care_contract.contract_notices TO phoenix_tenant;
+GRANT UPDATE (outbox_id, ends_on) ON care_contract.contract_notices TO phoenix_tenant;
 GRANT USAGE ON SEQUENCE care_contract.contract_notices_id_seq TO phoenix_tenant;
 GRANT ALL ON care_contract.contract_notices TO phoenix_admin;
 GRANT ALL ON SEQUENCE care_contract.contract_notices_id_seq TO phoenix_admin;
 
 ALTER TABLE care_contract.contract_events DROP CONSTRAINT chk_contract_events_action;
 ALTER TABLE care_contract.contract_events ADD CONSTRAINT chk_contract_events_action
-	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'conclude', 'sign', 'remind', 'terminate', 'withdraw'));
+	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'conclude', 'sign', 'remind', 'terminate', 'withdraw', 'set_end'));
 `
 
 // careContractNoticesDownSQL returns the ended contracts to aktiv; their
 // declarations go with the table.
 const careContractNoticesDownSQL = `
-DELETE FROM care_contract.contract_events WHERE action IN ('terminate', 'withdraw');
+DELETE FROM care_contract.contract_events WHERE action IN ('terminate', 'withdraw', 'set_end');
 ALTER TABLE care_contract.contract_events DROP CONSTRAINT chk_contract_events_action;
 ALTER TABLE care_contract.contract_events ADD CONSTRAINT chk_contract_events_action
 	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'conclude', 'sign', 'remind'));

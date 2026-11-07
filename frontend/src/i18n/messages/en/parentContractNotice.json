@@ -9,7 +9,7 @@
   "bookedCare": "Booked care",
   "noticeTerms": "Notice period",
   "chooseTitle": "What would you like to do?",
-  "ordinary": "Cancel as of {date}",
+  "ordinary": "Cancel with notice on {date}",
   "ordinaryHint": "This is the next possible date.",
   "special": "Special cancellation as of {date}",
   "specialHint": "Only with a reason named in the contract, for example a move.",
@@ -34,5 +34,18 @@
   "declaredAt": "Received on",
   "sentTo": "Confirmation sent to",
   "confirmationTitle": "Your confirmation",
-  "datesChanged": "The dates have changed. Please choose again."
+  "datesChanged": "The dates have changed. Please choose again.",
+  "extraordinary": "Cancel for an important reason",
+  "extraordinaryHint": "Only for an important reason. The provider checks it and then sets the end date.",
+  "reasonLabel": "Your reason",
+  "reasonHint": "Briefly write why you are ending the contract.",
+  "reasonRequired": "Please write your reason.",
+  "summaryExtraordinary": "The provider checks your reason. Then it sets when the contract ends. Until then, care continues as booked.",
+  "doneExtraordinary": "Your cancellation has been received. The provider checks your reason and then sets the end date.",
+  "kindLabel": "Type of cancellation",
+  "kindOrdinary": "With notice",
+  "kindSpecial": "Special cancellation",
+  "kindExtraordinary": "For an important reason",
+  "endsOpen": "The provider sets it after checking",
+  "declaredAtValue": "{date} at {time}"
 }

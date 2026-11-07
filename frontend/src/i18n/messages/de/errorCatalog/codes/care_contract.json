@@ -5,6 +5,7 @@
   "contract_not_endable": "Dieser Vertrag ist schon gekündigt oder widerrufen oder noch nicht abgeschlossen. Bitte laden Sie die Seite neu.",
   "contract_not_found": "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
   "letterhead_too_long": "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
+  "notice_end_not_open": "Für diesen Vertrag gibt es kein offenes Vertragsende mehr. Bitte laden Sie die Seite neu.",
   "notice_template_missing": "Der Träger hat noch keinen Text für die Bestätigung. Bitte melden Sie sich beim Träger.",
   "offering_not_found": "Dieses Angebot gibt es an der Schule nicht mehr. Bitte laden Sie die Seite neu.",
   "recipient_missing": "Für diesen Vertrag fehlt eine E-Mail-Adresse. Ohne Adresse kann keine Bestätigung verschickt werden.",

@@ -5,6 +5,7 @@
   "contract_not_endable": "Bu sözleşme zaten feshedildi veya geri alındı ya da henüz yapılmadı. Lütfen sayfayı yenileyin.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+  "notice_end_not_open": "Bu sözleşmenin artık açık bir bitiş tarihi yok. Lütfen sayfayı yenileyin.",
   "notice_template_missing": "Kurumun henüz onay metni yok. Lütfen kurumla iletişime geçin.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
   "recipient_missing": "Bu sözleşmenin e-posta adresi yok. Adres olmadan onay gönderilemez.",

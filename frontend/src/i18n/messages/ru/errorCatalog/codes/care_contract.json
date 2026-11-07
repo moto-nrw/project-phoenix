@@ -5,6 +5,7 @@
   "contract_not_endable": "Этот договор уже расторгнут или отозван либо ещё не заключён. Пожалуйста, обновите страницу.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+  "notice_end_not_open": "Для этого договора больше нет открытой даты окончания. Пожалуйста, обновите страницу.",
   "notice_template_missing": "У организации ещё нет текста подтверждения. Пожалуйста, свяжитесь с организацией.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
   "recipient_missing": "У этого договора нет адреса электронной почты. Без адреса подтверждение отправить нельзя.",

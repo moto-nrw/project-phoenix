@@ -7,18 +7,29 @@
  */
 
 export type NoticeKind = "kuendigung" | "widerruf";
-export type TerminationKind = "ordentlich" | "sonderkuendigung";
+/**
+ * How the parents terminate (§ 312k Abs. 2 BGB): to the next date, to the
+ * special date, or extraordinarily for a reason they name. The Träger sets
+ * the end of an extraordinary termination after it checked the reason.
+ */
+export type TerminationKind =
+  "ordentlich" | "sonderkuendigung" | "ausserordentlich";
 
 /** A declaration as recorded, with its confirmation as sent. */
 export interface ContractNotice {
   readonly kind: NoticeKind;
   readonly terminationKind: TerminationKind | null;
+  /** The parents' reason of an extraordinary termination, else null. */
+  readonly reason: string | null;
   /** The parents with the button, or the office for a received letter. */
   readonly channel: "eltern_app" | "traeger_buero";
   readonly declaredAt: string;
   readonly receivedOn: string;
   readonly dispatchedOn?: string | null;
-  /** Last day of a terminated contract; null after a withdrawal. */
+  /**
+   * Last day of a terminated contract; null after a withdrawal and while
+   * the Träger checks an extraordinary termination.
+   */
   readonly endsOn: string | null;
   readonly recipient: string;
   readonly confirmationText: string;
@@ -47,11 +58,14 @@ export interface NoticeDeclaration {
   readonly kind: NoticeKind;
   readonly terminationKind?: TerminationKind;
   readonly expectedEndsOn?: string;
+  /** Required with an extraordinary termination, never sent otherwise. */
+  readonly reason?: string;
 }
 
 interface BackendNotice {
   kind: NoticeKind;
   termination_kind?: TerminationKind;
+  reason?: string;
   channel: "eltern_app" | "traeger_buero";
   declared_at: string;
   received_on: string;
@@ -95,6 +109,7 @@ export function noticeOptionsFromBackend(
       ? {
           kind: row.notice.kind,
           terminationKind: row.notice.termination_kind ?? null,
+          reason: row.notice.reason ?? null,
           channel: row.notice.channel,
           declaredAt: row.notice.declared_at,
           receivedOn: row.notice.received_on,
@@ -115,6 +130,9 @@ export function declarationBody(declaration: NoticeDeclaration) {
           termination_kind: declaration.terminationKind ?? "ordentlich",
           ...(declaration.expectedEndsOn
             ? { expected_ends_on: declaration.expectedEndsOn }
+            : {}),
+          ...(declaration.terminationKind === "ausserordentlich"
+            ? { reason: declaration.reason ?? "" }
             : {}),
         }
       : {}),

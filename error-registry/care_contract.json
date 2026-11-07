@@ -37,6 +37,12 @@
       "legacy": "care_contract.letterhead_too_long"
     },
     {
+      "code": "care_contract.notice_end_not_open",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.notice_end_not_open"
+    },
+    {
       "code": "care_contract.notice_template_missing",
       "class": "business_rejection",
       "parameters": [],

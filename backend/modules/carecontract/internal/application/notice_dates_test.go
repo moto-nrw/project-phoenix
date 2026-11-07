@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -101,12 +102,62 @@ func TestConfirmationTextFillsTheTemplate(t *testing.T) {
 	endsOn := calendar.NewDate(2026, 12, 31)
 	text, err := confirmationText("Kündigung für {Kind} ({Module}, {Schule}) am {Eingang}, Ende {Vertragsende}. {Träger}",
 		confirmationValues{Child: "Lina Muster", Modules: "Ganztag", School: "OGS Am Lindenhof", EndsOn: &endsOn,
-			ReceivedOn: calendar.NewDate(2026, 11, 7), Traeger: "Ganztag im Quartier e.V."})
+			Received: "07.11.2026", Traeger: "Ganztag im Quartier e.V."})
 	assert.NoError(t, err)
 	assert.Equal(t, "Kündigung für Lina Muster (Ganztag, OGS Am Lindenhof) am 07.11.2026, Ende 31.12.2026. Ganztag im Quartier e.V.", text)
 
 	_, err = confirmationText("  ", confirmationValues{})
 	assert.ErrorIs(t, err, carecontract.ErrNoticeTemplateMissing)
+}
+
+// § 312k Abs. 4 BGB: the confirmation of a declaration with the button names
+// day and time of its receipt; a letter the office records has its day.
+// A template that leaves out {Eingang}, or {Grund} for an extraordinary
+// termination, still names them (#4682).
+func TestConfirmationNamesTheReceiptWithItsTime(t *testing.T) {
+	t.Parallel()
+	declared := time.Date(2026, 11, 7, 8, 30, 0, 0, time.UTC) // 09:30 in Berlin
+	parents := ports.NewNotice{Channel: carecontract.ChannelParents, DeclaredAt: declared, ReceivedOn: calendar.NewDate(2026, 11, 7)}
+	assert.Equal(t, "07.11.2026 um 09:30 Uhr", receipt(parents))
+	office := ports.NewNotice{Channel: carecontract.ChannelOffice, DeclaredAt: declared, ReceivedOn: calendar.NewDate(2026, 11, 5)}
+	assert.Equal(t, "05.11.2026", receipt(office), "a letter has no time of receipt")
+
+	text, err := confirmationText("Ihre Kündigung für {Kind}.", confirmationValues{Child: "Lina", Received: receipt(parents),
+		Reason: "Wir ziehen um.", NeedsReason: true})
+	assert.NoError(t, err)
+	assert.Equal(t, "Ihre Kündigung für Lina.\n\nEingang Ihrer Erklärung: 07.11.2026 um 09:30 Uhr\n\nIhr Grund: Wir ziehen um.", text)
+	text, err = confirmationText("Eingang {Eingang}. Grund: {Grund}", confirmationValues{Received: receipt(parents),
+		Reason: "Umzug", NeedsReason: true})
+	assert.NoError(t, err)
+	assert.Equal(t, "Eingang 07.11.2026 um 09:30 Uhr. Grund: Umzug", text, "placed placeholders are not repeated")
+	assert.Equal(t, carecontract.TerminationExtraordinary,
+		templateKind(ports.NewNotice{Kind: carecontract.NoticeTermination, TerminationKind: carecontract.TerminationExtraordinary}))
+	assert.Equal(t, carecontract.NoticeTermination,
+		templateKind(ports.NewNotice{Kind: carecontract.NoticeTermination, TerminationKind: carecontract.TerminationOrdinary}))
+}
+
+// Fronleichnam is Easter Sunday + 60 days (PTB, „Wann ist Ostern?“): Easter
+// fell on 5 April 2026 and falls on 28 March 2027, so Fronleichnam is
+// 4 June 2026 and 27 May 2027. It is a holiday only in some federal states;
+// § 193 BGB moves a deadline here only for nationwide holidays (#4682), so it
+// moves nothing, while Christi Himmelfahrt (+39) and Pfingstmontag (+50) do.
+func TestHolidaysFollowEasterIn2026And2027(t *testing.T) {
+	t.Parallel()
+	for _, year := range []struct {
+		easter, ascension, whitMonday, corpusChristi calendar.Date
+	}{
+		{calendar.NewDate(2026, 4, 5), calendar.NewDate(2026, 5, 14), calendar.NewDate(2026, 5, 25), calendar.NewDate(2026, 6, 4)},
+		{calendar.NewDate(2027, 3, 28), calendar.NewDate(2027, 5, 6), calendar.NewDate(2027, 5, 17), calendar.NewDate(2027, 5, 27)},
+	} {
+		easter := easterSunday(year.easter.Year())
+		assert.Equal(t, year.easter, easter)
+		assert.Equal(t, year.corpusChristi, easter.AddDays(60), "Fronleichnam")
+		assert.True(t, nationwideHoliday(year.ascension), year.ascension.String())
+		assert.True(t, nationwideHoliday(year.whitMonday), year.whitMonday.String())
+		assert.False(t, nationwideHoliday(year.corpusChristi), "Fronleichnam is regional: "+year.corpusChristi.String())
+		assert.Equal(t, year.corpusChristi, nextWorkingDay(year.corpusChristi), "a deadline on Fronleichnam stays")
+		assert.Equal(t, year.ascension.AddDays(1), nextWorkingDay(year.ascension), "a deadline on Christi Himmelfahrt moves to Friday")
+	}
 }
 
 // The worker's mail carries the confirmation as stored, paragraph by

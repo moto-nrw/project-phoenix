@@ -5,6 +5,7 @@
   "contract_not_endable": "Ta umowa została już wypowiedziana lub odwołana albo nie została jeszcze zawarta. Proszę odświeżyć stronę.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+  "notice_end_not_open": "Dla tej umowy nie ma już otwartej daty zakończenia. Proszę odświeżyć stronę.",
   "notice_template_missing": "Organizator nie ma jeszcze tekstu potwierdzenia. Proszę skontaktować się z organizatorem.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
   "recipient_missing": "Ta umowa nie ma adresu e-mail. Bez adresu nie można wysłać potwierdzenia.",

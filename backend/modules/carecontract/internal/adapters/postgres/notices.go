@@ -30,6 +30,7 @@ type noticeRow struct {
 	DeclaredAt       time.Time      `bun:"declared_at"`
 	ReceivedOn       calendar.Date  `bun:"received_on,type:date"`
 	EndsOn           *calendar.Date `bun:"ends_on,type:date"`
+	Reason           *string        `bun:"reason"`
 	Recipient        string         `bun:"recipient_email"`
 	ConfirmationText string         `bun:"confirmation_text"`
 }
@@ -66,7 +67,7 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 	}
 	state := ports.NoticeState{FirstFrom: row.FirstFrom, ContractEnd: row.ContractEnd, InformedAt: row.InformedAt, EarlyStart: row.EarlyStart}
 	var notices []noticeRow
-	if err := db.NewRaw(`SELECT kind, notice_kind, channel, declared_at, received_on, dispatched_on, ends_on, recipient_email, confirmation_text
+	if err := db.NewRaw(`SELECT kind, notice_kind, channel, declared_at, received_on, dispatched_on, ends_on, reason, recipient_email, confirmation_text
 		FROM care_contract.contract_notices WHERE organization_id = ? AND contract_id = ? ORDER BY id DESC LIMIT 1`,
 		organizationID, contractID).Scan(ctx, &notices); err != nil {
 		return ports.NoticeState{}, fmt.Errorf("care contract postgres: read notice: %w", err)
@@ -79,6 +80,9 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 		}
 		if notice.NoticeKind != nil {
 			state.Notice.TerminationKind = *notice.NoticeKind
+		}
+		if notice.Reason != nil {
+			state.Notice.Reason = *notice.Reason
 		}
 	}
 	return state, nil
@@ -102,12 +106,16 @@ func (Store) InsertNotice(ctx context.Context, organizationID int64, notice port
 	if notice.AccountID > 0 {
 		account = &notice.AccountID
 	}
+	var reason *string
+	if notice.Reason != "" {
+		reason = &notice.Reason
+	}
 	var id int64
 	if err := db.NewRaw(`INSERT INTO care_contract.contract_notices (organization_id, contract_id, kind, notice_kind, channel,
-			account_id, declared_at, received_on, dispatched_on, ends_on, recipient_email, confirmation_text)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+			account_id, declared_at, received_on, dispatched_on, ends_on, reason, recipient_email, confirmation_text)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
 		organizationID, notice.ContractID, notice.Kind, terminationKind, notice.Channel, account, notice.DeclaredAt,
-		notice.ReceivedOn, notice.DispatchedOn, notice.EndsOn, notice.Recipient, notice.ConfirmationText).Scan(ctx, &id); err != nil {
+		notice.ReceivedOn, notice.DispatchedOn, notice.EndsOn, reason, notice.Recipient, notice.ConfirmationText).Scan(ctx, &id); err != nil {
 		return 0, fmt.Errorf("care contract postgres: insert notice: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE care_contract.contracts SET status = ?, ends_on = ?
@@ -115,6 +123,35 @@ func (Store) InsertNotice(ctx context.Context, organizationID int64, notice port
 		return 0, fmt.Errorf("care contract postgres: end contract: %w", err)
 	}
 	return id, nil
+}
+
+// SetNoticeEnd sets the end of an extraordinary termination the Träger
+// checked: on the declaration whose end is open and on the terminated
+// contract, both of organizationID.
+func (Store) SetNoticeEnd(ctx context.Context, organizationID, contractID int64, endsOn calendar.Date) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	result, err := db.ExecContext(ctx, `UPDATE care_contract.contract_notices SET ends_on = ?
+		WHERE organization_id = ? AND contract_id = ? AND notice_kind = ? AND ends_on IS NULL`,
+		endsOn, organizationID, contractID, carecontract.TerminationExtraordinary)
+	if err != nil {
+		return fmt.Errorf("care contract postgres: set notice end: %w", err)
+	}
+	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+		return carecontract.ErrNoticeEndNotOpen
+	}
+	result, err = db.ExecContext(ctx, `UPDATE care_contract.contracts SET ends_on = ?
+		WHERE organization_id = ? AND id = ? AND status = ? AND ends_on IS NULL`,
+		endsOn, organizationID, contractID, carecontract.StatusTerminated)
+	if err != nil {
+		return fmt.Errorf("care contract postgres: set contract end: %w", err)
+	}
+	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+		return carecontract.ErrNoticeEndNotOpen
+	}
+	return nil
 }
 
 // SetNoticeOutbox records the confirmation mail of a declaration.

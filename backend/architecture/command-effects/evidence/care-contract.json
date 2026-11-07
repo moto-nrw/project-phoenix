@@ -66,7 +66,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeTemplates.NoticeTemplate",
-      "binding_digest": "768bf3e73cb291ad051a4d93bb0bb349",
+      "binding_digest": "9cd188cf1402976df1ca7f3472dbabce",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeTemplates.NoticeTemplate",
       "source_owner": "care-contract",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",

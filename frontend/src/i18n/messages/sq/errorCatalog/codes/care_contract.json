@@ -5,6 +5,7 @@
   "contract_not_endable": "Kjo kontratë është ndërprerë ose tërhequr tashmë, ose nuk është lidhur ende. Ju lutemi rifreskoni faqen.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+  "notice_end_not_open": "Kjo kontratë nuk ka më datë mbarimi të hapur. Ju lutemi rifreskoni faqen.",
   "notice_template_missing": "Ofruesi nuk ka ende tekst konfirmimi. Ju lutemi kontaktoni ofruesin.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
   "recipient_missing": "Kjo kontratë nuk ka adresë e-maili. Pa adresë nuk mund të dërgohet konfirmim.",

@@ -12,6 +12,8 @@ import (
 const (
 	ActionTerminate = "terminate"
 	ActionWithdraw  = "withdraw"
+	// ActionSetEnd is the Träger's end of an extraordinary termination.
+	ActionSetEnd = "set_end"
 )
 
 // NoticeState is what a declaration on a contract needs beyond its record:
@@ -32,6 +34,7 @@ type NewNotice struct {
 	ContractID       int64
 	Kind             string
 	TerminationKind  string
+	Reason           string
 	Channel          string
 	AccountID        int64
 	DeclaredAt       time.Time
@@ -50,6 +53,11 @@ type NoticeStore interface {
 	// InsertNotice stores a declaration and moves the contract to its
 	// status: gekuendigt with its last day, or widerrufen.
 	InsertNotice(ctx context.Context, organizationID int64, notice NewNotice) (int64, error)
+	// SetNoticeEnd sets the last day of a contract whose extraordinary
+	// termination has no end yet, on the declaration and the contract; it
+	// answers carecontract.ErrNoticeEndNotOpen when there is none. The caller
+	// holds the contract's row lock.
+	SetNoticeEnd(ctx context.Context, organizationID, contractID int64, endsOn calendar.Date) error
 	// SetNoticeOutbox records the confirmation mail of a declaration.
 	SetNoticeOutbox(ctx context.Context, organizationID, noticeID, outboxID int64) error
 	// InboxContractID tells whether the contract was sent to the reader's

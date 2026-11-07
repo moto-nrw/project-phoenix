@@ -161,6 +161,8 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
           <span className="text-xs text-gray-500">
             zum {formatDate(contract.endsOn)}
           </span>
+        ) : contract.status === "gekuendigt" ? (
+          <span className="text-xs text-gray-500">Ende offen</span>
         ) : contract.status === "widerrufen" ? null : contract.concluded ? (
           <span className="text-xs text-gray-500">
             seit {formatBerlinDate(contract.concluded.at)}

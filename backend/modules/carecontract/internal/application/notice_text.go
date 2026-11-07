@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -17,20 +18,36 @@ const noticeMailTemplate = "care-contract-notice.html"
 // confirmationValues are the values of the placeholders of the Träger's
 // confirmation template (setting care_contract.*_confirmation).
 type confirmationValues struct {
-	Child      string
-	Modules    string
-	School     string
-	EndsOn     *calendar.Date
-	ReceivedOn calendar.Date
-	Traeger    string
+	Child   string
+	Modules string
+	School  string
+	EndsOn  *calendar.Date
+	// Received is the receipt as the confirmation names it: day and time
+	// for a declaration with the button (§ 312k Abs. 4 BGB), the day for a
+	// letter the Träger-Büro records.
+	Received string
+	Traeger  string
+	// Reason is the parents' reason; NeedsReason tells that the declaration
+	// is an extraordinary termination, whose confirmation repeats it.
+	Reason      string
+	NeedsReason bool
 }
 
 // confirmationText fills the Träger's template. The setting admits only
 // these placeholders; an empty template is ErrNoticeTemplateMissing, never a
-// built-in text.
+// built-in text. What § 312k Abs. 4 BGB requires the confirmation to name
+// is never left to the template: a template without {Eingang}, or without
+// {Grund} for an extraordinary termination, gets the line appended.
 func confirmationText(template string, values confirmationValues) (string, error) {
 	if strings.TrimSpace(template) == "" {
 		return "", carecontract.ErrNoticeTemplateMissing
+	}
+	template = strings.TrimSpace(template)
+	if !strings.Contains(template, "{Eingang}") {
+		template += "\n\nEingang Ihrer Erklärung: {Eingang}"
+	}
+	if values.NeedsReason && !strings.Contains(template, "{Grund}") {
+		template += "\n\nIhr Grund: {Grund}"
 	}
 	endsOn := ""
 	if values.EndsOn != nil {
@@ -38,9 +55,29 @@ func confirmationText(template string, values confirmationValues) (string, error
 	}
 	replacer := strings.NewReplacer(
 		"{Kind}", values.Child, "{Module}", values.Modules, "{Schule}", values.School,
-		"{Vertragsende}", endsOn, "{Eingang}", germanDate(values.ReceivedOn), "{Träger}", values.Traeger,
+		"{Vertragsende}", endsOn, "{Eingang}", values.Received, "{Grund}", values.Reason, "{Träger}", values.Traeger,
 	)
 	return strings.TrimSpace(replacer.Replace(template)), nil
+}
+
+// receipt names when the declaration reached the Träger. A declaration with
+// the button reaches it when the parents send it, so its confirmation names
+// day and time (§ 312k Abs. 4 BGB); a letter the Träger-Büro records has
+// only the day it arrived.
+func receipt(notice ports.NewNotice) string {
+	if notice.Channel != carecontract.ChannelParents {
+		return germanDate(notice.ReceivedOn)
+	}
+	return germanDate(calendar.DateFromTime(notice.DeclaredAt)) + " um " + *calendar.FormatBerlinClock(&notice.DeclaredAt) + " Uhr"
+}
+
+// templateKind selects the Träger's template: the withdrawal, the
+// termination, or the extraordinary termination, whose end is still open.
+func templateKind(notice ports.NewNotice) string {
+	if notice.TerminationKind == carecontract.TerminationExtraordinary {
+		return carecontract.TerminationExtraordinary
+	}
+	return notice.Kind
 }
 
 // RenderNoticeMail turns the payload of a claimed confirmation into the mail

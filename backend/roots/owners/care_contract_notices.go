@@ -39,8 +39,11 @@ type careContractNoticeTemplates struct {
 
 func (t careContractNoticeTemplates) NoticeTemplate(ctx context.Context, organizationID int64, kind string) (string, error) {
 	key := configModels.KeyCareContractTerminationConfirmation
-	if kind == carecontract.NoticeWithdrawal {
+	switch kind {
+	case carecontract.NoticeWithdrawal:
 		key = configModels.KeyCareContractWithdrawalConfirmation
+	case carecontract.TerminationExtraordinary:
+		key = configModels.KeyCareContractExtraordinaryConfirmation
 	}
 	texts, err := t.settings.TraegerTexts(ctx, organizationID, []string{key})
 	if err != nil {
@@ -94,7 +97,7 @@ func (n parentContractNotices) ContractNoticeOptions(ctx context.Context, organi
 func (n parentContractNotices) DeclareContractNotice(ctx context.Context, organizationID, contractID int64,
 	reader parentportal.BillingDocumentReader, traeger string, input parentportal.ContractNoticeInput) (parentportal.ContractNoticeOptions, error) {
 	options, err := n.notices.ParentDeclareNotice(ctx, organizationID, contractID, carecontract.InboxReader(reader), traeger,
-		carecontract.NoticeInput{Kind: input.Kind, TerminationKind: input.TerminationKind, ExpectedEndsOn: input.ExpectedEndsOn})
+		carecontract.NoticeInput{Kind: input.Kind, TerminationKind: input.TerminationKind, Reason: input.Reason, ExpectedEndsOn: input.ExpectedEndsOn})
 	return parentNoticeOptions(options), parentNoticeError(err)
 }
 
@@ -106,7 +109,7 @@ func parentNoticeOptions(options carecontract.NoticeOptions) parentportal.Contra
 	}
 	if notice := options.Notice; notice != nil {
 		result.Notice = &parentportal.ContractNotice{
-			Kind: notice.Kind, TerminationKind: notice.TerminationKind, Channel: notice.Channel, DeclaredAt: notice.DeclaredAt,
+			Kind: notice.Kind, TerminationKind: notice.TerminationKind, Reason: notice.Reason, Channel: notice.Channel, DeclaredAt: notice.DeclaredAt,
 			DispatchedOn: notice.DispatchedOn, ReceivedOn: notice.ReceivedOn, EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
 		}
 	}

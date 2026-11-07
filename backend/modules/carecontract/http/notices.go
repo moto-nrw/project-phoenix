@@ -39,6 +39,7 @@ func (rs *NoticeResource) Router(protectedTraegerRoutes func(chi.Router, func(ch
 		open := r.With(rs.requireContract)
 		open.Get("/{id}", rs.options)
 		open.Post("/{id}", rs.declare)
+		open.Put("/{id}/ends-on", rs.setEnd)
 	})
 	return r
 }
@@ -90,6 +91,33 @@ func (rs *NoticeResource) declare(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, options, "Contract notice recorded successfully")
 }
 
+// NoticeEndRequest is the last day the Träger sets for an extraordinary
+// termination after its check.
+type NoticeEndRequest struct {
+	EndsOn calendar.Date `json:"ends_on"`
+}
+
+// Bind accepts the body; the owner checks the day.
+func (req *NoticeEndRequest) Bind(*http.Request) error { return nil }
+
+func (rs *NoticeResource) setEnd(w http.ResponseWriter, r *http.Request) {
+	reviewer, id, ok := contractKey(w, r)
+	if !ok {
+		return
+	}
+	req := &NoticeEndRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	options, err := rs.notices.SetNoticeEnd(r.Context(), reviewer, id, req.EndsOn)
+	if err != nil {
+		RenderNoticeError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, options, "Contract end recorded successfully")
+}
+
 var noticeErrorRules = []struct {
 	err  error
 	code string
@@ -99,6 +127,7 @@ var noticeErrorRules = []struct {
 	{carecontract.ErrSpecialTerminationClosed, common.CodeCareContractSpecialTerminationClosed},
 	{carecontract.ErrNoticeTemplateMissing, common.CodeCareContractNoticeTemplateMissing},
 	{carecontract.ErrRecipientMissing, common.CodeCareContractRecipientMissing},
+	{carecontract.ErrNoticeEndNotOpen, common.CodeCareContractNoticeEndNotOpen},
 }
 
 // RenderNoticeError answers an error of a declaration with its registered

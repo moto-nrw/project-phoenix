@@ -4328,7 +4328,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (t careContractNoticeTemplates) NoticeTemplate(ctx context.Context, organizationID int64, kind string) (string, error) {\n\tkey := configModels.KeyCareContractTerminationConfirmation\n\tif kind == carecontract.NoticeWithdrawal {\n\t\tkey = configModels.KeyCareContractWithdrawalConfirmation\n\t}\n\ttexts, err := t.settings.TraegerTexts(ctx, organizationID, []string{key})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[key], nil\n}",
+      "evidence": "func (t careContractNoticeTemplates) NoticeTemplate(ctx context.Context, organizationID int64, kind string) (string, error) {\n\tkey := configModels.KeyCareContractTerminationConfirmation\n\tswitch kind {\n\tcase carecontract.NoticeWithdrawal:\n\t\tkey = configModels.KeyCareContractWithdrawalConfirmation\n\tcase carecontract.TerminationExtraordinary:\n\t\tkey = configModels.KeyCareContractExtraordinaryConfirmation\n\t}\n\ttexts, err := t.settings.TraegerTexts(ctx, organizationID, []string{key})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[key], nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/careContractNoticeTemplates.NoticeTemplate",
       "owner": "roots"
@@ -6281,7 +6281,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (n parentContractNotices) DeclareContractNotice(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader, traeger string, input parentportal.ContractNoticeInput) (parentportal.ContractNoticeOptions, error) {\n\toptions, err := n.notices.ParentDeclareNotice(ctx, organizationID, contractID, carecontract.InboxReader(reader), traeger, carecontract.NoticeInput{Kind: input.Kind, TerminationKind: input.TerminationKind, ExpectedEndsOn: input.ExpectedEndsOn})\n\treturn parentNoticeOptions(options), parentNoticeError(err)\n}",
+      "evidence": "func (n parentContractNotices) DeclareContractNotice(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader, traeger string, input parentportal.ContractNoticeInput) (parentportal.ContractNoticeOptions, error) {\n\toptions, err := n.notices.ParentDeclareNotice(ctx, organizationID, contractID, carecontract.InboxReader(reader), traeger, carecontract.NoticeInput{Kind: input.Kind, TerminationKind: input.TerminationKind, Reason: input.Reason, ExpectedEndsOn: input.ExpectedEndsOn})\n\treturn parentNoticeOptions(options), parentNoticeError(err)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentContractNotices.DeclareContractNotice",
       "owner": "roots"

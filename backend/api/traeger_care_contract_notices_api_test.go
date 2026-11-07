@@ -29,6 +29,8 @@ type noticeOptionsBody struct {
 		Kind             string         `json:"kind"`
 		Channel          string         `json:"channel"`
 		EndsOn           *calendar.Date `json:"ends_on"`
+		TerminationKind  string         `json:"termination_kind"`
+		Reason           string         `json:"reason"`
 		ConfirmationText string         `json:"confirmation_text"`
 	} `json:"notice"`
 }
@@ -171,4 +173,56 @@ func TestCareContractNoticeNeedsTheRightStaysWithItsTraegerAndIsAudited(t *testi
 		rec = traegerJSON(t, f.traeger, token, http.MethodGet, path+"?received_on="+day, nil)
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "%s: %s", day, rec.Body.String())
 	}
+}
+
+// An extraordinary termination the office received keeps the parents'
+// reason and an open end (#4682, § 312k Abs. 2 BGB); only the right
+// "Verträge verwalten" of its own Träger sets the end, once, not before the
+// receipt.
+func TestCareContractNoticeEndIsSetByTheOfficeAfterItsCheck(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag außerordentlich")
+	token := f.office.token
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	contract := concludeWithEarlyStart(t, f)
+	path := "/traeger/contract-notices/" + strconv.FormatInt(contract, 10)
+	var concludedOn calendar.Date
+	require.NoError(t, f.db.NewRaw(`SELECT (concluded_at AT TIME ZONE 'Europe/Berlin')::date FROM care_contract.contracts WHERE id = ?`,
+		contract).Scan(context.Background(), &concludedOn))
+
+	rec := traegerJSON(t, f.traeger, token, http.MethodPost, path, map[string]any{"kind": "kuendigung",
+		"termination_kind": "ausserordentlich", "received_on": concludedOn.String()})
+	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "reason", "an extraordinary termination names its reason")
+	rec = traegerJSON(t, f.traeger, token, http.MethodPost, path, map[string]any{"kind": "kuendigung",
+		"termination_kind": "ausserordentlich", "reason": "Umzug ins Ausland", "received_on": concludedOn.String()})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	done := decodeSchoolPortalData[noticeOptionsBody](t, rec.Body.Bytes())
+	assert.Equal(t, carecontract.StatusTerminated, done.Status)
+	require.NotNil(t, done.Notice)
+	assert.Equal(t, carecontract.TerminationExtraordinary, done.Notice.TerminationKind)
+	assert.Equal(t, "Umzug ins Ausland", done.Notice.Reason)
+	assert.Nil(t, done.Notice.EndsOn)
+	assert.Contains(t, done.Notice.ConfirmationText, "Umzug ins Ausland", "the default template repeats the reason")
+
+	end := concludedOn.AddDays(60).String()
+	billing := traegerColleague(t, f.reviewFixture, identityaccess.TraegerRoleBilling)
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPut, path+"/ends-on", map[string]any{"ends_on": end})
+	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	other := newTraegerOffice(t, f.db, f.traeger, "Träger Vertrag außerordentlich Fremd", identityaccess.TraegerRoleAdministration)
+	testpkg.OwnTraegerCareContracts(t, f.db, other.organization)
+	rec = traegerJSON(t, f.traeger, other.token, http.MethodPut, path+"/ends-on", map[string]any{"ends_on": end})
+	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, token, http.MethodPut, path+"/ends-on", map[string]any{"ends_on": concludedOn.AddDays(-1).String()})
+	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	rec = traegerJSON(t, f.traeger, token, http.MethodPut, path+"/ends-on", map[string]any{"ends_on": end})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	set := decodeSchoolPortalData[noticeOptionsBody](t, rec.Body.Bytes())
+	require.NotNil(t, set.Notice)
+	require.NotNil(t, set.Notice.EndsOn)
+	assert.Equal(t, end, set.Notice.EndsOn.String())
+	rec = traegerJSON(t, f.traeger, token, http.MethodPut, path+"/ends-on", map[string]any{"ends_on": end})
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "care_contract.notice_end_not_open")
 }

@@ -30,6 +30,9 @@ func (noticeTemplates) NoticeTemplate(_ context.Context, _ int64, kind string) (
 	if kind == carecontract.NoticeWithdrawal {
 		return "Widerruf für {Kind} am {Eingang}. {Träger}", nil
 	}
+	if kind == carecontract.TerminationExtraordinary {
+		return "Außerordentliche Kündigung für {Kind}, eingegangen am {Eingang}, Grund: {Grund} {Träger}", nil
+	}
 	return "Kündigung für {Kind} zum {Vertragsende}, eingegangen am {Eingang}. {Träger}", nil
 }
 

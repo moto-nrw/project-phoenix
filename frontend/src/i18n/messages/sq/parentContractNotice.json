@@ -9,7 +9,7 @@
   "bookedCare": "Kujdesi i rezervuar",
   "noticeTerms": "Afati i njoftimit",
   "chooseTitle": "Çfarë doni të bëni?",
-  "ordinary": "Ndërprit më {date}",
+  "ordinary": "Anulo me afat më {date}",
   "ordinaryHint": "Ky është afati më i afërt i mundshëm.",
   "special": "Ndërprerje e veçantë më {date}",
   "specialHint": "Vetëm me një arsye nga kontrata, për shembull një shpërngulje.",
@@ -34,5 +34,18 @@
   "declaredAt": "Marrë më",
   "sentTo": "Konfirmimi u dërgua te",
   "confirmationTitle": "Konfirmimi juaj",
-  "datesChanged": "Datat kanë ndryshuar. Ju lutemi zgjidhni përsëri."
+  "datesChanged": "Datat kanë ndryshuar. Ju lutemi zgjidhni përsëri.",
+  "extraordinary": "Anulo për një arsye të rëndësishme",
+  "extraordinaryHint": "Vetëm për një arsye të rëndësishme. Ofruesi e kontrollon dhe pastaj cakton datën e mbarimit.",
+  "reasonLabel": "Arsyeja juaj",
+  "reasonHint": "Shkruani shkurt pse e përfundoni kontratën.",
+  "reasonRequired": "Ju lutemi shkruani arsyen.",
+  "summaryExtraordinary": "Ofruesi e kontrollon arsyen tuaj. Pastaj cakton kur mbaron kontrata. Deri atëherë kujdesi vazhdon si është rezervuar.",
+  "doneExtraordinary": "Anulimi juaj u mor. Ofruesi e kontrollon arsyen dhe pastaj cakton datën e mbarimit.",
+  "kindLabel": "Lloji i anulimit",
+  "kindOrdinary": "Me afat",
+  "kindSpecial": "Anulim i veçantë",
+  "kindExtraordinary": "Për arsye të rëndësishme",
+  "endsOpen": "E cakton ofruesi pas kontrollit",
+  "declaredAtValue": "{date} në {time}"
 }
