@@ -1,5 +1,5 @@
 const MIN_SUPPORTED_GRADE_LEVEL = 1;
-const MAX_SUPPORTED_GRADE_LEVEL = 13;
+export const MAX_SUPPORTED_GRADE_LEVEL = 13;
 
 /**
  * Guards tenant/API grade caps before they reach form constraints. Missing,
@@ -14,4 +14,9 @@ export function isSupportedGradeLevelMax(value: unknown): value is number {
     value >= MIN_SUPPORTED_GRADE_LEVEL &&
     value <= MAX_SUPPORTED_GRADE_LEVEL
   );
+}
+
+/** „3. Klasse“: a grade level, not a named school class. */
+export function gradeLevelLabel(gradeLevel: number | string): string {
+  return `${gradeLevel}. Klasse`;
 }

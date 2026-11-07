@@ -1,7 +1,12 @@
-import { type ApiError, unavailableApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type { Translations } from "~/lib/enrollment-translations";
+import {
+  enrollmentErrorReader,
+  readEnrollmentJSON,
+  sendEnrollmentRequest,
+} from "~/lib/enrollment-http";
+
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-submission-api";
 
 const logger = createLogger({ component: "EnrollmentPhaseAPI" });
 
@@ -14,8 +19,6 @@ export type PhaseKind = "school_year" | "holiday" | "custom";
 export type PhaseAudience =
   "open" | "new_students" | "existing_students" | "linked_parents";
 export type PhaseCareOverflowMode = "waitlist" | "reject" | "allow";
-export type PhaseCareOfferingSelectionMode =
-  "optional" | "at_least_one" | "exactly_one";
 
 export interface Phase {
   id: string;
@@ -29,7 +32,7 @@ export interface Phase {
   calendar_period_id?: string | null;
   show_status_reason_to_parent: boolean;
   care_overflow_mode: PhaseCareOverflowMode;
-  care_offering_selection_mode: PhaseCareOfferingSelectionMode;
+  care_offering_selection_mode: CareOfferingSelectionMode;
   is_active: boolean;
   /** School-written translations of `name` (#3377). */
   translations?: Translations;
@@ -95,7 +98,7 @@ export interface PhaseInput {
   calendar_period_id?: string | null;
   show_status_reason_to_parent: boolean;
   care_overflow_mode: PhaseCareOverflowMode;
-  care_offering_selection_mode: PhaseCareOfferingSelectionMode;
+  care_offering_selection_mode: CareOfferingSelectionMode;
   is_active: boolean;
   available_school_classes?: string[];
   require_school_class?: boolean;
@@ -106,48 +109,9 @@ export interface PhaseInput {
   translations?: Translations;
 }
 
-interface BackendEnvelope<T> {
-  status?: string;
-  data?: T;
-  message?: string;
-  code?: string;
-}
-
 const BASE = "/api/enrollment/phases";
 
-/** A request that never reached the API counts as unavailable (#2515). */
-async function send(input: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(input, init);
-  } catch (cause) {
-    throw unavailableApiError(cause);
-  }
-}
-
-async function readJSON<T>(response: Response): Promise<T> {
-  const raw = (await response.json()) as BackendEnvelope<T>;
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "data" in raw &&
-    raw.data !== undefined
-  ) {
-    return raw.data as T;
-  }
-  return raw as unknown as T;
-}
-
-async function readError(
-  response: Response,
-  fallback: string,
-): Promise<ApiError> {
-  return readEnrollmentError(
-    response,
-    fallback,
-    logger,
-    "phase_request_failed",
-  );
-}
+const readError = enrollmentErrorReader(logger, "phase_request_failed");
 
 /**
  * Maps a Phase back to the full PUT body. The backend rebuilds the whole
@@ -202,26 +166,29 @@ export async function setPhaseCalendarPeriod(
 }
 
 export async function getPhase(id: string): Promise<Phase> {
-  const response = await send(`${BASE}/${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
+  const response = await sendEnrollmentRequest(
+    `${BASE}/${encodeURIComponent(id)}`,
+    {
+      cache: "no-store",
+    },
+  );
   if (!response.ok) {
     throw await readError(response, "Phase konnte nicht geladen werden");
   }
-  return readJSON<Phase>(response);
+  return readEnrollmentJSON<Phase>(response);
 }
 
 export async function listPhases(): Promise<Phase[]> {
-  const response = await send(BASE, { cache: "no-store" });
+  const response = await sendEnrollmentRequest(BASE, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(response, "Phasen konnten nicht geladen werden");
   }
-  const list = await readJSON<Phase[]>(response);
+  const list = await readEnrollmentJSON<Phase[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
 export async function listPhaseExpiryWarnings(): Promise<PhaseExpiryWarning[]> {
-  const response = await send(`${BASE}/expiry-warnings`, {
+  const response = await sendEnrollmentRequest(`${BASE}/expiry-warnings`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -230,12 +197,12 @@ export async function listPhaseExpiryWarnings(): Promise<PhaseExpiryWarning[]> {
       "Hinweise zum Phasenende konnten nicht geladen werden",
     );
   }
-  const list = await readJSON<PhaseExpiryWarning[]>(response);
+  const list = await readEnrollmentJSON<PhaseExpiryWarning[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
 export async function createPhase(input: PhaseInput): Promise<Phase> {
-  const response = await send(BASE, {
+  const response = await sendEnrollmentRequest(BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -243,22 +210,25 @@ export async function createPhase(input: PhaseInput): Promise<Phase> {
   if (!response.ok) {
     throw await readError(response, "Phase konnte nicht erstellt werden");
   }
-  return readJSON<Phase>(response);
+  return readEnrollmentJSON<Phase>(response);
 }
 
 export async function updatePhase(
   id: string,
   input: PhaseInput,
 ): Promise<Phase> {
-  const response = await send(`${BASE}/${encodeURIComponent(id)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const response = await sendEnrollmentRequest(
+    `${BASE}/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
   if (!response.ok) {
     throw await readError(response, "Phase konnte nicht gespeichert werden");
   }
-  return readJSON<Phase>(response);
+  return readEnrollmentJSON<Phase>(response);
 }
 
 /**
@@ -268,7 +238,7 @@ export async function updatePhase(
 export async function getPhaseDeleteImpact(
   id: string,
 ): Promise<PhaseDeleteImpact> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${BASE}/${encodeURIComponent(id)}/delete-impact`,
   );
   if (!response.ok) {
@@ -277,7 +247,7 @@ export async function getPhaseDeleteImpact(
       "Löschvorschau konnte nicht geladen werden",
     );
   }
-  return readJSON<PhaseDeleteImpact>(response);
+  return readEnrollmentJSON<PhaseDeleteImpact>(response);
 }
 
 /**
@@ -287,9 +257,12 @@ export async function getPhaseDeleteImpact(
  * no "has enrollments" guard anymore.
  */
 export async function deletePhase(id: string): Promise<void> {
-  const response = await send(`${BASE}/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-  });
+  const response = await sendEnrollmentRequest(
+    `${BASE}/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+    },
+  );
   if (response.status === 204) return;
   if (!response.ok) {
     throw await readError(response, "Phase konnte nicht gelöscht werden");
@@ -337,7 +310,7 @@ export async function createRollover(
   sourcePhaseID: string,
   input: RolloverInput,
 ): Promise<RolloverResult> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${BASE}/${encodeURIComponent(sourcePhaseID)}/rollover`,
     {
       method: "POST",
@@ -348,7 +321,7 @@ export async function createRollover(
   if (!response.ok) {
     throw await readError(response, "Rollover konnte nicht erstellt werden");
   }
-  return readJSON<RolloverResult>(response);
+  return readEnrollmentJSON<RolloverResult>(response);
 }
 
 export interface RolloverPreview {
@@ -370,14 +343,14 @@ export async function fetchRolloverPreview(
   sourcePhaseID: string,
   bumpsGrade: boolean,
 ): Promise<RolloverPreview> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${BASE}/${encodeURIComponent(sourcePhaseID)}/rollover-preview?bumps_grade=${bumpsGrade}`,
     { cache: "no-store" },
   );
   if (!response.ok) {
     throw await readError(response, "Vorschau konnte nicht geladen werden");
   }
-  return readJSON<RolloverPreview>(response);
+  return readEnrollmentJSON<RolloverPreview>(response);
 }
 
 export interface ReviewQueueItem {
@@ -399,13 +372,16 @@ export interface ReviewQueueItem {
 export async function listRolloverReview(
   phaseID: string,
 ): Promise<ReviewQueueItem[]> {
-  const response = await send(`${BASE}/${encodeURIComponent(phaseID)}/review`, {
-    cache: "no-store",
-  });
+  const response = await sendEnrollmentRequest(
+    `${BASE}/${encodeURIComponent(phaseID)}/review`,
+    {
+      cache: "no-store",
+    },
+  );
   if (!response.ok) {
     throw await readError(response, "Prüfliste konnte nicht geladen werden");
   }
-  const list = await readJSON<ReviewQueueItem[]>(response);
+  const list = await readEnrollmentJSON<ReviewQueueItem[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
@@ -420,7 +396,7 @@ export async function decideRolloverReview(
   requestChildID: string,
   input: ReviewDecisionInput,
 ): Promise<void> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/admin/request-children/${encodeURIComponent(requestChildID)}/rollover-review`,
     {
       method: "POST",
@@ -516,7 +492,7 @@ export function mapPhaseResponseOverview(
 export async function getPhaseResponseOverview(
   phaseID: string,
 ): Promise<PhaseResponseOverview> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${BASE}/${encodeURIComponent(phaseID)}/responses`,
     { cache: "no-store" },
   );
@@ -524,6 +500,6 @@ export async function getPhaseResponseOverview(
     throw await readError(response, "Rücklauf konnte nicht geladen werden");
   }
   return mapPhaseResponseOverview(
-    await readJSON<BackendPhaseResponseOverview>(response),
+    await readEnrollmentJSON<BackendPhaseResponseOverview>(response),
   );
 }

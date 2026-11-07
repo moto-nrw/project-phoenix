@@ -1198,7 +1198,7 @@ src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@226 text-[11px]@275
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@970
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/files/files-page.tsx|text-[11px]@180 text-[11px]@287
 src/components/guardians/guardian-list.tsx|text-[10px]@466

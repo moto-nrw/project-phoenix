@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  isOpenChangeRequestStatus,
+  isTerminalChildStatus,
+} from "~/lib/enrollment-status";
+import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/components/enrollment/enrollment-change-request-status";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Alert } from "~/components/ui/alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
@@ -48,10 +53,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { BackLink } from "~/components/ui/back-link";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
-import {
-  StatusBadge,
-  type StatusBadgeTone,
-} from "~/components/ui/status-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { EnrollmentSignatureStatus } from "~/components/enrollment/enrollment-signature-status";
@@ -60,27 +62,6 @@ import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 import { IconTile } from "~/components/ui/icon-tile";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
-
-const TERMINAL_STATUSES = new Set<StatusChild["status"]>([
-  "approved",
-  "rejected",
-  "withdrawn",
-]);
-
-const CHANGE_REQUEST_TONES: Record<
-  EnrollmentChangeRequest["status"],
-  StatusBadgeTone
-> = {
-  pending_review: "blue",
-  needs_parent_response: "orange",
-  approved: "green",
-  rejected: "red",
-  cancelled: "gray",
-};
-
-const OPEN_CHANGE_REQUEST_STATUSES = new Set<EnrollmentChangeRequest["status"]>(
-  ["pending_review", "needs_parent_response"],
-);
 
 interface Props {
   readonly token: string;
@@ -517,7 +498,7 @@ function EnrollmentStatusContent({
     status.children.every((child) => child.status === "withdrawn");
   const hasMultipleChildren = status.children.length > 1;
   const hasOpenChangeRequest = changeRequests.some((request) =>
-    OPEN_CHANGE_REQUEST_STATUSES.has(request.status),
+    isOpenChangeRequestStatus(request.status),
   );
   const canRequestChange =
     status.edit_mode === "change_request" && !hasOpenChangeRequest;
@@ -1094,7 +1075,7 @@ function EnrollmentChildrenSection({
           const canWithdraw =
             hasMultipleChildren &&
             !justSubmitted &&
-            !TERMINAL_STATUSES.has(child.status);
+            !isTerminalChildStatus(child.status);
           return (
             <EnrollmentChildRow
               key={child.id}
@@ -1601,7 +1582,7 @@ function ChangeRequestPill({
   const t = useTranslations("enrollmentStatus");
   return (
     <StatusBadge
-      tone={CHANGE_REQUEST_TONES[status]}
+      tone={ENROLLMENT_CHANGE_REQUEST_STATUS_META[status].tone}
       label={t(`changeRequestStatus.${status}`)}
     />
   );
