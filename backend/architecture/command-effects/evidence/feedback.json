@@ -49,6 +49,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.CreateBatch",
+      "binding_digest": "22103b87f703e8079d39717c5af1b5ec",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.CreateBatch",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.Delete",
       "binding_digest": "22103b87f703e8079d39717c5af1b5ec",
       "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.Delete",
