@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FieldLabel } from "~/components/ui/field-label";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
@@ -448,12 +449,7 @@ export function SpontaneousActivityStart({
               }
             }}
           >
-            <label
-              htmlFor="activity"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Aktivität
-            </label>
+            <FieldLabel htmlFor="activity">Aktivität</FieldLabel>
             <div className="relative">
               <Search
                 className="pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2 text-gray-400"

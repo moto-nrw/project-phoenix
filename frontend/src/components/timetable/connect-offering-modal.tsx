@@ -13,6 +13,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { EditActions } from "~/components/ui/edit-actions";
+import { FieldLabel } from "~/components/ui/field-label";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { MultiSelect } from "~/components/ui/multi-select";
@@ -219,15 +220,15 @@ export function ConnectOfferingModal({
               : `„${templateName}“ bekommt seine Kinder dann aus ${selectedOfferings.length > 1 ? "den Angeboten" : "dem Angebot"} ${offeringSetNames(selectedOfferings)}.`}
         </p>
         <div className="flex flex-col gap-1">
-          <label
-            htmlFor={OFFERINGS_FIELD_ID}
-            className="text-sm font-medium text-gray-700"
-          >
+          <FieldLabel htmlFor={OFFERINGS_FIELD_ID} className="mb-0">
             Angebote
-          </label>
+          </FieldLabel>
           <MultiSelect
             id={OFFERINGS_FIELD_ID}
             ariaLabel="Angebote"
+            ariaDescribedBy={
+              phaseLocked ? `${OFFERINGS_FIELD_ID}-hint` : undefined
+            }
             value={offeringIds}
             options={options}
             onChange={setOfferingIds}
@@ -241,7 +242,10 @@ export function ConnectOfferingModal({
             }
           />
           {phaseLocked ? (
-            <p className="text-xs text-gray-500">
+            <p
+              id={`${OFFERINGS_FIELD_ID}-hint`}
+              className="text-xs text-gray-500"
+            >
               Angebote anderer Anmeldephasen sind ausgegraut, solange ein
               Angebot gewählt ist.
             </p>
