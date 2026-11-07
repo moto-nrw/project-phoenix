@@ -287,8 +287,17 @@ func (s *statusDayStore) CountCarePlanDeletionRecords(ctx context.Context, stude
 		(SELECT COUNT(*) FROM active.student_status_days WHERE tenant_id = ? AND student_id = ?)::int AS status_days,
 		(SELECT COUNT(*) FROM active.excused_absence_requests WHERE tenant_id = ? AND student_id = ?)::int AS excused_requests,
 		(SELECT COUNT(*) FROM schedule.care_schedule_change_requests WHERE tenant_id = ? AND student_id = ?)::int AS care_requests,
-		(SELECT COUNT(*) FROM users.student_data_change_requests WHERE tenant_id = ? AND student_id = ?)::int AS data_requests`,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID)
+		(SELECT COUNT(*) FROM users.student_data_change_requests WHERE tenant_id = ? AND student_id = ?)::int AS data_requests,
+		((SELECT COUNT(*) FROM schedule.student_arrival_schedules WHERE tenant_id = ? AND student_id = ?) +
+		 (SELECT COUNT(*) FROM schedule.student_arrival_exceptions WHERE tenant_id = ? AND student_id = ?) +
+		 (SELECT COUNT(*) FROM schedule.student_arrival_notes WHERE tenant_id = ? AND student_id = ?) +
+		 (SELECT COUNT(*) FROM schedule.student_pickup_schedules WHERE tenant_id = ? AND student_id = ?) +
+		 (SELECT COUNT(*) FROM schedule.student_pickup_exceptions WHERE tenant_id = ? AND student_id = ?) +
+		 (SELECT COUNT(*) FROM schedule.student_pickup_notes WHERE tenant_id = ? AND student_id = ?) +
+		 (SELECT COUNT(*) FROM schedule.student_departure_exceptions WHERE tenant_id = ? AND student_id = ?))::int AS schedule_rows`,
+		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		tenantID, studentID, tenantID, studentID, tenantID, studentID)
 	started := time.Now()
 	err = query.Scan(ctx, &counts)
 	stats := requestStats(started, 1)

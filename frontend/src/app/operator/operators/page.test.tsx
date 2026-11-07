@@ -53,6 +53,25 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 vi.mock("~/components/ui/modal", () => ({
+  Modal: ({
+    isOpen,
+    onClose,
+    title,
+    children,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    title: string;
+    children: React.ReactNode;
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label={title}>
+        {children}
+        <button type="button" onClick={onClose}>
+          Schließen
+        </button>
+      </div>
+    ) : null,
   ConfirmationModal: ({
     isOpen,
     onClose,
@@ -146,6 +165,12 @@ function openActions(displayName: string) {
   );
 }
 
+function openInviteForm() {
+  fireEvent.click(
+    screen.getByRole("button", { name: "Neuen Operator einladen" }),
+  );
+}
+
 describe("OperatorOperatorsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -155,19 +180,30 @@ describe("OperatorOperatorsPage", () => {
     setupSWR(sampleData);
     render(<OperatorOperatorsPage />);
 
-    expect(screen.getByText("Operatoren")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Operatoren" }),
+    ).toBeInTheDocument();
+    // Die Erklärung liegt hinter dem Info-Knopf neben dem Titel (#5604).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erklärung zu Operatoren" }),
+    );
     expect(
       screen.getByText("Neue Operatoren einladen und bestehende anzeigen."),
     ).toBeInTheDocument();
   });
 
-  it("shows loading skeleton when loading", () => {
+  it("keeps the invitation form reachable while the list loads", () => {
     setupSWR(undefined, { isLoading: true });
     render(<OperatorOperatorsPage />);
 
     expect(
       screen.getByLabelText("Operatoren werden geladen"),
     ).toBeInTheDocument();
+    openInviteForm();
+    expect(
+      screen.getByRole("dialog", { name: "Neuen Operator einladen" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("E-Mail-Adresse")).toBeInTheDocument();
   });
 
   it("displays pending invitations and operators", () => {
@@ -227,6 +263,7 @@ describe("OperatorOperatorsPage", () => {
     mockCreateInvitation.mockResolvedValue(undefined);
 
     render(<OperatorOperatorsPage />);
+    openInviteForm();
 
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "new@example.com" },
@@ -246,6 +283,9 @@ describe("OperatorOperatorsPage", () => {
     expect(
       await screen.findByText("Einladung wurde gesendet."),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Neuen Operator einladen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("sends undefined displayName when field is empty", async () => {
@@ -253,6 +293,7 @@ describe("OperatorOperatorsPage", () => {
     mockCreateInvitation.mockResolvedValue(undefined);
 
     render(<OperatorOperatorsPage />);
+    openInviteForm();
 
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "new@example.com" },
@@ -280,6 +321,7 @@ describe("OperatorOperatorsPage", () => {
     );
 
     render(<OperatorOperatorsPage />);
+    openInviteForm();
 
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "fail@example.com" },
@@ -370,6 +412,27 @@ describe("OperatorOperatorsPage", () => {
     expect(modal.textContent).toContain("pending@example.com");
   });
 
+  it("keeps the revoke confirmation open while the list reloads", () => {
+    const swrState = {
+      data: sampleData as OperatorInvitationsData | undefined,
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: mockMutate,
+    };
+    mockUseSWR.mockImplementation(() => swrState);
+    const view = render(<OperatorOperatorsPage />);
+
+    fireEvent.click(screen.getByText("Widerrufen"));
+    swrState.data = undefined;
+    swrState.isLoading = true;
+    view.rerender(<OperatorOperatorsPage />);
+
+    expect(screen.getByTestId("confirmation-modal")).toHaveTextContent(
+      "pending@example.com",
+    );
+  });
+
   it("handles revoke confirmation", async () => {
     setupSWR(sampleData);
     mockRevokeInvitation.mockResolvedValue(undefined);
@@ -451,6 +514,28 @@ describe("OperatorOperatorsPage", () => {
       await screen.findByText("Colleague User wurde deaktiviert."),
     ).toBeInTheDocument();
     expect(mockMutate).toHaveBeenCalled();
+  });
+
+  it("keeps the deactivation confirmation open while the list reloads", () => {
+    const swrState = {
+      data: sampleData as OperatorInvitationsData | undefined,
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: mockMutate,
+    };
+    mockUseSWR.mockImplementation(() => swrState);
+    const view = render(<OperatorOperatorsPage />);
+
+    openActions("Colleague User");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Deaktivieren" }));
+    swrState.data = undefined;
+    swrState.isLoading = true;
+    view.rerender(<OperatorOperatorsPage />);
+
+    expect(screen.getByTestId("confirmation-modal")).toHaveTextContent(
+      "colleague@example.com",
+    );
   });
 
   it("disables the deactivation confirmation while the request runs", async () => {

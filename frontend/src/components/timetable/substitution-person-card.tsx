@@ -16,6 +16,7 @@ import {
   isEditableAppointment,
   type PersonForm,
 } from "./substitution-deviation-input";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface PersonCardProps {
   row: InstanceStaffSummary;
@@ -234,7 +235,7 @@ function AppointmentList(props: AppointmentListProps) {
   const { staffId, person, appointments, onUpdate, onToggleAppointment } =
     props;
   return (
-    <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+    <InsetPanel framed className="space-y-2">
       <p className="text-xs font-semibold text-gray-700">Termine auswählen</p>
       <ul className="space-y-2">
         {appointments.map((appointment) => (
@@ -264,7 +265,7 @@ function AppointmentList(props: AppointmentListProps) {
           </span>
         </label>
       )}
-    </div>
+    </InsetPanel>
   );
 }
 

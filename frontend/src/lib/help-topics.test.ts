@@ -144,6 +144,12 @@ describe("getParentHelpTopicForPath", () => {
     ["/anmeldung", HELP_TOPICS.parentEnroll],
     ["/anmeldung/demo-school/1", HELP_TOPICS.parentEnroll],
     ["/ferienanmeldung/link-key", HELP_TOPICS.parentHolidayRegistration],
+    // Unterschriftsseite aus den Dokumenten (#4679) und Nachweis eines
+    // Elternbriefs liegen unter ihrer Liste.
+    ["/documents/vertrag/7/12", HELP_TOPICS.parentDocuments],
+    ["/parents/documents/vertrag/7/12", HELP_TOPICS.parentDocuments],
+    ["/vertrag-unterschreiben", HELP_TOPICS.parentDocuments],
+    ["/news/5/nachweis", HELP_TOPICS.parentNews],
     // Auf der Eltern-Subdomain fehlt das Praefix, im Tenant-Kontext
     // steht es davor. Beide Formen fuehren zum selben Artikel.
     ["/parents/children", HELP_TOPICS.parentChildOverview],

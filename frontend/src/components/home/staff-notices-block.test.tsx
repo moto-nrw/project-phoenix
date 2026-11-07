@@ -10,7 +10,7 @@ vi.mock("next-auth/react", () => ({
   useSession: () => ({ data: { user: { id: session.accountId } } }),
 }));
 vi.mock("~/components/home/home-card", () => ({
-  HOME_CARD_BODY: "",
+  HomeCard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   HomeCardIcon: () => null,
 }));
 vi.mock("~/components/home/home-card-rows", () => ({
@@ -22,9 +22,6 @@ vi.mock("~/components/home/home-card-rows", () => ({
 }));
 vi.mock("~/components/staff-notices/today-notice-list", () => ({
   TodayNoticeList: () => null,
-}));
-vi.mock("~/components/ui/section-card", () => ({
-  SectionCard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock("~/lib/staff-notices-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/staff-notices-api")>()),

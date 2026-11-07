@@ -1,7 +1,9 @@
 "use client";
 
+import { FieldLabel } from "~/components/ui/field-label";
+import { FramedList } from "~/components/ui/framed-list";
 import { groups as groupsKeys } from "~/lib/swr/groups";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Check } from "lucide-react";
 
 import { summarizeTargets } from "~/components/announcements/announcement-meta";
@@ -155,6 +157,7 @@ export function ParentTargetPicker({
 
   // Students are too many to list, so this stays a debounced search; the chosen
   // children render as removable chips below it.
+  const fieldId = useId();
   const [studentSearch, setStudentSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -194,8 +197,6 @@ export function ParentTargetPicker({
     () => void retryStudentSearch(),
   );
 
-  const fieldLabel = "mb-1.5 block text-sm font-medium text-gray-700";
-
   return (
     <div className="space-y-4">
       <div>
@@ -230,9 +231,15 @@ export function ParentTargetPicker({
           <LoadErrorAlert error={lookupLoadError} />
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <span className={fieldLabel}>Klassen</span>
+              <FieldLabel
+                id={`${fieldId}-classes-label`}
+                htmlFor={`${fieldId}-classes`}
+              >
+                Klassen
+              </FieldLabel>
               <MultiSelect
-                ariaLabel="Klassen auswählen"
+                id={`${fieldId}-classes`}
+                ariaLabelledBy={`${fieldId}-classes-label`}
                 value={selectedClasses}
                 options={schoolClasses.map((c) => ({ value: c, label: c }))}
                 onChange={(values) => setCategory("class", values)}
@@ -245,9 +252,15 @@ export function ParentTargetPicker({
               />
             </div>
             <div>
-              <span className={fieldLabel}>Gruppen</span>
+              <FieldLabel
+                id={`${fieldId}-groups-label`}
+                htmlFor={`${fieldId}-groups`}
+              >
+                Gruppen
+              </FieldLabel>
               <MultiSelect
-                ariaLabel="Gruppen auswählen"
+                id={`${fieldId}-groups`}
+                ariaLabelledBy={`${fieldId}-groups-label`}
                 value={selectedGroups}
                 options={groups.map((g) => ({ value: g.id, label: g.name }))}
                 onChange={(values) => setCategory("group", values)}
@@ -260,9 +273,15 @@ export function ParentTargetPicker({
               />
             </div>
             <div>
-              <span className={fieldLabel}>AGs / Betreuung</span>
+              <FieldLabel
+                id={`${fieldId}-activities-label`}
+                htmlFor={`${fieldId}-activities`}
+              >
+                AGs / Betreuung
+              </FieldLabel>
               <MultiSelect
-                ariaLabel="AGs auswählen"
+                id={`${fieldId}-activities`}
+                ariaLabelledBy={`${fieldId}-activities-label`}
                 value={selectedActivities}
                 options={activities.map((a) => ({
                   value: a.id,
@@ -280,7 +299,9 @@ export function ParentTargetPicker({
           </div>
 
           <div>
-            <span className={fieldLabel}>Einzelne Kinder</span>
+            <FieldLabel htmlFor="announcement-student-search">
+              Einzelne Kinder
+            </FieldLabel>
             {selectedStudents.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2">
                 {selectedStudents.map((t) => (
@@ -310,35 +331,38 @@ export function ParentTargetPicker({
               placeholder="Kind suchen (mind. 2 Zeichen)…"
             />
             {debouncedSearch.length >= 2 && (
-              <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200">
+              <FramedList maxHeight="sm" className="mt-2">
                 {studentsLoadError ? (
-                  <LoadErrorAlert error={studentsLoadError} />
+                  <li>
+                    <LoadErrorAlert error={studentsLoadError} />
+                  </li>
                 ) : studentsLoading || (studentsError && !studentResults) ? (
-                  <p className="px-3 py-2 text-sm text-gray-500">
+                  <li className="px-3 py-2 text-sm text-gray-500">
                     Wird gesucht…
-                  </p>
+                  </li>
                 ) : (studentResults?.length ?? 0) === 0 ? (
-                  <p className="px-3 py-2 text-sm text-gray-500">
+                  <li className="px-3 py-2 text-sm text-gray-500">
                     Keine Kinder gefunden.
-                  </p>
+                  </li>
                 ) : (
                   studentResults?.map((student) => (
-                    <button
-                      key={student.id}
-                      type="button"
-                      onClick={() => addStudent(student)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
-                    >
-                      <span className="truncate">{student.name}</span>
-                      {student.school_class && (
-                        <span className="ml-2 shrink-0 text-xs text-gray-400">
-                          {student.school_class}
-                        </span>
-                      )}
-                    </button>
+                    <li key={student.id}>
+                      <button
+                        type="button"
+                        onClick={() => addStudent(student)}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                      >
+                        <span className="truncate">{student.name}</span>
+                        {student.school_class && (
+                          <span className="ml-2 shrink-0 text-xs text-gray-400">
+                            {student.school_class}
+                          </span>
+                        )}
+                      </button>
+                    </li>
                   ))
                 )}
-              </div>
+              </FramedList>
             )}
           </div>
         </>

@@ -219,9 +219,14 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0156: the booked care read and the overrun evaluation of
 // modules/carecontract/compose (+19) and the contract Soll port of
 // modules/studentpresence/compose (+4) add exactly 23 LOC.
+// ADR 0155: the signature constructors of modules/carecontract/compose (+58:
+// link, inbox signing, paper signature, reminders and their ports) and the
+// Träger signature ledger of modules/auditlog/compose (+8) add exactly 66 LOC,
+// and the test hook that stores the signing link of a contract a test wrote
+// directly (+17, testhooks).
 // ADR 0158: the monthly contribution constructor of
 // modules/parentbilling/compose adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 12985
+const moduleComposeBudgetTotal = 13045
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -233,7 +238,8 @@ const moduleComposeBudgetTotal = 12985
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose": 45,
 	// ADR 0103: the signature ledger constructor, construction only.
-	"modules/auditlog/compose": 189,
+	// ADR 0155: the signature ledger at the Träger (+8).
+	"modules/auditlog/compose": 197,
 	// Raised by ADR 0128: the manual plans port of the booking materialization (+1).
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0153: the contract offerings constructor (+9).
@@ -248,7 +254,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/dataimport/compose/imports": 29,
 	// ADR 0145: +40 LOC for transport lifecycle, -8 LOC for the retired local wrapper.
 	"modules/delivery/compose":                      393,
-	"modules/devicefleet/compose":                   219,
+	"modules/devicefleet/compose":                   203,
 	"modules/devicefleet/compose/repositoryadapter": 10,
 	// ADR 0124: bind the optional heartbeat to the tenant runtime savepoint (+9).
 	"modules/devicescan/compose":        540,
@@ -287,7 +293,9 @@ var moduleComposeBudgets = map[string]int{
 	// Added by ADR 0153: construction of the care contract owner, with the
 	// ports of the contract reads for the schools' access logs.
 	// ADR 0156: the booked care read and the overrun evaluation (+19); #4681 lowers it by 2.
-	"modules/carecontract/compose": 67,
+	// ADR 0155: the signature, the paper contract and the reminders (+58),
+	// the test hook of the signing link (+17).
+	"modules/carecontract/compose": 142,
 	// Raised by ADR 0158: the monthly contribution constructor (+5).
 	"modules/parentbilling/compose":               55,
 	"modules/parentrequestfeedprojection/compose": 11,
@@ -310,7 +318,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0154: the group names constructor (+13).
 	"modules/schoolstructure/compose": 606,
 	// Raised by ADR 0107: the Träger settings store, runtime and service.
-	"modules/settings/compose":             322,
+	"modules/settings/compose":             315,
 	"modules/studentdirectoryview/compose": 9,
 	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
 	// ADR 0151: the school figure constructor (+13).

@@ -18,17 +18,13 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
  * 3. A "Neuen Zeitraum anlegen" footer.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "~/components/ui/navigation-link";
 import { Check, ChevronDown, Plus, SlidersHorizontal } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import { useClickOutside } from "~/lib/hooks/use-click-outside";
-import {
-  timetablePopoverSurface,
-  timetableWarningText,
-} from "./timetable-style";
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
 
 import {
   type CalendarPeriod,
@@ -76,7 +72,6 @@ export function PeriodSwitcherDropdown({
   canManage = true,
 }: PeriodSwitcherDropdownProps) {
   const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const tenantPath = useTenantAwarePath();
 
   const isoDays = useMemo(() => weekDays.map(toISODate), [weekDays]);
@@ -145,10 +140,6 @@ export function PeriodSwitcherDropdown({
     ].filter((g) => g.periods.length > 0);
   }, [periods, today]);
 
-  // Click-outside / Escape to close.
-  const closeMenu = useCallback(() => setOpen(false), []);
-  useClickOutside(containerRef, closeMenu, open);
-
   // While loading, render a skeleton sized like the trigger pill so the
   // header keeps its place instead of popping in when periods resolve.
   if (isLoading) {
@@ -172,37 +163,76 @@ export function PeriodSwitcherDropdown({
   }
 
   return (
-    <div className="relative" ref={containerRef}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="compact"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        className="-ml-2.5 max-w-[240px]"
-        title="Planungszeitraum wechseln"
-      >
-        <StatusDot className="bg-moto-green" decorative />
-        <span className="truncate">{triggerLabel}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-gray-400" aria-hidden />
-      </Button>
-
-      {open && (
-        <div
-          className={`absolute left-0 z-30 mt-2 w-[calc(100vw-3rem)] max-w-96 sm:right-0 sm:left-auto sm:w-96 ${timetablePopoverSurface}`}
+    <AnchoredPopover
+      open={open}
+      onOpenChange={setOpen}
+      ariaLabel="Planungszeitraum"
+      preferredWidth={384}
+      align="end"
+      focusPanelOnOpen
+      header={
+        <>
+          <p className="text-sm font-semibold text-gray-900">
+            Planungszeitraum
+          </p>
+          <p className="text-[11px] text-gray-500">
+            Zeiträume legen fest, in welchen Wochen regelmäßige Termine gelten.
+            So kannst du Schuljahr, Ferien oder besondere Phasen getrennt
+            planen.
+          </p>
+        </>
+      }
+      footer={
+        canManage ? (
+          <>
+            {/* Menüeintrag der Auswahl wie der Verwaltungslink darunter,
+                kein Kit-Knopf (#5529: Menüeinträge sind keine Buttons). */}
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onCreate();
+              }}
+              className="flex h-8 w-full items-center gap-1.5 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
+            >
+              <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
+            </button>
+            {/* Verwaltungslink: /calendar-periods ist auch als Unterpunkt im
+                Planung-Bereich der Sidebar erreichbar (#1946); der Chip bleibt
+                als direkter Weg aus dem Planungskontext. tenantPath hält den
+                Link im Path-Routing-Modus innerhalb des Tenant-Segments. */}
+            <Link
+              href={tenantPath("/calendar-periods")}
+              onClick={() => setOpen(false)}
+              className="flex h-8 w-full items-center gap-1 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+            >
+              <SlidersHorizontal className="h-4 w-4" aria-hidden /> Schuljahr
+              und Kalender verwalten
+            </Link>
+          </>
+        ) : undefined
+      }
+      renderTrigger={({ ref, toggle, panelId }) => (
+        <Button
+          ref={ref}
+          type="button"
+          variant="ghost"
+          size="compact"
+          onClick={toggle}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-controls={open ? panelId : undefined}
+          className="-ml-2.5 max-w-[240px]"
+          title="Planungszeitraum wechseln"
         >
-          <div className="border-b border-gray-100 px-4 py-3">
-            <p className="text-sm font-semibold text-gray-900">
-              Planungszeitraum
-            </p>
-            <p className="text-[11px] text-gray-500">
-              Zeiträume legen fest, in welchen Wochen regelmäßige Termine
-              gelten. So kannst du Schuljahr, Ferien oder besondere Phasen
-              getrennt planen.
-            </p>
-          </div>
-
+          <StatusDot className="bg-moto-green" decorative />
+          <span className="truncate">{triggerLabel}</span>
+          <ChevronDown className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+        </Button>
+      )}
+    >
+      {({ close }) => (
+        <>
           {showContextAssignments && view === "month" && (
             <MonthPeriodSummary
               assignedPeriods={assignedPeriods}
@@ -247,7 +277,7 @@ export function PeriodSwitcherDropdown({
                             })()}
                           </>
                         ) : (
-                          <span className={timetableWarningText}>
+                          <span className="text-moto-amber-strong">
                             Kein aktiver Zeitraum
                           </span>
                         )}
@@ -260,7 +290,7 @@ export function PeriodSwitcherDropdown({
           )}
 
           {/* All periods, grouped */}
-          <div className="max-h-72 overflow-y-auto py-1">
+          <div className="py-1">
             {grouped.map((group) => (
               <div key={group.label} className="py-1">
                 <p className="px-4 py-1 text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
@@ -275,7 +305,7 @@ export function PeriodSwitcherDropdown({
                       <button
                         type="button"
                         onClick={() => {
-                          setOpen(false);
+                          close();
                           onSelect(p);
                         }}
                         className={`group relative min-w-0 flex-1 rounded-lg px-2 py-1.5 pr-8 text-left transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
@@ -313,39 +343,9 @@ export function PeriodSwitcherDropdown({
               </div>
             ))}
           </div>
-
-          {/* Footer: create new */}
-          {canManage && (
-            // Menüeintrag der Auswahl wie der Verwaltungslink darunter,
-            // kein Kit-Knopf (#5529: Menüeinträge sind keine Buttons).
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                onCreate();
-              }}
-              className="flex h-8 w-full items-center gap-1.5 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
-            >
-              <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
-            </button>
-          )}
-          {/* Verwaltungslink: /calendar-periods ist auch als Unterpunkt im
-              Planung-Bereich der Sidebar erreichbar (#1946); der Chip bleibt
-              als direkter Weg aus dem Planungskontext. tenantPath hält den
-              Link im Path-Routing-Modus innerhalb des Tenant-Segments. */}
-          {canManage && (
-            <Link
-              href={tenantPath("/calendar-periods")}
-              onClick={() => setOpen(false)}
-              className="flex h-8 w-full items-center gap-1 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-            >
-              <SlidersHorizontal className="h-4 w-4" aria-hidden /> Schuljahr
-              und Kalender verwalten
-            </Link>
-          )}
-        </div>
+        </>
       )}
-    </div>
+    </AnchoredPopover>
   );
 }
 
@@ -377,7 +377,7 @@ function MonthPeriodSummary({
         <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
           Dieser Monat
         </p>
-        <p className={`text-xs ${timetableWarningText}`}>
+        <p className="text-moto-amber-strong text-xs">
           Für diesen Monat ist kein aktiver Zeitraum hinterlegt.
         </p>
       </div>
@@ -401,7 +401,7 @@ function MonthPeriodSummary({
           </p>
         ))}
         {hasMissingDays && (
-          <p className={`text-[11px] ${timetableWarningText}`}>
+          <p className="text-moto-amber-strong text-[11px]">
             Einige Tage haben keinen aktiven Zeitraum.
           </p>
         )}

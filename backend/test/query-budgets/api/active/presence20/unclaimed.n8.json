@@ -1,0 +1,6 @@
+{
+  "scenario": "api.active.presence20.unclaimed.n8",
+  "max": 6,
+  "exact": true,
+  "description": "Production resource, positive N8 input, complete real tenant request SQL."
+}

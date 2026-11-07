@@ -20,6 +20,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { todayISO } from "~/lib/date-helpers";
@@ -60,9 +61,9 @@ import {
 } from "~/lib/student-update-errors";
 import type { AllowedDepartureModes } from "~/lib/departure-plan";
 import {
-  ParentVisibleBadge,
+  VisibilityBadge,
   ParentVisibilityLegend,
-} from "~/components/ui/parent-visible-badge";
+} from "~/components/ui/visibility-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { createLogger } from "~/lib/logger";
@@ -949,12 +950,12 @@ function TextInput({
 }: Readonly<TextInputProps>) {
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1">
-        <label htmlFor={id} className="block text-xs text-gray-500">
+      <div className="mb-2 flex items-center gap-1">
+        <FieldLabel htmlFor={id} className="mb-0">
           {label}
-        </label>
+        </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <Input
@@ -985,17 +986,13 @@ function SelectInput({
   options,
 }: Readonly<SelectInputProps>) {
   return (
-    <div>
-      <label htmlFor={id} className="mb-1 block text-xs text-gray-500">
-        {label}
-      </label>
-      <CustomSelect
-        id={id}
-        value={value}
-        onChange={onChange}
-        options={options}
-      />
-    </div>
+    <CustomSelect
+      label={label}
+      id={id}
+      value={value}
+      onChange={onChange}
+      options={options}
+    />
   );
 }
 
@@ -1017,12 +1014,12 @@ function DateInput({
 }: Readonly<DateInputProps>) {
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1">
-        <label htmlFor={id} className="block text-xs text-gray-500">
+      <div className="mb-2 flex items-center gap-1">
+        <FieldLabel htmlFor={id} className="mb-0">
           {label}
-        </label>
+        </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <ISODatePicker
@@ -1062,12 +1059,12 @@ function TextAreaInput({
 }: Readonly<TextAreaInputProps>) {
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1">
-        <label htmlFor={id} className="block text-xs text-gray-500">
+      <div className="mb-2 flex items-center gap-1">
+        <FieldLabel htmlFor={id} className="mb-0">
           {label}
-        </label>
+        </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <Textarea

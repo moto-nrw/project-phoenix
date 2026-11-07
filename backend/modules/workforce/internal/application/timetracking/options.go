@@ -93,7 +93,7 @@ func WithAbsenceTypes(reader AbsenceTypeReader) StaffAbsenceOption {
 
 // WithAbsenceMonthSnapshots supplies the frozen-month reader (#1417) that
 // blocks a rebooking inside a closed month (#3258).
-func WithAbsenceMonthSnapshots(reader adjustmentFreezeReader) StaffAbsenceOption {
+func WithAbsenceMonthSnapshots(reader absenceMonthSnapshotReader) StaffAbsenceOption {
 	return func(s *staffAbsenceService) { s.snapshotRepo = reader }
 }
 

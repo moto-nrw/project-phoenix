@@ -18,6 +18,7 @@
  * is a radio branch, not a checkbox that silently disables the rest.
  */
 
+import { ListRow } from "~/components/ui/list-row";
 import { RotateCcw } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -55,7 +56,6 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -67,11 +67,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { useApiFormError } from "~/contexts/ToastContext";
 
-import {
-  instanceStatusTone,
-  timetableMutedSurface,
-  timetableNestedSurface,
-} from "./timetable-style";
+import { instanceStatusTone } from "./timetable-colors";
 import {
   buildStaffDeviationInput,
   coverageIds as resolveCoverageIds,
@@ -89,6 +85,7 @@ import {
 } from "./guardian-notice-fields";
 import type { GuardianNoticeReach } from "~/lib/timetable-types";
 import { substitutionConcept } from "~/lib/concepts/substitution";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface StaffOption {
   id: string;
@@ -576,33 +573,28 @@ export function SubstitutionSlideOver({
             className="flex min-h-0 flex-1 flex-col"
           >
             <SlideOverHeader className="pb-0">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <SlideOverTitle>{instance.title}</SlideOverTitle>
-                    <StatusBadge
-                      label={getStatusLabel(instance.status)}
-                      tone={instanceStatusTone[instance.status]}
-                      compact
-                    />
-                    {typeBadge && (
-                      <StatusColorBadge
-                        label={typeBadge.label}
-                        color={typeBadge.color}
-                        compact
-                      />
-                    )}
-                  </div>
-                  <SlideOverDescription>
-                    {formatDate(instance.date)} • {instance.startTime} –{" "}
-                    {instance.endTime} • {instanceRoomLabel(instance)}
-                  </SlideOverDescription>
-                </div>
-                <SlideOverCloseButton />
+              <div className="flex flex-wrap items-center gap-2">
+                <SlideOverTitle>{instance.title}</SlideOverTitle>
+                <StatusBadge
+                  label={getStatusLabel(instance.status)}
+                  tone={instanceStatusTone[instance.status]}
+                  compact
+                />
+                {typeBadge && (
+                  <StatusColorBadge
+                    label={typeBadge.label}
+                    color={typeBadge.color}
+                    compact
+                  />
+                )}
               </div>
+              <SlideOverDescription>
+                {formatDate(instance.date)} • {instance.startTime} –{" "}
+                {instance.endTime} • {instanceRoomLabel(instance)}
+              </SlideOverDescription>
               <TabsList
                 variant="line"
-                className="mt-3 w-full justify-start border-b-0"
+                className="mt-2 w-full justify-start border-b-0"
               >
                 <TabsTrigger value="bearbeiten">Bearbeiten</TabsTrigger>
                 <TabsTrigger value="verlauf">Verlauf</TabsTrigger>
@@ -679,12 +671,12 @@ export function SubstitutionSlideOver({
                       Personal
                     </h3>
                     {plannedStaff.length === 0 ? (
-                      <div className={`${timetableMutedSurface} px-3 py-1`}>
+                      <InsetPanel framed padding="tight">
                         <EmptyState
                           variant="compact"
                           title="Für diesen Block war niemand geplant"
                         />
-                      </div>
+                      </InsetPanel>
                     ) : (
                       <ul className="space-y-2">
                         {plannedStaff.map((row) => {
@@ -772,100 +764,102 @@ export function SubstitutionSlideOver({
                             const inactive =
                               (row.isAbsent && !restored) || removed;
                             return (
-                              <li
-                                key={row.staffId}
-                                className={`flex flex-col items-stretch gap-2 rounded-lg px-3 py-2 ${
-                                  inactive ? "bg-gray-100" : "bg-moto-green/10"
-                                }`}
-                              >
-                                <span
-                                  className={`truncate text-sm font-medium ${
-                                    inactive
-                                      ? "text-gray-400 line-through"
-                                      : "text-gray-900"
-                                  }`}
+                              <li key={row.staffId}>
+                                <ListRow
+                                  tone={inactive ? "muted" : "success"}
+                                  className="flex-col items-stretch gap-2"
                                 >
-                                  {staffLabel(staffNames, row.staffId)}
-                                </span>
-                                <div className="flex flex-wrap items-center justify-end gap-2">
-                                  {removed ? (
-                                    <StatusBadge
-                                      label="Wird entfernt"
-                                      tone="gray"
-                                      size="xs"
-                                    />
-                                  ) : row.isAbsent && !restored ? (
-                                    <StatusBadge
-                                      label="Abwesend"
-                                      tone="red"
-                                      size="xs"
-                                    />
-                                  ) : restored ? (
-                                    <StatusBadge
-                                      label="Wird wiederhergestellt"
-                                      tone="green"
-                                      size="xs"
-                                    />
-                                  ) : (
-                                    <StatusBadge
-                                      label="Ersatz"
-                                      tone="green"
-                                      size="xs"
-                                    />
-                                  )}
-                                  {canEdit && !row.isSickAbsence && (
-                                    <OverflowMenu
-                                      ariaLabel={`Aktionen für ${staffLabel(staffNames, row.staffId)}`}
-                                      triggerSize="sm"
-                                      items={[
-                                        {
-                                          label: removed
-                                            ? "Rückgängig"
-                                            : "Entfernen",
-                                          icon: removed ? (
-                                            <RotateCcw
-                                              className="h-3.5 w-3.5"
-                                              aria-hidden
-                                            />
-                                          ) : (
-                                            <MotoConceptIcon
-                                              concept={substitutionConcept}
-                                              size={14}
-                                            />
-                                          ),
-                                          onClick: () =>
-                                            toggleRemoveSub(row.staffId),
-                                        },
-                                        ...(row.isAbsent &&
-                                        !removed &&
-                                        canRestore
-                                          ? [
-                                              {
-                                                label: restored
-                                                  ? "Rückgängig"
-                                                  : "Anwesend melden",
-                                                icon: restored ? (
-                                                  <MotoConceptIcon
-                                                    concept={
-                                                      substitutionConcept
-                                                    }
-                                                    size={14}
-                                                  />
-                                                ) : (
-                                                  <RotateCcw
-                                                    className="h-3.5 w-3.5"
-                                                    aria-hidden
-                                                  />
-                                                ),
-                                                onClick: () =>
-                                                  toggleRestoreSub(row.staffId),
-                                              },
-                                            ]
-                                          : []),
-                                      ]}
-                                    />
-                                  )}
-                                </div>
+                                  <span
+                                    className={`truncate text-sm font-medium ${
+                                      inactive
+                                        ? "text-gray-400 line-through"
+                                        : "text-gray-900"
+                                    }`}
+                                  >
+                                    {staffLabel(staffNames, row.staffId)}
+                                  </span>
+                                  <div className="flex flex-wrap items-center justify-end gap-2">
+                                    {removed ? (
+                                      <StatusBadge
+                                        label="Wird entfernt"
+                                        tone="gray"
+                                        size="xs"
+                                      />
+                                    ) : row.isAbsent && !restored ? (
+                                      <StatusBadge
+                                        label="Abwesend"
+                                        tone="red"
+                                        size="xs"
+                                      />
+                                    ) : restored ? (
+                                      <StatusBadge
+                                        label="Wird wiederhergestellt"
+                                        tone="green"
+                                        size="xs"
+                                      />
+                                    ) : (
+                                      <StatusBadge
+                                        label="Ersatz"
+                                        tone="green"
+                                        size="xs"
+                                      />
+                                    )}
+                                    {canEdit && !row.isSickAbsence && (
+                                      <OverflowMenu
+                                        ariaLabel={`Aktionen für ${staffLabel(staffNames, row.staffId)}`}
+                                        triggerSize="sm"
+                                        items={[
+                                          {
+                                            label: removed
+                                              ? "Rückgängig"
+                                              : "Entfernen",
+                                            icon: removed ? (
+                                              <RotateCcw
+                                                className="h-3.5 w-3.5"
+                                                aria-hidden
+                                              />
+                                            ) : (
+                                              <MotoConceptIcon
+                                                concept={substitutionConcept}
+                                                size={14}
+                                              />
+                                            ),
+                                            onClick: () =>
+                                              toggleRemoveSub(row.staffId),
+                                          },
+                                          ...(row.isAbsent &&
+                                          !removed &&
+                                          canRestore
+                                            ? [
+                                                {
+                                                  label: restored
+                                                    ? "Rückgängig"
+                                                    : "Anwesend melden",
+                                                  icon: restored ? (
+                                                    <MotoConceptIcon
+                                                      concept={
+                                                        substitutionConcept
+                                                      }
+                                                      size={14}
+                                                    />
+                                                  ) : (
+                                                    <RotateCcw
+                                                      className="h-3.5 w-3.5"
+                                                      aria-hidden
+                                                    />
+                                                  ),
+                                                  onClick: () =>
+                                                    toggleRestoreSub(
+                                                      row.staffId,
+                                                    ),
+                                                },
+                                              ]
+                                            : []),
+                                        ]}
+                                      />
+                                    )}
+                                  </div>
+                                </ListRow>
                               </li>
                             );
                           })}
@@ -881,7 +875,7 @@ export function SubstitutionSlideOver({
                     <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                       Block
                     </h3>
-                    <div className={`${timetableNestedSurface} space-y-3 p-3`}>
+                    <InsetPanel tone="white" className="space-y-3">
                       <label
                         htmlFor="vp-unstaffed"
                         className="flex items-start gap-2"
@@ -916,7 +910,7 @@ export function SubstitutionSlideOver({
                           placeholder="Grund (optional)"
                         />
                       )}
-                    </div>
+                    </InsetPanel>
                   </section>
                 )}
 
@@ -930,7 +924,7 @@ export function SubstitutionSlideOver({
                       Der Termin wird abgesagt. Abwesenheit, Ersatz und „bewusst
                       unbesetzt“ sind dabei ohne Wirkung.
                     </p>
-                    <div className={`${timetableNestedSurface} space-y-2 p-3`}>
+                    <InsetPanel tone="white" className="space-y-2">
                       <Input
                         controlSize="compact"
                         value={cancelReason}
@@ -947,14 +941,15 @@ export function SubstitutionSlideOver({
                         disabled={saving}
                         compact
                       />
-                    </div>
+                    </InsetPanel>
                   </section>
                 )}
 
                 {!canEdit &&
                   (instance.status === "cancelled" ? (
-                    <div
-                      className={`${timetableMutedSurface} space-y-1 p-3 text-sm text-gray-500`}
+                    <InsetPanel
+                      framed
+                      className="space-y-1 text-sm text-gray-500"
                     >
                       <p className="font-medium text-gray-700">
                         Dieser Block wurde abgesagt.
@@ -962,7 +957,7 @@ export function SubstitutionSlideOver({
                       {instance.cancelReason && (
                         <p>Grund: {instance.cancelReason}</p>
                       )}
-                    </div>
+                    </InsetPanel>
                   ) : !canManage &&
                     !isPast &&
                     (instance.status === "planned" ||
@@ -970,59 +965,53 @@ export function SubstitutionSlideOver({
                     // The block is editable in principle, but the user only holds
                     // read access to the plan — surface that instead of the
                     // "past/completed" message, which would be misleading (#1840).
-                    <p
-                      className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
-                    >
+                    <InsetPanel as="p" framed className="text-sm text-gray-500">
                       Sie haben nur Leserechte für den Vertretungsplan.
                       Änderungen können nur Personen mit Verwaltungsrechten
                       vornehmen.
-                    </p>
+                    </InsetPanel>
                   ) : (
-                    <p
-                      className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
-                    >
+                    <InsetPanel as="p" framed className="text-sm text-gray-500">
                       Vergangene oder abgeschlossene Termine können nicht mehr
                       geändert werden.
-                    </p>
+                    </InsetPanel>
                   ))}
               </form>
 
               {canEdit && (
-                <SlideOverFooter>
-                  <div className="flex items-center justify-end gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      disabled={saving}
-                      onClick={onClose}
-                    >
-                      Abbrechen
-                    </Button>
-                    <Button
-                      type="submit"
-                      form={FORM_ID}
-                      variant="primary"
-                      size="md"
-                      isLoading={saving}
-                      loadingText="Speichere …"
-                      disabled={
-                        saving ||
-                        !hasChanges ||
-                        (!cancel && !peopleValid) ||
-                        (cancel &&
-                          guardianNoticeIncomplete(
-                            noticeDraft,
-                            noticeReach,
-                            Boolean(
-                              instance && instance.date >= berlinTodayISO(),
-                            ),
-                          ))
-                      }
-                    >
-                      Speichern
-                    </Button>
-                  </div>
+                <SlideOverFooter className="gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    disabled={saving}
+                    onClick={onClose}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button
+                    type="submit"
+                    form={FORM_ID}
+                    variant="primary"
+                    size="md"
+                    isLoading={saving}
+                    loadingText="Speichere …"
+                    disabled={
+                      saving ||
+                      !hasChanges ||
+                      (!cancel && !peopleValid) ||
+                      (cancel &&
+                        guardianNoticeIncomplete(
+                          noticeDraft,
+                          noticeReach,
+                          Boolean(
+                            instance && instance.date >= berlinTodayISO(),
+                          ),
+                        ))
+                    }
+                  >
+                    Speichern
+                  </Button>
                 </SlideOverFooter>
               )}
             </TabsContent>
@@ -1266,10 +1255,7 @@ function HistoryTab({
             {events.map((ev) => {
               const change = changeSummary(ev, staffNames);
               return (
-                <li
-                  key={ev.id}
-                  className={`${timetableMutedSurface} rounded-lg p-3`}
-                >
+                <InsetPanel as="li" key={ev.id} framed>
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-sm font-medium text-gray-900">
                       {deviationEventLabel(ev.eventType)}
@@ -1296,7 +1282,7 @@ function HistoryTab({
                     {" · "}
                     {ev.actorName ?? "Unbekanntes Konto"}
                   </p>
-                </li>
+                </InsetPanel>
               );
             })}
           </ul>

@@ -44,11 +44,8 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import {
-  ListSkeleton,
-  SkeletonRegion,
-  TableSkeleton,
-} from "~/components/ui/page-skeletons";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   errorAlertActions,
@@ -1058,14 +1055,13 @@ function StaffCalendarPageInner() {
               if (!open && !submitting) resetForm();
             }}
           >
-            <SlideOverContent widthClass="sm:w-[860px]">
-              <SlideOverHeader className="flex-row items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <SlideOverTitle>
-                    {editingId ? "Termin ändern" : "Termin erstellen"}
-                  </SlideOverTitle>
-                </div>
-                <SlideOverCloseButton disabled={submitting} />
+            <SlideOverContent size="xl">
+              <SlideOverHeader
+                close={<SlideOverCloseButton disabled={submitting} />}
+              >
+                <SlideOverTitle>
+                  {editingId ? "Termin ändern" : "Termin erstellen"}
+                </SlideOverTitle>
               </SlideOverHeader>
               <SlideOverBody error={formErrors.error}>
                 <div ref={formRef}>
@@ -1197,63 +1193,46 @@ function StaffCalendarPageInner() {
                       className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}
                     >
                       {!editingId ? (
-                        <label
-                          htmlFor="calendar-delivery-mode"
-                          className="block"
-                        >
-                          <span className="mb-2 block text-sm font-medium text-gray-700">
-                            Antwortregel
-                          </span>
-                          <CustomSelect
-                            id="calendar-delivery-mode"
-                            ariaLabel="Antwortregel"
-                            value={deliveryMode}
-                            onChange={(next) =>
-                              setDeliveryMode(next as CalendarDeliveryMode)
-                            }
-                            disabled={submitting}
-                            options={[
-                              {
-                                value: "rsvp_required",
-                                label:
-                                  "Antwort erforderlich: Zusage oder Absage",
-                              },
-                              {
-                                value: "informational",
-                                label:
-                                  "Nur informieren: ohne Rückmeldung eintragen",
-                              },
-                            ]}
-                          />
-                        </label>
-                      ) : null}
-                      <label
-                        htmlFor="calendar-overview-visibility"
-                        className="block"
-                      >
-                        <span className="mb-2 block text-sm font-medium text-gray-700">
-                          Teilnehmerübersicht
-                        </span>
                         <CustomSelect
-                          id="calendar-overview-visibility"
-                          ariaLabel="Teilnehmerübersicht"
-                          value={overviewVisibility}
+                          id="calendar-delivery-mode"
+                          label="Antwortregel"
+                          value={deliveryMode}
                           onChange={(next) =>
-                            setOverviewVisibility(
-                              next as CalendarOverviewVisibility,
-                            )
+                            setDeliveryMode(next as CalendarDeliveryMode)
                           }
                           disabled={submitting}
                           options={[
-                            { value: "organizer", label: "Nur ich" },
                             {
-                              value: "staff",
-                              label: "Mitarbeitende mit Termin",
+                              value: "rsvp_required",
+                              label: "Antwort erforderlich: Zusage oder Absage",
                             },
-                            { value: "all", label: "Alle Eingeladenen" },
+                            {
+                              value: "informational",
+                              label:
+                                "Nur informieren: ohne Rückmeldung eintragen",
+                            },
                           ]}
                         />
-                      </label>
+                      ) : null}
+                      <CustomSelect
+                        id="calendar-overview-visibility"
+                        label="Teilnehmerübersicht"
+                        value={overviewVisibility}
+                        onChange={(next) =>
+                          setOverviewVisibility(
+                            next as CalendarOverviewVisibility,
+                          )
+                        }
+                        disabled={submitting}
+                        options={[
+                          { value: "organizer", label: "Nur ich" },
+                          {
+                            value: "staff",
+                            label: "Mitarbeitende mit Termin",
+                          },
+                          { value: "all", label: "Alle Eingeladenen" },
+                        ]}
+                      />
                     </div>
 
                     {!editingId ? (
@@ -1354,27 +1333,22 @@ function StaffCalendarPageInner() {
                     ) : null}
 
                     <div className="grid gap-4 md:grid-cols-3">
-                      <label htmlFor="calendar-frequency" className="block">
-                        <span className="mb-2 block text-sm font-medium text-gray-700">
-                          Wiederholung
-                        </span>
-                        <CustomSelect
-                          id="calendar-frequency"
-                          ariaLabel="Wiederholung"
-                          value={frequency}
-                          onChange={(next) =>
-                            setFrequency(next as RecurrenceFrequency)
-                          }
-                          disabled={submitting}
-                          options={[
-                            { value: "none", label: "Keine" },
-                            { value: "daily", label: "Täglich" },
-                            { value: "weekly", label: "Wöchentlich" },
-                            { value: "monthly", label: "Monatlich" },
-                            { value: "yearly", label: "Jährlich" },
-                          ]}
-                        />
-                      </label>
+                      <CustomSelect
+                        id="calendar-frequency"
+                        label="Wiederholung"
+                        value={frequency}
+                        onChange={(next) =>
+                          setFrequency(next as RecurrenceFrequency)
+                        }
+                        disabled={submitting}
+                        options={[
+                          { value: "none", label: "Keine" },
+                          { value: "daily", label: "Täglich" },
+                          { value: "weekly", label: "Wöchentlich" },
+                          { value: "monthly", label: "Monatlich" },
+                          { value: "yearly", label: "Jährlich" },
+                        ]}
+                      />
                       <Input
                         label="Intervall"
                         name="calendar-recurrence-interval"

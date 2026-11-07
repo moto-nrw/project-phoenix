@@ -35,6 +35,13 @@ export const OVERLAY_PANEL_STYLE = {
  * Literal class strings so Tailwind finds them. `Z_INDEX` carries the same
  * levels for inline `style.zIndex` (portaled menus, positioned popovers).
  */
+/**
+ * Klebt am unteren Rand einer Seite. Unter `lg` liegt dort die untere
+ * Navigation, die Leiste steht dann darüber.
+ */
+export const STICKY_ABOVE_BOTTOM_NAV =
+  "sticky bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-4";
+
 export const Z_LAYER = {
   /** Mobile bottom navigation. */
   nav: "z-30",

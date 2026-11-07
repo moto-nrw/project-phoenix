@@ -1,4 +1,4 @@
-package sessiontoken
+package sessiontoken_test
 
 import (
 	"testing"
@@ -6,13 +6,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 )
 
 // =============================================================================
 // Test Setup
 // =============================================================================
 
-func newTestTokenAuth(_ *testing.T, secret string, durations ...time.Duration) (*TokenAuth, error) {
+func newTestTokenAuth(_ *testing.T, secret string, durations ...time.Duration) (*sessiontoken.TokenAuth, error) {
 	expiry, refreshExpiry := 15*time.Minute, 24*time.Hour
 	if len(durations) > 0 {
 		expiry = durations[0]
@@ -20,7 +23,7 @@ func newTestTokenAuth(_ *testing.T, secret string, durations ...time.Duration) (
 	if len(durations) > 1 {
 		refreshExpiry = durations[1]
 	}
-	return NewTokenAuthWithDurations(secret, expiry, refreshExpiry)
+	return sessiontoken.NewTokenAuthWithDurations(secret, expiry, refreshExpiry)
 }
 
 const testSecret = "test-secret-32-chars-minimum!!!"
@@ -49,15 +52,6 @@ func TestNewTokenAuthWithSecret_EmptySecret(t *testing.T) {
 	assert.NotNil(t, auth)
 }
 
-func TestRejectGeneratedSecret(t *testing.T) {
-	t.Parallel()
-
-	err := rejectGeneratedSecret("random")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "AUTH_JWT_SECRET=random")
-	assert.NoError(t, rejectGeneratedSecret(testSecret))
-}
-
 func TestNewTokenAuthWithSecret_ShortSecret(t *testing.T) {
 	t.Parallel()
 
@@ -76,14 +70,14 @@ func TestTokenAuth_CreateJWT_SetsExpiry(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	claims := AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:    1,
 		Sub:   "test@test.com",
 		Roles: []string{"user"},
 	}
 
 	beforeCreate := time.Now()
-	token, err := auth.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(auth, claims)
 	require.NoError(t, err)
 
 	// Verify token has correct expiry by decoding and checking claims
@@ -107,13 +101,13 @@ func TestTokenAuth_CreateRefreshJWT_SetsExpiry(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	claims := RefreshClaims{
+	claims := sessiontoken.RefreshClaims{
 		ID:    1,
 		Token: "token",
 	}
 
 	beforeCreate := time.Now()
-	token, err := auth.CreateRefreshJWT(claims)
+	token, err := tokentest.CreateRefreshJWT(auth, claims)
 	require.NoError(t, err)
 
 	// Verify token has correct expiry by decoding and checking claims
@@ -134,13 +128,14 @@ func TestTokenAuth_CreateRefreshJWT_PreservesPersistedExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	expiresAt := time.Now().Add(10 * time.Minute).Unix()
-	token, err := auth.CreateRefreshJWT(RefreshClaims{
+	token, err := tokentest.CreateRefreshJWT(auth, sessiontoken.RefreshClaims{
 		ID:    1,
 		Token: "persisted-token",
-		CommonClaims: CommonClaims{
+		CommonClaims: sessiontoken.CommonClaims{
 			ExpiresAt: expiresAt,
 		},
 	})
+
 	require.NoError(t, err)
 
 	decoded, err := auth.JwtAuth.Decode(token)
@@ -159,18 +154,18 @@ func TestTokenAuth_GenTokenPair_ValidClaims(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	accessClaims := AppClaims{
+	accessClaims := sessiontoken.AppClaims{
 		ID:    42,
 		Sub:   "user@example.com",
 		Roles: []string{"user"},
 	}
 
-	refreshClaims := RefreshClaims{
+	refreshClaims := sessiontoken.RefreshClaims{
 		ID:    42,
 		Token: "refresh-token-id",
 	}
 
-	accessToken, refreshToken, err := auth.GenTokenPair(accessClaims, refreshClaims)
+	accessToken, refreshToken, err := tokentest.GenTokenPair(auth, accessClaims, refreshClaims)
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
 	assert.NotEmpty(t, refreshToken)
@@ -186,7 +181,7 @@ func TestTokenAuth_GetRefreshExpiry(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret, 15*time.Minute, 48*time.Hour)
 	require.NoError(t, err)
 
-	expiry := auth.GetRefreshExpiry()
+	expiry := auth.JwtRefreshExpiry
 	assert.Equal(t, 48*time.Hour, expiry)
 }
 
@@ -197,7 +192,7 @@ func TestTokenAuth_GetRefreshExpiry(t *testing.T) {
 func TestParseStructToMap_AppClaims(t *testing.T) {
 	t.Parallel()
 
-	claims := AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          42,
 		Sub:         "test@test.com",
 		Username:    "johndoe",
@@ -206,13 +201,13 @@ func TestParseStructToMap_AppClaims(t *testing.T) {
 		Roles:       []string{"admin", "user"},
 		Permissions: []string{"read", "write"},
 		IsAdmin:     true,
-		CommonClaims: CommonClaims{
+		CommonClaims: sessiontoken.CommonClaims{
 			ExpiresAt: 1234567890,
 			IssuedAt:  1234567800,
 		},
 	}
 
-	result, err := ParseStructToMap(claims)
+	result, err := tokentest.ParseStructToMap(claims)
 	require.NoError(t, err)
 
 	assert.Equal(t, float64(42), result["id"])
@@ -230,14 +225,14 @@ func TestParseStructToMap_AppClaims(t *testing.T) {
 func TestParseStructToMap_AppClaimsFamilyID(t *testing.T) {
 	t.Parallel()
 
-	claims := AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:       42,
 		Sub:      "test@test.com",
 		Roles:    []string{"user"},
 		FamilyID: "family-xyz",
 	}
 
-	result, err := ParseStructToMap(claims)
+	result, err := tokentest.ParseStructToMap(claims)
 	require.NoError(t, err)
 	assert.Equal(t, "family-xyz", result["family_id"])
 }
@@ -245,16 +240,16 @@ func TestParseStructToMap_AppClaimsFamilyID(t *testing.T) {
 func TestParseStructToMap_RefreshClaims(t *testing.T) {
 	t.Parallel()
 
-	claims := RefreshClaims{
+	claims := sessiontoken.RefreshClaims{
 		ID:    42,
 		Token: "refresh-token",
-		CommonClaims: CommonClaims{
+		CommonClaims: sessiontoken.CommonClaims{
 			ExpiresAt: 1234567890,
 			IssuedAt:  1234567800,
 		},
 	}
 
-	result, err := ParseStructToMap(claims)
+	result, err := tokentest.ParseStructToMap(claims)
 	require.NoError(t, err)
 
 	assert.Equal(t, float64(42), result["id"])
@@ -264,14 +259,14 @@ func TestParseStructToMap_RefreshClaims(t *testing.T) {
 func TestParseStructToMap_EmptySlices(t *testing.T) {
 	t.Parallel()
 
-	claims := AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          1,
 		Sub:         "test@test.com",
 		Roles:       []string{},
 		Permissions: []string{},
 	}
 
-	result, err := ParseStructToMap(claims)
+	result, err := tokentest.ParseStructToMap(claims)
 	require.NoError(t, err)
 
 	// Empty slices should be preserved
@@ -282,14 +277,14 @@ func TestParseStructToMap_EmptySlices(t *testing.T) {
 func TestParseStructToMap_NilSlices(t *testing.T) {
 	t.Parallel()
 
-	claims := AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          1,
 		Sub:         "test@test.com",
 		Roles:       nil,
 		Permissions: nil,
 	}
 
-	result, err := ParseStructToMap(claims)
+	result, err := tokentest.ParseStructToMap(claims)
 	require.NoError(t, err)
 
 	// Nil slices get explicitly set in ParseStructToMap
@@ -307,13 +302,13 @@ func TestTokenAuth_VerifyWithWrongSecret(t *testing.T) {
 	auth1, err := newTestTokenAuth(t, "secret-one-32-chars-minimum!!!!")
 	require.NoError(t, err)
 
-	claims := AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:    1,
 		Sub:   "test@test.com",
 		Roles: []string{"user"},
 	}
 
-	token, err := auth1.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(auth1, claims)
 	require.NoError(t, err)
 
 	// Try to verify with different secret
@@ -333,7 +328,7 @@ func TestTokenAuth_CreateJWT_SpecialCharactersInClaims(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	claims := AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:        1,
 		Sub:       "user+special@example.com",
 		Username:  "user_with-special.chars",
@@ -342,7 +337,7 @@ func TestTokenAuth_CreateJWT_SpecialCharactersInClaims(t *testing.T) {
 		Roles:     []string{"role:admin", "role:user"},
 	}
 
-	token, err := auth.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(auth, claims)
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
 

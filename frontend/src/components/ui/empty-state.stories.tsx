@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { Lightbulb, Search } from "lucide-react";
+import { Check, Lightbulb, Search, X } from "lucide-react";
 
 import { Button } from "./button";
 import { EmptyState } from "./empty-state";
@@ -37,5 +37,29 @@ export const WithAction: Story = {
         Neuer Beitrag
       </Button>
     ),
+  },
+};
+
+export const Dashed: Story = {
+  args: {
+    variant: "dashed",
+    title: "Aktuell keine Kinder im Raum.",
+  },
+};
+
+export const ResultSuccess: Story = {
+  args: {
+    tone: "success",
+    icon: <Check aria-hidden="true" />,
+    title: "Konto erstellt",
+    description: "Sie werden gleich weitergeleitet.",
+  },
+};
+
+export const ResultError: Story = {
+  args: {
+    tone: "error",
+    icon: <X aria-hidden="true" />,
+    title: "Bestätigung fehlgeschlagen",
   },
 };

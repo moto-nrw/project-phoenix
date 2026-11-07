@@ -1,0 +1,6 @@
+{
+  "scenario": "workflows.catererportal.delivery_export.one_school_day",
+  "max": 24,
+  "exact": true,
+  "description": "One supplied school on one weekday through the production router, with 8 children. Compared with the five-day scenario, this distinguishes the per-day registration read graph from per-school overhead."
+}

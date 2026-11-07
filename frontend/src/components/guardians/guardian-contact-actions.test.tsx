@@ -149,7 +149,7 @@ describe("GuardianContactActions", () => {
 
       fireEvent.click(screen.getByText("Anrufen"));
 
-      expect(screen.getByText("Mobil")).toBeInTheDocument();
+      expect(screen.getByText("Mobil · Primär")).toBeInTheDocument();
       expect(screen.getByText("Telefon")).toBeInTheDocument();
       expect(screen.getByText("Dienstlich")).toBeInTheDocument();
     });
@@ -169,7 +169,8 @@ describe("GuardianContactActions", () => {
 
       fireEvent.click(screen.getByText("Anrufen"));
 
-      expect(screen.getByText("Primär")).toBeInTheDocument();
+      expect(screen.getByText("Mobil · Primär")).toBeInTheDocument();
+      expect(screen.queryByText("Telefon · Primär")).not.toBeInTheDocument();
     });
 
     it("opens tel link when dropdown item clicked", () => {
@@ -216,5 +217,30 @@ describe("GuardianContactActions", () => {
 
       expect(globalThis.location.href).toBe("tel:0123456789");
     });
+  });
+
+  it("works with the keyboard", () => {
+    render(
+      <GuardianContactActions
+        phoneNumbers={[
+          { number: "0170 111", label: "Mobil", isPrimary: true },
+          { number: "0211 222", label: "Arbeit" },
+        ]}
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: "Anrufen" });
+    // Enter und Leertaste lösen einen Klick ohne Zeiger aus (detail 0).
+    fireEvent.click(trigger, { detail: 0 });
+
+    const entries = screen.getAllByRole("menuitem");
+    expect(entries[0]).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "End" });
+    expect(entries.at(-1)).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Home" });
+    expect(entries[0]).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 });

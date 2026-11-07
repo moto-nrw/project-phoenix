@@ -2,7 +2,6 @@ package importpkg
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -10,27 +9,27 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
 )
 
-func (c *StudentImportConfig) createGuardianRelationships(ctx context.Context, studentID int64, guardians []importModels.GuardianImportData) error {
+func (c *StudentImportConfig) createGuardianRelationships(ctx context.Context, student ports.CreatedEnrollmentStudent, guardians []importModels.GuardianImportData) error {
 	for i, guardianData := range guardians {
-		if err := c.createSingleGuardianRelationship(ctx, studentID, guardianData, i+1); err != nil {
+		if err := c.createSingleGuardianRelationship(ctx, student, guardianData, i+1); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Context, studentID int64, guardianData importModels.GuardianImportData, index int) error {
-	guardianID, err := c.createOrFindGuardian(ctx, guardianData)
+func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Context, student ports.CreatedEnrollmentStudent, guardianData importModels.GuardianImportData, index int) error {
+	guardian, err := c.createOrFindGuardian(ctx, guardianData)
 	if err != nil {
 		return fmt.Errorf("guardian %d: %w", index, err)
 	}
-	return c.createGuardianRelationship(ctx, studentID, guardianID, guardianData, index)
+	return c.createGuardianRelationship(ctx, student.ID, guardian.ID, guardianData, index, &guardian, &student)
 }
 
 // createGuardianRelationship links the guardian to the child. The role preset
 // of the row wins; an unknown or empty preset leaves the owner to derive the
 // default from the relationship flags.
-func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, studentID, guardianID int64, guardianData importModels.GuardianImportData, index int) error {
+func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, studentID, guardianID int64, guardianData importModels.GuardianImportData, index int, created *ports.Guardian, createdStudent *ports.CreatedEnrollmentStudent) error {
 	link := ports.LinkGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianID,
@@ -40,6 +39,12 @@ func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, st
 		CanPickup:          guardianData.CanPickup,
 		PickupNotes:        importModels.OptionalCell(guardianData.PickupNotes),
 		EmergencyPriority:  guardianData.EmergencyPriority,
+	}
+	if c.Transactions.HasTransaction(ctx) {
+		link.CreatedStudent = createdStudent
+	}
+	if created != nil && !created.ReusedExisting && c.Transactions.HasTransaction(ctx) {
+		link.CreatedGuardian = created
 	}
 	if link.EmergencyPriority < 1 {
 		link.EmergencyPriority = 1
@@ -56,53 +61,34 @@ func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, st
 // createOrFindGuardian deduplicates guardians by e-mail: an existing profile
 // with the row's e-mail is reused (and patched with the row's non-empty
 // fields), otherwise a new profile is created.
-func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data importModels.GuardianImportData) (int64, error) {
-	if email := strings.TrimSpace(data.Email); email != "" {
-		existing, err := c.findGuardianByEmail(ctx, email)
-		if err != nil {
-			return 0, fmt.Errorf("database error checking existing guardian: %w", err)
-		}
-		if existing != nil {
-			if err := c.updateExistingGuardianProfile(ctx, *existing, data); err != nil {
-				return 0, copyErrorf("existing guardian profile aktualisieren: %w", err)
-			}
-			if err := c.createGuardianPhoneNumbers(ctx, existing.ID, data.PhoneNumbers); err != nil {
-				return existing.ID, fmt.Errorf("add phone numbers to existing guardian: %w", err)
-			}
-			return existing.ID, nil
-		}
-	}
-
+func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data importModels.GuardianImportData) (ports.Guardian, error) {
 	guardian, err := c.Guardians.CreateGuardian(ctx, ports.GuardianInput{
-		FirstName:          strings.TrimSpace(data.FirstName),
-		LastName:           strings.TrimSpace(data.LastName),
-		Email:              importModels.OptionalCell(data.Email),
-		AddressStreet:      importModels.OptionalCell(data.AddressStreet),
-		AddressCity:        importModels.OptionalCell(data.AddressCity),
-		AddressPostalCode:  importModels.OptionalCell(data.AddressPostalCode),
-		Notes:              importModels.OptionalCell(data.Notes),
-		LanguagePreference: guardianLanguagePreference(data.LanguagePreference),
+		ReuseExistingByEmail: true,
+		FirstName:            strings.TrimSpace(data.FirstName),
+		LastName:             strings.TrimSpace(data.LastName),
+		Email:                importModels.OptionalCell(data.Email),
+		AddressStreet:        importModels.OptionalCell(data.AddressStreet),
+		AddressCity:          importModels.OptionalCell(data.AddressCity),
+		AddressPostalCode:    importModels.OptionalCell(data.AddressPostalCode),
+		Notes:                importModels.OptionalCell(data.Notes),
+		LanguagePreference:   guardianLanguagePreference(data.LanguagePreference),
 	})
 	if err != nil {
-		return 0, err
+		return ports.Guardian{}, err
 	}
-	if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers); err != nil {
-		return 0, fmt.Errorf("create phone numbers: %w", err)
+	if guardian.ReusedExisting {
+		if err := c.updateExistingGuardianProfile(ctx, guardian, data); err != nil {
+			return ports.Guardian{}, copyErrorf("existing guardian profile aktualisieren: %w", err)
+		}
+		if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers, nil); err != nil {
+			return guardian, fmt.Errorf("add phone numbers to existing guardian: %w", err)
+		}
+		return guardian, nil
 	}
-	return guardian.ID, nil
-}
-
-// findGuardianByEmail resolves the tenant's guardian with exactly this e-mail
-// (case-insensitive, like the legacy lookup); nil when none exists.
-func (c *StudentImportConfig) findGuardianByEmail(ctx context.Context, email string) (*ports.Guardian, error) {
-	guardian, err := c.Guardians.FindGuardianByEmail(ctx, email)
-	if errors.Is(err, ports.ErrGuardianNotFound) {
-		return nil, nil
+	if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers, &guardian); err != nil {
+		return ports.Guardian{}, fmt.Errorf("create phone numbers: %w", err)
 	}
-	if err != nil {
-		return nil, err
-	}
-	return &guardian, nil
+	return guardian, nil
 }
 
 // updateExistingGuardianProfile merges non-empty import fields into an
@@ -149,13 +135,18 @@ func (c *StudentImportConfig) updateExistingGuardianProfile(ctx context.Context,
 
 // createGuardianPhoneNumbers adds the phone numbers of the row the guardian
 // does not have yet. Priority and the primary flag are the owner's decision.
-func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, guardianID int64, phones []importModels.PhoneImportData) error {
+func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, guardianID int64, phones []importModels.PhoneImportData, created *ports.Guardian) error {
 	if len(phones) == 0 {
 		return nil
 	}
-	existing, err := c.Guardians.ListGuardianPhones(ctx, guardianID)
-	if err != nil {
-		return copyErrorf("Telefonnummern laden: %w", err)
+	var existing []ports.GuardianPhone
+	if !c.hasNewGuardianPhoneFact(ctx, guardianID, created) {
+		created = nil
+		var err error
+		existing, err = c.Guardians.ListGuardianPhones(ctx, guardianID)
+		if err != nil {
+			return copyErrorf("Telefonnummern laden: %w", err)
+		}
 	}
 	existingNumbers := make(map[string]struct{}, len(existing))
 	for _, phone := range existing {
@@ -173,16 +164,27 @@ func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, gu
 			label = &phoneData.Label
 		}
 		if _, err := c.Guardians.AddGuardianPhone(ctx, guardianID, ports.GuardianPhoneInput{
-			PhoneNumber: phoneData.PhoneNumber,
-			PhoneType:   string(mapPhoneType(phoneData.PhoneType)),
-			Label:       label,
-			IsPrimary:   phoneData.IsPrimary,
+			CreatedGuardian: created,
+			PhoneNumber:     phoneData.PhoneNumber,
+			PhoneType:       string(mapPhoneType(phoneData.PhoneType)),
+			Label:           label,
+			IsPrimary:       phoneData.IsPrimary,
 		}); err != nil {
 			return fmt.Errorf("phone %d: %w", i+1, err)
 		}
+		created = nil
 		existingNumbers[phoneData.PhoneNumber] = struct{}{}
 	}
 	return nil
+}
+
+// Only the immediate create result, before any phone writes in the same
+// transaction, proves the list is empty. Reused profiles always read afresh.
+func (c *StudentImportConfig) hasNewGuardianPhoneFact(ctx context.Context, guardianID int64, created *ports.Guardian) bool {
+	return created != nil && !created.ReusedExisting && created.ID > 0 &&
+		created.ID == guardianID && created.TenantID > 0 &&
+		created.TenantID == c.Transactions.TenantID(ctx) &&
+		len(created.PhoneNumbers) == 0 && c.Transactions.HasTransaction(ctx)
 }
 
 // mergeGuardianRelationships links guardians the child does not have yet and
@@ -201,10 +203,7 @@ func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, st
 	for _, entry := range existing {
 		byGuardianID[entry.Link.GuardianProfileID] = entry.Link
 	}
-	linkedProfiles, err := c.loadLinkedGuardianProfiles(ctx, existing)
-	if err != nil {
-		return err
-	}
+	linkedProfiles := linkedGuardianProfiles(existing)
 
 	for i, data := range guardians {
 		if err := c.mergeGuardianRelationship(ctx, studentID, i+1, data, linkedProfiles, byGuardianID); err != nil {
@@ -214,24 +213,20 @@ func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, st
 	return nil
 }
 
-// loadLinkedGuardianProfiles loads the phone numbers of the guardians already
-// linked to the child.
-func (c *StudentImportConfig) loadLinkedGuardianProfiles(ctx context.Context, existing []ports.GuardianWithLink) ([]linkedGuardianProfile, error) {
+// linkedGuardianProfiles reuses the phone numbers ListStudentGuardians already
+// batch-loads for the child's linked profiles, preserving relationship order.
+func linkedGuardianProfiles(existing []ports.GuardianWithLink) []linkedGuardianProfile {
 	linked := make([]linkedGuardianProfile, 0, len(existing))
 	for _, entry := range existing {
-		phones, err := c.Guardians.ListGuardianPhones(ctx, entry.Guardian.ID)
-		if err != nil {
-			return nil, copyErrorf("Telefonnummern der Erziehungsberechtigten laden: %w", err)
-		}
 		var normalized []string
-		for _, phone := range phones {
+		for _, phone := range entry.Guardian.PhoneNumbers {
 			if value := normalizeImportPhone(phone.PhoneNumber); value != "" {
 				normalized = append(normalized, value)
 			}
 		}
 		linked = append(linked, linkedGuardianProfile{profile: entry.Guardian, phones: normalized})
 	}
-	return linked, nil
+	return linked
 }
 
 // resolveLinkedGuardian recognises an imported guardian among the guardians the
@@ -249,7 +244,7 @@ func (c *StudentImportConfig) resolveLinkedGuardian(ctx context.Context, linked 
 	if err := c.updateExistingGuardianProfile(ctx, *match, data); err != nil {
 		return 0, copyErrorf("existing guardian profile aktualisieren: %w", err)
 	}
-	if err := c.createGuardianPhoneNumbers(ctx, match.ID, data.PhoneNumbers); err != nil {
+	if err := c.createGuardianPhoneNumbers(ctx, match.ID, data.PhoneNumbers, nil); err != nil {
 		return 0, fmt.Errorf("add phone numbers to existing guardian: %w", err)
 	}
 	return match.ID, nil
@@ -293,15 +288,17 @@ func (c *StudentImportConfig) mergeGuardianRelationship(ctx context.Context, stu
 	if err != nil {
 		return fmt.Errorf("guardian %d: %w", index, err)
 	}
+	var created *ports.Guardian
 	if guardianID == 0 {
-		guardianID, err = c.createOrFindGuardian(ctx, data)
+		guardian, err := c.createOrFindGuardian(ctx, data)
 		if err != nil {
 			return fmt.Errorf("guardian %d: %w", index, err)
 		}
+		guardianID, created = guardian.ID, &guardian
 	}
 	link, linked := byGuardianID[guardianID]
 	if !linked {
-		if err := c.createGuardianRelationship(ctx, studentID, guardianID, data, index); err != nil {
+		if err := c.createGuardianRelationship(ctx, studentID, guardianID, data, index, created, nil); err != nil {
 			return err
 		}
 		return nil

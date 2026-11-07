@@ -1,0 +1,6 @@
+{
+  "scenario": "api.enrollment.growth.request_delete_impact",
+  "max": 11,
+  "exact": true,
+  "description": "Positive mounted handler and real persistence, all SQL including transaction envelope; N3/N8 children or enabled legal blocks."
+}

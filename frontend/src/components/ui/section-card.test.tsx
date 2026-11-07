@@ -334,3 +334,18 @@ describe("SectionCard als einzige Kopfkarte (#5581)", () => {
     expect(body?.className).not.toMatch(/(?:^|\s)-m[xb]-/);
   });
 });
+
+describe("SectionCard titleSize", () => {
+  it.each(["sm", "md", "lg", "page", "display"] as const)(
+    "bleibt in Stufe %s die Überschrift der gewählten Ebene",
+    (titleSize) => {
+      render(
+        <SectionCard title="Ablauf" titleSize={titleSize} headingLevel={1} />,
+      );
+
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Ablauf" }),
+      ).toBeInTheDocument();
+    },
+  );
+});

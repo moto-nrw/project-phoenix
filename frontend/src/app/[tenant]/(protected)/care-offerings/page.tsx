@@ -2,7 +2,8 @@
 
 import { useCallback, useState } from "react";
 import { CareOfferingsEditor } from "~/components/enrollment/care-offerings-editor";
-import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
+import { SkeletonRegion } from "~/components/ui/page-skeletons";
+import { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";

@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.templates.list.targeted",
+  "max": 13,
+  "exact": true,
+  "description": "GET /templates?period_id with populated dynamic class targets: display inputs share one target read; capacity reads fresh targets and members. Flat from 3 to 8 templates."
+}

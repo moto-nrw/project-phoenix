@@ -45,7 +45,6 @@ import {
 import type { EnrichedInstance } from "~/lib/timetable-types";
 
 import { InstanceBlock } from "./instance-block";
-import { timetableSurface } from "./timetable-style";
 import { StatusDot } from "~/components/ui/status-dot";
 import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
 
@@ -347,7 +346,7 @@ export function WeeklyCalendarGrid({
 
   return (
     <div
-      className={`${timetableSurface} overflow-hidden`}
+      className="moto-content-surface overflow-hidden rounded-2xl border"
       style={
         {
           "--day-grid-cols": smColumns.template,

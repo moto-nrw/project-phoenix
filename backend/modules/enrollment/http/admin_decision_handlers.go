@@ -364,10 +364,7 @@ func (rs *Resource) listAdminRequestsByStudent(w http.ResponseWriter, r *http.Re
 		if listErr != nil {
 			return listErr
 		}
-		out = make([]AdminRequestSummary, 0, len(summaries))
-		for _, summary := range summaries {
-			out = append(out, rs.toAdminRequestDetailSummary(ctx, summary))
-		}
+		out = rs.toStudentHistorySummaries(ctx, summaries)
 		return nil
 	})
 	if err != nil {

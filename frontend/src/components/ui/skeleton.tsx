@@ -1,4 +1,5 @@
 import { cn } from "~/lib/utils";
+import { listRowClasses } from "./list-row-styles";
 
 /**
  * Radius der Platzhalter nach dem Radius-Maßstab des Kits. `line` ist die
@@ -37,6 +38,22 @@ function Skeleton({
   );
 }
 
+/** Platzhalter für eine `ListRow`: Bezeichnung links, Inhalt rechts. */
+function ListRowSkeleton({
+  labelClassName = "w-24",
+  valueClassName = "flex-1",
+}: Readonly<{
+  labelClassName?: string;
+  valueClassName?: string;
+}>) {
+  return (
+    <div className={listRowClasses()}>
+      <Skeleton className={cn("h-4", labelClassName)} />
+      <Skeleton className={cn("h-4", valueClassName)} />
+    </div>
+  );
+}
+
 /**
  * Zeilen einer kurzen Liste in einer Karte: Bezeichnung links, Inhalt rechts.
  * Für Blöcke fester Höhe: Mit Avatar und zwei Textzeilen ragt `ListSkeleton` über
@@ -55,16 +72,14 @@ function SkeletonRows({
   return (
     <div className="space-y-2" aria-hidden="true">
       {Array.from({ length: rows }, (_, index) => (
-        <div
+        <ListRowSkeleton
           key={index}
-          className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
-        >
-          <Skeleton className={cn("h-4", labelClassName)} />
-          <Skeleton className={cn("h-4", valueClassName)} />
-        </div>
+          labelClassName={labelClassName}
+          valueClassName={valueClassName}
+        />
       ))}
     </div>
   );
 }
 
-export { Skeleton, SkeletonRows };
+export { ListRowSkeleton, Skeleton, SkeletonRows };

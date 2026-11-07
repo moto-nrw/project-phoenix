@@ -599,12 +599,16 @@
    dem Desktop doppelt, als Karten und als Tabelle. Karten IN einer
    `moto-scroll-surface` zählen nicht: sonst machten sie deren Hüllen wieder
    zur Spalte, und Liste und Objektansicht des Master-Detail-Layouts lägen
-   untereinander statt nebeneinander. */
+   untereinander statt nebeneinander. Auch eine Karte IN einer Tabelle zählt
+   nicht (die Änderungshistorie in einer aufgeklappten Zeile): als Flex-Spalte
+   hätte die äußere Tabelle keine gemeinsamen Spalten mehr, jede Zeile rechnete
+   ihre Breiten für sich (#5600). */
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
     .moto-content-surface:last-child:is(section, div):not(
         .moto-scroll-surface,
-        .moto-scroll-surface *
+        .moto-scroll-surface *,
+        table *
       )
   ),
 .moto-tenant-body
@@ -618,7 +622,8 @@
   ):has(
     .moto-content-surface:last-child:is(section, div):not(
         .moto-scroll-surface,
-        .moto-scroll-surface *
+        .moto-scroll-surface *,
+        table *
       )
   ) {
   display: flex;

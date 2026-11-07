@@ -6,8 +6,9 @@
  * letters of their Storno and Gutschrift (#4690), and the care contracts
  * (#4678), and the documents the Träger released for the parents, such as a
  * house rule (#4692).
- * Each one downloads as the stored file. The list only reads; the Träger
- * decides what is sent or released.
+ * Each one downloads as the stored file. The Träger decides what is sent or
+ * released; a care contract that waits for the signature links to the page
+ * where the parents sign it (#4679).
  */
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
@@ -16,12 +17,10 @@ import { useLocale, useTranslations } from "next-intl";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
-import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -35,6 +34,7 @@ import {
 } from "~/lib/parent-api";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { documentsConcept } from "~/lib/concepts/documents";
+import { parentPath } from "~/lib/parent-url";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
 /** The title of each kind of letter in the inbox (#4690). */
@@ -111,23 +111,23 @@ export function ParentDocumentsPage() {
   }, [load]);
 
   return (
-    <ParentPage>
-      <ParentPageHeader title={t("title")} description={t("description")} />
+    <ParentPage
+      header={
+        <ParentPageHeader title={t("title")} description={t("description")} />
+      }
+      loading={documents === null}
+      empty={
+        documents?.length === 0 && !error
+          ? {
+              icon: <MotoConceptIcon concept={documentsConcept} />,
+              title: t("emptyTitle"),
+              description: t("emptyDescription"),
+            }
+          : null
+      }
+    >
       {error ? <LoadErrorAlert error={error} /> : null}
-      {documents === null ? (
-        <div className="space-y-3" aria-busy="true">
-          <Skeleton shape="card" className="h-36 w-full" />
-          <Skeleton shape="card" className="h-36 w-full" />
-        </div>
-      ) : documents.length === 0 ? (
-        error ? null : (
-          <EmptyState
-            icon={<MotoConceptIcon concept={documentsConcept} />}
-            title={t("emptyTitle")}
-            description={t("emptyDescription")}
-          />
-        )
-      ) : (
+      {documents && documents.length > 0 ? (
         <ul className="space-y-4">
           {documents.map((entry) =>
             entry.type === "shared" ? (
@@ -145,7 +145,7 @@ export function ParentDocumentsPage() {
             ),
           )}
         </ul>
-      )}
+      ) : null}
     </ParentPage>
   );
 }
@@ -160,6 +160,7 @@ function InboxDocumentCard({
   description,
   downloadLabel,
   onDownload,
+  signHref,
   children,
 }: Readonly<{
   concept: MotoConcept;
@@ -167,6 +168,8 @@ function InboxDocumentCard({
   description: string;
   downloadLabel: string;
   onDownload: () => Promise<void>;
+  /** A care contract waiting for the signature links here (#4679). */
+  signHref?: string;
   children: ReactNode;
 }>) {
   const t = useTranslations("parentDocuments");
@@ -191,15 +194,22 @@ function InboxDocumentCard({
       title={title}
       description={description}
       actions={
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={() => void download()}
-          disabled={downloading}
-        >
-          {downloading ? t("downloading") : downloadLabel}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={signHref ? "outline" : "primary"}
+            size="md"
+            onClick={() => void download()}
+            disabled={downloading}
+          >
+            {downloading ? t("downloading") : downloadLabel}
+          </Button>
+          {signHref ? (
+            <ButtonLink href={signHref} variant="success" size="md">
+              {t("signNow")}
+            </ButtonLink>
+          ) : null}
+        </div>
       }
     >
       {children}
@@ -213,6 +223,9 @@ function ParentDocumentCard({
   const t = useTranslations("parentDocuments");
   const locale = useLocale();
   const contract = document.kind === "care_contract";
+  const awaitingSignature =
+    contract && document.contract_status === "versendet";
+  const canSign = awaitingSignature && document.can_sign === true;
   const amount = new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "EUR",
@@ -227,6 +240,13 @@ function ParentDocumentCard({
       description={t("sender", { traeger: document.traeger_name })}
       downloadLabel={t("download")}
       onDownload={() => downloadMyDocument(document)}
+      signHref={
+        canSign
+          ? parentPath(
+              `/documents/vertrag/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}`,
+            )
+          : undefined
+      }
     >
       {contract && document.replaced ? (
         <div className="mb-4 space-y-2">
@@ -240,6 +260,20 @@ function ParentDocumentCard({
         </div>
       ) : null}
       <DataGrid>
+        {contract && document.contract_status ? (
+          <DataField label={t("status")}>
+            {awaitingSignature ? (
+              <StatusBadge label={t("awaitingSignature")} tone="orange" />
+            ) : document.signed_at ? (
+              <StatusBadge
+                label={`${t("signed")} · ${formatDate(document.signed_at, false, locale)}`}
+                tone="green"
+              />
+            ) : (
+              <StatusBadge label={t("concluded")} tone="green" />
+            )}
+          </DataField>
+        ) : null}
         <DataField label={t("children")}>
           {document.child_names.join(", ")}
         </DataField>

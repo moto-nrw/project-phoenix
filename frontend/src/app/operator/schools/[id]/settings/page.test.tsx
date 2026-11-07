@@ -28,6 +28,12 @@ const {
   mockSearchParams: { value: new URLSearchParams() },
 }));
 
+// Das Operator-Portal hat keinen Tenant-Kontext: der Rückweg bekommt kein Präfix.
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantRoutingModeSafe: () => "path",
+}));
+
 vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
 }));
@@ -183,6 +189,15 @@ describe("OperatorSchoolSettingsPage", () => {
     // German tab label mapping applied
     expect(screen.getByText("Betrieb")).toBeDefined();
     expect(screen.getByText("Datenschutz")).toBeDefined();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erklärung zu Einstellungen" }),
+    );
+    expect(
+      screen.getByText(
+        "Sie bearbeiten diese Einstellungen als Operator stellvertretend für die Schule.",
+      ),
+    ).toBeDefined();
   });
 
   it("renders school name in heading when provisioning list includes the school", async () => {

@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +66,7 @@ func serveSentrySession(t *testing.T, session *sessiontoken.AppClaims, handler h
 	req.RemoteAddr = "203.0.113.7:4711"
 	req.Header.Set("X-Forwarded-For", "203.0.113.7")
 	if session != nil {
-		token, err := tokenAuth.CreateJWT(*session)
+		token, err := tokentest.CreateJWT(tokenAuth, *session)
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer "+token)
 	}

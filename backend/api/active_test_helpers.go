@@ -304,7 +304,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	operationRows := rt.OwnerRows()
 	operationRows.Locks = arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), rt.InstanceStudent)
 	operations, err := owners.NewTimetableOperations(timetablePorts.OperationDependencies{
-		Session: TimetableRequestSession{}, Lifecycle: arrivalTimetable.NewOperationLifecycle(tt.Instance), Sessions: r.ActiveGroup,
+		Session: TimetableRequestSession{}, CallerStaff: groupCaller.Caller(), Lifecycle: arrivalTimetable.NewOperationLifecycle(tt.Instance), Sessions: r.ActiveGroup,
 		Supervisions: r.GroupSupervisor, Visits: owners.NewLoggedStudentPresence(db, logger),
 		People:         owners.TimetableOperationPeople{OperationPeople: owners.NewTimetableOperationPeople(dataUsers), Membership: membership},
 		PlanningTracks: rt.Timetable, Homework: rt.Timetable, Logger: logger, Now: OptionalClock(clocks),

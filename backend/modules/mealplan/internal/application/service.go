@@ -350,7 +350,9 @@ func parentMayChange(rules domain.OrderingRules, now time.Time, date domain.Date
 	return rules.ParentCanCancel(now, date)
 }
 
-func (s *Service) dailyParticipants(ctx context.Context, date domain.Date) (list domain.DailyList, err error) {
+// dailyParticipants accepts an already loaded calendar range, not a
+// roster or participation snapshot: those and the live settings stay per day.
+func (s *Service) dailyParticipants(ctx context.Context, date, through domain.Date, prepared *domain.CalendarDays) (list domain.DailyList, loaded *domain.CalendarDays, err error) {
 	err = s.run(ctx, "read_daily_participants", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
@@ -358,7 +360,8 @@ func (s *Service) dailyParticipants(ctx context.Context, date domain.Date) (list
 		}
 		deadline := rules.FreezeAt(date)
 		list = domain.DailyList{Date: date, CutoffTime: deadline.In(calendarZone).Format("15:04"), Deadline: deadline, Participants: []domain.DailyParticipant{}}
-		days, stats, calendarErr := s.calendar.Days(txCtx, date, date)
+		days, calendar, stats, calendarErr := s.participantCalendar(txCtx, date, through, prepared)
+		loaded = calendar
 		list.Closed = days.Closed[date]
 		if calendarErr != nil || list.Closed {
 			return stats, calendarErr
@@ -387,7 +390,7 @@ func (s *Service) dailyParticipants(ctx context.Context, date domain.Date) (list
 		domain.SortDailyParticipants(list.Others)
 		return stats, nil
 	})
-	return list, err
+	return list, loaded, err
 }
 
 func addStats(left, right domain.OperationStats) domain.OperationStats {

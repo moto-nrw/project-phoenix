@@ -13,7 +13,6 @@ import { ContributionBreakdown } from "~/components/holiday-contribution/contrib
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverHeader,
@@ -186,23 +185,20 @@ export function BillingDocumentBreakdown({
     >
       {document ? (
         <SlideOverContent>
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <SlideOverTitle>
-                {BILLING_DOCUMENT_KIND_LABELS[document.kind]} an{" "}
-                {recipientName(document)}
-              </SlideOverTitle>
-              {/* E-Mail und Debitorennummer (bis 35 Zeichen am Stück) brechen um. */}
-              <SlideOverDescription className="wrap-anywhere">
-                {issuedText(document)} · {document.recipientEmail}
-                {document.debtorNumber
-                  ? ` · Debitorennummer ${document.debtorNumber}`
-                  : ""}{" "}
-                · Betreuung{" "}
-                {formatDateRange(document.serviceFrom, document.serviceUntil)}
-              </SlideOverDescription>
-            </div>
-            <SlideOverCloseButton />
+          <SlideOverHeader>
+            <SlideOverTitle>
+              {BILLING_DOCUMENT_KIND_LABELS[document.kind]} an{" "}
+              {recipientName(document)}
+            </SlideOverTitle>
+            {/* E-Mail und Debitorennummer (bis 35 Zeichen am Stück) brechen um. */}
+            <SlideOverDescription className="wrap-anywhere">
+              {issuedText(document)} · {document.recipientEmail}
+              {document.debtorNumber
+                ? ` · Debitorennummer ${document.debtorNumber}`
+                : ""}{" "}
+              · Betreuung{" "}
+              {formatDateRange(document.serviceFrom, document.serviceUntil)}
+            </SlideOverDescription>
           </SlideOverHeader>
           <SlideOverBody className="space-y-4">
             {document.reason ? (

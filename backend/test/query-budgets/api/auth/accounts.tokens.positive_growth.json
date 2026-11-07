@@ -1,0 +1,6 @@
+{
+  "scenario": "api.auth.accounts.tokens.positive_growth",
+  "max": 4,
+  "exact": true,
+  "description": "GET /auth/accounts/{accountId}/tokens/: route-sized protected resource, real JWT and tenant RLS; exact fields of 3/8 independently persisted live refresh sessions. Does not invoke session-issuance cap; host liveness excluded."
+}

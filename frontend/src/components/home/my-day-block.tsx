@@ -6,14 +6,14 @@ import { Fragment, type ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { ListRow } from "~/components/ui/list-row";
 import Link from "~/components/ui/navigation-link";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { SectionCard } from "~/components/ui/section-card";
 import { SkeletonRows } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { BlockState } from "~/components/home/day-flow-block";
 import { blockStaffNames } from "~/components/timetable/block-row-parts";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import {
   HomeCardLink,
   HomeMoreRow,
@@ -116,11 +116,9 @@ export function MyDayBlock() {
         })();
 
   return (
-    <SectionCard
+    <HomeCard
       title="Mein Tag"
       leading={<HomeCardIcon concept={carePlanConcept} />}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       inlineActions
       actions={
         <HomeCardLink href={dayPlanHref} label={`Mein Tag: ${dayPlanLabel}`}>
@@ -175,7 +173,7 @@ export function MyDayBlock() {
           </>
         );
       })()}
-    </SectionCard>
+    </HomeCard>
   );
 }
 
@@ -282,10 +280,34 @@ function BlockRow({
           <NowLine now={now} />
         </div>
       )}
-      <div
-        className={`flex items-center gap-3 rounded-xl bg-gray-50/50 px-3 py-2 sm:py-1 ${
-          over ? "opacity-60" : ""
-        }`}
+      <ListRow
+        density="compact"
+        className={over ? "opacity-60" : undefined}
+        trailing={
+          <>
+            {startable ? (
+              <Button
+                type="button"
+                size="md"
+                variant="success"
+                disabled={busy}
+                onClick={() => onStart(block)}
+              >
+                {busy ? "Startet..." : "Starten"}
+              </Button>
+            ) : block.isAbsent ? (
+              <StatusBadge tone="gray" label="Sie fehlen" />
+            ) : over ? null : (
+              <BlockState block={block} now={now} />
+            )}
+            {running && block.activeGroupId && (
+              <ChevronRight
+                className="h-4 w-4 text-gray-400"
+                aria-hidden="true"
+              />
+            )}
+          </>
+        }
       >
         <Link
           href={href}
@@ -320,30 +342,7 @@ function BlockRow({
             </span>
           </span>
         </Link>
-        <span className="flex shrink-0 items-center gap-2">
-          {startable ? (
-            <Button
-              type="button"
-              size="md"
-              variant="success"
-              disabled={busy}
-              onClick={() => onStart(block)}
-            >
-              {busy ? "Startet..." : "Starten"}
-            </Button>
-          ) : block.isAbsent ? (
-            <StatusBadge tone="gray" label="Sie fehlen" />
-          ) : over ? null : (
-            <BlockState block={block} now={now} />
-          )}
-          {running && block.activeGroupId && (
-            <ChevronRight
-              className="h-4 w-4 text-gray-400"
-              aria-hidden="true"
-            />
-          )}
-        </span>
-      </div>
+      </ListRow>
     </li>
   );
 }

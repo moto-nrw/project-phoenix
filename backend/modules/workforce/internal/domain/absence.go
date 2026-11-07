@@ -198,6 +198,7 @@ type StaffAbsenceOrder struct {
 
 // StaffAbsenceFilter narrows a listing; see the public facade for semantics.
 type StaffAbsenceFilter struct {
+	IDs               []int64
 	StaffID           int64
 	StaffIDs          []int64
 	Statuses          []string

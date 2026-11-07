@@ -1,5 +1,8 @@
 "use client";
 
+import { SectionCard } from "~/components/ui/section-card";
+import { EmptyState } from "~/components/ui/empty-state";
+import { ListRow } from "~/components/ui/list-row";
 import {
   HANDOVER_ABSENT_WORDING,
   handoverDetail,
@@ -108,25 +111,23 @@ export function PlannedNowSection({
 
   if (sortedPlanned.length === 0) {
     return (
-      <section
-        className="moto-content-surface mb-4 rounded-2xl border p-4"
-        data-setup-tour="supervision-next"
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">
-              Als Nächstes
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Keine geplante Betreuung in Sicht
-            </p>
-          </div>
-          <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
-            <MotoConceptIcon concept={carePlanConcept} size={18} />
-            Heute
-          </span>
-        </div>
-      </section>
+      <div className="mb-4" data-setup-tour="supervision-next">
+        <SectionCard
+          title="Als Nächstes"
+          action={
+            <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
+              <MotoConceptIcon concept={carePlanConcept} size={18} />
+              Heute
+            </span>
+          }
+        >
+          <EmptyState
+            variant="compact"
+            title="Keine geplante Betreuung in Sicht"
+            className="py-0"
+          />
+        </SectionCard>
+      </div>
     );
   }
 
@@ -491,10 +492,9 @@ function RosterPreviewRow({
   // away from a check-in (#1747).
   const notScheduled = isNotScheduled(row);
   return (
-    <div
-      className={`rounded-lg px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)] ${
-        notScheduled ? "bg-gray-50" : "bg-white"
-      }`}
+    <ListRow
+      tone={notScheduled ? "muted" : "surface"}
+      className="block text-sm"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -554,7 +554,7 @@ function RosterPreviewRow({
           {warnings[0]?.message}
         </p>
       ) : null}
-    </div>
+    </ListRow>
   );
 }
 

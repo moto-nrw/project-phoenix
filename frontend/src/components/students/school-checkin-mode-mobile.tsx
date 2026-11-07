@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { CheckSquare, LogIn, LogOut, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
@@ -158,30 +159,17 @@ export function SchoolCheckinModeMobile({
       style={{ bottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}
       data-checkin-mode-mobile="active"
     >
-      <div
-        className="moto-content-surface rounded-2xl border p-2"
-        role="region"
+      <SelectionBar
         aria-label="An- und Abmelde-Modus"
-        aria-busy={disabled && runningAction !== null}
-      >
-        <div className="flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 items-start gap-1.5">
-            <CheckSquare
-              className="text-moto-green mt-0.5 size-4 shrink-0"
-              aria-hidden
-            />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-balance text-gray-900">
-                An- und Abmelde-Modus aktiv
-              </p>
-              {selectionActive ? null : (
-                <p className="text-xs text-gray-600">
-                  Jeder Tipp meldet sofort an oder ab.
-                </p>
-              )}
-            </div>
-          </div>
-
+        placement="inline"
+        className="rounded-2xl p-2"
+        count={selectedCount}
+        busy={disabled && runningAction !== null}
+        label="An- und Abmelde-Modus aktiv"
+        description={
+          selectionActive ? null : "Jeder Tipp meldet sofort an oder ab."
+        }
+        actions={
           <Button
             type="button"
             variant="primary"
@@ -193,10 +181,10 @@ export function SchoolCheckinModeMobile({
           >
             Fertig
           </Button>
-        </div>
-
+        }
+      >
         {showStatusRow ? (
-          <div className="mt-2 flex items-center gap-2">
+          <div className="flex items-center gap-2">
             {onSelectionActiveChange ? (
               <SegmentedControl
                 ariaLabel="Tipp-Verhalten"
@@ -298,7 +286,7 @@ export function SchoolCheckinModeMobile({
         {leftOut ? (
           <p className="mt-1 text-xs text-gray-600">{leftOut}</p>
         ) : null}
-      </div>
+      </SelectionBar>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
@@ -14,7 +15,6 @@ import { LEADERSHIP_AUDIENCE_LABEL } from "~/lib/messaging-status";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -269,17 +269,14 @@ export function NewMessageModal({
         if (!nextOpen) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[560px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>Neue Nachricht</SlideOverTitle>
-            <SlideOverDescription>
-              {student
-                ? "Wählen Sie die Eltern, die die Nachricht erhalten."
-                : "Wählen Sie zuerst das Kind, um das es geht."}
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="md">
+        <SlideOverHeader>
+          <SlideOverTitle>Neue Nachricht</SlideOverTitle>
+          <SlideOverDescription>
+            {student
+              ? "Wählen Sie die Eltern, die die Nachricht erhalten."
+              : "Wählen Sie zuerst das Kind, um das es geht."}
+          </SlideOverDescription>
         </SlideOverHeader>
         {/* STEP 1 — pick a child (skipped when a preset child is given) */}
         {!student && (
@@ -310,7 +307,7 @@ export function NewMessageModal({
                 </p>
               ) : null}
             </SlideOverBody>
-            <SlideOverFooter className="flex-row justify-end">
+            <SlideOverFooter>
               <Button
                 type="submit"
                 variant="success"
@@ -372,9 +369,10 @@ export function NewMessageModal({
               ) : guardiansFailed ? (
                 <LoadErrorAlert error={guardiansError.error} />
               ) : guardians.length === 0 ? (
-                <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
-                  Für dieses Kind ist kein Eltern-Zugang hinterlegt.
-                </p>
+                <EmptyState
+                  variant="compact"
+                  description="Für dieses Kind ist kein Eltern-Zugang hinterlegt."
+                />
               ) : (
                 <div className="space-y-1">
                   {guardians.map((g) => (

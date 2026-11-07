@@ -2,7 +2,7 @@
   "sites": [
     {
       "build": "production",
-      "evidence": "func (q careScheduleQueue) OpenCount(ctx context.Context, today requestreview.Date) (int, error) {\n\titems, _, err := q.query.ListPending(ctx, careplan.RequestQueueFilter{UrgentDate: today.String()})\n\treturn len(items), err\n}",
+      "evidence": "func (q careScheduleQueue) OpenCount(ctx context.Context, today requestreview.Date) (int, error) {\n\titems, _, err := q.query.ListPending(ctx, careplan.RequestQueueFilter{UrgentDate: today.String(), OmitDiff: true})\n\treturn len(items), err\n}",
       "form": "unclassified-evidence",
       "id": "roots/requestreviewbinding/careScheduleQueue.OpenCount",
       "owner": "modules/requestreview"

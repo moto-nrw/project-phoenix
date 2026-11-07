@@ -124,14 +124,9 @@ function AbsenceNoteModal({
           Antrag {formatAbsenceRange(absence.date_start, absence.date_end)} (
           {absenceRowLabel(absence)})
         </p>
-        <label
-          htmlFor="decision-note"
-          className="block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-        >
-          {noteLabel}
-        </label>
         <Textarea
           id="decision-note"
+          label={noteLabel}
           name="decision_note"
           value={note}
           onChange={(e) => setNote(e.target.value)}

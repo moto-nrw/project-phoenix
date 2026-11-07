@@ -101,6 +101,15 @@ func (m *mockGroupRepository) FindByIDForUpdate(ctx context.Context, id int64) (
 	}, nil
 }
 
+func (m *mockGroupRepository) FindVisitTransferGroups(ctx context.Context, from, to int64) (*ports.ActiveGroup, *ports.ActiveGroup, error) {
+	source, err := m.FindByID(ctx, from)
+	if err != nil {
+		return nil, nil, err
+	}
+	target, err := m.FindByID(ctx, to)
+	return source, target, err
+}
+
 func (m *mockGroupRepository) Update(ctx context.Context, entity *ports.ActiveGroup) error {
 	return nil
 }

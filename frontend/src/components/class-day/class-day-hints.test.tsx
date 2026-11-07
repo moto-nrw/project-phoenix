@@ -34,7 +34,10 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.unmock("swr");
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantRoutingModeSafe: () => "path",
+}));
 import { SWRConfig } from "~/lib/swr/testing";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { ReactElement } from "react";

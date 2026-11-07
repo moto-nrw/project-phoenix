@@ -244,6 +244,9 @@ func TestStaffWeekendWriteKeepsItsErrorContract(t *testing.T) {
 		DB: testpkg.SetupTestDB(t), Settings: settings,
 		Observe: func(mealplanCompose.Observation) {}, Now: time.Now,
 		Participants: func(context.Context, string) ([]mealplanModule.ParticipantCandidate, error) { return nil, nil },
+		ParticipantDays: func(context.Context, []string) (map[string][]mealplanModule.ParticipantCandidate, error) {
+			return nil, nil
+		},
 		StudentNames: func(context.Context, []int64) ([]mealplanModule.ParticipantCandidate, error) { return nil, nil },
 		Calendar: func(context.Context, string, string) (map[string]bool, []mealplanModule.HolidayPeriod, error) {
 			return nil, nil, nil

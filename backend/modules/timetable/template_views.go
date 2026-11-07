@@ -1,5 +1,12 @@
 package timetable
 
+// TemplateTargetInputs is the display target readset. Capacity and future
+// rosters read their own current targets rather than reusing these members.
+type TemplateTargetInputs struct {
+	Targets    map[int64][]GroupTarget
+	StudentIDs map[int64][]int64
+}
+
 type TemplateListRow struct {
 	TemplateID                int64
 	Name                      string

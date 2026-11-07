@@ -108,6 +108,6 @@ describe("OperatorCaterersPage (#4497)", () => {
     mockListCaterers.mockResolvedValue([]);
     renderPage();
 
-    expect(await screen.findByText("Noch keine Caterer")).toBeInTheDocument();
+    expect(await screen.findByText(/Noch keine Caterer/)).toBeInTheDocument();
   });
 });

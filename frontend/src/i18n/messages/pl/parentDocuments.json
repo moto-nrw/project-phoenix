@@ -27,5 +27,11 @@
   "releasedAt": "Udostępniono",
   "downloadFile": "Pobierz",
   "sharedErrorObject": "dokumenty organizatora",
-  "image": "Obraz"
+  "image": "Obraz",
+  "awaitingSignature": "Czeka na Twój podpis",
+  "signed": "Podpisano",
+  "concluded": "Umowa zawarta",
+  "signNow": "Przeczytaj i podpisz",
+  "signedAt": "Podpisano dnia",
+  "status": "Status"
 }

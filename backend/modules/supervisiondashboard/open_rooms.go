@@ -78,9 +78,25 @@ type openRoomInputs struct {
 	sessions     []RunningSession
 	sessionByID  map[int64]RunningSession
 	visitsByRoom map[int64][]VisitRecord
+	// visits retains the owner order before room/student deduplication so a
+	// selected session can reuse exactly its own open visit rows.
+	visits []VisitRecord
 	// blocks holds the running timetable block behind a session, keyed by
 	// session id (#3281).
 	blocks map[int64]SessionBlock
+}
+
+func (in openRoomInputs) visitsOfSession(sessionID int64) ([]VisitRecord, bool) {
+	if _, loaded := in.sessionByID[sessionID]; !loaded {
+		return nil, false
+	}
+	rows := make([]VisitRecord, 0)
+	for _, row := range in.visits {
+		if row.ActiveGroupID == sessionID {
+			rows = append(rows, row)
+		}
+	}
+	return rows, true
 }
 
 func (in openRoomInputs) studentIDs() []int64 {
@@ -137,6 +153,7 @@ func (s *service) loadOpenRoomInputs(ctx context.Context, caller Caller, busines
 	return openRoomInputs{
 		rooms: rooms, sessions: sessions, sessionByID: sessionByID,
 		visitsByRoom: groupOpenRoomVisits(sessionByID, visits),
+		visits:       visits,
 		blocks:       blocks,
 	}, nil
 }

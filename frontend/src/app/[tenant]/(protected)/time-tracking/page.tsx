@@ -21,7 +21,9 @@ import { useModuleBooked } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { StatCard } from "~/components/ui/stat-card";
-import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
+import { SkeletonRegion } from "~/components/ui/page-skeletons";
+import { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -44,7 +46,6 @@ import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -154,6 +155,7 @@ import { createLogger } from "~/lib/logger";
 import { errorStatus } from "~/lib/expected-failure";
 import { IconTile } from "~/components/ui/icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
@@ -607,9 +609,6 @@ function ClockInCard({
   // Mutex to prevent race condition in auto-end break effect
   const autoEndInFlightRef = useRef(false);
   const autoEndAttemptedBreakIdRef = useRef<string | null>(null);
-  // Anchor for the desktop break-duration popover; dismissal is handled by
-  // document listeners scoped to this subtree (see effect below).
-  const breakMenuRef = useRef<HTMLDivElement>(null);
 
   const isCheckedIn =
     currentSession !== null && currentSession.checkOutTime === null;
@@ -735,31 +734,6 @@ function ClockInCard({
       setPlannedBreakMinutes(null);
     }
   }, [isOnBreak]);
-
-  // Dismiss the desktop break-duration popover on outside click or Escape.
-  // Capture the outside click before its target can act, so closing the picker
-  // cannot also trigger a button behind it. The mobile picker is portaled by
-  // Drawer, so it manages dismissal through its own open state instead.
-  useEffect(() => {
-    if (!breakMenuOpen || isMobileViewport) return;
-    const onOutsideClick = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (target === null) return;
-      if (breakMenuRef.current?.contains(target)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      setBreakMenuOpen(false);
-    };
-    const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setBreakMenuOpen(false);
-    };
-    document.addEventListener("click", onOutsideClick, true);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("click", onOutsideClick, true);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [breakMenuOpen, isMobileViewport]);
 
   useEffect(() => {
     const updateViewport = () => {
@@ -1046,7 +1020,7 @@ function ClockInCard({
             {/* Control row: pause | timer | stop */}
             <div className="mb-5 flex items-center justify-between">
               {/* Pause button (opens menu) or End Break button */}
-              <div className="relative" ref={breakMenuRef}>
+              <div>
                 {isOnBreak ? (
                   <Button
                     type="button"
@@ -1065,33 +1039,45 @@ function ClockInCard({
                     </svg>
                   </Button>
                 ) : (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setBreakMenuOpen(!breakMenuOpen)}
-                    disabled={stampingDisabled || actionLoading}
-                    className={getBreakButtonClassName(false, breakMins)}
-                    aria-label="Pause starten"
-                    aria-expanded={breakMenuOpen}
-                    aria-haspopup="dialog"
+                  // The outside click is consumed so that dismissing this
+                  // picker cannot also trigger an action behind it.
+                  <AnchoredPopover
+                    open={showBreakDurationPicker && !isMobileViewport}
+                    onOpenChange={setBreakMenuOpen}
+                    ariaLabel="Pause stempeln"
+                    preferredWidth={288}
+                    focusPanelOnOpen
+                    swallowOutsideClick
+                    className="p-3"
+                    renderTrigger={({ ref, panelId }) => (
+                      <Button
+                        ref={ref}
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setBreakMenuOpen(!breakMenuOpen)}
+                        disabled={stampingDisabled || actionLoading}
+                        className={getBreakButtonClassName(false, breakMins)}
+                        aria-label="Pause starten"
+                        aria-expanded={breakMenuOpen}
+                        aria-haspopup="dialog"
+                        aria-controls={
+                          showBreakDurationPicker && !isMobileViewport
+                            ? panelId
+                            : undefined
+                        }
+                      >
+                        <svg
+                          className="h-5 w-5"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                        </svg>
+                      </Button>
+                    )}
                   >
-                    <svg
-                      className="h-5 w-5"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                    </svg>
-                  </Button>
-                )}
-
-                {/* The capture-phase listener above consumes the first desktop
-                    outside click, so dismissing this picker cannot also
-                    trigger an action behind it. */}
-                {showBreakDurationPicker && !isMobileViewport && (
-                  <div className="moto-popover-surface absolute top-full left-0 z-20 mt-2 w-[calc(100vw-2rem)] max-w-72 rounded-xl border p-3 sm:w-72">
-                    {breakDurationControls}
-                  </div>
+                    {() => breakDurationControls}
+                  </AnchoredPopover>
                 )}
               </div>
 
@@ -2504,19 +2490,17 @@ function EditSessionModal({
   return (
     <SlideOver
       open={isOpen}
+      isDismissDisabled={saving || absenceSaving || absenceDeleting}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[640px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{modalTitle}</SlideOverTitle>
-            <SlideOverDescription>
-              {dayName}, {formatDateGerman(date)}
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="md">
+        <SlideOverHeader>
+          <SlideOverTitle>{modalTitle}</SlideOverTitle>
+          <SlideOverDescription>
+            {dayName}, {formatDateGerman(date)}
+          </SlideOverDescription>
         </SlideOverHeader>
         <div
           ref={formAreaRef}
@@ -2578,10 +2562,12 @@ function EditSessionModal({
                 <div>
                   {hasIndividualBreaks ? (
                     <div>
-                      <span className="mb-1 block text-sm font-medium text-gray-700">
-                        Pausen
-                      </span>
-                      <div className="space-y-2">
+                      <FieldLabel id="edit-breaks-label">Pausen</FieldLabel>
+                      <div
+                        role="group"
+                        aria-labelledby="edit-breaks-label"
+                        className="space-y-2"
+                      >
                         {session.breaks.map((brk) => (
                           <div key={brk.id} className="flex items-center gap-2">
                             <span className="w-12 shrink-0 text-xs text-gray-500 tabular-nums">
@@ -2619,46 +2605,28 @@ function EditSessionModal({
                       </div>
                     </div>
                   ) : (
-                    <div>
-                      <label
-                        id="edit-break-label"
-                        htmlFor="edit-break"
-                        className="mb-1 block text-sm font-medium text-gray-700"
-                      >
-                        Pause (Min)
-                      </label>
-                      <CustomSelect
-                        id="edit-break"
-                        ariaLabelledBy="edit-break-label"
-                        value={breakMins}
-                        onChange={setBreakMins}
-                        options={[0, 15, 30, 45, 60].map((m) => ({
-                          value: m.toString(),
-                          label: `${m} min`,
-                        }))}
-                      />
-                    </div>
+                    <CustomSelect
+                      id="edit-break"
+                      label="Pause (Min)"
+                      value={breakMins}
+                      onChange={setBreakMins}
+                      options={[0, 15, 30, 45, 60].map((m) => ({
+                        value: m.toString(),
+                        label: `${m} min`,
+                      }))}
+                    />
                   )}
                 </div>
-                <div>
-                  <label
-                    id="edit-status-label"
-                    htmlFor="edit-status"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Ort
-                  </label>
-                  <CustomSelect
-                    id="edit-status"
-                    ariaLabelledBy="edit-status-label"
-                    value={status}
-                    onChange={(next) => setStatus(next as SessionStatus)}
-                    options={[
-                      { value: "present", label: "In der OGS" },
-                      { value: "home_office", label: "Unterwegs" },
-                    ]}
-                  />
-                </div>
+                <CustomSelect
+                  id="edit-status"
+                  label="Ort"
+                  value={status}
+                  onChange={(next) => setStatus(next as SessionStatus)}
+                  options={[
+                    { value: "present", label: "In der OGS" },
+                    { value: "home_office", label: "Unterwegs" },
+                  ]}
+                />
               </div>
 
               <div>
@@ -2720,7 +2688,12 @@ function EditSessionModal({
                   {/* Felder zur Einordnung im Formular-Slide-over, kein
                       Detailbaum: nur DataField, kein DataGrid
                       (bauart/one-detail-per-type, #3115). */}
-                  <dl className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2">
+                  <InsetPanel
+                    as="dl"
+                    framed
+                    padding="md"
+                    className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                  >
                     <DataField label="Zeitraum">
                       {absence.dateStart} bis {absence.dateEnd}
                     </DataField>
@@ -2732,20 +2705,20 @@ function EditSessionModal({
                         {absence.note}
                       </DataField>
                     )}
-                  </dl>
+                  </InsetPanel>
                 </div>
               ) : (
                 <>
                   {/* Absence type */}
                   <div>
-                    <div className="mb-1 flex items-baseline justify-between gap-2">
-                      <label
+                    <div className="mb-2 flex items-baseline justify-between gap-2">
+                      <FieldLabel
                         id="edit-abs-type-label"
                         htmlFor="edit-abs-type"
-                        className="block text-sm font-medium text-gray-700"
+                        className="mb-0"
                       >
                         Art der Abwesenheit
-                      </label>
+                      </FieldLabel>
                       {/* Eigene Namen pflegt die Datenverwaltung (#3114); der
                           Link öffnet ein zweites Fenster, damit dieser Eintrag
                           stehen bleibt. */}
@@ -2766,39 +2739,27 @@ function EditSessionModal({
 
                   {/* Date range */}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label
-                        htmlFor="edit-abs-start"
-                        className="mb-1 block text-sm font-medium text-gray-700"
-                      >
-                        Von
-                      </label>
-                      <ISODatePicker
-                        id="edit-abs-start"
-                        error={formErrors.fieldError("date_start")}
-                        value={absDateStart}
-                        onChange={setAbsDateStart}
-                        calendarLayout="popover"
-                        hideClearButton
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="edit-abs-end"
-                        className="mb-1 block text-sm font-medium text-gray-700"
-                      >
-                        Bis
-                      </label>
-                      <ISODatePicker
-                        id="edit-abs-end"
-                        error={formErrors.fieldError("date_end")}
-                        value={absDateEnd}
-                        min={absDateStart || undefined}
-                        onChange={setAbsDateEnd}
-                        calendarLayout="popover"
-                        hideClearButton
-                      />
-                    </div>
+                    <ISODatePicker
+                      id="edit-abs-start"
+                      name="date_start"
+                      label="Von"
+                      error={formErrors.fieldError("date_start")}
+                      value={absDateStart}
+                      onChange={setAbsDateStart}
+                      calendarLayout="popover"
+                      hideClearButton
+                    />
+                    <ISODatePicker
+                      id="edit-abs-end"
+                      name="date_end"
+                      label="Bis"
+                      error={formErrors.fieldError("date_end")}
+                      value={absDateEnd}
+                      min={absDateStart || undefined}
+                      onChange={setAbsDateEnd}
+                      calendarLayout="popover"
+                      hideClearButton
+                    />
                   </div>
 
                   {/* Half day toggle */}
@@ -2814,27 +2775,17 @@ function EditSessionModal({
                   </div>
 
                   {/* Absence note */}
-                  <div>
-                    <label
-                      htmlFor="edit-abs-note"
-                      className="mb-1 block text-sm font-medium text-gray-700"
-                    >
-                      Bemerkung{" "}
-                      <span className="font-normal text-gray-400">
-                        (optional)
-                      </span>
-                    </label>
-                    <Textarea
-                      id="edit-abs-note"
-                      name="note"
-                      error={formErrors.fieldError("note")}
-                      value={absNote}
-                      onChange={(e) => setAbsNote(e.target.value)}
-                      rows={2}
-                      maxLength={2000}
-                      placeholder="z. B. Arzttermin, Schulung …"
-                    />
-                  </div>
+                  <Textarea
+                    id="edit-abs-note"
+                    name="note"
+                    label="Bemerkung (optional)"
+                    error={formErrors.fieldError("note")}
+                    value={absNote}
+                    onChange={(e) => setAbsNote(e.target.value)}
+                    rows={2}
+                    maxLength={2000}
+                    placeholder="z. B. Arzttermin, Schulung …"
+                  />
 
                   {/* Destructive action */}
                   <div className="pt-1">
@@ -2855,9 +2806,7 @@ function EditSessionModal({
             </div>
           )}
         </div>
-        <SlideOverFooter className="flex-row justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
+        <SlideOverFooter>{footer}</SlideOverFooter>
       </SlideOverContent>
     </SlideOver>
   );
@@ -2978,14 +2927,14 @@ function CreateAbsenceModal({
         <FormErrorAlert message={formErrors.error} />
         {/* Absence type */}
         <div>
-          <div className="mb-1 flex items-baseline justify-between gap-2">
-            <label
+          <div className="mb-2 flex items-baseline justify-between gap-2">
+            <FieldLabel
               id="absence-type-label"
               htmlFor="absence-type"
-              className="block text-sm font-medium text-gray-700"
+              className="mb-0"
             >
               Art der Abwesenheit
-            </label>
+            </FieldLabel>
             {canManageAbsenceTypes && (
               <CatalogManageLink
                 href="/database/absence-types"
@@ -3003,39 +2952,27 @@ function CreateAbsenceModal({
 
         {/* Date range */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="absence-start"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Von
-            </label>
-            <ISODatePicker
-              id="absence-start"
-              error={formErrors.fieldError("date_start")}
-              value={dateStart}
-              onChange={setDateStart}
-              calendarLayout="popover"
-              hideClearButton
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="absence-end"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Bis
-            </label>
-            <ISODatePicker
-              id="absence-end"
-              error={formErrors.fieldError("date_end")}
-              value={dateEnd}
-              min={dateStart || undefined}
-              onChange={setDateEnd}
-              calendarLayout="popover"
-              hideClearButton
-            />
-          </div>
+          <ISODatePicker
+            id="absence-start"
+            name="date_start"
+            label="Von"
+            error={formErrors.fieldError("date_start")}
+            value={dateStart}
+            onChange={setDateStart}
+            calendarLayout="popover"
+            hideClearButton
+          />
+          <ISODatePicker
+            id="absence-end"
+            name="date_end"
+            label="Bis"
+            error={formErrors.fieldError("date_end")}
+            value={dateEnd}
+            min={dateStart || undefined}
+            onChange={setDateEnd}
+            calendarLayout="popover"
+            hideClearButton
+          />
         </div>
 
         {/* Half day toggle */}
@@ -3049,25 +2986,17 @@ function CreateAbsenceModal({
         </div>
 
         {/* Note */}
-        <div>
-          <label
-            htmlFor="absence-note"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Bemerkung{" "}
-            <span className="font-normal text-gray-400">(optional)</span>
-          </label>
-          <Textarea
-            id="absence-note"
-            name="note"
-            error={formErrors.fieldError("note")}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={2}
-            maxLength={2000}
-            placeholder="z. B. Arzttermin, Schulung …"
-          />
-        </div>
+        <Textarea
+          id="absence-note"
+          name="note"
+          label="Bemerkung (optional)"
+          error={formErrors.fieldError("note")}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          maxLength={2000}
+          placeholder="z. B. Arzttermin, Schulung …"
+        />
       </div>
     </Modal>
   );
@@ -4143,23 +4072,19 @@ function TimeTrackingContent() {
                 Bitte geben Sie einen kurzen Grund an. Er wird beim Eintrag
                 gespeichert.
               </p>
-              <label
-                htmlFor="deviation-reason"
-                className="mt-4 block text-xs font-medium text-gray-700"
-              >
-                Grund
-              </label>
-              <Textarea
-                id="deviation-reason"
-                name="reason"
-                error={deviationErrors.fieldError("reason")}
-                value={deviationReason}
-                onChange={(e) => setDeviationReason(e.target.value)}
-                disabled={deviationSubmitting}
-                placeholder="z. B. Elterngespräch lief länger"
-                rows={3}
-                className="mt-1"
-              />
+              <div className="mt-4">
+                <Textarea
+                  id="deviation-reason"
+                  name="reason"
+                  label="Grund"
+                  error={deviationErrors.fieldError("reason")}
+                  value={deviationReason}
+                  onChange={(e) => setDeviationReason(e.target.value)}
+                  disabled={deviationSubmitting}
+                  placeholder="z. B. Elterngespräch lief länger"
+                  rows={3}
+                />
+              </div>
             </div>
           </Modal>
         </>

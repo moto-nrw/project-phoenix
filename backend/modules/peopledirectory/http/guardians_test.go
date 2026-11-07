@@ -65,8 +65,13 @@ func (f *fakeGuardianDirectory) ListGuardianStudents(_ context.Context, guardian
 	return f.guardianKids[guardianID], nil
 }
 
-func (f *fakeGuardianDirectory) GuardianDeleteImpact(context.Context, int64) (peopledirectory.GuardianDeleteImpact, error) {
-	return f.impact, nil
+func (f *fakeGuardianDirectory) GuardianDeleteImpact(ctx context.Context, id int64) (peopledirectory.GuardianDeleteImpact, error) {
+	if _, err := f.FindGuardian(ctx, id); err != nil {
+		return peopledirectory.GuardianDeleteImpact{}, err
+	}
+	impact := f.impact
+	impact.GuardianFound = true
+	return impact, nil
 }
 
 func (f *fakeGuardianDirectory) EvaluateGuardianDelete(_ context.Context, _ int64, force, isAdmin bool) (bool, error) {

@@ -96,7 +96,8 @@ func TestPublicContractFollowsAnApprovedChangeWithANewVersionAndAnswersOneVersio
 	school := changedSchool{school: carecontract.School{ID: testpkg.UniqueTestTenantID(t), Name: "OGS Am Lindenhof"},
 		child: testpkg.UniqueTestTenantID(t), offering: testpkg.UniqueTestTenantID(t)}
 	contract := activeContract(t, ctx, organization, school)
-	contractPorts := compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtimeDouble{}, Access: school}
+	contractPorts := compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtimeDouble{}, Access: school,
+		Ledger: ledgerDouble{}, Links: testSigningLinks()}
 	amendments := compose.NewConclusion(contractPorts, compose.IntakePorts{Schools: school, Applications: school,
 		Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: modesDouble{}, Mail: noMailBlocks{}})
 

@@ -51,6 +51,7 @@ import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 
 import { overlapWarningMessage } from "./substitution-deviation-input";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "BulkSubstitutionModal" });
 
@@ -350,6 +351,7 @@ export function BulkSubstitutionModal({
   return (
     <SlideOver
       open={isOpen}
+      isDismissDisabled={saving}
       onOpenChange={(open) => {
         // Der Save ist EIN atomarer Request: ein während des Speicherns
         // geschlossenes Panel sähe abgebrochen aus, während der Server noch
@@ -357,43 +359,39 @@ export function BulkSubstitutionModal({
         if (!open && !saving) resetAndClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[760px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>Sammel-Vertretung</SlideOverTitle>
-            <SlideOverDescription>
-              Trägt eine Abwesenheit und optional eine Ersatzperson für alle
-              Termine einer Person im gewählten Zeitraum in einem Schritt ein.
-              Gespeichert wird alles zusammen oder nichts.
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton
-            aria-label="Sammel-Vertretung schließen"
-            disabled={saving}
-          />
+      <SlideOverContent size="lg">
+        <SlideOverHeader
+          close={
+            <SlideOverCloseButton
+              aria-label="Sammel-Vertretung schließen"
+              disabled={saving}
+            />
+          }
+        >
+          <SlideOverTitle>Sammel-Vertretung</SlideOverTitle>
+          <SlideOverDescription>
+            Trägt eine Abwesenheit und optional eine Ersatzperson für alle
+            Termine einer Person im gewählten Zeitraum in einem Schritt ein.
+            Gespeichert wird alles zusammen oder nichts.
+          </SlideOverDescription>
         </SlideOverHeader>
         <SlideOverBody error={formErrors.error}>
           <div ref={formRef} className="space-y-4">
             {staffLoadError && <LoadErrorAlert error={staffLoadErrorMessage} />}
 
-            <div>
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                Abwesende Person
-              </span>
-              <CustomSelect
-                value={absentStaffId}
-                options={absentOptions}
-                name="absent_staff_id"
-                invalid={Boolean(formErrors.fieldError("absent_staff_id"))}
-                ariaLabel="Abwesende Person"
-                placeholder="Person wählen…"
-                onChange={(value) => {
-                  setAbsentStaffId(value);
-                  if (value === substituteStaffId) setSubstituteStaffId("");
-                  setDeselected(new Set());
-                }}
-              />
-            </div>
+            <CustomSelect
+              value={absentStaffId}
+              options={absentOptions}
+              name="absent_staff_id"
+              label="Abwesende Person"
+              error={formErrors.fieldError("absent_staff_id")}
+              placeholder="Person wählen…"
+              onChange={(value) => {
+                setAbsentStaffId(value);
+                if (value === substituteStaffId) setSubstituteStaffId("");
+                setDeselected(new Set());
+              }}
+            />
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <ISODatePicker
@@ -449,10 +447,15 @@ export function BulkSubstitutionModal({
                     Termine werden geladen…
                   </p>
                 ) : dayGroups.length === 0 ? (
-                  <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                  <InsetPanel
+                    as="p"
+                    framed
+                    padding="compact"
+                    className="text-sm text-gray-500"
+                  >
                     Im gewählten Zeitraum gibt es keine planbaren Termine dieser
                     Person.
-                  </p>
+                  </InsetPanel>
                 ) : (
                   <ul className="max-h-64 space-y-2 overflow-y-auto pr-1">
                     {dayGroups.map((group) => {
@@ -512,24 +515,17 @@ export function BulkSubstitutionModal({
               </div>
             )}
 
-            <div>
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                Ersatzperson
-              </span>
-              <CustomSelect
-                value={substituteStaffId}
-                options={substituteOptions}
-                name="substitute_staff_id"
-                invalid={Boolean(formErrors.fieldError("substitute_staff_id"))}
-                ariaLabel="Ersatzperson"
-                placeholder="Keine — nur abwesend melden"
-                disabled={staffLoadError}
-                onChange={setSubstituteStaffId}
-              />
-              <p className="mt-1 text-[11px] text-gray-400">
-                Ohne Ersatzperson werden die Termine nur als abwesend markiert.
-              </p>
-            </div>
+            <CustomSelect
+              value={substituteStaffId}
+              options={substituteOptions}
+              name="substitute_staff_id"
+              label="Ersatzperson"
+              hint="Ohne Ersatzperson werden die Termine nur als abwesend markiert."
+              error={formErrors.fieldError("substitute_staff_id")}
+              placeholder="Keine — nur abwesend melden"
+              disabled={staffLoadError}
+              onChange={setSubstituteStaffId}
+            />
 
             <Input
               id="bulk-substitution-reason"
@@ -551,7 +547,7 @@ export function BulkSubstitutionModal({
             )}
           </div>
         </SlideOverBody>
-        <SlideOverFooter className="flex-row justify-end gap-2">
+        <SlideOverFooter>
           <Button
             type="button"
             variant="outline"

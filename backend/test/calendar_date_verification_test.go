@@ -44,6 +44,11 @@ var unmappedDateColumns = map[string]string{
 	// a JSON aggregate; carecontract.Service.LastDay is *calendar.Date and no
 	// time.Time ever reaches the column.
 	"care_contract.contract_version_services.last_day": "Betreuungsvertrag binds and reads calendar.Date text, never time.Time",
+	// ADR 0155: the day a paper contract was signed is written and scanned
+	// by raw SQL in the care contract adapter as calendar.Date
+	// (ports.NewSignature.SignedOn, the row's SignedOn); no time.Time ever
+	// reaches the column.
+	"care_contract.contract_signatures.signed_on": "ADR 0155: the signature adapter binds and scans calendar.Date, never time.Time",
 	// Expand #2715 creates empty storage with no Go reader or writer. Cutover
 	// must replace this classification with a calendar.Date owner row field.
 	// People Directory uses explicit joined projections, not a table-bound

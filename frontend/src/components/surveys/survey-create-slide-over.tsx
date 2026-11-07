@@ -13,7 +13,6 @@ import { Button } from "~/components/ui/button";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -88,16 +87,14 @@ export function SurveyCreateSlideOver({
   return (
     <SlideOver
       open
+      isDismissDisabled={saving}
       onOpenChange={(open) => {
         if (!open && !saving) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[760px]" isBackdropDismissDisabled>
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>Neue Umfrage</SlideOverTitle>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="lg" isBackdropDismissDisabled>
+        <SlideOverHeader>
+          <SlideOverTitle>Neue Umfrage</SlideOverTitle>
         </SlideOverHeader>
         <SlideOverBody error={formErrors.error}>
           <div ref={formRef}>
@@ -110,7 +107,7 @@ export function SurveyCreateSlideOver({
             />
           </div>
         </SlideOverBody>
-        <SlideOverFooter className="flex-row flex-wrap justify-end gap-2">
+        <SlideOverFooter>
           <Button
             type="button"
             variant="outline"

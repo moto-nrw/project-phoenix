@@ -303,7 +303,7 @@ describe("PastBlocksSection", () => {
     expect(screen.getByText("Gegangen")).toBeInTheDocument();
     expect(screen.getByText("Nicht erschienen")).toBeInTheDocument();
     expect(screen.getByText("Gehzeit: 14:30")).toBeInTheDocument();
-    expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+    expect(screen.getByText("Gehzeit: –")).toBeInTheDocument();
   });
 
   it("distinguishes a failed pickup lookup from a missing pickup time", async () => {
@@ -330,7 +330,7 @@ describe("PastBlocksSection", () => {
       ).toBeInTheDocument(),
     );
     expect(screen.getAllByText("Gehzeit: Nicht geladen")).toHaveLength(2);
-    expect(screen.queryByText("Gehzeit: —")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gehzeit: –")).not.toBeInTheDocument();
   });
 
   it("shows the never-started hint instead of per-child statuses", async () => {

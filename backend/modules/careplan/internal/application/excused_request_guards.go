@@ -69,14 +69,14 @@ func (w *ExcusedRequests) validateAbsenceApproval(
 // excusedBulkEligibility answers whether this request can ride a bulk
 // approval. It takes the already-resolved status view so the queue reads the
 // child's current days exactly once per request, whichever branch decides.
-func (w *ExcusedRequests) excusedBulkEligibility(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student careplan.ReviewStudent, view currentStatusView, today careplan.Date) (bool, string, string, error) {
+func (w *ExcusedRequests) excusedBulkEligibility(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student careplan.ReviewStudent, view currentStatusView, today careplan.Date, facts absenceReviewFacts) (bool, string, string, error) {
 	if !absenceBulkEligible(req.Dates, today) {
 		return false, careplan.BulkIneligiblePast, "Mindestens ein Tag ist vorbei.", nil
 	}
 	if requestExtendsBeyondCare(req, &student) {
 		return false, careplan.BulkIneligibleChildUnavailable, "Mindestens ein Tag liegt nach dem Betreuungsende.", nil
 	}
-	partial, err := w.hasManualPartialAbsence(ctx, req.StudentID, req.Dates)
+	partial, err := facts.manualPartialAbsence(ctx, w, req.StudentID, req.Dates)
 	if err != nil {
 		return false, "", "", err
 	}
@@ -108,6 +108,10 @@ func (w *ExcusedRequests) hasManualPartialAbsence(ctx context.Context, studentID
 	if err != nil {
 		return false, err
 	}
+	return manualPartialAbsenceInRows(dates, rows), nil
+}
+
+func manualPartialAbsenceInRows(dates []careplan.Date, rows []careplan.PickupException) bool {
 	requested := make(map[careplan.Date]struct{}, len(dates))
 	for _, date := range dates {
 		requested[date] = struct{}{}
@@ -116,10 +120,10 @@ func (w *ExcusedRequests) hasManualPartialAbsence(ctx context.Context, studentID
 		// Only manual partial absences conflict; auto-derived excusals
 		// (pulled-forward pickup time) coexist with a full-day status.
 		if _, ok := requested[row.ExceptionDate]; ok && row.ExcusedFrom != nil && !row.ExcusedAuto {
-			return true, nil
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
 // ensureNoPartialAbsence locks every requested care day in the canonical
@@ -170,18 +174,22 @@ type currentStatusView struct {
 }
 
 func (w *ExcusedRequests) currentStatusView(ctx context.Context, req *careplan.ExcusedAbsenceRequest) (currentStatusView, error) {
-	view := currentStatusView{byDate: make(map[string]string, len(req.Dates))}
 	if len(req.Dates) == 0 {
-		return view, nil
-	}
-	// Every requested day starts as "present"; the rows below overwrite the
-	// days that carry a status, so a day with no record is still answered for.
-	for _, date := range req.Dates {
-		view.byDate[date.String()] = careplan.StudentStatusDayPresent
+		return statusViewFromRows(req, nil), nil
 	}
 	rows, err := w.activeStatusDays(ctx, req)
 	if err != nil {
 		return currentStatusView{}, err
+	}
+	return statusViewFromRows(req, rows), nil
+}
+
+func statusViewFromRows(req *careplan.ExcusedAbsenceRequest, rows []careplan.StudentStatusDay) currentStatusView {
+	view := currentStatusView{byDate: make(map[string]string, len(req.Dates))}
+	// Every requested day starts as "present"; the rows below overwrite the
+	// days that carry a status, so a day with no record is still answered for.
+	for _, date := range req.Dates {
+		view.byDate[date.String()] = careplan.StudentStatusDayPresent
 	}
 	for _, row := range rows {
 		key := row.Date.String()
@@ -193,7 +201,7 @@ func (w *ExcusedRequests) currentStatusView(ctx context.Context, req *careplan.E
 			view.changedSinceRequest = true
 		}
 	}
-	return view, nil
+	return view
 }
 
 // activeStatusDays reads the child's active status rows across the request's

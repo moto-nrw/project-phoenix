@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.attendance_corrections.list",
+  "max": 1,
+  "exact": true,
+  "description": "One Audit Platform trail SELECT scoped by tenant, instance and student, newest first, using the real root-bound Timetable correction capability. Flat for 3 and 8 returned rows; caller tenant transaction setup excluded."
+}

@@ -2,10 +2,9 @@
 
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import Link from "~/components/ui/navigation-link";
-import { SectionCard } from "~/components/ui/section-card";
+import { ListRow } from "~/components/ui/list-row";
 import { SkeletonRows } from "~/components/ui/skeleton";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
@@ -43,10 +42,8 @@ export function RemindersBlock() {
   const { shown, hidden } = useHomeCardRows(sorted, MAX_ROWS);
 
   return (
-    <SectionCard
+    <HomeCard
       title="Erinnerungen"
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       leading={<HomeCardIcon concept={pickupConcept} />}
       inlineActions
       actions={
@@ -84,51 +81,43 @@ export function RemindersBlock() {
                 const href = reminder.student_id
                   ? tenantPath(`/students/${reminder.student_id}`)
                   : undefined;
-                // Auf dem Handy zwei Zeilen je Erinnerung; ab der
-                // zweispaltigen Ansicht eine, damit drei in die feste
-                // Kartenhöhe passen, ohne dass die Karte den Rest abschneidet.
-                const rowClass = `flex items-center justify-between gap-3 rounded-xl px-3 py-2 sm:py-1.5 ${
-                  isReminderOverdue(reminder)
-                    ? "bg-moto-red/5"
-                    : "bg-gray-50/50"
-                }`;
-                const body = (
-                  <>
-                    <span className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
-                      <span className="truncate text-sm font-medium text-gray-900 sm:shrink-0">
-                        {reminder.title}
-                      </span>
-                      {subtitle && (
-                        <span className="min-w-0 truncate text-xs text-gray-500">
-                          {subtitle}
-                        </span>
-                      )}
-                    </span>
-                    <span className="flex shrink-0 flex-col items-end sm:flex-row sm:items-baseline sm:gap-1.5">
-                      <span className="text-sm font-semibold text-gray-900 tabular-nums">
-                        {reminder.due_time}
-                      </span>
-                      <span
-                        className={`text-xs ${reminderToneClass(reminder)}`}
-                      >
-                        {reminderRelativeLabel(reminder)}
-                      </span>
-                    </span>
-                  </>
-                );
                 return (
                   <li key={reminderKey(reminder)}>
-                    {href ? (
-                      <Link
-                        href={href}
-                        aria-label={`${reminder.title}: Kind öffnen`}
-                        className={`${rowClass} transition-colors hover:bg-gray-100/70`}
-                      >
-                        {body}
-                      </Link>
-                    ) : (
-                      <span className={rowClass}>{body}</span>
-                    )}
+                    {/* Auf dem Handy zwei Zeilen je Erinnerung; ab der
+                        zweispaltigen Ansicht eine, damit drei in die feste
+                        Kartenhöhe passen, ohne dass die Karte den Rest
+                        abschneidet. */}
+                    <ListRow
+                      href={href}
+                      tone={isReminderOverdue(reminder) ? "danger" : "neutral"}
+                      density="compact"
+                      aria-label={
+                        href ? `${reminder.title}: Kind öffnen` : undefined
+                      }
+                      trailing={
+                        <span className="flex shrink-0 flex-col items-end sm:flex-row sm:items-baseline sm:gap-1.5">
+                          <span className="text-sm font-semibold text-gray-900 tabular-nums">
+                            {reminder.due_time}
+                          </span>
+                          <span
+                            className={`text-xs ${reminderToneClass(reminder)}`}
+                          >
+                            {reminderRelativeLabel(reminder)}
+                          </span>
+                        </span>
+                      }
+                    >
+                      <span className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
+                        <span className="truncate text-sm font-medium text-gray-900 sm:shrink-0">
+                          {reminder.title}
+                        </span>
+                        {subtitle && (
+                          <span className="min-w-0 truncate text-xs text-gray-500">
+                            {subtitle}
+                          </span>
+                        )}
+                      </span>
+                    </ListRow>
                   </li>
                 );
               })}
@@ -142,6 +131,6 @@ export function RemindersBlock() {
           </>
         );
       })()}
-    </SectionCard>
+    </HomeCard>
   );
 }

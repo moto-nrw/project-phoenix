@@ -10,13 +10,14 @@
 // option on the apply dialog, so `Zurücksetzen` stays usable for the whole
 // cohort right up until someone decides otherwise.
 
+import { EmptyState } from "~/components/ui/empty-state";
+import { FramedList } from "~/components/ui/framed-list";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -203,17 +204,14 @@ export function GraduatesModal({
           if (!nextOpen) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[560px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>
-                {`Abgänge: Schuljahreswechsel ${transition.academicYear}`}
-              </SlideOverTitle>
-              <SlideOverDescription>
-                Kinder, die die OGS mit diesem Wechsel verlassen haben.
-              </SlideOverDescription>
-            </div>
-            <SlideOverCloseButton />
+        <SlideOverContent size="md">
+          <SlideOverHeader>
+            <SlideOverTitle>
+              {`Abgänge: Schuljahreswechsel ${transition.academicYear}`}
+            </SlideOverTitle>
+            <SlideOverDescription>
+              Kinder, die die OGS mit diesem Wechsel verlassen haben.
+            </SlideOverDescription>
           </SlideOverHeader>
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <p className="text-sm text-gray-600">
@@ -233,99 +231,99 @@ export function GraduatesModal({
             <LoadErrorAlert error={loadError} />
 
             {entries !== null && !loadFailed && entries.length === 0 && (
-              <p className="rounded-lg border border-gray-200 p-4 text-sm text-gray-500">
-                Dieser Schuljahreswechsel hatte keine Abgänge.
-              </p>
+              <EmptyState
+                variant="compact"
+                description="Dieser Schuljahreswechsel hatte keine Abgänge."
+              />
             )}
 
             {entries !== null && entries.length > 0 && (
-              <div className="overflow-hidden rounded-lg border border-gray-200">
-                {canDelete && deletable.length > 0 && (
-                  <label
-                    htmlFor="graduates-select-all"
-                    className="flex cursor-pointer items-center gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2.5"
-                  >
-                    <Checkbox
-                      id="graduates-select-all"
-                      checked={
-                        selectedIds.length === deletable.length &&
-                        deletable.length > 0
-                      }
-                      onChange={toggleAll}
-                    />
-                    <span className="text-sm font-medium text-gray-700">
-                      Alle löschbaren auswählen
-                    </span>
-                  </label>
-                )}
-                <ul>
-                  {entries.map((entry) => {
-                    const isDeletable = entry.studentState === "alumnus";
-                    return (
-                      <li
-                        key={entry.id}
-                        className="flex items-center gap-3 border-b border-gray-100 px-4 py-2.5 last:border-b-0"
-                      >
-                        {canDelete ? (
-                          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 has-[:disabled]:cursor-not-allowed">
-                            <Checkbox
-                              checked={selected.has(entry.studentId)}
-                              disabled={!isDeletable}
-                              onChange={() => toggle(entry.studentId)}
-                              aria-label={`${entry.personName} auswählen`}
-                            />
-                            <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
-                              {entry.personName}
-                            </span>
-                          </label>
-                        ) : (
+              <FramedList
+                header={
+                  canDelete && deletable.length > 0 ? (
+                    <label
+                      htmlFor="graduates-select-all"
+                      className="flex cursor-pointer items-center gap-3"
+                    >
+                      <Checkbox
+                        id="graduates-select-all"
+                        checked={
+                          selectedIds.length === deletable.length &&
+                          deletable.length > 0
+                        }
+                        onChange={toggleAll}
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Alle löschbaren auswählen
+                      </span>
+                    </label>
+                  ) : undefined
+                }
+              >
+                {entries.map((entry) => {
+                  const isDeletable = entry.studentState === "alumnus";
+                  return (
+                    <li
+                      key={entry.id}
+                      className="flex items-center gap-3 px-4 py-2.5"
+                    >
+                      {canDelete ? (
+                        <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 has-[:disabled]:cursor-not-allowed">
+                          <Checkbox
+                            checked={selected.has(entry.studentId)}
+                            disabled={!isDeletable}
+                            onChange={() => toggle(entry.studentId)}
+                            aria-label={`${entry.personName} auswählen`}
+                          />
                           <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
                             {entry.personName}
                           </span>
-                        )}
-                        <span className="shrink-0 text-sm text-gray-500">
-                          {entry.fromClass}
+                        </label>
+                      ) : (
+                        <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
+                          {entry.personName}
                         </span>
-                        <StateBadge state={entry.studentState} />
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+                      )}
+                      <span className="shrink-0 text-sm text-gray-500">
+                        {entry.fromClass}
+                      </span>
+                      <StateBadge state={entry.studentState} />
+                    </li>
+                  );
+                })}
+              </FramedList>
             )}
           </div>
-          <SlideOverFooter className="flex-row items-center justify-between gap-3">
-            <div className="flex w-full items-center justify-between gap-3">
-              {/* Ohne geladene Liste kein "0 von 0 noch löschbar" unter dem
+          <SlideOverFooter className="items-center justify-between gap-3">
+            {/* Ohne geladene Liste kein "0 von 0 noch löschbar" unter dem
                   Ladefehler (#2517). */}
-              <span className="text-sm text-gray-500">
-                {selectedIds.length > 0
-                  ? `${selectedIds.length} ausgewählt`
-                  : entries === null || loadFailed
-                    ? null
-                    : `${deletable.length} von ${entries.length} noch löschbar`}
-              </span>
-              <div className="flex gap-2">
+            <span className="text-sm text-gray-500">
+              {selectedIds.length > 0
+                ? `${selectedIds.length} ausgewählt`
+                : entries === null || loadFailed
+                  ? null
+                  : `${deletable.length} von ${entries.length} noch löschbar`}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={onClose}
+              >
+                Schließen
+              </Button>
+              {canDelete && (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="danger"
                   size="md"
-                  onClick={onClose}
+                  disabled={selectedIds.length === 0}
+                  onClick={() => setConfirmOpen(true)}
                 >
-                  Schließen
+                  Endgültig löschen
                 </Button>
-                {canDelete && (
-                  <Button
-                    type="button"
-                    variant="danger"
-                    size="md"
-                    disabled={selectedIds.length === 0}
-                    onClick={() => setConfirmOpen(true)}
-                  >
-                    Endgültig löschen
-                  </Button>
-                )}
-              </div>
+              )}
             </div>
           </SlideOverFooter>
         </SlideOverContent>

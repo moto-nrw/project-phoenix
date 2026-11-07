@@ -58,6 +58,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *administration) GetPersistedDeviceRoomName(ctx context.Context, device *Device) (*string, error) {\n\tif device == nil || device.ID \u003c= 0 {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDeviceByID\", Err: errors.New(\"invalid ID\")}\n\t}\n\tname, err := s.devices.DeviceRoomName(ctx, *device)\n\tif err != nil {\n\t\tif errors.Is(err, ErrDeviceNotFound) {\n\t\t\treturn nil, \u0026AdministrationError{Op: \"GetDeviceByID\", Err: ErrAdministrationDeviceNotFound}\n\t\t}\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDeviceByID\", Err: err}\n\t}\n\treturn name, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/administration.GetPersistedDeviceRoomName",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *administration) IsDeviceOnlineAt(ctx context.Context, device *Device, now time.Time) bool {\n\tif device == nil {\n\t\treturn false\n\t}\n\treturn s.devices.IsDeviceOnlineAt(ctx, *device, now)\n}",
       "form": "unclassified-evidence",
       "id": "modules/devicefleet/administration.IsDeviceOnlineAt",

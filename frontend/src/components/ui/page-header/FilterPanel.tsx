@@ -11,6 +11,7 @@ import {
   type FilterSection,
 } from "./types";
 import { CustomSelect } from "../custom-select";
+import { FieldLabel } from "../field-label";
 import { MultiSelect } from "../multi-select";
 import { InfoSection } from "../detail-modal-components";
 import { Button } from "../button";
@@ -340,16 +341,11 @@ export function FilterPanel({
     // plain heading (no htmlFor) rather than pointing at a non-existent input.
     const label =
       filter.type === "custom" ? (
-        <span className="mb-1.5 block text-sm font-semibold text-gray-800">
-          {filter.label}
-        </span>
+        <FieldLabel>{filter.label}</FieldLabel>
       ) : (
-        <label
-          htmlFor={`mobile-filter-${filter.id}`}
-          className="mb-1.5 block text-sm font-semibold text-gray-800"
-        >
+        <FieldLabel htmlFor={`mobile-filter-${filter.id}`}>
           {filter.label}
-        </label>
+        </FieldLabel>
       );
     return (
       <div key={filter.id} className={filter.className}>

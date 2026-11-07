@@ -31,6 +31,7 @@ func setupParentCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
+	router.Use(rootAPI.RequestSettingsCacheMiddleware, rootAPI.RequestIdentityCacheMiddleware)
 	router.Mount("/calendar", staffResource.Router(rootAPI.TenantSessionChain))
 	router.Mount("/parent", factory.ParentCalendarRouter())
 	return db, router

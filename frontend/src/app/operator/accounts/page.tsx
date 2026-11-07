@@ -2,10 +2,10 @@
 
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -21,7 +21,6 @@ import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { AccountTenantAccessModal } from "~/components/operator/account-tenant-access-modal";
-import { accountsConcept } from "~/lib/concepts/accounts";
 import { StatusBadge } from "~/components/ui/status-badge";
 
 function OperatorAccountsPageContent() {
@@ -151,52 +150,88 @@ function OperatorAccountsPageContent() {
     [],
   );
 
-  const tabs = useMemo(
-    () => ({
-      items: [
-        {
-          id: "accounts",
-          label: "Konten",
-          count: selectedSchool
-            ? schoolAccounts?.length
-            : filterOrgId
-              ? orgAccounts?.length
-              : allAccounts?.length,
-        },
-      ],
-      activeTab: "accounts",
-      onTabChange: () => undefined,
-    }),
-    [
-      selectedSchool,
-      filterOrgId,
-      schoolAccounts?.length,
-      orgAccounts?.length,
-      allAccounts?.length,
-    ],
-  );
+  const count = selectedSchool
+    ? schoolAccounts?.length
+    : filterOrgId
+      ? orgAccounts?.length
+      : allAccounts?.length;
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Konten"
-        concept={accountsConcept}
-        tabs={tabs}
-      />
+    <TenantPage
+      title="Konten"
+      stats={
+        count === undefined ? undefined : (
+          <TenantPageStats
+            items={[{ value: count, label: count === 1 ? "Konto" : "Konten" }]}
+          />
+        )
+      }
+      searchSlot={
+        <OrgSchoolFilter
+          idPrefix="account"
+          organizations={activeOrganizations}
+          filteredSchools={filteredSchools}
+          filterOrgId={filterOrgId}
+          selectedSchool={selectedSchool}
+          onOrgChange={handleOrgFilterChange}
+          onSchoolChange={handleSchoolFilterChange}
+        />
+      }
+      overlays={
+        <>
+          {mfaAccount && mfaSchoolContext ? (
+            <MFAAdminOverrideModal
+              isOpen={true}
+              onClose={() => {
+                setMfaAccount(null);
+                setMfaSchoolContext(null);
+              }}
+              scope="operator"
+              schoolId={mfaSchoolContext.id}
+              accountId={mfaAccount.accountId}
+              accountLabel={`${mfaAccount.firstName} ${mfaAccount.lastName}`.trim()}
+            />
+          ) : null}
 
-      <OrgSchoolFilter
-        idPrefix="account"
-        organizations={activeOrganizations}
-        filteredSchools={filteredSchools}
-        filterOrgId={filterOrgId}
-        selectedSchool={selectedSchool}
-        onOrgChange={handleOrgFilterChange}
-        onSchoolChange={handleSchoolFilterChange}
-      />
+          {tenantAccessAccount ? (
+            <AccountTenantAccessModal
+              isOpen={true}
+              onClose={() => setTenantAccessAccount(null)}
+              accountId={tenantAccessAccount.accountId}
+              accountLabel={
+                `${tenantAccessAccount.firstName} ${tenantAccessAccount.lastName}`.trim() ||
+                tenantAccessAccount.email
+              }
+              accountEmail={tenantAccessAccount.email}
+              onUpdated={async () => {
+                await refreshAccounts();
+              }}
+            />
+          ) : null}
 
-      <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
-      <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
-      <LoadErrorAlert error={accountsLoadError} className="mb-4" />
+          {caregiverAccount && caregiverSchoolContext ? (
+            <CaregiverCapabilityModal
+              isOpen={true}
+              onClose={() => {
+                setCaregiverAccount(null);
+                setCaregiverSchoolContext(null);
+              }}
+              scope="operator"
+              accountId={caregiverAccount.accountId}
+              accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
+              schoolId={caregiverSchoolContext.id}
+              schoolName={caregiverSchoolContext.name}
+              onUpdated={async () => {
+                await refreshAccounts();
+              }}
+            />
+          ) : null}
+        </>
+      }
+    >
+      <LoadErrorAlert error={organizationsLoadError} />
+      <LoadErrorAlert error={schoolsLoadError} />
+      <LoadErrorAlert error={accountsLoadError} />
 
       {!urlSchoolId && filterOrgId && (
         <>
@@ -285,61 +320,13 @@ function OperatorAccountsPageContent() {
           )}
         </>
       )}
-
-      {mfaAccount && mfaSchoolContext ? (
-        <MFAAdminOverrideModal
-          isOpen={true}
-          onClose={() => {
-            setMfaAccount(null);
-            setMfaSchoolContext(null);
-          }}
-          scope="operator"
-          schoolId={mfaSchoolContext.id}
-          accountId={mfaAccount.accountId}
-          accountLabel={`${mfaAccount.firstName} ${mfaAccount.lastName}`.trim()}
-        />
-      ) : null}
-
-      {tenantAccessAccount ? (
-        <AccountTenantAccessModal
-          isOpen={true}
-          onClose={() => setTenantAccessAccount(null)}
-          accountId={tenantAccessAccount.accountId}
-          accountLabel={
-            `${tenantAccessAccount.firstName} ${tenantAccessAccount.lastName}`.trim() ||
-            tenantAccessAccount.email
-          }
-          accountEmail={tenantAccessAccount.email}
-          onUpdated={async () => {
-            await refreshAccounts();
-          }}
-        />
-      ) : null}
-
-      {caregiverAccount && caregiverSchoolContext ? (
-        <CaregiverCapabilityModal
-          isOpen={true}
-          onClose={() => {
-            setCaregiverAccount(null);
-            setCaregiverSchoolContext(null);
-          }}
-          scope="operator"
-          accountId={caregiverAccount.accountId}
-          accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
-          schoolId={caregiverSchoolContext.id}
-          schoolName={caregiverSchoolContext.name}
-          onUpdated={async () => {
-            await refreshAccounts();
-          }}
-        />
-      ) : null}
-    </div>
+    </TenantPage>
   );
 }
 
 export default function OperatorAccountsPage() {
   return (
-    <Suspense fallback={<div className="-mt-1.5 w-full" />}>
+    <Suspense fallback={<TenantPage title="Konten" loading />}>
       <OperatorAccountsPageContent />
     </Suspense>
   );

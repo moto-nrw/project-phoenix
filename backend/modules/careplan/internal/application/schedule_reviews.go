@@ -74,7 +74,10 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 	if err != nil {
 		today = s.deps.Today()
 	}
-	plans := reviewPlanCache{plans: map[int64]reviewPlanFacts{}, errs: map[int64]error{}}
+	var plans reviewPlanCache
+	if !filter.OmitDiff {
+		plans = s.preloadReviewPlans(ctx, rows, students, scope, today)
+	}
 	for i := range rows {
 		row := &rows[i]
 		student, found := students[row.StudentID]
@@ -83,6 +86,10 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 		}
 		name := names[student.PersonID]
 		item := &careplan.CareScheduleReviewItem{Request: row, FirstName: name.FirstName, LastName: name.LastName}
+		if filter.OmitDiff {
+			items = append(items, item)
+			continue
+		}
 		if err := s.careRequestDiff(ctx, row, student, item, today, plans); err != nil {
 			s.deps.Logger.Warn("schedule: build care request diff failed",
 				"request_id", row.ID,
@@ -98,8 +105,43 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 // reviewPlanCache holds one weekly plan, or its load error, per student so a
 // student with several requests is read once.
 type reviewPlanCache struct {
-	plans map[int64]reviewPlanFacts
-	errs  map[int64]error
+	plans   map[int64]reviewPlanFacts
+	errs    map[int64]error
+	pickups map[int64][]careplan.PickupSchedule
+}
+
+// preloadReviewPlans fills the existing plan memo for the visible weekly cohort.
+// Failed batches leave the scalar per-child reads and diff fallback in place.
+func (s *ScheduleReviews) preloadReviewPlans(ctx context.Context, rows []careplan.CareScheduleChangeRequest, students map[int64]careplan.ReviewStudent, scope careplan.ReviewScope, today careplan.Date) reviewPlanCache {
+	cache := reviewPlanCache{plans: map[int64]reviewPlanFacts{}, errs: map[int64]error{}}
+	ids := make([]int64, 0, len(rows))
+	seen := map[int64]bool{}
+	for _, row := range rows {
+		student, ok := students[row.StudentID]
+		if !ok || !scope.Allows(&student) || student.Alumnus || student.CareEndedOn(today) || row.RequestKind == "pickup_change" || row.RequestKind == carerequests.KindPickupPermission || seen[student.ID] {
+			continue
+		}
+		seen[student.ID] = true
+		ids = append(ids, student.ID)
+	}
+	if len(ids) < 2 {
+		return cache
+	}
+	pickups, err := s.deps.Schedules.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: ids})
+	if err != nil {
+		// A failed batch says nothing about an individual child's plan. Leave
+		// it unloaded so cachedPlan retains the scalar per-child fallback.
+		return cache
+	}
+	cache.pickups = make(map[int64][]careplan.PickupSchedule, len(ids))
+	for _, id := range ids {
+		cache.pickups[id] = nil
+	}
+	for _, pickup := range pickups {
+		cache.pickups[pickup.StudentID] = append(cache.pickups[pickup.StudentID], pickup)
+	}
+	s.preloadWeeklyPlans(ctx, ids, students, today, cache)
+	return cache
 }
 
 func (s *ScheduleReviews) cachedPlan(ctx context.Context, cache reviewPlanCache, student careplan.ReviewStudent, today careplan.Date) (reviewPlanFacts, error) {
@@ -108,7 +150,11 @@ func (s *ScheduleReviews) cachedPlan(ctx context.Context, cache reviewPlanCache,
 	if loaded || failed {
 		return plan, planErr
 	}
-	plan, planErr = s.plan(ctx, student, today, true)
+	if pickups, found := cache.pickups[student.ID]; found {
+		plan, planErr = s.planAfterPickups(ctx, student, today, true, reviewPlanFacts{pickups: pickups})
+	} else {
+		plan, planErr = s.plan(ctx, student, today, true)
+	}
 	if planErr != nil {
 		cache.errs[student.ID] = planErr
 	} else {
@@ -226,6 +272,12 @@ func (s *ScheduleReviews) plan(ctx context.Context, student careplan.ReviewStude
 	if err != nil {
 		return facts, err
 	}
+	return s.planAfterPickups(ctx, student, date, weekly, facts)
+}
+
+func (s *ScheduleReviews) planAfterPickups(ctx context.Context, student careplan.ReviewStudent, date careplan.Date, weekly bool, facts reviewPlanFacts) (reviewPlanFacts, error) {
+	filter := careplan.StudentScheduleFilter{StudentIDs: []int64{student.ID}}
+	var err error
 	from, to := date, date
 	if weekly {
 		from, to = reviewWeekRange(date)

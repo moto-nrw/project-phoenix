@@ -337,6 +337,7 @@ export function ParentFirstSteps({
     <>
       <section
         aria-label={t("title")}
+        // oxlint-disable-next-line ui-kit/no-hand-rolled-popover -- feste Leiste am Bildschirmrand, an keinem Auslöser verankert
         className="moto-popover-surface fixed right-2 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-2 z-40 flex max-h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] flex-col overflow-hidden rounded-xl border sm:right-4 sm:left-4 lg:right-6 lg:bottom-6 lg:left-auto lg:w-96"
       >
         <header className="flex flex-col gap-2 border-b border-gray-100 p-4">

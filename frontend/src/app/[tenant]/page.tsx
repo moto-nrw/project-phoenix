@@ -6,6 +6,7 @@ import { useState, useEffect, useLayoutEffect, useRef, Suspense } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -20,11 +21,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { trackTenantEvent } from "~/lib/analytics";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { TenantPasswordResetModal } from "~/components/auth/tenant-password-reset-modal";
@@ -597,7 +594,7 @@ function LoginForm() {
                     }
                     revealable
                   />
-                  <AuthFieldError
+                  <FieldErrorHint
                     id="password-error"
                     message={formErrors.fieldError("password")}
                   />

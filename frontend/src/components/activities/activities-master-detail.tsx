@@ -1,5 +1,7 @@
 "use client";
 
+import { MousePointer2 } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
@@ -8,7 +10,6 @@ import {
   DetailPanel,
   type DetailTab,
 } from "~/components/database/detail-panel";
-import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
@@ -81,9 +82,7 @@ export function ActivitiesMasterDetail({
       renderItem={renderItem}
       keyFor={keyForActivity}
       emptyState={
-        <div className="text-center text-sm text-gray-500">
-          Keine Aktivitäten gefunden.
-        </div>
+        <EmptyState variant="compact" title="Keine Aktivitäten gefunden." />
       }
     />
   );
@@ -99,9 +98,12 @@ export function ActivitiesMasterDetail({
       formResetKey={formResetKey}
     />
   ) : (
-    <EmptyDetailState
+    <EmptyState
+      icon={<MousePointer2 className="h-10 w-10" aria-hidden="true" />}
+      titleAs="h3"
       title="Keine Aktivität ausgewählt"
       description="Wähle links eine Aktivität, um Stammdaten direkt im Detailbereich zu bearbeiten."
+      className="h-full justify-center"
     />
   );
 

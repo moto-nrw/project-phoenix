@@ -205,15 +205,12 @@ export function GroupTransferModal({
         if (!nextOpen && !loading) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[560px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{`Gruppe "${group.name}" übergeben`}</SlideOverTitle>
-            <SlideOverDescription>
-              Die Verantwortung für diese Gruppe heute übergeben.
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton disabled={loading} />
+      <SlideOverContent size="md">
+        <SlideOverHeader close={<SlideOverCloseButton disabled={loading} />}>
+          <SlideOverTitle>{`Gruppe "${group.name}" übergeben`}</SlideOverTitle>
+          <SlideOverDescription>
+            Die Verantwortung für diese Gruppe heute übergeben.
+          </SlideOverDescription>
         </SlideOverHeader>
         <div
           ref={formRef}
@@ -276,39 +273,27 @@ export function GroupTransferModal({
             </section>
           )}
 
-          <div>
-            <label
-              id="transfer-user-select-label"
-              htmlFor="transfer-user-select"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Übergeben an:
-            </label>
-            <CustomSelect
-              id="transfer-user-select"
-              ariaLabelledBy="transfer-user-select-label"
-              value={selectedStaffId}
-              onChange={setSelectedStaffId}
-              options={[
-                { value: "", label: "Fachkraft auswählen..." },
-                ...availableUsers.map((user) => ({
-                  value: user.id,
-                  label: user.fullName,
-                })),
-              ]}
-              placeholder="Fachkraft auswählen..."
-            />
-            {availableUsers.length === 0 && !loadError && (
-              <p className="mt-2 text-sm text-gray-500">
-                Keine pädagogische Fachkraft verfügbar. Bitte wenden Sie sich an
-                die Verwaltung.
-              </p>
-            )}
-          </div>
+          <CustomSelect
+            id="transfer-user-select"
+            label="Übergeben an:"
+            hint={
+              availableUsers.length === 0 && !loadError
+                ? "Keine pädagogische Fachkraft verfügbar. Bitte wenden Sie sich an die Verwaltung."
+                : undefined
+            }
+            value={selectedStaffId}
+            onChange={setSelectedStaffId}
+            options={[
+              { value: "", label: "Fachkraft auswählen..." },
+              ...availableUsers.map((user) => ({
+                value: user.id,
+                label: user.fullName,
+              })),
+            ]}
+            placeholder="Fachkraft auswählen..."
+          />
         </div>
-        <SlideOverFooter className="flex-row justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
+        <SlideOverFooter>{footer}</SlideOverFooter>
       </SlideOverContent>
     </SlideOver>
   );

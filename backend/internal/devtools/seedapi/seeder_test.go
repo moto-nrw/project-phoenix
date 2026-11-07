@@ -215,11 +215,13 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	const schoolYearPhaseID, holidayPhaseID = 41, 42
 	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, schoolYearPhaseID, holidayPhaseID)
 	require.NoError(t, err)
-	require.Len(t, received, 6)
+	require.Len(t, received, 8)
 
 	expectedTimes := map[string]string{
 		"OGS Ganztag": "16:00", "Kurzbetreuung": "14:00", "Mittagessen": "", "Ferienbetreuung Herbst": "16:00",
 		"Fußball-AG": "", "Theater-AG": "",
+		// The care forms of the Träger's occupancy (#5977).
+		"Betreuung bis 15 Uhr": "15:00", "Spätbetreuung": "17:00",
 	}
 	for _, offering := range received {
 		expectedTime, ok := expectedTimes[offering.Name]
@@ -1778,6 +1780,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			// The first seeded parent's document inbox after the letters
 			// went out (#4671).
 			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":"71","organization_id":"3"}]}`)
+			return
+		}
+		if r.URL.Path == "/parent/me/documents/contracts" {
+			// The first seeded parent's contract waiting for the signature
+			// (#4679).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":"72","organization_id":"3","contract_status":"versendet"}]}`)
 			return
 		}
 		if r.URL.Path == "/parent/holiday-registrations/link-key/family" {

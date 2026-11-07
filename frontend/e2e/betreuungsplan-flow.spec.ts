@@ -266,8 +266,8 @@ test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
     const gapTrigger = page.getByRole("button", { name: /L(ü|ue)cke/ });
     await expect(gapTrigger).toBeVisible(DATA);
     await gapTrigger.click();
-    // Die Sprungliste ist seit 1e72bf6719 eine benannte Region, kein Dialog.
-    const gapPopover = page.getByRole("region", { name: "Offene Lücken" });
+    // Die Sprungliste ist seit #5601 ein AnchoredPopover mit Dialogrolle.
+    const gapPopover = page.getByRole("dialog", { name: "Offene Lücken" });
     await expect(gapPopover).toBeVisible();
     await gapPopover.getByRole("button", { name: new RegExp(title) }).click();
 

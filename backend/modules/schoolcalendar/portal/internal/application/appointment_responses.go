@@ -52,31 +52,19 @@ func staffRecipientStatus(recipients []*appointmentcap.AppointmentRecipient, sta
 	return nil, nil
 }
 
-func (s *service) guardianRecipientStatusForStudents(ctx context.Context, recipients []*appointmentcap.AppointmentRecipient, guardianProfileIDs []int64, studentIDs []int64) (*string, *int64, error) {
-	allowedStudents := int64Set(studentIDs)
+func guardianRecipientStatusForStudents(recipients []*appointmentcap.AppointmentRecipient, guardianProfileIDs []int64, studentIDs []int64) (*string, *int64) {
 	guardianRecipients := recipientsOfGuardians(recipients, int64Set(guardianProfileIDs))
-	recipientIDs := make([]int64, 0, len(recipients))
+	allowedStudents := int64Set(studentIDs)
 	for _, recipient := range guardianRecipients {
-		recipientIDs = append(recipientIDs, recipient.ID)
-	}
-	links, err := s.cfg.Appointments.FindAppointmentRecipientStudents(ctx, recipientIDs)
-	if err != nil {
-		return nil, nil, err
-	}
-	visibleRecipients := map[int64]struct{}{}
-	for _, link := range links {
-		if _, ok := allowedStudents[link.StudentID]; ok {
-			visibleRecipients[link.RecipientID] = struct{}{}
+		for _, studentID := range recipient.StudentIDs {
+			if _, ok := allowedStudents[studentID]; ok {
+				status := recipient.Status
+				id := recipient.ID
+				return &status, &id
+			}
 		}
 	}
-	for _, recipient := range guardianRecipients {
-		if _, ok := visibleRecipients[recipient.ID]; ok {
-			status := recipient.Status
-			id := recipient.ID
-			return &status, &id, nil
-		}
-	}
-	return nil, nil, nil
+	return nil, nil
 }
 
 // recipientsOfGuardians keeps, in order, the guardian recipients whose profile

@@ -270,12 +270,14 @@ describe("BillingMailCard", () => {
       await screen.findByRole("button", { name: "An alle Familien senden" }),
     );
 
+    await waitFor(() =>
+      expect(api.mailBillingLetters).toHaveBeenCalledWith("9"),
+    );
     expect(
       await screen.findByText(
         "1 Mail(s) werden jetzt gesendet. 1 Familie(n) ohne Mail-Adresse: Bitte drucken Sie deren Schreiben.",
       ),
     ).toBeInTheDocument();
-    expect(api.mailBillingLetters).toHaveBeenCalledWith("9");
     await waitFor(() =>
       expect(api.fetchLetterMailings).toHaveBeenCalledTimes(2),
     );
