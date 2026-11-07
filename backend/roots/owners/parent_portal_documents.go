@@ -85,13 +85,14 @@ func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organ
 // Betreuungsvertrag (#4678, ADR 0153), which reads in the caller's Träger
 // transaction and records every read.
 type parentContractDocuments struct {
-	inbox carecontract.Inbox
+	inbox   carecontract.Inbox
+	signing carecontract.InboxSigning
 }
 
 // NewParentContractDocuments binds the inbox's contracts to the
-// Betreuungsvertrag.
-func NewParentContractDocuments() parentportal.ContractDocumentsPort {
-	return parentContractDocuments{inbox: careContractCompose.NewInbox()}
+// Betreuungsvertrag; signing is the signature in the inbox (#4679).
+func NewParentContractDocuments(signing carecontract.InboxSigning) parentportal.ContractDocumentsPort {
+	return parentContractDocuments{inbox: careContractCompose.NewInbox(), signing: signing}
 }
 
 func (d parentContractDocuments) ListContractDocuments(ctx context.Context, organizationID int64, reader parentportal.BillingDocumentReader) ([]parentportal.BillingDocument, error) {
@@ -108,7 +109,7 @@ func (d parentContractDocuments) ListContractDocuments(ctx context.Context, orga
 			ID: contract.ID, OrganizationID: organizationID, Kind: parentportal.DocumentKindContract,
 			Number: "Nr. " + strconv.FormatInt(contract.ID, 10), PeriodName: strings.Join(contract.ModuleNames, ", ") + " · " + contract.SchoolName,
 			ServiceFrom: contract.EffectiveOn, ChildNames: contract.ChildNames, SentAt: contract.SentAt,
-			Replaced: contract.Replaced,
+			ContractStatus: contract.Status, SignedAt: contract.SignedAt, CanSign: contract.CanSign, Replaced: contract.Replaced,
 		}
 	}
 	return documents, nil
@@ -294,4 +295,38 @@ func deferredPushes(reminders func(context.Context, deliveryContract.ClaimedInte
 		}
 		return reminders(ctx, intent)
 	}
+}
+
+// ContractSigningView reads a contract of the inbox to sign (#4679).
+func (d parentContractDocuments) ContractSigningView(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.ContractSigningView, error) {
+	view, err := d.signing.InboxSigningView(ctx, organizationID, contractID, carecontract.InboxReader(reader))
+	return parentSigningView(view, err)
+}
+
+// SignContract signs a contract of the inbox (#4679).
+func (d parentContractDocuments) SignContract(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader, input parentportal.ContractSignatureInput) (parentportal.ContractSigningView, error) {
+	view, err := d.signing.SignInInbox(ctx, organizationID, contractID, carecontract.InboxReader(reader), carecontract.SignatureInput(input))
+	return parentSigningView(view, err)
+}
+
+// parentSigningView passes the owner's view through as the workflow's
+// document and maps the owner's errors onto the workflow's.
+func parentSigningView(view carecontract.SigningView, err error) (parentportal.ContractSigningView, error) {
+	switch {
+	case errors.Is(err, carecontract.ErrInboxDocumentNotFound):
+		return nil, fmt.Errorf("%w: %w", parentportal.ErrBillingDocumentNotFound, err)
+	case errors.Is(err, carecontract.ErrSignatureInvalid):
+		return nil, fmt.Errorf("%w: %w", parentportal.ErrContractSignatureInvalid, err)
+	case errors.Is(err, carecontract.ErrWithdrawalNoticeRequired):
+		return nil, fmt.Errorf("%w: %w", parentportal.ErrContractWithdrawalNoticeRequired, err)
+	case errors.Is(err, carecontract.ErrContractNotSignable):
+		return nil, fmt.Errorf("%w: %w", parentportal.ErrContractNotSignable, err)
+	case err != nil:
+		return nil, err
+	}
+	encoded, err := json.Marshal(view)
+	if err != nil {
+		return nil, fmt.Errorf("encode contract signing view: %w", err)
+	}
+	return encoded, nil
 }

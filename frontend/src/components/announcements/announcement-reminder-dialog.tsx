@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { TimeField } from "~/components/ui/time-field";
@@ -237,10 +238,14 @@ export function AnnouncementReminderDialog({
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <span className="mb-1.5 block text-sm font-medium text-gray-700">
+              <FieldLabel
+                htmlFor="announcement-reminder-at"
+                invalid={Boolean(reminderAtError)}
+              >
                 Erinnern am
-              </span>
+              </FieldLabel>
               <DatePicker
+                id="announcement-reminder-at"
                 name="reminder_at"
                 value={day}
                 onChange={setDay}

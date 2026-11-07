@@ -31,6 +31,16 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.participantDirectory.FindCandidatesOnDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Directory.FindCandidatesOnDates",
+      "reason": "Read-only existing People Directory capability: the date-set helper calls the existing tenant-scoped roster range read and applies EnrolledOn without writes; name lookup reads existing student identities. No new transaction, lock, observer approval or mutation.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.participantDirectory.FindDailyCandidates",
       "classification": "query",
       "effect": "query",
@@ -45,9 +55,19 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Directory.FindStudentNames",
-      "reason": "Read-only target: meal-plan reaches modules/peopledirectory/compose.Directory.ListStudentNamesByID (people-directory) through modules/mealplan/internal/application.participantDirectory.FindStudentNames. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "reason": "Read-only existing People Directory capability: the date-set helper calls the existing tenant-scoped roster range read and applies EnrolledOn without writes; name lookup reads existing student identities. No new transaction, lock, observer approval or mutation.",
       "source_owner": "meal-plan",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByID",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.participantDirectory.FindStudentNames",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Directory.FindStudentNames",
+      "reason": "Read-only existing People Directory capability: the date-set helper calls the existing tenant-scoped roster range read and applies EnrolledOn without writes; name lookup reads existing student identities. No new transaction, lock, observer approval or mutation.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
       "target_owner": "people-directory"
     },
     {
@@ -166,6 +186,16 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.FindParticipation",
       "reason": "Read-only newly exposed target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.FindParticipation. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.FindParticipationDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.FindParticipationDays",
+      "reason": "Read-only Meal Plan ID/date-set participation load in its existing tenant scope. Same tenant context resolver as FindDailyParticipation; three SELECTs over owned schedules, overrides and absence history, no write, lock or scope mutation.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"

@@ -169,6 +169,7 @@ func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDepende
 		Attendance:           deps.activeService,
 		Students:             deps.students,
 		People:               deps.personService,
+		CallerStaff:          unavailableCallerStaff{},
 		EducationGroups:      deps.groups,
 		Rooms:                deps.rooms,
 		BlockMetadata:        fakeOpsBlockDisplay{instances: deps.instanceRepo, rooms: deps.rooms},
@@ -187,6 +188,12 @@ func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDepende
 			return time.Now()
 		},
 	}
+}
+
+type unavailableCallerStaff struct{}
+
+func (unavailableCallerStaff) StaffID(context.Context) (int64, error) {
+	return 0, timetable.ErrTimetableOperationForbidden
 }
 
 type fakeOpsInstanceRepo struct {

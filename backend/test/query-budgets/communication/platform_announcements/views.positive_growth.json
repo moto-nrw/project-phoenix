@@ -1,0 +1,6 @@
+{
+  "scenario": "communication.platform_announcements.views.positive_growth",
+  "max": 6,
+  "exact": true,
+  "description": "N3/N8 positive announcement rows/viewers plus foreign-school targets (operator list returns 6/16 announcements). Unread captures authenticated resource callback and real admin service transaction; operator list/views captures actual handler plus real admin service, excluding outer operator auth/session chain. No global-minimum claim."
+}

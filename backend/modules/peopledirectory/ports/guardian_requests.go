@@ -21,6 +21,10 @@ type GuardianCreateRequest struct {
 // GuardianInvitationRequest represents data for inviting a guardian
 // StudentGuardianCreateRequest represents data for linking a guardian to a student
 type StudentGuardianCreateRequest struct {
+	// CreatedStudent carries LinkGuardian's same-transaction create fact.
+	CreatedStudent *peopleValues.CreatedEnrollmentStudent `json:"-"`
+	// CreatedGuardian carries LinkGuardian's same-transaction create fact.
+	CreatedGuardian    *peopleValues.Guardian `json:"-"`
 	StudentID          int64
 	GuardianProfileID  int64
 	RelationshipType   string // parent, guardian, relative, other
@@ -45,10 +49,12 @@ type StudentGuardianUpdateRequest struct {
 
 // PhoneNumberCreateRequest represents data for creating a new phone number
 type PhoneNumberCreateRequest struct {
-	PhoneNumber string
-	PhoneType   string  // mobile, home, work, other
-	Label       *string // Optional label like "Dienstlich"
-	IsPrimary   bool
+	// CreatedGuardian carries GuardianPhoneInput's first-phone create fact.
+	CreatedGuardian *peopleValues.Guardian `json:"-"`
+	PhoneNumber     string
+	PhoneType       string  // mobile, home, work, other
+	Label           *string // Optional label like "Dienstlich"
+	IsPrimary       bool
 }
 
 // PhoneNumberUpdateRequest represents data for updating a phone number

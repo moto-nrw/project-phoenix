@@ -9282,7 +9282,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TeacherMembershipRepository.FindWithStaffAndPerson",
-      "binding_digest": "d0c08bb8a7c0da0be42d20171b4a8143",
+      "binding_digest": "93d4747fe33999f478ed6e95aac6dd69",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.FindWithStaffAndPerson",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -9298,7 +9298,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TeacherMembershipRepository.FindWithStaffAndPerson",
-      "binding_digest": "ca35beaaee801beff9f69df0fd46e7ea",
+      "binding_digest": "eba93a7e80d29a88fcc2a569a3dcba08",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.FindWithStaffAndPerson",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -9306,7 +9306,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TeacherMembershipRepository.FindWithStaffAndPersonByIDs",
-      "binding_digest": "ed8f60b75d55d893b7d04ccd4873e8af",
+      "binding_digest": "18a6c571f5c3b3a7f0d13320615c2085",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.FindWithStaffAndPersonByIDs",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -9322,7 +9322,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TeacherMembershipRepository.FindWithStaffAndPersonByIDs",
-      "binding_digest": "384d19acd578640f746927d963af02e6",
+      "binding_digest": "9c212ed1d6d891422f747e1e015f7c04",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.FindWithStaffAndPersonByIDs",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -9394,7 +9394,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TeacherMembershipRepository.ListAllWithStaffAndPerson",
-      "binding_digest": "20388b68fdf023689ecb66701905cb17",
+      "binding_digest": "3457e44a5bf111f0bbda95f09b59f4dd",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListAllWithStaffAndPerson",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -9410,7 +9410,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TeacherMembershipRepository.ListAllWithStaffAndPerson",
-      "binding_digest": "41b9a5401c03d698d7bcff1ac1a3d5ba",
+      "binding_digest": "b1aaae618ee0ee396e3f0d623595bc78",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListAllWithStaffAndPerson",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -9420,6 +9420,22 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TeacherMembershipRepository.ListAllWithStaffAndPerson",
       "binding_digest": "d276865ccde85ce2c1faaf221e7d90cd",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListAllWithStaffAndPerson",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TeacherMembershipRepository.ListRosterWithStaffAndPerson",
+      "binding_digest": "6222bfcb89f5997f7967433545be3893",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListRosterWithStaffAndPerson",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TeacherMembershipRepository.ListRosterWithStaffAndPerson",
+      "binding_digest": "e48641a956664514995bb7fa14b7ef88",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListRosterWithStaffAndPerson",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListTeachers",
       "target_owner": "school-membership"

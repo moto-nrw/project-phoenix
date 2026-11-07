@@ -55,10 +55,12 @@ type callerEntry struct {
 	groups              []int64
 	teacherGroupsLoaded bool
 	teacherGroups       []int64
-	subsLoaded          bool
-	subs                map[int64]bool
-	classesLoaded       bool
-	classes             []string
+	// subs keeps all substitutions, including assigned regular staff slots.
+	// Each facet applies its own filter to a defensive copy.
+	subsLoaded    bool
+	subs          map[int64]bool
+	classesLoaded bool
+	classes       []string
 }
 
 // entry resolves the memo entry of the current caller, or nil when the

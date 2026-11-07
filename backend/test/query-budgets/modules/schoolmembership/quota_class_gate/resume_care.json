@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.schoolmembership.quota_class_gate.resume_care",
+  "max": 12,
+  "exact": true,
+  "description": "Real owner write with contracted school quota and N3/N8 relevant child population; preserves class-before-quota locks and two count observations."
+}

@@ -27,5 +27,11 @@
   "releasedAt": "Shared on",
   "downloadFile": "Download",
   "sharedErrorObject": "the documents of the provider",
-  "image": "Image"
+  "image": "Image",
+  "awaitingSignature": "Waiting for your signature",
+  "signed": "Signed",
+  "concluded": "Concluded",
+  "signNow": "Read and sign",
+  "signedAt": "Signed on",
+  "status": "Status"
 }

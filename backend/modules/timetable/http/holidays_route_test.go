@@ -161,4 +161,25 @@ func TestHolidayRouteQueryBudget(t *testing.T) {
 	decodeHolidayList(t, response)
 	t.Logf("query budget: holiday list → %d queries", counter.Total())
 	querybudgets.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Queries())
+
+	for _, window := range []struct {
+		to    string
+		dates []string
+	}{
+		{"2027-03-29", []string{"2027-01-01", "2027-03-26", "2027-03-29"}},
+		{"2027-10-03", []string{"2027-01-01", "2027-03-26", "2027-03-29", "2027-05-01", "2027-05-06", "2027-05-17", "2027-05-27", "2027-10-03"}},
+	} {
+		counter.Reset()
+		body := decodeHolidayList(t, getHolidaysWithContext(t, setup, counter.Context(context.Background()), setup.tenantID,
+			"?from=2027-01-01&to="+window.to, permissions.CalendarOwn))
+		require.Equal(t, "DE-NW", body.Data.FederalState)
+		dates := make([]string, 0, len(body.Data.Holidays))
+		for _, holiday := range body.Data.Holidays {
+			require.NotEmpty(t, holiday.Name)
+			dates = append(dates, holiday.Date)
+		}
+		require.Equal(t, window.dates, dates, "positive N3/N8 holiday payload stays ordered")
+		t.Logf("N%d holidays: %d statements", len(dates), counter.Total())
+		querybudgets.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Queries())
+	}
 }

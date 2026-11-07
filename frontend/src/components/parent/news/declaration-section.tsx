@@ -25,7 +25,7 @@ import { Input } from "~/components/ui/input";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SignaturePad } from "~/components/ui/signature-pad";
-import type { SignaturePadLabels } from "~/components/ui/signature-pad";
+import { useSignaturePadLabels } from "~/components/parent/news/signature-pad-labels";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
@@ -160,25 +160,6 @@ function declarationNeedsSignature(
 }
 
 /** The signature field's labels in the guardian's language. */
-function useSignaturePadLabels(): SignaturePadLabels {
-  const t = useTranslations("parentDeclaration.signature");
-  return {
-    label: t("label"),
-    hint: t("hint"),
-    canvas: t("canvas"),
-    clear: t("clear"),
-    typeInstead: t("typeInstead"),
-    drawInstead: t("drawInstead"),
-    typedName: t("typedName"),
-    confirm: t("confirm"),
-    confirmed: t("confirmed"),
-    confirmedTyped: t("confirmedTyped"),
-    change: t("change"),
-    preview: t("preview"),
-    emptyDrawing: t("emptyDrawing"),
-    nameTooShort: t("nameTooShort"),
-  };
-}
 
 const SIGNATURE_FIELD = "declaration-signature";
 

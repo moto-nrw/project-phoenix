@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.classday.slot_list.options_rooms",
+  "max": 14,
+  "exact": true,
+  "description": "Slot options inside the tenant transaction with 1 then 8 distinct selectable rooms and the same three children. One Facilities batch read; no DML."
+}

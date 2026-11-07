@@ -27,6 +27,7 @@ const (
 	KeyCareDefaultArrivalTime                = configModel.KeyCareDefaultArrivalTime
 	KeyCareDefaultPickupTime                 = configModel.KeyCareDefaultPickupTime
 	KeyClassArrivalExceptionEditors          = configModel.KeyClassArrivalExceptionEditors
+	KeyDeviceOnlineWindowMinutes             = configModel.KeyDeviceOnlineWindowMinutes
 	KeyDisplayEnabled                        = configModel.KeyDisplayEnabled
 	KeyEarlyCheckoutNoteEnabled              = configModel.KeyEarlyCheckoutNoteEnabled
 	KeyEarlyCheckoutNoteToleranceMinutes     = configModel.KeyEarlyCheckoutNoteToleranceMinutes

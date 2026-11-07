@@ -3,6 +3,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -399,9 +400,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase">
-        {label}
-      </span>
+      <FieldLabel>{label}</FieldLabel>
       {children}
     </label>
   );
@@ -419,9 +418,7 @@ function FieldGroup({
 }) {
   return (
     <div>
-      <span className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase">
-        {label}
-      </span>
+      <FieldLabel>{label}</FieldLabel>
       {children}
     </div>
   );

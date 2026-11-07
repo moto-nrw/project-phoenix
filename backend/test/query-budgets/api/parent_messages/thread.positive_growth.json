@@ -1,0 +1,6 @@
+{
+  "scenario": "api.parent_messages.thread.positive_growth",
+  "max": 12,
+  "exact": true,
+  "description": "Protected tenant message route, N3/N8 real guardians, conversations, class families and messages; actual nonempty DTOs and message order. Captures tenant transaction, capability and read receipts, excluding fixture writes and outer live-session verification. Foreign tenant cannot read conversation/group detail. Not a global minimum."
+}

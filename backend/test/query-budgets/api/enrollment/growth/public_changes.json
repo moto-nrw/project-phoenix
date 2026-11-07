@@ -1,0 +1,6 @@
+{
+  "scenario": "api.enrollment.growth.public_changes",
+  "max": 65,
+  "exact": true,
+  "description": "Positive mounted handler with N3/N8 terminal cases and no writes. Terminal public messages use one batch after scalar child validation; per-case row, request, children, phase and tenant frames remain live. Exact ceiling pins N8, not a constant total bound."
+}

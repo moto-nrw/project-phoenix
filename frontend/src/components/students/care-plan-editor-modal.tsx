@@ -642,30 +642,26 @@ function LegSection({
       </div>
 
       {showTime ? (
-        <label className="mt-3 block" htmlFor={timeId}>
-          <span className="mb-1 block text-xs font-medium text-gray-500">
-            Uhrzeit
-          </span>
+        <div className="mt-3">
           <Input
             id={timeId}
+            label="Uhrzeit"
             controlSize="compact"
             type="time"
             value={time}
             onChange={(event) => onTimeChange(event.target.value)}
           />
-        </label>
+        </div>
       ) : null}
 
       {/* "Grund", not "Notiz": on a day the free text explains the deviation,
           and calling it a note was half of what made #893 confusing. Notes live
           in the weekly plan and mean "every week". */}
       {showReason ? (
-        <label className="mt-3 block" htmlFor={reasonId}>
-          <span className="mb-1 block text-xs font-medium text-gray-500">
-            Grund
-          </span>
+        <div className="mt-3">
           <Input
             id={reasonId}
+            label="Grund"
             controlSize="compact"
             type="text"
             value={reason}
@@ -673,7 +669,7 @@ function LegSection({
             maxLength={255}
             placeholder="Optional"
           />
-        </label>
+        </div>
       ) : null}
     </section>
   );

@@ -313,15 +313,15 @@ const ROW_ACTION_BASELINE = new Map(
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
     // Ziele einer Ankündigung, die es nicht mehr gibt (#5604, Formularwert).
     "src/app/operator/announcements/page.tsx": [
-      "aus Zielen entfernen@770",
-      "aus Zielen entfernen@803",
+      "aus Zielen entfernen@764",
+      "aus Zielen entfernen@797",
     ],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
       "Gericht entfernen@798",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1586",
-      "Entfernen@2027",
+      "Antwort entfernen@1587",
+      "Entfernen@2029",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Bedingung löschen@2007",
@@ -332,15 +332,15 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
       "Entfernen@589",
-      "Telefonnummer entfernen@864",
+      "Telefonnummer entfernen@857",
     ],
     "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1310"],
     "src/components/staff/stammdaten-section-forms.tsx": [
-      "Qualifikation entfernen@485",
+      "Qualifikation entfernen@476",
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@298"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@795",
+      "Erziehungsberechtigte/n entfernen@792",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@810",
@@ -1228,7 +1228,7 @@ const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
     "src/components/students/planned-status-days-modal.tsx": [
-      "Bearbeiten@1178",
+      "Bearbeiten@1162",
     ],
   }),
 );
@@ -1582,7 +1582,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1490",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1491",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
@@ -1599,7 +1599,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // haben keine eigene Objektroute; ein Umbau geht über das Seitengerüst
     // hinaus und ist nicht Teil von #5604.
     "src/app/operator/announcements/page.tsx": [
-      "Ankündigung bearbeiten Neue Ankündigung@531",
+      "Ankündigung bearbeiten Neue Ankündigung@532",
     ],
     "src/app/operator/provisioning/edit-organization-modal.tsx": [
       "Träger bearbeiten@83",
@@ -1620,13 +1620,13 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@951",
     ],
     "src/components/files/folder-modal.tsx": [
-      "Ordner bearbeiten Neuer Ordner@145",
+      "Ordner bearbeiten Neuer Ordner@146",
     ],
     "src/components/planning/closing-day-modal.tsx": [
       "Schließtag bearbeiten Schließtag anlegen@90",
     ],
     "src/components/staff-notices/staff-notice-modal.tsx": [
-      "Tagesinformation bearbeiten Neue Tagesinformation@187",
+      "Tagesinformation bearbeiten Neue Tagesinformation@188",
     ],
     "src/components/timetable/calendar-period-modal.tsx": [
       "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@404",
