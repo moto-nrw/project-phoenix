@@ -70,6 +70,10 @@ func contractLetter(record ContractRecord, head carecontract.Letterhead) Letter 
 		LetterBlock{Heading: "Vertragsangaben", Text: "Das gilt für diesen Vertrag:", Facts: termFacts(version, head)},
 		LetterBlock{Heading: "Gebuchte Betreuung", Text: "An diesen Tagen ist Ihr Kind in der Betreuung:", Facts: ServiceFacts(version.Services)},
 	)
+	if concluded := record.Concluded; concluded != nil && concluded.Method == carecontract.MethodWithApplication {
+		blocks = append(blocks, LetterBlock{Heading: "Vertragsschluss", Text: "Dieser Vertrag ist mit der Annahme der Anmeldung am " +
+			germanDate(calendar.DateFromTime(concluded.At)) + " geschlossen. Sie müssen ihn nicht unterschreiben."})
+	}
 	if version.Terms.SpecialTermination {
 		blocks = append(blocks, LetterBlock{Heading: "Sonderkündigung", Text: strings.TrimSpace(version.Terms.SpecialTerminationNote)})
 	}

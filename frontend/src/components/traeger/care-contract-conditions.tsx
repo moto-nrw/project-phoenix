@@ -393,8 +393,18 @@ function ConditionsForm({
         />
         <p className="text-sm text-gray-600">
           Leer lassen, wenn der Name im Briefkopf steht. Sonst tragen Sie den
-          Vertragspartner hier ein.
+          Vertragspartner hier ein. Für „Bei der Annahme“ tragen Sie ihn immer
+          ein.
         </p>
+        {selected.acceptanceText ? (
+          <Textarea
+            label="Gespeicherter Text für das Anmeldeformular"
+            readOnly
+            rows={8}
+            value={selected.acceptanceText}
+            hint="Für „Bei der Annahme“ ergänzt die Schule eine eigene Zustimmung im Anmeldeformular. Sie kopiert diesen Text unverändert in „Rechtstext / Erklärung“. Sie setzt „Muss bestätigt werden“. Bestehende Rechtstexte bleiben erhalten. Nach Änderungen speichern Sie zuerst die Bedingungen. Ersetzen Sie danach nur diesen Text im Anmeldeformular."
+          />
+        ) : null}
       </form>
     </SectionCard>
   );

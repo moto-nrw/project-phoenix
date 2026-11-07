@@ -25,10 +25,12 @@ type ContractKey struct {
 
 // NewContract is a draft with its first version and its party.
 type NewContract struct {
-	Key       ContractKey
-	StudentID *int64
-	Version   carecontract.Version
-	Party     NewParty
+	AcceptedAt  *time.Time
+	Acceptances []carecontract.AcceptedText
+	Key         ContractKey
+	StudentID   *int64
+	Version     carecontract.Version
+	Party       NewParty
 }
 
 // NewParty is the party of a new draft.
@@ -46,6 +48,10 @@ type ContractRecord struct {
 	Version    carecontract.Version
 	Parties    []carecontract.Party
 	DocumentID *int64
+	// Concluded is how and when the contract was concluded; nil before. The
+	// conclusion at acceptance sets it before the PDF is rendered, so the
+	// frozen PDF and the mail say that the contract is concluded.
+	Concluded *carecontract.Concluded
 }
 
 // StoredMailing is a send of the contract as stored.
@@ -71,6 +77,7 @@ const (
 	ActionSend     = "send"
 	ActionDiscard  = "discard"
 	ActionTemplate = "template"
+	ActionConclude = "conclude"
 )
 
 // Store persists the contracts of a Träger in its Träger transaction.
@@ -88,6 +95,10 @@ type Store interface {
 	InsertMailing(ctx context.Context, organizationID, accountID, contractID, documentID, outboxID int64, recipient string) error
 	MarkSent(ctx context.Context, organizationID, contractID int64, at time.Time) error
 	DeleteDraft(ctx context.Context, organizationID, contractID int64) (bool, error)
+	// MarkConcluded moves a sent contract with its version beantragt to
+	// aktiv and the version to wirksam, with the method and the instant;
+	// any other state is ErrContractNotConcludable.
+	MarkConcluded(ctx context.Context, organizationID, contractID, versionID int64, conclusion carecontract.Concluded) error
 	InsertEvents(ctx context.Context, organizationID int64, events []Event) error
 	InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]carecontract.InboxContract, error)
 	InboxDocument(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (carecontract.File, error)

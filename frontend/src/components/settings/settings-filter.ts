@@ -85,6 +85,8 @@ export const categoryLabels: Record<string, string> = {
   personaldokumente: "Personaldokumente",
   pin: "Zugang zum Tablet",
   rechtstexte: "Rechtstexte",
+  // Wann der Betreuungsvertrag gilt (#4680); Träger-Wert, Schule darf abweichen.
+  vertragsabschluss: "Betreuungsvertrag",
   schulstunden: "Schulstunden",
   schülerdaten: "Kinderdaten",
   "sehen-und-bearbeiten": "Sehen und bearbeiten",

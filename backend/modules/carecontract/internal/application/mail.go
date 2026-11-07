@@ -27,13 +27,16 @@ func RenderContractMail(_ context.Context, payload []byte) (carecontract.Rendere
 	// The subject names no child: the mailers log it at Info level, where no
 	// child's name belongs. The body names the child.
 	subject := "Ihr Betreuungsvertrag"
+	if mail.Concluded {
+		subject = "Ihr Betreuungsvertrag ist abgeschlossen"
+	}
 	return carecontract.RenderedContractMail{
 		SenderName: strings.TrimSpace(mail.TraegerName),
 		Subject:    subject,
 		Template:   contractMailTemplate,
 		Content: carecontract.ContractMailContent{
 			GuardianName: mail.GuardianName, TraegerName: mail.TraegerName,
-			ChildName: mail.ChildName, Modules: mail.Modules,
+			ChildName: mail.ChildName, Modules: mail.Modules, Concluded: mail.Concluded,
 		},
 		Filename: mail.Filename,
 		PDF:      mail.PDF,

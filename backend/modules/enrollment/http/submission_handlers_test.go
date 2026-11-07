@@ -646,3 +646,17 @@ func TestSignatureProofDocument_IncludesSignedAnswersAndOfferingChoices(t *testi
 	assert.Contains(t, childFields, lists.Field{Label: "Betreuungsangebote", Value: "Kernzeit (#42) (Mo, Mi)"})
 	assert.Contains(t, childFields, lists.Field{Label: "Abholzeit", Value: "Mo 15:00"})
 }
+
+// TestSubmitCarriesTheShownFormVersion: the form version the page showed
+// reaches the owner (#4680), so the snapshot proves which legal texts the
+// parent ticked.
+func TestSubmitCarriesTheShownFormVersion(t *testing.T) {
+	t.Parallel()
+	wire := &SubmitEnrollmentRequest{}
+	require.NoError(t, json.Unmarshal([]byte(`{"phase_id":42,"form_schema_id":81,"consent_flags":{"terms":true},"children":[]}`), wire))
+	out, err := buildServiceRequest(wire, 7, "203.0.113.5")
+	require.NoError(t, err)
+	encoded, err := encodeSubmitRequest(out)
+	require.NoError(t, err)
+	assert.Equal(t, int64(81), encoded.DisplayedFormSchemaID)
+}

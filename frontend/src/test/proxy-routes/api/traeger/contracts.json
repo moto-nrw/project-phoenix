@@ -10,6 +10,9 @@
   "api/traeger/contracts/candidates": [
     "GET traeger /traeger/contracts/candidates"
   ],
+  "api/traeger/contracts/conclusion-modes": [
+    "GET traeger /traeger/contracts/conclusion-modes"
+  ],
   "api/traeger/contracts/send": [
     "POST traeger /traeger/contracts/send"
   ]

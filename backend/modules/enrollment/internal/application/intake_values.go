@@ -15,6 +15,10 @@ import (
 
 // SubmitRequest is a decoded submission.
 type SubmitRequest struct {
+	// DisplayedFormSchemaID is the form version the parent's form showed
+	// (#4680). Versions never change, so the snapshot proves the shown legal
+	// texts are the stored ones only when it equals the version in force.
+	DisplayedFormSchemaID int64
 	// uploadAttempt counts an upload of the public form (#4783) in the IP's
 	// upload bucket instead of the submission buckets.
 	uploadAttempt            bool
@@ -81,7 +85,7 @@ func decodeSubmitRequest(in enrollment.SubmitRequest) (SubmitRequest, error) {
 		SubmissionSource: in.SubmissionSource, GuardianFirstName: in.GuardianFirstName,
 		GuardianLastName: in.GuardianLastName, GuardianEmail: in.GuardianEmail, GuardianPhone: in.GuardianPhone,
 		GuardianAccountID: in.GuardianAccountID, GuardianSubmitEligible: in.GuardianSubmitEligible,
-		AdditionalGuardians: in.AdditionalGuardians, Signature: in.Signature,
+		AdditionalGuardians: in.AdditionalGuardians, Signature: in.Signature, DisplayedFormSchemaID: in.DisplayedFormSchemaID,
 	}
 	var err error
 	if out.SourceMetadata, err = decodeJSONMap(in.SourceMetadata, "source metadata"); err != nil {

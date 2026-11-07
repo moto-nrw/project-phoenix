@@ -2,6 +2,7 @@ package carecontract
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -32,6 +33,8 @@ type Booking struct {
 // Application is an accepted application child of one school, with its
 // guardian and its bookings.
 type Application struct {
+	AcceptedAt        *time.Time
+	Acceptances       []AcceptedText
 	RequestChildID    int64
 	StudentID         *int64
 	ChildFirstName    string
@@ -157,6 +160,13 @@ type MailState struct {
 	Outcome string
 }
 
+// MailBlocks reads, in the caller's Träger transaction, why a first contract
+// mail to each address would stay back now, in one read (#4680). The key is
+// the address as given; an address that would be sent has no key.
+type MailBlocks interface {
+	ContractMailBlocks(ctx context.Context, organizationID int64, addresses []string) (map[string]string, error)
+}
+
 // Post enqueues the mail of a contract in the caller's Träger transaction
 // and reads the state of its mails.
 type Post interface {
@@ -169,4 +179,13 @@ type Post interface {
 	// uses the returned context, so one request cannot wait once per contract.
 	ShareMailBlockLimit(ctx context.Context) context.Context
 	ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]MailState, error)
+}
+
+// AcceptedText is Enrollment's checked evidence of a parent's agreement to
+// the exact terms shown before the school's acceptance.
+type AcceptedText struct {
+	Key         string
+	Text        string
+	SHA256      string
+	SubmittedAt time.Time
 }
