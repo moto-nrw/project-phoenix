@@ -216,6 +216,7 @@ func (s *Intake) countRateLimitAttempt(ctx context.Context, tenantID int64, buck
 }
 
 // cloneSourceMetadata copies a metadata map so the submission can add to it.
+// Unlike maps.Clone it never returns nil: the callers write into the copy.
 func cloneSourceMetadata(src map[string]any) map[string]any {
 	out := make(map[string]any, len(src))
 	for k, v := range src {

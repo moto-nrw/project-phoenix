@@ -6,10 +6,8 @@ import (
 	"reflect"
 	"strings"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
 
@@ -291,10 +289,10 @@ func editableCustomDataKeys(schema *enrollmentNative.FormSchema, appliesToChild 
 
 // relevantCareDaysForChild returns the weekdays every per-child day-scoped
 // field offers: all weekdays without care offerings, otherwise the child's
-// selected care days. The result is read-only.
+// selected care days.
 func relevantCareDaysForChild(child SubmitChild, openByID map[int64]*offeringContract.CareOfferingRecord) map[string]bool {
 	if len(openByID) == 0 {
-		return enrollmentNative.ValidWeekdays
+		return schoolDaySet()
 	}
 	return selectedCareDays(child, openByID)
 }
@@ -315,7 +313,7 @@ func selectedCareDays(child SubmitChild, openByID map[int64]*offeringContract.Ca
 			selected = picksByOffering[id]
 		}
 		for _, day := range selected {
-			if enrollmentNative.ValidWeekdays[day] {
+			if offeringContract.IsSchoolDayCode(day) {
 				days[day] = true
 			}
 		}
@@ -373,4 +371,13 @@ func jsonNormalized(v any) any {
 		return v
 	}
 	return out
+}
+
+// schoolDaySet is a fresh set of the school day codes.
+func schoolDaySet() map[string]bool {
+	days := map[string]bool{}
+	for _, day := range offeringContract.SchoolDayCodes() {
+		days[day] = true
+	}
+	return days
 }

@@ -6,9 +6,8 @@ import (
 	"sort"
 	"strconv"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -302,10 +301,6 @@ func careUsageStudentID(child *reportChild) int64 {
 	return 0
 }
 
-// classRosterISOWeekdayDay maps pickup-schedule weekdays (ISO, Mon=1) onto
-// the report day codes used across the roster maps.
-var classRosterISOWeekdayDay = map[int]string{1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri"}
-
 // schedulePickupByStudentIDs maps student ID -> day code -> effective pickup
 // time (HH:MM) on date, shared by the class-roster and care-usage reports.
 // Without the schedule binding the column stays empty.
@@ -319,8 +314,8 @@ func (s *Reports) schedulePickupByStudentIDs(ctx context.Context, studentIDs []i
 		return nil, fmt.Errorf("list pickup schedules: %w", err)
 	}
 	for _, row := range rows {
-		day, ok := classRosterISOWeekdayDay[row.Weekday]
-		if !ok {
+		day := offeringContract.SchoolDayCode(row.Weekday)
+		if day == "" {
 			continue
 		}
 		if out[row.StudentID] == nil {
