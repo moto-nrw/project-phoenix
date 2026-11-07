@@ -249,4 +249,26 @@ describe("PeriodSwitcherDropdown", () => {
     expect(screen.getByText("Umfasst mehrere Zeiträume.")).toBeInTheDocument();
     expect(screen.getAllByTestId("selected-period-check")).toHaveLength(1);
   });
+
+  it("returns the keyboard to the trigger after choosing a period", () => {
+    const onSelect = vi.fn();
+    render(
+      <PeriodSwitcherDropdown
+        periods={basePeriods}
+        weekDays={weekDays}
+        onCreate={vi.fn()}
+        onSelect={onSelect}
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: /Schuljahr|Zeitr/ });
+    fireEvent.click(trigger);
+
+    const panel = screen.getByRole("dialog", { name: "Planungszeitraum" });
+    expect(panel).toContainElement(document.activeElement as HTMLElement);
+    fireEvent.click(screen.getByRole("button", { name: /Sommerferien/ }));
+
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
 });

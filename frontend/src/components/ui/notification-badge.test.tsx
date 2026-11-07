@@ -59,4 +59,13 @@ describe("NotificationBadge", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  it.each([
+    ["danger", "bg-moto-red"],
+    ["blue", "bg-moto-blue-strong"],
+  ] as const)("shows the %s tone with white text", (tone, fill) => {
+    render(<NotificationBadge count={3} tone={tone} ariaLabel="3 offen" />);
+
+    expect(screen.getByLabelText("3 offen")).toHaveClass(fill, "text-white");
+  });
 });

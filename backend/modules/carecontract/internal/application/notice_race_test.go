@@ -89,7 +89,7 @@ func newNoticeFixture(t *testing.T, name string, now time.Time) noticeFixture {
 func (f noticeFixture) declare(input carecontract.NoticeInput) func(context.Context) error {
 	return func(txCtx context.Context) error {
 		_, err := f.notices.declare(txCtx, declaration{
-			organizationID: f.org, accountID: f.reviewer.AccountID, channel: carecontract.ChannelOffice,
+			organizationID: f.org, accountID: f.reviewer.AccountID, channel: carecontract.NoticeChannelOffice,
 			contractID: f.contract, input: input, traeger: "Ganztag im Quartier e.V.",
 		})
 		return err
@@ -181,7 +181,7 @@ func TestTerminationEndsTheVersionsInForceOnTheNoticeDate(t *testing.T) {
 	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(txCtx context.Context) error {
 		var err error
 		options, err = f.notices.declare(txCtx, declaration{organizationID: f.org, accountID: f.reviewer.AccountID,
-			channel: carecontract.ChannelOffice, contractID: f.contract, input: terminate, traeger: "Ganztag im Quartier e.V."})
+			channel: carecontract.NoticeChannelOffice, contractID: f.contract, input: terminate, traeger: "Ganztag im Quartier e.V."})
 		return err
 	}))
 	end := calendar.NewDate(2026, 12, 31)
@@ -263,7 +263,7 @@ func TestDeclarationNeedsAnActiveContractAndAValidDay(t *testing.T) {
 		draft.contracts)
 	err := testpkg.WithinTraeger(draft.ctx, draft.org, func(txCtx context.Context) error {
 		_, err := notices.declare(txCtx, declaration{organizationID: draft.org, accountID: draft.reviewer.AccountID,
-			channel: carecontract.ChannelOffice, contractID: draft.contract, input: terminate})
+			channel: carecontract.NoticeChannelOffice, contractID: draft.contract, input: terminate})
 		return err
 	})
 	require.ErrorIs(t, err, carecontract.ErrContractNotEndable)
@@ -402,7 +402,7 @@ func TestParentConfirmationKeepsTheSuppliedRecipient(t *testing.T) {
 	f := newNoticeFixture(t, "Träger persönliche Bestätigung", noticeToday)
 	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(ctx context.Context) error {
 		_, err := f.notices.declare(ctx, declaration{organizationID: f.org, accountID: f.reviewer.AccountID,
-			channel: carecontract.ChannelParents, contractID: f.contract, input: terminate, recipient: "declaring-parent@example.org"})
+			channel: carecontract.NoticeChannelParents, contractID: f.contract, input: terminate, recipient: "declaring-parent@example.org"})
 		return err
 	}))
 	require.Len(t, f.post.mails, 1)

@@ -356,7 +356,7 @@ func (Store) InsertEvents(ctx context.Context, organizationID int64, events []po
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_events
 			(organization_id, contract_id, school_id, account_id, action, details)
-		SELECT ?, e.contract_id, e.school_id, e.account_id, e.action, e.details::jsonb
+		SELECT ?, e.contract_id, e.school_id, NULLIF(e.account_id, 0), e.action, e.details::jsonb
 		FROM unnest(?::bigint[], ?::bigint[], ?::bigint[], ?::text[], ?::text[])
 			AS e(contract_id, school_id, account_id, action, details)`,
 		organizationID, pgdialect.Array(contractIDs), pgdialect.Array(schoolIDs), pgdialect.Array(accountIDs),

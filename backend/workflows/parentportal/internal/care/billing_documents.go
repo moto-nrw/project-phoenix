@@ -38,6 +38,8 @@ type BillingDocumentReader struct {
 	Email     string
 	// Children contains only permitted student IDs, grouped by school.
 	Children map[int64][]int64
+	// SigningChildren contains only children the workflow permits signing for.
+	SigningChildren map[int64][]int64
 }
 
 // BillingDocument is one document of a Träger in the inbox.
@@ -54,19 +56,19 @@ type BillingDocument struct {
 	TotalCents     int64
 	ChildNames     []string
 	SentAt         time.Time
+	// ContractStatus and SignedAt tell whether a care contract waits for
+	// the parents' signature (#4679); empty for a letter.
+	ContractStatus string
+	CanSign        bool
+	SignedAt       *time.Time
 	// Replaced marks a sent contract version that a change on its own first
 	// day replaced (#4681); it holds on no day.
 	Replaced bool
-	// ContractStatus and EndsOn are the status of a care contract and the
-	// last day of a terminated one (#4682); empty for a letter.
-	ContractStatus string
+	// EndsOn is the last day of a terminated contract (#4682). CanEndContract
+	// tells that the contract is active and the account's relationship to
+	// its child grants parent_portal.enrollment.submit, the right a
+	// declaration needs; the inbox offers „Verträge hier kündigen“ only then.
 	EndsOn         *calendar.Date
-	// SchoolID and StudentID name a contract's child; CanEndContract tells
-	// that the account's relationship to that child grants
-	// parent_portal.enrollment.submit, the right a declaration needs
-	// (#4682). The inbox offers „Verträge hier kündigen“ only then.
-	SchoolID       int64
-	StudentID      int64
 	CanEndContract bool
 }
 
@@ -95,6 +97,10 @@ const DocumentKindContract = "care_contract"
 type ContractDocuments interface {
 	ListContractDocuments(ctx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
 	ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader BillingDocumentReader) (BillingDocumentFile, error)
+	// The signature of #4679 (contract_signing.go); reader holds only the
+	// children the account may sign for.
+	ContractSigningView(ctx context.Context, organizationID, contractID int64, reader BillingDocumentReader) (ContractSigningView, error)
+	SignContract(ctx context.Context, organizationID, contractID int64, reader BillingDocumentReader, input ContractSignatureInput) (ContractSigningView, error)
 }
 
 // Traeger is the Träger of a school with the name the inbox shows.
@@ -166,19 +172,16 @@ func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64, inb
 type inboxRead func(txCtx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
 
 func (s *Service) listInbox(ctx context.Context, accountID int64, read inboxRead) ([]BillingDocument, error) {
-	access, reader, err := s.inboxAccess(ctx, accountID)
+	traeger, reader, err := s.billingInboxAccess(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
-	traeger := access.traeger
 	documents := []BillingDocument{}
 	for _, organization := range traeger {
 		err := s.TraegerRuntime.WithinTraeger(ctx, organization.ID, func(txCtx context.Context) error {
 			found, listErr := read(txCtx, organization.ID, reader)
 			for _, document := range found {
 				document.OrganizationID, document.TraegerName = organization.ID, organization.Name
-				document.CanEndContract = document.Kind == DocumentKindContract &&
-					access.grants(document.SchoolID, document.StudentID, GuardianPermissionEnrollmentSubmit)
 				documents = append(documents, document)
 			}
 			return listErr
@@ -244,15 +247,8 @@ func (s *Service) ContractDocumentFile(ctx context.Context, accountID, organizat
 // billingInboxAccess resolves the Träger the account's relationships open
 // and the account's current address, in one administrative transaction.
 func (s *Service) billingInboxAccess(ctx context.Context, accountID int64) ([]Traeger, BillingDocumentReader, error) {
-	access, reader, err := s.inboxAccess(ctx, accountID)
-	return access.traeger, reader, err
-}
-
-// inboxAccess is billingInboxAccess with the relationships behind it, so a
-// list can tell what each relationship grants beyond reading.
-func (s *Service) inboxAccess(ctx context.Context, accountID int64) (documentAccess, BillingDocumentReader, error) {
 	if s.BillingDocuments == nil || s.ContractDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
-		return documentAccess{}, BillingDocumentReader{}, errors.New("parent: document inbox is not configured")
+		return nil, BillingDocumentReader{}, errors.New("parent: document inbox is not configured")
 	}
 	var access documentAccess
 	var email string
@@ -265,12 +261,13 @@ func (s *Service) inboxAccess(ctx context.Context, accountID int64) (documentAcc
 		return err
 	})
 	if err != nil {
-		return documentAccess{}, BillingDocumentReader{}, fmt.Errorf("parent: resolve document inbox: %w", err)
+		return nil, BillingDocumentReader{}, fmt.Errorf("parent: resolve document inbox: %w", err)
 	}
 	if len(access.traeger) == 0 {
-		return documentAccess{}, BillingDocumentReader{}, ErrGuardianPermissionDenied
+		return nil, BillingDocumentReader{}, ErrGuardianPermissionDenied
 	}
-	return access, BillingDocumentReader{AccountID: accountID, Email: strings.TrimSpace(email), Children: access.permittedChildren()}, nil
+	return access.traeger, BillingDocumentReader{AccountID: accountID, Email: strings.TrimSpace(email),
+		Children: access.permittedChildren(), SigningChildren: access.signingChildren()}, nil
 }
 
 // billingDocumentAccess runs visit with the account's children in one
@@ -308,12 +305,17 @@ func (a documentAccess) permittedChildren() map[int64][]int64 {
 	return children
 }
 
-// grants tells whether the relationship to the child studentID at school
-// schoolID, among those that open the inbox, holds permission.
-func (a documentAccess) grants(schoolID, studentID int64, permission string) bool {
-	return slices.ContainsFunc(a.children[schoolID], func(child *ChildSummary) bool {
-		return child.StudentID == studentID && childHasPermission(child, permission)
-	})
+// signingChildren narrows the visible children to their explicit signing right.
+func (a documentAccess) signingChildren() map[int64][]int64 {
+	children := make(map[int64][]int64)
+	for school, permitted := range a.children {
+		for _, child := range permitted {
+			if childHasPermission(child, GuardianPermissionEnrollmentSubmit) {
+				children[school] = append(children[school], child.StudentID)
+			}
+		}
+	}
+	return children
 }
 
 // documentAccess keeps the children whose relationship grants the inbox and

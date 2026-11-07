@@ -5,11 +5,13 @@
 // als CSV-Datei für Excel herunterladbar. Eingetragen werden Nachweise im
 // Profil der Person (Reiter Stammdaten), die Arten unter Nachweisarten.
 
+import { FileSpreadsheet } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { Button, ButtonLink } from "~/components/ui/button";
+import { ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -240,22 +242,29 @@ export default function QualificationsPage() {
           >
             Nachweisarten
           </ButtonLink>
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            disabled={filtered.length === 0}
-            onClick={() =>
-              downloadBlob(
-                new Blob([qualificationsCsv(filtered)], {
-                  type: "text/csv;charset=utf-8",
-                }),
-                "nachweise.csv",
-              )
+          {/* Ohne Treffer gibt es nichts herunterzuladen: Das Menü entfällt,
+              ein ausgegrauter Eintrag wäre eine Sackgasse. */}
+          <OverflowMenu
+            ariaLabel="Weitere Aktionen"
+            items={
+              filtered.length === 0
+                ? []
+                : [
+                    { kind: "header", label: "Herunterladen" },
+                    {
+                      label: "Für Excel herunterladen",
+                      icon: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
+                      onClick: () =>
+                        downloadBlob(
+                          new Blob([qualificationsCsv(filtered)], {
+                            type: "text/csv;charset=utf-8",
+                          }),
+                          "nachweise.csv",
+                        ),
+                    },
+                  ]
             }
-          >
-            Für Excel herunterladen
-          </Button>
+          />
         </>
       }
       error={loadError}

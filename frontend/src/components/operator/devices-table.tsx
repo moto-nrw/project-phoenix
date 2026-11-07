@@ -85,7 +85,7 @@ export function DevicesTable({
       {
         key: "name",
         header: "Name",
-        render: (row) => row.name || "—",
+        render: (row) => row.name || "–",
         sortValue: (row) => (row.name || "").toLowerCase(),
         className: "text-gray-600",
       },
@@ -132,7 +132,7 @@ export function DevicesTable({
               {row.maskedApiKey}
             </span>
           ) : (
-            <span className="text-gray-400">—</span>
+            <span className="text-gray-400">–</span>
           ),
         sortValue: (row) => row.maskedApiKey.toLowerCase(),
       },

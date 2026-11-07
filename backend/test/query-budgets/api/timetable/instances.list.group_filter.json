@@ -1,6 +1,6 @@
 {
   "scenario": "api.timetable.instances.list.group_filter",
-  "max": 9,
+  "max": 7,
   "exact": false,
-  "description": "Group filters use one Timetable-owned candidate read and one existing\nPeople Directory read for the planned children's current OGS groups.\nThe scenario stays flat from three to eight planned blocks."
+  "description": "Group filters use one Timetable-owned candidate read and one existing\nPeople Directory read for the planned children's current OGS groups.\nPickup cutoffs use one window read; the scenario stays flat from three to eight planned blocks."
 }

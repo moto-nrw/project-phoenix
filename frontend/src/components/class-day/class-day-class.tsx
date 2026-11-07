@@ -11,7 +11,6 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 // (#4794). Hausaufgaben trägt sie für den Tag
 // ein; die Rückmeldung der OGS steht am Kind (#4796).
 
-import { ChevronLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
@@ -30,9 +29,10 @@ import {
 } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { Input } from "~/components/ui/input";
-import NavigationLink from "~/components/ui/navigation-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { Textarea } from "~/components/ui/textarea";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type {
@@ -627,670 +627,657 @@ export function ClassDayClass({
   };
 
   return (
-    <div
-      className="w-full"
-      style={
-        {
-          "--class-day-blue": MOTO_COLOR_PALETTE.blue.base,
-          "--class-day-danger": MOTO_COLOR_PALETTE.red.base,
-        } as CSSProperties
+    <TenantPage
+      title={schoolClassLabel(schoolClass) || "Klasse"}
+      back
+      backHref={schoolPath(schoolDayListPath(dateISO, openList))}
+      backLabel="Alle Klassen"
+      stats={
+        <>
+          {formatDate(dateISO)}
+          {report && !weekend ? ` · ${summaryLine(report)}` : ""}
+          {report && !weekend && changes > 0
+            ? ` · ${changes === 1 ? "1 Kind" : `${changes} Kinder`} anders als sonst`
+            : ""}
+        </>
+      }
+      overlays={
+        <>
+          {canWriteHomework ? (
+            <FormModal
+              isOpen={homeworkForm.draft !== null}
+              onClose={homeworkForm.close}
+              title={
+                homeworkForm.draft?.editing
+                  ? "Hausaufgabe ändern"
+                  : `Hausaufgaben für ${formatDate(dateISO)}`
+              }
+              size="md"
+              mobilePosition="bottom"
+              closeDisabled={homeworkForm.saving}
+              isBackdropDismissDisabled
+              error={homeworkForm.formError}
+              footer={
+                <EditActions
+                  className="p-4"
+                  stretchOnPhone
+                  onCancel={homeworkForm.close}
+                  onSave={() => void homeworkForm.save()}
+                  saving={homeworkForm.saving}
+                />
+              }
+            >
+              <div className="space-y-4 p-4">
+                <Input
+                  id="homework-subject"
+                  name="subject"
+                  label="Fach (freiwillig)"
+                  controlSize="compact"
+                  maxLength={HOMEWORK_SUBJECT_MAX_LENGTH}
+                  value={homeworkForm.draft?.subject ?? ""}
+                  onChange={(event) =>
+                    homeworkForm.update("subject", event.target.value)
+                  }
+                />
+                <Textarea
+                  id="homework-description"
+                  name="description"
+                  label="Was ist zu tun?"
+                  rows={4}
+                  maxLength={HOMEWORK_DESCRIPTION_MAX_LENGTH}
+                  value={homeworkForm.draft?.description ?? ""}
+                  error={homeworkForm.fieldError("description")}
+                  onChange={(event) =>
+                    homeworkForm.update("description", event.target.value)
+                  }
+                />
+              </div>
+            </FormModal>
+          ) : null}
+
+          {canWriteHomework ? (
+            <ConfirmDeleteModal
+              isOpen={homeworkForm.deleting !== null}
+              title="Hausaufgabe löschen?"
+              description="Die OGS sieht diese Hausaufgabe danach nicht mehr."
+              gate={{ mode: "twoStep" }}
+              onConfirm={() => homeworkForm.confirmDelete()}
+              onClose={homeworkForm.closeDelete}
+              loading={homeworkForm.removing}
+              error={homeworkForm.deleteError}
+            />
+          ) : null}
+
+          {schoolClass && canReportClassTrip ? (
+            <ClassTripBulkStatusModal
+              isOpen={tripModalOpen}
+              onClose={() => setTripModalOpen(false)}
+              targetLabel={schoolClassLabel(schoolClass)}
+              students={tripStudents}
+              onSuccess={() => void refetchReport()}
+              schoolReport={{ save: saveClassTrip, defaultDate: dateISO }}
+            />
+          ) : null}
+
+          {canHandOver ? (
+            <FormModal
+              isOpen={handoverOpen}
+              onClose={() => setHandoverOpen(false)}
+              closeDisabled={savingHandover}
+              title={`${schoolClassLabel(schoolClass)} an die OGS übergeben`}
+              size="md"
+              mobilePosition="bottom"
+              error={handoverErrors.error}
+              footer={
+                <EditActions
+                  className="p-4"
+                  stretchOnPhone
+                  onCancel={() => setHandoverOpen(false)}
+                  onSave={() => void saveHandover()}
+                  saving={savingHandover}
+                  saveLabel="Übergeben"
+                  savingLabel="Übergibt…"
+                />
+              }
+            >
+              <div className="space-y-3 p-4">
+                <p className="text-sm text-gray-600">
+                  {ogsRows.length > 0
+                    ? "Diese Kinder gehen jetzt in die OGS. Tippen Sie bei jedem Kind, das nicht da ist, auf „Nicht da“."
+                    : "Heute geht kein Kind aus dieser Klasse in die OGS."}
+                </p>
+                {ogsRows.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {ogsRows.map((row) => (
+                      <li
+                        key={row.student_id}
+                        className="flex flex-wrap items-center justify-between gap-2"
+                      >
+                        <span className="min-w-0 truncate text-sm font-medium text-gray-900">
+                          {row.last_name}, {row.first_name}
+                        </span>
+                        <SegmentedControl<HandoverChoice>
+                          items={[
+                            {
+                              value: "present",
+                              label: "Da",
+                              tone: "green",
+                              disabled: savingHandover,
+                            },
+                            {
+                              value: "absent",
+                              label: "Nicht da",
+                              tone: "red",
+                              disabled: savingHandover,
+                            },
+                          ]}
+                          value={
+                            handoverAbsent.has(row.student_id)
+                              ? "absent"
+                              : "present"
+                          }
+                          onChange={(choice) =>
+                            markHandover(row.student_id, choice)
+                          }
+                          variant="pills"
+                          ariaLabel={`Übergabe von ${row.first_name} ${row.last_name}`}
+                          className="shrink-0"
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </FormModal>
+          ) : null}
+
+          {canHandOver ? (
+            <ConfirmationModal
+              isOpen={withdrawOpen}
+              onClose={() => setWithdrawOpen(false)}
+              onConfirm={() => void confirmWithdraw()}
+              title="Übergabe zurücknehmen?"
+              confirmText="Zurücknehmen"
+              isConfirmLoading={withdrawing}
+            >
+              <div className="space-y-3">
+                <FormErrorAlert message={withdrawErrors.error} />
+                <p className="text-sm text-gray-600">
+                  Die OGS sieht die Übergabe dann nicht mehr. Sie können die
+                  Klasse danach neu übergeben.
+                </p>
+              </div>
+            </ConfirmationModal>
+          ) : null}
+
+          {schoolClass && canWriteArrivalException ? (
+            <ClassArrivalExceptionDialog
+              isOpen={exceptionDialogOpen}
+              onClose={() => setExceptionDialogOpen(false)}
+              schoolClass={schoolClass}
+              defaultDate={weekend ? null : parseISODate(dateISO)}
+              onChanged={() => void refetchReport()}
+              weekendOpen={weekendOpen}
+            />
+          ) : null}
+
+          {schoolClass && canWriteDayHints ? (
+            <FormModal
+              isOpen={hintOpen}
+              suspended={hintDeleteOpen}
+              onClose={closeHint}
+              title="Hinweis für die OGS"
+              size="md"
+              mobilePosition="bottom"
+              error={hintErrors.error}
+              isBackdropDismissDisabled={trimmedHint !== ""}
+              footer={
+                // On a phone Abbrechen and Speichern share one full-width row
+                // and „Hinweis löschen“ sits full width below them (#5758).
+                <div className="flex w-full flex-col-reverse gap-2 p-4 sm:flex-row sm:items-center sm:justify-end">
+                  {existingHint ? (
+                    <Button
+                      type="button"
+                      variant="outline_danger"
+                      size="md"
+                      onClick={() => {
+                        hintDeleteErrors.clear();
+                        setHintDeleteOpen(true);
+                      }}
+                      disabled={hintSaving}
+                      className="w-full sm:mr-auto sm:w-auto"
+                    >
+                      Hinweis löschen
+                    </Button>
+                  ) : null}
+                  <EditActions
+                    onCancel={closeHint}
+                    onSave={() => void saveHint()}
+                    saving={hintSaving}
+                    stretchOnPhone
+                  />
+                </div>
+              }
+            >
+              <div className="space-y-4 p-4">
+                <p className="text-sm text-gray-600">
+                  Die OGS sieht den Hinweis heute am Kind, in Aufsicht, Gruppe
+                  und Kindersuche. Morgen ist er weg.
+                </p>
+                <CustomSelect
+                  value={hintTarget}
+                  options={hintOptions}
+                  onChange={chooseHintTarget}
+                  id="day-hint-target"
+                  label="Für wen ist der Hinweis?"
+                />
+                <div>
+                  <Textarea
+                    id="day-hint-body"
+                    name="day_hint"
+                    label="Hinweis"
+                    rows={4}
+                    // Der Browser zählt ein Emoji doppelt; der Spielraum lässt
+                    // 500 Zeichen immer zu, die Prüfung zählt wie das Backend.
+                    maxLength={DAY_HINT_MAX_LENGTH * 2}
+                    value={hintBody}
+                    onChange={(event) => setHintBody(event.target.value)}
+                    placeholder="Zum Beispiel: Hat heute Bauchweh, bitte im Blick behalten."
+                    error={
+                      hintTooLong
+                        ? DAY_HINT_TOO_LONG
+                        : hintErrors.fieldError("day_hint")
+                    }
+                  />
+                  <p className="mt-1 text-right text-xs text-gray-500 tabular-nums">
+                    {dayHintLength(hintBody)} von {DAY_HINT_MAX_LENGTH} Zeichen
+                  </p>
+                </div>
+              </div>
+            </FormModal>
+          ) : null}
+
+          <ConfirmDeleteModal
+            isOpen={hintDeleteOpen}
+            title="Hinweis löschen?"
+            description={
+              <p>
+                Die OGS sieht den Hinweis danach nicht mehr. Sie können
+                jederzeit einen neuen schreiben.
+              </p>
+            }
+            gate={{ mode: "twoStep", firstStepLabel: "Ja, löschen" }}
+            confirmLabel="Endgültig löschen"
+            loadingLabel="Wird gelöscht…"
+            loading={hintDeleting}
+            error={hintDeleteErrors.error}
+            onConfirm={() => void deleteHint()}
+            onClose={() => setHintDeleteOpen(false)}
+            mobileSheet
+          />
+        </>
       }
     >
-      <section className="moto-content-surface rounded-2xl border p-5">
-        <NavigationLink
-          href={schoolPath(schoolDayListPath(dateISO, openList))}
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      <SectionCard>
+        <div
+          className="contents"
+          style={
+            {
+              "--class-day-blue": MOTO_COLOR_PALETTE.blue.base,
+              "--class-day-danger": MOTO_COLOR_PALETTE.red.base,
+            } as CSSProperties
+          }
         >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          Alle Klassen
-        </NavigationLink>
-
-        <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          {schoolClass && (
-            <h2 className="text-base font-semibold text-gray-900">
-              {schoolClassLabel(schoolClass)}
-            </h2>
-          )}
-          <p className="text-sm text-gray-500">{formatDate(dateISO)}</p>
-        </div>
-        {report && !weekend && (
-          <p className="mt-1 text-sm text-gray-600">
-            {summaryLine(report)}
-            {changes > 0
-              ? ` · ${changes === 1 ? "1 Kind" : `${changes} Kinder`} anders als sonst`
-              : ""}
-          </p>
-        )}
-        {/* Die Klassen-Tagesausnahme steht über der Liste, auch wenn die OGS
+          {/* Die Klassen-Tagesausnahme steht über der Liste, auch wenn die OGS
             sie eingetragen hat und die Schule nichts ändern darf. */}
-        {exceptionLine ? (
-          <p className="mt-1 text-sm font-medium text-gray-900">
-            {exceptionLine}
-          </p>
-        ) : null}
-        {/* Hinweise an die OGS für die ganze Klasse (#4795); die Hinweise
+          {exceptionLine ? (
+            <p className="mt-1 text-sm font-medium text-gray-900">
+              {exceptionLine}
+            </p>
+          ) : null}
+          {/* Hinweise an die OGS für die ganze Klasse (#4795); die Hinweise
             für ein Kind stehen am Kind. */}
-        {classHints.map((hint) => (
-          <p
-            key={`${hint.author_name ?? ""}-${hint.updated_at}`}
-            className="mt-1 text-sm break-words text-gray-900"
-          >
-            <span className="font-medium">Hinweis an die OGS:</span> {hint.body}
-            {dayHintAuthorSuffix(hint)}
-          </p>
-        ))}
-        {/* Anwesenheit am Vormittag (#4790): nur heute, mit Freigabe der OGS.
+          {classHints.map((hint) => (
+            <p
+              key={`${hint.author_name ?? ""}-${hint.updated_at}`}
+              className="mt-1 text-sm break-words text-gray-900"
+            >
+              <span className="font-medium">Hinweis an die OGS:</span>{" "}
+              {hint.body}
+              {dayHintAuthorSuffix(hint)}
+            </p>
+          ))}
+          {/* Anwesenheit am Vormittag (#4790): nur heute, mit Freigabe der OGS.
             Ein Satz sagt, was zu tun ist; die Zahlen zeigen, was noch fehlt. */}
-        {canRecordMorning && rows.length > 0 ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900">
-                Anwesenheit am Vormittag: {morningSummaryLine(rows, draft)}
-              </p>
-              <p className="text-sm text-gray-600">
-                Tippen Sie bei jedem Kind auf „Da“ oder „Fehlt“. Gemeldete
-                Kinder stehen schon auf „Fehlt“.
-              </p>
+          {canRecordMorning && rows.length > 0 ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900">
+                  Anwesenheit am Vormittag: {morningSummaryLine(rows, draft)}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Tippen Sie bei jedem Kind auf „Da“ oder „Fehlt“. Gemeldete
+                  Kinder stehen schon auf „Fehlt“.
+                </p>
+              </div>
+              {openCount > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  disabled={savingMorning}
+                  onClick={() =>
+                    setDraftState({
+                      key: reportKey,
+                      marks: markOpenPresent(rows, draft),
+                    })
+                  }
+                >
+                  Alle übrigen da
+                </Button>
+              ) : null}
             </div>
-            {openCount > 0 ? (
+          ) : null}
+          {/* Nur mit Freigabe der OGS (#2970). Der Knopf nennt den Tag, den er
+            vorbelegt: "heute" nur, wenn heute angezeigt wird. */}
+          {schoolClass && !weekend && canWriteArrivalException ? (
+            <div className="mt-3">
               <Button
                 type="button"
                 variant="outline"
                 size="md"
-                disabled={savingMorning}
-                onClick={() =>
-                  setDraftState({
-                    key: reportKey,
-                    marks: markOpenPresent(rows, draft),
-                  })
-                }
+                onClick={() => setExceptionDialogOpen(true)}
               >
-                Alle übrigen da
+                {isToday
+                  ? "Ankunft heute ändern"
+                  : "Ankunft an diesem Tag ändern"}
               </Button>
-            ) : null}
-          </div>
-        ) : null}
-        {/* Nur mit Freigabe der OGS (#2970). Der Knopf nennt den Tag, den er
-            vorbelegt: "heute" nur, wenn heute angezeigt wird. */}
-        {schoolClass && !weekend && canWriteArrivalException ? (
-          <div className="mt-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => setExceptionDialogOpen(true)}
-            >
-              {isToday
-                ? "Ankunft heute ändern"
-                : "Ankunft an diesem Tag ändern"}
-            </Button>
-          </div>
-        ) : null}
-        {schoolClass && !weekend && canReportClassTrip && report ? (
-          <div className="mt-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => {
-                setTripSaved(null);
-                setTripModalOpen(true);
-              }}
-              disabled={tripStudents.length === 0}
-            >
-              Ausflug oder Klassenfahrt melden
-            </Button>
-          </div>
-        ) : null}
-        {/* Hinweis an die OGS (#4795): nur heute und nur mit Freigabe. */}
-        {schoolClass && canWriteDayHints ? (
-          <div className="mt-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={openHint}
-            >
-              Hinweis für die OGS
-            </Button>
-          </div>
-        ) : null}
-        {tripSaved ? (
-          <Alert type="success" message={tripSaved} className="mt-3" />
-        ) : null}
-
-        {/* Übergabe an die OGS (#4794). Die Zeile steht auch ohne
-            Schreibrecht, sobald die Klasse übergeben ist, dann ohne Knopf. */}
-        {report && !weekend && (report.handover || canHandOver) ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900">
-                {report.handover
-                  ? handoverLine(report.handover, ogsRows.length)
-                  : "Die Klasse ist noch nicht an die OGS übergeben."}
-              </p>
-              {canHandOver && !report.handover ? (
-                <p className="text-sm text-gray-600">
-                  Übergeben Sie die Klasse nach dem Unterricht. Die OGS sieht
-                  dann sofort, wer nicht da ist.
-                </p>
-              ) : null}
             </div>
-            {canHandOver && report.handover ? (
-              <div className="flex flex-wrap gap-2">
+          ) : null}
+          {schoolClass && !weekend && canReportClassTrip && report ? (
+            <div className="mt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => {
+                  setTripSaved(null);
+                  setTripModalOpen(true);
+                }}
+                disabled={tripStudents.length === 0}
+              >
+                Ausflug oder Klassenfahrt melden
+              </Button>
+            </div>
+          ) : null}
+          {/* Hinweis an die OGS (#4795): nur heute und nur mit Freigabe. */}
+          {schoolClass && canWriteDayHints ? (
+            <div className="mt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={openHint}
+              >
+                Hinweis für die OGS
+              </Button>
+            </div>
+          ) : null}
+          {tripSaved ? (
+            <Alert type="success" message={tripSaved} className="mt-3" />
+          ) : null}
+
+          {/* Übergabe an die OGS (#4794). Die Zeile steht auch ohne
+            Schreibrecht, sobald die Klasse übergeben ist, dann ohne Knopf. */}
+          {report && !weekend && (report.handover || canHandOver) ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900">
+                  {report.handover
+                    ? handoverLine(report.handover, ogsRows.length)
+                    : "Die Klasse ist noch nicht an die OGS übergeben."}
+                </p>
+                {canHandOver && !report.handover ? (
+                  <p className="text-sm text-gray-600">
+                    Übergeben Sie die Klasse nach dem Unterricht. Die OGS sieht
+                    dann sofort, wer nicht da ist.
+                  </p>
+                ) : null}
+              </div>
+              {canHandOver && report.handover ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={openHandover}
+                  >
+                    Übergabe ändern
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => {
+                      withdrawErrors.clear();
+                      setWithdrawOpen(true);
+                    }}
+                  >
+                    Übergabe zurücknehmen
+                  </Button>
+                </div>
+              ) : null}
+              {canHandOver && !report.handover ? (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="primary"
                   size="md"
                   onClick={openHandover}
                 >
-                  Übergabe ändern
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => {
-                    withdrawErrors.clear();
-                    setWithdrawOpen(true);
-                  }}
-                >
-                  Übergabe zurücknehmen
-                </Button>
-              </div>
-            ) : null}
-            {canHandOver && !report.handover ? (
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                onClick={openHandover}
-              >
-                Klasse übergeben
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-
-        {/* Hausaufgaben des Tages (#4796). Ein Satz sagt, wer sie sieht. */}
-        {schoolClass && !weekend && report ? (
-          <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Hausaufgaben
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Die OGS sieht sie in der Lernzeit und meldet je Kind zurück.
-                </p>
-              </div>
-              {canWriteHomework ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={homeworkForm.openNew}
-                >
-                  Hausaufgaben eintragen
+                  Klasse übergeben
                 </Button>
               ) : null}
             </div>
-            {homeworkEntries.length === 0 ? (
-              <p className="text-sm text-gray-500">
-                Für diesen Tag sind keine Hausaufgaben eingetragen.
-              </p>
-            ) : (
-              <ul className="space-y-1.5">
-                {homeworkEntries.map((entry) => (
-                  <li
-                    key={entry.id}
-                    className="moto-content-surface flex min-w-0 items-start justify-between gap-3 rounded-xl border px-3 py-2.5"
+          ) : null}
+
+          {/* Hausaufgaben des Tages (#4796). Ein Satz sagt, wer sie sieht. */}
+          {schoolClass && !weekend && report ? (
+            <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Hausaufgaben
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Die OGS sieht sie in der Lernzeit und meldet je Kind zurück.
+                  </p>
+                </div>
+                {canWriteHomework ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={homeworkForm.openNew}
                   >
-                    <div className="min-w-0 flex-1">
-                      {entry.subject ? (
-                        <p className="text-sm font-medium text-gray-900">
-                          {entry.subject}
+                    Hausaufgaben eintragen
+                  </Button>
+                ) : null}
+              </div>
+              {homeworkEntries.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  Für diesen Tag sind keine Hausaufgaben eingetragen.
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {homeworkEntries.map((entry) => (
+                    <li
+                      key={entry.id}
+                      className="moto-content-surface flex min-w-0 items-start justify-between gap-3 rounded-xl border px-3 py-2.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        {entry.subject ? (
+                          <p className="text-sm font-medium text-gray-900">
+                            {entry.subject}
+                          </p>
+                        ) : null}
+                        <p className="text-sm break-words whitespace-pre-line text-gray-700">
+                          {entry.description}
                         </p>
+                      </div>
+                      {canWriteHomework ? (
+                        <OverflowMenu
+                          ariaLabel={`Aktionen zur Hausaufgabe ${entry.subject ?? ""}`.trim()}
+                          triggerSize="sm"
+                          items={[
+                            {
+                              label: "Ändern",
+                              onClick: () => homeworkForm.openEdit(entry),
+                            },
+                            {
+                              label: "Löschen",
+                              destructive: true,
+                              onClick: () => homeworkForm.askDelete(entry),
+                            },
+                          ]}
+                        />
                       ) : null}
-                      <p className="text-sm break-words whitespace-pre-line text-gray-700">
-                        {entry.description}
-                      </p>
-                    </div>
-                    {canWriteHomework ? (
-                      <OverflowMenu
-                        ariaLabel={`Aktionen zur Hausaufgabe ${entry.subject ?? ""}`.trim()}
-                        triggerSize="sm"
-                        items={[
-                          {
-                            label: "Ändern",
-                            onClick: () => homeworkForm.openEdit(entry),
-                          },
-                          {
-                            label: "Löschen",
-                            destructive: true,
-                            onClick: () => homeworkForm.askDelete(entry),
-                          },
-                        ]}
-                      />
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
 
-        {schoolClass && weekend && (
-          <EmptyState
-            className="mt-4"
-            title="Kein Schultag"
-            description="Für Samstag und Sonntag gibt es keine Übergabe. Bitte einen Wochentag wählen."
-          />
-        )}
+          {schoolClass && weekend && (
+            <EmptyState
+              className="mt-4"
+              title="Kein Schultag"
+              description="Für Samstag und Sonntag gibt es keine Übergabe. Bitte einen Wochentag wählen."
+            />
+          )}
 
-        {/* Adresse ohne Klasse (abgeschnittener Link, alter Bookmark): sagen,
+          {/* Adresse ohne Klasse (abgeschnittener Link, alter Bookmark): sagen,
             was fehlt, statt eine Klasse ohne Namen zu laden. */}
-        {!schoolClass && (
-          <EmptyState
-            className="mt-4"
-            title="Keine Klasse ausgewählt"
-            description="Diese Adresse nennt keine Klasse. Bitte gehen Sie zurück zu allen Klassen und wählen Sie eine aus."
-          />
-        )}
+          {!schoolClass && (
+            <EmptyState
+              className="mt-4"
+              title="Keine Klasse ausgewählt"
+              description="Diese Adresse nennt keine Klasse. Bitte gehen Sie zurück zu allen Klassen und wählen Sie eine aus."
+            />
+          )}
 
-        {!weekend && isLoading && (
-          <div className="mt-4 space-y-3">
-            <Skeleton className="h-40 w-full" />
-          </div>
-        )}
-
-        {!weekend && !isLoading && error ? (
-          <LoadErrorAlert error={loadError} className="mt-4" />
-        ) : null}
-
-        {!weekend && !isLoading && report && rows.length === 0 && (
-          <EmptyState
-            className="mt-4"
-            title="Keine Kinder gefunden"
-            description={`Für die ${schoolClassLabel(report.school_class)} sind keine Kinder hinterlegt.`}
-          />
-        )}
-
-        {/* Ohne abdeckende Anmeldephase ist Bleiben/Gehen unbekannt —
-            neutraler Klassenverband statt "alle gehen nach Hause". */}
-        {!weekend &&
-          !isLoading &&
-          report &&
-          rows.length > 0 &&
-          !report.enrollment_known && (
-            <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
-              <Alert
-                type="info"
-                message="Für diesen Tag liegt keine Anmeldephase vor. Wer in der Betreuung bleibt, kann deshalb nicht angezeigt werden."
-              />
-              <Section
-                title="Klassenverband"
-                count={unknownRows.length}
-                rows={unknownRows}
-                enrollmentKnown={false}
-                now={at}
-                morning={morning}
-                sharedNotesHref={sharedNotesHref}
-              />
-              <Section
-                title="Abgemeldet"
-                count={absent.length}
-                accent="text-[var(--class-day-danger)]"
-                rows={absent}
-                enrollmentKnown={false}
-                now={at}
-                morning={morning}
-                sharedNotesHref={sharedNotesHref}
-              />
+          {!weekend && isLoading && (
+            <div className="mt-4 space-y-3">
+              <Skeleton className="h-40 w-full" />
             </div>
           )}
 
-        {!weekend &&
-          !isLoading &&
-          report &&
-          rows.length > 0 &&
-          report.enrollment_known && (
-            <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
-              <Section
-                title="Bleiben in der Betreuung"
-                count={staying.length}
-                accent="text-[var(--class-day-blue)]"
-                rows={staying}
-                now={at}
-                morning={morning}
-                sharedNotesHref={sharedNotesHref}
-              />
-              <Section
-                title="Gehen nach Hause"
-                count={leaving.length}
-                rows={leaving}
-                now={at}
-                morning={morning}
-                sharedNotesHref={sharedNotesHref}
-              />
-              {noCare.length > 0 && (
+          {!weekend && !isLoading && error ? (
+            <LoadErrorAlert error={loadError} className="mt-4" />
+          ) : null}
+
+          {!weekend && !isLoading && report && rows.length === 0 && (
+            <EmptyState
+              className="mt-4"
+              title="Keine Kinder gefunden"
+              description={`Für die ${schoolClassLabel(report.school_class)} sind keine Kinder hinterlegt.`}
+            />
+          )}
+
+          {/* Ohne abdeckende Anmeldephase ist Bleiben/Gehen unbekannt —
+            neutraler Klassenverband statt "alle gehen nach Hause". */}
+          {!weekend &&
+            !isLoading &&
+            report &&
+            rows.length > 0 &&
+            !report.enrollment_known && (
+              <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
+                <Alert
+                  type="info"
+                  message="Für diesen Tag liegt keine Anmeldephase vor. Wer in der Betreuung bleibt, kann deshalb nicht angezeigt werden."
+                />
                 <Section
-                  title="Keine Betreuung"
-                  count={noCare.length}
-                  rows={noCare}
+                  title="Klassenverband"
+                  count={unknownRows.length}
+                  rows={unknownRows}
+                  enrollmentKnown={false}
                   now={at}
                   morning={morning}
                   sharedNotesHref={sharedNotesHref}
                 />
-              )}
-              <Section
-                title="Abgemeldet"
-                count={absent.length}
-                accent="text-[var(--class-day-danger)]"
-                rows={absent}
-                now={at}
-                morning={morning}
-                sharedNotesHref={sharedNotesHref}
-              />
-            </div>
-          )}
+                <Section
+                  title="Abgemeldet"
+                  count={absent.length}
+                  accent="text-[var(--class-day-danger)]"
+                  rows={absent}
+                  enrollmentKnown={false}
+                  now={at}
+                  morning={morning}
+                  sharedNotesHref={sharedNotesHref}
+                />
+              </div>
+            )}
 
-        {/* Der Entwurf geht erst mit „Speichern“ hinaus (Bauart 2, #3112). */}
-        {canRecordMorning && draftCount > 0 ? (
-          <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
-            <FormErrorAlert message={morningErrors.error} />
-            <EditActions
-              onCancel={discardMorning}
-              onSave={() => void saveMorning()}
-              saving={savingMorning}
-              saveLabel="Anwesenheit speichern"
-              cancelLabel="Verwerfen"
-            />
-          </div>
-        ) : null}
-      </section>
+          {!weekend &&
+            !isLoading &&
+            report &&
+            rows.length > 0 &&
+            report.enrollment_known && (
+              <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
+                <Section
+                  title="Bleiben in der Betreuung"
+                  count={staying.length}
+                  accent="text-[var(--class-day-blue)]"
+                  rows={staying}
+                  now={at}
+                  morning={morning}
+                  sharedNotesHref={sharedNotesHref}
+                />
+                <Section
+                  title="Gehen nach Hause"
+                  count={leaving.length}
+                  rows={leaving}
+                  now={at}
+                  morning={morning}
+                  sharedNotesHref={sharedNotesHref}
+                />
+                {noCare.length > 0 && (
+                  <Section
+                    title="Keine Betreuung"
+                    count={noCare.length}
+                    rows={noCare}
+                    now={at}
+                    morning={morning}
+                    sharedNotesHref={sharedNotesHref}
+                  />
+                )}
+                <Section
+                  title="Abgemeldet"
+                  count={absent.length}
+                  accent="text-[var(--class-day-danger)]"
+                  rows={absent}
+                  now={at}
+                  morning={morning}
+                  sharedNotesHref={sharedNotesHref}
+                />
+              </div>
+            )}
 
-      {canWriteHomework ? (
-        <FormModal
-          isOpen={homeworkForm.draft !== null}
-          onClose={homeworkForm.close}
-          title={
-            homeworkForm.draft?.editing
-              ? "Hausaufgabe ändern"
-              : `Hausaufgaben für ${formatDate(dateISO)}`
-          }
-          size="md"
-          mobilePosition="bottom"
-          closeDisabled={homeworkForm.saving}
-          isBackdropDismissDisabled
-          error={homeworkForm.formError}
-          footer={
-            <EditActions
-              className="p-4"
-              stretchOnPhone
-              onCancel={homeworkForm.close}
-              onSave={() => void homeworkForm.save()}
-              saving={homeworkForm.saving}
-            />
-          }
-        >
-          <div className="space-y-4 p-4">
-            <Input
-              id="homework-subject"
-              name="subject"
-              label="Fach (freiwillig)"
-              controlSize="compact"
-              maxLength={HOMEWORK_SUBJECT_MAX_LENGTH}
-              value={homeworkForm.draft?.subject ?? ""}
-              onChange={(event) =>
-                homeworkForm.update("subject", event.target.value)
-              }
-            />
-            <Textarea
-              id="homework-description"
-              name="description"
-              label="Was ist zu tun?"
-              rows={4}
-              maxLength={HOMEWORK_DESCRIPTION_MAX_LENGTH}
-              value={homeworkForm.draft?.description ?? ""}
-              error={homeworkForm.fieldError("description")}
-              onChange={(event) =>
-                homeworkForm.update("description", event.target.value)
-              }
-            />
-          </div>
-        </FormModal>
-      ) : null}
-
-      {canWriteHomework ? (
-        <ConfirmDeleteModal
-          isOpen={homeworkForm.deleting !== null}
-          title="Hausaufgabe löschen?"
-          description="Die OGS sieht diese Hausaufgabe danach nicht mehr."
-          gate={{ mode: "twoStep" }}
-          onConfirm={() => homeworkForm.confirmDelete()}
-          onClose={homeworkForm.closeDelete}
-          loading={homeworkForm.removing}
-          error={homeworkForm.deleteError}
-        />
-      ) : null}
-
-      {schoolClass && canReportClassTrip ? (
-        <ClassTripBulkStatusModal
-          isOpen={tripModalOpen}
-          onClose={() => setTripModalOpen(false)}
-          targetLabel={schoolClassLabel(schoolClass)}
-          students={tripStudents}
-          onSuccess={() => void refetchReport()}
-          schoolReport={{ save: saveClassTrip, defaultDate: dateISO }}
-        />
-      ) : null}
-
-      {canHandOver ? (
-        <FormModal
-          isOpen={handoverOpen}
-          onClose={() => setHandoverOpen(false)}
-          closeDisabled={savingHandover}
-          title={`${schoolClassLabel(schoolClass)} an die OGS übergeben`}
-          size="md"
-          mobilePosition="bottom"
-          error={handoverErrors.error}
-          footer={
-            <EditActions
-              className="p-4"
-              stretchOnPhone
-              onCancel={() => setHandoverOpen(false)}
-              onSave={() => void saveHandover()}
-              saving={savingHandover}
-              saveLabel="Übergeben"
-              savingLabel="Übergibt…"
-            />
-          }
-        >
-          <div className="space-y-3 p-4">
-            <p className="text-sm text-gray-600">
-              {ogsRows.length > 0
-                ? "Diese Kinder gehen jetzt in die OGS. Tippen Sie bei jedem Kind, das nicht da ist, auf „Nicht da“."
-                : "Heute geht kein Kind aus dieser Klasse in die OGS."}
-            </p>
-            {ogsRows.length > 0 ? (
-              <ul className="space-y-1.5">
-                {ogsRows.map((row) => (
-                  <li
-                    key={row.student_id}
-                    className="flex flex-wrap items-center justify-between gap-2"
-                  >
-                    <span className="min-w-0 truncate text-sm font-medium text-gray-900">
-                      {row.last_name}, {row.first_name}
-                    </span>
-                    <SegmentedControl<HandoverChoice>
-                      items={[
-                        {
-                          value: "present",
-                          label: "Da",
-                          tone: "green",
-                          disabled: savingHandover,
-                        },
-                        {
-                          value: "absent",
-                          label: "Nicht da",
-                          tone: "red",
-                          disabled: savingHandover,
-                        },
-                      ]}
-                      value={
-                        handoverAbsent.has(row.student_id)
-                          ? "absent"
-                          : "present"
-                      }
-                      onChange={(choice) =>
-                        markHandover(row.student_id, choice)
-                      }
-                      variant="pills"
-                      ariaLabel={`Übergabe von ${row.first_name} ${row.last_name}`}
-                      className="shrink-0"
-                    />
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        </FormModal>
-      ) : null}
-
-      {canHandOver ? (
-        <ConfirmationModal
-          isOpen={withdrawOpen}
-          onClose={() => setWithdrawOpen(false)}
-          onConfirm={() => void confirmWithdraw()}
-          title="Übergabe zurücknehmen?"
-          confirmText="Zurücknehmen"
-          isConfirmLoading={withdrawing}
-        >
-          <div className="space-y-3">
-            <FormErrorAlert message={withdrawErrors.error} />
-            <p className="text-sm text-gray-600">
-              Die OGS sieht die Übergabe dann nicht mehr. Sie können die Klasse
-              danach neu übergeben.
-            </p>
-          </div>
-        </ConfirmationModal>
-      ) : null}
-
-      {schoolClass && canWriteArrivalException ? (
-        <ClassArrivalExceptionDialog
-          isOpen={exceptionDialogOpen}
-          onClose={() => setExceptionDialogOpen(false)}
-          schoolClass={schoolClass}
-          defaultDate={weekend ? null : parseISODate(dateISO)}
-          onChanged={() => void refetchReport()}
-          weekendOpen={weekendOpen}
-        />
-      ) : null}
-
-      {schoolClass && canWriteDayHints ? (
-        <FormModal
-          isOpen={hintOpen}
-          suspended={hintDeleteOpen}
-          onClose={closeHint}
-          title="Hinweis für die OGS"
-          size="md"
-          mobilePosition="bottom"
-          error={hintErrors.error}
-          isBackdropDismissDisabled={trimmedHint !== ""}
-          footer={
-            // On a phone Abbrechen and Speichern share one full-width row
-            // and „Hinweis löschen“ sits full width below them (#5758).
-            <div className="flex w-full flex-col-reverse gap-2 p-4 sm:flex-row sm:items-center sm:justify-end">
-              {existingHint ? (
-                <Button
-                  type="button"
-                  variant="outline_danger"
-                  size="md"
-                  onClick={() => {
-                    hintDeleteErrors.clear();
-                    setHintDeleteOpen(true);
-                  }}
-                  disabled={hintSaving}
-                  className="w-full sm:mr-auto sm:w-auto"
-                >
-                  Hinweis löschen
-                </Button>
-              ) : null}
+          {/* Der Entwurf geht erst mit „Speichern“ hinaus (Bauart 2, #3112). */}
+          {canRecordMorning && draftCount > 0 ? (
+            <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+              <FormErrorAlert message={morningErrors.error} />
               <EditActions
-                onCancel={closeHint}
-                onSave={() => void saveHint()}
-                saving={hintSaving}
-                stretchOnPhone
+                onCancel={discardMorning}
+                onSave={() => void saveMorning()}
+                saving={savingMorning}
+                saveLabel="Anwesenheit speichern"
+                cancelLabel="Verwerfen"
               />
             </div>
-          }
-        >
-          <div className="space-y-4 p-4">
-            <p className="text-sm text-gray-600">
-              Die OGS sieht den Hinweis heute am Kind, in Aufsicht, Gruppe und
-              Kindersuche. Morgen ist er weg.
-            </p>
-            <div>
-              <label
-                id="day-hint-target-label"
-                htmlFor="day-hint-target"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                Für wen ist der Hinweis?
-              </label>
-              <CustomSelect
-                value={hintTarget}
-                options={hintOptions}
-                onChange={chooseHintTarget}
-                id="day-hint-target"
-                ariaLabelledBy="day-hint-target-label"
-              />
-            </div>
-            <div>
-              <Textarea
-                id="day-hint-body"
-                name="day_hint"
-                label="Hinweis"
-                rows={4}
-                // Der Browser zählt ein Emoji doppelt; der Spielraum lässt
-                // 500 Zeichen immer zu, die Prüfung zählt wie das Backend.
-                maxLength={DAY_HINT_MAX_LENGTH * 2}
-                value={hintBody}
-                onChange={(event) => setHintBody(event.target.value)}
-                placeholder="Zum Beispiel: Hat heute Bauchweh, bitte im Blick behalten."
-                error={
-                  hintTooLong
-                    ? DAY_HINT_TOO_LONG
-                    : hintErrors.fieldError("day_hint")
-                }
-              />
-              <p className="mt-1 text-right text-xs text-gray-500 tabular-nums">
-                {dayHintLength(hintBody)} von {DAY_HINT_MAX_LENGTH} Zeichen
-              </p>
-            </div>
-          </div>
-        </FormModal>
-      ) : null}
-
-      <ConfirmDeleteModal
-        isOpen={hintDeleteOpen}
-        title="Hinweis löschen?"
-        description={
-          <p>
-            Die OGS sieht den Hinweis danach nicht mehr. Sie können jederzeit
-            einen neuen schreiben.
-          </p>
-        }
-        gate={{ mode: "twoStep", firstStepLabel: "Ja, löschen" }}
-        confirmLabel="Endgültig löschen"
-        loadingLabel="Wird gelöscht…"
-        loading={hintDeleting}
-        error={hintDeleteErrors.error}
-        onConfirm={() => void deleteHint()}
-        onClose={() => setHintDeleteOpen(false)}
-        mobileSheet
-      />
-    </div>
+          ) : null}
+        </div>
+      </SectionCard>
+    </TenantPage>
   );
 }

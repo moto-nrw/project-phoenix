@@ -1,0 +1,6 @@
+{
+  "scenario": "api.settings.home_layout",
+  "max": 5,
+  "exact": true,
+  "description": "Protected tenant home layout; 0/3/8 persisted placements, personal overrides and school policies, exact DTO, real owner stores, JWT and tenant frame, no DML. Serve-host liveness excluded."
+}

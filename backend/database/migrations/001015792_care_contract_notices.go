@@ -15,6 +15,7 @@ func init() {
 		Description: "Betreuungsvertrag: Widerruf und Kündigung mit Bestätigung (#4682)",
 		DependsOn: []string{
 			careContractAmendmentsVersion, // the timeline of the versions (#4681)
+			careContractSignaturesVersion, // the trail actions and statuses of the signature (#4679)
 		},
 	})
 	Migrations.MustRegister(careContractNoticesUp, careContractNoticesDown)

@@ -10,6 +10,8 @@
 // chips, white per-group cards in a two-column grid, click opens the
 // per-group detail modal with the status sections and group-scoped exports.
 
+import { FramedList } from "~/components/ui/framed-list";
+import { ListRowLink } from "~/components/ui/list-row-link";
 import {
   ArrowRight,
   Download,
@@ -18,7 +20,6 @@ import {
   Printer,
 } from "lucide-react";
 import { StatCard } from "~/components/ui/stat-card";
-import Link from "~/components/ui/navigation-link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -26,7 +27,6 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -242,24 +242,17 @@ function StudentRow({ student }: { readonly student: DayLogStudent }) {
   const detail = studentDetailLine(student);
   return (
     <li>
-      <Link
+      <ListRowLink
         href={tenantPath(`/students/${student.student_id}?from=/day-log`)}
-        className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50"
-      >
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-gray-900">
-            {student.last_name}, {student.first_name}
-          </p>
-          <p className="truncate text-xs text-gray-500">
-            {student.school_class}
-            {detail ? ` · ${detail}` : ""}
-          </p>
-        </div>
-        <StatusColorBadge
-          label={student.label}
-          color={DAY_LOG_STATUS_COLORS[student.status]}
-        />
-      </Link>
+        title={`${student.last_name}, ${student.first_name}`}
+        subtitle={`${student.school_class}${detail ? ` · ${detail}` : ""}`}
+        badge={
+          <StatusColorBadge
+            label={student.label}
+            color={DAY_LOG_STATUS_COLORS[student.status]}
+          />
+        }
+      />
     </li>
   );
 }
@@ -290,11 +283,11 @@ function GroupDetail({ group }: { readonly group: DayLogGroup }) {
           >
             {MODAL_SECTION_TITLES[section.status]} ({section.students.length})
           </h3>
-          <ul className="divide-y divide-gray-100">
+          <FramedList>
             {section.students.map((student) => (
               <StudentRow key={student.student_id} student={student} />
             ))}
-          </ul>
+          </FramedList>
         </div>
       ))}
     </div>
@@ -555,16 +548,13 @@ export default function DayLogPage() {
               if (!open) setOpenGroupId(null);
             }}
           >
-            <SlideOverContent widthClass="sm:w-[760px]">
-              <SlideOverHeader className="flex-row items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <SlideOverTitle>
-                    {openGroup
-                      ? `${openGroup.name} · ${formatDate(dateISO)}`
-                      : ""}
-                  </SlideOverTitle>
-                </div>
-                <SlideOverCloseButton />
+            <SlideOverContent size="lg">
+              <SlideOverHeader>
+                <SlideOverTitle>
+                  {openGroup
+                    ? `${openGroup.name} · ${formatDate(dateISO)}`
+                    : ""}
+                </SlideOverTitle>
               </SlideOverHeader>
               <div className="flex-1 overflow-y-auto px-5 py-4">
                 {openGroup && (
@@ -588,7 +578,7 @@ export default function DayLogPage() {
                 )}
               </div>
               {openGroup ? (
-                <SlideOverFooter className="flex-row flex-wrap justify-end gap-2">
+                <SlideOverFooter>
                   {exportButtons(openGroup.group_id)}
                 </SlideOverFooter>
               ) : null}

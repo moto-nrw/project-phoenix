@@ -489,15 +489,10 @@ function ResubmitAbsenceForm({
   return (
     <div ref={formRef} className="mt-3 border-t border-gray-100 pt-3">
       <FormErrorAlert message={formErrors.error} className="mb-3" />
-      <label
-        htmlFor={`resubmit-note-${absence.id}`}
-        className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-      >
-        Ihre Antwort
-      </label>
       <Textarea
         id={`resubmit-note-${absence.id}`}
         name="note"
+        label="Ihre Antwort"
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={2}

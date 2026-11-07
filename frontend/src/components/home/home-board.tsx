@@ -515,7 +515,7 @@ export function HomeBoard({
           darunter verschwände die Leiste hinter ihr. */}
       {editing && (
         <div className="sticky top-[4.5rem] z-20">
-          <SelectionBar
+          <BlockToolbar
             definition={selectedDefinition}
             placement={selected}
             isRequired={selected ? requiredKeys.has(selected.key) : false}
@@ -772,7 +772,7 @@ function ArrangeTile({
  * jeder Karte: die Breite und das Entfernen. Verschoben wird durch Ziehen,
  * nicht hier. Ohne Auswahl steht hier, wie man eine trifft.
  */
-function SelectionBar({
+function BlockToolbar({
   definition,
   placement,
   isRequired,

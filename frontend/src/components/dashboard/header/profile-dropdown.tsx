@@ -143,13 +143,38 @@ export const ProfileTrigger = forwardRef<
 });
 
 /**
- * Profile dropdown menu
+ * Fixed head of the profile popover: who is signed in.
+ */
+export function ProfileDropdownHeader({
+  displayName,
+  displayAvatar,
+  userEmail,
+}: Readonly<{
+  displayName: string;
+  displayAvatar?: string | null;
+  userEmail: string;
+}>) {
+  return (
+    <div className="flex items-center space-x-3">
+      <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="md" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-semibold text-gray-900">
+          {displayName}
+        </div>
+        {userEmail ? (
+          <div className="truncate text-xs text-gray-500" title={userEmail}>
+            {userEmail}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Entries of the profile popover
  */
 interface ProfileDropdownMenuProps {
-  readonly isOpen: boolean;
-  readonly displayName: string;
-  readonly displayAvatar?: string | null;
-  readonly userEmail: string;
   readonly onClose: () => void;
   readonly onLogout: () => void;
   readonly profileUrl?: string | null;
@@ -162,10 +187,6 @@ interface ProfileDropdownMenuProps {
 }
 
 export function ProfileDropdownMenu({
-  isOpen,
-  displayName,
-  displayAvatar,
-  userEmail,
   onClose,
   onLogout,
   profileUrl,
@@ -183,80 +204,50 @@ export function ProfileDropdownMenu({
   };
 
   return (
-    <div
-      className={`moto-popover-surface w-72 rounded-2xl border transition-[opacity,transform,visibility] duration-150 ease-out ${
-        isOpen
-          ? "visible translate-y-0 opacity-100"
-          : "invisible -translate-y-2 opacity-0"
-      }`}
-    >
-      {/* User info header */}
-      <div className="border-b border-gray-100/50 px-4 py-4">
-        <div className="flex items-center space-x-3">
-          <UserAvatar
-            avatarUrl={displayAvatar}
-            userName={displayName}
-            size="md"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-semibold text-gray-900">
-              {displayName}
-            </div>
-            {userEmail ? (
-              <div className="truncate text-xs text-gray-500" title={userEmail}>
-                {userEmail}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
+    <div className="p-2">
+      {profileUrl && (
+        <NavLink
+          href={profileUrl}
+          onClick={onClose}
+          className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
+        >
+          <ProfileIcon />
+          {profileLabel ?? t("profile")}
+        </NavLink>
+      )}
 
-      {/* Menu items */}
-      <div className="p-2">
-        {profileUrl && (
-          <NavLink
-            href={profileUrl}
-            onClick={onClose}
-            className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
-          >
-            <ProfileIcon />
-            {profileLabel ?? t("profile")}
-          </NavLink>
-        )}
-
-        {onStartPreview && (
-          // Menüeintrag wie seine Nachbarn (Profil, Abmelden), kein
-          // Kit-Knopf: Menüeinträge sind keine Buttons im Sinne von #5529.
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onStartPreview();
-            }}
-            className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none active:bg-gray-900 active:text-white"
-          >
-            <EyeIcon
-              aria-hidden="true"
-              weight="regular"
-              className="mr-3 h-4 w-4 text-gray-400 transition-colors group-hover:text-gray-600 group-active:text-white"
-            />
-            Ansicht eines Mitarbeitenden
-          </button>
-        )}
-
-        {/* Divider */}
-        <div className="my-2 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-
-        {/* Logout button */}
+      {onStartPreview && (
+        // Menüeintrag wie seine Nachbarn (Profil, Abmelden), kein
+        // Kit-Knopf: Menüeinträge sind keine Buttons im Sinne von #5529.
         <button
           type="button"
-          onClick={handleLogoutClick}
-          className="group text-moto-red hover:bg-moto-red-soft hover:text-moto-red-strong active:bg-moto-red flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-[background-color,color] duration-200 ease-out active:text-white"
+          onClick={() => {
+            onClose();
+            onStartPreview();
+          }}
+          className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none active:bg-gray-900 active:text-white"
         >
-          <LogoutIcon className="mr-3 h-4 w-4 transition-colors group-active:text-white" />
-          {t("logout")}
+          <EyeIcon
+            aria-hidden="true"
+            weight="regular"
+            className="mr-3 h-4 w-4 text-gray-400 transition-colors group-hover:text-gray-600 group-active:text-white"
+          />
+          Ansicht eines Mitarbeitenden
         </button>
-      </div>
+      )}
+
+      {/* Divider */}
+      <div className="my-2 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+
+      {/* Logout button */}
+      <button
+        type="button"
+        onClick={handleLogoutClick}
+        className="group text-moto-red hover:bg-moto-red-soft hover:text-moto-red-strong active:bg-moto-red flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-[background-color,color] duration-200 ease-out active:text-white"
+      >
+        <LogoutIcon className="mr-3 h-4 w-4 transition-colors group-active:text-white" />
+        {t("logout")}
+      </button>
     </div>
   );
 }

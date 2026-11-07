@@ -410,6 +410,16 @@ describe("StudentsPage", () => {
     });
   });
 
+  it("offers the import in the overflow menu for the setup tour", () => {
+    render(<StudentsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+
+    expect(
+      screen.getByRole("menuitem", { name: "Importieren" }),
+    ).toHaveAttribute("data-setup-tour", "student-import");
+  });
+
   it("shows the Kinderkontingent in the page head, apart from the child count", () => {
     childQuota = { booked: 50, occupied: 48 };
 

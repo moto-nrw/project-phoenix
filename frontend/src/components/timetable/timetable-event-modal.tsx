@@ -18,7 +18,6 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -535,7 +534,7 @@ export function TimetableEventModal({
       }}
     >
       <SlideOverContent
-        widthClass="sm:w-[760px]"
+        size="lg"
         // The ChoiceModal portals to document.body and lives outside the
         // drawer's DOM. Without these guards Vaul's DismissableLayer treats
         // every click inside the open dialog as an outside-click and closes
@@ -554,21 +553,16 @@ export function TimetableEventModal({
         }}
       >
         <SlideOverHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <SlideOverTitle>{title}</SlideOverTitle>
-              <SlideOverDescription>
-                {isSeriesFlow
-                  ? form.type === "duty"
-                    ? "Regelmäßigen Dienst ohne Kinder planen."
-                    : "Regelmäßigen Termin mit Kindern und Personal planen."
-                  : isEditingInstance
-                    ? "Termin im Betreuungsplan bearbeiten."
-                    : "Einmaligen Termin im Betreuungsplan anlegen."}
-              </SlideOverDescription>
-            </div>
-            <SlideOverCloseButton />
-          </div>
+          <SlideOverTitle>{title}</SlideOverTitle>
+          <SlideOverDescription>
+            {isSeriesFlow
+              ? form.type === "duty"
+                ? "Regelmäßigen Dienst ohne Kinder planen."
+                : "Regelmäßigen Termin mit Kindern und Personal planen."
+              : isEditingInstance
+                ? "Termin im Betreuungsplan bearbeiten."
+                : "Einmaligen Termin im Betreuungsplan anlegen."}
+          </SlideOverDescription>
         </SlideOverHeader>
 
         <div className="border-b border-gray-200 px-5 py-3">
@@ -839,7 +833,7 @@ export function TimetableEventModal({
           </form>
         </SlideOverBody>
 
-        <SlideOverFooter className="items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SlideOverFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="order-2 sm:order-1">
             {canDeleteSeries && (
               <Button

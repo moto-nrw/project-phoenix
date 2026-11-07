@@ -147,7 +147,7 @@ func TestCareContractNoticeNeedsTheRightStaysWithItsTraegerAndIsAudited(t *testi
 	done := decodeSchoolPortalData[noticeOptionsBody](t, rec.Body.Bytes())
 	assert.Equal(t, carecontract.StatusTerminated, done.Status)
 	require.NotNil(t, done.Notice)
-	assert.Equal(t, carecontract.ChannelOffice, done.Notice.Channel)
+	assert.Equal(t, carecontract.NoticeChannelOffice, done.Notice.Channel)
 	assert.Contains(t, done.Notice.ConfirmationText, "Lina", "the default template names the child")
 	rec = traegerJSON(t, f.traeger, token, http.MethodPost, path, map[string]any{"kind": "widerruf", "received_on": concludedOn.String()})
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())

@@ -297,8 +297,12 @@ func (Store) DeleteDraft(ctx context.Context, organizationID, contractID int64) 
 // it. Names, modules and date come from the version whose PDF was sent last
 // to the address, so the list matches the PDF the parents open (#4681).
 const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.school_name,
-	v.effective_from, v.status = '` + carecontract.VersionReplaced + `' AS replaced, m.first_sent AS sent_at,
-	c.status AS contract_status, c.ends_on, c.school_id, c.student_id
+	v.effective_from, v.status = '` + carecontract.VersionReplaced + `' AS replaced, m.first_sent AS sent_at, c.status, c.ends_on,
+	(c.status = 'versendet' AND ` + inboxChildScopeSQL + ` AND EXISTS (SELECT 1 FROM care_contract.contract_signing_links AS l
+		WHERE l.organization_id = c.organization_id AND l.contract_id = c.id)) AS can_sign,
+	(c.status = '` + carecontract.StatusActive + `' AND ` + inboxChildScopeSQL + `) AS can_end,
+	(SELECT MAX(s.signed_at) FROM care_contract.contract_signatures AS s
+		WHERE s.organization_id = c.organization_id AND s.contract_id = c.id) AS signed_at
 	FROM care_contract.contracts AS c
 	JOIN (SELECT contract_id, MIN(sent_at) AS first_sent FROM care_contract.contract_mailings
 		WHERE organization_id = ? AND lower(recipient_email) = lower(?) GROUP BY contract_id) AS m ON m.contract_id = c.id
@@ -324,14 +328,18 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 		SchoolName     string         `bun:"school_name"`
 		EffectiveFrom  calendar.Date  `bun:"effective_from,type:date"`
 		Replaced       bool           `bun:"replaced"`
-		ContractStatus string         `bun:"contract_status"`
-		EndsOn         *calendar.Date `bun:"ends_on,type:date"`
-		SchoolID       int64          `bun:"school_id"`
-		StudentID      int64          `bun:"student_id"`
 		SentAt         time.Time      `bun:"sent_at"`
+		Status         string         `bun:"status"`
+		EndsOn         *calendar.Date `bun:"ends_on,type:date"`
+		SignedAt       *time.Time     `bun:"signed_at"`
+		CanSign        bool           `bun:"can_sign"`
+		CanEnd         bool           `bun:"can_end"`
 	}
 	schools, students := inboxChildScope(reader.Children)
-	if err := db.NewRaw(inboxSQL, organizationID, reader.Email, reader.Email, organizationID, pgdialect.Array(schools), pgdialect.Array(students)).
+	signingSchools, signingStudents := inboxChildScope(reader.SigningChildren)
+	if err := db.NewRaw(inboxSQL, pgdialect.Array(signingSchools), pgdialect.Array(signingStudents),
+		pgdialect.Array(signingSchools), pgdialect.Array(signingStudents), organizationID, reader.Email, reader.Email,
+		organizationID, pgdialect.Array(schools), pgdialect.Array(students)).
 		Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read inbox: %w", err)
 	}
@@ -340,7 +348,7 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 		result[i] = carecontract.InboxContract{
 			ID: row.ID, ChildNames: []string{row.ChildFirstName}, ModuleNames: nonNil(row.ModuleNames),
 			SchoolName: row.SchoolName, SentAt: row.SentAt, EffectiveOn: row.EffectiveFrom, Replaced: row.Replaced,
-			Status: row.ContractStatus, EndsOn: row.EndsOn, SchoolID: row.SchoolID, StudentID: row.StudentID,
+			Status: row.Status, EndsOn: row.EndsOn, SignedAt: row.SignedAt, CanSign: row.CanSign, CanEnd: row.CanEnd,
 		}
 	}
 	return result, nil

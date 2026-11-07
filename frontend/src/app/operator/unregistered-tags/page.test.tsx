@@ -26,10 +26,6 @@ vi.mock("../provisioning/use-org-school-filter", () => ({
   }),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: () => null,
-}));
-
 vi.mock("../provisioning/provisioning-tables-shared", () => ({
   OrgSchoolFilter: () => null,
 }));

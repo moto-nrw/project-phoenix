@@ -50,6 +50,8 @@ type (
 	ContractNotice                  = care.ContractNotice
 	ContractNoticeInput             = care.ContractNoticeInput
 	ContractNoticeOptions           = care.ContractNoticeOptions
+	ContractSignatureInput          = care.ContractSignatureInput
+	ContractSigningView             = care.ContractSigningView
 	SharedDocumentsPort             = care.TraegerSharedDocuments
 	SharedDocument                  = care.SharedDocument
 	SharedDocumentReader            = care.SharedDocumentReader
@@ -105,6 +107,9 @@ const (
 )
 
 var (
+	ErrContractSignatureInvalid         = care.ErrContractSignatureInvalid
+	ErrContractNotSignable              = care.ErrContractNotSignable
+	ErrContractWithdrawalNoticeRequired = care.ErrContractWithdrawalNoticeRequired
 	ErrAnnouncementAckNotRequired       = messaging.ErrAnnouncementAckNotRequired
 	ErrAnnouncementNotAPoll             = messaging.ErrAnnouncementNotAPoll
 	ErrAnnouncementNotFound             = messaging.ErrAnnouncementNotFound

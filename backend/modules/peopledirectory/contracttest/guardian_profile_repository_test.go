@@ -689,3 +689,45 @@ func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
 		assert.ErrorIs(t, err, peopleValues.ErrGuardianProfileNotFound)
 	})
 }
+
+func TestGuardianProfileRepository_FindByIDForUpdate(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
+	ctx := testpkg.Ctx(t)
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "locked-profile-read")
+	profile, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, guardian.ID)
+	require.NoError(t, err)
+	street, city, postalCode, locale, notes := "Testweg 7", "Köln", "50667", "en", "profile read witness"
+	profile.AddressStreet, profile.AddressCity, profile.AddressPostalCode = &street, &city, &postalCode
+	profile.PortalLocale, profile.Notes = &locale, &notes
+	profile.PreferredContactMethod, profile.LanguagePreference = "sms", "en"
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, profile))
+	want, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, guardian.ID)
+	require.NoError(t, err)
+
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		counter.Reset()
+		locked, readErr := repo.FindByIDForUpdate(counter.Context(txCtx), guardian.ID)
+		require.NoError(t, readErr)
+		require.Equal(t, want, locked, "the combined operation must retain the complete profile read")
+		require.Len(t, counter.Queries(), 1)
+		require.Contains(t, counter.Queries()[0], "FOR UPDATE")
+		return nil
+	})
+	require.NoError(t, err)
+
+	otherTenant, _ := testpkg.CreateTestTenant(t, db)
+	for _, lookup := range []struct {
+		ctx context.Context
+		id  int64
+	}{
+		{ctx, -guardian.ID},
+		{testpkg.ContextForTenant(ctx, otherTenant), guardian.ID},
+	} {
+		found, readErr := testpkg.TenantQuery1(t, lookup.ctx, db, repo.FindByIDForUpdate, lookup.id)
+		require.ErrorIs(t, readErr, peopleValues.ErrGuardianProfileNotFound)
+		require.Nil(t, found)
+	}
+}

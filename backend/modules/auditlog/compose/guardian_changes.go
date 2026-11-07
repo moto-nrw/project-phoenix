@@ -18,3 +18,11 @@ func NewGuardianChangeLog() auditlog.GuardianChangeLog {
 func NewSignatureLedger(fingerprint func([]byte) string) auditlog.SignatureLedger {
 	return postgres.NewSignatures(postgres.NewAmbientTransaction("audit signatures", tenant.TenantFromContext, tenant.TransactionFromContext), fingerprint)
 }
+
+// NewTraegerSignatureLedger composes the signature ledger at a Träger
+// (#4679): every append and read runs in the caller's Träger transaction
+// and is refused without one.
+func NewTraegerSignatureLedger(fingerprint func([]byte) string) auditlog.TraegerSignatureLedger {
+	return postgres.NewTraegerSignatures(postgres.NewAmbientTraegerTransaction("audit Träger signatures",
+		tenant.TraegerTransactionFromContext, tenant.TransactionFromContext), fingerprint)
+}

@@ -1,0 +1,6 @@
+{
+  "scenario": "school.staff_messages.recipients.list",
+  "max": 10,
+  "exact": true,
+  "description": "GET /school/staff-messages/recipients through SchoolRouter and ProtectedSchoolRoutes, with 3 and 8 active recipients plus equally growing disabled accounts, inactive mappings, deleted staff and foreign-school staff. Counts the complete protected request including tenant/RLS transaction, settings, batched staff/profile/person/account and role reads. Exact ordered DTOs, self/tenant exclusions, no permission gate and no DML. Excludes outer server live-session verification."
+}

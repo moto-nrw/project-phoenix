@@ -223,6 +223,7 @@ type courseCapacityCheck struct {
 	offerings      []*careplan.CareOffering
 	from, until    calendar.Date
 	pending        *careplan.OfferingChangeRequest
+	child          *ports.OfferingChangeChild
 }
 
 // assertCourseCapacitiesAvailable refuses an approval that would put one
@@ -257,9 +258,13 @@ func (s *OfferingChanges) assertCourseCapacitiesAvailable(ctx context.Context, c
 // request child. An offering whose only matching groups are inactive can no
 // longer be booked.
 func (s *OfferingChanges) targetCourseGroups(ctx context.Context, check courseCapacityCheck) (map[int64][]ports.CourseGroup, []ports.CourseGroup, error) {
-	child, err := s.deps.Enrollment.Child(ctx, check.requestChildID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("course request: load request child: %w", err)
+	child := check.child
+	if child == nil {
+		var err error
+		child, err = s.deps.Enrollment.Child(ctx, check.requestChildID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("course request: load request child: %w", err)
+		}
 	}
 	if child == nil {
 		return nil, nil, fmt.Errorf("course request: request child %d not found", check.requestChildID)

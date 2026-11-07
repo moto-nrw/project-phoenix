@@ -20,6 +20,7 @@ import { ExportDialog } from "~/components/ui/export-dialog";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useExportRun } from "~/hooks/use-export-run";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { formatDate, parseISODate } from "~/lib/date-helpers";
@@ -241,16 +242,28 @@ export default function SchoolAbsenceListPage() {
   const noClasses = classesQuery.data !== undefined && classes.length === 0;
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-          Fehlzeiten
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Fehltage je Kind für Klassenbuch und Zeugnis.
-        </p>
-      </div>
-
+    <TenantPage
+      title="Fehlzeiten"
+      info={<p>Fehltage je Kind für Klassenbuch und Zeugnis.</p>}
+      overlays={
+        <ExportDialog
+          isOpen={exportOpen && !!list}
+          onClose={() => setExportOpen(false)}
+          title="Fehlzeiten exportieren"
+          description="Fehltage je Kind der Klasse im gewählten Zeitraum."
+          appliedFilters={
+            list
+              ? [
+                  schoolClassLabel(list.schoolClass),
+                  `${formatDate(list.from)} bis ${formatDate(list.to)}`,
+                ]
+              : []
+          }
+          formats={EXPORT_FORMATS}
+          run={run}
+        />
+      }
+    >
       {classesQuery.error && classesError ? (
         <LoadErrorAlert error={classesError} />
       ) : noClasses ? (
@@ -280,19 +293,14 @@ export default function SchoolAbsenceListPage() {
             }
           >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <label htmlFor="absence-list-class" className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700">
-                  Klasse
-                </span>
-                <CustomSelect
-                  id="absence-list-class"
-                  ariaLabel="Klasse"
-                  value={schoolClass}
-                  options={classOptions}
-                  onChange={setChosenClass}
-                  disabled={classes.length < 2}
-                />
-              </label>
+              <CustomSelect
+                id="absence-list-class"
+                label="Klasse"
+                value={schoolClass}
+                options={classOptions}
+                onChange={setChosenClass}
+                disabled={classes.length < 2}
+              />
               <ISODatePicker
                 label="Von"
                 id="absence-list-from"
@@ -349,23 +357,6 @@ export default function SchoolAbsenceListPage() {
           )}
         </>
       )}
-
-      <ExportDialog
-        isOpen={exportOpen && !!list}
-        onClose={() => setExportOpen(false)}
-        title="Fehlzeiten exportieren"
-        description="Fehltage je Kind der Klasse im gewählten Zeitraum."
-        appliedFilters={
-          list
-            ? [
-                schoolClassLabel(list.schoolClass),
-                `${formatDate(list.from)} bis ${formatDate(list.to)}`,
-              ]
-            : []
-        }
-        formats={EXPORT_FORMATS}
-        run={run}
-      />
-    </div>
+    </TenantPage>
   );
 }

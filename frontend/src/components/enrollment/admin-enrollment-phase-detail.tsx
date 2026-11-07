@@ -22,6 +22,7 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import {
   ExportMenu,
   exportFormatOptions,
+  exportMenuItems,
   type ExportMenuOption,
 } from "~/components/ui/export-menu";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -603,7 +604,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         render: (row) => (
           <div>
             <p className="font-medium text-gray-900">
-              {formatDays(row.effective_days) || "-"}
+              {formatDays(row.effective_days) || "–"}
             </p>
             <p className="text-xs text-gray-500">
               {row.day_count === 1
@@ -619,7 +620,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         header: "Gehzeiten",
         render: (row) => (
           <p className="max-w-48 text-sm text-gray-700">
-            {formatPickupByDay(row.pickup_by_day ?? {}) || "-"}
+            {formatPickupByDay(row.pickup_by_day ?? {}) || "–"}
           </p>
         ),
         sortValue: (row) => formatPickupByDay(row.pickup_by_day ?? {}),
@@ -887,45 +888,60 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       backHref={overviewPath}
       backLabel="Zurück zur Anmeldungs-Übersicht"
       stats={`${formatDate(phase.service_start_date)} bis ${formatDate(phase.service_end_date)} · ${stats.total} ${stats.total === 1 ? "Eingang" : "Eingänge"} · ${stats.open} offen`}
-      leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
+      leading={
+        /* Unter sm gibt das Symbol dem Titel die Breite, die das Menü neben
+           ihm belegt: „Wiederanmeldung“ bräche sonst mitten im Wort. */
+        <ConceptIconTile
+          concept={enrollmentsConcept}
+          size="page"
+          className="max-sm:hidden"
+        />
+      }
       actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <DataTableStatusBadge active={phase.is_active} />
-          <ExportMenu
-            label="Anmeldungen exportieren"
-            options={ENROLLMENT_EXPORT_OPTIONS}
-            busyKey={exportingFormat}
-            onSelect={(option) => {
-              if (option.format && option.format !== "csv")
-                void handleExport(option.format);
-            }}
+        <>
+          {/* Unter sm steht diese Gruppe in einer eigenen Zeile; das Menü
+              bleibt neben dem Titel. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <DataTableStatusBadge active={phase.is_active} />
+            <ButtonLink
+              href={tenantPath(`/anmeldung/${encodeURIComponent(phase.id)}`)}
+              target="_blank"
+              rel="noreferrer"
+              variant="primary"
+              size="md"
+              className="inline-flex items-center justify-center gap-2"
+            >
+              Elternansicht öffnen
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </ButtonLink>
+            {phaseUrl ? (
+              <PublicLinkCopyButton
+                url={phaseUrl}
+                componentId={`AdminEnrollmentPhaseDetail:${phaseId}`}
+              />
+            ) : null}
+          </div>
+          <OverflowMenu
+            ariaLabel="Weitere Aktionen"
+            items={[
+              {
+                label: "Phase bearbeiten",
+                href: tenantPath("/enrollment-phases"),
+                // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                onClick: () => undefined,
+              },
+              ...exportMenuItems({
+                header: "Exportieren",
+                options: ENROLLMENT_EXPORT_OPTIONS,
+                busyKey: exportingFormat,
+                onSelect: (option) => {
+                  if (option.format && option.format !== "csv")
+                    void handleExport(option.format);
+                },
+              }),
+            ]}
           />
-          <ButtonLink
-            href={tenantPath(`/anmeldung/${encodeURIComponent(phase.id)}`)}
-            target="_blank"
-            rel="noreferrer"
-            variant="primary"
-            size="md"
-            className="inline-flex items-center justify-center gap-2"
-          >
-            Elternansicht öffnen
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          </ButtonLink>
-          {phaseUrl ? (
-            <PublicLinkCopyButton
-              url={phaseUrl}
-              componentId={`AdminEnrollmentPhaseDetail:${phaseId}`}
-            />
-          ) : null}
-          <ButtonLink
-            href={tenantPath("/enrollment-phases")}
-            variant="outline"
-            size="md"
-            className="inline-flex items-center justify-center"
-          >
-            Phase bearbeiten
-          </ButtonLink>
-        </div>
+        </>
       }
       search={{
         value: search,

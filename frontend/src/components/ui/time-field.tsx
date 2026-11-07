@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 
 import { AnchoredPopover } from "./anchored-popover";
 import { Button } from "./button";
-import { RequiredMark } from "./field-label";
+import { FieldLabel } from "./field-label";
 import { TimePickerPanel, type TimePickerLabels } from "./time-picker-panel";
 
 // Ein Modal kann das Popover in seiner Fokusfalle aufnehmen. Ein Vaul-Slide-over
@@ -180,13 +180,9 @@ export function TimeField({
   return (
     <div className="block">
       {!inline && (
-        <label
-          htmlFor={inputId}
-          className="mb-1 block text-sm font-medium text-gray-700"
-        >
+        <FieldLabel htmlFor={inputId} required={required}>
           {label}
-          {required && <RequiredMark />}
-        </label>
+        </FieldLabel>
       )}
       <div ref={fieldRef} className="relative">
         <input

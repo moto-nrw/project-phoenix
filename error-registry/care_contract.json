@@ -31,6 +31,12 @@
       "legacy": "care_contract.contract_not_found"
     },
     {
+      "code": "care_contract.contract_not_signable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.contract_not_signable"
+    },
+    {
       "code": "care_contract.letterhead_too_long",
       "class": "business_rejection",
       "parameters": [],
@@ -55,6 +61,12 @@
       "legacy": "care_contract.offering_not_found"
     },
     {
+      "code": "care_contract.paper_document_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_contract.paper_document_invalid"
+    },
+    {
       "code": "care_contract.recipient_missing",
       "class": "business_rejection",
       "parameters": [],
@@ -65,6 +77,18 @@
       "class": "permission",
       "parameters": [],
       "legacy": "care_contract.school_outside_traeger"
+    },
+    {
+      "code": "care_contract.signature_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_contract.signature_invalid"
+    },
+    {
+      "code": "care_contract.signing_link_invalid",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.signing_link_invalid"
     },
     {
       "code": "care_contract.special_termination_closed",
@@ -83,6 +107,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "care_contract.withdrawal_closed"
+    },
+    {
+      "code": "care_contract.withdrawal_notice_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_contract.withdrawal_notice_required"
     }
   ]
 }

@@ -117,9 +117,9 @@ func TestConfirmationTextFillsTheTemplate(t *testing.T) {
 func TestConfirmationNamesTheReceiptWithItsTime(t *testing.T) {
 	t.Parallel()
 	declared := time.Date(2026, 11, 7, 8, 30, 0, 0, time.UTC) // 09:30 in Berlin
-	parents := ports.NewNotice{Channel: carecontract.ChannelParents, DeclaredAt: declared, ReceivedOn: calendar.NewDate(2026, 11, 7)}
+	parents := ports.NewNotice{Channel: carecontract.NoticeChannelParents, DeclaredAt: declared, ReceivedOn: calendar.NewDate(2026, 11, 7)}
 	assert.Equal(t, "07.11.2026 um 09:30 Uhr", receipt(parents))
-	office := ports.NewNotice{Channel: carecontract.ChannelOffice, DeclaredAt: declared, ReceivedOn: calendar.NewDate(2026, 11, 5)}
+	office := ports.NewNotice{Channel: carecontract.NoticeChannelOffice, DeclaredAt: declared, ReceivedOn: calendar.NewDate(2026, 11, 5)}
 	assert.Equal(t, "05.11.2026", receipt(office), "a letter has no time of receipt")
 
 	text, err := confirmationText("Ihre Kündigung für {Kind}.", confirmationValues{Child: "Lina", Received: receipt(parents),

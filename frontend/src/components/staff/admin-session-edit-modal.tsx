@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import { RequiredMark } from "~/components/ui/field-label";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
@@ -338,10 +338,9 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase">
+      <FieldLabel required={required} invalid={Boolean(error)}>
         {label}
-        {required && <RequiredMark />}
-      </span>
+      </FieldLabel>
       {children}
       <FieldErrorHint
         id={`admin-session-${children.props.name ?? ""}-error`}

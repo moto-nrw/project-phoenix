@@ -198,10 +198,10 @@ func (r *GuardianRelationshipRepository) insertRelationship(ctx context.Context,
 	if err != nil {
 		return 0, nil, err
 	}
-	if err := clearLinkedGuardianRetentionMark(ctx, db, rel); err != nil {
-		return 0, nil, err
-	}
 	if rel.IsPrimary {
+		if err := clearLinkedGuardianRetentionMark(ctx, db, rel); err != nil {
+			return 0, nil, err
+		}
 		demote := func() error { return demoteOtherPrimaries(ctx, db, rel.TenantID, rel.StudentID, 0) }
 		if ifAbsent {
 			demote = func() error {
@@ -214,10 +214,7 @@ func (r *GuardianRelationshipRepository) insertRelationship(ctx context.Context,
 	}
 	args := []any{rel.TenantID, rel.StudentID, rel.GuardianProfileID, rel.RelationshipType, rel.GuardianRole,
 		rel.IsPrimary, rel.IsEmergencyContact, rel.EmergencyPriority, rel.IsPayer}
-	insert := db.NewRaw(insertRelationshipSQL, args...)
-	if ifAbsent {
-		insert = db.NewRaw(insertRelationshipIfAbsentSQL, args...)
-	}
+	insert := relationshipInsertQuery(db, rel.IsPrimary, ifAbsent, args...)
 	var rows []struct {
 		ID        int64     `bun:"id"`
 		CreatedAt time.Time `bun:"created_at"`
@@ -228,6 +225,12 @@ func (r *GuardianRelationshipRepository) insertRelationship(ctx context.Context,
 		return 0, nil, err
 	}
 	if len(rows) == 0 {
+		if !rel.IsPrimary {
+			return 0, nil, directory.ErrGuardianNotFound
+		}
+		return 0, nil, nil
+	}
+	if rows[0].ID == 0 {
 		return 0, nil, nil
 	}
 	rel.ID, rel.CreatedAt, rel.UpdatedAt = rows[0].ID, rows[0].CreatedAt, rows[0].UpdatedAt

@@ -124,6 +124,7 @@ type Store interface {
 	CleanupExpired(context.Context) (int, error)
 	BackfillGuardianAccountID(context.Context, int64, string) (int, error)
 	Schema(context.Context, int64) (*enrollment.FormSchema, error)
+	StudentExtraFieldSchemas(context.Context, []int64) ([]enrollment.SchemaVersionResult, error)
 	ActiveSchema(context.Context) (*enrollment.FormSchema, error)
 	SchemaVersions(context.Context) ([]*enrollment.FormSchema, error)
 	Schemas(context.Context, []int64) ([]*enrollment.FormSchema, error)

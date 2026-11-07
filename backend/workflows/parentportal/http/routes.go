@@ -59,6 +59,9 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Withdrawal and termination of that contract (#4682, § 312k BGB).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/notice", rs.contractNoticeOptions)
 	r.Post("/me/documents/{organizationId}/contracts/{contractId}/notice", rs.declareContractNotice)
+	// Reading and signing a care contract (#4679).
+	r.Get("/me/documents/{organizationId}/contracts/{contractId}/signing", rs.contractSigning)
+	r.Post("/me/documents/{organizationId}/contracts/{contractId}/sign", rs.signContract)
 	// Documents a Träger released for parents (#4692).
 	r.Get("/me/documents/shared", rs.listSharedDocuments)
 	r.Get("/me/documents/{organizationId}/shared/{documentId}/file", rs.sharedDocumentFile)

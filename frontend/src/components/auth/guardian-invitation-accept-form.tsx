@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirects target tenant root, not a tenant route helper
 import { useRouter } from "next/navigation";
@@ -24,7 +25,7 @@ import {
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
-import { IconTile } from "~/components/ui/icon-tile";
+import { InvitationSummary } from "~/components/auth/invitation-summary";
 
 const logger = createLogger({ component: "GuardianInvitationAccept" });
 
@@ -173,48 +174,31 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
 
   if (isAccepted) {
     return (
-      <div className="flex flex-col items-center py-12">
-        <IconTile
-          size="page"
-          shape="round"
-          tone="inverse"
-          className="mb-6"
-          icon={
-            <svg
-              className="text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 13l4 4L19 7"
+      <EmptyState
+        tone="success"
+        icon={<Check aria-hidden="true" />}
+        titleAs="h3"
+        title={t("acceptedTitle")}
+        description={t("acceptedText")}
+        progress={
+          <>
+            <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full bg-gray-900"
+                style={{
+                  animation: "guardianProgressFill 1.5s ease-in-out forwards",
+                }}
               />
-            </svg>
-          }
-        />
-        <h3 className="mb-1 text-base font-semibold text-gray-900">
-          {t("acceptedTitle")}
-        </h3>
-        <p className="mb-6 text-sm text-gray-500">{t("acceptedText")}</p>
-        <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className="h-full rounded-full bg-gray-900"
-            style={{
-              animation: "guardianProgressFill 1.5s ease-in-out forwards",
-            }}
-          />
-        </div>
-        <style>{`
-          @keyframes guardianProgressFill {
-            from { width: 0%; }
-            to { width: 100%; }
-          }
-        `}</style>
-      </div>
+            </div>
+            <style>{`
+              @keyframes guardianProgressFill {
+                from { width: 0%; }
+                to { width: 100%; }
+              }
+            `}</style>
+          </>
+        }
+      />
     );
   }
 
@@ -227,17 +211,11 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
     >
       <FormErrorAlert message={formErrors.error} />
 
-      <section className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm">
-        <p className="font-medium text-gray-700">
-          {t("invitationFor")}{" "}
-          <span className="font-semibold text-gray-900">
-            {guardianFullName || invitation.email}
-          </span>
-        </p>
-        {guardianFullName && (
-          <p className="mt-1 text-gray-500">{invitation.email}</p>
-        )}
-      </section>
+      <InvitationSummary
+        label={t("invitationFor")}
+        name={guardianFullName}
+        email={invitation.email}
+      />
 
       <div>
         <FieldLabel

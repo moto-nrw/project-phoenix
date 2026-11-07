@@ -87,6 +87,9 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	// The Nachweise of the staff are the personnel record of moto Basis
 	// (#4808).
 	"staff-qualification-reminders": jobScopeBasis,
+	// The care contracts (#4679) belong to the Träger, not to a booked
+	// module of a school; the job runs per Träger.
+	"care-contract-reminders": jobScopeBasis,
 	// The weekly protocol of a group (#4769) is the group's planning of
 	// moto Basis, like the timetable it records.
 	"week-protocols": jobScopeBasis,

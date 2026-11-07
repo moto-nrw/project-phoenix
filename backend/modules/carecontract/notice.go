@@ -63,8 +63,8 @@ const ReasonMaxLength = 2000
 // Who made the declaration: the parents with the button in the parents
 // portal, or the Träger-Büro for a declaration it received in Textform.
 const (
-	ChannelParents = "eltern_app"
-	ChannelOffice  = "traeger_buero"
+	NoticeChannelParents = "eltern_app"
+	NoticeChannelOffice  = "traeger_buero"
 )
 
 // WithdrawalDays is the withdrawal period of a distance contract (§ 355

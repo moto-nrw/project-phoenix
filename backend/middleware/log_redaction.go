@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 )
 
@@ -15,6 +17,19 @@ var feedPathMarkers = []string{"/public/calendar/", "/public/request-feed/"}
 // invitation token (ADR 0077): the token alone accepts the invitation.
 var invitationPathMarkers = []string{"/caterer/invitations/", "/einladung/"}
 
+// Signing links carry a replayable contract credential. Match escaped path
+// prefixes too: referrers and error texts can retain their URL encoding.
+var signingTokenPattern = regexp.MustCompile(`(?i)(` + encodedPathMarker("/public/care-contract-signing/") + `|` +
+	encodedPathMarker("/vertrag-unterschreiben/") + `)[^/?#\s"']+`)
+
+func encodedPathMarker(path string) string {
+	var pattern strings.Builder
+	for _, char := range path {
+		fmt.Fprintf(&pattern, "(?:%s|%%%02x)", regexp.QuoteMeta(string(char)), char)
+	}
+	return pattern.String()
+}
+
 // attrRedactor wraps a slog.Handler and rewrites the message and every string
 // attribute (including nested groups) through transform. transform receives the
 // attribute key ("" for the record message) so implementations can redact
@@ -24,14 +39,14 @@ type attrRedactor struct {
 	transform func(key, value string) string
 }
 
-// NewFeedTokenRedactor wraps inner so calendar-feed tokens are redacted from
+// NewFeedTokenRedactor wraps inner so public URL credentials are redacted from
 // every emitted log record (message, string attributes, and nested groups). It
 // is applied to both the HTTP request logger and the security logger, whose
 // "path" attribute would otherwise capture the token verbatim (the security
 // logger records it on rate-limited requests).
 func NewFeedTokenRedactor(inner slog.Handler) slog.Handler {
 	return &attrRedactor{inner: inner, transform: func(key, value string) string {
-		if key == "token" {
+		if key == "token" || key == "link" {
 			return "[REDACTED]"
 		}
 		return RedactFeedToken(value)
@@ -96,6 +111,13 @@ func (h *attrRedactor) redactAttr(a slog.Attr) slog.Attr {
 		}
 		return slog.Attr{Key: a.Key, Value: slog.GroupValue(redacted...)}
 	case slog.KindAny:
+		if values, ok := a.Value.Any().([]string); ok {
+			redacted := make([]string, len(values))
+			for i, value := range values {
+				redacted[i] = h.transform(a.Key, value)
+			}
+			return slog.Any(a.Key, redacted)
+		}
 		if values, ok := a.Value.Any().(map[string]string); ok {
 			redacted := make(map[string]string, len(values))
 			for key, value := range values {
@@ -109,8 +131,8 @@ func (h *attrRedactor) redactAttr(a slog.Attr) slog.Attr {
 	}
 }
 
-// RedactFeedToken replaces the token segment of a public calendar or request
-// feed URL with "[REDACTED]", preserving any trailing path or query.
+// RedactFeedToken replaces the credential segment of a public feed, invitation
+// or contract-signing URL with "[REDACTED]", preserving any trailing path or query.
 func RedactFeedToken(s string) string {
 	for _, marker := range feedPathMarkers {
 		s = redactAfter(s, marker, 0)
@@ -118,7 +140,7 @@ func RedactFeedToken(s string) string {
 	for _, marker := range invitationPathMarkers {
 		s = redactAfter(s, marker, 1)
 	}
-	return s
+	return signingTokenPattern.ReplaceAllString(s, "${1}[REDACTED]")
 }
 
 // redactAfter replaces the path segment that follows marker and skip more

@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.conflict_acks.list",
+  "max": 1,
+  "exact": true,
+  "description": "Timetable conflict acknowledgement owner seam: one tenant/account-scoped ordered SELECT, flat for 3 and 8 returned fingerprints; caller tenant transaction setup is outside this business-query budget. GET /api/timetable/conflict-acks delegates to this read."
+}

@@ -521,7 +521,8 @@ function LohnartNumberCell({
         }}
         placeholder="Nicht konfiguriert"
         inputMode="numeric"
-        className="h-9 py-1 text-sm tabular-nums"
+        controlSize="compact"
+        className="tabular-nums"
         error={valid ? undefined : "1 bis 4 Ziffern."}
       />
     </div>
@@ -594,7 +595,8 @@ function DatevNumberField({
       }}
       placeholder="Nicht konfiguriert"
       inputMode="numeric"
-      className="h-9 py-1 text-sm tabular-nums"
+      controlSize="compact"
+      className="tabular-nums"
       error={valid ? undefined : `1 bis ${maxDigits} Ziffern.`}
     />
   );
@@ -755,7 +757,7 @@ function LohnbueroCard({
               }}
               placeholder="lohn@beispiel.de"
               autoComplete="off"
-              className="h-9 py-1 text-sm"
+              controlSize="compact"
               error={
                 emailValid
                   ? undefined
@@ -1211,7 +1213,7 @@ function WageTypeTextCell({
         placeholder={field === "number" ? "Noch keine Nummer" : undefined}
         inputMode={field === "number" ? "numeric" : undefined}
         maxLength={field === "name" ? 100 : undefined}
-        className="h-9 py-1 text-sm"
+        controlSize="compact"
         error={error}
       />
     </div>
@@ -1404,16 +1406,18 @@ function NightWindowCell({
         value={from}
         onChange={(event) => setFrom(event.target.value)}
         onBlur={commit}
-        className="h-9 w-full py-1 text-sm md:w-28"
+        controlSize="compact"
+        className="w-full md:w-28"
       />
-      <span className="pt-2 text-sm text-gray-600">bis</span>
+      <span className="pt-2.5 text-sm text-gray-600">bis</span>
       <Input
         aria-label="Nachtarbeit bis"
         type="time"
         value={until}
         onChange={(event) => setUntil(event.target.value)}
         onBlur={commit}
-        className="h-9 w-full py-1 text-sm md:w-28"
+        controlSize="compact"
+        className="w-full md:w-28"
         error={valid ? undefined : "Zwei verschiedene Uhrzeiten."}
       />
     </div>
@@ -1450,13 +1454,14 @@ function RateCell({
             }
           }}
           inputMode="decimal"
-          className={`h-9 py-1 text-sm tabular-nums ${rule.rateType === "prozent" ? "pr-8" : "pr-28"}`}
+          controlSize="compact"
+          className={`tabular-nums ${rule.rateType === "prozent" ? "pr-8" : "pr-28"}`}
           error={value === null ? "Eine Zahl größer als 0." : undefined}
         />
       </div>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute top-0 right-4 flex h-9 items-center text-sm whitespace-nowrap text-gray-500"
+        className="pointer-events-none absolute top-0 right-4 flex h-10 items-center text-sm whitespace-nowrap text-gray-500"
       >
         {rule.rateType === "prozent" ? "%" : "€ je Stunde"}
       </span>

@@ -240,7 +240,6 @@ export function StudentExportModal({
       appliedFilters={appliedFilters}
       formats={STUDENT_EXPORT_FORMATS}
       run={run}
-      widthClass="sm:w-[640px]"
     >
       <section>
         <Input

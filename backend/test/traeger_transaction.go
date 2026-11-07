@@ -14,9 +14,11 @@ import "maps"
 // acceptance (ADR 0088 section 6), which does the same per contract; #4681
 // the amendment of active contracts after an approved change of their care,
 // which does the same per contract, and the PDF of one version (ADR 0153
-// "Folgen"). ADR 0157 adds the documents the
-// Träger-Büro shares, which read the groups of a school in its tenant
-// transaction before a release. A further site needs its own decision.
+// "Folgen"). ADR 0155 adds the signature of the contract over its one-time
+// link, the paper contract's download and the reminders of the worker. ADR
+// 0157 adds the documents the Träger-Büro shares, which read the groups of a
+// school in its tenant transaction before a release. A further site needs
+// its own decision.
 var traegerTransactionSites = map[string]string{
 	"tenant/traeger.go:WithinTraeger:runtime.withinTraeger#1":                                                                               "ADR 0086 section 5 and ADR 0105: the tenant runtime's Träger transaction entry point refuses a school, administrative or foreign Träger unit and binds the Träger for the adapter; never selected by a missing school.",
 	"modules/transactionruntime/compose/tenant_runtime.go:NewTenantRuntime:unitOfWork.WithinTraeger#1":                                      "ADR 0086 section 5 and ADR 0105: Transaction Runtime binds the PostgreSQL Träger transaction into the serving unit of work; the demo runtime gets none.",
@@ -41,6 +43,9 @@ var traegerTransactionSites = map[string]string{
 	"modules/carecontract/internal/application/intake.go:*Intake.CreateContracts:in.runtime.WithinTraeger#1":                                "ADR 0153: the drafts of the accepted applications, their versions, parties and trail entries commit together in the Träger transaction of the session's Träger, after each school was read in its own tenant transaction; a second draft for the same key is skipped.",
 	"modules/carecontract/internal/application/intake.go:*Intake.SaveTemplate:in.runtime.WithinTraeger#1":                                   "ADR 0153: a contract template and its trail entry commit together in the Träger transaction of the session's Träger, after the offering was found in its school's tenant transaction.",
 	"modules/carecontract/internal/application/intake.go:*Intake.Templates:in.runtime.WithinTraeger#1":                                      "ADR 0153: the templates of the Träger are read in its Träger transaction after the offerings of each school were read in that school's tenant transaction; it writes nothing.",
+	"modules/carecontract/internal/application/paper.go:*Signatures.PaperDocument:s.contracts.runtime.WithinTraeger#1":                      "ADR 0155, ADR 0088 section 7: the signed paper PDF and its trail entry are read in the Träger transaction; after commit the read is logged in the contract's school through logSchools, before the file leaves. No transaction carries both.",
+	"modules/carecontract/internal/application/reminders.go:*Reminders.RemindDue:r.ports.Runtime.WithinTraeger#1":                           "ADR 0155: the reminders of one Träger, their new one-time links, the outbox mails and the trail entries commit together in that Träger's transaction; one Träger's failure does not hold back the next.",
+	"modules/carecontract/internal/application/signing.go:*Signatures.withinLink:s.ports.Runtime.WithinTraeger#1":                           "ADR 0155: the one-time link names its Träger; the link, the contract under its row lock, the signature with its ledger entry, the conclusion and the confirmation mail commit together in that Träger's transaction.",
 	"modules/organizationtenancy/internal/application/traeger_documents.go:*TraegerDocuments.File:d.ports.Runtime.WithinTraeger#1":          "ADR 0157: the Träger-Büro's shared documents (#4692) reads the stored file of one document of the session's Träger in the Träger transaction (ADR 0105).",
 	"modules/organizationtenancy/internal/application/traeger_documents.go:*TraegerDocuments.ListDocuments:d.ports.Runtime.WithinTraeger#1": "ADR 0157: the Träger-Büro's shared documents (#4692) lists the documents of the session's Träger with their active releases in the Träger transaction (ADR 0105).",
 	"modules/organizationtenancy/internal/application/traeger_documents.go:*TraegerDocuments.Release:d.ports.Runtime.WithinTraeger#1":       "ADR 0157: the Träger-Büro's shared documents (#4692) adds one release after the school and group were checked in the school's own tenant transaction, which never nests in it in the Träger transaction (ADR 0105).",

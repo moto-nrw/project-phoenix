@@ -267,7 +267,7 @@ func TestProcessCheckin_RejectedCapacityRemovesNewSpecialRoomSession(t *testing.
 	h.activities.byName[facilities.WCActivityName] = []devicescan.Activity{{ID: 300, Name: "WC", MaxParticipants: 999}}
 	h.visits.recordErr = &ports.RoomCapacityExceeded{RoomID: 42, RoomName: facilities.WCRoomName, CurrentOccupancy: 1, MaxCapacity: 1}
 
-	_, _, err := h.service().processCheckin(context.Background(), &ports.Student{ID: 500}, &ports.Person{FirstName: "Capacity"}, room.ID, testDeviceID)
+	_, _, err := h.service().processCheckin(context.Background(), &ports.Student{ID: 500}, &ports.Person{FirstName: "Capacity"}, room.ID, testDeviceID, nil)
 
 	_, ok := errors.AsType[*devicescan.RoomCapacityExceededError](err)
 	require.True(t, ok, "got %v", err)
@@ -283,7 +283,7 @@ func TestProcessCheckin_FullRoomDoesNotCreateSpecialRoomSession(t *testing.T) {
 	h.presence.roomCounts[room.ID] = 1
 	h.sessions.open = nil
 
-	_, _, err := h.service().processCheckin(context.Background(), &ports.Student{ID: 500}, &ports.Person{FirstName: "Capacity"}, room.ID, testDeviceID)
+	_, _, err := h.service().processCheckin(context.Background(), &ports.Student{ID: 500}, &ports.Person{FirstName: "Capacity"}, room.ID, testDeviceID, nil)
 
 	_, ok := errors.AsType[*devicescan.RoomCapacityExceededError](err)
 	require.True(t, ok)
@@ -659,4 +659,39 @@ func TestYardScan_LookupFailuresStopTheScan(t *testing.T) {
 
 		requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageGetActivityFailed)
 	})
+}
+
+func TestYardScan_MissingBatchActivityStopsBeforeWrites(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	delete(h.activities.byID, yardBlockBActivityID)
+
+	_, err := h.service().Scan(context.Background(), scanCommand(&room.ID))
+
+	failure := classifiedFailure(t, err, devicescan.FailureInternal, devicescan.MessageGetActivityFailed)
+	assert.Empty(t, failure.Code)
+	assert.Nil(t, failure.Cause)
+	assert.Empty(t, h.visits.recorded)
+	assert.Empty(t, h.sessions.started)
+	assert.Empty(t, h.sessions.ensured)
+	assert.Empty(t, h.rosters.calls)
+}
+
+func TestYardScan_BatchDeduplicatesTemplatesAndKeepsContext(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	h.sessions.open = append(h.sessions.open, h.sessions.open[1], devicescan.Session{ID: 113, RoomID: room.ID})
+	h.rosters.rostered[yardBlockBSessionID] = true
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	h.activities.wantBatchContext = ctx
+
+	result, err := h.service().Scan(ctx, scanCommand(&room.ID))
+
+	require.NoError(t, err)
+	assert.Equal(t, devicescan.ScanActionCheckedIn, result.Action)
+	assert.Equal(t, [][]int64{{yardFreeplayActivityID, yardBlockAActivityID, yardBlockBActivityID}}, h.activities.batchCalls)
+	assert.Equal(t, []bool{true}, h.activities.batchContextMatches)
+	require.Len(t, h.visits.recorded, 1)
+	assert.Equal(t, yardBlockBSessionID, h.visits.recorded[0].SessionID)
 }

@@ -34,7 +34,6 @@ import { Button } from "~/components/ui/button";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -51,6 +50,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Radio } from "~/components/ui/radio";
 import { DatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { TimeField } from "~/components/ui/time-field";
 import {
   DEFAULT_REMINDER_TIME,
@@ -1486,28 +1486,25 @@ function AnnouncementFormModal({
         if (!open) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[860px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>
-              {isPollForm
+      <SlideOverContent size="xl">
+        <SlideOverHeader>
+          <SlideOverTitle>
+            {isPollForm
+              ? isEdit
+                ? "Umfrage bearbeiten"
+                : "Neue Umfrage"
+              : isLetterForm
                 ? isEdit
-                  ? "Umfrage bearbeiten"
-                  : "Neue Umfrage"
-                : isLetterForm
+                  ? "Elternbrief bearbeiten"
+                  : "Neuer Elternbrief"
+                : isDeclarationForm
                   ? isEdit
-                    ? "Elternbrief bearbeiten"
-                    : "Neuer Elternbrief"
-                  : isDeclarationForm
-                    ? isEdit
-                      ? "Einverständnis bearbeiten"
-                      : "Neues Einverständnis"
-                    : isEdit
-                      ? "Elternmitteilung bearbeiten"
-                      : "Neue Elternmitteilung"}
-            </SlideOverTitle>
-          </div>
-          <SlideOverCloseButton />
+                    ? "Einverständnis bearbeiten"
+                    : "Neues Einverständnis"
+                  : isEdit
+                    ? "Elternmitteilung bearbeiten"
+                    : "Neue Elternmitteilung"}
+          </SlideOverTitle>
         </SlideOverHeader>
         {/* Der Fehler des Formulars steht oben im Rumpf, nicht unten über
             dem Footer (Bauart 2 Regel 5, #3113). */}
@@ -1755,12 +1752,13 @@ function AnnouncementFormModal({
                   <div className="grid gap-4 sm:grid-cols-2">
                     {hasDeadline && (
                       <div>
-                        <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                        <FieldLabel htmlFor="announcement-deadline">
                           {isDeclarationForm
                             ? "Frist (optional)"
                             : "Antwortfrist (optional)"}
-                        </span>
+                        </FieldLabel>
                         <DatePicker
+                          id="announcement-deadline"
                           value={deadline}
                           onChange={setDeadline}
                           placeholder="Keine Frist"
@@ -1776,10 +1774,11 @@ function AnnouncementFormModal({
                       </div>
                     )}
                     <div>
-                      <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                      <FieldLabel htmlFor="announcement-expires-at">
                         Ablaufdatum (optional)
-                      </span>
+                      </FieldLabel>
                       <DatePicker
+                        id="announcement-expires-at"
                         value={expiresAt}
                         onChange={setExpiresAt}
                         placeholder="Kein Ablaufdatum"
@@ -1821,10 +1820,11 @@ function AnnouncementFormModal({
                     </p>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
-                        <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                        <FieldLabel htmlFor="announcement-reminder-day">
                           Erinnern am (optional)
-                        </span>
+                        </FieldLabel>
                         <DatePicker
+                          id="announcement-reminder-day"
                           value={reminderDay}
                           onChange={setReminderDay}
                           placeholder="Keine Erinnerung"
@@ -1867,9 +1867,7 @@ function AnnouncementFormModal({
                   </h3>
 
                   <div>
-                    <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                      Priorität
-                    </span>
+                    <FieldLabel>Priorität</FieldLabel>
                     <SegmentedControl
                       variant="pills"
                       ariaLabel="Priorität"
@@ -2114,9 +2112,7 @@ function AnnouncementFormModal({
             )}
           </div>
         </SlideOverBody>
-        <SlideOverFooter className="flex-row flex-wrap justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
+        <SlideOverFooter>{footer}</SlideOverFooter>
       </SlideOverContent>
     </SlideOver>
   );

@@ -520,7 +520,7 @@ export function CaregiverBlockerResolutionPanel({
                       {item.groupName}
                     </span>
                     <span className="ml-2 text-xs text-gray-500">
-                      {item.startDate} — {item.endDate}
+                      {item.startDate} – {item.endDate}
                     </span>
                   </div>
                   <Button

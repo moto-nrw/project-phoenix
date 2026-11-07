@@ -42,6 +42,11 @@
     },
     {
       "decision": "0090",
+      "id": "modules/devicefleet/administration.GetPersistedDeviceRoomName",
+      "reason": "Owner-edge error translation: validates the persisted write result and preserves GetDeviceByID invalid-ID, not-found and AdministrationError identity while resolving only the fresh Facilities room projection. No unchanged forwarding debt or new floor allowance."
+    },
+    {
+      "decision": "0090",
       "id": "modules/devicefleet/administration.IsDeviceOnlineAt",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

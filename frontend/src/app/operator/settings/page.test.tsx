@@ -41,12 +41,6 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   }),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({ title }: { title: string }) => (
-    <div data-testid="page-header">{title}</div>
-  ),
-}));
-
 const passwordModalProps = vi.hoisted(() => ({
   current: null as Record<string, unknown> | null,
 }));

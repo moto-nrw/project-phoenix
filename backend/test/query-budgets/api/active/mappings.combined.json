@@ -1,0 +1,6 @@
+{
+  "scenario": "api.active.mappings.combined",
+  "max": 4,
+  "exact": true,
+  "description": "GET /api/active/mappings/combined/{combinedId} through setupProtectedRouter with real owner stores, permissions and TenantTx. One combination with 0/3/8 distinct mapped sessions; other-combination, foreign-tenant and missing-ID controls. Four complete request statements for successful responses. Valid signed fixture claims, not cold production login/auth cost."
+}

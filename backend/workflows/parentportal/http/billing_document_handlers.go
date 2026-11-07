@@ -31,12 +31,14 @@ type BillingDocumentResponse struct {
 	TotalCents     int64         `json:"total_cents"`
 	ChildNames     []string      `json:"child_names"`
 	SentAt         time.Time     `json:"sent_at"`
+	// ContractStatus and SignedAt of a care contract (#4679).
+	ContractStatus string     `json:"contract_status,omitempty"`
+	CanSign        bool       `json:"can_sign,omitempty"`
+	SignedAt       *time.Time `json:"signed_at,omitempty"`
 	// Replaced marks a contract version replaced by a later change (#4681).
 	Replaced bool `json:"replaced"`
-	// ContractStatus and EndsOn tell whether a care contract was terminated
-	// or withdrawn, and its last day (#4682); empty for a letter.
-	ContractStatus string         `json:"contract_status,omitempty"`
-	EndsOn         *timezone.Date `json:"ends_on,omitempty"`
+	// EndsOn is the last day of a terminated contract (#4682).
+	EndsOn *timezone.Date `json:"ends_on,omitempty"`
 	// CanEndContract tells that the account may withdraw or terminate the
 	// contract: its relationship to the child grants the right (#4682).
 	CanEndContract bool `json:"can_end_contract,omitempty"`
@@ -71,8 +73,8 @@ func (rs *Resource) respondInbox(w http.ResponseWriter, r *http.Request, inbox p
 			TraegerName: document.TraegerName, Kind: document.Kind, Number: document.Number, PeriodName: document.PeriodName,
 			ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil, IssuedOn: document.IssuedOn,
 			TotalCents: document.TotalCents, ChildNames: document.ChildNames, SentAt: document.SentAt,
-			Replaced: document.Replaced, ContractStatus: document.ContractStatus, EndsOn: document.EndsOn,
-			CanEndContract: document.CanEndContract,
+			ContractStatus: document.ContractStatus, SignedAt: document.SignedAt, CanSign: document.CanSign, Replaced: document.Replaced,
+			EndsOn: document.EndsOn, CanEndContract: document.CanEndContract,
 		}
 	}
 	common.Respond(w, r, http.StatusOK, out, "Documents retrieved")

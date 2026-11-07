@@ -115,12 +115,11 @@ describe("ParentMealPlanPage", () => {
       name: "Speiseplan wird geladen",
     });
     const skeleton = screen.getByTestId("meal-plan-week-skeleton");
-    const desktopGrid = skeleton.querySelector(".grid-cols-5");
     const animatedParts = skeleton.querySelectorAll(".animate-pulse");
 
     expect(loadingStatus).toBeInTheDocument();
-    expect(desktopGrid?.children).toHaveLength(5);
-    expect(animatedParts.length).toBeGreaterThan(10);
+    expect(loadingStatus).toContainElement(skeleton);
+    expect(animatedParts).toHaveLength(10);
     for (const part of animatedParts) {
       expect(part).toHaveClass("motion-reduce:animate-none");
     }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,6 +24,51 @@ import (
 // transition per contract wins; the loser gets a defined error; the final
 // state meets every constraint. Each race goes red when the conclusion
 // (concludeRecord) reads the contract without its row lock.
+
+// raceTokens issues tokens with fingerprints of the stored shape that stay
+// distinct across fixtures, parallel tests and repeated runs sharing the
+// database: the process start and one counter of the package.
+type raceTokens struct{}
+
+var (
+	raceTokenRun  = time.Now().UnixNano()
+	raceTokenNext atomic.Int64
+)
+
+func (*raceTokens) NewToken() (string, string, error) {
+	raw := fmt.Sprintf("%016x%016x", raceTokenRun, raceTokenNext.Add(1))
+	return raw, raceFingerprint([]byte(raw)), nil
+}
+
+func (*raceTokens) Fingerprint(raw string) string { return raceFingerprint([]byte(raw)) }
+
+// raceFingerprint is a digest of the stored 64-hex shape: up to 32 bytes the
+// input itself, longer input (a version) folded into 32 bytes.
+func raceFingerprint(data []byte) string {
+	var sum [32]byte
+	if len(data) <= len(sum) {
+		copy(sum[len(sum)-len(data):], data)
+		return fmt.Sprintf("%x", sum)
+	}
+	for i, b := range data {
+		sum[i%len(sum)] ^= b
+		sum[(i*7+3)%len(sum)] += b + byte(i)
+	}
+	return fmt.Sprintf("%x", sum)
+}
+
+// databaseSHA256 is the root's fingerprint, SHA-256 in hex, computed by the
+// test database: the owner's tests may not import crypto, and the paper
+// contract's stored checksum is PostgreSQL's sha256 of the same bytes.
+func databaseSHA256(db *bun.DB) func([]byte) string {
+	return func(data []byte) string {
+		var digest string
+		if err := db.NewRaw(`SELECT encode(sha256(?::bytea), 'hex')`, data).Scan(context.Background(), &digest); err != nil {
+			panic(fmt.Sprintf("test fingerprint: %v", err))
+		}
+		return digest
+	}
+}
 
 type raceRuntime struct{}
 
@@ -112,6 +158,10 @@ func newRaceFixture(t *testing.T, name string) raceFixture {
 	clock := Clock{Now: time.Now}
 	contracts := NewContracts(store, raceRenderer{}, ContractPorts{
 		Letterheads: raceLetterhead{}, Post: &racePost{next: testpkg.UniqueTestTenantID(t) * 1_000}, Runtime: raceRuntime{}, Access: raceAccess{},
+		// A send makes the one-time signing link of #4679; the conclusion at
+		// the acceptance makes none.
+		Ledger: struct{ carecontract.SignatureLedger }{},
+		Links:  carecontract.SigningLinks{Tokens: &raceTokens{}, ParentsURL: "http://parents.localhost", Fingerprint: databaseSHA256(db)},
 	}, clock, NewVersions(store))
 	var id int64
 	require.NoError(t, testpkg.WithinTraeger(ctx, org, func(txCtx context.Context) error {

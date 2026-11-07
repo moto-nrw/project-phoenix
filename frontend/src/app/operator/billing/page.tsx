@@ -15,7 +15,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import {
@@ -41,7 +41,6 @@ import {
   type BillingKeyDateCount,
   type BillingKeyDay,
 } from "~/lib/operator/billing-api";
-import { reportsConcept } from "~/lib/concepts/reports";
 
 const logger = createLogger({ component: "OperatorBillingPage" });
 
@@ -180,32 +179,18 @@ function KeyDaySection({
       {editing ? (
         <div ref={formRef} className="space-y-4">
           <FormErrorAlert message={saveErrors.error} />
-          <div className="max-w-xs space-y-1.5">
-            <label
-              id="billing-key-day-label"
-              htmlFor="billing-key-day"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Tag im Monat
-            </label>
+          <div className="max-w-xs">
             <CustomSelect
               id="billing-key-day"
               name="key_day"
-              ariaLabelledBy="billing-key-day-label"
+              label="Tag im Monat"
+              hint="Gilt ab dem nächsten Stichtag. Schon erfasste Monate bleiben, wie sie sind. Höchstens der 28., damit jeder Monat den Tag hat."
+              error={saveErrors.fieldError("key_day")}
               value={draft}
               options={KEY_DAY_OPTIONS}
               onChange={setDraft}
             />
-            <p className="text-xs text-gray-500">
-              Gilt ab dem nächsten Stichtag. Schon erfasste Monate bleiben, wie
-              sie sind. Höchstens der 28., damit jeder Monat den Tag hat.
-            </p>
           </div>
-          {saveErrors.fieldError("key_day") ? (
-            <p className="text-moto-red text-xs">
-              {saveErrors.fieldError("key_day")}
-            </p>
-          ) : null}
           <EditActions
             onCancel={() => setEditing(false)}
             onSave={() => void save()}
@@ -330,17 +315,7 @@ function OperatorBillingPageContent() {
   const hasCounts = periods.length > 0;
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      <PageHeaderWithSearch
-        title="Stichtagszahlen"
-        concept={reportsConcept}
-        tabs={{
-          items: [{ id: "billing", label: "Stichtagszahlen" }],
-          activeTab: "billing",
-          onTabChange: () => undefined,
-        }}
-      />
-
+    <TenantPage title="Stichtagszahlen">
       <LoadErrorAlert error={keyDayLoadError} />
 
       <KeyDaySection
@@ -427,13 +402,13 @@ function OperatorBillingPageContent() {
       </SectionCard>
 
       <CountingRulesSection />
-    </div>
+    </TenantPage>
   );
 }
 
 export default function OperatorBillingPage() {
   return (
-    <Suspense fallback={<div className="-mt-1.5 w-full" />}>
+    <Suspense fallback={<TenantPage title="Stichtagszahlen" loading />}>
       <OperatorBillingPageContent />
     </Suspense>
   );

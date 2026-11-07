@@ -4,7 +4,7 @@ import { MasterDetailLayout } from "./master-detail-layout";
 import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 import { Skeleton } from "~/components/ui/skeleton";
 
-function ListRowSkeleton() {
+function DatabaseRowSkeleton() {
   // Mirrors DatabaseListItem: title + subtitle lines, chevron slot.
   return (
     <div className="flex w-full items-center gap-3 border-b border-gray-100 px-4 py-2.5">
@@ -58,7 +58,7 @@ export function MasterDetailSkeleton({
           list={
             <div>
               {Array.from({ length: rowCount }, (_, i) => (
-                <ListRowSkeleton key={i} />
+                <DatabaseRowSkeleton key={i} />
               ))}
             </div>
           }

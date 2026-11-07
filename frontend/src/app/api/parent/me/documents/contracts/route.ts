@@ -16,6 +16,7 @@ interface BackendParentContractDocument {
   replaced?: boolean;
   contract_status?: string;
   ends_on?: string;
+  signed_at?: string | null;
 }
 
 /**

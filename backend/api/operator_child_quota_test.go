@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
@@ -92,11 +93,12 @@ func TestSchoolTokenCannotSetTheKinderkontingent(t *testing.T) {
 			return nil, nil
 		},
 	})
-	schoolToken, err := routetest.TestTokenAuth(t).CreateJWT(routetest.Claims{
+	schoolToken, err := tokentest.CreateJWT(routetest.TestTokenAuth(t), routetest.Claims{
 		ID:    7,
 		Sub:   "school-admin",
 		Roles: []string{"admin"},
 	})
+
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()

@@ -318,30 +318,6 @@ function areOgsGroupsEqual(a: OGSGroup[], b: OGSGroup[]): boolean {
   });
 }
 
-function GroupAbsenceOverview({
-  totalStudents,
-  sickCount,
-  excusedCount,
-}: Readonly<{
-  totalStudents: number;
-  sickCount: number;
-  excusedCount: number;
-}>) {
-  return (
-    <section
-      className="mb-3 flex flex-wrap items-center gap-2 text-sm"
-      aria-label="Abwesenheiten heute"
-    >
-      <span className="border-moto-red/20 bg-moto-red/10 rounded-full border px-3 py-1 font-medium text-gray-900">
-        {sickCount}/{totalStudents} krank
-      </span>
-      <span className="border-moto-purple/20 bg-moto-purple/10 rounded-full border px-3 py-1 font-medium text-gray-900">
-        {excusedCount}/{totalStudents} entschuldigt
-      </span>
-    </section>
-  );
-}
-
 /**
  * Gruppenreiter für die Kopfkarte. Bis zu vier Gruppen stehen einzeln; ab der
  * fünften bleiben die ersten drei sichtbar und der Rest bündelt sich hinter
@@ -869,7 +845,6 @@ function OGSGroupPageContent() {
     ).length;
 
     return {
-      totalStudents: groupStudents.length,
       sickCount,
       excusedCount,
     };
@@ -1390,7 +1365,7 @@ function OGSGroupPageContent() {
     groupStats =
       currentGroup.student_count === undefined
         ? null
-        : `${currentGroup.present_count ?? 0} von ${currentGroup.student_count} da`;
+        : `${currentGroup.present_count ?? 0} von ${currentGroup.student_count} da · ${groupAbsenceOverview.sickCount} krank · ${groupAbsenceOverview.excusedCount} entschuldigt`;
   }
 
   return (
@@ -1544,14 +1519,6 @@ function OGSGroupPageContent() {
             />
           </div>
         )}
-
-        {currentGroup && !showSkeleton ? (
-          <GroupAbsenceOverview
-            totalStudents={groupAbsenceOverview.totalStudents}
-            sickCount={groupAbsenceOverview.sickCount}
-            excusedCount={groupAbsenceOverview.excusedCount}
-          />
-        ) : null}
 
         {/* Student Grid. Bottom padding reserves room for the mobile
             sticky bar / tablet floating FAB so the last row of cards

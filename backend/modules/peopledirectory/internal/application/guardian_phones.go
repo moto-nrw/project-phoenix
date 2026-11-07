@@ -18,24 +18,24 @@ func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID
 	// phone replace (delete-all + re-insert) — see UpdateGuardian. Without this a
 	// staff phone add could land between the parent's read-old-phones and its
 	// replace, then be wiped by the replace. Held for the request transaction.
-	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, guardianID); err != nil {
-		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
-	}
-	// Verify guardian exists
-	if _, err := s.GuardianProfileRepo.FindByID(ctx, guardianID); err != nil {
+	// Keep the full profile read, including its failures, under that same lock.
+	if _, err := s.GuardianProfileRepo.FindByIDForUpdate(ctx, guardianID); err != nil {
 		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
 	}
 
-	// Get current count to determine if this should be primary
-	count, err := s.GuardianPhoneNumberRepo.CountByGuardianID(ctx, guardianID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to count existing phone numbers: %w", err)
+	// A profile just created in this transaction has no phones. Only its
+	// first add may carry that fact; all other adds read under the same lock.
+	count, priority := 0, 1
+	created := req.CreatedGuardian
+	if !s.createdGuardianExists(ctx, guardianID, created) || len(created.PhoneNumbers) != 0 {
+		var err error
+		count, priority, err = s.GuardianPhoneNumberRepo.CountAndNextPriority(ctx, guardianID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to count existing phone numbers: %w", err)
+		}
 	}
 
-	phone, err := s.newGuardianPhone(ctx, guardianID, req, count)
-	if err != nil {
-		return nil, err
-	}
+	phone := s.newGuardianPhone(ctx, guardianID, req, count, priority)
 
 	if err := phone.Validate(); err != nil {
 		return nil, newGuardianValidationError(err)
@@ -58,13 +58,7 @@ func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID
 // newGuardianPhone builds the phone row AddPhoneNumber inserts: next
 // priority, a known phone type, and primary when it is the guardian's first
 // number or the request asks for it.
-func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest, count int) (*peopleValues.GuardianProfilePhoneSnapshot, error) {
-	// Get next priority
-	priority, err := s.GuardianPhoneNumberRepo.GetNextPriority(ctx, guardianID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get next priority: %w", err)
-	}
-
+func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest, count, priority int) *peopleValues.GuardianProfilePhoneSnapshot {
 	// Determine phone type
 	phoneType := string(req.PhoneType)
 	if !peopleValues.ValidPhoneType(phoneType) {
@@ -81,7 +75,7 @@ func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardian
 		Priority:  priority,
 	}
 	phone.SetTenantID(s.transactions.TenantID(ctx))
-	return phone, nil
+	return phone
 }
 
 // UpdatePhoneNumber updates an existing phone number

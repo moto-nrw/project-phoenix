@@ -9,6 +9,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -19,7 +20,7 @@ import (
 func noticePortal(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	deps := documentInboxDependencies(t, db)
+	deps := documentInboxDependencies(t, db, &owners.CareContractTestMails{})
 	notices, err := api.NewParentContractNoticesForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	deps.ContractNotices = notices

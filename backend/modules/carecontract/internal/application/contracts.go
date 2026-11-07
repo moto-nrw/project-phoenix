@@ -21,34 +21,39 @@ const maxSendBatch = 200
 // school whose contracts they showed, for that school's access log (ADR 0088
 // section 7, ADR 0084 section 7). No transaction holds both (ADR 0105).
 type Contracts struct {
-	store       Store
+	store       ContractStore
 	letterheads carecontract.Letterheads
 	renderer    LetterRenderer
 	post        carecontract.Post
 	clock       Clock
 	runtime     carecontract.Runtime
 	access      carecontract.SchoolAccessLog
+	ledger      carecontract.SignatureLedger
+	links       carecontract.SigningLinks
 	versions    carecontract.ContractVersions
 }
 
-// ContractPorts are the root-bound ports of the contracts.
+// ContractPorts are the root-bound ports of the contracts. Ledger and
+// Links serve the signature (#4679, contract_signature.go).
 type ContractPorts struct {
 	Letterheads carecontract.Letterheads
 	Post        carecontract.Post
 	Runtime     carecontract.Runtime
 	Access      carecontract.SchoolAccessLog
+	Ledger      carecontract.SignatureLedger
+	Links       carecontract.SigningLinks
 }
 
 var _ carecontract.Contracts = (*Contracts)(nil)
 
 // NewContracts builds the contracts of the Träger-Büro.
-func NewContracts(store Store, renderer LetterRenderer, ports ContractPorts, clock Clock, versions carecontract.ContractVersions) *Contracts {
+func NewContracts(store ContractStore, renderer LetterRenderer, ports ContractPorts, clock Clock, versions carecontract.ContractVersions) *Contracts {
 	if store == nil || renderer == nil || ports.Letterheads == nil || ports.Post == nil || ports.Runtime == nil || ports.Access == nil ||
-		versions == nil {
-		panic("care contract: the store, the renderer, the letterhead, the post, the runtime, the access log and the versions are required")
+		ports.Ledger == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil || versions == nil {
+		panic("care contract: the store, the renderer, the letterhead, the post, the runtime, the access log, the ledger, the link tokens and the versions are required")
 	}
 	return &Contracts{store: store, letterheads: ports.Letterheads, renderer: renderer, post: ports.Post, clock: clock,
-		runtime: ports.Runtime, access: ports.Access, versions: versions}
+		runtime: ports.Runtime, access: ports.Access, ledger: ports.Ledger, links: ports.Links, versions: versions}
 }
 
 // ListContracts lists the contracts of the filter, records the read in the
@@ -211,10 +216,11 @@ func (c *Contracts) detail(ctx context.Context, reviewer carecontract.Reviewer, 
 	if err != nil {
 		return carecontract.ContractDetail{}, err
 	}
-	return carecontract.ContractDetail{
+	detail := carecontract.ContractDetail{
 		ContractSummary: record.Summary, Version: current, Parties: record.Parties,
 		Mailings: mailings, DocumentFrozen: record.DocumentID != nil, Versions: versions,
-	}, nil
+	}
+	return detail, c.addSignature(ctx, reviewer.OrganizationID, record, &detail)
 }
 
 // versionToday is the version the billing takes for today (#4681, #4684),
@@ -404,13 +410,18 @@ func (c *Contracts) deliver(ctx context.Context, reviewer carecontract.Reviewer,
 	if err != nil {
 		return fmt.Errorf("care contract: letterhead: %w", err)
 	}
+	link, err := c.signingLinkFor(ctx, reviewer.OrganizationID, record, documentID)
+	if err != nil {
+		return err
+	}
 	outboxID, err := c.post.EnqueueContractMail(ctx, carecontract.ContractMail{
 		OrganizationID: reviewer.OrganizationID, ContractID: contractID, Recipient: party.Email,
 		GuardianName: fullName(party.FirstName, party.LastName), TraegerName: firstLine(textLines(head.SenderText)),
 		ChildName: fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
 		Modules:   joinGerman(ModuleNames(record.Version.Services)), Filename: file.Filename, PDF: file.Data,
 		IdempotencyKey: fmt.Sprintf("care-contract:%d:%d", contractID, previousSends+1),
-		Concluded:      record.Concluded != nil,
+		SigningURL:     link.url, LinkExpiresOn: link.expiresOn,
+		Concluded: record.Concluded != nil,
 	})
 	if err != nil {
 		return fmt.Errorf("care contract: enqueue mail: %w", err)

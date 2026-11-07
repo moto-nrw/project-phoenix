@@ -8,6 +8,8 @@
 // Datenquelle (`api`) und Rückmeldung (`notify`) mit, damit kein Portal die
 // Routen des anderen kennt.
 
+import { FieldLabel } from "~/components/ui/field-label";
+import { FramedList } from "~/components/ui/framed-list";
 import {
   useCallback,
   useEffect,
@@ -474,12 +476,9 @@ function ClassArrivalExceptionPanelBody({
           <FormErrorAlert message={formErrors.error} />
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label
-                htmlFor="class-arrival-exception-date"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
+              <FieldLabel htmlFor="class-arrival-exception-date">
                 Datum
-              </label>
+              </FieldLabel>
               <DatePicker
                 id="class-arrival-exception-date"
                 value={date}
@@ -553,7 +552,7 @@ function ClassArrivalExceptionPanelBody({
               description="Die Klasse kommt an jedem Tag zur Klassenzeit."
             />
           ) : (
-            <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+            <FramedList>
               {exceptions.map((exception) => {
                 const origin = originLabel(exception);
                 return (
@@ -593,7 +592,7 @@ function ClassArrivalExceptionPanelBody({
                   </li>
                 );
               })}
-            </ul>
+            </FramedList>
           )}
         </div>
       ) : null}

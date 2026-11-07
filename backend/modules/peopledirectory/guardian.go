@@ -100,6 +100,8 @@ type Guardian struct {
 	HasAccount             bool
 	AccountID              *int64
 	PhoneNumbers           []GuardianPhone
+	// ReusedExisting reports that an opt-in create returned an unchanged e-mail match.
+	ReusedExisting bool `json:"-"`
 	// EmailsStopped says the school decided this person gets no school mail.
 	EmailsStopped bool
 }
@@ -170,9 +172,12 @@ type GuardianMatch struct {
 }
 
 // GuardianDeleteImpact is the exact current blast radius of a full delete.
+// GuardianFound distinguishes a failed profile lookup from a later impact-read
+// failure so the HTTP adapter preserves its lookup and module error responses.
 type GuardianDeleteImpact struct {
-	LinkIDs      []int64
-	StudentNames []string
+	GuardianFound bool
+	LinkIDs       []int64
+	StudentNames  []string
 }
 
 // GuardianInput is the create payload and the fully merged update payload.
@@ -186,6 +191,8 @@ type GuardianInput struct {
 	PreferredContactMethod string
 	LanguagePreference     string
 	Notes                  *string
+	// ReuseExistingByEmail opts into import-style deduplication, not interactive creation.
+	ReuseExistingByEmail bool `json:"-"`
 }
 
 // GuardianDelete describes a confirmed delete. WithLinks removes every link
@@ -199,10 +206,14 @@ type GuardianDelete struct {
 }
 
 type GuardianPhoneInput struct {
-	PhoneNumber string
-	PhoneType   string
-	Label       *string
-	IsPrimary   bool
+	// CreatedGuardian is a successful new-profile create in this ambient
+	// transaction, with no intervening phone writes. Pass it only for the first
+	// phone; reused profiles and later phones must read the stored list facts.
+	CreatedGuardian *Guardian `json:"-"`
+	PhoneNumber     string
+	PhoneType       string
+	Label           *string
+	IsPrimary       bool
 }
 
 type GuardianPhoneUpdate struct {
@@ -215,6 +226,14 @@ type GuardianPhoneUpdate struct {
 
 // LinkGuardian attaches an existing guardian to a child.
 type LinkGuardian struct {
+	// CreatedStudent is the successful CreateEnrollmentStudent result from this
+	// same ambient transaction. Its insert protects existence until commit;
+	// existing children must retain the scalar existence check.
+	CreatedStudent *CreatedEnrollmentStudent `json:"-"`
+	// CreatedGuardian is the successful create result from this same ambient
+	// transaction. Only a newly inserted profile qualifies: its insert protects
+	// existence until commit. Reused profiles keep the scalar existence check.
+	CreatedGuardian    *Guardian `json:"-"`
 	StudentID          int64
 	GuardianProfileID  int64
 	RelationshipType   string

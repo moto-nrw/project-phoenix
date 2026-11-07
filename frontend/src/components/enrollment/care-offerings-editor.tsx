@@ -59,6 +59,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -987,8 +988,10 @@ export function CareOfferingsEditor({
               if (!open) cancelFocusMode();
             }}
           >
-            <SlideOverContent widthClass="sm:w-[760px]">
-              <SlideOverHeader>
+            <SlideOverContent size="lg">
+              <SlideOverHeader
+                close={<SlideOverCloseButton disabled={saving} />}
+              >
                 <SlideOverTitle>
                   {cloneSource
                     ? "Betreuungsangebot duplizieren"
@@ -1225,7 +1228,7 @@ function NoPhaseState() {
   const tenantPath = useTenantAwarePath();
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+    <SectionCard>
       <EmptyState
         icon={<ConceptIconTile concept={calendarPeriodsConcept} size="page" />}
         title="Erst eine Anmeldephase anlegen"
@@ -1245,19 +1248,19 @@ function NoPhaseState() {
           </ButtonLink>
         }
       />
-    </section>
+    </SectionCard>
   );
 }
 
 function EmptyCareOfferingState() {
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+    <SectionCard>
       <EmptyState
         icon={<ConceptIconTile concept={carePlanConcept} size="page" />}
         title="Noch kein Betreuungsangebot angelegt"
         description="Erstellen Sie das erste Angebot, das Eltern auswählen können. Typisch sind Regelbetreuung, Ferienbetreuung oder ein Angebot mit Mittagessen."
       />
-    </section>
+    </SectionCard>
   );
 }
 

@@ -33,6 +33,7 @@ export function SchoolShell({
       header={<Header />}
       sidebar={<SchoolSidebar teamChat={teamChat} notices={notices} />}
       bottomNav={<SchoolBottomNav teamChat={teamChat} notices={notices} />}
+      contentClassName="flex flex-1 flex-col"
     >
       <SchoolSettingsReturnPathMemory />
       {children}

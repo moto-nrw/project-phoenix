@@ -4,13 +4,18 @@
   "contract_not_draft": "The contract has already been sent. It can no longer be discarded.",
   "contract_not_endable": "Цей договір уже розірвано або відкликано чи ще не укладено. Будь ласка, оновіть сторінку.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
+  "contract_not_signable": "Цей договір уже підписано або він не очікує підпису. Будь ласка, оновіть сторінку.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
   "notice_end_not_open": "Для цього договору більше немає відкритої дати завершення. Будь ласка, оновіть сторінку.",
   "notice_template_missing": "Організація ще не має тексту підтвердження. Будь ласка, зверніться до організації.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
+  "paper_document_invalid": "Будь ласка, завантажте підписаний договір у форматі PDF. Розмір файлу не більше 10 МБ.",
   "recipient_missing": "У цього договору немає адреси електронної пошти. Без адреси підтвердження надіслати не можна.",
   "school_outside_traeger": "This school does not belong to your provider.",
+  "signature_invalid": "Підпис відсутній або порожній. Будь ласка, підпишіть ще раз.",
+  "signing_link_invalid": "Це посилання більше не дійсне. Його вже використано або термін дії минув. Договір є в застосунку для батьків у розділі «Документи». Або попросіть в організації нове посилання.",
   "special_termination_closed": "Цей договір не передбачає особливого розірвання. Будь ласка, оберіть звичайне розірвання.",
   "template_invalid": "Please check the marked fields.",
-  "withdrawal_closed": "Строк відмови від договору минув. Ви ще можете розірвати договір."
+  "withdrawal_closed": "Строк відмови від договору минув. Ви ще можете розірвати договір.",
+  "withdrawal_notice_required": "Будь ласка, підтвердьте, що ви прочитали інформацію про право відмови від договору."
 }

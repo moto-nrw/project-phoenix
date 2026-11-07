@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { PaperSignatureModal } from "~/components/traeger/care-contract-paper-modal";
 import type { CareContractDetail } from "~/lib/traeger-care-contracts-api";
 
 const { api, mockPush } = vi.hoisted(() => ({
@@ -10,6 +13,7 @@ const { api, mockPush } = vi.hoisted(() => ({
     sendCareContracts: vi.fn(),
     resendCareContract: vi.fn(),
     discardCareContract: vi.fn(),
+    recordPaperSignature: vi.fn(),
     downloadCareContractVersion: vi.fn(),
   },
   mockPush: vi.fn(),
@@ -104,6 +108,8 @@ const DRAFT: CareContractDetail = {
   ],
   mailings: [],
   documentFrozen: false,
+  signature: null,
+  reminders: [],
   versions: [],
 };
 
@@ -124,6 +130,125 @@ describe("TraegerVertragPage", () => {
       blob: new Blob(["%PDF"], { type: "application/pdf" }),
       filename: "betreuungsvertrag-7.pdf",
     });
+  });
+
+  it("does not ask for signatures on an acceptance-concluded contract", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "aktiv",
+      documentFrozen: true,
+      concluded: { method: "mit_anmeldung", at: "2026-09-01T08:00:00Z" },
+    });
+    renderPage();
+    expect(
+      await screen.findByText(
+        "Der Vertrag ist bereits mit der Annahme der Anmeldung abgeschlossen.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Eine weitere Unterschrift ist nicht nötig."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Papiervertrag erfassen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Dann erfassen Sie den/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Nach dem Senden können die Eltern online unterschreiben.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([true, false])(
+    "shows checksum integrity with the shared notice (intact=%s)",
+    async (intact) => {
+      api.fetchCareContract.mockResolvedValue({
+        ...DRAFT,
+        status: "aktiv",
+        documentFrozen: true,
+        signature: {
+          method: "drawn",
+          channel: "mail_link",
+          signerName: "Erika Muster",
+          signedAt: "2026-09-01T08:00:00Z",
+          signedOn: "2026-09-01",
+          documentSha256: "a".repeat(64),
+          earlyStartRequested: false,
+          withdrawalEndsOn: "2026-09-15",
+          imagePng: "",
+          paperFilename: "",
+          intact,
+        },
+      });
+      renderPage();
+      const checksum = await screen.findByText(
+        intact ? "Prüfsumme stimmt" : "Prüfsumme stimmt nicht",
+      );
+      expect(
+        checksum.closest(intact ? '[role="status"]' : '[role="alert"]'),
+      ).not.toBeNull();
+      expect(screen.getByText("a".repeat(64))).toBeInTheDocument();
+    },
+  );
+
+  it("does not allow paper signing dates before 2000", async () => {
+    setTestClock("2000-01-02T12:00:00+01:00");
+    render(
+      <ToastProvider>
+        <PaperSignatureModal
+          contract={DRAFT}
+          onClose={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByLabelText("Unterschrieben am"));
+    const previousMonth = await screen.findByRole("button", {
+      name: "Vorheriger Monat",
+    });
+    fireEvent.click(previousMonth);
+    expect(
+      await screen.findByRole("button", { name: /31. Dezember 1999/ }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Nächster Monat" }));
+    expect(
+      await screen.findByRole("button", { name: "Samstag, 1. Januar 2000" }),
+    ).toBeEnabled();
+  });
+
+  it("marks and focuses a refused paper signing date", async () => {
+    api.recordPaperSignature.mockRejectedValue(
+      new ApiError("invalid date", 400, {
+        code: "care_contract.template_invalid",
+        errors: [{ field: "signed_on", reason: "invalid" }],
+      }),
+    );
+    render(
+      <ToastProvider>
+        <PaperSignatureModal
+          contract={DRAFT}
+          onClose={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    fireEvent.change(screen.getByLabelText("PDF wählen"), {
+      target: {
+        files: [new File(["%PDF"], "vertrag.pdf", { type: "application/pdf" })],
+      },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Vertrag abschließen" }),
+    );
+    await waitFor(() => expect(api.recordPaperSignature).toHaveBeenCalled());
+    const field = screen.getByLabelText("Unterschrieben am");
+    await waitFor(() =>
+      expect(field).toHaveAttribute("data-form-invalid", "true"),
+    );
+    const errorId = field.getAttribute("aria-describedby");
+    expect(errorId).toBeTruthy();
+    expect(document.getElementById(errorId ?? "")).toHaveTextContent(/.+/);
+    await waitFor(() => expect(field).toHaveFocus());
   });
 
   it("shows what the draft holds", async () => {

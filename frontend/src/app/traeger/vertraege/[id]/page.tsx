@@ -29,6 +29,7 @@ import {
   plannedVersion,
 } from "~/components/traeger/care-contract-versions";
 import { formatEuro } from "~/components/traeger/contribution-format";
+import { CareContractSignatureCard } from "~/components/traeger/care-contract-signature-card";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -358,6 +359,7 @@ export default function TraegerVertragPage() {
               message={`Ab ${formatDate(planned.effectiveFrom)} gilt Version ${planned.number}. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.`}
             />
           ) : null}
+          <CareContractSignatureCard contract={contract} onChanged={load} />
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="flex flex-col gap-6 lg:col-span-2">
               <SectionCard
@@ -487,9 +489,11 @@ export default function TraegerVertragPage() {
               <SectionCard
                 title="Versand"
                 description={
-                  contract.mailings.length === 0
-                    ? "Noch nicht gesendet."
-                    : undefined
+                  contract.mailings.length > 0
+                    ? undefined
+                    : contract.signature?.method === "paper"
+                      ? "Auf Papier übergeben, nicht per Mail."
+                      : "Noch nicht gesendet."
                 }
               >
                 {contract.mailings.length > 0 ? (
@@ -689,6 +693,9 @@ function StatusNotice({
       />
     );
   }
+  // A signed contract shows its signature card; the mail no longer needs a
+  // notice unless it failed (#4679).
+  if (contract.signature && last?.state !== "failed") return null;
   const held = last ? contractHoldNotice(last) : null;
   if (held) {
     return <Alert type="warning" message={held} />;

@@ -2,6 +2,7 @@
 
 import { wireErrorCode } from "~/lib/api-error";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -178,12 +179,12 @@ export function SelectionBulkPickupModal({
               key={day.value}
               className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5"
             >
-              <label
+              <FieldLabel
                 htmlFor={`bulk-pickup-${day.value}`}
-                className="w-28 text-sm font-medium text-gray-700"
+                className="mb-0 w-28"
               >
                 {day.label}
-              </label>
+              </FieldLabel>
               <Input
                 id={`bulk-pickup-${day.value}`}
                 type="time"

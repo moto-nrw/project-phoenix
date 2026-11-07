@@ -272,7 +272,11 @@ func TestTenantExportMigratedSchema(t *testing.T) {
 	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
-	require.NoError(t, exporter.Export(context.Background(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: t.TempDir()}))
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	exportErr := exporter.Export(counter.Context(context.Background()), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: t.TempDir()})
+	counter.Stop()
+	t.Logf("tenant export error=%v SQL=%q", exportErr, counter.Queries())
+	require.NoError(t, exportErr)
 	manifest := readExportManifest(t, out)
 	assertExportArtifacts(t, out, manifest)
 	data, err := os.ReadFile(filepath.Join(out, "users.persons.jsonl"))
@@ -283,6 +287,14 @@ func TestTenantExportMigratedSchema(t *testing.T) {
 	require.NoError(t, err)
 	var model []organizationtenancy.ExportModelTable
 	require.NoError(t, json.Unmarshal(modelData, &model))
+	// The upstream export snapshot batches columns and relationships once
+	// across the catalogue, independent of the exported table count.
+	metadata := counter.Matching(func(query string) bool {
+		return strings.Contains(query, "information_schema.columns") || strings.Contains(query, "pg_catalog.pg_constraint")
+	})
+	t.Logf("tenant-export-metadata dispatches=%d models=%d", len(metadata), len(model))
+	require.NotEmpty(t, model)
+	require.Len(t, metadata, 2, "columns and relationships each have one catalogue-wide metadata read")
 	person := model[slices.IndexFunc(model, func(table organizationtenancy.ExportModelTable) bool { return table.Name == "users.persons" })]
 	require.Contains(t, person.Relationships, organizationtenancy.ExportRelationship{Column: "account_id", TargetTable: "auth.accounts", TargetColumn: "id"})
 }

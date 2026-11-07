@@ -14,12 +14,7 @@ import {
 } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { PasswordChangeModal } from "~/components/auth/password-change-modal";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import {
-  FormSkeleton,
-  PageHeaderSkeleton,
-  SkeletonRegion,
-} from "~/components/ui/page-skeletons";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   useApiFormError,
@@ -31,7 +26,6 @@ import { createLogger } from "~/lib/logger";
 import { sessionFetch } from "~/lib/session-cache";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
-import { settingsConcept } from "~/lib/concepts/settings";
 
 const logger = createLogger({ component: "OperatorSettingsPage" });
 
@@ -46,15 +40,11 @@ function isEmail(value: string | null | undefined): value is string {
 }
 
 const operatorSettingsLoadingFallback = (
-  <SkeletonRegion
-    label="Profileinstellungen werden geladen"
-    className="-mt-1.5 w-full"
-  >
-    <PageHeaderSkeleton search={false} />
-    <div className="mx-auto max-w-2xl px-4 pb-8 md:px-6">
-      <FormSkeleton fields={2} />
-    </div>
-  </SkeletonRegion>
+  <TenantPage
+    title="Profil"
+    loading
+    loadingLabel="Profileinstellungen werden geladen"
+  />
 );
 
 function OperatorSettingsContent() {
@@ -280,191 +270,191 @@ function OperatorSettingsContent() {
     !emailChangeLoading && !!emailChangeNewEmail && !!emailChangePassword;
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Profil" concept={settingsConcept} />
-
-      <div className="mx-auto max-w-2xl space-y-6 px-4 pb-8 md:px-6">
-        <div className="flex flex-col items-center pt-4">
-          <Avatar name={formData.displayName} size="xl" />
-        </div>
-
-        <LoadErrorAlert error={profileLoad.error} />
-
-        <SectionCard
-          title="Persönliche Daten"
-          actions={
-            isEditing ? undefined : (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => setIsEditing(true)}
-              >
-                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                Bearbeiten
-              </Button>
-            )
-          }
-        >
-          {isEditing ? (
-            <div ref={profileFormRef} className="space-y-4">
-              <FormErrorAlert message={profileErrors.error} />
-              <Input
-                id="settings-displayname"
-                label="Anzeigename"
-                name="display_name"
-                error={profileErrors.fieldError("display_name")}
-                type="text"
-                value={formData.displayName}
-                onChange={(e) =>
-                  setFormData({ ...formData, displayName: e.target.value })
-                }
-                maxLength={255}
-              />
-              <EditActions
-                onCancel={() => {
-                  setIsEditing(false);
-                  clearProfileError();
-                  resetFormFromProfile();
-                }}
-                onSave={() => void handleSaveProfile()}
-                saving={isSaving}
-              />
-            </div>
-          ) : (
-            <DataGrid>
-              <DataField label="Anzeigename" fullWidth>
-                {formData.displayName || "–"}
-              </DataField>
-            </DataGrid>
+    <TenantPage
+      title="Profil"
+      leading={<Avatar name={formData.displayName} size="lg" />}
+      overlays={
+        <>
+          {showPasswordModal && (
+            <PasswordChangeModal
+              isOpen={showPasswordModal}
+              onClose={handleClosePasswordModal}
+              apiEndpoint="/api/operator/profile/password"
+              errorPath={passwordErrors}
+              formRef={passwordFormRef}
+              onSuccess={() => {
+                handleClosePasswordModal();
+                toastSuccess("Passwort erfolgreich geändert", {
+                  duration: 3000,
+                });
+              }}
+            />
           )}
-        </SectionCard>
 
-        <SectionCard
-          title="E-Mail-Adresse"
-          description="Die neue Adresse gilt erst, nachdem Sie den Link in der Bestätigungs-E-Mail geöffnet haben."
-          actions={
+          <FormModal
+            isOpen={showEmailChangeDialog}
+            onClose={handleCloseEmailDialog}
+            title="E-Mail-Adresse ändern"
+            size="sm"
+            mobilePosition="center"
+            closeDisabled={emailChangeLoading}
+            error={emailChangeErrors.error}
+            footer={
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={handleCloseEmailDialog}
+                  disabled={emailChangeLoading}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  form="operator-email-change-form"
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  disabled={!emailChangeReady}
+                >
+                  {emailChangeLoading
+                    ? "Wird gesendet..."
+                    : "E-Mail-Änderung anfordern"}
+                </Button>
+              </>
+            }
+          >
+            <form
+              ref={emailFormRef}
+              id="operator-email-change-form"
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleEmailChange();
+              }}
+            >
+              <Input
+                id="operator-new-email"
+                label="Neue E-Mail-Adresse"
+                name="new_email"
+                error={emailChangeErrors.fieldError("new_email")}
+                type="email"
+                required
+                autoFocus
+                autoComplete="email"
+                pattern="[A-Za-z0-9._+%\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]+"
+                title="Bitte geben Sie eine gültige E-Mail-Adresse ein (z.B. name@beispiel.de)"
+                value={emailChangeNewEmail}
+                onChange={(e) => setEmailChangeNewEmail(e.target.value)}
+                placeholder="neue@email.de"
+              />
+              <Input
+                id="operator-current-password"
+                label="Aktuelles Passwort"
+                name="current_password"
+                error={emailChangeErrors.fieldError("current_password")}
+                type="password"
+                required
+                autoComplete="current-password"
+                value={emailChangePassword}
+                onChange={(e) => setEmailChangePassword(e.target.value)}
+              />
+            </form>
+          </FormModal>
+        </>
+      }
+    >
+      <LoadErrorAlert error={profileLoad.error} />
+
+      <SectionCard
+        title="Persönliche Daten"
+        actions={
+          isEditing ? undefined : (
             <Button
               type="button"
-              variant="outline"
-              size="md"
-              onClick={() => setShowEmailChangeDialog(true)}
+              variant="ghost"
+              size="compact"
+              onClick={() => setIsEditing(true)}
             >
-              E-Mail ändern
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+              Bearbeiten
             </Button>
-          }
-        >
-          <DataGrid>
-            <DataField label="E-Mail" fullWidth>
-              {formData.email || "–"}
-            </DataField>
-          </DataGrid>
-        </SectionCard>
-
-        <SectionCard
-          title="Passwort"
-          description="Aktualisieren Sie Ihr Passwort regelmäßig für zusätzliche Sicherheit."
-          actions={
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => setShowPasswordModal(true)}
-            >
-              Passwort ändern
-            </Button>
-          }
-        />
-
-        <PasskeySettingsSection scope="operator" />
-        <TrustedDevicesSection scope="operator" />
-      </div>
-
-      {showPasswordModal && (
-        <PasswordChangeModal
-          isOpen={showPasswordModal}
-          onClose={handleClosePasswordModal}
-          apiEndpoint="/api/operator/profile/password"
-          errorPath={passwordErrors}
-          formRef={passwordFormRef}
-          onSuccess={() => {
-            handleClosePasswordModal();
-            toastSuccess("Passwort erfolgreich geändert", { duration: 3000 });
-          }}
-        />
-      )}
-
-      <FormModal
-        isOpen={showEmailChangeDialog}
-        onClose={handleCloseEmailDialog}
-        title="E-Mail-Adresse ändern"
-        size="sm"
-        mobilePosition="center"
-        closeDisabled={emailChangeLoading}
-        error={emailChangeErrors.error}
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={handleCloseEmailDialog}
-              disabled={emailChangeLoading}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              form="operator-email-change-form"
-              type="submit"
-              variant="primary"
-              size="md"
-              disabled={!emailChangeReady}
-            >
-              {emailChangeLoading
-                ? "Wird gesendet..."
-                : "E-Mail-Änderung anfordern"}
-            </Button>
-          </>
+          )
         }
       >
-        <form
-          ref={emailFormRef}
-          id="operator-email-change-form"
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void handleEmailChange();
-          }}
-        >
-          <Input
-            id="operator-new-email"
-            label="Neue E-Mail-Adresse"
-            name="new_email"
-            error={emailChangeErrors.fieldError("new_email")}
-            type="email"
-            required
-            autoFocus
-            autoComplete="email"
-            pattern="[A-Za-z0-9._+%\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]+"
-            title="Bitte geben Sie eine gültige E-Mail-Adresse ein (z.B. name@beispiel.de)"
-            value={emailChangeNewEmail}
-            onChange={(e) => setEmailChangeNewEmail(e.target.value)}
-            placeholder="neue@email.de"
-          />
-          <Input
-            id="operator-current-password"
-            label="Aktuelles Passwort"
-            name="current_password"
-            error={emailChangeErrors.fieldError("current_password")}
-            type="password"
-            required
-            autoComplete="current-password"
-            value={emailChangePassword}
-            onChange={(e) => setEmailChangePassword(e.target.value)}
-          />
-        </form>
-      </FormModal>
-    </div>
+        {isEditing ? (
+          <div ref={profileFormRef} className="space-y-4">
+            <FormErrorAlert message={profileErrors.error} />
+            <Input
+              id="settings-displayname"
+              label="Anzeigename"
+              name="display_name"
+              error={profileErrors.fieldError("display_name")}
+              type="text"
+              value={formData.displayName}
+              onChange={(e) =>
+                setFormData({ ...formData, displayName: e.target.value })
+              }
+              maxLength={255}
+            />
+            <EditActions
+              onCancel={() => {
+                setIsEditing(false);
+                clearProfileError();
+                resetFormFromProfile();
+              }}
+              onSave={() => void handleSaveProfile()}
+              saving={isSaving}
+            />
+          </div>
+        ) : (
+          <DataGrid>
+            <DataField label="Anzeigename" fullWidth>
+              {formData.displayName || "–"}
+            </DataField>
+          </DataGrid>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="E-Mail-Adresse"
+        description="Die neue Adresse gilt erst, nachdem Sie den Link in der Bestätigungs-E-Mail geöffnet haben."
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => setShowEmailChangeDialog(true)}
+          >
+            E-Mail ändern
+          </Button>
+        }
+      >
+        <DataGrid>
+          <DataField label="E-Mail" fullWidth>
+            {formData.email || "–"}
+          </DataField>
+        </DataGrid>
+      </SectionCard>
+
+      <SectionCard
+        title="Passwort"
+        description="Aktualisieren Sie Ihr Passwort regelmäßig für zusätzliche Sicherheit."
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => setShowPasswordModal(true)}
+          >
+            Passwort ändern
+          </Button>
+        }
+      />
+
+      <PasskeySettingsSection scope="operator" />
+      <TrustedDevicesSection scope="operator" />
+    </TenantPage>
   );
 }
 

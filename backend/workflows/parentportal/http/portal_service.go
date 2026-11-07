@@ -61,6 +61,10 @@ type PortalService interface {
 	// terminate a contract sent to the account (#4682).
 	ContractNoticeOptions(ctx context.Context, accountID, organizationID, contractID int64) (parentService.ContractNoticeOptions, error)
 	DeclareContractNotice(ctx context.Context, accountID, organizationID, contractID int64, input parentService.ContractNoticeInput) (parentService.ContractNoticeOptions, error)
+	// ContractSigningView and SignContract read and sign a care contract
+	// of the inbox (#4679).
+	ContractSigningView(ctx context.Context, accountID, organizationID, contractID int64) (parentService.ContractSigningView, error)
+	SignContract(ctx context.Context, accountID, organizationID, contractID int64, input parentService.ContractSignatureInput) (parentService.ContractSigningView, error)
 	// ListSharedDocuments lists the documents a Träger released for the
 	// account (#4692); SharedDocumentFile reads one of them.
 	ListSharedDocuments(ctx context.Context, accountID int64) ([]parentService.SharedDocument, error)

@@ -135,7 +135,7 @@ func (n *Notices) DeclareNotice(ctx context.Context, reviewer carecontract.Revie
 			return err
 		}
 		options, err = n.declare(txCtx, declaration{
-			organizationID: reviewer.OrganizationID, accountID: reviewer.AccountID, channel: carecontract.ChannelOffice,
+			organizationID: reviewer.OrganizationID, accountID: reviewer.AccountID, channel: carecontract.NoticeChannelOffice,
 			contractID: contractID, input: input, traeger: firstLine(textLines(head.SenderText)),
 		})
 		return err
@@ -169,7 +169,7 @@ func (n *Notices) ParentDeclareNotice(ctx context.Context, organizationID, contr
 	input.ReceivedOn = n.today()
 	input.DispatchedOn = input.ReceivedOn
 	return n.declare(ctx, declaration{
-		organizationID: organizationID, accountID: reader.AccountID, channel: carecontract.ChannelParents,
+		organizationID: organizationID, accountID: reader.AccountID, channel: carecontract.NoticeChannelParents,
 		contractID: contractID, input: input, recipient: reader.Email, traeger: traeger,
 	})
 }

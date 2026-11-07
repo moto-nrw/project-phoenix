@@ -65,7 +65,7 @@ func confirmationText(template string, values confirmationValues) (string, error
 // day and time (§ 312k Abs. 4 BGB); a letter the Träger-Büro records has
 // only the day it arrived.
 func receipt(notice ports.NewNotice) string {
-	if notice.Channel != carecontract.ChannelParents {
+	if notice.Channel != carecontract.NoticeChannelParents {
 		return germanDate(notice.ReceivedOn)
 	}
 	return germanDate(calendar.DateFromTime(notice.DeclaredAt)) + " um " + *calendar.FormatBerlinClock(&notice.DeclaredAt) + " Uhr"

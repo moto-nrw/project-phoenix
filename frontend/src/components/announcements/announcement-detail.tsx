@@ -1,5 +1,7 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
+import { FramedList } from "~/components/ui/framed-list";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   BellRing,
@@ -164,11 +166,9 @@ export function RecipientList({
         />
       )}
       {filtered.length === 0 ? (
-        <p className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500">
-          Keine Treffer.
-        </p>
+        <EmptyState variant="compact" title="Keine Treffer." />
       ) : (
-        <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
+        <FramedList maxHeight="md">
           {filtered.map((rcpt) => (
             <li
               key={rcpt.account_id}
@@ -185,7 +185,7 @@ export function RecipientList({
               )}
             </li>
           ))}
-        </ul>
+        </FramedList>
       )}
     </div>
   );
@@ -355,7 +355,7 @@ function PollResultsPanel({
                   {onlyOpen ? "Alle anzeigen" : "Nur offene"}
                 </Button>
               </div>
-              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
+              <FramedList maxHeight="md">
                 {visibleChildren.map((child) => (
                   // Wraps: a child with 15 chosen slots lists them on the
                   // next line instead of pushing the name out of the row.
@@ -387,7 +387,7 @@ function PollResultsPanel({
                     )}
                   </li>
                 ))}
-              </ul>
+              </FramedList>
             </div>
           )}
 

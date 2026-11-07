@@ -20,6 +20,18 @@ const SENSITIVE_LOG_KEYS = new Set([
   "x_staff_id",
 ]);
 
+// Public signing links are credentials, including in escaped referrers.
+export const SIGNING_TOKEN_PATH_PATTERN = new RegExp(
+  `(${["/public/care-contract-signing/", "/vertrag-unterschreiben/"]
+    .map((path) =>
+      [...path]
+        .map((char) => `(?:${char}|%${char.charCodeAt(0).toString(16)})`)
+        .join(""),
+    )
+    .join("|")})[^/?#\\s"']+`,
+  "gi",
+);
+
 const SENSITIVE_PATH_SEGMENT_PATTERN =
   /((?:^|\/)(?:anmeldung\/status|enroll\/status|accept-guardian-invite|calendar-feed|request-feed|public\/calendar|public\/request-feed|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
 // The caterer's mailed invitation names its school, then the token (ADR 0077).
@@ -129,6 +141,7 @@ function isSafeTokenMetadata(key: string, value: unknown): boolean {
 /** Redact credentials embedded in URLs or already-serialized text. */
 export function redactSensitiveLogString(value: string): string {
   return value
+    .replace(SIGNING_TOKEN_PATH_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(SENSITIVE_PATH_SEGMENT_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(SENSITIVE_INVITATION_PATH_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(SENSITIVE_CATERER_INVITATION_PATTERN, `$1${REDACTED_LOG_VALUE}`)

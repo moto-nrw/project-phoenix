@@ -74,6 +74,7 @@ import {
 } from "~/components/parent/pickup-permission-fields";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -903,9 +904,9 @@ export function SickNoteModal({
               ]}
             />
           </label>
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-5 text-gray-600">
+          <InsetPanel as="p" framed className="text-sm leading-5 text-gray-600">
             {t(kindHint)}
-          </p>
+          </InsetPanel>
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-gray-700">
               {t("sick.periodLabel")}
@@ -1498,9 +1499,9 @@ export function PickupTimeModal({
           {t(departureModeEnabled ? "pickup.introWithMode" : "pickup.intro")}
         </p>
         {(!careExceptionsLoaded || !pickupChangeRequestsLoaded) && (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t("pickup.loadError")}
-          </p>
+          </InsetPanel>
         )}
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-gray-700">
@@ -1526,14 +1527,16 @@ export function PickupTimeModal({
           </p>
         )}
         {todayLocked && (
-          <p
+          <InsetPanel
+            as="p"
             role="status"
-            className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+            framed
+            className="text-sm text-gray-600"
           >
             {cutoffTime
               ? t("pickup.cutoffClosed", { time: cutoffTime })
               : t("pickup.cutoffClosedGeneric")}
-          </p>
+          </InsetPanel>
         )}
 
         {pending && (
@@ -1595,7 +1598,7 @@ export function PickupTimeModal({
           </div>
         )}
         {request?.status === "approved" && (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t(
               request.departure_mode
                 ? "pickup.statusApprovedChange"
@@ -1604,7 +1607,7 @@ export function PickupTimeModal({
             {request.pickup_person
               ? ` ${tPermission("pickupPerson.label")} ${request.pickup_person}`
               : ""}
-          </p>
+          </InsetPanel>
         )}
         {studentId && request?.signed && request.is_self !== false && (
           <PickupProofButton
@@ -1625,15 +1628,15 @@ export function PickupTimeModal({
 
         {(pending && !editing) || todayLocked ? null : alreadyHome &&
           childFirstName ? (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t("pickup.alreadyHome", { name: childFirstName })}
-          </p>
+          </InsetPanel>
         ) : staffOwned ? (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t("pickup.staffSet", {
-              pickup: existing?.pickup_time ?? "—",
+              pickup: existing?.pickup_time ?? "–",
             })}
-          </p>
+          </InsetPanel>
         ) : (
           <div className="space-y-4">
             {modeField && (
@@ -1667,9 +1670,9 @@ export function PickupTimeModal({
               </div>
             )}
             {departureModeEnabled && staffMode && (
-              <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+              <InsetPanel as="p" framed className="text-sm text-gray-600">
                 {t("pickup.modeStaffSet", { mode: modeLabel(staffMode) })}
-              </p>
+              </InsetPanel>
             )}
             {personField && (
               <div className="block">

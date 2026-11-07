@@ -1,0 +1,6 @@
+{
+  "scenario": "api.auth.roles.list",
+  "max": 4,
+  "exact": true,
+  "description": "GET /auth/roles/: complete protected resource request with real persisted role grants, signed JWT, tenant role/RLS and stores, at 0/3/8 additional custom roles; existing global system roles preserved. No DML. Serve-host routing/session liveness excluded."
+}

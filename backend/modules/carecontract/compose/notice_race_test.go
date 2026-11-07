@@ -65,7 +65,8 @@ func TestTerminationHoldsTheLockAndTheAmendmentAddsNoVersion(t *testing.T) {
 
 	runtime := holdingRuntime{held: make(chan struct{}), release: make(chan struct{})}
 	school := changedSchool{school: carecontract.School{ID: 0, Name: "OGS Am Lindenhof"}}
-	notices := compose.NewNotices(compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtime, Access: school},
+	notices := compose.NewNotices(compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtime, Access: school,
+		Ledger: ledgerDouble{}, Links: testSigningLinks()},
 		compose.NoticePorts{Templates: noticeTemplatesDouble{}, Post: &noticePostDouble{}})
 	terminated := make(chan error, 1)
 	go func() {

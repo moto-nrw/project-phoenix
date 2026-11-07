@@ -28,7 +28,7 @@ func (f noticeFixture) parentDeclare(input carecontract.NoticeInput) (carecontra
 		input.ReceivedOn = f.notices.today()
 		var err error
 		options, err = f.notices.declare(txCtx, declaration{organizationID: f.org, accountID: f.reviewer.AccountID,
-			channel: carecontract.ChannelParents, contractID: f.contract, input: input, recipient: "erika@example.org",
+			channel: carecontract.NoticeChannelParents, contractID: f.contract, input: input, recipient: "erika@example.org",
 			traeger: "Ganztag im Quartier e.V."})
 		return err
 	})

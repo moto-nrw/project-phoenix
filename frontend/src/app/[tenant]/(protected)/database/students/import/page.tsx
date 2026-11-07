@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { Download, Info, ListChecks, RefreshCw } from "lucide-react";
 import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
+import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
@@ -553,56 +555,33 @@ export default function StudentImportPage() {
 
       {/* Download Template Button */}
       <SectionCard title="Vorlage herunterladen" icon={Download}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <div className="flex-1">
-            <label
-              id="format-select-label"
-              htmlFor="format-select"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Format wählen
-            </label>
-            <CustomSelect
-              id="format-select"
-              ariaLabelledBy="format-select-label"
-              value={templateFormat}
-              options={[
-                { value: "csv", label: "CSV (Komma-getrennt)" },
-                { value: "xlsx", label: "Excel (.xlsx)" },
-              ]}
-              onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
-            />
-            <p className="mt-2 text-sm text-gray-500">
-              Beispiel Geburtstag:{" "}
-              <span className="font-medium">2015-08-15</span>,{" "}
-              <span className="font-medium">15.08.2015</span> oder{" "}
-              <span className="font-medium">15.08.15</span>
-            </p>
-          </div>
-          <div className="flex-1">
-            {/* Spacer matches the format-select label height so the button
-                aligns with the dropdown on the sm+ row layout. */}
-            {/* Non-breaking space keeps a reliable label-height line box
-                (a normal space would collapse) without duplicating the
-                "Format wählen" label text. */}
-            <span
-              aria-hidden="true"
-              className="mb-2 hidden text-sm font-medium text-gray-700 sm:block"
-            >
-              {"\u00A0"}
-            </span>
-            <Button
-              type="button"
-              variant="primary"
-              size="field"
-              onClick={() => void handleDownloadTemplate()}
-              className="w-full gap-2"
-            >
-              <Download className="h-5 w-5" aria-hidden="true" />
-              Vorlage herunterladen
-            </Button>
-          </div>
-        </div>
+        <FormRow>
+          <CustomSelect
+            id="format-select"
+            label="Format wählen"
+            value={templateFormat}
+            options={[
+              { value: "csv", label: "CSV (Komma-getrennt)" },
+              { value: "xlsx", label: "Excel (.xlsx)" },
+            ]}
+            onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
+          />
+          <Button
+            type="button"
+            variant="primary"
+            size="field"
+            onClick={() => void handleDownloadTemplate()}
+            className="gap-2"
+          >
+            <Download className="h-5 w-5" aria-hidden="true" />
+            Vorlage herunterladen
+          </Button>
+        </FormRow>
+        <p className="mt-3 text-sm text-gray-500">
+          Beispiel Geburtstag: <span className="font-medium">2015-08-15</span>,{" "}
+          <span className="font-medium">15.08.2015</span> oder{" "}
+          <span className="font-medium">15.08.15</span>
+        </p>
       </SectionCard>
 
       <SectionCard title="Was soll der Import tun?" icon={RefreshCw}>
@@ -674,11 +653,7 @@ export default function StudentImportPage() {
             </SectionCard>
           )}
 
-          {/* Spacer for sticky action bar */}
-          <div className="h-20" />
-
-          {/* Action Buttons */}
-          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
+          <StickyActionBar reserveSpace>
             <Button
               type="button"
               variant="outline"
@@ -706,7 +681,7 @@ export default function StudentImportPage() {
             >
               {isImporting ? "Wird importiert…" : importLabel}
             </Button>
-          </div>
+          </StickyActionBar>
         </>
       )}
     </TenantPage>

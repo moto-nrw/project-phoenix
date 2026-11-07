@@ -57,11 +57,6 @@
     },
     {
       "decision": "0090",
-      "id": "api/ClassDaySlotListSettings.TimetableEnabled",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "api/ClassDayWriteScope.SchoolMayWriteClassArrivalExceptions",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -429,11 +424,6 @@
       "decision": "0153",
       "id": "api/careContractModes.ConclusionMode",
       "reason": "ADR 0153 (#4680): Consumer-port adapter that resolves care_contract.conclusion_mode of the school through the settings and refuses any value the Betreuungsvertrag does not know."
-    },
-    {
-      "decision": "0090",
-      "id": "api/careContractPost.ContractMailStates",
-      "reason": "#5934: Consumer-port adapter of the contract's post; it names Delivery's outcome of each mail in the contract's words."
     },
     {
       "decision": "0090",
@@ -1449,6 +1439,21 @@
       "decision": "0090",
       "id": "roots/owners/CallerRows.TeacherRow",
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
+    },
+    {
+      "decision": "0090",
+      "id": "roots/owners/CareContractPost.ContractMailStates",
+      "reason": "#5934: Consumer-port adapter of the contract's post; it names Delivery's outcome of each mail in the contract's words."
+    },
+    {
+      "decision": "0155",
+      "id": "roots/owners/CareContractSender.TraegerLetterhead",
+      "reason": "ADR 0155 (#4679): Consumer-port adapter that reads the Träger's letterhead text through the Träger settings in the caller's Träger transaction; its first line names the Träger and the rest is the address of the withdrawal notice."
+    },
+    {
+      "decision": "0155",
+      "id": "roots/owners/CareContractSignatures.ContractSignatureProofs",
+      "reason": "ADR 0155 (#4679): Consumer-port adapter that reads the stored signatures of the Audit Platform at the Träger and translates them into the Betreuungsvertrag's proofs, intact only with the care contract purpose."
     },
     {
       "decision": "0090",
@@ -3096,6 +3101,16 @@
       "reason": "Consumer-port adapter (#4682): it picks the Träger setting of the confirmation template by the kind of the declaration and reads it at the Träger level; no environment value."
     },
     {
+      "decision": "0155",
+      "id": "roots/owners/careContractReminderSettings.SignatureReminderDays",
+      "reason": "ADR 0155 (#4679): Consumer-port adapter that reads the Träger's reminder days through the Träger settings and answers the one value."
+    },
+    {
+      "decision": "0155",
+      "id": "roots/owners/careContractTraeger.ActiveTraegerIDs",
+      "reason": "ADR 0155 (#4679): Consumer-port adapter that lists the Träger through Organisation \u0026 Tenancy and keeps only the active, undeleted ones for the reminder run."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/careEndRecorder.RecordCareEndChange",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -4479,6 +4494,16 @@
       "decision": "0159",
       "id": "roots/owners/parentContractDocuments.ContractDocumentFile",
       "reason": "Maps the parent-download file explicitly, keeping the owner-private withdrawal-notice marker out of the parent workflow result. Preserves relationship-bound inbox access and refusal translation (ADR 0159)."
+    },
+    {
+      "decision": "0155",
+      "id": "roots/owners/parentContractDocuments.ContractSigningView",
+      "reason": "ADR 0155 (#4679): Consumer-port adapter of the parents' inbox; it reads a contract to sign through the Betreuungsvertrag in the caller's Träger transaction, maps its errors to the workflow's and passes the view on as the workflow's document."
+    },
+    {
+      "decision": "0155",
+      "id": "roots/owners/parentContractDocuments.SignContract",
+      "reason": "ADR 0155 (#4679): Consumer-port adapter of the parents' inbox; it signs a contract through the Betreuungsvertrag in the caller's Träger transaction and maps its errors to the workflow's."
     },
     {
       "decision": "0153",

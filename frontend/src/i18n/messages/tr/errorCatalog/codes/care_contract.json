@@ -4,13 +4,18 @@
   "contract_not_draft": "The contract has already been sent. It can no longer be discarded.",
   "contract_not_endable": "Bu sözleşme zaten feshedildi veya geri alındı ya da henüz yapılmadı. Lütfen sayfayı yenileyin.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
+  "contract_not_signable": "Bu sözleşme zaten imzalandı veya imza beklemiyor. Lütfen sayfayı yenileyin.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
   "notice_end_not_open": "Bu sözleşmenin artık açık bir bitiş tarihi yok. Lütfen sayfayı yenileyin.",
   "notice_template_missing": "Kurumun henüz onay metni yok. Lütfen kurumla iletişime geçin.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
+  "paper_document_invalid": "Lütfen imzalı sözleşmeyi PDF olarak yükleyin. Dosya en fazla 10 MB olabilir.",
   "recipient_missing": "Bu sözleşmenin e-posta adresi yok. Adres olmadan onay gönderilemez.",
   "school_outside_traeger": "This school does not belong to your provider.",
+  "signature_invalid": "İmza eksik veya boş. Lütfen tekrar imzalayın.",
+  "signing_link_invalid": "Bu bağlantı artık geçerli değil. Daha önce kullanıldı veya süresi doldu. Sözleşmeyi veli uygulamasında „Belgeler“ altında bulabilirsiniz. Ya da kurumdan yeni bir bağlantı isteyin.",
   "special_termination_closed": "Bu sözleşmede özel fesih yok. Lütfen normal feshi seçin.",
   "template_invalid": "Please check the marked fields.",
-  "withdrawal_closed": "Cayma süresi doldu. Sözleşmeyi hâlâ feshedebilirsiniz."
+  "withdrawal_closed": "Cayma süresi doldu. Sözleşmeyi hâlâ feshedebilirsiniz.",
+  "withdrawal_notice_required": "Lütfen cayma hakkı bilgilendirmesini okuduğunuzu onaylayın."
 }

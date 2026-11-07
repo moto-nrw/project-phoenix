@@ -579,12 +579,11 @@ export function StudentCreateModal({
           if (!open) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[720px]" isBackdropDismissDisabled>
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>Neues Kind</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton aria-label="Fenster schließen" />
+        <SlideOverContent size="lg" isBackdropDismissDisabled>
+          <SlideOverHeader
+            close={<SlideOverCloseButton aria-label="Fenster schließen" />}
+          >
+            <SlideOverTitle>Neues Kind</SlideOverTitle>
           </SlideOverHeader>
           <form
             ref={formRef}
@@ -664,7 +663,6 @@ export function StudentCreateModal({
                           htmlFor="list-entry-first-name"
                           required
                           invalid={Boolean(errors.fieldError("first_name"))}
-                          className="mb-1 text-xs md:text-sm"
                         >
                           Vorname
                         </FieldLabel>
@@ -684,7 +682,6 @@ export function StudentCreateModal({
                           htmlFor="list-entry-last-name"
                           required
                           invalid={Boolean(errors.fieldError("last_name"))}
-                          className="mb-1 text-xs md:text-sm"
                         >
                           Nachname
                         </FieldLabel>
@@ -704,7 +701,6 @@ export function StudentCreateModal({
                           htmlFor="list-entry-school-class"
                           required
                           invalid={Boolean(errors.fieldError("school_class"))}
-                          className="mb-1 text-xs md:text-sm"
                         >
                           Klasse
                         </FieldLabel>
@@ -959,7 +955,7 @@ export function StudentCreateModal({
             </div>
 
             {/* Action Buttons */}
-            <SlideOverFooter className="flex-row gap-2 md:gap-3">
+            <SlideOverFooter className="md:gap-3">
               <Button
                 type="button"
                 variant="outline"

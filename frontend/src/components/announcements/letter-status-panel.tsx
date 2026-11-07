@@ -1,5 +1,6 @@
 "use client";
 
+import { FramedList } from "~/components/ui/framed-list";
 import {
   useCallback,
   useEffect,
@@ -422,11 +423,11 @@ export function LetterStatusPanel({
               : "Dieser Brief erreicht derzeit kein Kind."}
           </p>
         ) : (
-          <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+          <FramedList>
             {children.map((child) => (
               <ChildRow key={child.student_id} child={child} />
             ))}
-          </ul>
+          </FramedList>
         )}
       </section>
 
@@ -435,14 +436,14 @@ export function LetterStatusPanel({
         {status.recipients.length === 0 ? (
           <p className="text-sm text-gray-500">Noch keine Empfänger erfasst.</p>
         ) : (
-          <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+          <FramedList>
             {status.recipients.map((r, index) => (
               <RecipientRow
                 key={`${r.email ?? "ohne"}-${index}`}
                 recipient={r}
               />
             ))}
-          </ul>
+          </FramedList>
         )}
       </section>
     </div>

@@ -4,13 +4,18 @@
   "contract_not_draft": "The contract has already been sent. It can no longer be discarded.",
   "contract_not_endable": "Kjo kontratë është ndërprerë ose tërhequr tashmë, ose nuk është lidhur ende. Ju lutemi rifreskoni faqen.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
+  "contract_not_signable": "Kjo kontratë është nënshkruar tashmë ose nuk pret nënshkrim. Ju lutemi rifreskoni faqen.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
   "notice_end_not_open": "Kjo kontratë nuk ka më datë mbarimi të hapur. Ju lutemi rifreskoni faqen.",
   "notice_template_missing": "Ofruesi nuk ka ende tekst konfirmimi. Ju lutemi kontaktoni ofruesin.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
+  "paper_document_invalid": "Ju lutemi ngarkoni kontratën e nënshkruar si PDF. Skedari mund të jetë maksimumi 10 MB.",
   "recipient_missing": "Kjo kontratë nuk ka adresë e-maili. Pa adresë nuk mund të dërgohet konfirmim.",
   "school_outside_traeger": "This school does not belong to your provider.",
+  "signature_invalid": "Nënshkrimi mungon ose është bosh. Ju lutemi nënshkruani përsëri.",
+  "signing_link_invalid": "Ky link nuk është më i vlefshëm. Është përdorur tashmë ose ka skaduar. Kontratën e gjeni në aplikacionin për prindër te „Dokumente“. Ose kërkoni një link të ri nga ofruesi.",
   "special_termination_closed": "Kjo kontratë nuk parashikon ndërprerje të veçantë. Ju lutemi zgjidhni ndërprerjen e zakonshme.",
   "template_invalid": "Please check the marked fields.",
-  "withdrawal_closed": "Afati i tërheqjes ka mbaruar. Ju mund ta ndërprisni ende kontratën."
+  "withdrawal_closed": "Afati i tërheqjes ka mbaruar. Ju mund ta ndërprisni ende kontratën.",
+  "withdrawal_notice_required": "Ju lutemi konfirmoni që e keni lexuar udhëzimin për të drejtën e tërheqjes."
 }

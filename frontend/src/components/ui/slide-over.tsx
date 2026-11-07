@@ -31,6 +31,11 @@
  * </SlideOver>
  * ```
  *
+ * `SlideOverHeader` is a row: title and description on the left, the close X on
+ * the right. `SlideOverFooter` is a right-aligned row of actions. `size` on
+ * `SlideOverContent` picks the desktop width (`md`, `lg`, `xl`); without it the
+ * panel keeps its narrow 420 px.
+ *
  * `SlideOverBody` is the scrolling middle; its `error` prop is the fixed slot
  * for a form's validation or save error (BAUARTEN-SPEC, Bauart 2 Regel 5), so
  * no panel places that alert on its own.
@@ -85,14 +90,25 @@ function useSlideOverDirection(): {
 const SlideOverDirectionContext = React.createContext<"right" | "bottom">(
   "right",
 );
+const SlideOverDismissContext = React.createContext(false);
+
+type SlideOverProps = React.ComponentProps<typeof DrawerPrimitive.Root> & {
+  /**
+   * Sperrt alle Wege zum Schließen, während eine Mutation läuft. Das X zeigt
+   * den Zustand auch als deaktiviert an.
+   */
+  isDismissDisabled?: boolean;
+};
 
 const SlideOver = ({
   shouldScaleBackground = false,
   open: openProp,
   defaultOpen = false,
   onOpenChange,
+  isDismissDisabled = false,
+  dismissible = true,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
+}: SlideOverProps) => {
   const { direction: preferredDirection, isResolved } = useSlideOverDirection();
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
   const open = openProp ?? uncontrolledOpen;
@@ -121,25 +137,29 @@ const SlideOver = ({
 
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
+      if (!nextOpen && isDismissDisabled) return;
       setUncontrolledOpen(nextOpen);
       onOpenChange?.(nextOpen);
     },
-    [onOpenChange],
+    [isDismissDisabled, onOpenChange],
   );
 
   return (
     <SlideOverDirectionContext.Provider value={direction}>
-      <DrawerPrimitive.Root
-        // Vaul liest die Richtung beim Mount für Drag-Achse und Animation.
-        // Der Key baut die Instanz erst nach dem Schließen für einen inzwischen
-        // geänderten Breakpoint neu auf.
-        key={direction}
-        direction={direction}
-        shouldScaleBackground={shouldScaleBackground}
-        open={open}
-        onOpenChange={handleOpenChange}
-        {...props}
-      />
+      <SlideOverDismissContext.Provider value={isDismissDisabled}>
+        <DrawerPrimitive.Root
+          // Vaul liest die Richtung beim Mount für Drag-Achse und Animation.
+          // Der Key baut die Instanz erst nach dem Schließen für einen inzwischen
+          // geänderten Breakpoint neu auf.
+          key={direction}
+          direction={direction}
+          shouldScaleBackground={shouldScaleBackground}
+          open={open}
+          onOpenChange={handleOpenChange}
+          dismissible={dismissible && !isDismissDisabled}
+          {...props}
+        />
+      </SlideOverDismissContext.Provider>
     </SlideOverDirectionContext.Provider>
   );
 };
@@ -164,15 +184,26 @@ const SlideOverOverlay = React.forwardRef<
 ));
 SlideOverOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
-type SlideOverContentProps = React.ComponentPropsWithoutRef<
-  typeof DrawerPrimitive.Content
+/**
+ * Die Panelbreiten am Desktop. Ohne `size` bleibt es bei schmalen 420 px, wie
+ * im Stundenplan. Es gibt bewusst keine freie Breite: `ui-kit/no-arbitrary-
+ * slide-over-width` sperrt sie (#5602).
+ */
+const SLIDE_OVER_WIDTH = {
+  md: "sm:w-[640px]",
+  lg: "sm:w-[760px]",
+  xl: "sm:w-[860px]",
+} as const;
+
+type SlideOverContentProps = Omit<
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>,
+  "size"
 > & {
   /**
-   * Panel width on desktop. Default 420px matches the timetable mockup.
-   * Ignoriert, solange das Panel als Blatt von unten läuft (< sm) — dort ist
-   * es immer volle Breite.
+   * Panel width on desktop. Ignoriert, solange das Panel als Blatt von unten
+   * läuft (< sm) — dort ist es immer volle Breite.
    */
-  widthClass?: string;
+  size?: keyof typeof SLIDE_OVER_WIDTH;
   /**
    * Ein Klick neben das Panel schließt es nicht. Für Formulare, deren
    * Eingaben ein Fehlklick sonst verwirft (#3370). X, Abbrechen, Escape und
@@ -181,6 +212,12 @@ type SlideOverContentProps = React.ComponentPropsWithoutRef<
   isBackdropDismissDisabled?: boolean;
 };
 
+function isSlideOverWidth(
+  size: unknown,
+): size is keyof typeof SLIDE_OVER_WIDTH {
+  return typeof size === "string" && Object.hasOwn(SLIDE_OVER_WIDTH, size);
+}
+
 const SlideOverContent = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Content>,
   SlideOverContentProps
@@ -188,7 +225,7 @@ const SlideOverContent = React.forwardRef<
   (
     {
       className,
-      widthClass,
+      size,
       isBackdropDismissDisabled = false,
       onInteractOutside,
       children,
@@ -213,12 +250,16 @@ const SlideOverContent = React.forwardRef<
               : // `max-w-full` fängt den einen Frame vor dem matchMedia-Effect ab:
                 // ein per Deep-Link (?block=…) sofort offenes Panel würde sonst
                 // kurz mit 420px auf einem schmaleren Display stehen.
-                cn("top-0 right-0 h-full w-[420px] max-w-full", widthClass),
+                cn(
+                  "top-0 right-0 h-full w-[420px] max-w-full",
+                  isSlideOverWidth(size) ? SLIDE_OVER_WIDTH[size] : undefined,
+                ),
             className,
           )}
-          // Nicht `dismissible={false}` an der Wurzel: Vaul sperrt damit jedes
-          // Schließen, auch X und Escape. Radix schließt bei einem Außenklick
-          // nur, solange dieses Ereignis nicht abgewiesen wurde.
+          // `dismissible={false}` an der Wurzel wäre für einen reinen
+          // Hintergrundschutz zu breit: Es sperrt auch X und Escape. Radix
+          // schließt bei einem Außenklick nur, solange dieses Ereignis nicht
+          // abgewiesen wurde.
           onInteractOutside={
             isBackdropDismissDisabled
               ? (
@@ -249,17 +290,69 @@ const SlideOverContent = React.forwardRef<
 );
 SlideOverContent.displayName = "SlideOverContent";
 
+/**
+ * SlideOverCloseButton — the shared close (X) control for slide-over headers.
+ *
+ * The SlideOver primitive (Vaul) ships no styled close button. Like every
+ * overlay close X (#5531) it is the kit button `ghost` `icon` with
+ * `CloseIcon`, so Modal, FormModal and SlideOver close the same way. Renders
+ * the X by default; pass children to override, and aria-label to retitle it.
+ */
+const SlideOverCloseButton = React.forwardRef<
+  React.ComponentRef<typeof DrawerPrimitive.Close>,
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Close>
+>(({ className, children, disabled = false, ...props }, ref) => {
+  const isDismissDisabled = React.useContext(SlideOverDismissContext);
+
+  return (
+    <DrawerPrimitive.Close
+      ref={ref}
+      type="button"
+      aria-label="Schließen"
+      disabled={disabled || isDismissDisabled}
+      // Daran findet die Tour der ersten Schritte (#2832) das Schließen.
+      data-overlay-close=""
+      data-icon-only=""
+      className={buttonClassName({
+        variant: "ghost",
+        size: "icon",
+        className: cn("shrink-0", className),
+      })}
+      {...props}
+    >
+      {children ?? <CloseIcon />}
+    </DrawerPrimitive.Close>
+  );
+});
+SlideOverCloseButton.displayName = "SlideOverCloseButton";
+
+const DEFAULT_CLOSE = <SlideOverCloseButton />;
+
+type SlideOverHeaderProps = React.HTMLAttributes<HTMLDivElement> & {
+  /**
+   * The close control on the right. Defaults to `SlideOverCloseButton`; pass
+   * your own for an `aria-label` or `disabled`, `false` only where the panel
+   * must not be closed from here.
+   */
+  close?: React.ReactNode;
+};
+
 const SlideOverHeader = ({
   className,
+  close = DEFAULT_CLOSE,
+  children,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: SlideOverHeaderProps) => (
   <div
     className={cn(
-      "flex flex-col gap-1 border-b border-slate-200 px-5 py-4",
+      "flex flex-row items-start justify-between gap-3 border-b border-slate-200 px-5 py-4",
       className,
     )}
     {...props}
-  />
+  >
+    <div className="flex min-w-0 flex-1 flex-col gap-1">{children}</div>
+    {close}
+  </div>
 );
 SlideOverHeader.displayName = "SlideOverHeader";
 
@@ -297,7 +390,7 @@ const SlideOverFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4",
+      "flex flex-row flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4",
       className,
     )}
     {...props}
@@ -328,37 +421,6 @@ const SlideOverDescription = React.forwardRef<
   />
 ));
 SlideOverDescription.displayName = DrawerPrimitive.Description.displayName;
-
-/**
- * SlideOverCloseButton — the shared close (X) control for slide-over headers.
- *
- * The SlideOver primitive (Vaul) ships no styled close button. Like every
- * overlay close X (#5531) it is the kit button `ghost` `icon` with
- * `CloseIcon`, so Modal, FormModal and SlideOver close the same way. Renders
- * the X by default; pass children to override, and aria-label to retitle it.
- */
-const SlideOverCloseButton = React.forwardRef<
-  React.ComponentRef<typeof DrawerPrimitive.Close>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Close>
->(({ className, children, ...props }, ref) => (
-  <DrawerPrimitive.Close
-    ref={ref}
-    type="button"
-    aria-label="Schließen"
-    // Daran findet die Tour der ersten Schritte (#2832) das Schließen.
-    data-overlay-close=""
-    data-icon-only=""
-    className={buttonClassName({
-      variant: "ghost",
-      size: "icon",
-      className: cn("shrink-0", className),
-    })}
-    {...props}
-  >
-    {children ?? <CloseIcon />}
-  </DrawerPrimitive.Close>
-));
-SlideOverCloseButton.displayName = "SlideOverCloseButton";
 
 export {
   SlideOver,

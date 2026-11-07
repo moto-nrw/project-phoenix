@@ -146,6 +146,7 @@ var seedCoverageDebt = map[string]string{}
 var seedCoverageTransient = map[string]string{
 	"auth.account_avatar_file_cleanup": "transient deletion intents for anonymized accounts; drained hourly, never create orphan files as demo data",
 	"auth.invitation_tokens":           "short-lived invitation state; the seed accepts some and leaves some open",
+	"care_contract.contract_reminders": "reminders of an unsigned care contract (#4679) go out only once the Träger's reminder days passed since the last mail; the seed sends its contracts minutes before the check",
 	"platform.push_outbox":             "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
 	"platform.email_suppressions":      "addresses that bounced for good or complained (#5932); the local mail catcher never refuses an address",
 	"platform.email_delivery_events":   "events a mail provider reports after sending (#5932); the seed stack sends to the local mail catcher, which reports none",

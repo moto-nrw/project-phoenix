@@ -194,22 +194,13 @@ function SelectField({
   readonly onChange: (value: string) => void;
 }) {
   return (
-    <div>
-      <label
-        id={`${id}-label`}
-        htmlFor={id}
-        className="mb-2 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <CustomSelect
-        id={id}
-        ariaLabelledBy={`${id}-label`}
-        value={value}
-        onChange={onChange}
-        options={[...options]}
-      />
-    </div>
+    <CustomSelect
+      label={label}
+      id={id}
+      value={value}
+      onChange={onChange}
+      options={[...options]}
+    />
   );
 }
 
@@ -538,23 +529,17 @@ export function PersonnelNumberFields({
 }) {
   const valid = personnelNumberValid(draft.personnelNumber);
   return (
-    <div>
-      <Input
-        id="personnel-number"
-        label="Personalnummer"
-        controlSize="compact"
-        value={draft.personnelNumber}
-        onChange={(e) => onChange({ personnelNumber: e.target.value })}
-        placeholder="z. B. 1023"
-        inputMode="numeric"
-        error={valid ? undefined : "Nur Ziffern, höchstens 9 Stellen."}
-      />
-      <p className="mt-1 text-xs text-gray-500">
-        Nur Ziffern. Leer lassen, um die Nummer zu entfernen. Die Nummer muss
-        der Personalnummer im Lohnsystem entsprechen und ist pro Schule
-        eindeutig.
-      </p>
-    </div>
+    <Input
+      id="personnel-number"
+      label="Personalnummer"
+      controlSize="compact"
+      value={draft.personnelNumber}
+      onChange={(e) => onChange({ personnelNumber: e.target.value })}
+      placeholder="z. B. 1023"
+      inputMode="numeric"
+      error={valid ? undefined : "Nur Ziffern, höchstens 9 Stellen."}
+      hint="Nur Ziffern. Leer lassen, um die Nummer zu entfernen. Die Nummer muss der Personalnummer im Lohnsystem entsprechen und ist pro Schule eindeutig."
+    />
   );
 }
 

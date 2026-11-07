@@ -373,6 +373,19 @@ describe("small timetable components", () => {
     expect(screen.getByText("1/3")).toBeVisible();
   });
 
+  it("uses the shared status badge for full ratio pills", () => {
+    render(
+      <TimetableRatioPill
+        icon={<span />}
+        label="Besetzung"
+        value="1/3"
+        tone="warning"
+      />,
+    );
+
+    expect(screen.getByText("Besetzung 1/3")).toBeInTheDocument();
+  });
+
   it("labels dot ratio pills without an image role", () => {
     render(
       <TimetableRatioPill

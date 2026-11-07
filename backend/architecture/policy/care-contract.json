@@ -72,6 +72,18 @@
       "write_owner": "care-contract"
     },
     {
+      "name": "care_contract.contract_reminders",
+      "write_owner": "care-contract"
+    },
+    {
+      "name": "care_contract.contract_signatures",
+      "write_owner": "care-contract"
+    },
+    {
+      "name": "care_contract.contract_signing_links",
+      "write_owner": "care-contract"
+    },
+    {
       "name": "care_contract.contract_templates",
       "write_owner": "care-contract"
     },

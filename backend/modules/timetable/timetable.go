@@ -218,6 +218,7 @@ type ActivityGroupQuery interface {
 
 // TemplateRowQuery reads the template list, weekday roster and capacity rows.
 type TemplateRowQuery interface {
+	ListTemplateTargetInputs(context.Context, []int64) (TemplateTargetInputs, error)
 	ListTemplateRows(context.Context, *int64) ([]TemplateListRow, error)
 	ListTemplateRowsForTemplatePeriod(context.Context, int64, int64) ([]TemplateListRow, error)
 	ListTemplateRowsForPeriod(context.Context, *int64, *TemplateScheduleWindow) ([]TemplateListRow, error)

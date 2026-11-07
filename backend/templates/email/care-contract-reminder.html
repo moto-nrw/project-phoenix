@@ -1,0 +1,28 @@
+{{define "care-contract-reminder.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>Ihr Betreuungsvertrag wartet auf Ihre Unterschrift</h1>
+
+    <p>Guten Tag{{if .GuardianName}} {{.GuardianName}}{{end}},</p>
+
+    <p>wir haben Ihnen den Betreuungsvertrag{{if .ChildName}} für <strong>{{.ChildName}}</strong>{{end}}{{if .Modules}} mit der Betreuung <strong>{{.Modules}}</strong>{{end}} geschickt. Er ist noch nicht unterschrieben.</p>
+
+    <div class="highlight-box">
+        <p style="margin: 0; font-size: 14px;"><strong>Was müssen Sie tun?</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Lesen Sie den Vertrag und unterschreiben Sie ihn online. Stimmt etwas nicht? Dann melden Sie sich beim Träger.</p>
+    </div>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.SigningURL}}">Vertrag lesen und unterschreiben</a>
+    </div>
+
+    <p class="security-note">Der Link gilt einmal{{if .LinkExpiresOn}} und bis zum {{.LinkExpiresOn}}{{end}}. Geben Sie ihn nicht weiter. Haben Sie schon auf Papier unterschrieben? Dann müssen Sie nichts tun.</p>
+
+    <p>Haben Sie die moto Eltern-App? Dann finden Sie den Vertrag auch dort unter „Dokumente“.</p>
+
+    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

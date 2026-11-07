@@ -23,10 +23,12 @@ vi.mock("vaul", async () => {
         children,
         direction,
         onOpenChange,
+        dismissible,
       }: {
         children: React.ReactNode;
         direction?: string;
         onOpenChange?: (open: boolean) => void;
+        dismissible?: boolean;
       }) => {
         const interactOutsideHandler = React.useRef<
           ((event: Event) => void) | undefined
@@ -34,7 +36,7 @@ vi.mock("vaul", async () => {
         return (
           <OpenChangeContext.Provider value={onOpenChange}>
             <InteractOutsideContext.Provider value={interactOutsideHandler}>
-              <div data-direction={direction}>
+              <div data-direction={direction} data-dismissible={dismissible}>
                 {/* Vaul schließt selbst bei Escape und Klick auf den Hintergrund
                   und meldet das über onOpenChange. Das echte Vaul lässt sich in
                   jsdom nicht fahren, prüfbar ist aber das, was uns gehört: dass
@@ -110,6 +112,8 @@ import {
   SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
 } from "./slide-over";
 
 function StatefulContent() {
@@ -339,5 +343,73 @@ describe("SlideOver", () => {
       "hover:bg-gray-100",
     );
     expect(close.className).not.toContain("rounded-full");
+  });
+
+  it("puts the close X into the header by default", () => {
+    render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverHeader>
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Schließen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("disables every dismissal path while saving", () => {
+    const onOpenChange = vi.fn();
+
+    render(
+      <SlideOver open isDismissDisabled onOpenChange={onOpenChange}>
+        <SlideOverContent>
+          <SlideOverHeader>
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+
+    expect(screen.getByRole("button", { name: "Schließen" })).toBeDisabled();
+    expect(
+      screen.getByText("Titel").closest("[data-direction]"),
+    ).toHaveAttribute("data-dismissible", "false");
+    fireEvent.click(screen.getByTestId("vaul-dismiss"));
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("takes its own close control and can go without one", () => {
+    const { rerender } = render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverHeader
+            close={
+              <SlideOverCloseButton aria-label="Export schließen" disabled />
+            }
+          >
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Export schließen" }),
+    ).toBeDisabled();
+    rerender(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverHeader close={false}>
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    expect(
+      screen.queryByRole("button", { name: /schließen/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Titel")).toBeInTheDocument();
   });
 });

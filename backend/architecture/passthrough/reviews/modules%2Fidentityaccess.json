@@ -1314,16 +1314,6 @@
       "decision": "0090",
       "id": "modules/identityaccess/internal/domain/SchoolInvitation.Redeemable",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/sessiontoken/TokenAuth.CreateJWT",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/sessiontoken/TokenAuth.CreateRefreshJWT",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     }
   ]
 }

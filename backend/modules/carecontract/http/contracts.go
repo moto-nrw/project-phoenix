@@ -25,15 +25,16 @@ import (
 type Resource struct {
 	contracts       carecontract.Contracts
 	intake          carecontract.Intake
+	paper           carecontract.PaperSignatures
 	requireContract common.Middleware
 }
 
 // NewResource binds the routes to the owner and the right check.
-func NewResource(contracts carecontract.Contracts, intake carecontract.Intake, requireContract common.Middleware) *Resource {
-	if contracts == nil || intake == nil || requireContract == nil {
-		panic("care contract http: the contracts, the intake and the right check are required")
+func NewResource(contracts carecontract.Contracts, intake carecontract.Intake, paper carecontract.PaperSignatures, requireContract common.Middleware) *Resource {
+	if contracts == nil || intake == nil || paper == nil || requireContract == nil {
+		panic("care contract http: the contracts, the intake, the paper signature and the right check are required")
 	}
-	return &Resource{contracts: contracts, intake: intake, requireContract: requireContract}
+	return &Resource{contracts: contracts, intake: intake, paper: paper, requireContract: requireContract}
 }
 
 // ContractRouter returns the routes mounted at /traeger/contracts.
@@ -48,10 +49,13 @@ func (rs *Resource) ContractRouter(protectedTraegerRoutes func(chi.Router, func(
 		open.Get("/", rs.list)
 		open.Get("/{id}", rs.detail)
 		open.Get("/{id}/document", rs.document)
+		open.Get("/{id}/paper-signature", rs.paperDocument)
 		open.Get("/{id}/versions/{number}/document", rs.versionDocument)
 		inTx := r.With(rs.requireContract, withTx)
 		inTx.Post("/send", rs.send)
 		inTx.Delete("/{id}", rs.discard)
+		// The paper contract (#4679, signing.go).
+		inTx.Post("/{id}/paper-signature", rs.recordPaper)
 	})
 	return r
 }

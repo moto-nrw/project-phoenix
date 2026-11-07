@@ -199,6 +199,7 @@ type StudentArrivalScheduleRecords interface {
 }
 
 type StudentPickupExceptionRecords interface {
+	ListRows(context.Context, CareScheduleFilter) ([]*schedulerecords.StudentPickupException, error)
 	Create(context.Context, *schedulerecords.StudentPickupException) error
 	FindByID(context.Context, int64) (*schedulerecords.StudentPickupException, error)
 	Update(context.Context, *schedulerecords.StudentPickupException) error

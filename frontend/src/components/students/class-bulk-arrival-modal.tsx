@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -413,12 +414,12 @@ export function FilteredBulkArrivalModal({
                       invalid && "border-moto-red/30 bg-moto-red-soft",
                     )}
                   >
-                    <label
+                    <FieldLabel
                       htmlFor={`bulk-arrival-${day.value}`}
-                      className="min-w-0 text-sm font-medium text-gray-700"
+                      className="mb-0 min-w-0"
                     >
                       {day.label}
-                    </label>
+                    </FieldLabel>
                     <Input
                       id={`bulk-arrival-${day.value}`}
                       type="time"

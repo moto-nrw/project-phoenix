@@ -98,9 +98,11 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/credits"}:      notCaptured,
 	// The care contracts and their templates (#4678, ADR 0153) belong to
 	// the Träger, not to a school.
-	{http.MethodPost, "/traeger/contracts/"}:                                notCaptured,
-	{http.MethodPost, "/traeger/contracts/send"}:                            notCaptured,
-	{http.MethodDelete, "/traeger/contracts/{id}"}:                          notCaptured,
+	{http.MethodPost, "/traeger/contracts/"}:       notCaptured,
+	{http.MethodPost, "/traeger/contracts/send"}:   notCaptured,
+	{http.MethodDelete, "/traeger/contracts/{id}"}: notCaptured,
+	// The paper contract (#4679) is recorded by the office, no core action.
+	{http.MethodPost, "/traeger/contracts/{id}/paper-signature"}:            notCaptured,
 	{http.MethodPut, "/traeger/contract-templates/{schoolId}/{offeringId}"}: notCaptured,
 	// Withdrawal and termination (#4682): the Träger-Büro records a
 	// declaration it received and sets the end of an extraordinary

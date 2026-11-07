@@ -367,7 +367,7 @@ vi.mock("~/components/students/student-card", () => ({
       >
         {pickupTime && <>Abholzeit: {pickupTime} Uhr</>}
         {!pickupTime && isException && (notes || "Abwesend")}
-        {!pickupTime && !isException && <>Abholzeit: —</>}
+        {!pickupTime && !isException && <>Abholzeit: –</>}
         {notes && <span>({notes})</span>}
       </div>
     );
@@ -811,10 +811,11 @@ describe("OGSGroupPage", () => {
     render(<OGSGroupPage />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Abwesenheiten heute")).toBeInTheDocument();
+      // Die Zähler stehen in der Statuszeile, nicht in einer eigenen Zeile.
+      expect(
+        screen.getByText(/von 3 da · 1 krank · 1 entschuldigt$/),
+      ).toBeInTheDocument();
       expect(screen.queryByText("3 Kinder")).not.toBeInTheDocument();
-      expect(screen.getByText("1/3 krank")).toBeInTheDocument();
-      expect(screen.getByText("1/3 entschuldigt")).toBeInTheDocument();
     });
   });
 
@@ -2060,8 +2061,8 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(screen.getAllByTestId("student-card")).toHaveLength(3);
     });
 
-    // Always-show-pickup-time: fallback "Abholzeit: —" row is rendered
-    const fallbackRows = screen.getAllByText("Abholzeit: —");
+    // Always-show-pickup-time: fallback "Abholzeit: –" row is rendered
+    const fallbackRows = screen.getAllByText("Abholzeit: –");
     expect(fallbackRows).toHaveLength(3);
   });
 });

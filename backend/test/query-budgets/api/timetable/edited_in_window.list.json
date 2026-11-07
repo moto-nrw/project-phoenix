@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.edited_in_window.list",
+  "max": 20,
+  "exact": true,
+  "description": "Route-sized timetable router with signed test JWT and tenant transaction; excludes outer server/session liveness. Request for N3/N8 edited, template-backed occurrences."
+}

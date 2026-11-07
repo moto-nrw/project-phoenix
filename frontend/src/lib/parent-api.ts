@@ -2475,17 +2475,17 @@ export interface ParentDocument {
   readonly total_cents: number;
   readonly child_names: readonly string[];
   readonly sent_at: string;
+  /** The state of a care contract (#4679); absent for a letter. */
+  readonly contract_status?: string;
+  readonly can_sign?: boolean;
+  readonly signed_at?: string | null;
   /**
    * A care contract version that a change on its own first day replaced
    * (#4681): it holds on no day; the changed version holds from
    * `service_from`.
    */
   readonly replaced?: boolean;
-  /**
-   * The status of a care contract and the last day of a terminated one
-   * (#4682); absent for a letter.
-   */
-  readonly contract_status?: string;
+  /** The last day of a terminated care contract (#4682). */
   readonly ends_on?: string;
   /**
    * The account may withdraw or terminate this contract: its relationship

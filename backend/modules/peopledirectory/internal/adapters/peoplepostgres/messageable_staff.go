@@ -88,21 +88,21 @@ func (r *MessageableStaffRepository) resolveStaffAccounts(ctx context.Context) (
 //
 // It fails closed like resolveStaffAccounts: a graph without the owner
 // queries addresses nobody.
-func (r *MessageableStaffRepository) colleagueQuery(ctx context.Context, query *bun.SelectQuery) (*bun.SelectQuery, error) {
+func (r *MessageableStaffRepository) colleagueQuery(ctx context.Context, query *bun.SelectQuery) (*bun.SelectQuery, bool, error) {
 	if r.identity.ActiveSchoolAccounts == nil {
-		return nil, &ports.DatabaseError{Op: "resolve colleague relation", Err: errors.New("active school account lookup is required")}
+		return nil, false, &ports.DatabaseError{Op: "resolve colleague relation", Err: errors.New("active school account lookup is required")}
 	}
 	staffAccountIDs, err := r.resolveStaffAccounts(ctx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	activeAccountIDs, err := r.identity.ActiveSchoolAccounts(ctx, r.runtime.TenantID(ctx), staffAccountIDs)
 	if err != nil {
-		return nil, fmt.Errorf("resolve active staff accounts: %w", err)
+		return nil, false, fmt.Errorf("resolve active staff accounts: %w", err)
 	}
 	query = query.Where(`person.deleted_at IS NULL`).
 		Where(`person.tenant_id = ?`, r.runtime.TenantID(ctx))
-	return staffAccountFilter(query, activeAccountIDs), nil
+	return staffAccountFilter(query, activeAccountIDs), len(activeAccountIDs) == 0, nil
 }
 
 // staffAccountFilter narrows the colleague relation to the accounts of the
@@ -127,7 +127,7 @@ func (r *MessageableStaffRepository) ListMessageableStaff(ctx context.Context, v
 	if databaseErr1 != nil {
 		return *new([]*users.MessageableStaff), databaseErr1
 	}
-	query, err := r.colleagueQuery(ctx, ambientDB1.NewSelect().
+	query, empty, err := r.colleagueQuery(ctx, ambientDB1.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.persons AS "person"`).
 		ColumnExpr(`person.account_id AS account_id`).
@@ -138,7 +138,14 @@ func (r *MessageableStaffRepository) ListMessageableStaff(ctx context.Context, v
 		return nil, err
 	}
 
-	if err := query.Scan(ctx); err != nil {
+	// Resolve the database, scope and both owner lookups before skipping an
+	// empty hydration. Scan would still reject a cancelled request.
+	if empty {
+		err = ctx.Err()
+	} else {
+		err = query.Scan(ctx)
+	}
+	if err != nil {
 		return nil, &ports.DatabaseError{Op: "list messageable staff", Err: translateNotFound(err)}
 	}
 	return rows, nil
@@ -164,7 +171,7 @@ func (r *MessageableStaffRepository) IsMessageableStaff(ctx context.Context, acc
 	if databaseErr2 != nil {
 		return *new(bool), databaseErr2
 	}
-	query, err := r.colleagueQuery(ctx, ambientDB2.NewSelect().
+	query, _, err := r.colleagueQuery(ctx, ambientDB2.NewSelect().
 		TableExpr(`users.persons AS "person"`).
 		ColumnExpr(`1`).
 		Where(`person.account_id = ?`, accountID).

@@ -11,6 +11,8 @@ import { redirect } from "next/navigation";
 import { Download, Info, ListChecks } from "lucide-react";
 import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
+import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { SectionCard } from "~/components/ui/section-card";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -389,52 +391,33 @@ export default function ClassListImportPage() {
 
       {/* Download Template */}
       <SectionCard title="Vorlage herunterladen" icon={Download}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <div className="flex-1">
-            <label
-              id="format-select-label"
-              htmlFor="format-select"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Format wählen
-            </label>
-            <CustomSelect
-              id="format-select"
-              ariaLabelledBy="format-select-label"
-              value={templateFormat}
-              options={[
-                { value: "csv", label: "CSV (Komma-getrennt)" },
-                { value: "xlsx", label: "Excel (.xlsx)" },
-              ]}
-              onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
-            />
-            <p className="mt-2 text-sm text-gray-500">
-              Spalten: <span className="font-medium">Vorname</span>,{" "}
-              <span className="font-medium">Nachname</span>,{" "}
-              <span className="font-medium">Klasse</span>
-            </p>
-          </div>
-          <div className="flex-1">
-            {/* Spacer matches the format-select label height so the button
-                aligns with the dropdown on the sm+ row layout. */}
-            <span
-              aria-hidden="true"
-              className="mb-2 hidden text-sm font-medium text-gray-700 sm:block"
-            >
-              {"\u00A0"}
-            </span>
-            <Button
-              type="button"
-              variant="primary"
-              size="field"
-              onClick={() => void handleDownloadTemplate()}
-              className="w-full gap-2"
-            >
-              <Download className="h-5 w-5" aria-hidden="true" />
-              Vorlage herunterladen
-            </Button>
-          </div>
-        </div>
+        <FormRow>
+          <CustomSelect
+            id="format-select"
+            label="Format wählen"
+            value={templateFormat}
+            options={[
+              { value: "csv", label: "CSV (Komma-getrennt)" },
+              { value: "xlsx", label: "Excel (.xlsx)" },
+            ]}
+            onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
+          />
+          <Button
+            type="button"
+            variant="primary"
+            size="field"
+            onClick={() => void handleDownloadTemplate()}
+            className="gap-2"
+          >
+            <Download className="h-5 w-5" aria-hidden="true" />
+            Vorlage herunterladen
+          </Button>
+        </FormRow>
+        <p className="mt-3 text-sm text-gray-500">
+          Spalten: <span className="font-medium">Vorname</span>,{" "}
+          <span className="font-medium">Nachname</span>,{" "}
+          <span className="font-medium">Klasse</span>
+        </p>
       </SectionCard>
 
       {/* Upload Section */}
@@ -475,11 +458,7 @@ export default function ClassListImportPage() {
             </SectionCard>
           )}
 
-          {/* Spacer for sticky action bar */}
-          <div className="h-20" />
-
-          {/* Action Buttons */}
-          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
+          <StickyActionBar reserveSpace>
             <Button
               type="button"
               variant="outline"
@@ -503,7 +482,7 @@ export default function ClassListImportPage() {
                   ? "Erneut versuchen"
                   : `${stats.new} Einträge importieren`}
             </Button>
-          </div>
+          </StickyActionBar>
         </>
       )}
     </TenantPage>

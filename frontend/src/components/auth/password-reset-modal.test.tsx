@@ -64,6 +64,7 @@ vi.mock("~/components/ui/input", () => ({
     onChange,
     disabled,
     controlSize,
+    label,
     ...props
   }: {
     id: string;
@@ -78,15 +79,18 @@ vi.mock("~/components/ui/input", () => ({
     label?: string;
     controlSize?: "default" | "compact";
   }) => (
-    <input
-      id={id}
-      data-testid={`input-${id}`}
-      data-control-size={controlSize}
-      value={value}
-      onChange={onChange}
-      disabled={disabled}
-      {...props}
-    />
+    <>
+      {label ? <label htmlFor={id}>{label}</label> : null}
+      <input
+        id={id}
+        data-testid={`input-${id}`}
+        data-control-size={controlSize}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        {...props}
+      />
+    </>
   ),
 }));
 

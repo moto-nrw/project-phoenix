@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import type { DateRange } from "react-day-picker";
@@ -368,11 +369,14 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
           }
         >
           {!hasTimeTrendData || dailyTrendData.length < 2 ? (
-            <p className="py-10 text-center text-sm text-gray-400">
-              {hasTimeTrendData
-                ? "Noch zu wenige Werktage erfasst — sobald ein zweiter Tag dazukommt, erscheint der Vergleich."
-                : "Noch keine Daten — sobald die erste Arbeitszeit erfasst ist, erscheint der Vergleich."}
-            </p>
+            <EmptyState
+              variant="dashed"
+              title={
+                hasTimeTrendData
+                  ? "Noch zu wenige Werktage erfasst — sobald ein zweiter Tag dazukommt, erscheint der Vergleich."
+                  : "Noch keine Daten — sobald die erste Arbeitszeit erfasst ist, erscheint der Vergleich."
+              }
+            />
           ) : (
             <DailyTrendChart config={dailyConfig} data={dailyTrendData} />
           )}
@@ -393,11 +397,14 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
           }
         >
           {!hasBalanceTrendData || weeklyTrendData.length < 2 ? (
-            <p className="py-10 text-center text-sm text-gray-400">
-              {hasBalanceTrendData
-                ? "Noch zu wenige Wochen für einen Verlauf — sobald eine zweite Woche dazukommt, erscheint der Saldo."
-                : "Noch keine Daten — der Saldo erscheint, sobald die erste Woche erfasst ist."}
-            </p>
+            <EmptyState
+              variant="dashed"
+              title={
+                hasBalanceTrendData
+                  ? "Noch zu wenige Wochen für einen Verlauf — sobald eine zweite Woche dazukommt, erscheint der Saldo."
+                  : "Noch keine Daten — der Saldo erscheint, sobald die erste Woche erfasst ist."
+              }
+            />
           ) : (
             <BalanceTrendChart config={trendConfig} data={weeklyTrendData} />
           )}
@@ -419,9 +426,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
         }
       >
         {distributionTotal === 0 ? (
-          <p className="py-10 text-center text-sm text-gray-400">
-            Noch keine Tage erfasst.
-          </p>
+          <EmptyState variant="dashed" title="Noch keine Tage erfasst." />
         ) : (
           <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-2">
             <DistributionChart
