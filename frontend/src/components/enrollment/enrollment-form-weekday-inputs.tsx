@@ -5,11 +5,9 @@
 
 import { useEffect, useId, useState } from "react";
 
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Radio } from "~/components/ui/radio";
@@ -27,6 +25,7 @@ import {
   type CustomFieldInputProps,
   type DepartureModeValue,
 } from "./enrollment-form-shared";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 // Single-mode legacy departure field (target student.departure). The
 // accompanied mode is intentionally NOT offered here: it requires the coupled
@@ -62,20 +61,13 @@ export function WeekdayScheduleInput({
   // input. Empty list = free entry (the historical behaviour).
   const allowedTimes = field.allowed_times ?? [];
   return (
-    <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
-      aria-invalid={error ? "true" : undefined}
-      aria-describedby={error ? errorId : undefined}
+    <FormFieldset
+      legend={field.label}
+      required={field.required}
+      hint={field.help_text}
+      error={error}
+      errorId={errorId}
     >
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        {field.label}
-        {field.required && <RequiredMark />}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
       {daysToRender.length === 0 ? (
         <p className="mt-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
           {tr("structured.weekdayMultiModeNoDays")}
@@ -156,8 +148,7 @@ export function WeekdayScheduleInput({
           </div>
         </>
       )}
-      <FieldErrorHint id={errorId} message={error} />
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -173,20 +164,13 @@ export function WeekdayBooleanInput({
   const days = asWeekdayBooleanObject(value);
   const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
   return (
-    <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
-      aria-invalid={error ? "true" : undefined}
-      aria-describedby={error ? errorId : undefined}
+    <FormFieldset
+      legend={field.label}
+      required={field.required}
+      hint={field.help_text}
+      error={error}
+      errorId={errorId}
     >
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        {field.label}
-        {field.required && <RequiredMark />}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
       <p className="text-xs text-gray-500">
         {field.target === "student.pickup_status"
           ? tr("structured.pickupDaysHelp")
@@ -210,8 +194,7 @@ export function WeekdayBooleanInput({
           );
         })}
       </div>
-      <FieldErrorHint id={errorId} message={error} />
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -232,20 +215,13 @@ export function WeekdayModeInput({
     return m === "bus" || m === "pickup" || m === "accompanied" ? m : "alone";
   };
   return (
-    <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
-      aria-invalid={error ? "true" : undefined}
-      aria-describedby={error ? errorId : undefined}
+    <FormFieldset
+      legend={field.label}
+      required={field.required}
+      hint={field.help_text}
+      error={error}
+      errorId={errorId}
     >
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        {field.label}
-        {field.required && <RequiredMark />}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
       <p className="text-xs text-gray-500">
         {tr("structured.departureModeHelp")}
       </p>
@@ -277,8 +253,7 @@ export function WeekdayModeInput({
           );
         })}
       </div>
-      <FieldErrorHint id={errorId} message={error} />
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -442,20 +417,13 @@ export function WeekdayMultiModeInput({
     ? uniformSelection.includes("accompanied")
     : daysToRender.some((day) => (modes[day] ?? []).includes("accompanied"));
   return (
-    <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
-      aria-invalid={error ? "true" : undefined}
-      aria-describedby={error ? errorId : undefined}
+    <FormFieldset
+      legend={field.label}
+      required={field.required}
+      hint={field.help_text}
+      error={error}
+      errorId={errorId}
     >
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        {field.label}
-        {field.required && <RequiredMark />}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
       <p className="text-xs text-gray-500">
         {tr(
           singleMode
@@ -475,19 +443,13 @@ export function WeekdayMultiModeInput({
       <div className="mt-3">
         {daysToRender.length > 0 ? (
           <>
-            <label
-              className={`flex cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
-                uniform
-                  ? "border-gray-900 text-gray-900"
-                  : "border-gray-200 text-gray-700 hover:border-gray-300"
-              }`}
-            >
+            <ChoiceTile selected={uniform} className="gap-2 py-2 text-xs">
               <Checkbox
                 checked={uniform}
                 onChange={(e) => toggleUniform(e.target.checked)}
               />
               <span>{tr("structured.weekdayMultiModeUniform")}</span>
-            </label>
+            </ChoiceTile>
             {uniform ? (
               <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3">
                 <p className="mb-2 text-xs text-gray-500">
@@ -497,13 +459,10 @@ export function WeekdayMultiModeInput({
                   {modeOptions.map((mode) => {
                     const checked = uniformSelection.includes(mode);
                     return (
-                      <label
+                      <ChoiceTile
                         key={mode}
-                        className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
-                          checked
-                            ? "border-gray-900 text-gray-900"
-                            : "border-gray-200 text-gray-700 hover:border-gray-300"
-                        }`}
+                        selected={checked}
+                        className="min-h-10 gap-2 py-2 text-xs"
                       >
                         {singleMode ? (
                           // Heimweg-Beschränkung (#2381): a real radio group,
@@ -520,7 +479,7 @@ export function WeekdayMultiModeInput({
                           />
                         )}
                         <span>{departureModeLabels[mode] ?? mode}</span>
-                      </label>
+                      </ChoiceTile>
                     );
                   })}
                 </div>
@@ -552,13 +511,10 @@ export function WeekdayMultiModeInput({
                         {modeOptions.map((mode) => {
                           const checked = modes[day]?.includes(mode) ?? false;
                           return (
-                            <label
+                            <ChoiceTile
                               key={mode}
-                              className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
-                                checked
-                                  ? "border-gray-900 text-gray-900"
-                                  : "border-gray-200 text-gray-700 hover:border-gray-300"
-                              }`}
+                              selected={checked}
+                              className="min-h-10 gap-2 py-2 text-xs"
                             >
                               {singleMode ? (
                                 <Radio
@@ -573,7 +529,7 @@ export function WeekdayMultiModeInput({
                                 />
                               )}
                               <span>{departureModeLabels[mode] ?? mode}</span>
-                            </label>
+                            </ChoiceTile>
                           );
                         })}
                       </div>
@@ -604,7 +560,6 @@ export function WeekdayMultiModeInput({
           </div>
         )}
       </div>
-      <FieldErrorHint id={errorId} message={error} />
       <ConfirmationModal
         isOpen={confirmUniformOpen}
         onClose={() => setConfirmUniformOpen(false)}
@@ -619,6 +574,6 @@ export function WeekdayMultiModeInput({
       >
         {tr("structured.weekdayMultiModeUniformConfirmBody")}
       </ConfirmationModal>
-    </fieldset>
+    </FormFieldset>
   );
 }

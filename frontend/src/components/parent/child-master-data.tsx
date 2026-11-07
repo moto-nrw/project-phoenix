@@ -68,6 +68,7 @@ import { childrenConcept } from "~/lib/concepts/children";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -903,13 +904,11 @@ function DepartureSection({
             className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
           >
             {DEPARTURE_DAYS.map((day, dayIndex) => (
-              <fieldset
+              <FormFieldset
                 key={day}
-                className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
+                legend={t(`departureDays.${day}`)}
+                className="bg-gray-50/70 p-3"
               >
-                <legend className="px-1 text-sm font-semibold text-gray-900">
-                  {t(`departureDays.${day}`)}
-                </legend>
                 <div className="mt-1 space-y-1">
                   {DEPARTURE_REQUEST_MODES.map((mode, modeIndex) => (
                     <label
@@ -933,7 +932,7 @@ function DepartureSection({
                     </label>
                   ))}
                 </div>
-              </fieldset>
+              </FormFieldset>
             ))}
           </div>
           <RequestSharingSelector
