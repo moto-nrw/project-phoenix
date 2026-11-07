@@ -17,7 +17,7 @@ type parentAnnouncementServiceStub struct {
 	err error
 }
 
-func (s parentAnnouncementServiceStub) Get(context.Context, int64) (*StaffParentAnnouncement, error) {
+func (s parentAnnouncementServiceStub) Get(context.Context, int64, ...communication.ParentAnnouncementRead) (*StaffParentAnnouncement, error) {
 	return s.row, s.err
 }
 
