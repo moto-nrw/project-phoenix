@@ -57,7 +57,7 @@ export function EntityStatusLine({
   );
 }
 
-/** Kennzahlen einer Träger- oder Schulseite, erste Fläche unter dem Kopf. */
+/** Kennzahlen einer Träger- oder Schulseite, unter dem Inhalt ihrer Reiter. */
 export function EntityStats({
   stats,
   createdAt,

@@ -346,6 +346,20 @@ describe("OperatorSchoolDetailPage", () => {
     expect(tabs.closest("header")).not.toBeNull();
   });
 
+  it("keeps the tab content directly below the tabs, figures after it", async () => {
+    setupSWR();
+
+    await renderPage();
+
+    const tabAction = await screen.findByRole("button", {
+      name: "Konto erstellen",
+    });
+    expect(
+      tabAction.compareDocumentPosition(screen.getByText("Kontingentzahl")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("shows 'Schule nicht gefunden' when slug does not match", async () => {
     setupSWR({ schools: [{ ...mockSchool, slug: "other-school" }] });
 

@@ -801,8 +801,6 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         </>
       }
     >
-      <EntityStats stats={headerStats} createdAt={school.createdAt} />
-
       <LoadErrorAlert error={headLoadError} />
       <LoadErrorAlert error={pwaUsageLoadError} />
 
@@ -872,6 +870,8 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           )}
         </>
       ) : null}
+
+      <EntityStats stats={headerStats} createdAt={school.createdAt} />
     </TenantPage>
   );
 }

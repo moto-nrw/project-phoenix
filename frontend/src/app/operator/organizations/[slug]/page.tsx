@@ -842,17 +842,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         </>
       }
     >
-      <EntityStats stats={headerStats} createdAt={organization.createdAt} />
-
       <LoadErrorAlert error={organizationsLoadError} />
-
-      {organization.testSystem ? (
-        <TestTraegerSection
-          organizationId={organization.id}
-          organizationActive={organization.active}
-          onChanged={refreshOrganizationDrillIn}
-        />
-      ) : null}
 
       {tabActions ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -998,6 +988,16 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         <TraegerErasureOrderSection
           organizationId={organization.id}
           organizationActive={organization.active}
+        />
+      ) : null}
+
+      <EntityStats stats={headerStats} createdAt={organization.createdAt} />
+
+      {organization.testSystem ? (
+        <TestTraegerSection
+          organizationId={organization.id}
+          organizationActive={organization.active}
+          onChanged={refreshOrganizationDrillIn}
         />
       ) : null}
     </TenantPage>

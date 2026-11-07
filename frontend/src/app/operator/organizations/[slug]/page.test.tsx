@@ -421,6 +421,20 @@ describe("OperatorOrganizationDetailPage", () => {
     expect(tabs.closest("header")).not.toBeNull();
   });
 
+  it("keeps the tab content directly below the tabs, figures after it", async () => {
+    setupSWR();
+
+    await renderPage();
+
+    const tabAction = await screen.findByRole("button", {
+      name: "Neue Schule",
+    });
+    expect(
+      tabAction.compareDocumentPosition(screen.getByText("Seit")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("renders empty state when no schools", async () => {
     setupSWR({ schools: [] });
 
