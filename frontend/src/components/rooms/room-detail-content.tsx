@@ -15,7 +15,7 @@ import { BuildingsIcon, StackSimpleIcon, TagIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type { FormError, FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { ListSkeleton } from "~/components/ui/page-skeletons";
+import { HistorySkeleton, ListSkeleton } from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
@@ -479,7 +479,7 @@ export function RoomDetailSkeleton() {
       </SectionCard>
 
       <SectionCard title="Belegungshistorie">
-        <ListSkeleton rows={2} avatar={false} />
+        <HistorySkeleton />
       </SectionCard>
     </output>
   );

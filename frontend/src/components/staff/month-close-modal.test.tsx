@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
@@ -53,6 +53,31 @@ function renderModal(onSubmit: (reason: string) => Promise<void>) {
 }
 
 describe("MonthCloseReasonModal", () => {
+  beforeEach(() => {
+    success.mockClear();
+  });
+
+  it("disables submitting so a close action cannot be sent twice", async () => {
+    let resolveSubmit: (() => void) | undefined;
+    const onSubmit = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSubmit = resolve;
+        }),
+    );
+    const onClose = renderModal(onSubmit);
+
+    const submitButton = screen.getByRole("button", {
+      name: "Bitte warten…",
+    });
+    expect(submitButton).toBeDisabled();
+    fireEvent.click(submitButton);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+
+    resolveSubmit?.();
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
   it("keeps a refused action in the dialog with the catalog text", async () => {
     const onClose = renderModal(() =>
       Promise.reject(

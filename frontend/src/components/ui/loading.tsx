@@ -4,17 +4,20 @@
 
 "use client";
 
+import { cn } from "~/lib/utils";
 import { Z_LAYER } from "./overlay-styles";
 import { SpinnerIcon } from "~/components/ui/icons";
 
 interface LoadingProps {
   readonly message?: string;
   readonly fullPage?: boolean;
+  readonly className?: string;
 }
 
 export function Loading({
   message = "Lädt...",
   fullPage = true,
+  className,
 }: LoadingProps) {
   const containerClasses = fullPage
     ? `fixed inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm ${Z_LAYER.sheet}`
@@ -22,7 +25,7 @@ export function Loading({
 
   return (
     <output
-      className={containerClasses}
+      className={cn(containerClasses, className)}
       aria-label={message}
       aria-live="polite"
       aria-busy="true"

@@ -92,7 +92,7 @@ export function MonthCloseReasonModal({
             variant={destructive ? "danger" : "primary"}
             size="md"
             onClick={handleSubmit}
-            disabled={!canSubmit}
+            disabled={submitting || !canSubmit}
             isLoading={submitting}
             loadingText="Bitte warten…"
           >

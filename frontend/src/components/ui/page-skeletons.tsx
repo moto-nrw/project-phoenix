@@ -237,6 +237,42 @@ export function ListSkeleton({
 }
 
 /**
+ * Gruppierte Verlaufskarten: Datum, Titel mit Dauer, zwei Fakten und eine
+ * Zeitzeile. Entspricht einer Historie mit einzelnen Inhaltskarten, nicht
+ * einer durchgehenden Liste.
+ */
+export function HistorySkeleton() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <Skeleton className="mb-3 h-5 w-32" />
+        <div className="space-y-3">
+          {Array.from({ length: 2 }, (_, index) => (
+            <div
+              key={index}
+              className="moto-content-surface rounded-xl border p-4"
+            >
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <Skeleton className={index === 0 ? "h-5 w-40" : "h-5 w-32"} />
+                <Skeleton className="h-3 w-12" />
+              </div>
+              <div className="space-y-1">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <div className="mt-3 flex justify-between border-t border-gray-100 pt-3">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Full generic list page: header + table. The right default when a page's
  * loaded state is a PageHeaderWithSearch over a DataTable.
  */

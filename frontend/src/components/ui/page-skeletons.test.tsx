@@ -2,7 +2,11 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { PageHeaderSkeleton } from "./page-header/PageHeaderSkeleton";
-import { SkeletonRegion, TenantPageHeaderSkeleton } from "./page-skeletons";
+import {
+  HistorySkeleton,
+  SkeletonRegion,
+  TenantPageHeaderSkeleton,
+} from "./page-skeletons";
 
 describe("SkeletonRegion", () => {
   it("shows its loading shape immediately without an invisible transition", () => {
@@ -68,5 +72,16 @@ describe("PageHeaderSkeleton", () => {
     expect(wrapper).toHaveClass("mb-6", "md:hidden");
     expect(wrapper?.childElementCount).toBe(1);
     expect(title).toHaveClass("h-8");
+  });
+});
+
+describe("HistorySkeleton", () => {
+  it("mirrors a grouped history with separate detail cards", () => {
+    const { container } = render(<HistorySkeleton />);
+
+    expect(
+      container.querySelectorAll(".moto-content-surface.rounded-xl"),
+    ).toHaveLength(2);
+    expect(container.querySelectorAll(".border-t")).toHaveLength(2);
   });
 });

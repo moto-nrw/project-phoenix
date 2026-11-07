@@ -673,5 +673,13 @@ describe("RoomDetailSkeleton", () => {
     expect(
       screen.getByRole("status", { name: "Raumdetails werden geladen" }),
     ).toBeInTheDocument();
+    const history = screen
+      .getByRole("heading", { name: "Belegungshistorie" })
+      .closest("section");
+    expect(history).not.toBeNull();
+    expect(
+      history?.querySelectorAll(".moto-content-surface.rounded-xl"),
+    ).toHaveLength(2);
+    expect(history?.querySelectorAll(".border-t")).toHaveLength(2);
   });
 });

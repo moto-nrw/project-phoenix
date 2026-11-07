@@ -40,6 +40,14 @@ describe("Loading", () => {
     expect(output.className).toContain("min-h-40");
   });
 
+  it("allows an inline loading region to preserve its layout height", () => {
+    render(<Loading fullPage={false} className="h-full min-h-[240px]" />);
+
+    const output = screen.getByLabelText("Lädt...");
+    expect(output).toHaveClass("h-full", "min-h-[240px]");
+    expect(output).not.toHaveClass("min-h-40");
+  });
+
   it("uses a neutral progress indicator when the future layout is unknown", () => {
     const { container } = render(<Loading />);
 
