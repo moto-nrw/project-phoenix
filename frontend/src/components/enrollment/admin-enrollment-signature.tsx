@@ -76,7 +76,7 @@ export function AdminEnrollmentSignature({
       }
     >
       {signature.image_png ? (
-        <InsetPanel>
+        <InsetPanel padding="compact">
           {/* A stored PNG as data URL; next/image cannot optimise it. */}
           <Image
             src={`data:image/png;base64,${signature.image_png}`}

@@ -2419,6 +2419,7 @@ export function EnrollmentForm({
                             ) : (
                               <InsetPanel
                                 framed
+                                padding="compact"
                                 tone={
                                   groupDayConflicts(bucket.group).length > 0
                                     ? "danger"
