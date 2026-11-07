@@ -45,6 +45,7 @@ import {
 } from "~/lib/survey-editor";
 import type { SurveyAudience } from "~/lib/surveys-api";
 import { SURVEY_MIN_RESPONSES } from "./survey-questionnaire";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const AUDIENCE_ITEMS: readonly SegmentedControlItem<SurveyAudience>[] = [
   { value: "parents", label: "Eltern" },
@@ -393,9 +394,9 @@ function QuestionEditor({
 
       {choice && (
         <div>
-          <span className="mb-1.5 block text-sm font-medium text-gray-700">
+          <SectionLabel as="p" className="mb-1.5">
             Antworten
-          </span>
+          </SectionLabel>
           <ul className="space-y-2">
             {question.options.map((option, optionIndex) => (
               // Antworten haben vor dem Speichern keine ID; die Liste ist kurz

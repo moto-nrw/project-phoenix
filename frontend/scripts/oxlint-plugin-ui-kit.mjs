@@ -6,12 +6,9 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import {
-  fieldLabelAllowlist,
-  fieldLabelBaseline,
-} from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
+import { uppercaseLabelBaseline } from "./ui-kit-uppercase-label-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -76,6 +73,9 @@ import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 //                                     Tailwind never generates them
 //   ui-kit/no-white-on-warm-fill    — no white text on orange (SCHOOLYARD) or
 //                                     amber (WARNING) fills
+//
+// ui-kit/no-uppercase-label (#5590, shrink-only baseline): no `uppercase
+// tracking-*` class chain outside the kit; group headings use SectionLabel.
 //
 // ui-kit/no-hand-rolled-empty-state (#5597, hard-zero): a dashed, centered box
 // outside ui/ is a hand-built placeholder; use EmptyState variant="dashed".
@@ -2181,7 +2181,7 @@ function makeRatchetRule({
         EXEMPT_FILE_RE.test(key) ||
         key.endsWith(kitFile) ||
         (exemptDir !== null && key.startsWith(exemptDir)) ||
-        exemptFiles.includes(key) ||
+        exemptFiles.some((prefix) => key.startsWith(prefix)) ||
         (onlySrc && !key.startsWith("src/")) ||
         key.includes("src/test/")
       ) {
@@ -3347,7 +3347,8 @@ const noHandRolledStickyBar = {
 // font-medium/font-semibold, ein `<span>` dieser Art mit `block` und `mb-*` über
 // dem Feld, oder als erstes Kind oder mit `block` in einem `<label>`. Kein Fund: Zeilen
 // (Checkbox plus Text), `sr-only`, ein `<label>` in Knopfoptik (Datei wählen).
-// Start mit shrink-only Baseline je Datei, Abbau je Bereich in Sub-Issues.
+// Hard-zero seit #5590: die letzten Funde waren Gruppenköpfe und sind jetzt
+// `SectionLabel`.
 const FIELD_LABEL_SIZE = new Set(["text-xs", "text-sm"]);
 const FIELD_LABEL_WEIGHT = new Set(["font-medium", "font-semibold"]);
 const FIELD_LABEL_ROW_RE = /^(?:inline-)?(?:flex|grid)$/;
@@ -3376,9 +3377,8 @@ const noHandRolledFieldLabel = makeRatchetRule({
     "Build field labels from FieldLabel or the label prop instead of styling a label or span by hand.",
   message:
     "Keine eigene Feldbeschriftung: `label`-Prop von Input, Textarea oder CustomSelect, sonst FieldLabel aus ~/components/ui/field-label. Immer normal geschrieben, nie in Versalien (#5589, .claude/rules/frontend-ui-kit.md).",
-  baselines: fieldLabelBaseline,
-  allowlist: fieldLabelAllowlist,
-  countEnv: "UI_KIT_FIELD_LABEL_RATCHET",
+  baselines: {},
+  allowlist: [],
   kitFile: "src/components/ui/field-label.tsx",
   detect: ({ classText: textOf, found }) => ({
     JSXOpeningElement(node) {
@@ -3875,6 +3875,145 @@ const noHandRolledListRow = makeRatchetRule({
   kitFile: "src/components/ui/list-row.tsx",
   exemptDir: UI_KIT_DIR,
   detect: (tools) => classNameVisitor(tools, isHandRolledListRowClass),
+});
+
+// ui-kit/no-uppercase-label (#5590) — Gruppenköpfe und Zwischenüberschriften
+// stehen normal geschrieben über `SectionLabel` (Epic #5576, Entscheidung 2).
+// Fund: eine Klassenkette mit `uppercase` und `tracking-*` außerhalb des Kits,
+// im `className` eines Elements (auch über Ternär-Zweige und `cn(…)`) oder in
+// einer anderen Zeichenkette, etwa einer Konstante. Ausnahmen laut Epic: `/start`
+// und die NFC-Druckanleitung; der Kicker des Elternportals kommt über das Kit
+// (`SectionCard kicker`). Start mit shrink-only Baseline je Datei, Abbau je
+// Bereich in Sub-Issues.
+const UPPERCASE_LABEL_EXEMPT_FILES = [
+  "src/app/start/page.tsx",
+  "src/app/help/nfc/",
+];
+
+function isUppercaseLabelText(text) {
+  const utilities = classUtilities(text);
+  return (
+    utilities.includes("uppercase") &&
+    utilities.some((token) => token.startsWith("tracking-"))
+  );
+}
+
+// A complete static chain is reported by the Literal/TemplateLiteral visitor.
+// Recognise it through the same shallow constant lookup as classText() so the
+// className visitor can report split cn(...) arguments without double-counting
+// a direct `const label = "uppercase tracking-wide"` reference.
+function containsStaticUppercaseLabelText(
+  node,
+  constants,
+  seen = new WeakSet(),
+  depth = 0,
+) {
+  if (!node || typeof node !== "object" || seen.has(node)) return false;
+  seen.add(node);
+
+  if (node.type === "Literal") {
+    return typeof node.value === "string" && isUppercaseLabelText(node.value);
+  }
+  if (node.type === "TemplateLiteral") {
+    return isUppercaseLabelText(
+      node.quasis.map((quasi) => quasi.value.raw).join(" "),
+    );
+  }
+  if (node.type === "Identifier" && depth < 2) {
+    const init = constants.get(node.name);
+    return init
+      ? containsStaticUppercaseLabelText(init, constants, seen, depth + 1)
+      : false;
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent" || key === "loc" || key === "range") continue;
+    if (Array.isArray(value)) {
+      if (
+        value.some((child) =>
+          containsStaticUppercaseLabelText(child, constants, seen, depth),
+        )
+      ) {
+        return true;
+      }
+    } else if (
+      containsStaticUppercaseLabelText(value, constants, seen, depth)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function classNameUsesStaticUppercaseLabelConstant(value, constants) {
+  let expression = value;
+  while (
+    expression?.type === "JSXExpressionContainer" ||
+    expression?.type === "ChainExpression" ||
+    expression?.type === "TSAsExpression" ||
+    expression?.type === "TSTypeAssertion" ||
+    expression?.type === "TypeCastExpression"
+  ) {
+    expression = expression.expression;
+  }
+  return (
+    expression?.type === "Identifier" &&
+    containsStaticUppercaseLabelText(expression, constants)
+  );
+}
+
+function isClassNameAttribute(node) {
+  return (
+    node?.type === "JSXAttribute" &&
+    node.name?.type === "JSXIdentifier" &&
+    /(?:^c|C)lassName$/.test(node.name.name)
+  );
+}
+
+function insideClassNameAttribute(node) {
+  for (let current = node.parent; current; current = current.parent) {
+    if (isClassNameAttribute(current)) return true;
+    if (current.type === "JSXElement" || current.type === "Program") break;
+  }
+  return false;
+}
+
+const noUppercaseLabel = makeRatchetRule({
+  ruleName: "no-uppercase-label",
+  description:
+    "Group headings come from SectionLabel; no `uppercase tracking-*` class chain outside the UI kit.",
+  message:
+    "Keine Versalien-Überschrift: Gruppenkopf oder Zwischenüberschrift über `SectionLabel` (`as`, `required`) aus ~/components/ui/section-label, Gruppenkopf einer Liste über `ListGroupHeader`, Mini-Tag über `StatusBadge size=\"xs\"`, Tabellenkopf über `DataTable` (#5590, .claude/rules/frontend-ui-kit.md).",
+  baselines: uppercaseLabelBaseline,
+  allowlist: [],
+  countEnv: "UI_KIT_UPPERCASE_LABEL_RATCHET",
+  kitFile: "src/components/ui/section-label.tsx",
+  exemptDir: UI_KIT_DIR,
+  exemptFiles: UPPERCASE_LABEL_EXEMPT_FILES,
+  onlySrc: true,
+  detect: ({ classText: textOf, constants, found }) => {
+    const check = (node, text) => {
+      if (insideClassNameAttribute(node)) return;
+      if (isUppercaseLabelText(text)) found(node);
+    };
+    return {
+      JSXAttribute(node) {
+        if (!isClassNameAttribute(node) || !node.value) return;
+        if (
+          isUppercaseLabelText(textOf(node.value)) &&
+          !classNameUsesStaticUppercaseLabelConstant(node.value, constants)
+        ) {
+          found(node);
+        }
+      },
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        check(node, node.quasis.map((quasi) => quasi.value.raw).join(" "));
+      },
+    };
+  },
 });
 
 // ui-kit/no-hand-rolled-inset (#5592) — die graue Innenfläche kommt aus
@@ -4814,6 +4953,7 @@ export default {
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-inset": noHandRolledInset,
     "no-hand-rolled-field-label": noHandRolledFieldLabel,
+    "no-uppercase-label": noUppercaseLabel,
     "no-hand-rolled-fieldset": noHandRolledFieldset,
     "no-hand-rolled-choice-tile": noHandRolledChoiceTile,
     "no-hand-rolled-toggle-control": noHandRolledToggleControl,
