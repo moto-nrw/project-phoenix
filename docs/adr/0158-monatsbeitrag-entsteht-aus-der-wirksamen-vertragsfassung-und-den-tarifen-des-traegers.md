@@ -120,11 +120,16 @@ zweite (`heldView`).
 - **E4 Ganzes Kind.** Hat ein Kind im Monat ein Duplikat, hält der Lauf das
   ganze Kind für diesen Monat zurück, mit allen seinen Verträgen. Die
   Freigabe stellt die Rechnungen der übrigen Kinder aus und speichert die
-  zurückgehaltenen Verträge am Lauf (`held_contract_ids`).
+  zurückgehaltenen Kinder als Momentaufnahme (`parent_billing.care_run_holds`:
+  Name, Verträge mit Schule, doppelt abgerechnete Module und Wochentage,
+  Grund).
 - **E5 Momentaufnahme.** Ein freigegebener Lauf zeigt ausschließlich die bei
   der Freigabe gespeicherten Daten: seine ausgestellten Rechnungen und die
-  Verträge aus `held_contract_ids`, je Kind gruppiert. Er rechnet nichts neu;
-  später entstandene Verträge erscheinen erst in einem neuen Lauf. Ein
+  Momentaufnahme aus `care_run_holds`. Er liest keinen Vertrag neu; ein
+  später widerrufener, ersetzter oder umbenannter Vertrag ändert die Anzeige
+  nicht, und später entstandene Verträge erscheinen erst in einem neuen Lauf.
+  Die Momentaufnahme hat RLS, ist unveränderlich und geht mit der
+  Demo-Löschung (1.15.805). Ein
   späterer Lauf des Monats rechnet ein zurückgehaltenes Kind ab, sobald es
   kein Duplikat mehr hat.
 - **E6 Tabellentest.** `TestCareMonthChildMonthTable` rechnet jede
