@@ -2,6 +2,10 @@
 package common
 
 const CodeCareContractApplicationNotFound = "care_contract.application_not_found"
+const CodeCareContractChangeContractNotActive = "care_contract.change_contract_not_active"
+const CodeCareContractChangeEndsCare = "care_contract.change_ends_care"
+const CodeCareContractChangeNotApplicable = "care_contract.change_not_applicable"
+const CodeCareContractChangeNotFound = "care_contract.change_not_found"
 const CodeCareContractContractInputInvalid = "care_contract.contract_input_invalid"
 const CodeCareContractContractNotDraft = "care_contract.contract_not_draft"
 const CodeCareContractContractNotEndable = "care_contract.contract_not_endable"
@@ -23,6 +27,10 @@ const CodeCareContractWithdrawalNoticeRequired = "care_contract.withdrawal_notic
 
 var errorCodeClassesCareContract = []errorCodeClass{
 	{CodeCareContractApplicationNotFound, "business_rejection"},
+	{CodeCareContractChangeContractNotActive, "business_rejection"},
+	{CodeCareContractChangeEndsCare, "business_rejection"},
+	{CodeCareContractChangeNotApplicable, "business_rejection"},
+	{CodeCareContractChangeNotFound, "business_rejection"},
 	{CodeCareContractContractInputInvalid, "input"},
 	{CodeCareContractContractNotDraft, "business_rejection"},
 	{CodeCareContractContractNotEndable, "business_rejection"},
