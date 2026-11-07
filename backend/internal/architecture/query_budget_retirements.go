@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/architecture/querybudget"
@@ -23,11 +24,17 @@ const (
 	routeGoldenDirectory       = "api/testdata/routes"
 )
 
-var routeGoldenLine = regexp.MustCompile(`^[A-Z]+ /\S*$`)
+var (
+	routeGoldenLine = regexp.MustCompile(`^[A-Z]+ /\S*$`)
+	// describedRoute finds "METHOD /path" in a budget description; the path
+	// ends before whitespace, punctuation of the prose or a trailing period.
+	describedRoute = regexp.MustCompile(`\b(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) (/[^\s,;:()\[\]` + "`" + `"]*[^\s,;:()\[\]` + "`" + `".])`)
+)
 
-// queryBudgetRetirement lets a base scenario disappear together with its
+// queryBudgetRetirement lets a base scenario disappear together with its own
 // route (ADR 0160). The record names the route; the checker, not the review,
-// proves that the route left the production router golden in the same change.
+// proves that it is the budget's route and that it left the production router
+// golden in the same change.
 type queryBudgetRetirement struct {
 	Scenario string `json:"scenario"`
 	Route    string `json:"route"`
@@ -35,45 +42,105 @@ type queryBudgetRetirement struct {
 }
 
 // retiredQueryBudgets returns the base scenarios this change retires and the
-// violations of retirement records it adds. Only a record the base does not
-// hold yet retires anything: an unchanged record is history, never a standing
-// permission. A new record must retire a scenario of the base register whose
-// route the base router golden lists and the candidate golden no longer does.
+// violations of the route binding (ADR 0160). Both router goldens are always
+// read and fail closed. Only a record the base does not hold yet retires
+// anything: an unchanged record is history, never a standing permission.
 func retiredQueryBudgets(root, project, sha string, base, candidate map[string]querybudget.Budget) (map[string]bool, []string, error) {
-	added, err := addedQueryBudgetRetirements(root, project, sha)
-	if err != nil || len(added) == 0 {
-		return nil, nil, err
-	}
 	baseRoutes, err := baseRouteGolden(root, project, sha)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read route golden at base %s: %w", sha, err)
 	}
-	candidateRoutes, err := candidateRouteGolden(project)
+	candidateRoutes, err := candidateRouteGolden(project, baseRoutes.files)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read candidate route golden: %w", err)
+	}
+	added, err := addedQueryBudgetRetirements(root, project, sha)
+	if err != nil {
+		return nil, nil, err
 	}
 	retired := map[string]bool{}
 	var violations []string
 	for _, record := range added {
-		reject := func(reason string) {
+		if reason := retirementViolation(record, base, candidate, baseRoutes.routes, candidateRoutes.routes); reason != "" {
 			violations = append(violations, fmt.Sprintf("%s retirement (%s) %s", record.Scenario, record.Route, reason))
+			continue
 		}
-		_, registered := base[record.Scenario]
-		_, active := candidate[record.Scenario]
-		switch {
-		case !registered:
-			reject("retires no budget of the base register")
-		case active:
-			reject("names a budget that is still registered")
-		case !baseRoutes[record.Route]:
-			reject("names a route the base router golden does not list")
-		case candidateRoutes[record.Route]:
-			reject("names a route the router golden still lists")
-		default:
-			retired[record.Scenario] = true
+		retired[record.Scenario] = true
+	}
+	violations = append(violations, orphanedQueryBudgets(base, candidate, baseRoutes.routes, candidateRoutes.routes)...)
+	return retired, violations, nil
+}
+
+// retirementViolation explains why a new record may not retire its scenario,
+// or returns "" when the scenario's own route left the router golden.
+func retirementViolation(record queryBudgetRetirement, base, candidate map[string]querybudget.Budget, baseRoutes, candidateRoutes map[string]bool) string {
+	before, registered := base[record.Scenario]
+	_, active := candidate[record.Scenario]
+	own := budgetRoutes(before, baseRoutes)
+	switch {
+	case !registered:
+		return "retires no budget of the base register"
+	case active:
+		return "names a budget that is still registered"
+	case !own[record.Route]:
+		return fmt.Sprintf("names a route that is not the budget's own; its base description binds %s", describeRoutes(own))
+	case anyRoute(own, candidateRoutes):
+		return "names a route the router golden still lists"
+	}
+	return ""
+}
+
+// orphanedQueryBudgets rejects a budget that stays while every route its base
+// description binds left the router golden, as after a route rename. It stays
+// red until its description names a route of the candidate golden or it is
+// retired.
+func orphanedQueryBudgets(base, candidate map[string]querybudget.Budget, baseRoutes, candidateRoutes map[string]bool) []string {
+	var violations []string
+	for scenario, after := range candidate {
+		before, existed := base[scenario]
+		own := budgetRoutes(before, baseRoutes)
+		if !existed || len(own) == 0 || anyRoute(own, candidateRoutes) || len(budgetRoutes(after, candidateRoutes)) != 0 {
+			continue
+		}
+		violations = append(violations, fmt.Sprintf("%s orphaned: its route %s left the router golden; name the new route in its description or retire it", scenario, describeRoutes(own)))
+	}
+	return violations
+}
+
+// budgetRoutes binds a budget to the routes its description names that the
+// router golden lists. Tenant routes carry the /api mount prefix in the golden
+// and often omit it in prose, so both spellings are matched.
+func budgetRoutes(budget querybudget.Budget, routes map[string]bool) map[string]bool {
+	own := map[string]bool{}
+	for _, match := range describedRoute.FindAllStringSubmatch(budget.Description, -1) {
+		for _, route := range []string{match[1] + " " + match[2], match[1] + " /api" + match[2]} {
+			if routes[route] {
+				own[route] = true
+			}
 		}
 	}
-	return retired, violations, nil
+	return own
+}
+
+func anyRoute(routes, golden map[string]bool) bool {
+	for route := range routes {
+		if golden[route] {
+			return true
+		}
+	}
+	return false
+}
+
+func describeRoutes(routes map[string]bool) string {
+	if len(routes) == 0 {
+		return "no route"
+	}
+	names := make([]string, 0, len(routes))
+	for route := range routes {
+		names = append(names, route)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
 }
 
 func addedQueryBudgetRetirements(root, project, sha string) ([]queryBudgetRetirement, error) {
@@ -149,53 +216,21 @@ func baseProjectFile(root, project, sha, name string) ([]byte, bool, error) {
 	return source, err == nil, err
 }
 
-func baseRouteGolden(root, project, sha string) (map[string]bool, error) {
-	prefix, err := repositoryRelativePath(root, project, routeGoldenDirectory)
-	if err != nil {
-		return nil, err
-	}
-	listing, err := gitOutput(root, "ls-tree", "-r", "-z", "--name-only", sha, "--", filepath.ToSlash(prefix))
-	if err != nil {
-		return nil, err
-	}
-	routes := map[string]bool{}
-	for _, name := range strings.Split(listing, "\x00") {
-		if !strings.HasSuffix(name, ".golden") {
-			continue
-		}
-		source, err := gitOutput(root, "cat-file", "blob", sha+":"+name)
-		if err != nil {
-			return nil, err
-		}
-		if err := addGoldenRoutes(routes, name, source); err != nil {
-			return nil, err
-		}
-	}
-	return routes, nil
+// routeGolden is the route table golden of TestFullProductionRouterGolden:
+// its routes and the files that list them, relative to routeGoldenDirectory.
+type routeGolden struct {
+	routes map[string]bool
+	files  map[string]bool
 }
 
-func candidateRouteGolden(project string) (map[string]bool, error) {
-	routes := map[string]bool{}
-	directory := filepath.Join(project, routeGoldenDirectory)
-	err := filepath.WalkDir(directory, func(name string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() || !strings.HasSuffix(name, ".golden") {
-			return err
-		}
-		source, err := os.ReadFile(name)
-		if err != nil {
-			return err
-		}
-		return addGoldenRoutes(routes, name, string(source))
-	})
-	if errors.Is(err, fs.ErrNotExist) {
-		return routes, nil
-	}
-	return routes, err
+func newRouteGolden() routeGolden {
+	return routeGolden{routes: map[string]bool{}, files: map[string]bool{}}
 }
 
-// addGoldenRoutes fails closed on a line that is no route: a route the
-// checker cannot read must not count as removed.
-func addGoldenRoutes(routes map[string]bool, name, source string) error {
+// add reads one golden file. An empty file or a line that is no route fails
+// closed: a route the checker cannot read must not count as removed.
+func (g routeGolden) add(name, source string) error {
+	count := 0
 	scanner := bufio.NewScanner(strings.NewReader(source))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -205,7 +240,78 @@ func addGoldenRoutes(routes map[string]bool, name, source string) error {
 		if !routeGoldenLine.MatchString(line) {
 			return fmt.Errorf("%s: unreadable route golden line %q", name, line)
 		}
-		routes[line] = true
+		g.routes[line] = true
+		count++
 	}
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("%s: empty route golden", name)
+	}
+	g.files[name] = true
+	return nil
+}
+
+func (g routeGolden) complete() error {
+	if len(g.routes) == 0 {
+		return fmt.Errorf("no routes read from %s", routeGoldenDirectory)
+	}
+	return nil
+}
+
+func baseRouteGolden(root, project, sha string) (routeGolden, error) {
+	golden := newRouteGolden()
+	prefix, err := repositoryRelativePath(root, project, routeGoldenDirectory)
+	if err != nil {
+		return golden, err
+	}
+	prefix = filepath.ToSlash(prefix)
+	listing, err := gitOutput(root, "ls-tree", "-r", "-z", "--name-only", sha, "--", prefix)
+	if err != nil {
+		return golden, err
+	}
+	for _, name := range strings.Split(listing, "\x00") {
+		if !strings.HasSuffix(name, ".golden") {
+			continue
+		}
+		source, err := gitOutput(root, "cat-file", "blob", sha+":"+name)
+		if err != nil {
+			return golden, err
+		}
+		if err := golden.add(strings.TrimPrefix(name, prefix+"/"), source); err != nil {
+			return golden, err
+		}
+	}
+	return golden, golden.complete()
+}
+
+// candidateRouteGolden reads the candidate golden. Every file the base lists
+// must still exist: a deleted golden file is no proof that its routes left.
+func candidateRouteGolden(project string, baseFiles map[string]bool) (routeGolden, error) {
+	golden := newRouteGolden()
+	directory := filepath.Join(project, routeGoldenDirectory)
+	err := filepath.WalkDir(directory, func(name string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !strings.HasSuffix(name, ".golden") {
+			return err
+		}
+		source, err := os.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(directory, name)
+		if err != nil {
+			return err
+		}
+		return golden.add(filepath.ToSlash(relative), string(source))
+	})
+	if err != nil {
+		return golden, err
+	}
+	for name := range baseFiles {
+		if !golden.files[name] {
+			return golden, fmt.Errorf("route golden %s is missing", name)
+		}
+	}
+	return golden, golden.complete()
 }
