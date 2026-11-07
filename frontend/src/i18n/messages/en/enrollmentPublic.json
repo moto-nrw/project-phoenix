@@ -1,7 +1,6 @@
 {
   "errorObjectPhases": "the list of enrollment phases",
   "errorObjectForm": "the enrollment form",
-  "brandEyebrow": "Online enrollment",
   "fallbackSchool": "Your OGS",
   "steps": {
     "phase": "Selection",
@@ -10,7 +9,6 @@
     "aria": "Enrollment progress"
   },
   "loading": "Loading enrollment…",
-  "phaseEyebrow": "Start enrollment",
   "phaseTitle": "What would you like to enroll your child for?",
   "phaseDescription": "Select the period in which your child should receive care. In the next step, enter contact details, child details and the care offers you want.",
   "disabled": "Online enrollment is currently not enabled for this school. Please contact the OGS if you would like to submit an enrollment.",
@@ -51,7 +49,6 @@
   "reviewTitle": "Review by the OGS",
   "reviewText": "The OGS reviews your information after submission. An online enrollment is therefore not a final place confirmation yet.",
   "statusAfterSubmitText": "After submitting, you will automatically go to the status page. There you can see whether the enrollment was received, is being reviewed or has been decided.",
-  "submittedEyebrow": "Enrollment received",
   "submittedTitle": "Thank you. Your enrollment has been submitted.",
   "submittedText": "A confirmation email with the status link is on its way. You can use the link at any time to view the current status.",
   "dateRange": "{from} to {to}"
