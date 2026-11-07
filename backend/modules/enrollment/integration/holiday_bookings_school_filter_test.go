@@ -23,6 +23,18 @@ func (o ownChildIdentities) HolidayStudentIdentities(context.Context, []int64) (
 	return o, nil
 }
 
+func (o ownChildIdentities) UniqueHolidayStudents(_ context.Context, identities []enrollment.HolidayStudentIdentity) (map[int]int64, error) {
+	result := map[int]int64{}
+	for i, identity := range identities {
+		for id, candidate := range o {
+			if candidate == identity {
+				result[i] = id
+			}
+		}
+	}
+	return result, nil
+}
+
 // TestHolidayBookingsOfAnotherSchoolStayOutBeneathRLS pins the school filter
 // of the holiday bookings the Soll of Soll und Ist reads (#5994) beneath RLS,
 // as #5952 and #6001 do for the Träger: as the owner of the tables, another

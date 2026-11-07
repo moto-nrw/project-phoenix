@@ -129,7 +129,11 @@ andere fachliche Entscheidung ändert diesen Abschnitt und die Tests.
    (ohne Groß- und Kleinschreibung und Leerzeichen am Rand) und gleiches
    Geburtsdatum, gelesen gebündelt aus dem People Directory und nur, wenn es
    eigene Buchungen gibt. Eine Buchung, die zu keinem oder zu mehreren
-   Kindern passt, bucht niemanden. Die Wahl dieser Zuordnung trotz des
+   Kindern passt, bucht niemanden; die Eindeutigkeit gilt für die ganze
+   Schule, damit Klassen-, Gruppen- und Einzelansicht dasselbe Soll sehen.
+   Storniert das Träger-Büro eine bestätigte Anmeldung, bleiben die Tage vor
+   der Stornierung gebucht (wie `ended_on` bei Gästen); Bestätigung und
+   Stornierung stehen in der Spur der Anmeldung (ADR 0114). Die Wahl dieser Zuordnung trotz des
    Wortlauts von #5994 („nicht über Namens-/Geburtsdatumsabgleich“) folgt
    der Review-Entscheidung in PR #6020: Die Ferienanmeldung hat
    keine andere Verbindung zum Kind.

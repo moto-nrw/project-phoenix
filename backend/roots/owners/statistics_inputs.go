@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type StatisticsAuditLog struct {
@@ -78,6 +79,7 @@ func (a StatisticsReportPeriods) StatisticsHolidayPeriods(ctx context.Context, f
 type statisticsStudentRows interface {
 	FindOverlappingWithGroups(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]*peopleValues.StudentRosterEntry, error)
 	FindByIDs(context.Context, []int64) (map[int64]*peopleValues.StudentState, error)
+	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (*int64, error)
 }
 
 // statisticsPersons are the persons behind the children, with their date of
@@ -243,6 +245,27 @@ func (a StatisticsHolidayStudentIdentities) HolidayStudentIdentities(ctx context
 		}
 		person := persons[student.PersonID]
 		result[studentID] = enrollment.HolidayStudentIdentity{FirstName: person.FirstName, LastName: person.LastName, BirthDate: *person.Birthday}
+	}
+	return result, nil
+}
+
+// UniqueHolidayStudents finds for each identity the one enrolled child of
+// the school with it, by the People Directory's case-insensitive match
+// (#1663); none or several leave the identity out.
+func (a StatisticsHolidayStudentIdentities) UniqueHolidayStudents(ctx context.Context, identities []enrollment.HolidayStudentIdentity) (map[int]int64, error) {
+	school, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int]int64, len(identities))
+	for i, identity := range identities {
+		id, err := a.Students.FindEnrolledStudentIDByNameAndBirthday(ctx, school.Int64(), identity.FirstName, identity.LastName, identity.BirthDate)
+		if err != nil {
+			return nil, err
+		}
+		if id != nil {
+			result[i] = *id
+		}
 	}
 	return result, nil
 }

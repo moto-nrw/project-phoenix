@@ -1475,6 +1475,36 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudentIdentities.UniqueHolidayStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentityList.UniqueHolidayStudents",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target ports.StudentRepository.FindEnrolledStudentIDByNameAndBirthday: finds the one enrolled child of the school per identity of an own holiday booking, so the match does not depend on the report's filter (#5994, rule of #4722).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDByNameAndBirthday",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudentIdentities.UniqueHolidayStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentityList.UniqueHolidayStudents",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target tenant.TenantFromContext: finds the one enrolled child of the school per identity of an own holiday booking, so the match does not depend on the report's filter (#5994, rule of #4722).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudentIdentities.UniqueHolidayStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentityList.UniqueHolidayStudents",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target tenant.TenantID.Int64: finds the one enrolled child of the school per identity of an own holiday booking, so the match does not depend on the report's filter (#5994, rule of #4722).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantID.Int64",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
       "classification": "query",
       "effect": "query",

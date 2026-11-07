@@ -19,8 +19,33 @@ func (s guestBookingsStub) ListHolidayBookings(context.Context, []int64, calenda
 
 type identitiesStub map[int64]enrollment.HolidayStudentIdentity
 
-func (s identitiesStub) HolidayStudentIdentities(context.Context, []int64) (map[int64]enrollment.HolidayStudentIdentity, error) {
-	return s, nil
+// HolidayStudentIdentities answers for the children asked for only, as the
+// People Directory read does.
+func (s identitiesStub) HolidayStudentIdentities(_ context.Context, ids []int64) (map[int64]enrollment.HolidayStudentIdentity, error) {
+	result := map[int64]enrollment.HolidayStudentIdentity{}
+	for _, id := range ids {
+		if identity, ok := s[id]; ok {
+			result[id] = identity
+		}
+	}
+	return result, nil
+}
+
+// UniqueHolidayStudents searches the whole school: every child of the stub.
+func (s identitiesStub) UniqueHolidayStudents(_ context.Context, identities []enrollment.HolidayStudentIdentity) (map[int]int64, error) {
+	result := map[int]int64{}
+	for i, identity := range identities {
+		var found []int64
+		for id, candidate := range s {
+			if identityKey(candidate) == identityKey(identity) {
+				found = append(found, id)
+			}
+		}
+		if len(found) == 1 {
+			result[i] = found[0]
+		}
+	}
+	return result, nil
 }
 
 func bookedDates(days map[calendar.Date]enrollment.HolidayGuestBookedDay) []calendar.Date {
@@ -99,4 +124,24 @@ func TestOwnHolidayBookingsFindTheirChildByNamesAndBirthDate(t *testing.T) {
 	assert.NotContains(t, days, int64(2), "a booking that fits two children books neither")
 	assert.NotContains(t, days, int64(3))
 	assert.NotContains(t, days, int64(4), "another date of birth is another child")
+}
+
+// A report asks for a part of the school (a class, a group, one child). A
+// booking that fits one child asked for but two children of the school
+// books no one, so the answer does not depend on the filter (#5994).
+func TestOwnHolidayBookingIsUniqueInTheWholeSchool(t *testing.T) {
+	t.Parallel()
+	mon := calendar.NewDate(2026, 7, 6)
+	born := calendar.NewDate(2018, 3, 4)
+	care := NewHolidayGuestBookedCare(ownBookingsStub{{
+		Identity: enrollment.HolidayStudentIdentity{FirstName: "Zwilling", LastName: "Doppelt", BirthDate: born},
+		StartsOn: mon, EndsOn: mon, StartsAt: "08:00", EndsAt: "16:00",
+	}}, identitiesStub{
+		2: {FirstName: "Zwilling", LastName: "Doppelt", BirthDate: born},
+		5: {FirstName: "zwilling", LastName: "doppelt", BirthDate: born},
+	})
+
+	days, err := care.HolidayGuestBookedDays(context.Background(), []int64{2}, mon, mon)
+	require.NoError(t, err)
+	assert.Empty(t, days, "the view of one twin books neither, as the report of both does")
 }

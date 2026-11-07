@@ -32,6 +32,13 @@ func init() {
 // its Soll: names, date of birth, the week and the time model. No health
 // information, no contacts, no answers. The registrations themselves go 92
 // days after their period (#4720), and with them these rows.
+//
+// A registration the Träger-Büro cancels after it confirmed it keeps the
+// days before the cancellation, as a guest copy keeps them through
+// ended_on: those days were booked, and the comparison must not fall back
+// to the contract for them. The cancellation and the confirmation before it
+// come from the registration's trail (ADR 0114); a registration that was
+// never confirmed books nothing. ends_on is the last booked day.
 const holidayHostOwnBookingsUpSQL = `
 CREATE FUNCTION enrollment.holiday_host_own_bookings(p_from DATE, p_to DATE)
 	RETURNS TABLE (first_name TEXT, last_name TEXT, birth_date DATE, starts_on DATE, ends_on DATE,
@@ -41,7 +48,8 @@ CREATE FUNCTION enrollment.holiday_host_own_bookings(p_from DATE, p_to DATE)
 	SECURITY DEFINER
 	SET search_path = pg_catalog, pg_temp
 	AS $$
-	SELECT child.first_name, child.last_name, child.birth_date, week.starts_on, week.ends_on,
+	SELECT child.first_name, child.last_name, child.birth_date, week.starts_on,
+		CASE WHEN registration.status = 'cancelled' THEN LEAST(week.ends_on, cancellation.cancelled_on - 1) ELSE week.ends_on END,
 		model.starts_at, model.ends_at
 	FROM enrollment.holiday_period_weeks AS week
 	JOIN enrollment.holiday_periods AS period
@@ -57,11 +65,26 @@ CREATE FUNCTION enrollment.holiday_host_own_bookings(p_from DATE, p_to DATE)
 		ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
 	JOIN enrollment.holiday_registrations AS registration
 		ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
+	LEFT JOIN LATERAL (
+		SELECT (cancel.occurred_at AT TIME ZONE 'Europe/Berlin')::date AS cancelled_on
+		FROM enrollment.holiday_registration_audit AS cancel
+		WHERE cancel.organization_id = registration.organization_id AND cancel.holiday_registration_id = registration.id
+			AND cancel.action = 'cancel'
+			AND EXISTS (
+				SELECT 1 FROM enrollment.holiday_registration_audit AS confirm
+				WHERE confirm.organization_id = cancel.organization_id
+					AND confirm.holiday_registration_id = cancel.holiday_registration_id
+					AND confirm.action = 'confirm' AND confirm.occurred_at < cancel.occurred_at)
+		ORDER BY cancel.occurred_at DESC
+		LIMIT 1
+	) AS cancellation ON true
 	WHERE week.host_school_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
 		AND child.home_school_id = week.host_school_id
 		AND period.status = 'published'
-		AND registration.status = 'confirmed'
-		AND week.starts_on <= p_to AND week.ends_on >= p_from
+		AND (registration.status = 'confirmed'
+			OR registration.status = 'cancelled' AND cancellation.cancelled_on > week.starts_on)
+		AND week.starts_on <= p_to
+		AND CASE WHEN registration.status = 'cancelled' THEN LEAST(week.ends_on, cancellation.cancelled_on - 1) ELSE week.ends_on END >= p_from
 	$$;
 REVOKE ALL ON FUNCTION enrollment.holiday_host_own_bookings(DATE, DATE) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION enrollment.holiday_host_own_bookings(DATE, DATE) TO phoenix_tenant;

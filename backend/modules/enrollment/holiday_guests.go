@@ -217,11 +217,15 @@ type HolidayOwnBooking struct {
 	StartsAt, EndsAt string
 }
 
-// HolidayStudentIdentityList reads the names and the date of birth of
-// children of the school in its tenant transaction, in one read (#5994).
-// A child the school does not have is missing from the map.
+// HolidayStudentIdentityList reads the children of the school in its tenant
+// transaction (#5994): HolidayStudentIdentities the names and the date of
+// birth of studentIDs in one read (a child the school does not have is
+// missing from the map), UniqueHolidayStudents for each identity the one
+// enrolled child of the whole school with it, by index; an identity that
+// fits no child or several is missing.
 type HolidayStudentIdentityList interface {
 	HolidayStudentIdentities(ctx context.Context, studentIDs []int64) (map[int64]HolidayStudentIdentity, error)
+	UniqueHolidayStudents(ctx context.Context, identities []HolidayStudentIdentity) (map[int]int64, error)
 }
 
 // HolidayGuestBookedCare reads the booked days of the confirmed holiday
