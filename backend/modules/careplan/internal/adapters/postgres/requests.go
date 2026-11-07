@@ -25,41 +25,39 @@ const (
 	dataTargetDeparture           = "departure"
 )
 
+// CountOpenCareRequests counts the pending student-data, excused-absence and
+// care-schedule requests per child in one statement: one grouped count per
+// queue, joined by UNION ALL and summed here, so the per-queue int casts stay
+// as they were (#5880, decision E2: one shared read may replace the former
+// three READ COMMITTED reads; a caller holding the request locks still reads
+// after them).
 func (s *requestStore) CountOpenCareRequests(ctx context.Context, studentIDs []int64) (map[int64]int, carePlanCompose.RequestStoreStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, carePlanCompose.RequestStoreStats{}, err
 	}
 	counts := make(map[int64]int, len(studentIDs))
-	stats := carePlanCompose.RequestStoreStats{}
+	pending := func(query *bun.SelectQuery) *bun.SelectQuery {
+		return withTenant(query.ColumnExpr(`"request".student_id, COUNT(*)::int AS total`).Where(`"request".student_id IN (?)`, bun.List(studentIDs)).Where(`"request".status = ?`, requestPending).GroupExpr(`"request".student_id`), "request", tenantID)
+	}
+	query := pending(db.NewSelect().TableExpr(`users.student_data_change_requests AS "request"`)).
+		UnionAll(pending(db.NewSelect().TableExpr(`active.excused_absence_requests AS "request"`))).
+		UnionAll(pending(db.NewSelect().TableExpr(`schedule.care_schedule_change_requests AS "request"`)))
+	var rows []struct {
+		StudentID int64 `bun:"student_id"`
+		Total     int   `bun:"total"`
+	}
+	stats := carePlanCompose.RequestStoreStats{Queries: 1}
 	started := time.Now()
-	add := func(query *bun.SelectQuery) error {
-		var rows []struct {
-			StudentID int64 `bun:"student_id"`
-			Total     int   `bun:"total"`
-		}
-		stats.Queries++
-		if err := query.Scan(ctx, &rows); err != nil {
-			return err
-		}
-		stats.Rows += int64(len(rows))
-		for _, row := range rows {
-			counts[row.StudentID] += row.Total
-		}
-		return nil
-	}
-	queries := []*bun.SelectQuery{
-		withTenant(db.NewSelect().TableExpr(`users.student_data_change_requests AS "request"`).ColumnExpr(`"request".student_id, COUNT(*)::int AS total`).Where(`"request".student_id IN (?)`, bun.List(studentIDs)).Where(`"request".status = ?`, requestPending).GroupExpr(`"request".student_id`), "request", tenantID),
-		withTenant(db.NewSelect().TableExpr(`active.excused_absence_requests AS "request"`).ColumnExpr(`"request".student_id, COUNT(*)::int AS total`).Where(`"request".student_id IN (?)`, bun.List(studentIDs)).Where(`"request".status = ?`, requestPending).GroupExpr(`"request".student_id`), "request", tenantID),
-		withTenant(db.NewSelect().TableExpr(`schedule.care_schedule_change_requests AS "request"`).ColumnExpr(`"request".student_id, COUNT(*)::int AS total`).Where(`"request".student_id IN (?)`, bun.List(studentIDs)).Where(`"request".status = ?`, requestPending).GroupExpr(`"request".student_id`), "request", tenantID),
-	}
-	for _, query := range queries {
-		if err := add(query); err != nil {
-			stats.StatementDuration = time.Since(started)
-			return nil, stats, requestDBError("count open care requests", err)
-		}
-	}
+	err = query.Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, requestDBError("count open care requests", err)
+	}
+	stats.Rows = int64(len(rows))
+	for _, row := range rows {
+		counts[row.StudentID] += row.Total
+	}
 	return counts, stats, nil
 }
 
