@@ -1,7 +1,9 @@
 "use client";
 
-// Rechnungsnummern der Ferienbetreuung (#4668): das Muster, aus dem die
-// Freigabe eines Laufs die Nummern vergibt, lückenlos und in Reihenfolge.
+// Rechnungsnummern der Ferienbetreuung (#4668) und der Monatsbeiträge
+// (#4684): das Muster, aus dem die Freigabe eines Laufs die Nummern
+// vergibt, lückenlos und in Reihenfolge. Jede Leistung hat ihren eigenen
+// Nummernkreis.
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -14,20 +16,40 @@ import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   type NumberRange,
+  saveCareNumberRange,
   saveHolidayNumberRange,
 } from "~/lib/traeger-billing-api";
 
 const logger = createLogger({ component: "NumberRangeCard" });
 
-const DEFAULT_PATTERN = "FE-{JJJJ}-{NNNN}";
+/** What differs between the number range of the holidays and of the months. */
+const SERVICES = {
+  holiday: {
+    title: "Rechnungsnummern",
+    description:
+      "Bei der Freigabe bekommt jede Rechnung die nächste Nummer. Es entsteht keine Lücke.",
+    defaultPattern: "FE-{JJJJ}-{NNNN}",
+    save: saveHolidayNumberRange,
+  },
+  care: {
+    title: "Rechnungsnummern der Monatsbeiträge",
+    description:
+      "Eigener Nummernkreis für die Monatsbeiträge. Nehmen Sie ein anderes Kürzel als bei den Ferien.",
+    defaultPattern: "MB-{JJJJ}-{NNNN}",
+    save: saveCareNumberRange,
+  },
+} as const;
 
 export function NumberRangeCard({
   numberRange,
   onChanged,
+  service = "holiday",
 }: Readonly<{
   numberRange: NumberRange;
   onChanged: () => Promise<unknown>;
+  service?: keyof typeof SERVICES;
 }>) {
+  const copy = SERVICES[service];
   const [open, setOpen] = useState(false);
   const [pattern, setPattern] = useState("");
   const [saving, setSaving] = useState(false);
@@ -38,9 +60,9 @@ export function NumberRangeCard({
 
   useEffect(() => {
     if (!open) return;
-    setPattern(numberRange.pattern || DEFAULT_PATTERN);
+    setPattern(numberRange.pattern || copy.defaultPattern);
     clearErrors();
-  }, [open, numberRange.pattern, clearErrors]);
+  }, [open, numberRange.pattern, copy.defaultPattern, clearErrors]);
 
   const submit = async () => {
     formErrors.clear();
@@ -52,7 +74,7 @@ export function NumberRangeCard({
     }
     setSaving(true);
     try {
-      await saveHolidayNumberRange(pattern.trim());
+      await copy.save(pattern.trim());
       success("Das Muster ist gespeichert.");
       setOpen(false);
       await onChanged();
@@ -69,8 +91,8 @@ export function NumberRangeCard({
   const set = Boolean(numberRange.pattern);
   return (
     <SectionCard
-      title="Rechnungsnummern"
-      description="Bei der Freigabe bekommt jede Rechnung die nächste Nummer. Es entsteht keine Lücke."
+      title={copy.title}
+      description={copy.description}
       actions={
         <Button
           type="button"
@@ -123,7 +145,7 @@ export function NumberRangeCard({
         >
           <Input
             controlSize="compact"
-            id="number-range-pattern"
+            id={`number-range-pattern-${service}`}
             name="pattern"
             label="Muster der Rechnungsnummer"
             value={pattern}

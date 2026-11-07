@@ -46,7 +46,13 @@ export interface CareTariff {
   readonly monthlyCents: number;
 }
 
+export interface CareSchool {
+  readonly id: string;
+  readonly name: string;
+}
+
 export interface CareTariffs {
+  readonly schools: readonly CareSchool[];
   readonly modules: readonly CareModule[];
   readonly tariffs: readonly CareTariff[];
   /** Per school ID the last month an issued invoice bills ("YYYY-MM-01"). */
@@ -157,6 +163,7 @@ interface BackendTariff {
 }
 
 interface BackendTariffs {
+  schools: { id: number; name: string }[] | null;
   modules: BackendModule[] | null;
   tariffs: BackendTariff[] | null;
   billed_until: Record<string, string> | null;
@@ -234,6 +241,10 @@ function id(value: number): string {
 
 function tariffsFromBackend(body: BackendTariffs): CareTariffs {
   return {
+    schools: (body.schools ?? []).map((school) => ({
+      id: id(school.id),
+      name: school.name,
+    })),
     modules: (body.modules ?? []).map((module) => ({
       schoolId: id(module.school_id),
       schoolName: module.school_name,
@@ -253,12 +264,7 @@ function tariffsFromBackend(body: BackendTariffs): CareTariffs {
       validUntil: tariff.valid_until,
       monthlyCents: tariff.monthly_cents,
     })),
-    billedUntil: Object.fromEntries(
-      Object.entries(body.billed_until ?? {}).map(([school, month]) => [
-        school,
-        month,
-      ]),
-    ),
+    billedUntil: { ...body.billed_until },
   };
 }
 
