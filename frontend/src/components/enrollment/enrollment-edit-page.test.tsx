@@ -64,6 +64,7 @@ vi.mock("~/lib/enrollment-submission-api", async (importOriginal) => {
 
 vi.mock("~/lib/tenant-context", () => ({
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
+  useTenantSafe: () => null,
 }));
 
 vi.mock("~/components/enrollment/enrollment-form", () => ({

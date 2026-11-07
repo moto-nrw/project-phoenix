@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Mail } from "lucide-react";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import {
   EnrollmentForm,
   type EnrollmentFormPrefetchedData,
@@ -33,6 +33,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { permissionsConcept } from "~/lib/concepts/permissions";
 import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; phaseId: string }>;
@@ -56,7 +57,7 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
 }
 
 function EnrollPhaseFormPageContent({ params }: PageProps) {
-  const t = useTranslations("enrollmentPublic");
+  const t = useCareTermTranslations("enrollmentPublic");
   const locale = useLocale();
   const { phaseId } = use(params);
   const router = useRouter();

@@ -1575,3 +1575,83 @@ describe("SettingsField text limit", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 });
+
+// The care-facility term (#6042): OGS and GTS to pick, an own name behind
+// „Eigener Name“, checked at the field before the server refuses it.
+describe("SettingsField care-facility term", () => {
+  const term = makeSetting({
+    key: "enrollment.care_facility_term",
+    label: "Name der Betreuung in Texten für Eltern",
+    type: "text",
+    default: "OGS",
+    value: "OGS",
+    is_default: true,
+    validation: {
+      pattern: "^[\\p{L}\\p{N}(](?:[\\p{L}\\p{N} ./()-]*[\\p{L}\\p{N}.)])?$",
+      max_length: 40,
+    },
+    options: {
+      static: [
+        { label: "OGS", value: "OGS" },
+        { label: "GTS", value: "GTS" },
+      ],
+    },
+  });
+
+  it("saves GTS as soon as it is picked", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole } = renderWithProviders(
+      <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
+    );
+
+    expect(getByRole("radio", { name: "OGS" })).toBeChecked();
+    fireEvent.click(getByRole("radio", { name: "GTS" }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        "enrollment.care_facility_term",
+        "GTS",
+      ),
+    );
+  });
+
+  it("refuses markup in an own name at the field", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole, findByText } = renderWithProviders(
+      <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
+    );
+
+    fireEvent.click(getByRole("radio", { name: "Eigener Name" }));
+    const field = getByRole("textbox", {
+      name: "Name der Betreuung in Texten für Eltern: Eigener Name",
+    });
+    fireEvent.change(field, { target: { value: "<b>GTS</b>" } });
+    fireEvent.blur(field);
+
+    const hint = await findByText(/Erlaubt sind Buchstaben, Ziffern/);
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAttribute("aria-describedby", hint.id);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("saves a valid own name", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole } = renderWithProviders(
+      <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
+    );
+
+    fireEvent.click(getByRole("radio", { name: "Eigener Name" }));
+    const field = getByRole("textbox", {
+      name: "Name der Betreuung in Texten für Eltern: Eigener Name",
+    });
+    fireEvent.change(field, { target: { value: "Ganztag Nord" } });
+    fireEvent.blur(field);
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        "enrollment.care_facility_term",
+        "Ganztag Nord",
+      ),
+    );
+  });
+});

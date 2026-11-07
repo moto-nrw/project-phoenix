@@ -8,7 +8,7 @@ import {
   useEnrollmentUploadTarget,
 } from "~/components/enrollment/enrollment-file-upload";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { Check, Lock, Plus } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
@@ -104,6 +104,10 @@ import {
   type SignatureValue,
 } from "~/components/ui/signature-pad";
 import { signatureRequestBody } from "~/lib/signature";
+import {
+  useCareFacilityTerm,
+  useCareTermTranslations,
+} from "~/lib/care-facility-term";
 import {
   AT_MOST_ONE_PER_DAY,
   type CareOfferingDayConflict,
@@ -341,14 +345,15 @@ export function EnrollmentForm({
   offeringBookingStats,
   withoutSignature = false,
 }: Props) {
-  const intl = useTranslations("enrollmentForm");
+  const intl = useCareTermTranslations("enrollmentForm");
+  const careTerm = useCareFacilityTerm();
   const activeLocale = useLocale();
   // School-written texts follow the same opt-in as the form chrome: staff
   // previews stay German even when a parent locale cookie exists (#3377).
   const contentLocale = localizedCopy ? activeLocale : DEFAULT_LOCALE;
   const tr = useMemo(
-    () => makeEnrollmentFormTranslator(intl, localizedCopy),
-    [intl, localizedCopy],
+    () => makeEnrollmentFormTranslator(intl, localizedCopy, careTerm),
+    [intl, localizedCopy, careTerm],
   );
   const { tenantSlug } = useTenant();
   const signatureLabels = useMemo(
@@ -2901,8 +2906,9 @@ const GERMAN_ENROLLMENT_FORM_MESSAGES = germanEnrollmentFormMessages as Record<
 >;
 
 function makeEnrollmentFormTranslator(
-  intl: ReturnType<typeof useTranslations<"enrollmentForm">>,
+  intl: ReturnType<typeof useCareTermTranslations>,
   localizedCopy: boolean,
+  careTerm: string,
 ): EnrollmentFormTranslator {
   if (localizedCopy) {
     return Object.assign(
@@ -2914,7 +2920,9 @@ function makeEnrollmentFormTranslator(
     (key: string, values?: TranslationValues) => {
       const value = readGermanMessage(key);
       if (typeof value !== "string") return key;
-      return interpolateMessage(value, values);
+      // The German staff preview names the school's care like the parents'
+      // form does (#6042).
+      return interpolateMessage(value, { careTerm, ...values });
     },
     { raw: (key: string) => readGermanMessage(key) },
   );

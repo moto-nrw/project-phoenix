@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- public/parents token flow is outside tenant-router
 import { usePathname, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { TenantProvider } from "~/lib/tenant-context";
@@ -22,6 +22,11 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Textarea } from "~/components/ui/textarea";
 import { ParentPageHeader } from "~/components/parent/parent-page";
 import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
+import {
+  CareFacilityTermScope,
+  useCareTermTranslations,
+  useProvideCareFacilityTerm,
+} from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "EnrollmentEditPage" });
 
@@ -34,9 +39,21 @@ interface Props {
   readonly adjustOnly?: boolean;
 }
 
-export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
+/**
+ * The edit form of one enrollment; its school, and with it the
+ * care-facility term of the fixed texts (#6042), comes from the bootstrap.
+ */
+export function EnrollmentEditPage(props: Props) {
+  return (
+    <CareFacilityTermScope>
+      <EnrollmentEditPageContent {...props} />
+    </CareFacilityTermScope>
+  );
+}
+
+function EnrollmentEditPageContent({ params, adjustOnly = false }: Props) {
   const { token } = use(params);
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const router = useRouter();
   const pathname = usePathname();
   const statusHref = pathname?.replace(/\/(edit|adjust)\/?$/, "") || ".";
@@ -45,6 +62,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
     bootstrap: EnrollmentEditBootstrap;
   } | null>(null);
   const bootstrap = loaded?.token === token ? loaded.bootstrap : null;
+  useProvideCareFacilityTerm(bootstrap?.care_facility_term);
   const [changeReason, setChangeReason] = useState("");
   const [loading, setLoading] = useState(true);
   const toast = useToast();

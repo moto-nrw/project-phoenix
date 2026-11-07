@@ -13,7 +13,7 @@ import {
 import { usePathname } from "next/navigation";
 import { AlertTriangle, Check, Clock, Pencil } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import {
   confirmRenewal,
   fetchStatus,
@@ -57,6 +57,11 @@ import { EnrollmentSignatureStatus } from "~/components/enrollment/enrollment-si
 import { childrenConcept } from "~/lib/concepts/children";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 import { IconTile } from "~/components/ui/icon-tile";
+import {
+  CareFacilityTermScope,
+  useCareTermTranslations,
+  useProvideCareFacilityTerm,
+} from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
 
@@ -92,15 +97,29 @@ interface Props {
   readonly parentAppHref?: string;
 }
 
-export function EnrollmentStatusView({
+/**
+ * The status page of one enrollment. Its school comes from the status itself
+ * (#6042): on the parents host the page has no school context, so the fixed
+ * texts take the care-facility term the status names.
+ */
+export function EnrollmentStatusView(props: Props) {
+  return (
+    <CareFacilityTermScope>
+      <EnrollmentStatusViewContent {...props} />
+    </CareFacilityTermScope>
+  );
+}
+
+function EnrollmentStatusViewContent({
   token,
   justSubmitted = false,
   duplicateWarning = false,
   parentAppHref,
 }: Props) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const toast = useToast();
   const [status, setStatus] = useState<StatusResponse | null>(null);
+  useProvideCareFacilityTerm(status?.care_facility_term);
   const [changeRequests, setChangeRequests] = useState<
     EnrollmentChangeRequest[]
   >([]);
@@ -498,7 +517,7 @@ function EnrollmentStatusContent({
   setEditing,
   setReplyDrafts,
 }: EnrollmentStatusContentProps) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const locale = useLocale();
   const pathname = usePathname();
   const submittedDate = new Date(status.submitted_at).toLocaleDateString(
@@ -717,7 +736,7 @@ function EnrollmentStatusHero({
   justSubmitted,
   submittedDate,
 }: EnrollmentStatusHeroProps) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const statusIconTone = justSubmitted ? "green" : "neutral";
 
   return (
@@ -797,7 +816,7 @@ function EnrollmentStatusSummary({
   status,
   submittedDate,
 }: Readonly<{ status: StatusResponse; submittedDate: string }>) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
     <section className="grid gap-3 sm:grid-cols-3">
       <StatusSummaryCard
@@ -841,7 +860,7 @@ function RenewalBanners({
   onConfirmRenewal,
   onWithdraw,
 }: RenewalBannersProps) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const handleConfirmRenewal = async () => {
     await onConfirmRenewal();
   };
@@ -941,7 +960,7 @@ function parentAppAccess(
  * the page points at the invitation instead (#3742).
  */
 function NoParentAccountSteps({ withTitle = false }: { withTitle?: boolean }) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
     <div className="space-y-2 text-sm leading-6 text-gray-600">
       {withTitle ? (
@@ -965,7 +984,7 @@ function ParentAppUnavailableHelp({
 }: {
   withTitle?: boolean;
 }) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
     <div className="space-y-2 text-sm leading-6 text-gray-600">
       {withTitle ? (
@@ -1003,7 +1022,7 @@ function EnrollmentChildRow({
   onWithdraw,
   parentsHref,
 }: EnrollmentChildRowProps) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const handleWithdraw = () => {
     onWithdraw(child.id);
   };
@@ -1077,7 +1096,7 @@ function EnrollmentChildrenSection({
   onWithdraw: (childId?: string) => void;
   parentsHref: string | null;
 }>) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
     <section className="moto-content-surface space-y-4 rounded-xl border p-5 sm:p-6">
       <div className="flex items-center justify-between gap-4">
@@ -1152,7 +1171,7 @@ function GuardianSection({
   setEditing,
   editHref,
 }: GuardianSectionProps) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const handleCancel = () => {
     onCancelEdit();
     setEditFirstName(status.guardian_first_name);
@@ -1260,7 +1279,7 @@ function GuardianSection({
 }
 
 function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
     <DataGrid>
       <DataField label={t("nameLabel")}>
@@ -1316,7 +1335,7 @@ function WithdrawAllSection({
   withdrawingAll: boolean;
   onWithdraw: (childId?: string) => void;
 }>) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   if (allWithdrawn || justSubmitted) return null;
   const handleWithdraw = () => {
     onWithdraw();
@@ -1377,7 +1396,7 @@ function ChangeRequestsPanel({
   readonly onReplyDraftChange: (id: string, value: string) => void;
   readonly onReply: (id: string) => void;
 }) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const locale = useLocale();
   const diffCopy = useMemo<EnrollmentChangeRequestDiffCopy>(
     () => ({
@@ -1599,7 +1618,7 @@ function ChangeRequestPill({
 }: {
   readonly status: EnrollmentChangeRequest["status"];
 }) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
     <StatusBadge
       tone={CHANGE_REQUEST_TONES[status]}

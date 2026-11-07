@@ -2,10 +2,11 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   downloadEnrollmentSignatureProof,
   type EnrollmentSignature,
@@ -26,7 +27,7 @@ export function EnrollmentSignatureStatus({
   /** The parents may still change the enrollment and then sign again. */
   editable: boolean;
 }>) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const locale = useLocale();
   const { show } = useApiErrorDisplay();
   const [downloading, setDownloading] = useState(false);

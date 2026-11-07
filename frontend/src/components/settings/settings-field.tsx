@@ -50,6 +50,7 @@ import { SettingsTimeField } from "./fields/time-field";
 import { DateField } from "./fields/date-field";
 import { TextField } from "./fields/text-field";
 import { type ColorPreset, ColorField } from "./fields/color-field";
+import { type TextPreset, TextPresetField } from "./fields/text-preset-field";
 import { TextareaField } from "./fields/textarea-field";
 import { PasswordField } from "./fields/password-field";
 import { SelectField } from "./fields/select-field";
@@ -178,6 +179,30 @@ const ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY: Record<string, string> = {
     "enrollment.legal_email_contact_enabled",
 };
 
+const CARE_FACILITY_TERM_KEY = "enrollment.care_facility_term";
+
+/**
+ * The care-facility term (#6042) stands in sentences for parents, so the
+ * form names what it accepts before the server refuses it.
+ */
+function careFacilityTermProblem(
+  value: unknown,
+  pattern: string | undefined,
+): string | null {
+  const text = typeof value === "string" ? value : "";
+  if (text.trim() === "") return "Bitte geben Sie einen Namen ein.";
+  if (!pattern) return null;
+  let accepted: RegExp;
+  try {
+    accepted = new RegExp(pattern, "u");
+  } catch {
+    return null;
+  }
+  return accepted.test(text)
+    ? null
+    : "Erlaubt sind Buchstaben, Ziffern, Leerzeichen und . - / ( ). Am Anfang und Ende steht kein Leerzeichen.";
+}
+
 function validateLocally(
   setting: ResolvedSetting,
   value: unknown,
@@ -199,6 +224,11 @@ function validateLocally(
   // The payment text of the Träger takes only its placeholders (#5622).
   if (setting.key === PAYMENT_TEXT_KEY) {
     return paymentTextProblem(typeof value === "string" ? value : "");
+  }
+
+  if (setting.key === CARE_FACILITY_TERM_KEY) {
+    const problem = careFacilityTermProblem(value, setting.validation?.pattern);
+    if (problem) return problem;
   }
 
   // A text limit counts characters like the backend (#5622).
@@ -1889,6 +1919,11 @@ async function persistSetting(
 }
 
 /** The preset colours a colour setting offers (registry `options.static`). */
+/** Presets of a text setting (#6042); they never restrict the value. */
+function textPresets(setting: ResolvedSetting): TextPreset[] {
+  return colorPresets(setting);
+}
+
 function colorPresets(setting: ResolvedSetting): ColorPreset[] {
   return (setting.options?.static ?? []).flatMap((option) =>
     typeof option.value === "string"
@@ -1963,7 +1998,23 @@ function renderField(
           emptyLabel={setting.default === "" ? "Kein Datum" : undefined}
         />
       );
-    case "text":
+    case "text": {
+      const presets = textPresets(setting);
+      if (presets.length > 0) {
+        return (
+          <TextPresetField
+            ariaLabel={setting.label}
+            value={toStr(localValue)}
+            onChange={onLocalChange}
+            onPick={(next) => void onImmediateSave(next)}
+            onBlur={onBlur}
+            disabled={disabled}
+            presets={presets}
+            customLabel="Eigener Name"
+            errorId={errorId}
+          />
+        );
+      }
       return (
         <TextField
           ariaLabel={setting.label}
@@ -1971,8 +2022,10 @@ function renderField(
           onChange={onLocalChange}
           onBlur={onBlur}
           disabled={disabled}
+          errorId={errorId}
         />
       );
+    }
     case "color":
       return (
         <ColorField
