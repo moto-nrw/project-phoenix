@@ -7,6 +7,7 @@
 // und nur eine Zahl zu zeigen, macht die Seite leer und die Vorbereitung
 // unmöglich. Rein zum Lesen: gebucht wird erst, wenn die Aufsicht läuft.
 
+import { ListRowLink } from "~/components/ui/list-row-link";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Alert } from "~/components/ui/alert";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -47,30 +48,33 @@ function ChildRow({
 
   return (
     <li>
-      <button
-        type="button"
+      <ListRowLink
         onClick={() => onOpen(row)}
-        className="flex w-full items-center gap-3 border-b border-gray-100 px-4 py-2.5 text-left transition-colors last:border-b-0 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-gray-900 underline decoration-gray-300 underline-offset-4">
+        chevron={false}
+        className="py-2.5"
+        title={
+          <span className="underline decoration-gray-300 underline-offset-4">
             {row.studentName || `Kind ${row.studentId}`}
           </span>
-          {detail ? (
-            <span className="block truncate text-xs text-gray-500">
-              {detail}
-            </span>
-          ) : null}
-          {pickupTimeLabel === null ? null : (
-            <span className="mt-0.5 block text-xs font-medium text-gray-700">
-              Gehzeit: {pickupTimeLabel}
-            </span>
-          )}
-        </span>
-        {absence ? (
-          <StatusColorBadge label={absence} color={LOCATION_COLORS.EXCUSED} />
-        ) : null}
-      </button>
+        }
+        subtitle={
+          detail || pickupTimeLabel !== null ? (
+            <>
+              {detail ? <span className="block truncate">{detail}</span> : null}
+              {pickupTimeLabel === null ? null : (
+                <span className="mt-0.5 block font-medium text-gray-700">
+                  Gehzeit: {pickupTimeLabel}
+                </span>
+              )}
+            </>
+          ) : undefined
+        }
+        badge={
+          absence ? (
+            <StatusColorBadge label={absence} color={LOCATION_COLORS.EXCUSED} />
+          ) : undefined
+        }
+      />
     </li>
   );
 }
@@ -99,7 +103,7 @@ function Section({
         </h3>
         {hint ? <p className="mt-0.5 text-xs text-gray-500">{hint}</p> : null}
       </div>
-      <ul>
+      <ul className="divide-y divide-gray-100">
         {rows.map((row) => (
           <ChildRow
             key={row.studentId}

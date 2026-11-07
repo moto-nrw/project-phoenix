@@ -1,5 +1,6 @@
 "use client";
 
+import { ListRow } from "~/components/ui/list-row";
 import {
   useCallback,
   useEffect,
@@ -383,7 +384,7 @@ function PastRosterRow({
     pickupTimesRedacted,
   );
   return (
-    <div className="rounded-lg bg-white px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)]">
+    <ListRow tone="surface" className="block text-sm">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate font-medium text-gray-900">
@@ -406,6 +407,6 @@ function PastRosterRow({
           />
         ) : null}
       </div>
-    </div>
+    </ListRow>
   );
 }

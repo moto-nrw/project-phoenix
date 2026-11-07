@@ -77,7 +77,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/announcements/parent-target-picker.tsx",
-    lines: [47],
+    lines: [48],
     reason: "Zielgruppe ankreuzen (Häkchen-Zeile): Auswahlzeile",
   },
   {
@@ -89,7 +89,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/help/help-view.tsx",
-    lines: [1071],
+    lines: [1055],
     reason: "Artikel-Navigation der Hilfe (aria-current), Navigationszeile",
   },
   {
@@ -139,7 +139,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1066],
+    lines: [1067],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
@@ -148,42 +148,6 @@ export const buttonRatchetAllowlist = [
     lines: [179],
     reason:
       "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/day-flow-block.tsx",
-    lines: [128],
-    reason: "Listenzeile der Startseite, verlinkt weiter",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/home-block-content.tsx",
-    lines: [198, 272],
-    reason: "Listenzeilen der Startseite, verlinken weiter",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/messages-block.tsx",
-    lines: [82],
-    reason: "Listenzeile der Startseite, verlinkt weiter",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/my-group-block.tsx",
-    lines: [249, 280, 312],
-    reason: "Listenzeilen der Startseite, verlinken weiter",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/open-requests-block.tsx",
-    lines: [101],
-    reason: "Listenzeile der Startseite, verlinkt weiter",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/reminders-block.tsx",
-    lines: [122],
-    reason: "Listenzeile der Startseite, verlinkt weiter",
   },
   {
     rule: "no-hand-rolled-button",
@@ -208,19 +172,6 @@ export const buttonRatchetAllowlist = [
     file: "src/components/students/planned-status-days-modal.tsx",
     lines: [946],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/students/student-detail-components.tsx",
-    lines: [1155],
-    reason: "Verlaufskachel mit Symbol, Titel und Beschreibung: Kachel",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/time-tracking/betreuungsplan-heute-card.tsx",
-    lines: [394],
-    reason:
-      "Zeile „Betreuungsplan heute“, verlinkt auf Heute: Navigationszeile",
   },
   {
     rule: "no-hand-rolled-button",

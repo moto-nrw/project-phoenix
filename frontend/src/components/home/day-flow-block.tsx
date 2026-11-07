@@ -2,7 +2,7 @@
 
 import { Fragment } from "react";
 
-import Link from "~/components/ui/navigation-link";
+import { ListRow } from "~/components/ui/list-row";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -125,13 +125,14 @@ export function DayFlowBlock() {
                   <li key={block.id}>
                     {/* Jede Zeile führt in den Tagesplan, wo der Block bedient
                       wird — wie die Zeilen der Nachbarkarten. */}
-                    <Link
+                    <ListRow
                       href={dayPlanHref}
                       aria-label={`${block.title}${mine ? " (Mein Block)" : ""}: unter Heute öffnen`}
-                      className={`flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50 ${
-                        block.status === "completed" ? "opacity-60" : ""
-                      }`}
+                      className={
+                        block.status === "completed" ? "opacity-60" : undefined
+                      }
                       style={blockTintStyle(block, mine)}
+                      trailing={<BlockState block={block} now={now} />}
                     >
                       <span className="w-24 flex-shrink-0 text-sm font-medium text-gray-900 tabular-nums">
                         {blockTimeRange(block)}
@@ -165,8 +166,7 @@ export function DayFlowBlock() {
                             .flatMap((part) => [" · ", part])}
                         </span>
                       </p>
-                      <BlockState block={block} now={now} />
-                    </Link>
+                    </ListRow>
                   </li>
                 );
               })}

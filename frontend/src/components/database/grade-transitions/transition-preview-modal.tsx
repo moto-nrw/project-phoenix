@@ -4,6 +4,7 @@
 // happen (per-class counts, Abgänge, unmapped classes) and requires an
 // explicit second confirmation before applying.
 
+import { FramedList } from "~/components/ui/framed-list";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
 import { StatCard } from "~/components/ui/stat-card";
@@ -194,7 +195,7 @@ export function TransitionPreviewModal({
                   />
                 </div>
 
-                <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
+                <FramedList>
                   {preview.byMapping.map((m) => (
                     <li
                       key={m.fromClass}
@@ -211,7 +212,7 @@ export function TransitionPreviewModal({
                       </span>
                     </li>
                   ))}
-                </ul>
+                </FramedList>
 
                 {preview.toGraduate > 0 && (
                   <div className="border-moto-red/30 bg-moto-red/5 rounded-xl border p-3 text-sm text-gray-800">

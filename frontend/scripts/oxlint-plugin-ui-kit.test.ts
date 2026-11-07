@@ -2612,6 +2612,76 @@ describe.concurrent("ui-kit/no-hand-rolled-popover (#5601)", () => {
   });
 });
 
+describe.concurrent("Listen-Bausteine (#5593)", () => {
+  it.each([
+    [
+      "no-arbitrary-shadow",
+      `<div className="shadow-[0_1px_0_rgba(17,24,39,0.04)]" />`,
+    ],
+    ["no-arbitrary-shadow", `<div className="hover:shadow-[0_0_4px_red]" />`],
+    [
+      "no-hand-rolled-list-row",
+      `<div className="flex rounded-xl bg-gray-50/50 px-3 py-2" />`,
+    ],
+    [
+      "no-hand-rolled-framed-list",
+      `<ul className="divide-y divide-gray-100 rounded-lg border border-gray-200" />`,
+    ],
+    [
+      "no-hand-rolled-nav-row",
+      `<button type="button" className="flex w-full">Anna<ChevronRight /></button>`,
+    ],
+    [
+      "no-hand-rolled-nav-row",
+      `<button type="button" className="flex justify-between">Anna<span aria-hidden="true">›</span></button>`,
+    ],
+  ])("%s fails %s", async (rule, element) => {
+    const result = await lintSource(
+      `const ChevronRight = () => null;
+      export const Probe = () => ${element};
+      void ChevronRight;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(rule);
+  });
+
+  it.each([
+    ["no-arbitrary-shadow", `<div className="shadow-sm ring-4" />`],
+    [
+      "no-hand-rolled-list-row",
+      `<div className="rounded-xl border bg-gray-50/50 p-3" />`,
+    ],
+    [
+      "no-hand-rolled-framed-list",
+      `<ul className="divide-y divide-gray-100" />`,
+    ],
+    ["no-hand-rolled-nav-row", `<a href="/x" className="flex w-full">Anna</a>`],
+    [
+      "no-hand-rolled-nav-row",
+      `<a href="/x" className="flex gap-1">Heute öffnen<ChevronRight /></a>`,
+    ],
+  ])("%s accepts %s", async (rule, element) => {
+    const result = await lintSource(
+      `export const Probe = () => ${element};`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(rule);
+  });
+
+  it("leaves the kit folder alone", async () => {
+    const result = await lintSource(
+      `export const Probe = () => <div className="shadow-[0_0_4px_red] rounded-xl bg-gray-50/50 px-3" />;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-arbitrary-shadow");
+    expect(result.output).not.toContain("no-hand-rolled-list-row");
+  });
+});
+
 describe.concurrent("ui-kit/no-own-spinner (#5588)", () => {
   it.each([
     [
