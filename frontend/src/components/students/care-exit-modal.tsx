@@ -41,6 +41,7 @@ import {
   type CareExitReason,
 } from "~/lib/care-exit-api";
 import { lastCareDayBefore } from "~/lib/care-withdrawal-notice";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "CareExitModal" });
 
@@ -386,7 +387,7 @@ function CareExitPreviewList({
   return (
     <div className="space-y-4">
       {blocked.length > 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <InsetPanel framed padding="md">
           <p className="text-sm font-semibold text-gray-900">
             Die Betreuung wurde nicht beendet
           </p>
@@ -404,7 +405,7 @@ function CareExitPreviewList({
               </li>
             ))}
           </ul>
-        </div>
+        </InsetPanel>
       ) : null}
 
       {ready.length > 0 ? (

@@ -19,7 +19,6 @@ const (
 	permUsersManage = "users:manage"
 	permUsersList   = "users:list"
 	permRolesRead   = "roles:read"
-	permUsersUpdate = "users:update"
 	permRolesManage = "roles:manage"
 	pathPermissions = "/permissions"
 )
@@ -383,7 +382,12 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Account update operations
 	// This single-command handler lets the capability select its unit before
 	// any transaction starts, including cross-school organization updates.
-	r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
+	//
+	// It rewrites the login address and name, so it needs users:manage like
+	// register and link-to-tenant: under users:update, which the "user" role
+	// holds, a Betreuer could move an admin's address to their own mailbox
+	// and take the account over through a password reset.
+	r.With(common.RequiresPermission(permUsersManage)).Put("/", rs.updateAccount)
 	r.Group(rs.mountTransactionalAccountRoutes)
 }
 

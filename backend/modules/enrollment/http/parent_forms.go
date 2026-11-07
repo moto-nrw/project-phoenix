@@ -100,6 +100,10 @@ func (f ParentForms) StoreUpload(w http.ResponseWriter, r *http.Request, schoolI
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent enrollment uploads not configured")))
 		return
 	}
+	if err := f.Uploads.CountUploadAttempt(r.Context(), schoolID, remoteIPFromRequest(r)); err != nil {
+		renderUploadFailure(w, r, err)
+		return
+	}
 	file, input, err := parseEnrollmentUpload(w, r)
 	if err != nil {
 		renderUploadRefusal(w, r, err)

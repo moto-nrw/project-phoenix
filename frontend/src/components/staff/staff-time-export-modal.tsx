@@ -26,6 +26,7 @@ import {
 } from "~/lib/sftp-export-api";
 import { createLogger } from "~/lib/logger";
 import { Loading } from "~/components/ui/loading";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "StaffTimeExportModal" });
 
@@ -125,7 +126,7 @@ function DatevReportPanel({
   }
   const { report } = state;
   return (
-    <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+    <InsetPanel framed className="space-y-2 text-sm text-gray-700">
       <p>
         {report.lineCount} Buchungszeilen für {report.staffExported}{" "}
         Mitarbeitende.
@@ -156,7 +157,7 @@ function DatevReportPanel({
           Zwischenstand, nicht final.
         </p>
       )}
-    </div>
+    </InsetPanel>
   );
 }
 

@@ -3,10 +3,12 @@ package common
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/render"
@@ -50,6 +52,10 @@ var (
 	pptxKind = ooxmlKind{extension: ".pptx", part: "ppt/presentation.xml", contentType: PptxContentType}
 )
 
+// maxMultipartMemory is the part of a multipart body held in memory; the
+// rest of a file goes to a temporary file.
+const maxMultipartMemory = 1 << 20
+
 // documentUploadKinds is what child and staff documents accept.
 var documentUploadKinds = []ooxmlKind{docxKind}
 
@@ -79,7 +85,14 @@ func ParseOfficeFileWithLimits(w http.ResponseWriter, r *http.Request, fieldName
 func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64, kinds []ooxmlKind, invalidMessage string) (*UploadedFile, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 
-	if err := r.ParseMultipartForm(maxBodySize); err != nil {
+	// Parts beyond the memory threshold spill to temporary files. The server
+	// cancels the request context once the handler returns; the files go
+	// then. net/http's own cleanup misses them, because routers parse a copy
+	// of the request (WithContext).
+	// The form is set even when the query string fails to parse.
+	err := r.ParseMultipartForm(min(maxBodySize, maxMultipartMemory))
+	removeMultipartFilesAfter(r)
+	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			return nil, uploadRefusal{code: CodeFilesFileTooLarge, text: "file too large"}
@@ -109,6 +122,14 @@ func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName stri
 	}, nil
 }
 
+// removeMultipartFilesAfter removes the temporary files of the parsed form
+// when the request context ends.
+func removeMultipartFilesAfter(r *http.Request) {
+	if form := r.MultipartForm; form != nil {
+		context.AfterFunc(r.Context(), func() { _ = form.RemoveAll() })
+	}
+}
+
 // detectDocumentContentType reads the first 512 bytes to detect the MIME
 // type via magic bytes and validates it against the allowed document types.
 func detectDocumentContentType(file io.ReadSeeker, filename string, kinds []ooxmlKind, invalidMessage string) (string, error) {
@@ -134,11 +155,38 @@ func detectDocumentContentType(file io.ReadSeeker, filename string, kinds []ooxm
 	default:
 		return "", uploadRefusal{code: CodeFilesFileTypeNotAllowed, text: invalidMessage}
 	}
+	// The original name is stored and served as the download name, so a PDF
+	// named brief.html would be saved by the browser as HTML.
+	if !ExtensionMatchesContent(filename, contentType) {
+		return "", uploadRefusal{code: CodeFilesFileTypeNotAllowed, text: invalidMessage}
+	}
 
 	if _, err := file.Seek(0, 0); err != nil {
 		return "", uploadRefusal{code: CodeFilesFileUnreadable, text: "failed to process file"}
 	}
 	return contentType, nil
+}
+
+// ExtensionMatchesContent reports whether the file name's extension names
+// the detected content type. A PDF renamed to .png or .html, or a file
+// without a known extension, is refused even though the bytes alone pass.
+func ExtensionMatchesContent(filename, contentType string) bool {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".pdf":
+		return contentType == "application/pdf"
+	case ".png":
+		return contentType == "image/png"
+	case ".jpg", ".jpeg":
+		return contentType == "image/jpeg" || contentType == "image/jpg"
+	case docxKind.extension:
+		return contentType == DocxContentType
+	case xlsxKind.extension:
+		return contentType == XlsxContentType
+	case pptxKind.extension:
+		return contentType == PptxContentType
+	default:
+		return false
+	}
 }
 
 func matchOOXMLKind(filename string, kinds []ooxmlKind) (ooxmlKind, bool) {
