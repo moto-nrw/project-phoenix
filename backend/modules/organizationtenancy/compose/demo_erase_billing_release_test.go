@@ -262,3 +262,56 @@ func TestDemoErasureIncludesASendOfAConcurrentRelease(t *testing.T) {
 	assert.Zero(t, pushes, "the push of the send goes")
 	order.requireFullyErased(t)
 }
+
+// A correction of the visitor's invoice (correctable: the released run, then
+// the period) while the erasure runs: the erasure takes the run before the
+// period too, so it waits for the correction and then erases the order with
+// the cancellation, without a cycle and without deferring it (#6015).
+func TestDemoErasureWaitsForAConcurrentCorrection(t *testing.T) {
+	t.Parallel()
+	order := newHiddenDemoOrder(t)
+	ctx := t.Context()
+	correction, err := order.db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = correction.Rollback() })
+	var runID int64
+	require.NoError(t, correction.NewRaw(`SELECT run.id FROM parent_billing.runs AS run
+		JOIN parent_billing.documents AS document ON document.organization_id = run.organization_id AND document.run_id = run.id
+		WHERE document.number = 'F-' || ? FOR UPDATE OF run`, order.schoolID).Scan(ctx, &runID))
+
+	type outcome struct {
+		erased int
+		err    error
+	}
+	erasure := make(chan outcome, 1)
+	go func() {
+		_, erased, err := order.queue.RetireDemoSchools(t.Context(), nil)
+		erasure <- outcome{erased: erased, err: err}
+	}()
+	require.Eventually(t, func() bool {
+		return lockWaits(t, order.db, "retire_expired_demo_schools")
+	}, 5*time.Second, time.Millisecond, "the erasure waits for the run the correction holds")
+	// With the period before the run, the erasure would hold the period here
+	// and this lock would wait until the erasure gave up and deferred.
+	_, err = correction.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('parent_billing.period_billing:' || organization_id::text || ':' || ? || ':' || holiday_period_id::text, 0))
+		FROM parent_billing.runs WHERE id = ?`, "holiday", runID).Exec(ctx)
+	require.NoError(t, err)
+	var cancellationID int64
+	require.NoError(t, correction.NewRaw(`INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year,
+			number_sequence, issued_on, holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name,
+			recipient_email, service_from, service_until, total_cents, kind, reference_document_id, reason)
+		SELECT organization_id, run_id, service, 'ST-' || ?0, number_year, number_sequence + 3000000, issued_on, holiday_period_id,
+			holiday_registration_id, recipient_first_name, recipient_last_name, recipient_email, service_from, service_until,
+			-total_cents, 'cancellation', id, 'Storno'
+		FROM parent_billing.documents WHERE number = 'F-' || ?0 RETURNING id`, order.schoolID).Scan(ctx, &cancellationID))
+	require.NoError(t, correction.Commit())
+	select {
+	case result := <-erasure:
+		require.NoError(t, result.err)
+		require.Equal(t, 1, result.erased, "the erasure waits for the correction instead of deferring the order")
+	case <-time.After(5 * time.Second):
+		t.Fatal("erasure did not finish after the correction committed")
+	}
+	assert.False(t, invoiceRemains(t, order, cancellationID), "the cancellation of the visitor's invoice goes")
+	order.requireFullyErased(t)
+}
