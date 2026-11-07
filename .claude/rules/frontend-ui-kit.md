@@ -160,7 +160,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Filter toggle button | `FilterButton` | `~/components/ui/page-header/FilterButton` |
 | Stammdaten-Katalog einer Schule (Kategorien, Planungsspuren, Schichtarten, Abwesenheitsarten): Sammlung + Objektbearbeitung | `CatalogPage` auf einer eigenen Route unter `/database/…`; ein Formular, dem ein Eintrag fehlt, trägt nur die Auswahl und `CatalogManageLink`. Nie ein Slide-over, Modal oder Auswahlfeld — `bauart/no-manage-surface-in-overlay` fällt darauf (#3114). | `~/components/database/catalog/catalog-page`, `~/components/database/catalog/catalog-manage-link` |
 
-If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.
+If none fits, add the missing primitive to `frontend/src/components/ui/` and name it in the PR description (step 3 above). No styled native `<select>`.
 
 ## Buttons
 
@@ -252,7 +252,7 @@ failure this table exists to prevent: a `Record` or `switch` that maps one
 state to `SICK` and another to `DANGER` renders both identically. Check the
 resolved hex, not the constant name.
 
-Green shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74B825`, active `#6DB118`, text `#3F6F12`, fill `#4A7F14`. **An opaque green surface with text or an icon carries white on the fill steps** (#5141): `bg-moto-green-fill text-white hover:bg-moto-green-fill-hover active:bg-moto-green-fill-active` (4.84 / 6.0 / 7.0 : 1), or `Button variant="success"`, which already does this. Base, hover, active, light and vivid are for indicators without text (dots, bars, borders): white on `#83CD2D` is 1.96:1. Tinted surfaces (`bg-moto-green/10`, `-soft`) keep dark or `text-moto-green-strong` text. The ratchet `ui-kit/green-fill-white-text` fails dark text on any opaque green and white text on the light greens. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use `variant="success"`, the `moto-*` utilities or `LOCATION_COLORS` / `GROUP_ROOM_SHADES`, not copied hex classes.
+Green shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74B825`, active `#6DB118`, text `#3F6F12`, fill `#4A7F14`. **An opaque green surface with text or an icon carries white on the fill steps** (#5141): `bg-moto-green-fill text-white hover:bg-moto-green-fill-hover active:bg-moto-green-fill-active` (4.84 / 6.0 / 7.0 : 1), or `Button variant="success"`, which already does this. Base, hover, active, light and vivid are for indicators without text (dots, bars, borders): white on `#83CD2D` is 1.96:1. Tinted surfaces (`bg-moto-green/10`, `-soft`) keep dark or `text-moto-green-strong` text. The ratchet `ui-kit/green-fill-white-text` fails dark text on any opaque green and white text on the light greens.
 
 **Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`.
 
@@ -283,10 +283,6 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 ### Shadows
 
 `shadow-sm` (cards / surfaces — the app default) · `shadow-md` (hover / raised) · `shadow-lg` / `shadow-xl` (overlays / modals). The canonical card uses `shadow-sm`.
-
-## Kit gaps — extend the kit, don't inline a bespoke control
-
-See the table above; no styled native `<select>`. A genuinely missing primitive goes into `frontend/src/components/ui/`, not inline; call it out in the PR description.
 
 ## Gotchas
 
