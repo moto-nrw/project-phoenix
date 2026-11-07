@@ -19,7 +19,6 @@ import {
 } from "./ui-kit-button-baseline.mjs";
 import { fieldLabelBaseline } from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
-import { noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 import {
   lintSource as lintProbe,
   removeProbeDirectories,
@@ -2864,7 +2863,7 @@ describe.concurrent("ui-kit/no-hand-rolled-notice (#5591)", () => {
   it.each([
     '<div className="border-moto-green/40 bg-moto-green/10 rounded-full border px-2 py-0.5">Pille</div>',
     '<div className="border-moto-blue/30 bg-moto-red-soft rounded-lg border p-3">Zwei Töne</div>',
-    '<div className="bg-moto-amber/10 rounded-lg p-3">Ohne Rand</div>',
+    '<div className="bg-moto-blue/10 rounded-lg p-3">Ohne Rand</div>',
     '<div className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border">Ohne Abstand</div>',
     '<span className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border px-2">Inline</span>',
   ])("accepts %s", async (element) => {
@@ -2883,37 +2882,40 @@ describe.concurrent("ui-kit/no-hand-rolled-notice (#5591)", () => {
     expect(output).not.toContain(RULE);
   });
 
-  it("fails one finding more than a file's baseline", async () => {
-    // Leere Baseline: jede Datei steht auf null Funden.
-    const [file, allowed]: [string, number] = Object.entries(
-      noticeBaseline["no-hand-rolled-notice"]!,
-    )[0] ?? ["src/components/probe-notice.tsx", 0];
-    const boxes = Array.from(
-      { length: allowed + 1 },
-      (_, index) =>
-        `<div key="${index}" className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border p-3">A</div>`,
-    ).join("");
-    const result = await lintSource(
-      `export const Probe = () => <>${boxes}</>;`,
-      file,
+  it("fails a single finding anywhere outside the kit", async () => {
+    const result = await lintProbe(
+      'export const Probe = () => <div className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border p-3">A</div>;',
+      "src/components/parent/child-care.tsx",
     );
 
     expect(result.status).toBe(1);
     expect(result.output).toContain(RULE);
   });
-});
 
-describe("ui-kit/no-hand-rolled-notice baseline is current (#5591)", () => {
-  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken.
-  it("records exactly the findings each file still has", () => {
-    const result = spawnSync(
-      process.execPath,
-      [resolve("scripts/ui-kit-notice-baseline-update.mjs"), "--check"],
-      { encoding: "utf8" },
+  // Amber ist kein Ton von Alert: auch ohne Rand ein handgebauter Hinweis.
+  it.each([
+    '<div className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">A</div>',
+    '<p className="bg-moto-amber-soft text-moto-amber-strong mt-1 rounded px-2 py-1 text-xs">A</p>',
+  ])("fails the borderless amber box %s", async (element) => {
+    const result = await lintProbe(
+      `export const Probe = () => ${element};`,
+      "src/components/probe-notice.tsx",
     );
 
-    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
-  }, 120_000);
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
+  it.each([
+    '<span className="bg-moto-amber-soft text-moto-amber-strong rounded px-1.5 py-0.5 text-xs">Inline</span>',
+    '<div className="bg-moto-amber/20 text-moto-amber-strong inline-flex h-7 w-7 rounded-full">!</div>',
+  ])("accepts %s", async (element) => {
+    const { output } = await lintProbe(
+      `export const Probe = () => ${element};`,
+      "src/components/probe-notice.tsx",
+    );
+    expect(output).not.toContain(RULE);
+  });
 });
 
 describe.concurrent("ui-kit/no-important-override baseline (#5581)", () => {

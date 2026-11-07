@@ -11,7 +11,6 @@ import {
   fieldLabelBaseline,
 } from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
-import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -3425,7 +3424,9 @@ const noHandRolledFieldLabel = makeRatchetRule({
 // mit Rundung, Innenabstand, getöntem Rand `border-moto-<Ton>/N` und Fläche
 // desselben Tons (`bg-moto-<Ton>-soft` oder `bg-moto-<Ton>/N`). Kein Fund:
 // Pillen (`rounded-full`), Bedienelemente (Knopf, Link, Label), Inline-Text.
-// Start mit shrink-only Baseline je Datei, Abbau je Bereich in Sub-Issues.
+// Amber ist kein Ton von `Alert` (Warnungen sind orange): eine amber-Fläche
+// mit Rundung und Innenabstand ist auch ohne Rand ein Fund. Hard-zero seit
+// dem Abbau der Baseline.
 const NOTICE_TAGS = new Set([
   "div",
   "p",
@@ -3448,7 +3449,7 @@ function isHandRolledNotice(utilities) {
   );
   return utilities.some((token) => {
     const hue = token.match(NOTICE_FILL_RE)?.[1];
-    return hue !== undefined && borderHues.has(hue);
+    return hue !== undefined && (hue === "amber" || borderHues.has(hue));
   });
 }
 
@@ -3458,9 +3459,8 @@ const noHandRolledNotice = makeRatchetRule({
     "Build tinted notice boxes from Alert instead of styling a bordered, tinted block by hand.",
   message:
     'Kein eigener Hinweiskasten: Alert aus ~/components/ui/alert (`type`, für Hinweise in Feldern `size="compact"`, Standortfarbe über `color`). Warnhinweise sind orange über `type="warning"` (#5591, .claude/rules/frontend-ui-kit.md).',
-  baselines: noticeBaseline,
-  allowlist: noticeAllowlist,
-  countEnv: "UI_KIT_NOTICE_RATCHET",
+  baselines: {},
+  allowlist: [],
   kitFile: "src/components/ui/alert.tsx",
   detect: ({ classText: textOf, found }) => ({
     JSXOpeningElement(node) {
