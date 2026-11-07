@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,7 +16,7 @@ import (
 func TestTenantHooksDeferTheAnnouncementUntilCommit(t *testing.T) {
 	t.Parallel()
 
-	ctx, commit := tenant.WithAfterCommitHooksForTest(tenant.WithTenantID(context.Background(), 7))
+	ctx, commit := tenanttest.WithAfterCommitHooks(tenant.WithTenantID(context.Background(), 7))
 	hooks := TenantHooks{}
 	var announced []int64
 	tenantID := hooks.TenantID(ctx)

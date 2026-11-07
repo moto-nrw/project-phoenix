@@ -21,7 +21,6 @@ import {
   Pencil,
   Power,
   Trash2,
-  X,
 } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -108,6 +107,7 @@ import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { RemovableChip } from "~/components/ui/removable-chip";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -2050,19 +2050,12 @@ function SchoolClassListEditor({
       {value.length > 0 ? (
         <ul className="mt-2 flex flex-wrap gap-2">
           {value.map((cls) => (
-            <li
-              key={cls}
-              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-1 pr-1 pl-3 text-sm font-medium text-gray-700"
-            >
-              {cls}
-              <button
-                type="button"
-                onClick={() => onChange(value.filter((c) => c !== cls))}
-                aria-label={`${schoolClassLabel(cls)} entfernen`}
-                className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+            <li key={cls} className="max-w-full">
+              <RemovableChip
+                label={cls}
+                onRemove={() => onChange(value.filter((c) => c !== cls))}
+                removeLabel={`${schoolClassLabel(cls)} entfernen`}
+              />
             </li>
           ))}
         </ul>

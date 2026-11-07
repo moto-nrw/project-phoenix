@@ -38,13 +38,13 @@ Inhalt:     Karten im 24-px-Rhythmus, die letzte Fläche bis zur Unterkante
 
 What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second `<main>`, a hand-written `<h1>`, a separate action row above or below the head, a row that only carries a counter or a single select, and a bespoke loading/empty/error branch. Those live in the scaffold.
 
-**The body fills the screen.** The last kit surface in the body grows to the bottom edge (`.moto-tenant-body` in `globals.css`; the shell hands a flex column down to the content wrapper), so an empty page, a one-row table and a thirty-row list share one outline instead of ending after 60 px with half a screen of bare dot pattern. Only a `section`/`div` surface grows, directly in the body or up to two wrappers deeper (page wrapper, `DataTable`), and every wrapper in between must itself be a flex column (`flex flex-col`); grids and clickable tiles never grow. Do not fake it per page with `min-h-*` — unwrap the block instead.
+**The body fills the screen.** The last kit surface in the body grows to the bottom edge (`.moto-tenant-body` in `globals.css`; the shell hands a flex column down to the content wrapper), so an empty page, a one-row table and a thirty-row list share one outline. Only a `section`/`div` surface grows, directly in the body or up to two wrappers deeper (page wrapper, `DataTable`), and every wrapper in between must itself be a flex column (`flex flex-col`); grids and clickable tiles never grow. Do not fake it per page with `min-h-*` — unwrap the block instead.
 
-**No mini-heading above the title.** The blue uppercase kicker is gone from the tenant portal: it meant six different things at once (sidebar area, entity type, a repeat of the title, wizard step, a date, a status), so it taught the reader nothing. Where the user is comes from the breadcrumbs and the sidebar. `SectionCard`'s `kicker` prop survives for the parents portal, the NFC print guide and `/start` only.
+**No mini-heading above the title.** The blue uppercase kicker is gone from the tenant portal: it meant too many things at once. Where the user is comes from the breadcrumbs and the sidebar. `SectionCard`'s `kicker` prop survives for the parents portal, the NFC print guide and `/start` only.
 
-**Status line, not explanation.** The line under the title carries figures the page already loads — „116 Kinder · 107 zuhause · 9 krank", „29.07.2026 bis 27.08.2026 · 22 Betreuungstage". Use `TenantPageStats` for value/label pairs and `statsLoading` for the skeleton. An explanatory sentence in the head is a rule violation, not a nicety (`moto-einfache-sprache`, rule 8). A figure a tile or card in the body already shows does not repeat in the status line; leave `stats` empty then. Text a person needs only to get to know the page goes into `TenantPage`'s `info` prop: an info button next to the title opens it as a popover (mouse hover, tap, click and keyboard, may carry a link), so it costs no card row in daily use (#4385, #5682). Text needed on every visit stays a `SectionCard`.
+**Status line, not explanation.** The line under the title carries figures the page already loads — „116 Kinder · 107 zuhause · 9 krank", „29.07.2026 bis 27.08.2026 · 22 Betreuungstage". Use `TenantPageStats` for value/label pairs and `statsLoading` for the skeleton. An explanatory sentence in the head is a rule violation (`moto-einfache-sprache`, rule 8). A figure a tile or card in the body already shows does not repeat in the status line; leave `stats` empty then. Text a person needs only to get to know the page goes into `TenantPage`'s `info` prop: an info button next to the title opens it as a popover (mouse hover, tap, click and keyboard, may carry a link), so it costs no card row in daily use (#4385, #5682). Text needed on every visit stays a `SectionCard`.
 
-**One tab component per position.** Page-level tabs go through `TenantPage`'s `tabs` prop. `ui/Tabs` is only for tabs INSIDE a card (the substitution slide-over's Bearbeiten/Verlauf), `SegmentedControl` for every value choice — Monat/Woche/Tag, A/B-Woche, target group, export range, list filter. A value switcher built from `ui/Tabs` is a violation, not a style choice: the ratchet `ui-kit/no-tabs-as-value-switcher` fails on it.
+**One tab component per position.** Page-level tabs go through `TenantPage`'s `tabs` prop. `ui/Tabs` is only for tabs INSIDE a card (the substitution slide-over's Bearbeiten/Verlauf), `SegmentedControl` for every value choice — Monat/Woche/Tag, A/B-Woche, target group, export range, list filter. `ui-kit/no-tabs-as-value-switcher` fails a value switcher built from `ui/Tabs`.
 
 **One card per job, all from the kit.** A content surface in a tenant page is never a hand-written class chain: `SectionCard` (with `title`, or without it for the plain surface), `TileCard` for anything clickable (`containsControls` when the tile carries its own buttons), `StatCard` for every figure, `TenantPageHeaderSkeleton` for a loading head. `ui-kit/no-hand-rolled-page-card` fails a page that spells the surface out again.
 
@@ -78,7 +78,7 @@ Don't design from imagination. The app's real screens are captured as images you
   - `kinderdetailansicht.webp` = child detail · `kindersuche.webp` = student search/list
   - `meine-gruppen.webp` = groups · `aktivitaeten.webp` = activities
   - `datenverwaltung.webp` = data admin · NFC kiosk = `nfc-*.webp`
-- **Component gallery (Storybook)** → https://moto-nrw.github.io/design-system/ (or `pnpm storybook` in the sibling `../design-system` repo → :6006; project-phoenix itself has no storybook script). Good for component anatomy and states. Caveat: it renders the `@moto-nrw/design-system` **package** components, which share the visual language but are NOT the ones we import — use it for spacing/anatomy intuition, not as import targets.
+- **Component gallery (Storybook)** → https://moto-nrw.github.io/design-system/ (or `pnpm storybook` in the sibling `../design-system` repo → :6006; project-phoenix itself has no storybook script). Good for component anatomy and states. Caveat: it renders the `@moto-nrw/design-system` **package** components, NOT the ones we import; use it for anatomy, not as import targets.
 
 Match what you see: density, neutral grays, brand-green accents used sparingly, no decorative hero cards.
 
@@ -120,8 +120,12 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Selectable row or tile (label around a Checkbox/Radio, mode-picker button, row with a selection state) | `ChoiceTile` — `as` = `label` (default) / `button` / `div`, `selected`, `disabled`, `tone` = `gray` `green` `blue`; padding via `className` | `~/components/ui/choice-tile` |
 | Label/value fields | `DataField` in a `dl`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
 | Select | `CustomSelect`, `MultiSelect`; own content: `ListboxDropdown` | `~/components/ui/<kebab-name>` |
+| Weekday choice | `WeekdayToggleGroup` | `~/components/ui/weekday-toggle-group` |
+| Chosen entry with a remove X; read-only without `onRemove` | `RemovableChip` | `~/components/ui/removable-chip` |
+| Number with minus and plus (except time tracking's break stepper) | `NumberStepper` | `~/components/ui/number-stepper` |
+| Day strip on a phone | `PlanningDayChip stacked` (`marker`, `statusLabel`, `today`) | `~/components/ui/planning/planning-context-bar` |
 | Date / range picker | `DatePicker`, `DateRangePicker` (selection gray-900, today blue); with time: `DateTimePicker` | `~/components/ui/<kebab-name>` |
-| Loading | Area: `Loading fullPage={false}`; beside text, in an icon button: `SpinnerIcon`; text button: `Button isLoading loadingText`; known shape: `SectionCard loading`, `page-skeletons` in `SkeletonRegion`, `Skeleton` (`shape`), `SkeletonRows` | `~/components/ui/loading`, `ui/icons`, `ui/button`, `ui/page-skeletons`, `ui/skeleton` |
+| Loading | Area: `Loading fullPage={false}`; beside text or in icon button: `SpinnerIcon`; text button: `Button isLoading loadingText`; known shape: `SectionCard loading`, `page-skeletons` in `SkeletonRegion`, `Skeleton` (`shape`), `SkeletonRows` | `~/components/ui/`: `loading`, `icons`, `button`, `page-skeletons`, `skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |
 | File drop or choice | `Dropzone`; caller checks beyond `accept` | `~/components/ui/dropzone` |
 | Key or link to copy | `CopyField`; button only: `useClipboardCopy` | `~/components/ui/copy-field` |
@@ -212,22 +216,22 @@ Review check: with two or more entries that carry actions, the screen shows one 
 
 ### Colors — route every semantic color through `LOCATION_COLORS`
 
-NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) for a brand-semantic purpose; the Tailwind hues differ from the brand. Prefer the kit component that already encodes the color, then a `moto-*` utility (`bg-moto-green`, `text-moto-red-strong`), then `LOCATION_COLORS` / `MOTO_COLOR_PALETTE` in a `style` prop. Do NOT hardcode the raw hex in an arbitrary-value class: when the palette moves, a literal stays behind and silently drifts out of sync with the token beside it.
+NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) for a brand-semantic purpose; the Tailwind hues differ from the brand. Prefer the kit component that already encodes the color, then a `moto-*` utility (`bg-moto-green`, `text-moto-red-strong`), then `LOCATION_COLORS` / `MOTO_COLOR_PALETTE` in a `style` prop. Do NOT hardcode the raw hex in an arbitrary-value class: a literal drifts when the palette moves.
 
-| Semantic                 | Hex       | `LOCATION_COLORS` key |
-| ------------------------ | --------- | --------------------- |
-| Brand green (primary)    | `#83CD2D` | `GROUP_ROOM`          |
-| Brand blue               | `#5080D8` | `OTHER_ROOM`          |
-| Neutral gray (Zuhause)   | `#6B7280` | `HOME`                |
-| Petrol (Schule)          | `#217A78` | `AT_SCHOOL`           |
-| Orange (Schulhof)        | `#F78C10` | `SCHOOLYARD`          |
-| Magenta (Unterwegs)      | `#D946EF` | `TRANSIT`             |
-| Red (Krank / Fehler)     | `#DC2626` | `SICK` / `DANGER`     |
-| Amber (Warnung)          | `#EAB308` | `WARNING`             |
-| Purple (Entschuldigt)    | `#7C3AED` | `EXCUSED`             |
-| Cyan (Klassenfahrt)      | `#0891B2` | `CLASS_TRIP`          |
-| Navy (Kommt heute nicht) | `#365D83` | `NOT_ARRIVAL`         |
-| Stone (Unbekannt)        | `#78716C` | `UNKNOWN`             |
+| Semantic | Hex | `LOCATION_COLORS` key |
+|---|---|---|
+| Brand green (primary) | `#83CD2D` | `GROUP_ROOM` |
+| Brand blue | `#5080D8` | `OTHER_ROOM` |
+| Neutral gray (Zuhause) | `#6B7280` | `HOME` |
+| Petrol (Schule) | `#217A78` | `AT_SCHOOL` |
+| Orange (Schulhof) | `#F78C10` | `SCHOOLYARD` |
+| Magenta (Unterwegs) | `#D946EF` | `TRANSIT` |
+| Red (Krank / Fehler) | `#DC2626` | `SICK` / `DANGER` |
+| Amber (Warnung) | `#EAB308` | `WARNING` |
+| Purple (Entschuldigt) | `#7C3AED` | `EXCUSED` |
+| Cyan (Klassenfahrt) | `#0891B2` | `CLASS_TRIP` |
+| Navy (Kommt heute nicht) | `#365D83` | `NOT_ARRIVAL` |
+| Stone (Unbekannt) | `#78716C` | `UNKNOWN` |
 
 `SICK` and `DANGER` are the same hex on purpose — one names the child status,
 the other the error semantic. `WARNING` is the amber "needs attention but is
@@ -241,7 +245,7 @@ resolved hex, not the constant name.
 
 Green shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74B825`, active `#6DB118`, text `#3F6F12`, fill `#4A7F14`. **An opaque green surface with text or an icon carries white on the fill steps** (#5141): `bg-moto-green-fill text-white hover:bg-moto-green-fill-hover active:bg-moto-green-fill-active` (4.84 / 6.0 / 7.0 : 1), or `Button variant="success"`, which already does this. Base, hover, active, light and vivid are for indicators without text (dots, bars, borders): white on `#83CD2D` is 1.96:1. Tinted surfaces (`bg-moto-green/10`, `-soft`) keep dark or `text-moto-green-strong` text. The ratchet `ui-kit/green-fill-white-text` fails dark text on any opaque green and white text on the light greens. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use `variant="success"`, the `moto-*` utilities or `LOCATION_COLORS` / `GROUP_ROOM_SHADES`, not copied hex classes.
 
-**Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`, or you introduce a third, wrong green.
+**Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`.
 
 ### Concept icons — one symbol per domain concept
 
@@ -299,11 +303,11 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 ## Detection
 
 **CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on drift patterns, first these five — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-hand-rolled-surface` (unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element, also across conditional branches; use `moto-content-surface`, `moto-popover-surface`, `ChoiceTile` or a kit surface component — #2933), `ui-kit/no-rounded-3xl` (off-scale radius, `rounded-t-3xl` too), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes; a Checkbox inside a label-shaped `ChoiceTile` counts as labeled). These five are hard-zero. A deliberate non-card match (white pill) may stay behind `{/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- <reason> */}` with the reason in the PR description; no baseline. Test/stories files are exempt from the class-string rules.
-The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading in the tenant portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a tenant or Träger page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline). `ui-kit/green-fill-white-text` (#5141, hard-zero) keeps text on opaque green surfaces white and on the dark fill steps. #5577: `no-dynamic-color-class`, `no-white-on-warm-fill` (white on orange only `-strong`). `ui-kit/no-hand-rolled-button` and `ui-kit/no-button-override` (#5531) are the button ratchet with a shrink-only per-file baseline and a reasoned allowlist ([Buttons](#buttons)). #5579: `no-shadcn-tokens`, `no-raw-z-index` (`z-[n]`). #5580: `no-select-override` (no look classes on selects, `DateRangePicker`). #5581: `no-important-override` (`!` on kit components, baseline), `no-section-card-bleed`. #5582: `no-hand-rolled-icon-tile` (also in `ui/`). #5583: `no-shadow-kit-name` (no local name equal to a kit export). #5584 (shrink-only): `no-hand-rolled-pill`, `no-pill-dot`, `no-hex-alpha-tint`. #5599: `no-hand-rolled-dropzone` (`onDrop`), `no-hand-rolled-copy-field` (framed `<code>`, `navigator.clipboard`). `ui-kit/no-raw-input` (#5217, hard-zero) fails a hand-built `<input>`/`<textarea>` except in the primitives of `RAW_INPUT_KIT_PRIMITIVES`; `type="hidden"` and `type="file"` stay native. A field with no kit counterpart (OTP grid) stays behind `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`. A form jumps to its first failed field only through `FormErrorAlert`; there is no second scroll hook.
+The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading in the tenant portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a tenant or Träger page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline). `ui-kit/green-fill-white-text` (#5141, hard-zero) keeps text on opaque green surfaces white and on the dark fill steps. #5577: `no-dynamic-color-class`, `no-white-on-warm-fill` (white on orange only `-strong`). #5531: button ratchet, see [Buttons](#buttons). #5579: `no-shadcn-tokens`, `no-raw-z-index` (`z-[n]`). #5580: `no-select-override` (no look classes on selects, `DateRangePicker`). #5581: `no-important-override` (`!` on kit components, baseline), `no-section-card-bleed`. #5582: `no-hand-rolled-icon-tile` (also in `ui/`). #5583: `no-shadow-kit-name` (no local name equal to a kit export). #5584 (hard-zero): `no-hand-rolled-pill`, `no-pill-dot`, `no-hex-alpha-tint`. #5596 (hard-zero): `no-hand-rolled-weekday-toggle` (`.map` over weekdays returning a checkbox label or pressed button), `no-hand-rolled-removable-chip` (chip with its own X), `no-hand-rolled-number-stepper` (minus/plus around a field). #5599: `no-hand-rolled-dropzone` (`onDrop`), `no-hand-rolled-copy-field` (framed `<code>`, `navigator.clipboard`). `ui-kit/no-raw-input` (#5217, hard-zero) fails a hand-built `<input>`/`<textarea>` except in the primitives of `RAW_INPUT_KIT_PRIMITIVES`; `type="hidden"` and `type="file"` stay native. A field with no kit counterpart (OTP grid) stays behind `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`. A form jumps to its first failed field only through `FormErrorAlert`; there is no second scroll hook.
 
 `ui-kit/no-kit-domain-import` (#5586, hard-zero): `components/ui/` imports no other component folder and calls no `fetch`/`useSWR*`; context comes through props and slots. Planning pieces live in `ui/planning/`. `no-hand-rolled-surface` applies in `ui/` too.
 
-`ui-kit/no-own-spinner` (#5588, hard-zero): no `animate-spin`, no icon-package spinner outside `ui/`. `bauart/no-own-skeleton` also fails rows of several `<Skeleton>` in an own surface and radius classes on `<Skeleton>`. The scaffold test fails visible loading text in `page.tsx`.
+`ui-kit/no-own-spinner` (#5588, hard-zero): no `animate-spin` or icon-package spinner outside `ui/`. `bauart/no-own-skeleton` also fails `<Skeleton>` rows in an own surface and radius classes on it. The scaffold test fails visible loading text in `page.tsx`.
 
 `ui-kit/no-hand-rolled-dot` fails a hand-built dot or colour bar outside `ui/` (hard-zero); `ui-kit/no-status-dot-outside-plans` keeps `StatusDot` to the legends and plans listed in the plugin (ADR 0149).
 

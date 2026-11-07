@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -17,13 +17,13 @@ import (
 // function is called. It keeps service-package tests on the shared test seam
 // instead of importing tenant runtime internals directly.
 func WithAfterCommitHooks(ctx context.Context) (context.Context, func()) {
-	return tenant.WithAfterCommitHooksForTest(ctx)
+	return tenanttest.WithAfterCommitHooks(ctx)
 }
 
 // ContextWithTransaction makes tx the ambient tenant transaction of ctx, so a
 // repository test can hold a lock in one transaction and contend in another.
 func ContextWithTransaction(ctx context.Context, tx any) context.Context {
-	return tenant.WithTransactionForTest(ctx, tx)
+	return tenanttest.WithTransaction(ctx, tx)
 }
 
 // MintTestJWT signs a JWT for the given claims using the same configuration as

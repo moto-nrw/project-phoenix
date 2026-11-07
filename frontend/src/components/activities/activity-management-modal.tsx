@@ -24,9 +24,10 @@ import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
-import { Minus, Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { InfoIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { NumberStepper } from "~/components/ui/number-stepper";
 import { ActivityWaitlistSection } from "./activity-waitlist-section";
 import { Loading } from "~/components/ui/loading";
 
@@ -147,6 +148,17 @@ export function ActivityManagementModal({
   // „Wiederholen“ läuft mit dem aktuellen Formularstand.
   const retrySaveRef = useRef<() => void>(() => undefined);
   const retryDeleteRef = useRef<() => void>(() => undefined);
+  const stepMaxParticipants = (delta: -1 | 1) => {
+    setForm((prev) => {
+      const current = Number.parseInt(prev.max_participants, 10);
+      if (!Number.isFinite(current)) return prev;
+      return {
+        ...prev,
+        max_participants: Math.max(1, current + delta).toString(),
+      };
+    });
+  };
+
   const onInput = (event: ChangeEvent<HTMLInputElement>) => {
     handleInputChange(event);
     clearFormErrors();
@@ -381,79 +393,23 @@ export function ActivityManagementModal({
                   </div>
                   Maximale Teilnehmerzahl
                 </label>
-                <div className="relative flex items-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const current = Number.parseInt(
-                        form.max_participants,
-                        10,
-                      );
-                      if (current > 1) {
-                        setForm((prev) => ({
-                          ...prev,
-                          max_participants: (current - 1).toString(),
-                        }));
-                      }
-                    }}
-                    className="focus:ring-moto-blue absolute left-0 z-10 flex h-full w-12 items-center justify-center rounded-l-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
-                    disabled={
-                      !form.max_participants ||
-                      Number.parseInt(form.max_participants, 10) <= 1 ||
-                      readOnly
-                    }
-                    aria-label="Teilnehmer reduzieren"
-                  >
-                    <Minus
-                      className="h-5 w-5 md:h-4 md:w-4"
-                      strokeWidth={2.5}
-                      aria-hidden="true"
-                    />
-                  </button>
-
-                  <div className="flex-1">
-                    <Input
-                      id="max_participants"
-                      controlSize="compact"
-                      name="max_participants"
-                      type="number"
-                      value={form.max_participants}
-                      onChange={onInput}
-                      aria-invalid={
-                        fieldError("max_participants") ? true : undefined
-                      }
-                      min="1"
-                      required={Boolean(form.max_participants)}
-                      className="[appearance:textfield] px-14! text-center text-base! font-semibold disabled:cursor-not-allowed md:px-12! [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                      disabled={readOnly || !form.max_participants}
-                    />
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const current = Number.parseInt(
-                        form.max_participants,
-                        10,
-                      );
-                      if (Number.isFinite(current)) {
-                        setForm((prev) => ({
-                          ...prev,
-                          max_participants: (current + 1).toString(),
-                        }));
-                      }
-                    }}
-                    className="focus:ring-moto-blue absolute right-0 z-10 flex h-full w-12 items-center justify-center rounded-r-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
-                    disabled={readOnly || !form.max_participants}
-                    aria-label="Teilnehmer erhöhen"
-                  >
-                    <Plus
-                      className="h-5 w-5 md:h-4 md:w-4"
-                      strokeWidth={2.5}
-                      aria-hidden="true"
-                    />
-                  </button>
-                </div>
+                <NumberStepper
+                  id="max_participants"
+                  name="max_participants"
+                  type="number"
+                  min="1"
+                  value={form.max_participants}
+                  onChange={onInput}
+                  onStep={stepMaxParticipants}
+                  canDecrement={Number.parseInt(form.max_participants, 10) > 1}
+                  decrementLabel="Teilnehmer reduzieren"
+                  incrementLabel="Teilnehmer erhöhen"
+                  aria-invalid={
+                    fieldError("max_participants") ? true : undefined
+                  }
+                  required={Boolean(form.max_participants)}
+                  disabled={readOnly || !form.max_participants}
+                />
                 <label
                   htmlFor="activity-no-participant-limit"
                   className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-sm text-gray-700"

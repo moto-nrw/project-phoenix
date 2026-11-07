@@ -35,7 +35,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted; modules/organizationtenancy/school.go:49. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted; modules/organizationtenancy/school.go:49. May-bind method surface, not a production-call/liveness claim. Rebound to also read School.Active, so a school switched inactive admits no device; still read-only.",
       "source_owner": "device-fleet",
       "target": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
@@ -45,7 +45,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchool; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchool; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged. Rebound to also read School.Active, so a school switched inactive admits no device; still read-only.",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
       "target_owner": "organization-tenancy"
@@ -55,7 +55,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
-      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Capability.FindSchoolBySlug (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Capability.FindSchoolBySlug (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound to also read School.Active, so a school switched inactive admits no device; still read-only.",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySlug",
       "target_owner": "organization-tenancy"
@@ -65,7 +65,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
-      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Capability.FindSchoolBySubdomain (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Capability.FindSchoolBySubdomain (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound to also read School.Active, so a school switched inactive admits no device; still read-only.",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySubdomain",
       "target_owner": "organization-tenancy"
@@ -75,7 +75,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchool; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchool; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged. Rebound to also read School.Active, so a school switched inactive admits no device; still read-only.",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
       "target_owner": "organization-tenancy"
@@ -85,7 +85,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
-      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Query.FindSchoolBySlug (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Query.FindSchoolBySlug (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound to also read School.Active, so a school switched inactive admits no device; still read-only.",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySlug",
       "target_owner": "organization-tenancy"
@@ -95,7 +95,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
-      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Query.FindSchoolBySubdomain (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Query.FindSchoolBySubdomain (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound to also read School.Active, so a school switched inactive admits no device; still read-only.",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySubdomain",
       "target_owner": "organization-tenancy"
@@ -105,7 +105,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
-      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Capability.FindSchool (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Capability.FindSchool (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound to also read School.Active, so a school switched inactive admits no device; still read-only.",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
       "target_owner": "organization-tenancy"
@@ -115,7 +115,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
-      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Query.FindSchool (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Query.FindSchool (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound to also read School.Active, so a school switched inactive admits no device; still read-only.",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
       "target_owner": "organization-tenancy"
@@ -125,7 +125,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
-      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.School.IsDeleted (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.School.IsDeleted (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound to also read School.Active, so a school switched inactive admits no device; still read-only.",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
@@ -135,7 +135,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
-      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.SchoolQuery.FindSchool (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.SchoolQuery.FindSchool (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound to also read School.Active, so a school switched inactive admits no device; still read-only.",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",
       "target_owner": "organization-tenancy"

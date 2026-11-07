@@ -51,42 +51,30 @@ func NewSchoolTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}, classday, delivery, nil
 }
 
-// SchoolDeletionLookupForTests reads whether a seeded school exists and is
-// soft-deleted through the Organisation & Tenancy capability over db, the
-// owner the serving root binds. Every read runs under runtime, as the request
-// middleware provides it.
-func SchoolDeletionLookupForTests(db transactionruntime.Database, runtime tenant.UnitOfWork) (func(context.Context, int64) (found, deleted bool, err error), error) {
+// NewDeviceSchools answers the device school guard through the Organisation
+// & Tenancy capability over db, the owner the serving root binds, so handler
+// tests exercise the inactive- and deleted-school check against real
+// fixtures. Every read runs under unit, as the request middleware provides it.
+func NewDeviceSchools(db transactionruntime.Database, unit tenant.UnitOfWork) (deviceauth.SchoolDirectory, error) {
 	schools, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}
-	return func(ctx context.Context, id int64) (bool, bool, error) {
-		school, found, err := owners.LookupSchool(tenant.WithUnitOfWork(ctx, runtime), schools, id)
-		return found, found && school.IsDeleted(), err
-	}, nil
-}
-
-// NewDeviceSchools answers the device school guard through the Organisation
-// & Tenancy capability over db, the owner the serving root binds, so handler
-// tests exercise the deleted-school check against real fixtures.
-func NewDeviceSchools(db transactionruntime.Database, unit tenant.UnitOfWork) (deviceauth.SchoolDirectory, error) {
-	lookup, err := SchoolDeletionLookupForTests(db, unit)
-	if err != nil {
-		return nil, err
-	}
-	return deviceSchools{lookup: lookup}, nil
+	return deviceSchools{lookup: func(ctx context.Context, id int64) (*deviceauth.School, error) {
+		school, found, err := owners.LookupSchool(tenant.WithUnitOfWork(ctx, unit), schools, id)
+		if err != nil || !found {
+			return nil, err
+		}
+		return &deviceauth.School{Active: school.Active, Deleted: school.IsDeleted()}, nil
+	}}, nil
 }
 
 type deviceSchools struct {
-	lookup func(context.Context, int64) (found, deleted bool, err error)
+	lookup func(context.Context, int64) (*deviceauth.School, error)
 }
 
 func (d deviceSchools) FindSchool(ctx context.Context, id int64) (*deviceauth.School, error) {
-	found, deleted, err := d.lookup(ctx, id)
-	if err != nil || !found {
-		return nil, err
-	}
-	return &deviceauth.School{Deleted: deleted}, nil
+	return d.lookup(ctx, id)
 }
 
 // SchoolMFAResendResponse is the native response the school router renders.

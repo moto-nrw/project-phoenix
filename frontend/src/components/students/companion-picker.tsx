@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { fetchStudents } from "~/lib/student-api";
 import {
@@ -308,33 +308,19 @@ export function CompanionPicker({
           </div>
           {/* Only the days the plan above allows are offered, so the two can
               never contradict each other. */}
-          <div className="flex max-w-sm flex-wrap gap-1">
-            {dayOptions.map((day) => {
-              const active = companion.weekdays.includes(day.value);
-              return (
-                <label
-                  key={day.value}
-                  className={`flex h-8 w-16 items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition-colors ${
-                    disabled ? "cursor-default" : "cursor-pointer"
-                  } ${
-                    active
-                      ? "border-gray-900 bg-white text-gray-900"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <Checkbox
-                    checked={active}
-                    disabled={disabled}
-                    aria-label={`${companionDisplayName(companion)}: ${day.label}`}
-                    onChange={() =>
-                      toggleWeekday(companion.companion_student_id, day.value)
-                    }
-                  />
-                  {day.short}
-                </label>
-              );
-            })}
-          </div>
+          <WeekdayToggleGroup
+            ariaLabel={`Wochentage für ${companionDisplayName(companion)}`}
+            days={dayOptions.map((day) => ({
+              value: day.value,
+              label: day.short,
+              ariaLabel: `${companionDisplayName(companion)}: ${day.label}`,
+            }))}
+            value={companion.weekdays}
+            onToggle={(day) =>
+              toggleWeekday(companion.companion_student_id, day)
+            }
+            disabled={disabled}
+          />
         </div>
       ))}
 

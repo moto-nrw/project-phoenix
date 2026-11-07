@@ -20,6 +20,20 @@
       "role": "public",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "tenant/tenanttest",
+      "owner": "tenant-runtime",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "tenant/internal/testseam",
+      "owner": "tenant-runtime",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "rules": [

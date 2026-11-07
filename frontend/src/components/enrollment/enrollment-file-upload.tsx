@@ -10,11 +10,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { RemovableChip } from "~/components/ui/removable-chip";
 import { useApiFormError } from "~/contexts/ToastContext";
 import type { FormField } from "~/lib/enrollment-form-schema-api";
 import {
@@ -339,34 +340,25 @@ export function FileUploadInput({
       {files.length > 0 || pending.length > 0 ? (
         <ul className="mt-2 flex flex-wrap gap-2" aria-live="polite">
           {files.map((entry) => (
-            <li
-              key={uploadValueKey(entry)}
-              className="inline-flex max-w-full items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 py-1.5 pr-1 pl-2.5 text-sm text-gray-800"
-            >
-              <FileTypeIcon
-                contentType={entry.content_type}
-                className="h-4 w-4 shrink-0"
+            <li key={uploadValueKey(entry)} className="max-w-full">
+              <RemovableChip
+                label={entry.filename}
+                detail={formatUploadSize(entry.size_bytes, locale)}
+                icon={
+                  <FileTypeIcon
+                    contentType={entry.content_type}
+                    className="h-4 w-4 shrink-0"
+                  />
+                }
+                onRemove={() => dropFile(uploadValueKey(entry))}
+                removeLabel={tr("upload.remove", { name: entry.filename })}
               />
-              <span className="min-w-0 truncate">{entry.filename}</span>
-              <span className="shrink-0 text-xs text-gray-500">
-                {formatUploadSize(entry.size_bytes, locale)}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                onClick={() => dropFile(uploadValueKey(entry))}
-                aria-label={tr("upload.remove", { name: entry.filename })}
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </Button>
             </li>
           ))}
           {pending.map((entry) => (
             <li
               key={`pending-${entry.id}`}
-              className="inline-flex max-w-full items-center gap-2 rounded-lg border border-dashed border-gray-300 px-2.5 py-1.5 text-sm text-gray-500"
+              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-dashed border-gray-300 px-3 py-1 text-sm text-gray-500"
             >
               <span className="min-w-0 truncate">{entry.name}</span>
               <span className="shrink-0 text-xs">{tr("upload.uploading")}</span>

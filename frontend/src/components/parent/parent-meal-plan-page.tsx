@@ -28,6 +28,7 @@ import {
 } from "~/components/ui/form-error-alert";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { ParentSubsection } from "~/components/parent/shell/parent-section";
@@ -813,9 +814,10 @@ function ParticipationWeek({
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
                 {participationWeekdays.map((weekday) => (
-                  <label
+                  <ChoiceTile
                     key={weekday}
-                    className="flex min-h-12 cursor-pointer items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium text-gray-800 ring-1 ring-gray-200"
+                    selected={weekdays.includes(weekday)}
+                    className="min-h-12 gap-2 px-3 py-2"
                   >
                     <Checkbox
                       checked={weekdays.includes(weekday)}
@@ -823,7 +825,7 @@ function ParticipationWeek({
                       disabled={saving}
                     />
                     {t(`weekday${weekday}`)}
-                  </label>
+                  </ChoiceTile>
                 ))}
               </div>
               <p className="mt-3 text-xs text-gray-500">{t("finishEdit")}</p>

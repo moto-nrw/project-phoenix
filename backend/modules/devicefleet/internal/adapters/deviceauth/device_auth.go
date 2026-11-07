@@ -74,14 +74,16 @@ var (
 )
 
 // SchoolLookup answers the pre-tenant question whether the device's school
-// still accepts devices. Devices use long-lived API keys, so a deleted school
-// must be blocked immediately rather than waiting for token expiry.
+// still accepts devices. Devices use long-lived API keys, so a school that is
+// switched inactive or deleted must be blocked immediately rather than
+// waiting for token expiry.
 //
 // Implementations return ErrSchoolNotFound when the row is missing, wrap
 // ErrSchoolLookupUnavailable for transient connectivity failures, and return
 // any other error for failures that must reject the device.
 type SchoolLookup interface {
-	IsSchoolDeleted(ctx context.Context, schoolID int64) (bool, error)
+	// IsSchoolClosed reports a school that is switched inactive or deleted.
+	IsSchoolClosed(ctx context.Context, schoolID int64) (bool, error)
 }
 
 // PINResolver resolves the device PIN for a given tenant.
@@ -103,7 +105,7 @@ type Dependencies struct {
 	Devices DeviceDirectory
 	// BindTenant establishes the tenant boundary. Required.
 	BindTenant TenantBinder
-	// Schools rejects devices of deleted schools. A nil lookup skips the
+	// Schools rejects devices of inactive and deleted schools. A nil lookup skips the
 	// check.
 	Schools SchoolLookup
 	// PIN resolves the tenant device PIN. Required.
@@ -246,13 +248,13 @@ func (a *Authenticator) authenticateDevice(ctx context.Context, c credentials) (
 }
 
 // resolveDevice turns the Authorization header into an active device whose
-// school still exists.
+// school is active and not deleted.
 func (a *Authenticator) resolveDevice(ctx context.Context, authorization string) (*AuthenticatedDevice, *ErrResponse) {
 	device, errResp := a.extractAndValidateAPIKey(ctx, authorization)
 	if errResp != nil {
 		return nil, errResp
 	}
-	if errResp := a.rejectDeletedSchool(ctx, device); errResp != nil {
+	if errResp := a.rejectClosedSchool(ctx, device); errResp != nil {
 		return nil, errResp
 	}
 	return device, nil
@@ -297,16 +299,16 @@ func (a *Authenticator) extractAndValidateAPIKey(ctx context.Context, authorizat
 	return device, nil
 }
 
-// rejectDeletedSchool blocks devices whose school is gone or soft-deleted.
-// It runs before any tenant transaction exists. Only a transient lookup
+// rejectClosedSchool blocks devices whose school is gone, switched inactive
+// or soft-deleted, the schools staff login and refresh refuse as well. It
+// runs before any tenant transaction exists. Only a transient lookup
 // failure fails open, so a brief outage does not take every kiosk offline;
-// every other failure fails closed so the soft-delete guard cannot be
-// bypassed.
-func (a *Authenticator) rejectDeletedSchool(ctx context.Context, device *AuthenticatedDevice) *ErrResponse {
+// every other failure fails closed so the guard cannot be bypassed.
+func (a *Authenticator) rejectClosedSchool(ctx context.Context, device *AuthenticatedDevice) *ErrResponse {
 	if a.deps.Schools == nil || device.TenantID <= 0 {
 		return nil
 	}
-	deleted, err := a.deps.Schools.IsSchoolDeleted(ctx, device.TenantID)
+	closed, err := a.deps.Schools.IsSchoolClosed(ctx, device.TenantID)
 	switch {
 	case errors.Is(err, ErrSchoolNotFound):
 		slog.Warn("device authentication rejected: school not found",
@@ -328,8 +330,8 @@ func (a *Authenticator) rejectDeletedSchool(ctx context.Context, device *Authent
 			slog.String("error", err.Error()),
 		)
 		return ErrDeviceForbidden(ErrDeviceInactive)
-	case deleted:
-		slog.Warn("device authentication rejected: school is soft-deleted",
+	case closed:
+		slog.Warn("device authentication rejected: school is inactive or soft-deleted",
 			slog.String("device_id", device.DeviceID),
 			slog.Int64("tenant_id", device.TenantID),
 		)
