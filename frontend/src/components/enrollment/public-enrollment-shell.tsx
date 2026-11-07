@@ -42,9 +42,6 @@ export function PublicEnrollmentBrand({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("brandEyebrow")}
-        </p>
         <p className="truncate text-lg font-semibold text-gray-900">
           {schoolName}
         </p>
