@@ -3,6 +3,7 @@
 import { SquarePen } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import type { WorkSessionEdit } from "~/lib/time-tracking-helpers";
 import { formatTime } from "~/lib/time-tracking-helpers";
@@ -52,6 +53,78 @@ export function formatEditValue(
   }
   return value;
 }
+
+interface EditRow {
+  readonly edit: WorkSessionEdit;
+  // Datum, Person und Grund stehen je Speichervorgang nur in der ersten Zeile.
+  readonly firstOfSave: boolean;
+  readonly dateStr: string;
+  readonly editorLabel: string;
+  readonly notes: string | null | undefined;
+}
+
+const EDIT_COLUMNS: DataTableColumn<EditRow>[] = [
+  {
+    key: "date",
+    header: "Datum",
+    className: "whitespace-nowrap",
+    render: (row) =>
+      row.firstOfSave ? (
+        <span className="text-gray-500">{row.dateStr}</span>
+      ) : null,
+  },
+  {
+    key: "editor",
+    header: "Von",
+    className: "whitespace-nowrap",
+    render: (row) =>
+      row.firstOfSave ? (
+        <span className="text-gray-600">{row.editorLabel}</span>
+      ) : null,
+  },
+  {
+    key: "field",
+    header: "Feld",
+    className: "whitespace-nowrap",
+    render: (row) => (
+      <span className="text-gray-600">
+        {FIELD_LABELS[row.edit.fieldName] ?? row.edit.fieldName}
+      </span>
+    ),
+  },
+  {
+    key: "old",
+    header: "Vorher",
+    className: "whitespace-nowrap",
+    render: (row) => (
+      <span className="text-moto-red line-through">
+        {formatEditValue(row.edit.fieldName, row.edit.oldValue)}
+      </span>
+    ),
+  },
+  {
+    key: "new",
+    header: "Nachher",
+    className: "whitespace-nowrap",
+    render: (row) => (
+      <span className="text-moto-green-strong font-medium">
+        {formatEditValue(row.edit.fieldName, row.edit.newValue)}
+      </span>
+    ),
+  },
+  {
+    key: "reason",
+    header: "Grund",
+    render: (row) => {
+      if (!row.firstOfSave) return null;
+      return row.notes ? (
+        <span className="text-gray-400 italic">&ldquo;{row.notes}&rdquo;</span>
+      ) : (
+        "–"
+      );
+    },
+  },
+];
 
 export function EditHistoryAccordion({
   edits,
@@ -116,7 +189,7 @@ export function EditHistoryAccordion({
             key={timestamp}
             className="rounded-lg border border-gray-100 bg-white p-2.5"
           >
-            <div className="mb-1.5 flex items-center justify-between text-[10px] text-gray-400">
+            <div className="mb-1.5 flex items-center justify-between text-xs text-gray-400">
               <span>{dateStr}</span>
               <span className="font-medium">{editorLabel}</span>
             </div>
@@ -137,7 +210,7 @@ export function EditHistoryAccordion({
               ))}
             </div>
             {notes && (
-              <p className="mt-1.5 text-[10px] text-gray-400 italic">
+              <p className="mt-1.5 text-xs text-gray-400 italic">
                 &ldquo;{notes}&rdquo;
               </p>
             )}
@@ -146,51 +219,22 @@ export function EditHistoryAccordion({
       </div>
 
       {/* Desktop: Table layout */}
-      <table className="hidden w-full text-xs md:table">
-        <thead>
-          <tr className="border-b border-gray-100 text-left text-[10px] font-medium tracking-wide text-gray-400 uppercase">
-            <th className="pr-4 pb-2">Datum</th>
-            <th className="pr-4 pb-2">Von</th>
-            <th className="pr-4 pb-2">Feld</th>
-            <th className="pr-4 pb-2">Vorher</th>
-            <th className="pr-4 pb-2" />
-            <th className="pr-4 pb-2">Nachher</th>
-            <th className="pb-2">Grund</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(({ dateStr, fieldEdits, notes, editorLabel }) =>
-            fieldEdits.map((edit, idx) => (
-              <tr
-                key={edit.id}
-                className="border-b border-gray-50 last:border-b-0"
-              >
-                <td className="py-1.5 pr-4 whitespace-nowrap text-gray-500">
-                  {idx === 0 ? dateStr : ""}
-                </td>
-                <td className="py-1.5 pr-4 whitespace-nowrap text-gray-600">
-                  {idx === 0 ? editorLabel : ""}
-                </td>
-                <td className="py-1.5 pr-4 whitespace-nowrap text-gray-600">
-                  {FIELD_LABELS[edit.fieldName] ?? edit.fieldName}
-                </td>
-                <td className="text-moto-red py-1.5 pr-4 whitespace-nowrap line-through">
-                  {formatEditValue(edit.fieldName, edit.oldValue)}
-                </td>
-                <td className="py-1.5 pr-4 text-gray-300">&rarr;</td>
-                <td className="text-moto-green-strong py-1.5 pr-4 font-medium whitespace-nowrap">
-                  {formatEditValue(edit.fieldName, edit.newValue)}
-                </td>
-                <td className="py-1.5 text-gray-400 italic">
-                  {idx === 0 && notes ? (
-                    <span>&ldquo;{notes}&rdquo;</span>
-                  ) : null}
-                </td>
-              </tr>
-            )),
+      <div className="hidden md:block">
+        <DataTable
+          columns={EDIT_COLUMNS}
+          rows={rows.flatMap(({ dateStr, fieldEdits, notes, editorLabel }) =>
+            fieldEdits.map((edit, index) => ({
+              edit,
+              firstOfSave: index === 0,
+              dateStr,
+              editorLabel,
+              notes,
+            })),
           )}
-        </tbody>
-      </table>
+          getRowKey={(row) => row.edit.id}
+          dense
+        />
+      </div>
       {onEdit && (
         <Button
           type="button"

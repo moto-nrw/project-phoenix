@@ -67,7 +67,7 @@ describe("AccountsTable", () => {
       />,
     );
 
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("–").length).toBeGreaterThanOrEqual(2);
   });
 
   it("renders an empty state when no accounts are passed", () => {

@@ -125,7 +125,7 @@ describe("PlannedNowSection", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Gehzeit: Nicht geladen")).toBeInTheDocument();
-    expect(screen.queryByText("Gehzeit: —")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gehzeit: –")).not.toBeInTheDocument();
   });
 
   it("keeps an early activity visible but locks start until the backend boundary", () => {

@@ -91,6 +91,9 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 //   ui-kit/no-kit-domain-import     — files in components/ui import no other
 //                                     components and fetch no data (#5586)
+//   ui-kit/no-raw-table             — no <table> outside components/ui; use
+//                                     DataTable (#5600)
+//   ui-kit/no-em-dash-empty-value   — an empty value is "–", never "—" (#5600)
 //   ui-kit/no-radix-outside-kit     — @radix-ui is an implementation detail of
 //                                     components/ui; everyone else imports the
 //                                     kit component. Hard-zero (#5604).
@@ -1144,7 +1147,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/students/care-schedule-manager.tsx",
   "src/components/students/planned-status-days-modal.tsx",
   "src/components/students/school-checkin-fab.tsx",
-  "src/components/time-tracking/edit-history-accordion.tsx",
   "src/components/time-tracking/vacation-request-modal.tsx",
   "src/components/timetable/bulk-substitution-modal.tsx",
   "src/components/timetable/event-form/multi-select-field.tsx",
@@ -1188,7 +1190,6 @@ src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
 src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
 src/components/students/school-checkin-fab.tsx|text-[10px]@200
-src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@119 text-[10px]@140 text-[10px]@151
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@374
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@529
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-[11px]@310
@@ -1827,6 +1828,77 @@ const noRawInput = {
         if (name !== "input") return;
         if (NATIVE_INPUT_TYPES.has(staticInputType(node) ?? "")) return;
         context.report({ node, messageId: "rawInput" });
+      },
+    };
+  },
+};
+
+// --- ui-kit/no-raw-table + ui-kit/no-em-dash-empty-value (#5600) -------------
+
+const noRawTable = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "Build tables from DataTable instead of a raw <table>.",
+    },
+    messages: {
+      rawTable:
+        "Keine eigene <table>. DataTable aus ~/components/ui/data-table nehmen; expandable, renderSubRows, summaryRow und die Spalte actions decken Aufklappen, Unterzeilen, Summen und die haftende Aktionsspalte ab (#5600, .claude/rules/frontend-ui-kit.md).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes("src/components/ui/")) {
+      return {};
+    }
+    return {
+      JSXOpeningElement(node) {
+        if (jsxName(node.name) === "table") {
+          context.report({ node, messageId: "rawTable" });
+        }
+      },
+    };
+  },
+};
+
+const EM_DASH = String.fromCodePoint(0x2014);
+// The dash alone or as the value after a label ("Abholzeit: —").
+const EM_DASH_VALUE_RE = new RegExp(`^\\s*(?:\\S.*:\\s*)?${EM_DASH}\\s*$`);
+
+const noEmDashEmptyValue = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "An empty value shows an en dash, not an em dash.",
+    },
+    messages: {
+      emDash:
+        "Leerwert ist „–“ (Halbgeviertstrich), nicht „—“ (#5600, .claude/rules/frontend-ui-kit.md).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (EXEMPT_FILE_RE.test(fileKey(context))) return {};
+    return {
+      JSXText(node) {
+        if (EM_DASH_VALUE_RE.test(node.value)) {
+          context.report({ node, messageId: "emDash" });
+        }
+      },
+      Literal(node) {
+        if (
+          typeof node.value === "string" &&
+          EM_DASH_VALUE_RE.test(node.value)
+        ) {
+          context.report({ node, messageId: "emDash" });
+        }
+      },
+      TemplateLiteral(node) {
+        const text = node.quasis[0]?.value.cooked ?? "";
+        if (node.quasis.length === 1 && EM_DASH_VALUE_RE.test(text)) {
+          context.report({ node, messageId: "emDash" });
+        }
       },
     };
   },
@@ -3742,6 +3814,8 @@ export default {
     "no-important-override": noImportantOverride,
     "no-pill-dot": noPillDot,
     "no-raw-input": noRawInput,
+    "no-raw-table": noRawTable,
+    "no-em-dash-empty-value": noEmDashEmptyValue,
     "no-kit-domain-import": noKitDomainImport,
     "no-raw-z-index": noRawZIndex,
     "no-select-override": noSelectOverride,

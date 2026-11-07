@@ -159,3 +159,32 @@ test("cards inside a grid keep their content height", async ({ page }) => {
   expect(last.height).toBeLessThan(120);
   expect(last.y + last.height).toBeLessThan(shell.y + shell.height - 200);
 });
+
+test("a card inside a table row leaves the table's columns intact", async ({
+  page,
+}) => {
+  // Die Änderungshistorie in einer aufgeklappten Zeile (#5600): als Flex-Spalte
+  // rechnete die äußere Tabelle ihre Spaltenbreiten je Zeile.
+  await render(
+    page,
+    tenantPage(`<div>
+      <section class="${PLAIN_CARD}">
+        <div class="moto-content-surface rounded-2xl border">
+          <table data-testid="outer" class="w-full">
+            <tbody>
+              <tr><td data-testid="first">05.11.</td><td>Montag mit langem Text</td></tr>
+              <tr><td data-testid="second">06.11. und mehr</td><td>Di</td></tr>
+              <tr><td colspan="2">
+                <div class="moto-content-surface rounded-2xl border">Verlauf</div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section></div>`),
+  );
+
+  await expect(page.getByTestId("outer")).toHaveCSS("display", "table");
+  const first = await box(page, "first");
+  const second = await box(page, "second");
+  expect(first.width).toBe(second.width);
+});

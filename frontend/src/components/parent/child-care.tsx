@@ -1631,7 +1631,7 @@ export function PickupTimeModal({
         ) : staffOwned ? (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.staffSet", {
-              pickup: existing?.pickup_time ?? "—",
+              pickup: existing?.pickup_time ?? "–",
             })}
           </p>
         ) : (

@@ -147,7 +147,7 @@ export function SupervisionsOverview({
               variant="tile"
               label={summary.running ? "Läuft gerade" : "Als Nächstes"}
               value={
-                summary.running?.startTime ?? summary.next?.startTime ?? "—"
+                summary.running?.startTime ?? summary.next?.startTime ?? "–"
               }
             />
           </div>
