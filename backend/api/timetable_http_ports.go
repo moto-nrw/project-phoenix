@@ -75,7 +75,7 @@ func (p TimetablePeople) AccountPersonName(ctx context.Context, accountID int64)
 
 // StaffPersonID returns the person id of a staff member, 0 when unknown.
 func (p TimetablePeople) StaffPersonID(ctx context.Context, staffID int64) (int64, error) {
-	staff, err := p.persons.StaffRows().FindByID(ctx, staffID)
+	staff, err := p.persons.StaffRows().FindMembershipByID(ctx, staffID)
 	if err != nil {
 		return 0, err
 	}

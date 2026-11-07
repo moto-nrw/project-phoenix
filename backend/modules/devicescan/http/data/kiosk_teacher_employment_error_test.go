@@ -18,8 +18,8 @@ import (
 )
 
 // This is the real Membership -> Workforce read failure, not a failed teacher
-// query. Even though the kiosk DTO has no employment fields, it must remain 500.
-func TestKioskTeachersPreserveEmploymentReadFailure(t *testing.T) {
+// query. E1 (#5860) removes this dependency because the kiosk DTO has no Employment fields.
+func TestKioskTeachersIgnoreUnusedEmploymentReadFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Employment", "Failure")
@@ -35,11 +35,18 @@ func TestKioskTeachersPreserveEmploymentReadFailure(t *testing.T) {
 		return nil
 	}))
 	t.Logf("teacher roster employment failure: status=%d calls=%d body=%s", response.Code, *employmentCalls, response.Body.String())
-	require.Equal(t, http.StatusInternalServerError, response.Code)
-	var problem struct {
-		Code string `json:"code"`
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	var body struct {
+		Status string `json:"status"`
+		Data   []struct {
+			StaffID     int64  `json:"staff_id"`
+			DisplayName string `json:"display_name"`
+		} `json:"data"`
 	}
-	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &problem))
-	require.Equal(t, "general.server", problem.Code)
-	require.Equal(t, 1, *employmentCalls)
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+	require.Equal(t, "success", body.Status)
+	require.Len(t, body.Data, 1)
+	require.Equal(t, teacher.StaffID, body.Data[0].StaffID)
+	require.Equal(t, "Employment Failure", body.Data[0].DisplayName)
+	require.Zero(t, *employmentCalls)
 }

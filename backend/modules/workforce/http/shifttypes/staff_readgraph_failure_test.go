@@ -15,8 +15,8 @@ import (
 )
 
 // The cleanup lookup is a later observation, not a reuse of the live directory.
-// A failure on a retired employment must still abort the read transaction.
-func TestStaffDocumentReadRetainsRetiredEmploymentFailure(t *testing.T) {
+// E1 (#5786): an unused retired Employment read must not abort the transaction.
+func TestStaffDocumentReadIgnoresUnusedRetiredEmploymentFailure(t *testing.T) {
 	t.Parallel()
 	f := newStaffGrowthFixture(t)
 	retired := testpkg.CreateTestStaff(t, f.db, "Retired", "ReadFailure")
@@ -44,14 +44,14 @@ func TestStaffDocumentReadRetainsRetiredEmploymentFailure(t *testing.T) {
 	f.router.ServeHTTP(rec, req)
 	counter.Stop()
 	t.Logf("status=%d body=%s statements=%q", rec.Code, rec.Body.String(), counter.Queries())
-	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
-	require.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler","title":"Internal Server Error","status":500,"detail":"Internal Server Error","instance":"","code":"general.server"}`, rec.Body.String())
-	require.NotContains(t, rec.Body.String(), "Staff documents retrieved successfully")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "Staff documents retrieved successfully")
+	require.NotContains(t, rec.Body.String(), "general.server")
 	profiles := 0
 	for _, query := range counter.Queries() {
 		if strings.Contains(query, `"users"."staff_employment_profiles"`) {
 			profiles++
 		}
 	}
-	require.Equal(t, 2, profiles, "the live existence guard and later retired cleanup each observe employment")
+	require.Equal(t, 1, profiles, "the live guard still reads Employment; ID-only cleanup does not")
 }

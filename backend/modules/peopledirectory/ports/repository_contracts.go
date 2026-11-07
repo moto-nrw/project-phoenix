@@ -230,11 +230,19 @@ type CaregiverBindingLocker interface {
 type StaffRepository interface {
 	CRUDRepository[*peopledirectory.Staff]
 
+	// FindMembershipByID and FindMembershipByPersonID read live membership facts,
+	// without the Workforce employment profile.
+	FindMembershipByID(context.Context, int64) (*peopledirectory.Staff, error)
+	FindMembershipByPersonID(context.Context, int64) (*peopledirectory.Staff, error)
+
 	// FindByIDForUpdate retrieves and locks a staff row for a transaction.
 	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.Staff, error)
 
 	// FindByPersonID retrieves a staff member by their person ID
 	FindByPersonID(ctx context.Context, personID int64) (*peopledirectory.Staff, error)
+
+	// ListMembershipWithPerson omits unused Employment fields.
+	ListMembershipWithPerson(context.Context) ([]*peopledirectory.Staff, error)
 
 	// ListAllWithPerson retrieves all staff members with their associated person data in a single query
 	ListAllWithPerson(ctx context.Context) ([]*peopledirectory.Staff, error)

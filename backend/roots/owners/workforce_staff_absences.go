@@ -62,7 +62,7 @@ func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter workfor
 // owner's subject rule.
 func (r staffAbsenceRepository) subjectStaffIDs(ctx context.Context, personIDs []int64) ([]int64, bool, error) {
 	return workforceModule.AbsenceSubjectStaffIDs(personIDs, func(personIDs []int64) ([]int64, error) {
-		members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, IncludeDeleted: workforceModule.AbsenceRequestsIncludeOffboardedStaff})
+		members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, IncludeDeleted: workforceModule.AbsenceRequestsIncludeOffboardedStaff, MembershipOnly: true})
 		if err != nil {
 			return nil, fmt.Errorf("load staff for absence subjects: %w", err)
 		}
@@ -173,7 +173,7 @@ func staffMembersByID(ctx context.Context, query staffMemberQuery, ids []int64) 
 	if len(unique) == 0 {
 		return map[int64]schoolmembership.Staff{}, nil
 	}
-	values, err := query.ListStaff(ctx, schoolmembership.StaffFilter{IDs: unique, IncludeDeleted: workforceModule.AbsenceRequestsIncludeOffboardedStaff})
+	values, err := query.ListStaff(ctx, schoolmembership.StaffFilter{IDs: unique, IncludeDeleted: workforceModule.AbsenceRequestsIncludeOffboardedStaff, MembershipOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("load staff: %w", err)
 	}

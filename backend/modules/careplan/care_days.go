@@ -18,6 +18,11 @@ type CareDayQuery interface {
 	ResolvePlannedForRange(context.Context, []int64, calendar.Date, calendar.Date) (map[int64]map[calendar.Date]PlannedCareDay, error)
 }
 
+// CareDayStatusQuery omits clock enrichment for a status-only consumer.
+type CareDayStatusQuery interface {
+	ResolveStatusForDate(context.Context, []int64, calendar.Date) (map[int64]CareDayStatus, error)
+}
+
 // PlannedCareDay is the care-day verdict with the planned clock times of the
 // day. Arrival and Pickup are nil where the plan names no time — always nil
 // for a day the child is not expected.

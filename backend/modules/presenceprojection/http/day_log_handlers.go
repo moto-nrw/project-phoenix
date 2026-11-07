@@ -409,7 +409,11 @@ func (rs *Resource) loadDayLogSignOffs(ctx context.Context, data *dayLogData, st
 	// status-day facts. "Today" is the request's frozen Berlin day, so a
 	// midnight rollover mid-request cannot turn the requested day historical.
 	if clock.isToday(date) && rs.CareDayService != nil {
-		careDays, err := rs.CareDayService.ResolveForDate(ctx, studentIDs, date)
+		resolve := rs.CareDayService.ResolveForDate
+		if status, ok := rs.CareDayService.(careplan.CareDayStatusQuery); ok {
+			resolve = status.ResolveStatusForDate
+		}
+		careDays, err := resolve(ctx, studentIDs, date)
 		if err != nil {
 			return err
 		}
