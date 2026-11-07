@@ -1148,9 +1148,9 @@ const noHandRolledSurface = {
             className.value,
             new Set(),
             context.sourceCode,
-          );
+          ) ?? [chunks.join(" ")];
           if (
-            combinations?.some(
+            combinations.some(
               (combo) =>
                 !isSurfaceCombo(combo) &&
                 isWideSurfaceTokens(combo.split(/\s+/)),

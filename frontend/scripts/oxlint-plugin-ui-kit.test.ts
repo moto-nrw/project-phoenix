@@ -723,6 +723,24 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
   });
 
+  it("reports a widened surface when conditional combinations overflow", async () => {
+    const result = await lintSource(
+      [
+        "declare const a: boolean;",
+        "declare const b: boolean;",
+        "declare const c: boolean;",
+        "declare const d: boolean;",
+        "declare const e: boolean;",
+        "declare const f: boolean;",
+        "declare const g: boolean;",
+        'export const Probe = () => <div className={`${a ? "rounded-lg" : "rounded-full"} ${b ? "border" : "border-0"} ${c ? "p-4" : "p-0"} ${d ? "m-1" : "m-2"} ${e ? "gap-1" : "gap-2"} ${f ? "h-8" : "h-9"} ${g ? "w-8" : "w-9"}`} />;',
+      ].join("\n"),
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
   it("accepts the kit surfaces and non-card shapes", async () => {
     const result = await lintSource(
       `
