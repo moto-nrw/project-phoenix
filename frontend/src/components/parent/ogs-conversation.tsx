@@ -1,6 +1,7 @@
 "use client";
 
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 import {
   useCallback,
@@ -706,13 +707,21 @@ export function OgsConversation({
               <Skeleton shape="control" className="h-16 w-full" />
             </div>
           ) : !care.features.notes_enabled ? (
-            <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
+            <InsetPanel
+              as="p"
+              padding="md"
+              className="text-[15px] text-gray-600"
+            >
               {tm("writingDisabled")}
-            </p>
+            </InsetPanel>
           ) : !thread ? null : leadershipClosed ? (
-            <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
+            <InsetPanel
+              as="p"
+              padding="md"
+              className="text-[15px] text-gray-600"
+            >
               {leadershipClosedText}
-            </p>
+            </InsetPanel>
           ) : (
             <>
               {/* Wer mitliest, steht auch direkt am Schreibfeld: dort fällt
