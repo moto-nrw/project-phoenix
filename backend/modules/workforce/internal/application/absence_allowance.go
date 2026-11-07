@@ -201,14 +201,24 @@ func (s *Service) PreviewAllowanceRebooking(ctx context.Context, staffID, absenc
 // rebookingCandidates loads the staff member's absences to rebook and the
 // span of years they cover.
 func (s *Service) rebookingCandidates(ctx context.Context, staffID int64, absenceIDs []int64) ([]domain.StaffAbsence, int, int, error) {
+	// This remains a fresh owner read after the rebooking validations, not a
+	// reuse of the earlier overlap or balance inputs.
+	absences, err := s.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, IDs: absenceIDs})
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	byID := make(map[int64]workforce.StaffAbsence, len(absences))
+	for _, absence := range absences {
+		byID[absence.ID] = absence
+	}
 	candidates := make([]domain.StaffAbsence, 0, len(absenceIDs))
 	firstYear, lastYear := 0, 0
 	for _, id := range absenceIDs {
-		absence, err := s.FindStaffAbsence(ctx, id)
-		if err != nil {
-			return nil, 0, 0, err
+		if id <= 0 {
+			return nil, 0, 0, invalidAbsence("staff absence ID is required")
 		}
-		if absence.StaffID != staffID {
+		absence, found := byID[id]
+		if !found || absence.StaffID != staffID {
 			return nil, 0, 0, domain.ErrStaffAbsenceNotFound
 		}
 		start, end, err := absenceYears(absenceToDomain(absence))

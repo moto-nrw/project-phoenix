@@ -13,6 +13,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -123,4 +124,40 @@ func TestUpdateDeviceLastSeen_NeverMovesBackwards(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT last_seen FROM iot.devices WHERE id = ?`, device.ID).Scan(ctx, &lastSeen))
 	require.NotNil(t, lastSeen, "a device without last_seen takes the first observation")
 	assert.True(t, newer.Equal(*lastSeen), "the late, older observation must not move last_seen back (got %s)", lastSeen)
+}
+
+type fixedHeartbeat time.Time
+
+func (h fixedHeartbeat) CheckDeviceHeartbeat(context.Context) (time.Time, bool, error) {
+	return time.Time(h), true, nil
+}
+
+// The authenticated heartbeat and the kiosk ping keep the same forward-only
+// rule as UpdateDeviceLastSeen.
+func TestDeviceHeartbeats_NeverMoveLastSeenBackwards(t *testing.T) {
+	t.Parallel()
+	db, fleet := ComposeDeviceFleet(t)
+	checked, ok := fleet.(devicefleet.CheckedDeviceHeartbeat)
+	require.True(t, ok, "device auth uses the checked heartbeat when the fleet offers it")
+	ctx := testpkg.Ctx(t)
+	newer := time.Now().Add(time.Hour).UTC().Truncate(time.Microsecond)
+	for name, write := range map[string]func(*testpkg.Device) error{
+		"checked": func(device *testpkg.Device) error {
+			return checked.UpdateDeviceLastSeenChecked(ctx, device.ID, fixedHeartbeat(newer.Add(-time.Minute)))
+		},
+		"heartbeat": func(device *testpkg.Device) error {
+			return testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(ctx context.Context) error {
+				return fleet.RecordDeviceHeartbeat(ctx, device.DeviceID)
+			})
+		},
+	} {
+		device := testpkg.CreateTestDevice(t, db, fmt.Sprintf("forward-%s-%d", name, time.Now().UnixNano()))
+		_, err := db.NewRaw(`UPDATE iot.devices SET last_seen = ? WHERE id = ?`, newer, device.ID).Exec(ctx)
+		require.NoError(t, err)
+		require.NoError(t, write(device), name)
+		var lastSeen *time.Time
+		require.NoError(t, db.NewRaw(`SELECT last_seen FROM iot.devices WHERE id = ?`, device.ID).Scan(ctx, &lastSeen))
+		require.NotNil(t, lastSeen, name)
+		assert.True(t, newer.Equal(*lastSeen), "%s moved last_seen back to %s", name, lastSeen)
+	}
 }

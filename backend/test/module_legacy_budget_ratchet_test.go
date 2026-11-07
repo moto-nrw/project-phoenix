@@ -224,7 +224,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // Träger signature ledger of modules/auditlog/compose (+8) add exactly 66 LOC,
 // and the test hook that stores the signing link of a contract a test wrote
 // directly (+17, testhooks).
-const moduleComposeBudgetTotal = 13063
+const moduleComposeBudgetTotal = 13040
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -252,7 +252,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/dataimport/compose/imports": 29,
 	// ADR 0145: +40 LOC for transport lifecycle, -8 LOC for the retired local wrapper.
 	"modules/delivery/compose":                      393,
-	"modules/devicefleet/compose":                   219,
+	"modules/devicefleet/compose":                   203,
 	"modules/devicefleet/compose/repositoryadapter": 10,
 	// ADR 0124: bind the optional heartbeat to the tenant runtime savepoint (+9).
 	"modules/devicescan/compose":        540,
@@ -315,7 +315,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0154: the group names constructor (+13).
 	"modules/schoolstructure/compose": 606,
 	// Raised by ADR 0107: the Träger settings store, runtime and service.
-	"modules/settings/compose":             322,
+	"modules/settings/compose":             315,
 	"modules/studentdirectoryview/compose": 9,
 	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
 	// ADR 0151: the school figure constructor (+13).

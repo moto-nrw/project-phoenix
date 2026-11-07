@@ -132,7 +132,9 @@ type StaffAbsenceOrder struct {
 // to the same day selects the absences covering that day. NonHistoricalFrom
 // selects rows still pending (requested/question) or ending on or after the
 // day, which is what staff offboarding removes.
+// IDs is an optional set: nil leaves it unrestricted, empty matches nobody.
 type StaffAbsenceFilter struct {
+	IDs               []int64
 	StaffID           int64
 	StaffIDs          []int64
 	Statuses          []string

@@ -106,6 +106,18 @@ func (r *GuardianRelationshipRepository) FindByStudentIDs(ctx context.Context, s
 
 // FindByGuardianProfileID retrieves relationships by guardian profile ID
 func (r *GuardianRelationshipRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error) {
+	return r.findByGuardianProfileID(ctx, guardianProfileID, false)
+}
+
+// FindByGuardianProfileIDForDeletePreview retains the phone relation's read
+// lock and error behavior. The existence expression is always true, so it
+// changes neither relationship selection nor ordering, and reads at most one
+// phone without hydrating any contact data.
+func (r *GuardianRelationshipRepository) FindByGuardianProfileIDForDeletePreview(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error) {
+	return r.findByGuardianProfileID(ctx, guardianProfileID, true)
+}
+
+func (r *GuardianRelationshipRepository) findByGuardianProfileID(ctx context.Context, guardianProfileID int64, observePhones bool) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
 	ambientDB5, databaseErr5 := r.linkQuery(ctx, &relationships)
 	if databaseErr5 != nil {
@@ -113,6 +125,9 @@ func (r *GuardianRelationshipRepository) FindByGuardianProfileID(ctx context.Con
 	}
 	query := withTenantFilter(ctx, r.runtime, ambientDB5.
 		Where(`"student_guardian".guardian_profile_id = ?`, guardianProfileID), "student_guardian")
+	if observePhones {
+		query = query.Where(`COALESCE((SELECT TRUE FROM users.guardian_phone_numbers WHERE guardian_profile_id = ? LIMIT 1), TRUE)`, guardianProfileID)
+	}
 	if err := query.Scan(ctx); err != nil {
 		return nil, &ports.DatabaseError{Op: "find by guardian profile ID", Err: translateNotFound(err)}
 	}

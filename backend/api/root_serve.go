@@ -372,7 +372,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			lifecycle, err = owners.BuildTimetableDay(env, hub, lifecycle, timetableOwner, audit, settings.Service, presence, supervisions,
-				services.Users, membership, active, schedules, TimetableRequestSession{}, deviceauth.WithAttendanceStaff)
+				services.Users, membership, active, schedules, TimetableRequestSession{}, caller.Caller(), deviceauth.WithAttendanceStaff)
 			return
 		},
 		func() (err error) {

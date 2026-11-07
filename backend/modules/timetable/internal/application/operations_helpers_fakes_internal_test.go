@@ -35,6 +35,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		announcer:      &helperAnnouncer{},
 	}
 	deps.service = &operations{caller: sessionlessCaller{}, deps: ports.OperationDependencies{
+		Session: helperRequestSession{}, CallerStaff: helperCallerStaff{},
 		Instances: legacyInstanceReads{fake: deps.instanceRepo},
 		People:    deps.personService,
 		Templates: deps.activityGroups,
@@ -45,6 +46,21 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 	}}
 	return deps
 }
+
+type helperRequestSession struct{ accountID int64 }
+
+func (s helperRequestSession) Claims(context.Context) ports.RequestClaims {
+	return ports.RequestClaims{AccountID: s.accountID}
+}
+
+func (helperRequestSession) Permissions(context.Context) []string { return nil }
+
+type helperCallerStaff struct {
+	id  int64
+	err error
+}
+
+func (s helperCallerStaff) StaffID(context.Context) (int64, error) { return s.id, s.err }
 
 func instanceWithTimes(id int64, status string, start, end time.Time) *scheduleModels.ActivityInstance {
 	inst := &scheduleModels.ActivityInstance{

@@ -1,6 +1,7 @@
 package enrollmenthttp
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,7 +53,7 @@ func (rs *StudentResource) getStudentEnrollmentExtraFields(w http.ResponseWriter
 		return
 	}
 
-	summaries, err := rs.EnrollmentDecision.StudentDecisionRequests(r.Context(), studentID)
+	summaries, err := rs.EnrollmentDecision.StudentExtraFieldRequests(r.Context(), studentID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment extra fields", err))
 		return
@@ -67,20 +68,22 @@ func (rs *StudentResource) getStudentEnrollmentExtraFields(w http.ResponseWriter
 }
 
 func (rs *StudentResource) toStudentEnrollmentExtraFieldGroups(r *http.Request, studentID int64, summaries []*enrollmentCapability.DecisionSummary) ([]StudentEnrollmentExtraFieldGroup, error) {
-	out := make([]StudentEnrollmentExtraFieldGroup, 0, len(summaries))
-	for _, summary := range summaries {
-		if summary == nil || summary.Request == nil || summary.Request.SchemaID == nil {
+	prepared, ids := prepareStudentExtraFields(summaries, studentID)
+	out := make([]StudentEnrollmentExtraFieldGroup, 0, len(prepared))
+	var versions map[int64]enrollmentCapability.SchemaVersionResult
+	var readErr error
+	for _, item := range prepared {
+		if item.err != nil {
+			return nil, item.err
+		}
+		if len(item.customData) == 0 {
 			continue
 		}
-		child := linkedSummaryChild(summary, studentID)
-		if child == nil {
-			continue
+		if versions == nil {
+			versions, readErr = rs.loadStudentExtraFieldSchemas(r.Context(), ids)
 		}
-		customData, err := decodeEnrollmentCustomData(child.CustomData)
-		if err != nil {
-			return nil, err
-		}
-		fields, err := rs.studentEnrollmentExtraFieldsForChild(r, *summary.Request.SchemaID, customData)
+		summary := item.summary
+		fields, err := rs.studentEnrollmentExtraFieldsForChild(*summary.Request.SchemaID, item.customData, versions[*summary.Request.SchemaID], readErr)
 		if err != nil {
 			return nil, err
 		}
@@ -98,6 +101,15 @@ func (rs *StudentResource) toStudentEnrollmentExtraFieldGroups(r *http.Request, 
 		out = append(out, group)
 	}
 	return out, nil
+}
+
+func (rs *StudentResource) loadStudentExtraFieldSchemas(ctx context.Context, ids []int64) (map[int64]enrollmentCapability.SchemaVersionResult, error) {
+	results, err := rs.EnrollmentFormSchema.StudentExtraFieldSchemas(ctx, ids)
+	versions := make(map[int64]enrollmentCapability.SchemaVersionResult, len(results))
+	for _, result := range results {
+		versions[result.ID] = result
+	}
+	return versions, err
 }
 
 func linkedSummaryChild(summary *enrollmentCapability.DecisionSummary, studentID int64) *enrollmentCapability.RequestChild {
@@ -125,21 +137,21 @@ func decodeEnrollmentCustomData(raw json.RawMessage) (map[string]any, error) {
 	return customData, nil
 }
 
-func (rs *StudentResource) studentEnrollmentExtraFieldsForChild(r *http.Request, schemaID int64, customData map[string]any) ([]StudentEnrollmentExtraField, error) {
-	if len(customData) == 0 {
-		return nil, nil
+func (rs *StudentResource) studentEnrollmentExtraFieldsForChild(schemaID int64, customData map[string]any, result enrollmentCapability.SchemaVersionResult, readErr error) ([]StudentEnrollmentExtraField, error) {
+	err := result.Err
+	if err == nil {
+		err = readErr
 	}
-	schema, err := rs.EnrollmentFormSchema.SchemaVersion(r.Context(), schemaID)
 	if err != nil {
 		rs.logEnrollmentSchemaLoadFailure(schemaID, err)
 		return nil, fmt.Errorf("load enrollment schema %d for student extra fields: %w", schemaID, err)
 	}
-	if schema == nil {
+	if result.Schema == nil {
 		err := fmt.Errorf("enrollment schema %d not found", schemaID)
 		rs.logEnrollmentSchemaLoadFailure(schemaID, err)
 		return nil, err
 	}
-	return enrollmentExtraFieldsFromSchema(schema.Fields, customData), nil
+	return enrollmentExtraFieldsFromSchema(result.Schema.Fields, customData), nil
 }
 
 func (rs *StudentResource) logEnrollmentSchemaLoadFailure(schemaID int64, err error) {

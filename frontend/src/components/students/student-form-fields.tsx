@@ -25,9 +25,9 @@ import {
   DEPARTURE_MODE_SHORT_LABELS,
 } from "~/lib/departure-plan";
 import {
-  ParentVisibleBadge,
+  VisibilityBadge,
   ParentVisibilityLegend,
-} from "~/components/ui/parent-visible-badge";
+} from "~/components/ui/visibility-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
@@ -186,7 +186,7 @@ function TextInput({
           {label}
         </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <Input
@@ -260,7 +260,7 @@ function DateInput({
           {label}
         </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <ISODatePicker
@@ -319,7 +319,7 @@ function TextareaField({
           />
         </svg>
         {label}
-        {parentVisibleHint && <ParentVisibleBadge hint={parentVisibleHint} />}
+        {parentVisibleHint && <VisibilityBadge hint={parentVisibleHint} />}
       </h3>
       <Textarea
         aria-label={label}
@@ -523,7 +523,7 @@ export function DepartureSection({
             style={{ color: GROUP_ROOM_SHADES.text }}
           />
           Erlaubte Heimwege
-          <ParentVisibleBadge hint={PARENT_VISIBLE_HINTS.departure} />
+          <VisibilityBadge hint={PARENT_VISIBLE_HINTS.departure} />
         </h3>
         {anySelected && (
           <span className="hidden shrink-0 sm:inline-flex">

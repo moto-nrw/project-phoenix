@@ -276,34 +276,20 @@ export function TransitionEditor({
         </SlideOverHeader>
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                htmlFor="transition-academic-year"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Schuljahr (neu)
-              </label>
-              <Input
-                id="transition-academic-year"
-                value={academicYear}
-                onChange={(e) => setAcademicYear(e.target.value)}
-                placeholder="2026-2027"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="transition-notes"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Notiz (optional)
-              </label>
-              <Input
-                id="transition-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="z. B. Schuljahreswechsel Sommer"
-              />
-            </div>
+            <Input
+              id="transition-academic-year"
+              label="Schuljahr (neu)"
+              value={academicYear}
+              onChange={(e) => setAcademicYear(e.target.value)}
+              placeholder="2026-2027"
+            />
+            <Input
+              id="transition-notes"
+              label="Notiz (optional)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="z. B. Schuljahreswechsel Sommer"
+            />
           </div>
 
           <p className="text-sm text-gray-600">

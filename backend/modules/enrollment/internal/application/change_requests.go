@@ -236,7 +236,7 @@ func (s *ChangeRequests) create(ctx context.Context, token string, input enrollm
 		return nil, err
 	}
 	s.enqueueAdminNotification(ctx, tenantID, req, created.ID, enrollmentNative.MailKindChangeRequestSubmitted)
-	return s.loadAggregateForTenant(ctx, tenantID, created.ID, false)
+	return s.loadAggregateForTenant(ctx, tenantID, created.ID, false, nil)
 }
 
 func (s *ChangeRequests) createInTenant(ctx context.Context, token string, submission SubmitRequest, input enrollmentNative.CreateChangeRequestInput) (*ChangeRequest, error) {
@@ -313,8 +313,9 @@ func (s *ChangeRequests) listPublic(ctx context.Context, token string) ([]*chang
 		return nil, err
 	}
 	out := make([]*changeRequestCase, 0, len(rows))
+	readMessages := s.publicCaseMessages(rows)
 	for _, row := range rows {
-		agg, loadErr := s.loadAggregateForTenant(ctx, tenantID, row.ID, false)
+		agg, loadErr := s.loadAggregateForTenant(ctx, tenantID, row.ID, false, readMessages)
 		if loadErr != nil {
 			return nil, loadErr
 		}
@@ -353,7 +354,7 @@ func (s *ChangeRequests) parentReply(ctx context.Context, token string, changeRe
 		return nil, err
 	}
 	s.enqueueAdminNotification(ctx, tenantID, req, changeRequestID, enrollmentNative.MailKindChangeRequestParentReply)
-	return s.loadAggregateForTenant(ctx, tenantID, changeRequestID, false)
+	return s.loadAggregateForTenant(ctx, tenantID, changeRequestID, false, nil)
 }
 
 func (s *ChangeRequests) listAdmin(ctx context.Context, filters enrollmentNative.ChangeRequestFilters) ([]*changeRequestCase, error) {
@@ -361,15 +362,7 @@ func (s *ChangeRequests) listAdmin(ctx context.Context, filters enrollmentNative
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*changeRequestCase, 0, len(rows))
-	for _, row := range rows {
-		agg, err := s.loadAggregate(ctx, row.ID, true)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, agg)
-	}
-	return out, nil
+	return s.adminChangeCases(ctx, rows)
 }
 
 func (s *ChangeRequests) askQuestion(ctx context.Context, changeRequestID int64, input enrollmentNative.ChangeRequestMessageInput) (*changeRequestCase, error) {
@@ -629,11 +622,15 @@ func (s *ChangeRequests) loadAggregate(ctx context.Context, id int64, includeInt
 	return s.aggregateFromRow(ctx, row, includeInternal)
 }
 
-func (s *ChangeRequests) loadAggregateForTenant(ctx context.Context, tenantID int64, id int64, includeInternal bool) (*changeRequestCase, error) {
+func (s *ChangeRequests) loadAggregateForTenant(ctx context.Context, tenantID int64, id int64, includeInternal bool, readMessages publicCaseMessageReader) (*changeRequestCase, error) {
 	var agg *changeRequestCase
 	err := s.deps.Runtime.TenantTx(ctx, tenantID, func(txCtx context.Context) error {
-		loaded, err := s.loadAggregate(txCtx, id, includeInternal)
-		agg = loaded
+		var err error
+		if readMessages != nil {
+			agg, err = s.loadPublicCase(txCtx, id, readMessages)
+		} else {
+			agg, err = s.loadAggregate(txCtx, id, includeInternal)
+		}
 		return err
 	})
 	return agg, err

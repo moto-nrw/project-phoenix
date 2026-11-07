@@ -54,7 +54,7 @@ vi.mock("~/lib/operator/announcements-api", () => ({
 // Mock format utils
 vi.mock("~/lib/format-utils", () => ({
   getRelativeTime: vi.fn((_date: string) => "vor 2 Stunden"),
-  getInitial: vi.fn((name: string) => name.charAt(0).toUpperCase()),
+  getInitials: vi.fn((name: string) => name.charAt(0).toUpperCase()),
 }));
 
 afterEach(() => resumeSWRSession());

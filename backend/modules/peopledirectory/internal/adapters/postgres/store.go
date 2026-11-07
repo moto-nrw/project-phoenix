@@ -18,6 +18,9 @@ import (
 const (
 	tenantTagIndex     = "idx_persons_tenant_tag"
 	tenantAccountIndex = "idx_persons_tenant_account"
+	// Scalar and name-set imports share exact NFC equality, not fuzzy unaccent search.
+	firstNameEqualsSQL = `LOWER(NORMALIZE(BTRIM("person".first_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`
+	lastNameEqualsSQL  = `LOWER(NORMALIZE(BTRIM("person".last_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`
 )
 
 // Database resolves the transaction and the tenant of the current request.
@@ -197,6 +200,16 @@ func (s *Store) ListByAccounts(ctx context.Context, accountIDs []int64) ([]peopl
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
+	if len(accountIDs) == 0 {
+		err := scope.Validate()
+		if err == nil {
+			err = ctx.Err()
+		}
+		if err != nil {
+			return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: list persons by account: %w", err)
+		}
+		return []peopledirectory.Person{}, domain.OperationStats{}, nil
+	}
 	rows := []personRow{}
 	query := withTenant(personSelect(db, &rows).
 		Where(`"person".account_id IN (?)`, bun.List(accountIDs)).
@@ -218,10 +231,10 @@ func (s *Store) Search(ctx context.Context, filter peopledirectory.PersonFilter)
 		query = query.Where(`public.f_unaccent("person".last_name) ILIKE `+collation.UnaccentLikePatternSQL+` || '%' ESCAPE '\'`, filter.LastNamePrefix)
 	}
 	if filter.FirstNameEquals != "" {
-		query = query.Where(`LOWER(NORMALIZE(BTRIM("person".first_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`, filter.FirstNameEquals)
+		query = query.Where(firstNameEqualsSQL, filter.FirstNameEquals)
 	}
 	if filter.LastNameEquals != "" {
-		query = query.Where(`LOWER(NORMALIZE(BTRIM("person".last_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`, filter.LastNameEquals)
+		query = query.Where(lastNameEqualsSQL, filter.LastNameEquals)
 	}
 	if filter.FullNameContains != "" {
 		query = query.Where(`public.f_unaccent("person".first_name || ' ' || "person".last_name) ILIKE '%' || `+collation.UnaccentLikePatternSQL+` || '%' ESCAPE '\'`, filter.FullNameContains)
@@ -231,6 +244,14 @@ func (s *Store) Search(ctx context.Context, filter peopledirectory.PersonFilter)
 	}
 	if len(filter.AccountIDs) > 0 {
 		query = query.Where(`"person".account_id IN (?)`, bun.List(filter.AccountIDs))
+	}
+	if len(filter.Names) > 0 {
+		query = query.WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
+			for _, name := range filter.Names {
+				q = q.WhereOr(`(`+firstNameEqualsSQL+` AND `+lastNameEqualsSQL+`)`, name.FirstName, name.LastName)
+			}
+			return q
+		})
 	}
 	query = query.OrderExpr(`"person".last_name ASC, "person".first_name ASC, "person".id ASC`)
 	if filter.PageSize > 0 {

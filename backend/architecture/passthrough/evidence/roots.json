@@ -79,13 +79,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (b ClassDaySlotListSettings) TimetableEnabled(ctx context.Context) (bool, error) {\n\treturn b.Settings.ResolveBool(ctx, configModels.KeyTimetableEnabled)\n}",
-      "form": "unclassified-evidence",
-      "id": "api/ClassDaySlotListSettings.TimetableEnabled",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (b ClassDayWriteScope) SchoolMayWriteClassArrivalExceptions(ctx context.Context) (bool, error) {\n\tscope, err := b.Settings.Resolve(ctx, configModels.KeySchoolPortalWriteScope)\n\tif err != nil {\n\t\treturn false, err\n\t}\n\treturn configModels.SchoolPortalWriteScopeIncludes(scope, configModels.SchoolPortalWriteScopeClassArrivalExceptions), nil\n}",
       "form": "unclassified-evidence",
       "id": "api/ClassDayWriteScope.SchoolMayWriteClassArrivalExceptions",

@@ -25,7 +25,6 @@ import { Check, ChevronDown, Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
-import { timetableWarningText } from "./timetable-style";
 
 import {
   type CalendarPeriod,
@@ -278,7 +277,7 @@ export function PeriodSwitcherDropdown({
                             })()}
                           </>
                         ) : (
-                          <span className={timetableWarningText}>
+                          <span className="text-moto-amber-strong">
                             Kein aktiver Zeitraum
                           </span>
                         )}
@@ -378,7 +377,7 @@ function MonthPeriodSummary({
         <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
           Dieser Monat
         </p>
-        <p className={`text-xs ${timetableWarningText}`}>
+        <p className="text-moto-amber-strong text-xs">
           Für diesen Monat ist kein aktiver Zeitraum hinterlegt.
         </p>
       </div>
@@ -402,7 +401,7 @@ function MonthPeriodSummary({
           </p>
         ))}
         {hasMissingDays && (
-          <p className={`text-[11px] ${timetableWarningText}`}>
+          <p className="text-moto-amber-strong text-[11px]">
             Einige Tage haben keinen aktiven Zeitraum.
           </p>
         )}

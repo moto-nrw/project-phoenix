@@ -167,7 +167,7 @@ export function CarePlanImpact({
       title={`Auswirkung auf den Betreuungsplan${childName ? ` für ${childName}` : ""} ab ${stichtag}`}
       headingLevel={4}
       namedRegion
-      titleClassName="text-sm"
+      titleSize="sm"
       bodyClassName="mt-3 flex flex-col gap-5"
     >
       {noRosterChange ? (
@@ -188,7 +188,8 @@ export function CarePlanImpact({
         <SectionCard
           title="Automatisch angepasst"
           headingLevel={5}
-          titleClassName="text-sm font-medium text-gray-600"
+          titleSize="sm"
+          titleClassName="font-medium text-gray-600"
           bare
           className="space-y-2"
         >
@@ -212,7 +213,8 @@ export function CarePlanImpact({
           title="Nicht angepasst, weil von Hand gepflegt"
           description="Hier steht das Kind weiter im Plan. Prüfen Sie, ob das so bleiben soll."
           headingLevel={5}
-          titleClassName="text-sm font-medium text-gray-600"
+          titleSize="sm"
+          titleClassName="font-medium text-gray-600"
           bare
           className="space-y-3"
         >
@@ -427,7 +429,8 @@ function PickupOverrides({
           : undefined
       }
       headingLevel={5}
-      titleClassName="text-sm font-medium text-gray-600"
+      titleSize="sm"
+      titleClassName="font-medium text-gray-600"
       bare
       className="space-y-3"
       action={

@@ -11,7 +11,7 @@ func absenceFilterToDomain(filter workforce.StaffAbsenceFilter) domain.StaffAbse
 		order = append(order, domain.StaffAbsenceOrder{Field: domain.StaffAbsenceOrderField(entry.Field), Descending: entry.Descending})
 	}
 	return domain.StaffAbsenceFilter{
-		StaffID: filter.StaffID, StaffIDs: filter.StaffIDs, Statuses: filter.Statuses, Types: filter.Types,
+		IDs: filter.IDs, StaffID: filter.StaffID, StaffIDs: filter.StaffIDs, Statuses: filter.Statuses, Types: filter.Types,
 		OverlapFrom: filter.OverlapFrom, OverlapTo: filter.OverlapTo, DateEndBefore: filter.DateEndBefore,
 		DateStartBefore: filter.DateStartBefore, NonHistoricalFrom: filter.NonHistoricalFrom,
 		Order: order, Limit: filter.Limit, Offset: filter.Offset,

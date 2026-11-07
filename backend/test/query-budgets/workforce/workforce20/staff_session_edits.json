@@ -1,0 +1,6 @@
+{
+  "scenario": "workforce.workforce20.staff_session_edits",
+  "max": 10,
+  "exact": true,
+  "description": "Full protected Resource HTTP request with positive N=3/N=8 sessions and edits, exact observed count; fixtures outside capture. Not a SQL minimum."
+}

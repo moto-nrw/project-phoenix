@@ -347,21 +347,16 @@ export default function SchoolCalendarPage() {
                           disabled={submitting}
                           required
                         />
-                        <label htmlFor="school-event-type" className="block">
-                          <span className="mb-2 block text-sm font-medium text-gray-700">
-                            Art
-                          </span>
-                          <CustomSelect
-                            id="school-event-type"
-                            ariaLabel="Art"
-                            value={draft.eventType}
-                            onChange={(next) =>
-                              update({ eventType: next as SchoolEventType })
-                            }
-                            disabled={submitting}
-                            options={eventTypeOptions}
-                          />
-                        </label>
+                        <CustomSelect
+                          id="school-event-type"
+                          label="Art"
+                          value={draft.eventType}
+                          onChange={(next) =>
+                            update({ eventType: next as SchoolEventType })
+                          }
+                          disabled={submitting}
+                          options={eventTypeOptions}
+                        />
                         <ISODatePicker
                           label="Erster Tag"
                           id="school-start-date"

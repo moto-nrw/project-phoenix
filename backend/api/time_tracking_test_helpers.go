@@ -20,12 +20,13 @@ import (
 // work-session repositories and the tenant settings to compose the Workforce
 // time-tracking side the way the service graph composes it (#3413).
 type timeTrackingTestGraph struct {
-	Audits   owners.TimeTrackingAudits
-	People   owners.TimeTrackingStaffLookup
-	Holidays workforceCompose.HolidayDatesReader
-	Events   workforceCompose.EventPublisher
-	Logger   *slog.Logger
-	Today    func() timezone.Date
+	Audits            owners.TimeTrackingAudits
+	People            owners.TimeTrackingStaffLookup
+	Holidays          workforceCompose.HolidayDatesReader
+	StatutoryHolidays workforceCompose.HolidayDatesReader
+	Events            workforceCompose.EventPublisher
+	Logger            *slog.Logger
+	Today             func() timezone.Date
 }
 
 func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSessionTestRepositories, staffRows peoplePorts.StaffRepository, presence TimetablePresenceRows, settings settingsCompose.SettingsService, graph timeTrackingTestGraph, mail ...*workforceCompose.AbsenceEmailDeps) (*workforceCompose.TimeTracking, error) {
@@ -54,7 +55,7 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 	side, err := newTimeTracking(repos.Workforce, workforceCompose.TimeTrackingPorts{
 		Absences: repos.StaffAbsence, AbsenceAudits: repos.Workforce,
 		Staff:        owners.WorkSessionStaff(staffRows, employment, membership),
-		Supervisions: presence.GroupSupervisor, SessionRecords: presence.ActiveGroup, Holidays: graph.Holidays, StatutoryHolidays: graph.Holidays,
+		Supervisions: presence.GroupSupervisor, SessionRecords: presence.ActiveGroup, Holidays: graph.Holidays, StatutoryHolidays: graph.StatutoryHolidays,
 		Events: graph.Events, Logger: graph.Logger, Today: graph.Today, AbsenceEmail: absenceEmail,
 	}, graph.Audits, staffRows, graph.People, employment, owners.NewStaffWorkScheduleRepository(repos.Workforce), owners.NewWorkTimeModelRepository(repos.Workforce),
 		settings, payroll, db,

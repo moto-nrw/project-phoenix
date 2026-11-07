@@ -5,7 +5,7 @@
 // der Tagesplan; die Startseite und "Als Nächstes" tönen nur (#4413).
 
 import type { CSSProperties } from "react";
-import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
+import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-colors";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 

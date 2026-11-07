@@ -21,6 +21,9 @@ type Store interface {
 	// every absence change up to the instant given, so the caller can resolve
 	// the day at that instant or any earlier one.
 	FindDailyParticipation(context.Context, []int64, domain.Date, time.Time) (map[int64]domain.DailyParticipation, domain.OperationStats, error)
+	// FindParticipationDays batches registration for the ID/date set, keeping
+	// each date's effective schedule and absence cutoff.
+	FindParticipationDays(context.Context, []int64, map[domain.Date]time.Time) (map[domain.Date]map[int64]domain.DailyParticipation, domain.OperationStats, error)
 	// InsertRegistrationChanges appends to the registration log.
 	InsertRegistrationChanges(context.Context, []domain.RegistrationChange) (domain.OperationStats, error)
 	OrderStore
@@ -53,6 +56,7 @@ type Calendar interface {
 }
 
 type Directory interface {
+	FindCandidatesOnDates(context.Context, []domain.Date) (map[domain.Date][]domain.DailyCandidate, domain.OperationStats, error)
 	FindDailyCandidates(context.Context, domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error)
 	// FindStudentNames names the children of past orders, enrolled or not.
 	FindStudentNames(context.Context, []int64) (map[int64]domain.DailyCandidate, domain.OperationStats, error)

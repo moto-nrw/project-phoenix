@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.block_participants.list",
+  "max": 1,
+  "exact": true,
+  "description": "One participant SELECT scoped by tenant and instance. Does not include the participant HTTP route parent lookup or People Directory/staff hydration. Flat for 3 and 8 returned rows; caller tenant transaction setup excluded."
+}

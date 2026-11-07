@@ -29,8 +29,13 @@ interface DatabaseListItemProps {
   onToggleSelection?: () => void;
 }
 
-const ROW_CLASS =
-  "flex w-full items-center gap-3 border-b border-gray-100 px-4 py-2.5 text-left transition-colors hover:bg-gray-50";
+/** Die Zeile in allen drei Formen: Auswahl, Link und Knopf. */
+function rowClasses(highlighted: boolean): string {
+  return cn(
+    "flex w-full items-center gap-3 border-b border-gray-100 px-4 py-2.5 text-left transition-colors hover:bg-gray-50",
+    highlighted && "bg-moto-green-soft/60 hover:bg-moto-green-soft/70",
+  );
+}
 
 export function DatabaseListItem({
   title,
@@ -66,13 +71,7 @@ export function DatabaseListItem({
 
   if (selectionMode) {
     return (
-      <label
-        className={cn(
-          "cursor-pointer",
-          ROW_CLASS,
-          isChecked && "bg-moto-green-soft/60 hover:bg-moto-green-soft/70",
-        )}
-      >
+      <label className={cn("cursor-pointer", rowClasses(isChecked))}>
         <Checkbox checked={isChecked} onChange={onToggleSelection} />
         {content}
       </label>
@@ -88,10 +87,7 @@ export function DatabaseListItem({
       aria-hidden
     />
   );
-  const rowClassName = cn(
-    ROW_CLASS,
-    isSelected && "bg-moto-green-soft/60 hover:bg-moto-green-soft/70",
-  );
+  const rowClassName = rowClasses(isSelected);
 
   if (href) {
     return (
