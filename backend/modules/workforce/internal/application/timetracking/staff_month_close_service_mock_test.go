@@ -2,6 +2,7 @@ package timetracking
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -33,6 +34,20 @@ func (r *concurrentMonthCloseSnapshotRepo) LockStaffBalanceWrites(context.Contex
 func (r *concurrentMonthCloseSnapshotRepo) LatestClosedMonth(context.Context, int64, int, int) (*MonthSnapshot, error) {
 	*r.events = append(*r.events, "snapshot")
 	return r.snapshot, nil
+}
+
+func (r *concurrentMonthCloseSnapshotRepo) ClosedMonthSnapshotsForStaff(context.Context, []int64) ([]*MonthSnapshot, error) {
+	*r.events = append(*r.events, "snapshot")
+	return snapshotList(r.snapshot), nil
+}
+
+// snapshotList is the batch read's answer for a mock holding at most one
+// active snapshot.
+func snapshotList(snapshot *MonthSnapshot) []*MonthSnapshot {
+	if snapshot == nil {
+		return nil
+	}
+	return []*MonthSnapshot{snapshot}
 }
 
 func (r *concurrentMonthCloseSnapshotRepo) ClosedMonthSnapshots(context.Context, int, int) ([]*MonthSnapshot, error) {
@@ -110,6 +125,10 @@ func (r *broadcastMonthCloseSnapshotRepo) LatestClosedMonth(context.Context, int
 	return r.snapshot, nil
 }
 
+func (r *broadcastMonthCloseSnapshotRepo) ClosedMonthSnapshotsForStaff(context.Context, []int64) ([]*MonthSnapshot, error) {
+	return snapshotList(r.snapshot), nil
+}
+
 func (r *broadcastMonthCloseSnapshotRepo) RecordClosedMonth(_ context.Context, value MonthSnapshot) (MonthSnapshot, error) {
 	return value, nil
 }
@@ -182,4 +201,91 @@ func TestStaffMonthCloseService_ReopenAnnouncesTimeTrackingChange(t *testing.T) 
 
 	require.NoError(t, err)
 	assertMonthCloseAnnounced(t, broadcaster, commit)
+}
+
+// orderedMonthCloseSnapshotRepo records the close protocol across staff and
+// holds the active snapshots the batch read returns.
+type orderedMonthCloseSnapshotRepo struct {
+	MonthSnapshots
+	events    *[]string
+	snapshots []*MonthSnapshot
+}
+
+func (r *orderedMonthCloseSnapshotRepo) LockStaffBalanceWrites(_ context.Context, staffID int64) error {
+	*r.events = append(*r.events, fmt.Sprintf("lock:%d", staffID))
+	return nil
+}
+
+func (r *orderedMonthCloseSnapshotRepo) ClosedMonthSnapshotsForStaff(_ context.Context, staffIDs []int64) ([]*MonthSnapshot, error) {
+	*r.events = append(*r.events, fmt.Sprintf("snapshots:%v", staffIDs))
+	return r.snapshots, nil
+}
+
+func (r *orderedMonthCloseSnapshotRepo) RecordClosedMonth(_ context.Context, value MonthSnapshot) (MonthSnapshot, error) {
+	*r.events = append(*r.events, fmt.Sprintf("create:%d", value.StaffID))
+	return value, nil
+}
+
+type orderedMonthCloseMonthService struct {
+	WorkTimeMonthService
+	events *[]string
+}
+
+func (s *orderedMonthCloseMonthService) GetMonthSummaryAtMonthEnd(_ context.Context, staffID int64, _, _ int) (*MonthSummary, error) {
+	*s.events = append(*s.events, fmt.Sprintf("summary:%d", staffID))
+	return &MonthSummary{}, nil
+}
+
+// #5821: every balance lock is taken in ascending staff order before the one
+// snapshot read; the per-staff checks then run in the same order, so a later
+// closed month of the second staff member still fails after the first one's
+// close, with the same 409 sentinel and month.
+func TestStaffMonthCloseService_LocksAllStaffBeforeOneSnapshotRead(t *testing.T) {
+	t.Parallel()
+
+	events := []string{}
+	repo := &orderedMonthCloseSnapshotRepo{events: &events, snapshots: []*MonthSnapshot{
+		{StaffID: 42, Year: 2025, Month: 9},
+	}}
+	service := NewStaffMonthCloseService(
+		repo,
+		&orderedMonthCloseMonthService{events: &events},
+		timestampMonthCloseStaffLister{},
+		&wtmMockSettings{accountStart: "2025-01-01"},
+		slog.New(slog.DiscardHandler),
+	)
+
+	_, err := service.CloseMonth(context.Background(), 77, 2025, 8, "Monatsabschluss")
+
+	require.ErrorIs(t, err, ErrLaterMonthClosed)
+	assert.Contains(t, err.Error(), "2025-09 must be reopened first")
+	assert.Equal(t, []string{"lock:41", "lock:42", "snapshots:[41 42]", "summary:41", "create:41"}, events)
+}
+
+// A month already closed for one staff member is skipped while the others
+// are closed; an earlier closed month does not count as this month's close.
+func TestStaffMonthCloseService_SkipsOnlyStaffWithThisMonthClosed(t *testing.T) {
+	t.Parallel()
+
+	events := []string{}
+	repo := &orderedMonthCloseSnapshotRepo{events: &events, snapshots: []*MonthSnapshot{
+		{StaffID: 41, Year: 2025, Month: 7},
+		{StaffID: 41, Year: 2025, Month: 8},
+		{StaffID: 42, Year: 2025, Month: 7},
+	}}
+	service := NewStaffMonthCloseService(
+		repo,
+		&orderedMonthCloseMonthService{events: &events},
+		timestampMonthCloseStaffLister{},
+		&wtmMockSettings{accountStart: "2025-01-01"},
+		slog.New(slog.DiscardHandler),
+	)
+
+	result, err := service.CloseMonth(context.Background(), 77, 2025, 8, "Monatsabschluss")
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.SkippedStaff)
+	assert.Equal(t, 1, result.ClosedStaff)
+	require.Len(t, result.Snapshots, 1)
+	assert.Equal(t, int64(42), result.Snapshots[0].StaffID)
 }

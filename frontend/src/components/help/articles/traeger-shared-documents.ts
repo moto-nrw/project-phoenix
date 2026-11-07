@@ -4,7 +4,7 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 /**
  * `/traeger/dokumente` (#4692): vorhandene Dokumente hochladen und für
  * Eltern oder Schulen freigeben; eine Freigabe zurücknehmen; ein Dokument
- * löschen (#5993).
+ * löschen (#5993). Schreiben darf die Rolle Dokumente (#5992).
  */
 export function traegerSharedDocumentsTopic(): HelpTopic {
   return {
@@ -17,7 +17,7 @@ export function traegerSharedDocumentsTopic(): HelpTopic {
     audience: "traeger",
     icon: "EnvelopeOpen",
     requirements: [
-      "Sie haben die Rolle `Verwaltung`.",
+      "Sie haben die Rolle `Dokumente`. Wer bisher `Verwaltung` hatte, hat sie dazubekommen.",
       "Die Datei ist ein PDF, ein Word-, Excel- oder PowerPoint-Dokument oder ein Bild. Sie ist höchstens 10 MB groß.",
     ],
     instructionGroups: [
@@ -72,13 +72,17 @@ export function traegerSharedDocumentsTopic(): HelpTopic {
       "Auch nach dem Löschen bleibt im Nachweis, wer das Dokument wann freigegeben, geöffnet und gelöscht hat.",
     ],
     differences: [
-      "Sie sehen `Dokument hochladen`, `Freigeben` und das Menü zum Löschen nicht? Ihnen fehlt die Rolle `Verwaltung`. Sie können die Dokumente nur ansehen.",
+      "Sie sehen `Dokument hochladen`, `Freigeben` und das Menü zum Löschen nicht? Ihnen fehlt die Rolle `Dokumente`. Sie können die Dokumente nur ansehen und herunterladen. Die Rolle gibt Ihnen eine Person mit der Rolle `Leitung` unter `Einstellungen` bei `Mitglieder und Rollen`.",
     ],
     troubleshootingDetails: [
       "moto nimmt die Datei nicht an? Prüfen Sie Art und Größe. Eine umbenannte Datei erkennt moto am Inhalt.",
       "Bei `Eine Gruppe` steht keine Gruppe? Die Schule hat in moto noch keine Gruppen angelegt.",
       "Die Meldung sagt, das Dokument ist schon freigegeben? Für diese Menschen gibt es schon eine Freigabe.",
     ],
-    related: [HELP_TOPICS.traegerDocumentTemplates, HELP_TOPICS.errorMessages],
+    related: [
+      HELP_TOPICS.traegerDocumentTemplates,
+      HELP_TOPICS.traegerAccounts,
+      HELP_TOPICS.errorMessages,
+    ],
   };
 }

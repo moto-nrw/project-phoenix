@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,4 +62,29 @@ func TestLetterRowsAskTheProviderAboutARefusedAddressOnly(t *testing.T) {
 	assert.Equal(t, "active", rows[0].ProviderBlock)
 	assert.Empty(t, rows[1].ProviderBlock, "the corrected address is no question for the provider")
 	assert.Equal(t, "active", rows[2].ProviderBlock, "the earlier refusal of this address counts")
+}
+
+type noticeStatusesDouble struct {
+	delivery.Capability
+	rows []deliveryContract.Status
+}
+
+func (d noticeStatusesDouble) TraegerEmailStatuses(context.Context, int64, deliveryContract.RelatedEntity) ([]deliveryContract.Status, error) {
+	return d.rows, nil
+}
+
+func TestContractNoticeProvisionNeedsAPositiveDeliveryReceipt(t *testing.T) {
+	t.Parallel()
+	provided := time.Date(2026, 12, 10, 9, 0, 0, 0, time.UTC)
+	adapter := careContractNoticePost{delivery: noticeStatusesDouble{rows: []deliveryContract.Status{
+		{ID: 11, State: deliveryContract.StateSent, SentAt: &provided},
+		{ID: 12, DeliveryState: deliveryContract.DeliveryFailed, DeliveryStateAt: &provided},
+		{ID: 13, DeliveryState: deliveryContract.DeliveryDelivered},
+		{ID: 14, DeliveryState: deliveryContract.DeliveryDelivered, DeliveryStateAt: &provided},
+	}}}
+	receipts, err := adapter.NoticeDeliveries(context.Background(), 7, 42)
+	require.NoError(t, err)
+	require.Len(t, receipts, 1)
+	assert.Equal(t, int64(14), receipts[0].OutboxID)
+	assert.Equal(t, provided, receipts[0].ProvidedAt)
 }

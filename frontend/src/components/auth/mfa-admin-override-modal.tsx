@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Alert } from "~/components/ui/alert";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -473,11 +474,19 @@ export function MFAAdminOverrideModal({
                 aus. Bei verlorenem Zugang helfen Sie zuerst, den Zugang zum
                 E-Mail-Postfach wiederherzustellen.
               </p>
-              <div className="border-moto-amber/20 bg-moto-amber-soft text-moto-amber-strong mb-3 rounded-md border p-3 text-xs">
-                <strong className="font-semibold">Wichtig:</strong> Diese
-                Einstellung gilt nur für diese Schule. Wenn der Mitarbeiter an
-                weiteren Schulen aktiv ist, bleibt 2FA dort unverändert.
-              </div>
+              <Alert
+                type="warning"
+                size="compact"
+                announce="off"
+                className="mb-3"
+                message={
+                  <>
+                    <strong className="font-semibold">Wichtig:</strong> Diese
+                    Einstellung gilt nur für diese Schule. Wenn der Mitarbeiter
+                    an weiteren Schulen aktiv ist, bleibt 2FA dort unverändert.
+                  </>
+                }
+              />
 
               <FormErrorAlert message={overrideErrors.error} className="mb-3" />
               <LoadErrorAlert error={stateLoad.error} className="mb-3" />

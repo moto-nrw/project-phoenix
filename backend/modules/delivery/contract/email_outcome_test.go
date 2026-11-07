@@ -75,3 +75,8 @@ func TestAppointmentMailsAreParentMails(t *testing.T) {
 		assert.True(t, IsParentMail(kind), kind)
 	}
 }
+
+func TestCareContractConfirmationsAreParentMails(t *testing.T) {
+	t.Parallel()
+	assert.True(t, IsParentMail("care_contract_notice"))
+}

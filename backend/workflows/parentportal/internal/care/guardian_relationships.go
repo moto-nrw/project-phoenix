@@ -105,7 +105,7 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 		}
 		return nil, err
 	}
-	callerStudents, err := s.callerFamilyStudentSet(ctx, edit.accountID)
+	callerStudents, editableStudents, err := s.callerStudentSets(ctx, edit.accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 		}
 		return nil, err
 	}
-	if err := s.refuseRelationshipEdit(ctx, profile, link, edit, callerStudents); err != nil {
+	if err := s.refuseRelationshipEdit(ctx, profile, link, edit, editableStudents); err != nil {
 		return nil, err
 	}
 	// Granting the pickup permission is a signed request the OGS confirms
@@ -144,11 +144,11 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 	if err := s.auditPickupFlagChanges(ctx, edit.accountID, edit.studentID, edit.guardianProfileID, edit.input, oldCanPickup, oldEmergency); err != nil {
 		return nil, err
 	}
-	return s.projectEditedRelationship(ctx, child, profile, link, edit, callerStudents)
+	return s.projectEditedRelationship(ctx, child, profile, link, edit, callerStudents, editableStudents)
 }
 
 // refuseRelationshipEdit applies the eligibility of each field group.
-func (s *Service) refuseRelationshipEdit(ctx context.Context, profile *GuardianProfile, link *GuardianRelationship, edit relationshipEdit, callerStudents map[int64]bool) error {
+func (s *Service) refuseRelationshipEdit(ctx context.Context, profile *GuardianProfile, link *GuardianRelationship, edit relationshipEdit, editableStudents map[int64]bool) error {
 	isSelf := profile.AccountID != nil && *profile.AccountID == edit.accountID
 	if edit.editsFlags {
 		if err := refusePickupFlagEdit(profile, link); err != nil {
@@ -169,22 +169,22 @@ func (s *Service) refuseRelationshipEdit(ctx context.Context, profile *GuardianP
 	if !isSelf && s.GuardianPolicy.IsFullRole(link.GuardianRole) {
 		return ErrGuardianRoleManaged
 	}
-	// A contact-only profile that ALSO serves a child outside the caller's
-	// family is the school's to manage (its contact is redacted on read), so a
-	// note edit is refused here too — same containment guard as the contact
-	// path. Per-child though the note is, the contact-coupled rule keeps "note
+	// A contact-only profile that ALSO serves a child the caller may not edit
+	// guardians for (another family's, or a sibling without
+	// parent_portal.guardian.edit) is not this caller's to manage, so a note
+	// edit is refused here too: same containment guard as the contact path. Per-child though the note is, the contact-coupled rule keeps "note
 	// editable iff contact editable" intact. Only notes need this; the flags
 	// are per-child authority already gated above.
 	if edit.editsDetails && !isSelf {
-		return s.refuseSharedContactNote(ctx, profile.ID, callerStudents)
+		return s.refuseSharedContactNote(ctx, profile.ID, editableStudents)
 	}
 	return nil
 }
 
 // refuseSharedContactNote refuses a note on a contact that also serves a child
 // outside the caller's family.
-func (s *Service) refuseSharedContactNote(ctx context.Context, profileID int64, callerStudents map[int64]bool) error {
-	escapes, err := s.profileEscapesFamily(ctx, profileID, callerStudents)
+func (s *Service) refuseSharedContactNote(ctx context.Context, profileID int64, editableStudents map[int64]bool) error {
+	escapes, err := s.profileEscapesFamily(ctx, profileID, editableStudents)
 	if err != nil {
 		return err
 	}
@@ -286,18 +286,19 @@ func (s *Service) writeRelationshipEdit(ctx context.Context, link *GuardianRelat
 
 // projectEditedRelationship reads the phones and family reach for the response
 // and refreshes the child's live view after the commit.
-func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, profile *GuardianProfile, link *GuardianRelationship, edit relationshipEdit, callerStudents map[int64]bool) (*ChildGuardian, error) {
+func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, profile *GuardianProfile, link *GuardianRelationship, edit relationshipEdit, callerStudents, editableStudents map[int64]bool) (*ChildGuardian, error) {
 	phones, err := s.GuardianPhoneRepo.FindByGuardianID(ctx, profile.ID)
 	if err != nil {
 		return nil, err
 	}
-	escapes, err := s.profileEscapesFamily(ctx, profile.ID, callerStudents)
+	escapes, outsideEdit, err := s.profilesEscapingFamily(ctx, []int64{profile.ID}, callerStudents, editableStudents)
 	if err != nil {
 		return nil, err
 	}
 	result := projectChildGuardian(profile, link, phones, edit.accountID,
 		child.HasPermission(GuardianPermissionGuardianEdit),
-		child.HasPermission(GuardianPermissionPickupManage), escapes, s.GuardianPolicy.IsFullRole)
+		child.HasPermission(GuardianPermissionPickupManage), escapes[profile.ID], s.GuardianPolicy.IsFullRole)
+	lockContactOutsideEditReach(result, outsideEdit[profile.ID])
 
 	capturedTenant := child.TenantID
 	s.Runtime.RegisterAfterCommit(ctx, func() {

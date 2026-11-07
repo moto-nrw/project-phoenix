@@ -12,13 +12,13 @@ import (
 // holiday registration uploads (#5238), like the units of the online
 // registration's uploads (#4783): the upload counts in a unit of its own,
 // which commits even when it refuses, so a refused upload still counts; the
-// proof then commits in a unit of its own. The link names the Träger, never
-// the request.
+// route counts before it reads the body. The proof then commits in a unit of
+// its own. The link names the Träger, never the request.
 type holidayProofUnits struct {
 	registrations enrollmentOwner.HolidayRegistrations
 }
 
-func (u holidayProofUnits) UploadHolidayProof(ctx context.Context, link enrollmentOwner.HolidayRegistrationLink, remoteIP string, upload enrollmentOwner.HolidayProofUpload) (enrollmentOwner.HolidayProofReceipt, error) {
+func (u holidayProofUnits) CountHolidayProofUpload(ctx context.Context, link enrollmentOwner.HolidayRegistrationLink, remoteIP string) error {
 	var limitErr error
 	err := tenant.WithinTraeger(ctx, link.OrganizationID, func(txCtx context.Context) error {
 		limitErr = u.registrations.CountHolidayProofUpload(txCtx, link.OrganizationID, remoteIP)
@@ -30,11 +30,12 @@ func (u holidayProofUnits) UploadHolidayProof(ctx context.Context, link enrollme
 	if err == nil {
 		err = limitErr
 	}
-	if err != nil {
-		return enrollmentOwner.HolidayProofReceipt{}, err
-	}
+	return err
+}
+
+func (u holidayProofUnits) UploadHolidayProof(ctx context.Context, link enrollmentOwner.HolidayRegistrationLink, upload enrollmentOwner.HolidayProofUpload) (enrollmentOwner.HolidayProofReceipt, error) {
 	var receipt enrollmentOwner.HolidayProofReceipt
-	err = tenant.WithinTraeger(ctx, link.OrganizationID, func(txCtx context.Context) error {
+	err := tenant.WithinTraeger(ctx, link.OrganizationID, func(txCtx context.Context) error {
 		var uploadErr error
 		receipt, uploadErr = u.registrations.UploadHolidayProof(txCtx, link, upload)
 		return uploadErr

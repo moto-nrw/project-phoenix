@@ -283,9 +283,7 @@ export function RolePermissionsTab({
   });
 
   if (loading || (loadFailed && !loadError)) {
-    return (
-      <Loading fullPage={false} message="Berechtigungen werden geladen..." />
-    );
+    return <Loading message="Berechtigungen werden geladen..." />;
   }
 
   if (loadError) {

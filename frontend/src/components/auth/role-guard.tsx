@@ -42,7 +42,7 @@ export function RoleGuard({
   });
 
   if (status === "loading") {
-    return <>{fallback ?? <Loading fullPage={false} />}</>;
+    return <>{fallback ?? <Loading />}</>;
   }
 
   const isAdmin = hasEffectiveAdminScope(session);

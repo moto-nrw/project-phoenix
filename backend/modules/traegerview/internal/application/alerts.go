@@ -7,7 +7,7 @@ import (
 )
 
 // SchoolsAlerts returns the hints of every school of the Träger (#4675). The
-// figures come from the same owner reads as SchoolsToday, so a hint never
+// figures come from the same owner reads as the school detail, so a hint never
 // disagrees with the figures beside it; the waiting children come from
 // Enrollment. The thresholds are read after the school set, in the Träger's
 // own transaction: a Träger without schools, or one the moto team

@@ -30,13 +30,15 @@ import (
 
 // mountCareContractRoutes serves the Betreuungsvertrag (ADR 0088, ADR 0153,
 // #4678) behind the right "Verträge verwalten": the contracts at
-// /traeger/contracts and the templates of the offerings at
-// /traeger/contract-templates.
+// /traeger/contracts, the templates of the offerings at
+// /traeger/contract-templates and withdrawal and termination at
+// /traeger/contract-notices (#4682).
 func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings,
 	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) {
 	resource := NewCareContractHTTP(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL)
 	root.Mount("/traeger/contracts", resource.ContractRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/contract-templates", resource.TemplateRouter(ProtectedTraegerRoutes))
+	mountCareContractNoticeRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL)
 	// The one-time link of a contract mail (#4679), without an account.
 	signing := careContractCompose.NewSigning(careContractSignaturePorts(organizations, settings, delivery, outcomes, parentsURL))
 	root.Mount("/public/care-contract-signing", careContractHTTP.NewSigningResource(signing).PublicRouter())
@@ -172,7 +174,8 @@ func (a careContractApplications) AcceptedApplications(ctx context.Context, requ
 			ServiceStartDate: application.ServiceStartDate, ActivateOn: application.ActivateOn,
 		}
 		for _, proof := range application.Acceptances {
-			result[i].Acceptances = append(result[i].Acceptances, carecontract.AcceptedText{Key: proof.Key, Text: proof.Text, SHA256: proof.SHA256, SubmittedAt: proof.SubmittedAt})
+			result[i].Acceptances = append(result[i].Acceptances, carecontract.AcceptedText{Key: proof.Key, Text: proof.Text, SHA256: proof.SHA256, SubmittedAt: proof.SubmittedAt,
+				Required: proof.Required})
 		}
 	}
 	return result, nil

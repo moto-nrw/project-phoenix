@@ -130,6 +130,20 @@ describe("StudentNotizenTab", () => {
     swrState.tenantMutate = vi.fn(async () => undefined);
   });
 
+  it("loads inside its own card instead of covering the child's page", () => {
+    swrState.started = true;
+    swrState.data = undefined;
+    swrState.isLoading = true;
+    swrState.error = undefined;
+    const { container } = render(<StudentNotizenTab studentId="7" />);
+
+    expect(
+      screen.getByRole("status", { name: "Notizen wird geladen" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Notizen")).toBeInTheDocument();
+    expect(container.querySelector(".fixed")).not.toBeInTheDocument();
+  });
+
   it("names its purpose and says parents cannot see the notes", () => {
     renderTab([]);
     expect(screen.getByText("Notizen")).toBeInTheDocument();

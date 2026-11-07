@@ -366,7 +366,7 @@ export function NewMessageModal({
               <p className="text-sm font-medium text-gray-700">Eltern wählen</p>
               <FormErrorAlert message={openError.error} />
               {guardiansLoading || guardiansErrorPending ? (
-                <Loading fullPage={false} message="Eltern werden geladen …" />
+                <Loading message="Eltern werden geladen …" />
               ) : guardiansFailed ? (
                 <LoadErrorAlert error={guardiansError.error} />
               ) : guardians.length === 0 ? (

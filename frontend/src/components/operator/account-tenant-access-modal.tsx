@@ -421,7 +421,7 @@ export function AccountTenantAccessModal({
         }
       >
         {loading ? (
-          <Loading fullPage={false} message="Wird geladen …" />
+          <Loading message="Wird geladen …" />
         ) : (
           <div className="space-y-6">
             <LoadErrorAlert error={accessLoad.error} />

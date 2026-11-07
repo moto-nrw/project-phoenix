@@ -51,15 +51,25 @@ func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentN
 func documentInboxWithMails(t *testing.T) (*parentService.Portal, parentService.DocumentNotices, *recordedPushes, *bun.DB, *owners.CareContractTestMails) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	mails := &owners.CareContractTestMails{}
+	deps := documentInboxDependencies(t, db, mails)
+	pushes := &recordedPushes{}
+	deps.DocumentNotifier = pushes
+	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps), pushes, db, mails
+}
+
+// documentInboxDependencies are the parents portal's dependencies of the
+// document inbox over db, without the push of a document; the signature's
+// mails go to mails.
+func documentInboxDependencies(t *testing.T, db *bun.DB, mails *owners.CareContractTestMails) parentportalcompose.Dependencies {
+	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	people := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	pushes := &recordedPushes{}
-	mails := &owners.CareContractTestMails{}
-	deps := parentportalcompose.Dependencies{
+	return parentportalcompose.Dependencies{
 		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
 		GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{},
 		Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(), Runtime: owners.ParentPortalRuntime{},
@@ -68,9 +78,7 @@ func documentInboxWithMails(t *testing.T) (*parentService.Portal, parentService.
 		Logger:              slog.Default(), CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 		BillingDocuments: owners.NewParentBillingDocuments(), ContractDocuments: owners.NewParentContractDocuments(owners.NewParentContractSigningForTests(mails)), TraegerRuntime: owners.ParentPortalRuntime{},
 		SchoolTraeger: owners.NewParentSchoolTraeger(organizations), ParentAccounts: owners.NewParentAccounts(identity),
-		DocumentNotifier: pushes,
 	}
-	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps), pushes, db, mails
 }
 
 // inboxTraeger writes the invoices of one Träger as the Elternabrechnung

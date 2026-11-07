@@ -15,6 +15,7 @@ import {
   staffAbsenceService,
   type CompTimeBalancePreview,
 } from "~/lib/staff-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "CompTimePreview" });
 
@@ -107,7 +108,7 @@ export function CompTimePreviewPanel({
   if (error) return <LoadErrorAlert error={load.error} />;
   if (preview === null && !loading) return null;
   return (
-    <div className="rounded-lg bg-gray-50 p-3">
+    <InsetPanel>
       {preview === null ? (
         <p className="text-sm text-gray-500">Stundenkonto wird berechnet …</p>
       ) : (
@@ -156,6 +157,6 @@ export function CompTimePreviewPanel({
           )}
         </>
       )}
-    </div>
+    </InsetPanel>
   );
 }

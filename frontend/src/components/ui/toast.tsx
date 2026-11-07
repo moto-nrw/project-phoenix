@@ -132,10 +132,7 @@ export function Toast({
         // Ohne Aktionen bleibt keine leere Reihe unter der Meldung stehen.
         actionLayout={actions ? "stacked" : "inline"}
         // Rechts Platz für das Schließen-X oben in der Ecke.
-        className={cn(
-          "relative rounded-xl shadow-lg",
-          touchFriendly ? "pr-14" : "pr-12",
-        )}
+        className={cn("relative shadow-lg", touchFriendly ? "pr-14" : "pr-12")}
       />
     </div>
   );

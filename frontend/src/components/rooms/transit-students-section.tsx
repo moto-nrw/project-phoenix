@@ -529,7 +529,7 @@ export function TransitStudentsSection({
 
             <div className="mt-4 flex flex-col gap-2">
               {studentsLoading && students.length === 0 ? (
-                <Loading fullPage={false} message="Kinder werden geladen …" />
+                <Loading message="Kinder werden geladen …" />
               ) : studentsError ? null : students.length === 0 ? (
                 <EmptyState
                   variant="dashed"

@@ -2257,12 +2257,11 @@ export function EnrollmentForm({
                   </div>
                 )}
                 {availabilityNotices[child.clientId] ? (
-                  <p
-                    role="status"
-                    className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-sm"
-                  >
-                    {tr("care.availabilitySelectionRemoved")}
-                  </p>
+                  <Alert
+                    type="warning"
+                    announce="polite"
+                    message={tr("care.availabilitySelectionRemoved")}
+                  />
                 ) : null}
 
                 {showCareSection && (

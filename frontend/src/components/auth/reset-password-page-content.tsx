@@ -315,7 +315,7 @@ export function ResetPasswordPageContent({
           tone="success"
           icon={<CheckIcon />}
           description={copy.successBody}
-          progress={<Loading fullPage={false} />}
+          progress={<Loading />}
           className="py-0"
         />
       </AuthShell>

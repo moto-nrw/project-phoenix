@@ -48,6 +48,7 @@ import {
   type AbsenceRebooking,
   type StaffAbsenceRow,
 } from "~/lib/staff-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "AbsenceRebookModal" });
 
@@ -356,7 +357,11 @@ export function AbsenceRebookModal({
               : `${absences.length} Einträge`}
             {preview ? ` · ${formatDayCount(preview.days)}` : ""}
           </h4>
-          <ul className="max-h-40 divide-y divide-gray-100 overflow-y-auto rounded-lg bg-gray-50 px-3">
+          <InsetPanel
+            as="ul"
+            padding="tight"
+            className="max-h-40 divide-y divide-gray-100 overflow-y-auto"
+          >
             {absences.map((row) => (
               <li
                 key={row.id}
@@ -374,7 +379,7 @@ export function AbsenceRebookModal({
                 />
               </li>
             ))}
-          </ul>
+          </InsetPanel>
         </section>
         <TypeChoice
           legend="Neue Art"

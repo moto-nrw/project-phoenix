@@ -98,7 +98,7 @@ export default function EnrollPhasePickerPage() {
       <PublicEnrollmentPageShell withInlineSwitcher>
         <PhasePickerHeader tenant={tenant} />
         <section className="moto-content-surface flex min-h-[24rem] items-center justify-center rounded-2xl border">
-          <Loading fullPage={false} message={t("loading")} />
+          <Loading message={t("loading")} />
         </section>
       </PublicEnrollmentPageShell>
     );
