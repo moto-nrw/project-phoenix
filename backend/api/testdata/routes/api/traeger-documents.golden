@@ -1,0 +1,2 @@
+GET /api/traeger-documents/
+GET /api/traeger-documents/{id}/file

@@ -1,6 +1,8 @@
 GET /parent/me/documents -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 GET /parent/me/documents/contracts -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+GET /parent/me/documents/shared -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 GET /parent/me/documents/{organizationId}/contracts/{contractId}/pdf -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 GET /parent/me/documents/{organizationId}/contracts/{contractId}/signing -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+GET /parent/me/documents/{organizationId}/shared/{documentId}/file -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 GET /parent/me/documents/{organizationId}/{documentId}/pdf -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 POST /parent/me/documents/{organizationId}/contracts/{contractId}/sign -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)

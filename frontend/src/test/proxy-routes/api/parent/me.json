@@ -114,6 +114,9 @@
   "api/parent/me/documents/contracts": [
     "GET parent /parent/me/documents/contracts"
   ],
+  "api/parent/me/documents/shared": [
+    "GET parent /parent/me/documents/shared"
+  ],
   "api/parent/me/enrollable-schools": [
     "GET parent /parent/me/enrollable-schools"
   ],

@@ -44,6 +44,7 @@ var dataLabels = map[string]string{
 	"guardian_email_lift":          "Sperre einer Mail-Adresse aufgehoben",
 	"care_contract_applications":   "Angenommene Anmeldungen für Betreuungsverträge",
 	"care_contracts":               "Betreuungsverträge",
+	"traeger_document_download":    "Dokument des Trägers (heruntergeladen)",
 	"student_record":               "Angaben zu einem Kind",
 	"guardian_record":              "Angaben zu Eltern",
 	"guardian_bank_details":        "Bankverbindung von Eltern",

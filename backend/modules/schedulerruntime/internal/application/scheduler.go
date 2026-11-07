@@ -253,6 +253,9 @@ func schedulerCleanupJobs(deps ports.WorkerDependencies) []CleanupJob {
 	if !isNilDependency(deps.HolidayRegistrationRetention) {
 		jobs = append(jobs, CleanupJob{Description: "Holiday registration retention", Run: deps.HolidayRegistrationRetention.DeleteExpiredHolidayRegistrations})
 	}
+	if !isNilDependency(deps.TraegerDocumentReadRetention) {
+		jobs = append(jobs, CleanupJob{Description: "Träger document read retention", Run: deps.TraegerDocumentReadRetention.DeleteExpiredTraegerDocumentReads})
+	}
 	return jobs
 }
 

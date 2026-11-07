@@ -228,6 +228,8 @@ import type { roomsCatalogTopic as authored_roomsCatalogTopic } from "./articles
 
 import type { roomsTopic as authored_roomsTopic } from "./articles/rooms";
 
+import type { schoolTraegerDocumentsTopic as authored_schoolTraegerDocumentsTopic } from "./articles/school-traeger-documents";
+
 import type { settingsGuideTopic as authored_settingsGuideTopic } from "./articles/settings-guide";
 
 import type { settingsTopic as authored_settingsTopic } from "./articles/settings";
@@ -353,6 +355,8 @@ import type { traegerSchoolSwitchTopic as authored_traegerSchoolSwitchTopic } fr
 import type { traegerSchoolViewTopic as authored_traegerSchoolViewTopic } from "./articles/traeger-school-view";
 
 import type { traegerSettingsTopic as authored_traegerSettingsTopic } from "./articles/traeger-settings";
+
+import type { traegerSharedDocumentsTopic as authored_traegerSharedDocumentsTopic } from "./articles/traeger-shared-documents";
 
 import type { traegerTestSystemTopic as authored_traegerTestSystemTopic } from "./articles/traeger-test-system";
 
@@ -5755,8 +5759,9 @@ export const parentDepartureTopic = function parentDepartureTopic(): HelpTopic {
 } satisfies typeof authored_parentDepartureTopic;
 
 /**
- * `/parents/documents` (#4671, #4678, #4679): Schreiben und Verträge des
- * Trägers, den Betreuungsvertrag unterschreiben.
+ * `/parents/documents` (#4671, #4678, #4679, #4692): Schreiben und Verträge
+ * des Trägers, den Betreuungsvertrag unterschreiben, und Dokumente, die der
+ * Träger für Eltern freigegeben hat.
  */
 export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
   return {
@@ -5764,7 +5769,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
     title: "Dokumente vom Träger finden",
     question: "Wo finde ich Schreiben vom Träger?",
     summary:
-      "Unter `Dokumente` liegen die Schreiben und Verträge, die Ihnen der Träger geschickt hat.",
+      "Unter `Dokumente` liegen die Schreiben und Verträge, die Ihnen der Träger geschickt hat. Dort finden Sie auch Dokumente, die der Träger für Eltern freigegeben hat, etwa eine Hausordnung.",
     group: "nachrichten",
     audience: "parent",
     icon: "FileText",
@@ -5774,7 +5779,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
         steps: [
           "Tippen Sie unten auf `Mehr`.",
           "Wählen Sie `Dokumente`.",
-          "Wählen Sie beim Schreiben `Als PDF laden`.",
+          "Wählen Sie beim Schreiben `Als PDF laden`. Bei einem freigegebenen Dokument wählen Sie `Herunterladen`.",
         ],
       },
       {
@@ -5793,11 +5798,12 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
     ],
     steps: [],
     result:
-      "Sie bekommen das Schreiben als PDF. Nach der Unterschrift steht beim Vertrag `Unterschrieben`, und Sie bekommen eine Bestätigung mit dem Vertrag per Mail.",
+      "Sie bekommen das Dokument auf Ihr Gerät. Sie können es speichern oder drucken. Nach der Unterschrift steht beim Vertrag `Unterschrieben`, und Sie bekommen eine Bestätigung mit dem Vertrag per Mail.",
     notes: [
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
+      "Bei einem freigegebenen Dokument steht `Vom Träger für Eltern freigegeben`. Es gilt für alle Eltern, für die der Träger es freigegeben hat, zum Beispiel für eine Gruppe. Diese Dokumente kommen nicht per Mail.",
       "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein Bestätigungsschreiben kommt? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Einen Betreuungsvertrag bekommen Sie per Mail.",
     ],
     troubleshootingDetails: [
@@ -5805,6 +5811,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Statt der Liste steht, dass Ihnen die Berechtigung fehlt? Bitte fragen Sie die Schule.",
       "Der Link in der Mail gilt nicht mehr? Er gilt nur einmal und 30 Tage. Unterschreiben Sie in der Eltern-App unter `Dokumente`. Oder fragen Sie beim Träger nach einem neuen Link.",
       "Beim Vertrag fehlt `Lesen und unterschreiben`? Dann darf Ihr Konto für dieses Kind nicht unterschreiben. Bitte fragen Sie die Schule.",
+      "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen.",
     ],
     related: [
       HELP_TOPICS.parentHolidayRegistration,
@@ -7404,6 +7411,44 @@ export const roomsTopic = function roomsTopic(
     related: [HELP_TOPICS.activeSupervision, HELP_TOPICS.changeLocation],
   };
 } satisfies typeof authored_roomsTopic;
+
+/**
+ * `/dateien`, Karte `Vom Träger` (#4692): Dokumente, die der Träger für die
+ * Schule oder die Eltern an ihr freigegeben hat.
+ */
+export const schoolTraegerDocumentsTopic =
+  function schoolTraegerDocumentsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.schoolTraegerDocuments,
+      title: "Dokumente vom Träger finden",
+      question: "Wo finde ich Dokumente, die der Träger freigegeben hat?",
+      summary:
+        "Ihr Träger kann Dokumente für Ihre Schule freigeben. Sie finden sie unter `Dateien`.",
+      group: "elternarbeit",
+      audience: "lead",
+      icon: "Download",
+      requirements: ["Sie dürfen die Dateien Ihrer Schule verwalten."],
+      steps: [
+        "Klappen Sie in der Seitenleiste `Verwaltung` auf und öffnen Sie `Dateien`.",
+        "Oben steht die Karte `Vom Träger`.",
+        "Unter jedem Titel steht, für wen der Träger das Dokument freigegeben hat.",
+        "Wählen Sie `Herunterladen`.",
+      ],
+      result:
+        "Sie haben das Dokument auf Ihrem Gerät. Ändern kann es nur der Träger.",
+      notes: [
+        "Hier stehen auch Dokumente, die der Träger für die Eltern Ihrer Schule oder einer Gruppe freigegeben hat. So wissen Sie, was die Eltern bekommen haben.",
+        "Soll das Team ein Dokument sehen? Laden Sie es in einen Ordner unter `Dateien` hoch.",
+      ],
+      differences: [
+        "Die Karte `Vom Träger` fehlt? Dann hat der Träger zurzeit nichts für Ihre Schule freigegeben. Oder Ihnen fehlt das Recht, die Dateien zu verwalten.",
+      ],
+      troubleshootingDetails: [
+        "Ein Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen. Fragen Sie beim Träger nach.",
+      ],
+      related: [HELP_TOPICS.sharedFiles],
+    };
+  } satisfies typeof authored_schoolTraegerDocumentsTopic;
 
 /**
  * Die wichtigsten Einstellungen je Bereich (#3727). Bewusst eine Auswahl, keine
@@ -11144,6 +11189,79 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],
   };
 } satisfies typeof authored_traegerSettingsTopic;
+
+/**
+ * `/traeger/dokumente` (#4692): vorhandene Dokumente hochladen und für
+ * Eltern oder Schulen freigeben; eine Freigabe zurücknehmen.
+ */
+export const traegerSharedDocumentsTopic =
+  function traegerSharedDocumentsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerSharedDocuments,
+      title: "Dokumente für Eltern und Schulen freigeben",
+      question: "Wie teile ich ein Dokument mit Eltern oder Schulen?",
+      summary:
+        "Sie laden eine Datei hoch, die Sie schon haben, zum Beispiel eine Hausordnung oder eine Liste. Dann geben Sie sie für Eltern oder für Schulen frei.",
+      group: "elternarbeit",
+      audience: "traeger",
+      icon: "EnvelopeOpen",
+      requirements: [
+        "Sie haben die Rolle `Verwaltung`.",
+        "Die Datei ist ein PDF, ein Word-, Excel- oder PowerPoint-Dokument oder ein Bild. Sie ist höchstens 10 MB groß.",
+      ],
+      instructionGroups: [
+        {
+          title: "Dokument hochladen",
+          steps: [
+            "Wählen Sie in der Navigation `Dokumente`.",
+            "Wählen Sie oben `Dokument hochladen`.",
+            "Ziehen Sie die Datei in das Feld. Oder wählen Sie `Datei auswählen`.",
+            "Prüfen Sie den `Titel`. Eltern und Schulen sehen diesen Titel.",
+            "Wählen Sie `Hochladen`. moto öffnet danach die Seite des Dokuments.",
+          ],
+        },
+        {
+          title: "Dokument freigeben",
+          steps: [
+            "Öffnen Sie das Dokument in der Liste `Dokumente`.",
+            "Wählen Sie oben `Freigeben`.",
+            "Wählen Sie bei `Für wen?` entweder `Eltern` oder `Schulen`.",
+            "Wählen Sie bei `An welchen Schulen?`: `Alle Schulen`, `Eine Schule` oder bei Eltern auch `Eine Gruppe`.",
+            "Wählen Sie dann die `Schule` und gegebenenfalls die `Gruppe`.",
+            "Prüfen Sie den Kasten `Sichtbar für`. Wählen Sie `Freigeben`.",
+          ],
+        },
+        {
+          title: "Freigabe zurücknehmen",
+          steps: [
+            "Öffnen Sie das Dokument.",
+            "Wählen Sie bei der Freigabe `Zurücknehmen`.",
+            "Bestätigen Sie mit `Ja, zurücknehmen` und dann `Zurücknehmen`.",
+          ],
+        },
+      ],
+      steps: [],
+      result:
+        "Eltern finden das Dokument in der Eltern-App unter `Dokumente`. Die OGS-Leitung findet es in moto unter `Dateien` bei `Vom Träger`. Nach dem Zurücknehmen sehen sie es sofort nicht mehr, außer eine andere Freigabe des Dokuments gilt auch für sie.",
+      notes: [
+        "Ein Dokument kann mehrere Freigaben haben. Zum Beispiel für die Eltern einer Gruppe und für alle Schulen.",
+        "Eine Freigabe für Eltern sieht auch die OGS-Leitung der Schule. So weiß sie, was die Eltern bekommen haben.",
+        "Bei `Geöffnet` sehen Sie, wie oft Eltern und Schulen das Dokument geöffnet haben.",
+      ],
+      differences: [
+        "Sie sehen `Dokument hochladen` und `Freigeben` nicht? Ihnen fehlt die Rolle `Verwaltung`. Sie können die Dokumente nur ansehen.",
+      ],
+      troubleshootingDetails: [
+        "moto nimmt die Datei nicht an? Prüfen Sie Art und Größe. Eine umbenannte Datei erkennt moto am Inhalt.",
+        "Bei `Eine Gruppe` steht keine Gruppe? Die Schule hat in moto noch keine Gruppen angelegt.",
+        "Die Meldung sagt, das Dokument ist schon freigegeben? Für diese Menschen gibt es schon eine Freigabe.",
+      ],
+      related: [
+        HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.errorMessages,
+      ],
+    };
+  } satisfies typeof authored_traegerSharedDocumentsTopic;
 
 /** Hinweis `Testsystem` im Träger-Portal (#4658): erfundene Beispielkinder. */
 export const traegerTestSystemTopic =

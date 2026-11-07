@@ -38,6 +38,9 @@ type WorkerDependencies struct {
 	// HolidayRegistrationRetention deletes ended holiday registrations of
 	// every Träger (#4661).
 	HolidayRegistrationRetention HolidayRegistrationRetention
+	// TraegerDocumentReadRetention deletes the expired reads of the shared
+	// Träger documents (#4692).
+	TraegerDocumentReadRetention TraegerDocumentReadRetention
 	WorkSessionCleanup           WorkSessionCleaner
 	BreakAutoEnder               BreakAutoEnder
 	AutoCheckouter               AutoCheckouter

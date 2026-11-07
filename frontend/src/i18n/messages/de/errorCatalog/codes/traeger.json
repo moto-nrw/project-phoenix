@@ -3,6 +3,11 @@
   "already_member": "Diese Person gehört schon zum Träger-Büro.",
   "bank_account_label_taken": "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
   "bank_account_not_found": "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "document_already_released": "Das Dokument ist für diese Menschen schon freigegeben.",
+  "document_audience_invalid": "Diese Schule oder Gruppe gehört nicht zu Ihrem Träger. Bitte wählen Sie neu.",
+  "document_invalid": "Bitte geben Sie einen Titel ein, höchstens 120 Zeichen.",
+  "document_not_found": "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "document_release_not_found": "Diese Freigabe ist schon zurückgenommen. Bitte laden Sie die Seite neu.",
   "document_template_invalid": "Die Vorlage ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
   "document_template_kind_not_found": "Diese Dokumentart gibt es nicht. Bitte wählen Sie eine Vorlage aus der Liste.",
   "document_template_unchanged": "Die Vorlage hat sich nicht geändert. Es gibt keine neue Version.",
@@ -15,5 +20,6 @@
   "member_not_found": "Diese Person gehört nicht mehr zum Träger-Büro. Bitte laden Sie die Seite neu.",
   "no_membership": "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
   "school_not_found": "Diese Schule gehört nicht zu Ihrem Träger. Bitte laden Sie die Seite neu.",
-  "second_factor_required": "Zum Öffnen einer Schule brauchen Sie einen zweiten Anmeldenachweis. Bitte melden Sie sich im Träger-Portal neu an."
+  "second_factor_required": "Zum Öffnen einer Schule brauchen Sie einen zweiten Anmeldenachweis. Bitte melden Sie sich im Träger-Portal neu an.",
+  "shared_document_not_found": "Der Träger hat dieses Dokument nicht mehr freigegeben. Bitte laden Sie die Seite neu."
 }

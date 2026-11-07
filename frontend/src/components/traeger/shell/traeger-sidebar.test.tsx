@@ -89,6 +89,7 @@ describe("TraegerSidebar", () => {
       "Stichtagszahlen",
       "Belegung",
       "Ferienbetreuung",
+      "Dokumente",
       "Abrechnung",
     ]);
     expect(
@@ -112,13 +113,16 @@ describe("TraegerSidebar", () => {
     sessionUser.permissions = ["traeger_overview:read"];
     render(<TraegerSidebar />);
 
+    // Die Dokumente des Trägers liest jede Rolle (#4692); deshalb bleibt
+    // „Betreuung“ mit ihnen stehen, ohne die Ferienbetreuung.
     expect(linkNames(mainNav())).toEqual([
       "Dashboard",
       "Schulen",
       "Stichtagszahlen",
       "Belegung",
+      "Dokumente",
     ]);
-    expect(mainNav().queryByText("Betreuung")).toBeNull();
+    expect(mainNav().queryByText("Ferienbetreuung")).toBeNull();
     expect(mainNav().queryByText("Finanzen")).toBeNull();
   });
 

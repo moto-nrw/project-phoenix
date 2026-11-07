@@ -150,6 +150,7 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/stichtagszahlen", "Stichtagszahlen"],
   ["/belegung", "Belegung"],
   ["/ferien", "Ferienbetreuung"],
+  ["/dokumente", "Dokumente"],
   ["/abrechnung", "Abrechnung"],
   ["/vertraege", "Verträge"],
   ["/einstellungen/mitglieder", "Mitglieder und Rollen"],

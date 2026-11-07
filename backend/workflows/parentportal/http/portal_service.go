@@ -61,6 +61,10 @@ type PortalService interface {
 	// of the inbox (#4679).
 	ContractSigningView(ctx context.Context, accountID, organizationID, contractID int64) (parentService.ContractSigningView, error)
 	SignContract(ctx context.Context, accountID, organizationID, contractID int64, input parentService.ContractSignatureInput) (parentService.ContractSigningView, error)
+	// ListSharedDocuments lists the documents a Träger released for the
+	// account (#4692); SharedDocumentFile reads one of them.
+	ListSharedDocuments(ctx context.Context, accountID int64) ([]parentService.SharedDocument, error)
+	SharedDocumentFile(ctx context.Context, accountID, organizationID, documentID int64) (parentService.BillingDocumentFile, error)
 
 	// ListEnrollmentsForAccount returns every enrollment.requests row
 	// where guardian_account_id matches the calling account, joined
