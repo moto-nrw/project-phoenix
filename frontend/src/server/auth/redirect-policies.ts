@@ -1,6 +1,10 @@
 import "server-only";
 import type { NextAuthConfig } from "next-auth";
-import { authLogger } from "./jwt-claims";
+import { createLogger } from "~/lib/logger";
+
+// The Auth.js callbacks' log component; a jwt-claims import would close an
+// import cycle through the portal table.
+const authLogger = createLogger({ component: "NextAuthConfig" });
 
 export type RedirectPolicy = NonNullable<
   NonNullable<NextAuthConfig["callbacks"]>["redirect"]
