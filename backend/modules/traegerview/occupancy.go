@@ -35,12 +35,14 @@ type OccupancyGroup struct {
 }
 
 // OccupancyCareForm is one care offering of a school with its booked children
-// and its limit.
+// and its limit. Active is false for an offering the school no longer offers:
+// it keeps its children, but its places are not free.
 type OccupancyCareForm struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
 	Children int    `json:"children"`
 	Capacity *int   `json:"capacity"`
+	Active   bool   `json:"active"`
 }
 
 // SchoolOccupancy is the occupancy of one school of the Träger. Groups and
@@ -91,6 +93,7 @@ type CareOfferingBookings struct {
 	ID              int64
 	Name            string
 	Capacity        *int
+	Active          bool
 	RequestChildIDs []int64
 }
 

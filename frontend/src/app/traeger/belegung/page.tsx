@@ -303,7 +303,7 @@ const CARE_FORM_COLUMNS: DataTableColumn<OccupancyCareFormRow>[] = [
             booked: row.children,
             capacity: row.form.capacity,
           })}
-          isActive
+          isActive={row.form.active}
           variant="progress"
         />
       ),

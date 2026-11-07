@@ -57,7 +57,7 @@ func (b traegerCareBookings) CareOfferingBookingsByTenant(ctx context.Context, s
 	for school, booked := range offerings {
 		for _, offering := range booked {
 			result[school] = append(result[school], traegerview.CareOfferingBookings{
-				ID: offering.ID, Name: offering.Name, Capacity: offering.Capacity, RequestChildIDs: offering.RequestChildIDs,
+				ID: offering.ID, Name: offering.Name, Capacity: offering.Capacity, Active: offering.Active, RequestChildIDs: offering.RequestChildIDs,
 			})
 		}
 	}

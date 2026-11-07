@@ -41,15 +41,35 @@ const BACH = school("1", {
   ],
   withoutCareForm: 1,
   careForms: [
-    { id: "21", name: "OGS bis 16 Uhr", children: 8, capacity: 8 },
-    { id: "22", name: "Frühbetreuung", children: 2, capacity: null },
+    {
+      id: "21",
+      name: "OGS bis 16 Uhr",
+      children: 8,
+      capacity: 8,
+      active: true,
+    },
+    {
+      id: "22",
+      name: "Frühbetreuung",
+      children: 2,
+      capacity: null,
+      active: true,
+    },
   ],
 });
 const LINDE = school("2", {
   name: "OGS Lindenweg",
   children: 6,
   groups: [{ id: "13", name: "Füchse", children: 6 }],
-  careForms: [{ id: "23", name: " OGS bis 16 uhr", children: 6, capacity: 10 }],
+  careForms: [
+    {
+      id: "23",
+      name: " OGS bis 16 uhr",
+      children: 6,
+      capacity: 10,
+      active: true,
+    },
+  ],
 });
 
 describe("occupancy model", () => {
@@ -99,8 +119,20 @@ describe("occupancy model", () => {
   it("adds up the places of the offers with a limit, an unbooked offer with all its places free", () => {
     const unbooked = school("3", {
       careForms: [
-        { id: "24", name: "Betreuung bis 15 Uhr", children: 0, capacity: 12 },
-        { id: "25", name: "Spätbetreuung", children: 5, capacity: 4 },
+        {
+          id: "24",
+          name: "Betreuung bis 15 Uhr",
+          children: 0,
+          capacity: 12,
+          active: true,
+        },
+        {
+          id: "25",
+          name: "Spätbetreuung",
+          children: 5,
+          capacity: 4,
+          active: true,
+        },
       ],
     });
     expect(occupancyPlaces([BACH, LINDE, unbooked])).toEqual({
@@ -111,6 +143,44 @@ describe("occupancy model", () => {
       full: 2,
     });
     expect(occupancyPlaces([school("4")])).toEqual({
+      limited: 0,
+      places: 0,
+      taken: 0,
+      free: 0,
+      full: 0,
+    });
+  });
+
+  it("adds only the used places of an offer the school no longer offers to the sums", () => {
+    const retired = school("6", {
+      careForms: [
+        {
+          id: "27",
+          name: "OGS bis 16 Uhr",
+          children: 3,
+          capacity: 20,
+          active: false,
+        },
+      ],
+    });
+    expect(occupancyCareFormSums([LINDE, retired])).toEqual([
+      { name: "OGS bis 16 uhr", schools: 2, children: 9, capacity: 13 },
+    ]);
+  });
+
+  it("leaves the places of an offer the school no longer offers out of the free places", () => {
+    const retired = school("5", {
+      careForms: [
+        {
+          id: "26",
+          name: "Alte Betreuung",
+          children: 5,
+          capacity: 20,
+          active: false,
+        },
+      ],
+    });
+    expect(occupancyPlaces([retired])).toEqual({
       limited: 0,
       places: 0,
       taken: 0,

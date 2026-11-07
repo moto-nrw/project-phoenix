@@ -132,7 +132,7 @@ func careFormOccupancy(roster map[int64]int64, offerings []traegerview.CareOffer
 				booked[student] = struct{}{}
 			}
 		}
-		forms = append(forms, traegerview.OccupancyCareForm{ID: offering.ID, Name: offering.Name, Children: len(students), Capacity: offering.Capacity})
+		forms = append(forms, traegerview.OccupancyCareForm{ID: offering.ID, Name: offering.Name, Children: len(students), Capacity: offering.Capacity, Active: offering.Active})
 	}
 	return forms, len(roster) - len(booked)
 }

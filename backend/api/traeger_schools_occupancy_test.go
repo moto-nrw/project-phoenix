@@ -165,8 +165,8 @@ func TestTraegerOccupancyCountsTheRosterByGroupAndCareForm(t *testing.T) {
 	assert.Equal(t, 1, bach.WithoutGroup)
 	capacity := 25
 	assert.Equal(t, []traegerview.OccupancyCareForm{
-		{ID: early, Name: "Frühbetreuung", Children: 1},
-		{ID: ogs, Name: "OGS bis 16 Uhr", Children: 2, Capacity: &capacity},
+		{ID: early, Name: "Frühbetreuung", Children: 1, Active: true},
+		{ID: ogs, Name: "OGS bis 16 Uhr", Children: 2, Capacity: &capacity, Active: true},
 	}, bach.CareForms, "only offerings that count as care with a booking valid today; an undecided child, an ended and a future booking do not count")
 	assert.Equal(t, 1, bach.WithoutCareForm, "Cem has only lunch and bookings that are not valid today")
 
@@ -215,7 +215,9 @@ func TestTraegerOccupancyListsRunningOfferingsWithoutBooking(t *testing.T) {
 	running.book(child.ID, full, "approved", nil, nil)
 	running.offering("Mittagessen ohne Betreuung", false, 30)
 	inactive := running.offering("Ruhendes Angebot", true, 5)
-	_, err := db.ExecContext(context.Background(), `UPDATE enrollment.care_offerings SET is_active = false WHERE id = ?`, inactive)
+	retired := running.offering("Auslaufendes Angebot", true, 6)
+	running.book(child.ID, retired, "approved", nil, nil)
+	_, err := db.ExecContext(context.Background(), `UPDATE enrollment.care_offerings SET is_active = false WHERE id IN (?, ?)`, inactive, retired)
 	require.NoError(t, err)
 	newOccupancyBookingsInPhase(t, db, school, -200, -1, true).offering("Beendetes Angebot", true, 8)
 	newOccupancyBookingsInPhase(t, db, school, 1, 200, true).offering("Künftiges Angebot", true, 8)
@@ -232,7 +234,7 @@ func TestTraegerOccupancyListsRunningOfferingsWithoutBooking(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.NotContains(t, rec.Body.String(), "Fremdes freies Angebot", "no offering of another Träger")
 	teich := occupancyOf(t, decodeSchoolPortalData[traegerview.Occupancy](t, rec.Body.Bytes()), school)
-	ten, one, four := 10, 1, 4
+	ten, one, four, six := 10, 1, 4, 6
 	var oneDay int64
 	for _, form := range teich.CareForms {
 		if form.Name == "Tagesangebot" {
@@ -240,10 +242,11 @@ func TestTraegerOccupancyListsRunningOfferingsWithoutBooking(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []traegerview.OccupancyCareForm{
-		{ID: full, Name: "Kurzbetreuung", Children: 1, Capacity: &one},
-		{ID: empty, Name: "Nachmittagsbetreuung", Children: 0, Capacity: &ten},
-		{ID: oneDay, Name: "Tagesangebot", Children: 0, Capacity: &four},
-	}, teich.CareForms, "running offerings without a booking count 0 children; ended, future, inactive and lunch offerings do not appear")
+		{ID: retired, Name: "Auslaufendes Angebot", Children: 1, Capacity: &six, Active: false},
+		{ID: full, Name: "Kurzbetreuung", Children: 1, Capacity: &one, Active: true},
+		{ID: empty, Name: "Nachmittagsbetreuung", Children: 0, Capacity: &ten, Active: true},
+		{ID: oneDay, Name: "Tagesangebot", Children: 0, Capacity: &four, Active: true},
+	}, teich.CareForms, "running offerings without a booking count 0 children; an inactive offering shows only with a booking and says so; ended, future and lunch offerings do not appear")
 	assert.Zero(t, teich.WithoutCareForm)
 
 	export := traegerOccupancyRequest(t, router, "/traeger/schools/occupancy/export", answer.AccessToken, nil)

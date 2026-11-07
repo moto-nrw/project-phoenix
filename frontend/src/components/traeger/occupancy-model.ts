@@ -115,7 +115,9 @@ export function occupancyCareFormRows(
 /**
  * The care forms over all schools, by name, most children first. Offers of
  * several schools with the same name („OGS bis 16 Uhr“) add up; the places
- * only when every one of them has a limit.
+ * only when every one of them has a limit. An offer the school no longer
+ * offers adds only the places its children use, so none of its places
+ * reads as free (#5977).
  */
 export function occupancyCareFormSums(
   schools: readonly TraegerSchoolOccupancy[],
@@ -143,7 +145,12 @@ export function occupancyCareFormSums(
       sum.schools.add(school.id);
       sum.children += form.children;
       if (form.capacity === null) sum.open = true;
-      else sum.capacity = (sum.capacity ?? 0) + form.capacity;
+      else
+        sum.capacity =
+          (sum.capacity ?? 0) +
+          (form.active
+            ? form.capacity
+            : Math.min(form.children, form.capacity));
       sums.set(key, sum);
     }
   }
@@ -160,10 +167,12 @@ export function occupancyCareFormSums(
 }
 
 /**
- * The places of the care forms that have a limit (#5977). An offer without a
- * booking counts with all its places free; an offer without a limit stays
- * out, because its free places are unknown. `full` counts the offers without
- * a free place, the overbooked ones included.
+ * The places of the active care forms that have a limit (#5977). An offer
+ * without a booking counts with all its places free. An offer without a limit
+ * stays out, because its free places are unknown, and so does an offer the
+ * school no longer offers: nobody can book its places (as `totalFreePlaces`
+ * of the school's offering list). `full` counts the offers without a free
+ * place, the overbooked ones included.
  */
 export interface OccupancyPlaces {
   readonly limited: number;
@@ -182,7 +191,7 @@ export function occupancyPlaces(
   let full = 0;
   for (const school of schools) {
     for (const form of school.careForms) {
-      if (form.capacity === null) continue;
+      if (form.capacity === null || !form.active) continue;
       limited++;
       places += form.capacity;
       taken += Math.min(form.children, form.capacity);
