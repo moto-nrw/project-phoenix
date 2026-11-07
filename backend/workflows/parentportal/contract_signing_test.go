@@ -209,3 +209,31 @@ func TestContractSignedInTheInboxIsConcludedElectronically(t *testing.T) {
 		WHERE status = 'aktiv' AND (concluded_at IS NULL OR conclusion_method IS NULL)`).Scan(ctx, &violations))
 	assert.Zero(t, violations, "chk_contracts_active_concluded holds for every contract")
 }
+
+// TestContractChangedAfterTheSendIsNotSignedInTheInbox: in the parents
+// portal too, a contract whose frozen PDF changed after the send is not
+// signed; it stays waiting and unsigned.
+func TestContractChangedAfterTheSendIsNotSignedInTheInbox(t *testing.T) {
+	t.Parallel()
+	portal, _, _, db, _ := documentInboxWithMails(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	sent := inboxContract(t, db, organization, chain.TenantID, chain.StudentID, "Felix", chain.Email)
+	_, err := db.ExecContext(ctx, `UPDATE care_contract.contract_documents SET pdf = '%PDF-1.4 anderer Inhalt'::bytea WHERE contract_id = ?`, sent)
+	require.NoError(t, err)
+
+	_, err = portal.SignContract(ctx, chain.AccountID, organization, sent,
+		parentService.ContractSignatureInput{Method: "drawn", ImagePNG: signaturePNG(t), NoticeAcknowledged: true})
+	require.Error(t, err, "a changed contract is not signed")
+	var row struct {
+		Status     string `bun:"status"`
+		Signatures int    `bun:"signatures"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT c.status, (SELECT COUNT(*) FROM care_contract.contract_signatures s WHERE s.contract_id = c.id) AS signatures
+		FROM care_contract.contracts c WHERE c.id = ?`, sent).Scan(ctx, &row))
+	assert.Equal(t, "versendet", row.Status)
+	assert.Zero(t, row.Signatures)
+}

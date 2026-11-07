@@ -23,11 +23,20 @@ type StoredDocument struct {
 	File      carecontract.File
 }
 
+// SentState is what the parents were sent: the SHA-256 of the PDF and the
+// checksum of the version it shows. A signature compares the contract with
+// it, so a PDF or a version changed after the send is never signed.
+type SentState struct {
+	DocumentSHA256 string
+	VersionSHA256  string
+}
+
 // SigningLinkRecord is a stored one-time mail link.
 type SigningLinkRecord struct {
 	ID         int64
 	ContractID int64
 	DocumentID int64
+	Sent       SentState
 	ExpiresAt  time.Time
 	UsedAt     *time.Time
 }
@@ -86,8 +95,11 @@ type ReminderCandidate struct {
 // contracts of a Träger in its Träger transaction.
 type SignatureStore interface {
 	CurrentDocument(ctx context.Context, organizationID, contractID, versionID int64) (StoredDocument, error)
-	InsertSigningLink(ctx context.Context, organizationID, contractID, documentID int64, tokenSHA256 string, expiresAt time.Time) error
+	InsertSigningLink(ctx context.Context, organizationID, contractID, documentID int64, tokenSHA256 string, sent SentState, expiresAt time.Time) error
 	SigningLink(ctx context.Context, organizationID int64, tokenSHA256 string) (SigningLinkRecord, error)
+	// LatestSigningLink reads the newest link of a contract; found is false
+	// when the contract was never sent with one.
+	LatestSigningLink(ctx context.Context, organizationID, contractID int64) (link SigningLinkRecord, found bool, err error)
 	UseSigningLink(ctx context.Context, organizationID, linkID int64, at time.Time) error
 	InsertSignature(ctx context.Context, organizationID int64, signature NewSignature) error
 	Signature(ctx context.Context, organizationID, contractID, versionID int64) (*StoredSignature, error)

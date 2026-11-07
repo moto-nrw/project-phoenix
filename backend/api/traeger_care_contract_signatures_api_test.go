@@ -524,3 +524,66 @@ func TestCareContractRemindersRecheckMailingsAfterCandidateSelection(t *testing.
 		})
 	}
 }
+
+// signingStatus reads the contract's status and how many signatures it has.
+func signingStatus(t *testing.T, f careContractFixture, contractID int64) (string, int) {
+	t.Helper()
+	var row struct {
+		Status     string `bun:"status"`
+		Signatures int    `bun:"signatures"`
+	}
+	require.NoError(t, f.db.NewRaw(`SELECT c.status, (SELECT COUNT(*) FROM care_contract.contract_signatures s WHERE s.contract_id = c.id) AS signatures
+		FROM care_contract.contracts c WHERE c.id = ?`, contractID).Scan(context.Background(), &row))
+	return row.Status, row.Signatures
+}
+
+// TestCareContractUsedLinkNeverOpensAgain pins the single use of a link on
+// its own: a link once used opens nothing and signs nothing, also while its
+// contract would still take a signature. It goes red when opening a link
+// skips its used mark.
+func TestCareContractUsedLinkNeverOpensAgain(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Link benutzt")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	contract, link := sentCareContract(t, f, f.child)
+	_, err := f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_signing_links SET used_at = NOW() WHERE contract_id = ?`, contract)
+	require.NoError(t, err)
+
+	rec := publicSigning(t, f.traeger, http.MethodGet, link, nil)
+	assert.Equal(t, http.StatusGone, rec.Code, "a used link opens nothing: %s", rec.Body.String())
+	rec = publicSigning(t, f.traeger, http.MethodPost, link+"/sign",
+		map[string]any{"method": "drawn", "image_png": signatureImage(t), "withdrawal_notice_acknowledged": true})
+	assert.Equal(t, http.StatusGone, rec.Code, "a used link signs nothing: %s", rec.Body.String())
+	status, signatures := signingStatus(t, f, contract)
+	assert.Equal(t, "versendet", status, "the contract still waits for a signature")
+	assert.Zero(t, signatures)
+}
+
+// TestCareContractChangedAfterTheSendIsNotSigned pins the comparison with
+// what was sent: when the frozen PDF or the version changes after the send,
+// the link refuses the signature and the contract stays unsigned. It goes
+// red when the signature skips the comparison.
+func TestCareContractChangedAfterTheSendIsNotSigned(t *testing.T) {
+	t.Parallel()
+	for name, change := range map[string]string{
+		"PDF":     `UPDATE care_contract.contract_documents SET pdf = '%PDF-1.4 anderer Inhalt'::bytea WHERE contract_id = ?`,
+		"version": `UPDATE care_contract.contract_versions SET child_first_name = 'Jemand anderes' WHERE contract_id = ?`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newCareContractFixture(t, "Träger Vertrag geändert "+name)
+			require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+			contract, link := sentCareContract(t, f, f.child)
+			_, err := f.db.ExecContext(context.Background(), change, contract)
+			require.NoError(t, err)
+
+			rec := publicSigning(t, f.traeger, http.MethodPost, link+"/sign",
+				map[string]any{"method": "drawn", "image_png": signatureImage(t), "withdrawal_notice_acknowledged": true})
+			assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+			assert.Contains(t, rec.Body.String(), "care_contract.contract_not_signable")
+			status, signatures := signingStatus(t, f, contract)
+			assert.Equal(t, "versendet", status, "a changed contract is not concluded")
+			assert.Zero(t, signatures, "a changed contract is not signed")
+		})
+	}
+}

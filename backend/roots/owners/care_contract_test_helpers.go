@@ -62,3 +62,9 @@ func NewParentContractSigningForTests(mails *CareContractTestMails) carecontract
 		Sender: careContractTestSender{}, Post: mails, Runtime: CareContractRuntime{},
 	})
 }
+
+// RecordCareContractSendForTests stores the signing link of a contract a
+// test wrote directly, as a send would, in the caller's Träger transaction.
+func RecordCareContractSendForTests(ctx context.Context, organizationID, contractID int64) error {
+	return careContractCompose.SendLinkForTests(ctx, CareContractLinks("http://parents.localhost:3000"), organizationID, contractID)
+}

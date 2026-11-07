@@ -23,6 +23,7 @@ type (
 	StoredSignature   = ports.StoredSignature
 	NewSignature      = ports.NewSignature
 	SigningLinkRecord = ports.SigningLinkRecord
+	SentState         = ports.SentState
 )
 
 // ContractStore is the store of the contracts with their signatures.
@@ -171,8 +172,9 @@ func (s *Signatures) SignByLink(ctx context.Context, link string, input carecont
 			return err
 		}
 		linkID := target.link.ID
+		sent := target.link.Sent
 		view, err = s.sign(txCtx, organizationID, target.record, target.document, input, signer{
-			channel: carecontract.ChannelMailLink, linkID: &linkID,
+			channel: carecontract.ChannelMailLink, linkID: &linkID, sent: &sent,
 		}, now)
 		return err
 	})
@@ -222,7 +224,18 @@ func (s *Signatures) SignInInbox(ctx context.Context, organizationID, contractID
 		return carecontract.SigningView{}, err
 	}
 	account := reader.AccountID
-	return s.sign(ctx, organizationID, record, document, input, signer{channel: carecontract.ChannelParentAccount, accountID: &account}, s.now())
+	// The parents sign what the newest send gave them, the PDF and the
+	// version of its link.
+	link, found, err := s.store.LatestSigningLink(ctx, organizationID, record.Summary.ID)
+	if err != nil {
+		return carecontract.SigningView{}, err
+	}
+	var sent *SentState
+	if found {
+		sent = &link.Sent
+	}
+	return s.sign(ctx, organizationID, record, document, input,
+		signer{channel: carecontract.ChannelParentAccount, accountID: &account, sent: sent}, s.now())
 }
 
 // inboxContract reads a contract the reader may see and sign: sent to the
@@ -258,11 +271,36 @@ func (s *Signatures) inboxContract(ctx context.Context, organizationID, contract
 	return record, document, nil
 }
 
-// signer is who signs and how the signer was identified.
+// unchangedChecksum answers the checksum of the version the parents sign,
+// once it is clear that neither it nor the PDF changed after the send.
+func (s *Signatures) unchangedChecksum(record ContractRecord, document StoredDocument, sent *SentState) (string, error) {
+	checksum, err := versionChecksum(s.ports.Links.Fingerprint, record.Version)
+	if err != nil {
+		return "", err
+	}
+	return checksum, unchangedSinceSent(sent, document, checksum)
+}
+
+// unchangedSinceSent refuses a signature of a contract whose frozen PDF or
+// version no longer matches what was sent: the parents sign only what they
+// were given. A contract without a send to compare with is not signable.
+func unchangedSinceSent(sent *SentState, document StoredDocument, versionChecksum string) error {
+	if sent == nil {
+		return fmt.Errorf("%w: no send to compare the contract with", carecontract.ErrContractNotSignable)
+	}
+	if sent.DocumentSHA256 != document.SHA256 || sent.VersionSHA256 != versionChecksum {
+		return fmt.Errorf("%w: the contract changed after it was sent", carecontract.ErrContractNotSignable)
+	}
+	return nil
+}
+
+// signer is who signs, how the signer was identified, and what was sent to
+// the signer.
 type signer struct {
 	channel   string
 	accountID *int64
 	linkID    *int64
+	sent      *SentState
 }
 
 // sign records a drawn or typed signature of the contract's frozen PDF,
@@ -272,6 +310,10 @@ func (s *Signatures) sign(ctx context.Context, organizationID int64, record Cont
 	input carecontract.SignatureInput, who signer, now time.Time) (carecontract.SigningView, error) {
 	if record.Summary.Status != carecontract.StatusSent || document.VersionID != record.Version.ID {
 		return carecontract.SigningView{}, carecontract.ErrContractNotSignable
+	}
+	checksum, err := s.unchangedChecksum(record, document, who.sent)
+	if err != nil {
+		return carecontract.SigningView{}, err
 	}
 	if !input.NoticeAcknowledged {
 		return carecontract.SigningView{}, carecontract.ErrWithdrawalNoticeRequired
@@ -283,10 +325,6 @@ func (s *Signatures) sign(ctx context.Context, organizationID int64, record Cont
 	}
 	if signerName == "" {
 		return carecontract.SigningView{}, carecontract.ErrSignatureInvalid
-	}
-	checksum, err := versionChecksum(s.ports.Links.Fingerprint, record.Version)
-	if err != nil {
-		return carecontract.SigningView{}, err
 	}
 	auditID, err := s.ports.Ledger.RecordContractSignature(ctx, carecontract.ContractSignatureEntry{
 		OrganizationID: organizationID, VersionID: record.Version.ID, SignerAccountID: who.accountID,

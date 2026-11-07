@@ -25,17 +25,37 @@ import (
 // state meets every constraint. Each race goes red when the conclusion
 // (concludeRecord) reads the contract without its row lock.
 
-// raceTokens issues distinct tokens with fingerprints of the stored shape.
-type raceTokens struct{ next atomic.Int64 }
+// raceTokens issues tokens with fingerprints of the stored shape that stay
+// distinct across fixtures, parallel tests and repeated runs sharing the
+// database: the process start and one counter of the package.
+type raceTokens struct{}
 
-func (r *raceTokens) NewToken() (string, string, error) {
-	raw := fmt.Sprintf("race-token-%d", r.next.Add(1))
+var (
+	raceTokenRun  = time.Now().UnixNano()
+	raceTokenNext atomic.Int64
+)
+
+func (*raceTokens) NewToken() (string, string, error) {
+	raw := fmt.Sprintf("%016x%016x", raceTokenRun, raceTokenNext.Add(1))
 	return raw, raceFingerprint([]byte(raw)), nil
 }
 
 func (*raceTokens) Fingerprint(raw string) string { return raceFingerprint([]byte(raw)) }
 
-func raceFingerprint(data []byte) string { return fmt.Sprintf("%064x", data) }
+// raceFingerprint is a digest of the stored 64-hex shape: up to 32 bytes the
+// input itself, longer input (a version) folded into 32 bytes.
+func raceFingerprint(data []byte) string {
+	var sum [32]byte
+	if len(data) <= len(sum) {
+		copy(sum[len(sum)-len(data):], data)
+		return fmt.Sprintf("%x", sum)
+	}
+	for i, b := range data {
+		sum[i%len(sum)] ^= b
+		sum[(i*7+3)%len(sum)] += b + byte(i)
+	}
+	return fmt.Sprintf("%x", sum)
+}
 
 type raceRuntime struct{}
 

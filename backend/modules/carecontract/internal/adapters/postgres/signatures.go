@@ -46,15 +46,17 @@ func (Store) CurrentDocument(ctx context.Context, organizationID, contractID, ve
 		File: carecontract.File{Filename: row.Filename, ContentType: "application/pdf", Data: row.PDF}}, nil
 }
 
-// InsertSigningLink stores the SHA-256 of a new mail link.
-func (Store) InsertSigningLink(ctx context.Context, organizationID, contractID, documentID int64, tokenSHA256 string, expiresAt time.Time) error {
+// InsertSigningLink stores the SHA-256 of a new mail link with what it was
+// sent with.
+func (Store) InsertSigningLink(ctx context.Context, organizationID, contractID, documentID int64, tokenSHA256 string,
+	sent ports.SentState, expiresAt time.Time) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_signing_links (organization_id, contract_id,
-			contract_document_id, token_sha256, expires_at) VALUES (?, ?, ?, ?, ?)`,
-		organizationID, contractID, documentID, tokenSHA256, expiresAt); err != nil {
+			contract_document_id, token_sha256, sent_document_sha256, sent_version_sha256, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		organizationID, contractID, documentID, tokenSHA256, sent.DocumentSHA256, sent.VersionSHA256, expiresAt); err != nil {
 		return fmt.Errorf("care contract postgres: insert signing link: %w", err)
 	}
 	return nil
@@ -67,24 +69,52 @@ func (Store) SigningLink(ctx context.Context, organizationID int64, tokenSHA256 
 	if err != nil {
 		return ports.SigningLinkRecord{}, err
 	}
-	var row struct {
-		ID         int64      `bun:"id"`
-		ContractID int64      `bun:"contract_id"`
-		DocumentID int64      `bun:"contract_document_id"`
-		ExpiresAt  time.Time  `bun:"expires_at"`
-		UsedAt     *time.Time `bun:"used_at"`
-	}
-	err = db.NewRaw(`SELECT id, contract_id, contract_document_id, expires_at, used_at
+	var rows []signingLinkRow
+	if err := db.NewRaw(`SELECT `+signingLinkColumns+`
 		FROM care_contract.contract_signing_links WHERE organization_id = ? AND token_sha256 = ? FOR UPDATE`,
-		organizationID, tokenSHA256).Scan(ctx, &row)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ports.SigningLinkRecord{}, carecontract.ErrSigningLinkInvalid
-	}
-	if err != nil {
+		organizationID, tokenSHA256).Scan(ctx, &rows); err != nil {
 		return ports.SigningLinkRecord{}, fmt.Errorf("care contract postgres: read signing link: %w", err)
 	}
-	return ports.SigningLinkRecord{ID: row.ID, ContractID: row.ContractID, DocumentID: row.DocumentID,
-		ExpiresAt: row.ExpiresAt, UsedAt: row.UsedAt}, nil
+	if len(rows) == 0 {
+		return ports.SigningLinkRecord{}, carecontract.ErrSigningLinkInvalid
+	}
+	return rows[0].record(), nil
+}
+
+// LatestSigningLink reads the newest link of a contract.
+func (Store) LatestSigningLink(ctx context.Context, organizationID, contractID int64) (ports.SigningLinkRecord, bool, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return ports.SigningLinkRecord{}, false, err
+	}
+	var rows []signingLinkRow
+	if err := db.NewRaw(`SELECT `+signingLinkColumns+`
+		FROM care_contract.contract_signing_links WHERE organization_id = ? AND contract_id = ?
+		ORDER BY created_at DESC, id DESC LIMIT 1`, organizationID, contractID).Scan(ctx, &rows); err != nil {
+		return ports.SigningLinkRecord{}, false, fmt.Errorf("care contract postgres: read latest signing link: %w", err)
+	}
+	if len(rows) == 0 {
+		return ports.SigningLinkRecord{}, false, nil
+	}
+	return rows[0].record(), true, nil
+}
+
+const signingLinkColumns = `id, contract_id, contract_document_id, sent_document_sha256, sent_version_sha256, expires_at, used_at`
+
+type signingLinkRow struct {
+	ID             int64      `bun:"id"`
+	ContractID     int64      `bun:"contract_id"`
+	DocumentID     int64      `bun:"contract_document_id"`
+	DocumentSHA256 string     `bun:"sent_document_sha256"`
+	VersionSHA256  string     `bun:"sent_version_sha256"`
+	ExpiresAt      time.Time  `bun:"expires_at"`
+	UsedAt         *time.Time `bun:"used_at"`
+}
+
+func (r signingLinkRow) record() ports.SigningLinkRecord {
+	return ports.SigningLinkRecord{ID: r.ID, ContractID: r.ContractID, DocumentID: r.DocumentID,
+		Sent:      ports.SentState{DocumentSHA256: r.DocumentSHA256, VersionSHA256: r.VersionSHA256},
+		ExpiresAt: r.ExpiresAt, UsedAt: r.UsedAt}
 }
 
 // UseSigningLink closes an open, unexpired link; any other answers

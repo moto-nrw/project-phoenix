@@ -26,23 +26,39 @@ func (c *Contracts) signingLinkFor(ctx context.Context, organizationID int64, re
 	if record.Concluded != nil || record.Summary.Status == carecontract.StatusActive {
 		return signingLink{}, nil
 	}
-	return c.newSigningLink(ctx, organizationID, record.Summary.ID, documentID)
+	sent, err := sentState(ctx, c.store, c.links.Fingerprint, organizationID, record)
+	if err != nil {
+		return signingLink{}, err
+	}
+	return createSigningLink(ctx, c.store, c.links, c.clock, organizationID, record.Summary.ID, documentID, sent)
 }
 
-// newSigningLink stores a new one-time link for the contract's frozen PDF
-// and answers its URL. Only the SHA-256 of the token is stored.
-func (c *Contracts) newSigningLink(ctx context.Context, organizationID, contractID, documentID int64) (signingLink, error) {
-	return createSigningLink(ctx, c.store, c.links, c.clock, organizationID, contractID, documentID)
+// sentState is what a send of record gives the parents: its frozen PDF and
+// the version it shows.
+func sentState(ctx context.Context, store SignatureStore, fingerprint func([]byte) string, organizationID int64,
+	record ContractRecord) (SentState, error) {
+	document, err := store.CurrentDocument(ctx, organizationID, record.Summary.ID, record.Version.ID)
+	if err != nil {
+		return SentState{}, err
+	}
+	checksum, err := versionChecksum(fingerprint, record.Version)
+	if err != nil {
+		return SentState{}, err
+	}
+	return SentState{DocumentSHA256: document.SHA256, VersionSHA256: checksum}, nil
 }
 
+// createSigningLink stores a new one-time link for the contract's frozen
+// PDF with what was sent and answers its URL. Only the SHA-256 of the token
+// is stored.
 func createSigningLink(ctx context.Context, store SignatureStore, links carecontract.SigningLinks, clock Clock,
-	organizationID, contractID, documentID int64) (signingLink, error) {
+	organizationID, contractID, documentID int64, sent SentState) (signingLink, error) {
 	raw, fingerprint, err := links.Tokens.NewToken()
 	if err != nil {
 		return signingLink{}, fmt.Errorf("care contract: signing token: %w", err)
 	}
 	expires := clock.now().Add(carecontract.SigningLinkLifetime)
-	if err := store.InsertSigningLink(ctx, organizationID, contractID, documentID, fingerprint, expires); err != nil {
+	if err := store.InsertSigningLink(ctx, organizationID, contractID, documentID, fingerprint, sent, expires); err != nil {
 		return signingLink{}, err
 	}
 	base := strings.TrimRight(links.ParentsURL, "/")

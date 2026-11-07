@@ -108,7 +108,12 @@ func (r *Reminders) remind(ctx context.Context, organizationID int64, traeger st
 	if err != nil {
 		return err
 	}
-	link, err := createSigningLink(ctx, r.store, r.ports.Links, r.clock, organizationID, candidate.ContractID, document.ID)
+	// A reminder carries no new PDF: its link keeps what the last send gave.
+	sent, err := reminderSentState(ctx, r.store, r.ports.Links.Fingerprint, organizationID, record)
+	if err != nil {
+		return err
+	}
+	link, err := createSigningLink(ctx, r.store, r.ports.Links, r.clock, organizationID, candidate.ContractID, document.ID, sent)
 	if err != nil {
 		return err
 	}
@@ -137,4 +142,18 @@ func (r *Reminders) remind(ctx context.Context, organizationID int64, traeger st
 // berlinDay prints the calendar day of an instant in Berlin.
 func berlinDay(at time.Time) string {
 	return germanDate(calendar.DateFromTime(at))
+}
+
+// reminderSentState is what the newest link of the contract was sent with;
+// a contract sent before links existed keeps what it has now.
+func reminderSentState(ctx context.Context, store SignatureStore, fingerprint func([]byte) string, organizationID int64,
+	record ContractRecord) (SentState, error) {
+	latest, found, err := store.LatestSigningLink(ctx, organizationID, record.Summary.ID)
+	if err != nil {
+		return SentState{}, err
+	}
+	if found {
+		return latest.Sent, nil
+	}
+	return sentState(ctx, store, fingerprint, organizationID, record)
 }

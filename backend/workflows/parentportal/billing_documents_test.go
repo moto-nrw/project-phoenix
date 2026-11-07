@@ -321,6 +321,10 @@ func inboxContract(t *testing.T, db *bun.DB, organization, school, studentID int
 	_, err = db.ExecContext(ctx, `INSERT INTO care_contract.contract_mailings (organization_id, contract_id, contract_document_id,
 			outbox_id, recipient_email) VALUES (?, ?, ?, ?, ?)`, organization, contract, document, testpkg.UniqueTestTenantID(t), sentTo)
 	require.NoError(t, err)
+	// The signing link a send makes, with the PDF and version it sent (#4679).
+	require.NoError(t, testpkg.WithinTraeger(testpkg.WithPackageTenantRuntime(ctx), organization, func(txCtx context.Context) error {
+		return owners.RecordCareContractSendForTests(txCtx, organization, contract)
+	}))
 	return contract
 }
 

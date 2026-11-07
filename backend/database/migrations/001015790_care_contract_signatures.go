@@ -137,6 +137,8 @@ CREATE TABLE care_contract.contract_signing_links (
 	contract_id BIGINT NOT NULL,
 	contract_document_id BIGINT NOT NULL,
 	token_sha256 TEXT NOT NULL,
+	sent_document_sha256 TEXT NOT NULL CHECK (sent_document_sha256 ~ '^[0-9a-f]{64}$'),
+	sent_version_sha256 TEXT NOT NULL CHECK (sent_version_sha256 ~ '^[0-9a-f]{64}$'),
 	expires_at TIMESTAMPTZ NOT NULL,
 	used_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
