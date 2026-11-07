@@ -12,6 +12,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 type presenceHistoryFixture struct {
@@ -120,7 +121,13 @@ func TestRecordPresenceHistoryStatementsDoNotGrowWithDays(t *testing.T) {
 		groups, err := module.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{IDs: ids})
 		require.NoError(t, err)
 		require.Len(t, groups, len(ids))
+		withTimeout, err := db.NewSelect().Table("active.groups").
+			Where("tenant_id = ?", testpkg.Tenant(t)).Where("id IN (?)", bun.List(ids)).
+			Where("timeout_minutes IS NOT NULL").Count(ctx)
+		require.NoError(t, err)
+		assert.Zero(t, withTimeout, "past sessions store NULL, not the database timeout default")
 		for _, group := range groups {
+			assert.Zero(t, group.TimeoutMinutes)
 			require.NotNil(t, group.EndTime)
 			require.NotNil(t, group.ActivityGroupID)
 			assert.Equal(t, fixture.activity, *group.ActivityGroupID)

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -45,17 +46,17 @@ func (s *Store) RecordAttendances(ctx context.Context, rows []*ports.Attendance)
 // a zero timeout is stored as NULL.
 type pastGroupRow struct {
 	bun.BaseModel  `bun:"table:active.groups,alias:active_group"`
-	ID             int64      `bun:"id,pk,autoincrement"`
-	TenantID       int64      `bun:"tenant_id"`
-	CreatedAt      time.Time  `bun:"created_at"`
-	UpdatedAt      time.Time  `bun:"updated_at"`
-	StartTime      time.Time  `bun:"start_time"`
-	EndTime        *time.Time `bun:"end_time"`
-	LastActivity   time.Time  `bun:"last_activity"`
-	TimeoutMinutes int        `bun:"timeout_minutes,nullzero"`
-	GroupID        *int64     `bun:"group_id"`
-	DeviceID       *int64     `bun:"device_id"`
-	RoomID         int64      `bun:"room_id"`
+	ID             int64         `bun:"id,pk,autoincrement"`
+	TenantID       int64         `bun:"tenant_id"`
+	CreatedAt      time.Time     `bun:"created_at"`
+	UpdatedAt      time.Time     `bun:"updated_at"`
+	StartTime      time.Time     `bun:"start_time"`
+	EndTime        *time.Time    `bun:"end_time"`
+	LastActivity   time.Time     `bun:"last_activity"`
+	TimeoutMinutes sql.NullInt64 `bun:"timeout_minutes"`
+	GroupID        *int64        `bun:"group_id"`
+	DeviceID       *int64        `bun:"device_id"`
+	RoomID         int64         `bun:"room_id"`
 }
 
 // RecordGroups inserts sessions in one statement and returns them, with
@@ -75,8 +76,9 @@ func (s *Store) RecordGroups(ctx context.Context, groups []studentpresence.LiveG
 			group.UpdatedAt = started
 		}
 		stored = append(stored, &pastGroupRow{TenantID: tenantID, CreatedAt: group.CreatedAt, UpdatedAt: group.UpdatedAt,
-			StartTime: group.StartTime, EndTime: group.EndTime, LastActivity: group.LastActivity, TimeoutMinutes: group.TimeoutMinutes,
-			GroupID: group.ActivityGroupID, DeviceID: group.DeviceID, RoomID: group.RoomID})
+			StartTime: group.StartTime, EndTime: group.EndTime, LastActivity: group.LastActivity,
+			TimeoutMinutes: sql.NullInt64{Int64: int64(group.TimeoutMinutes), Valid: group.TimeoutMinutes != 0},
+			GroupID:        group.ActivityGroupID, DeviceID: group.DeviceID, RoomID: group.RoomID})
 	}
 	_, err = db.NewInsert().Model(&stored).ModelTableExpr("active.groups").Returning("*").Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
@@ -86,7 +88,7 @@ func (s *Store) RecordGroups(ctx context.Context, groups []studentpresence.LiveG
 	recorded := make([]studentpresence.LiveGroup, 0, len(stored))
 	for _, row := range stored {
 		recorded = append(recorded, liveGroupRow{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-			StartTime: row.StartTime, LastActivity: row.LastActivity, EndTime: row.EndTime, TimeoutMinutes: row.TimeoutMinutes,
+			StartTime: row.StartTime, LastActivity: row.LastActivity, EndTime: row.EndTime, TimeoutMinutes: int(row.TimeoutMinutes.Int64),
 			GroupID: row.GroupID, DeviceID: row.DeviceID, RoomID: row.RoomID}.record())
 	}
 	stats.Rows = int64(len(stored))
