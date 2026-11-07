@@ -9,6 +9,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -178,6 +179,29 @@ func (a StatisticsContractCareDays) ContractCareDays(ctx context.Context, studen
 			}
 		}
 		result[studentID] = days
+	}
+	return result, nil
+}
+
+// StatisticsHolidayCareDays reads the days the confirmed holiday bookings of
+// the school's holiday guests cover, the Soll of Soll und Ist on those days
+// (#5994).
+type StatisticsHolidayCareDays struct {
+	Bookings enrollment.HolidayGuestBookedCare
+}
+
+func (a StatisticsHolidayCareDays) HolidayCareDays(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]studentpresence.HolidayCareDay, error) {
+	booked, err := a.Bookings.HolidayGuestBookedDays(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]map[timezone.Date]studentpresence.HolidayCareDay, len(booked))
+	for studentID, days := range booked {
+		byDate := make(map[timezone.Date]studentpresence.HolidayCareDay, len(days))
+		for date, day := range days {
+			byDate[date] = studentpresence.HolidayCareDay{Arrival: day.StartsAt, Pickup: day.EndsAt}
+		}
+		result[studentID] = byDate
 	}
 	return result, nil
 }

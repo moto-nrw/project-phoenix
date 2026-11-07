@@ -200,6 +200,23 @@ type HolidayGuestBadgeList interface {
 	HolidayGuestBadges(ctx context.Context, schoolID int64) ([]HolidayGuestBadge, error)
 }
 
+// HolidayGuestBookedDay is the care the confirmed booking of a holiday
+// guest promises on one day (#5994): it comes at the start and is collected
+// at the end of its time model, as Berlin wall clocks.
+type HolidayGuestBookedDay struct {
+	StartsAt calendar.WallClock
+	EndsAt   calendar.WallClock
+}
+
+// HolidayGuestBookedCare reads the booked days of the holiday guests of the
+// school whose tenant transaction the caller holds (#5994): Soll und Ist
+// compares them with the attendance. A guest's days run from the first day
+// of its week to the last one, and stop on the day its booking was
+// cancelled. A child without a guest booking on a day has no entry.
+type HolidayGuestBookedCare interface {
+	HolidayGuestBookedDays(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]HolidayGuestBookedDay, error)
+}
+
 // HolidayHostGroup is the group a school picked for the guests of a week,
 // and who picked it.
 type HolidayHostGroup struct {

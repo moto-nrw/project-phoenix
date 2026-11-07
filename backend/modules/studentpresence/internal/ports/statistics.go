@@ -71,6 +71,13 @@ type ClosingDayDates interface {
 	ClosingDayDates(ctx context.Context, from, to Date) (map[Date]bool, error)
 }
 
+// CareCalendarDays reads the closing days and the holiday periods of the
+// school in one read (#5994); where it is bound it replaces ClosingDayDates
+// and HolidayPeriods for the days without care.
+type CareCalendarDays interface {
+	CareCalendarDays(ctx context.Context, from, to Date) (closing, holidays map[Date]bool, err error)
+}
+
 type CourseInstance struct {
 	CourseID           int64
 	Name               string
@@ -130,6 +137,14 @@ type ContractCareDay = studentpresence.ContractCareDay
 // child and date (#4683); a day without an entry has no contract in force.
 type ContractCareDays interface {
 	ContractCareDays(ctx context.Context, studentIDs []int64, from, to Date) (map[int64]map[Date]ContractCareDay, error)
+}
+
+type HolidayCareDay = studentpresence.HolidayCareDay
+
+// HolidayCareDays reads the days a confirmed holiday booking covers, by
+// child and date (#5994); a day without an entry has no holiday booking.
+type HolidayCareDays interface {
+	HolidayCareDays(ctx context.Context, studentIDs []int64, from, to Date) (map[int64]map[Date]HolidayCareDay, error)
 }
 
 // Own presence facts the report reads through the application service.

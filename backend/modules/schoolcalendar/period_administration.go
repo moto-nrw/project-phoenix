@@ -69,6 +69,7 @@ type Calendar interface {
 	Capability
 	CalendarPeriodAdministration
 	NonWorkingDayQuery
+	CareCalendarQuery
 }
 
 // ListActiveOverlaps is advisory only: callers attach the result as a

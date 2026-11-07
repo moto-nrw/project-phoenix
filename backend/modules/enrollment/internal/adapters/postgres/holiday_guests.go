@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Holiday guests of the hosting school (#4666, ADR 0120). Every statement
@@ -516,6 +517,35 @@ func (s *HolidayGuestStore) ReadGuest(ctx context.Context, schoolID, studentID i
 		appendContact(&guest.Emergency, &guest.Pickup, contact)
 	}
 	return guest, true, nil
+}
+
+// ListGuestBookings lists the booking fields of the guests among
+// studentIDs whose week overlaps [from, to], at the school whose tenant
+// transaction the caller holds (#5994), in one statement. An ended guest
+// stays: its days before the end were booked.
+func (s *HolidayGuestStore) ListGuestBookings(ctx context.Context, studentIDs []int64, from, to calendar.Date) ([]enrollment.HolidayGuest, error) {
+	school, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("enrollment postgres: the tenant transaction of the hosting school is required: %w", err)
+	}
+	db, err := hostDB(ctx, school.Int64())
+	if err != nil {
+		return nil, err
+	}
+	var rows []holidayGuestRow
+	if err := db.NewSelect().TableExpr("enrollment.holiday_guests").
+		ColumnExpr("student_id, starts_on, ends_on, ended_on, time_model_starts_at, time_model_ends_at").
+		Where("tenant_id = ?", school.Int64()).Where("student_id IN (?)", bun.In(studentIDs)).
+		Where("starts_on <= ?", to).Where("ends_on >= ?", from).
+		OrderExpr("student_id, starts_on").Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: list holiday guest bookings: %w", err)
+	}
+	result := make([]enrollment.HolidayGuest, len(rows))
+	for i, row := range rows {
+		result[i] = enrollment.HolidayGuest{StudentID: row.StudentID, StartsOn: row.StartsOn, EndsOn: row.EndsOn,
+			EndedOn: row.EndedOn, TimeModelStarts: row.TimeModelStarts, TimeModelEnds: row.TimeModelEnds}
+	}
+	return result, nil
 }
 
 // ListCurrentGuests lists the child and the school fields of every guest of

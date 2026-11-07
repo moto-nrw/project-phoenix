@@ -29,8 +29,9 @@ type PlannedCareDay struct {
 	Cancelled bool
 	Arrival   *calendar.WallClock
 	Pickup    *calendar.WallClock
-	// Source names where the verdict comes from: the care contract of the
-	// Träger where one covers the day (#4683), else the care plan.
+	// Source names where the verdict comes from: the confirmed holiday
+	// booking where one covers the day (#5994), else the care contract of
+	// the Träger where one covers the day (#4683), else the care plan.
 	Source PlannedCareSource
 }
 
@@ -43,6 +44,14 @@ type ContractCareDay struct {
 	Pickup *calendar.WallClock
 }
 
+// HolidayCareDay is what a confirmed holiday booking books for the child on
+// a day (#5994), the input the composition root supplies: it comes at the
+// start and is collected at the end of the booked time model.
+type HolidayCareDay struct {
+	Arrival calendar.WallClock
+	Pickup  calendar.WallClock
+}
+
 // PlannedCareSource names the source of a PlannedCareDay.
 type PlannedCareSource string
 
@@ -53,6 +62,10 @@ const (
 	// in force on the day (#4683, ADR 0156): its modules decide whether the
 	// day is booked and the latest module end is the pickup.
 	PlannedCareSourceContract PlannedCareSource = "contract"
+	// PlannedCareSourceHoliday is the confirmed holiday booking of the day
+	// (#5994): its time model is the Soll and replaces the contract's and
+	// the care plan's on that day.
+	PlannedCareSourceHoliday PlannedCareSource = "holiday_booking"
 )
 
 // StatisticsOccupancySlot is one raster cell of one weekday. Minutes are Berlin

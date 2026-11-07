@@ -10449,6 +10449,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CareCalendarDays",
+      "binding_digest": "32d5c0b1119efa88390308c12dcc2e31",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CareCalendarDays.CareCalendarDays",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CareCalendarDays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CareCalendarDays",
+      "binding_digest": "d201a208beaa9c7343b5dfbb2b364e90",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CareCalendarDays.CareCalendarDays",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CareCalendarDays",
+      "target_owner": "school-calendar"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCareDayLocker.LockExceptionDay",
       "binding_digest": "13891c9842cc673b5abd17685443433c",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CareDayLocker.LockExceptionDay",
@@ -10599,6 +10615,14 @@
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.ListDevicesByID",
       "target_owner": "device-fleet"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayCareDays.HolidayCareDays",
+      "binding_digest": "027bb675a021f2a674c9c86678e0d7c0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.HolidayCareDays.HolidayCareDays",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestBookedCare.HolidayGuestBookedDays",
+      "target_owner": "enrollment"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.TenantHolidays.HolidayDates",

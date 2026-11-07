@@ -33,11 +33,14 @@ type StatisticsDependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
 
-	StatusDays      ports.StatusDays
-	Courses         ports.CourseStatistics
-	Holidays        ports.HolidayDates
-	ClosingDays     ports.ClosingDayDates
-	Periods         ports.HolidayPeriods
+	StatusDays  ports.StatusDays
+	Courses     ports.CourseStatistics
+	Holidays    ports.HolidayDates
+	ClosingDays ports.ClosingDayDates
+	Periods     ports.HolidayPeriods
+	// CalendarDays reads ClosingDays and Periods in one statement where
+	// bound (#5994).
+	CalendarDays    ports.CareCalendarDays
 	Students        ports.StatisticsStudents
 	Rooms           ports.StatisticsRooms
 	AccessLog       ports.StatisticsAccessLog
@@ -46,7 +49,10 @@ type StatisticsDependencies struct {
 	// ContractCareDays replaces the care plan's Soll on the days a care
 	// contract covers (#4683); nil keeps the care plan alone.
 	ContractCareDays ports.ContractCareDays
-	Logger           *slog.Logger
+	// HolidayCareDays replaces both on the days a confirmed holiday booking
+	// covers (#5994); nil keeps them.
+	HolidayCareDays ports.HolidayCareDays
+	Logger          *slog.Logger
 	// Now is injectable for tests; nil means time.Now.
 	Now func() time.Time
 }
@@ -65,12 +71,13 @@ func NewStatistics(deps StatisticsDependencies) (studentpresence.StatisticsRepor
 		Holidays:            deps.Holidays,
 		ClosingDays:         deps.ClosingDays,
 		Periods:             deps.Periods,
+		CalendarDays:        deps.CalendarDays,
 		Students:            deps.Students,
 		Rooms:               deps.Rooms,
 		AccessLog:           deps.AccessLog,
 		Retention:           deps.Retention,
 		PrivacyConsents:     presence,
-		PlannedCareDays:     statistics.WithContractCareDays(deps.PlannedCareDays, deps.ContractCareDays),
+		PlannedCareDays:     statistics.WithHolidayCareDays(statistics.WithContractCareDays(deps.PlannedCareDays, deps.ContractCareDays), deps.HolidayCareDays),
 		AttendanceIntervals: postgres.New(databaseRuntime(deps.DB)),
 		Logger:              deps.Logger,
 		Now:                 deps.Now,

@@ -9,6 +9,7 @@ import (
 
 	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -46,12 +47,14 @@ func newStatisticsReports(db transactionruntime.Database, carePlan careplan.Stud
 			Holidays:         schoolCalendarCompose.NewTenantHolidays(calendar),
 			ClosingDays:      schoolCalendarCompose.NewTenantClosingDays(calendar),
 			Periods:          StatisticsReportPeriods{calendar},
+			CalendarDays:     calendar,
 			Students:         StatisticsReportStudents{students},
 			Rooms:            StatisticsReportRooms{rooms},
 			AccessLog:        StatisticsAuditLog{accessLog},
 			Retention:        settingsModule.NewStatisticsRetention(settings),
 			PlannedCareDays:  StatisticsPlannedCareDays{careDays},
 			ContractCareDays: StatisticsContractCareDays{careContractCompose.NewBookedCare()},
+			HolidayCareDays:  StatisticsHolidayCareDays{enrollmentCompose.NewHolidayGuestBookedCare()},
 			Logger:           logger.With("service", "statistics"),
 			Now:              now,
 		})

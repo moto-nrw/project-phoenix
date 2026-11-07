@@ -46,13 +46,16 @@ const (
 
 // Config wires the service dependencies.
 type Config struct {
-	Statistics      ports.RoomUtilizations
-	Attendance      ports.AttendanceDays
-	StatusDays      ports.StatusDays
-	Courses         ports.CourseStatistics
-	Holidays        ports.HolidayDates
-	ClosingDays     ports.ClosingDayDates
-	Periods         ports.HolidayPeriods
+	Statistics  ports.RoomUtilizations
+	Attendance  ports.AttendanceDays
+	StatusDays  ports.StatusDays
+	Courses     ports.CourseStatistics
+	Holidays    ports.HolidayDates
+	ClosingDays ports.ClosingDayDates
+	Periods     ports.HolidayPeriods
+	// CalendarDays, where set, reads ClosingDays and Periods in one
+	// statement (#5994).
+	CalendarDays    ports.CareCalendarDays
 	Students        ports.StatisticsStudents
 	Rooms           ports.StatisticsRooms
 	AccessLog       ports.StatisticsAccessLog
@@ -278,11 +281,7 @@ func (s *service) careDays(ctx context.Context, from, to calendar.Date) (map[cal
 	if err != nil {
 		return nil, excluded, err
 	}
-	closing, err := s.closingDayDates(ctx, from, to)
-	if err != nil {
-		return nil, excluded, err
-	}
-	vacation, err := s.holidayPeriodDates(ctx, from, to)
+	closing, vacation, err := s.calendarDates(ctx, from, to)
 	if err != nil {
 		return nil, excluded, err
 	}
@@ -333,6 +332,25 @@ func (s *service) holidayDates(ctx context.Context, from, to calendar.Date) (map
 		return nil, fmt.Errorf("load public holidays: %w", err)
 	}
 	return set, nil
+}
+
+// calendarDates reads the closing days and the holiday periods: in one
+// statement where the combined read is bound, else one read each.
+func (s *service) calendarDates(ctx context.Context, from, to calendar.Date) (closing, vacation map[calendar.Date]bool, err error) {
+	if s.cfg.CalendarDays != nil {
+		closing, vacation, err = s.cfg.CalendarDays.CareCalendarDays(ctx, from, to)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load closing days and holiday periods: %w", err)
+		}
+		return closing, vacation, nil
+	}
+	if closing, err = s.closingDayDates(ctx, from, to); err != nil {
+		return nil, nil, err
+	}
+	if vacation, err = s.holidayPeriodDates(ctx, from, to); err != nil {
+		return nil, nil, err
+	}
+	return closing, vacation, nil
 }
 
 func (s *service) closingDayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
