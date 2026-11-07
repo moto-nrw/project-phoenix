@@ -77,6 +77,12 @@ type ArrivalBaselineReader interface {
 	Project(ctx context.Context, studentIDs []int64, from, to calendar.Date) (*ArrivalBaselineProjection, error)
 }
 
+// ArrivalStatusBaselineReader projects only the markers needed for care-day status.
+// Class clocks and class-day clock overrides cannot change those markers.
+type ArrivalStatusBaselineReader interface {
+	ProjectStatus(context.Context, []int64, calendar.Date, calendar.Date) (*ArrivalBaselineProjection, error)
+}
+
 // PickupBaselineProjection is the recurring pickup plan applicable on every
 // date in a requested range. WeeklyByStudentDate keeps all weekdays because a
 // care-day read must distinguish "no pickup on Monday" from "no plan on file".

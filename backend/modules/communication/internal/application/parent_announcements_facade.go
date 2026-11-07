@@ -65,13 +65,13 @@ func (p *parentAnnouncements) ListParentAnnouncements(ctx context.Context, inclu
 	return result, nil
 }
 
-func (p *parentAnnouncements) GetParentAnnouncement(ctx context.Context, id int64) (*communication.ParentAnnouncement, error) {
-	row, err := p.service.Get(ctx, id)
+func (p *parentAnnouncements) GetParentAnnouncement(ctx context.Context, id int64, read ...communication.ParentAnnouncementRead) (*communication.ParentAnnouncement, error) {
+	row, err := p.service.Get(ctx, id, read...)
 	if err != nil {
 		return nil, mapParentAnnouncementError(err)
 	}
 	announcement := mapParentAnnouncement(row)
-	if row.IsDeclaration() {
+	if row.IsDeclaration() && (len(read) == 0 || read[0] != communication.ParentAnnouncementHeaderOnly) {
 		frozen, err := p.service.DeclarationFrozen(ctx, row)
 		if err != nil {
 			return nil, err

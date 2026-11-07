@@ -214,8 +214,10 @@ type TeacherFilter struct {
 	HasQualifications      *bool
 	IncludeDeleted         bool
 	// IncludeStaff embeds live membership facts in the same owner read and
-	// retains the separate Workforce employment read, including its failures.
+	// retains the separate Workforce employment read unless MembershipOnly is set.
 	IncludeStaff bool
+	// MembershipOnly omits Employment when the roster consumes membership facts only.
+	MembershipOnly bool
 }
 
 // ExternalCaregiverRecordFilter narrows a listing of external caregiver
