@@ -53,6 +53,7 @@ import {
   type StammdatenDraft,
 } from "./stammdaten-section-forms";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Stammdaten tab (#1417 Tranche 2b + #1423): the master-data home of one
 // staff member. Sections Person / Kontakt / Arbeitsvertrag / Qualifikationen
@@ -846,7 +847,7 @@ export function StammdatenTab({
         </SectionCard>
       ) : (
         <SectionCard title="Bank & Steuer">
-          <div className="flex items-start gap-2 rounded-xl bg-gray-50 p-3">
+          <InsetPanel className="flex items-start gap-2">
             <Lock
               className="mt-0.5 h-4 w-4 shrink-0 text-gray-400"
               aria-hidden="true"
@@ -855,7 +856,7 @@ export function StammdatenTab({
               Nicht berechtigt: IBAN, Steuer-ID und SV-Nummer sind nur mit der
               Berechtigung „Bank- &amp; Steuerdaten“ sichtbar.
             </p>
-          </div>
+          </InsetPanel>
         </SectionCard>
       )}
 

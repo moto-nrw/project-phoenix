@@ -333,11 +333,11 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1310"],
     "src/components/staff/stammdaten-section-forms.tsx": [
-      "Qualifikation entfernen@476",
+      "Qualifikation entfernen@477",
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@298"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@792",
+      "Erziehungsberechtigte/n entfernen@794",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@810",

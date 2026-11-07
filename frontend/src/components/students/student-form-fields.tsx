@@ -39,6 +39,7 @@ import type {
 } from "~/lib/student-companion-api";
 import { childrenConcept } from "~/lib/concepts/children";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface SelectOption {
   value: string;
@@ -77,7 +78,7 @@ export function PersonalInfoSection({
   };
 }>) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
+    <InsetPanel framed padding="md">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <MotoDuotoneIcon
           icon={childrenConcept.icon}
@@ -149,7 +150,7 @@ export function PersonalInfoSection({
           placeholder="Köln"
         />
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -394,7 +395,7 @@ export function PrivacyConsentSection({
 }>) {
   const retentionError = fieldError("data_retention_days");
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
+    <InsetPanel framed padding="md">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <MotoDuotoneIcon
           icon={permissionsConcept.icon}
@@ -443,7 +444,7 @@ export function PrivacyConsentSection({
           />
         </div>
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -515,7 +516,7 @@ export function DepartureSection({
   );
   const companionNoteId = useId();
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
+    <InsetPanel framed padding="md">
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
         <h3 className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
           <Bus
@@ -656,6 +657,6 @@ export function DepartureSection({
           )}
         </div>
       )}
-    </div>
+    </InsetPanel>
   );
 }
