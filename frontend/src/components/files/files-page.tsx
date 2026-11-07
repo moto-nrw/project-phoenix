@@ -6,6 +6,7 @@
 // rendered as-is. Follows the calm Anmeldungen/Planung surface language: one
 // content section, gray-50 stat blocks, no colored chips.
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { FileText, FolderOpen, Lock, Users } from "lucide-react";
 import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
@@ -284,9 +285,9 @@ export function FilesPage() {
               />
             </div>
             <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 lg:flex">
-              <p className="px-3 pt-1 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+              <SectionLabel as="p" className="px-3 pt-1 pb-2">
                 Ordner
-              </p>
+              </SectionLabel>
               <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
               {canManage && overview && overview.maxBytes > 0 && (
                 <dl className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">

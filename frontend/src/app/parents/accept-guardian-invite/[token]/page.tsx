@@ -148,7 +148,6 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
   return (
     <AuthShell
       eyebrow={t("eyebrow")}
-      eyebrowClassName="text-moto-green"
       title={t("title")}
       subtitle={t("subtitle", { school: schoolName })}
       variant="parents"

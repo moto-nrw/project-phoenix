@@ -14,6 +14,9 @@ const (
 	ActionWithdraw  = "withdraw"
 	// ActionSetEnd is the Träger's end of an extraordinary termination.
 	ActionSetEnd = "set_end"
+	// ActionRejectReason is the Träger's refusal of the reason of an
+	// extraordinary termination, which then holds as an ordinary one.
+	ActionRejectReason = "reject_reason"
 )
 
 // NoticeState is what a declaration on a contract needs beyond its record:
@@ -26,6 +29,25 @@ type NoticeState struct {
 	InformedAt  *time.Time
 	EarlyStart  bool
 	Notice      *carecontract.Notice
+	// NoticeID identifies Notice; zero without one.
+	NoticeID int64
+	// StudentID is the contract's child at its school, nil before the child
+	// is a student.
+	StudentID *int64
+	// Accounts are the accounts the contract names: the contract party's
+	// and the account that declared, when they have one.
+	Accounts []int64
+}
+
+// NoticeEnd is the decided end of an extraordinary termination: the last
+// day, how the Träger-Büro decided it, who and when, and the notice the
+// parents get.
+type NoticeEnd struct {
+	EndsOn    calendar.Date
+	Decision  string
+	AccountID int64
+	DecidedAt time.Time
+	Text      string
 }
 
 // NewNotice is a declaration to store.
@@ -53,11 +75,13 @@ type NoticeStore interface {
 	// InsertNotice stores a declaration and moves the contract to its
 	// status: gekuendigt with its last day, or widerrufen.
 	InsertNotice(ctx context.Context, organizationID int64, notice NewNotice) (int64, error)
-	// SetNoticeEnd sets the last day of a contract whose extraordinary
+	// SetNoticeEnd decides the end of a contract whose extraordinary
 	// termination has no end yet, on the declaration and the contract; it
 	// answers carecontract.ErrNoticeEndNotOpen when there is none. The caller
 	// holds the contract's row lock.
-	SetNoticeEnd(ctx context.Context, organizationID, contractID int64, endsOn calendar.Date) error
+	SetNoticeEnd(ctx context.Context, organizationID, contractID int64, end NoticeEnd) error
+	// SetEndNoticeOutbox records the mail that told the parents the end.
+	SetEndNoticeOutbox(ctx context.Context, organizationID, noticeID, outboxID int64) error
 	// SetNoticeOutbox records the confirmation mail of a declaration.
 	SetNoticeOutbox(ctx context.Context, organizationID, noticeID, outboxID int64) error
 	// InboxContractID tells whether the contract was sent to the reader's

@@ -57,6 +57,38 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "binding_digest": "aa97f6c799826592437e9fca3429db5d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListGuardianLinksByAccounts",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "binding_digest": "0980cab646151afb1c747238f65551ff",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListGuardiansByAccount",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "binding_digest": "8cb3e1397d5294a5ae89dd92f1997c7a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListAccountEmails",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "binding_digest": "cf2df00b2b8c84c855621238af224d3a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianLink.HasPermission",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticePost.EnqueueNoticeMail",
       "binding_digest": "ab293cc4296efa7693afee55385e9d5a",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticePost.EnqueueNoticeMail",
@@ -74,7 +106,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeTemplates.NoticeTemplate",
-      "binding_digest": "9cd188cf1402976df1ca7f3472dbabce",
+      "binding_digest": "c5bca6dddc51a3b50937927cd4fcebaf",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeTemplates.NoticeTemplate",
       "source_owner": "care-contract",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",

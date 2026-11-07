@@ -10,6 +10,7 @@ import (
 	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -21,13 +22,104 @@ type CareContractNoticeSettings interface {
 }
 
 // NewCareContractNoticePorts binds the confirmation templates to the
-// Träger level of the settings system and the confirmation mail to
-// Delivery. The parents portal's binding uses it too.
-func NewCareContractNoticePorts(settings CareContractNoticeSettings, delivery deliveryRuntime.Capability) careContractCompose.NoticePorts {
+// Träger level of the settings system, the confirmation mail to Delivery
+// and, for the office, who may still receive the notice of a decided end.
+// The parents portal's binding passes nil addressees: it decides no end.
+func NewCareContractNoticePorts(settings CareContractNoticeSettings, delivery deliveryRuntime.Capability,
+	addressees carecontract.NoticeAddressees) careContractCompose.NoticePorts {
 	return careContractCompose.NoticePorts{
-		Templates: careContractNoticeTemplates{settings: settings},
-		Post:      careContractNoticePost{delivery: delivery},
+		Templates:  careContractNoticeTemplates{settings: settings},
+		Post:       careContractNoticePost{delivery: delivery},
+		Addressees: addressees,
 	}
+}
+
+// CareContractGuardians is the People Directory's row-level read of the
+// guardian relationships and profiles of accounts, in the ambient school.
+type CareContractGuardians interface {
+	ListGuardianLinksByAccounts(ctx context.Context, accountIDs []int64) ([]peopledirectory.GuardianLink, error)
+	ListGuardiansByAccount(ctx context.Context, accountIDs []int64) ([]peopledirectory.Guardian, error)
+}
+
+// CareContractAccountEmails is the Identity & Access read of account
+// addresses.
+type CareContractAccountEmails interface {
+	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+}
+
+// NewCareContractNoticeAddressees binds who may receive the notice of a
+// decided end (#4682): of the contract's accounts, those whose guardian
+// relationship to the child grants the enrollment submission, with their
+// profile and account addresses, read in the school's tenant transaction
+// the Betreuungsvertrag opens.
+func NewCareContractNoticeAddressees(guardians CareContractGuardians, accounts CareContractAccountEmails) carecontract.NoticeAddressees {
+	if guardians == nil || accounts == nil {
+		panic("care contract notice addressees: the guardians and the account addresses are required")
+	}
+	return careContractNoticeAddressees{guardians: guardians, accounts: accounts}
+}
+
+type careContractNoticeAddressees struct {
+	guardians CareContractGuardians
+	accounts  CareContractAccountEmails
+}
+
+func (a careContractNoticeAddressees) PermittedAddresses(ctx context.Context, studentID int64, accountIDs []int64) ([]string, error) {
+	granted, err := a.grantedProfiles(ctx, studentID, accountIDs)
+	if err != nil || len(granted) == 0 {
+		return nil, err
+	}
+	guardians, err := a.guardians.ListGuardiansByAccount(ctx, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("care contract notice addressees: guardians: %w", err)
+	}
+	var addresses []string
+	var permitted []int64
+	for _, guardian := range guardians {
+		if !granted[guardian.ID] || guardian.AccountID == nil {
+			continue
+		}
+		if guardian.Email != nil {
+			addresses = append(addresses, *guardian.Email)
+		}
+		permitted = append(permitted, *guardian.AccountID)
+	}
+	accountAddresses, err := a.accountAddresses(ctx, permitted)
+	return append(addresses, accountAddresses...), err
+}
+
+// grantedProfiles are the guardian profiles of the accounts whose
+// relationship to the child grants the enrollment submission.
+func (a careContractNoticeAddressees) grantedProfiles(ctx context.Context, studentID int64, accountIDs []int64) (map[int64]bool, error) {
+	links, err := a.guardians.ListGuardianLinksByAccounts(ctx, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("care contract notice addressees: links: %w", err)
+	}
+	granted := map[int64]bool{}
+	for _, link := range links {
+		if link.StudentID == studentID && link.HasPermission(carecontract.GuardianPermissionEnrollmentSubmit) {
+			granted[link.GuardianProfileID] = true
+		}
+	}
+	return granted, nil
+}
+
+// accountAddresses are the addresses of the permitted accounts.
+func (a careContractNoticeAddressees) accountAddresses(ctx context.Context, accountIDs []int64) ([]string, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+	emails, err := a.accounts.ListAccountEmails(ctx, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("care contract notice addressees: accounts: %w", err)
+	}
+	var addresses []string
+	for _, account := range accountIDs {
+		if email := emails[account]; email != "" {
+			addresses = append(addresses, email)
+		}
+	}
+	return addresses, nil
 }
 
 // careContractNoticeTemplates reads the Träger's confirmation templates
@@ -44,6 +136,10 @@ func (t careContractNoticeTemplates) NoticeTemplate(ctx context.Context, organiz
 		key = configModels.KeyCareContractWithdrawalConfirmation
 	case carecontract.TerminationExtraordinary:
 		key = configModels.KeyCareContractExtraordinaryConfirmation
+	case carecontract.NoticeTemplateEndSet:
+		key = configModels.KeyCareContractEndSetNotice
+	case carecontract.NoticeTemplateReasonRejected:
+		key = configModels.KeyCareContractReasonRejectedNotice
 	}
 	texts, err := t.settings.TraegerTexts(ctx, organizationID, []string{key})
 	if err != nil {
@@ -85,7 +181,7 @@ type parentContractNotices struct {
 // NewParentContractNotices binds the parents' declarations over the
 // confirmation templates of the Träger and Delivery's outbox.
 func NewParentContractNotices(settings CareContractNoticeSettings, delivery deliveryRuntime.Capability) parentportal.ContractNoticesPort {
-	return parentContractNotices{notices: careContractCompose.NewParentNotices(NewCareContractNoticePorts(settings, delivery))}
+	return parentContractNotices{notices: careContractCompose.NewParentNotices(NewCareContractNoticePorts(settings, delivery, nil))}
 }
 
 func (n parentContractNotices) ContractNoticeOptions(ctx context.Context, organizationID, contractID int64,
@@ -111,6 +207,7 @@ func parentNoticeOptions(options carecontract.NoticeOptions) parentportal.Contra
 		result.Notice = &parentportal.ContractNotice{
 			Kind: notice.Kind, TerminationKind: notice.TerminationKind, Reason: notice.Reason, Channel: notice.Channel, DeclaredAt: notice.DeclaredAt,
 			DispatchedOn: notice.DispatchedOn, ReceivedOn: notice.ReceivedOn, EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
+			EndDecision: notice.EndDecision, EndDecidedAt: notice.EndDecidedAt, EndNoticeText: notice.EndNoticeText,
 		}
 	}
 	return result

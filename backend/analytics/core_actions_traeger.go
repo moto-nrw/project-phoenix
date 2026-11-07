@@ -115,6 +115,7 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// termination it checked; the parents' own one in the parents portal.
 	{http.MethodPost, "/traeger/contract-notices/{id}"}:                                      notCaptured,
 	{http.MethodPut, "/traeger/contract-notices/{id}/ends-on"}:                               notCaptured,
+	{http.MethodPost, "/traeger/contract-notices/{id}/reason-rejection"}:                     notCaptured,
 	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/notice"}: notCaptured,
 }
 

@@ -17,7 +17,12 @@ describe("GroupHeader", () => {
     render(<GroupHeader {...baseProps()} />);
 
     expect(screen.getByText("Group")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
+    const count = screen.getByText("3");
+    expect(count).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Group 3" })).toContainElement(
+      count,
+    );
+    expect(count.closest(".truncate")).toBeNull();
   });
 
   it("appends countSuffix when provided", () => {
