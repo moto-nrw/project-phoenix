@@ -1,6 +1,6 @@
 {
   "scenario": "services.feedback.submit_batch.entries_8",
-  "max": 4,
+  "max": 5,
   "exact": true,
-  "description": "Public Feedback SubmitBatch with real owner persistence and own tenant transaction, settings already enabled by a pure resolver. Successful ordered input batch with per-entry readback; rollback and non-reused IDs is guarded separately. Not an HTTP budget."
+  "description": "Public Feedback SubmitBatch with real owner persistence and own tenant transaction, settings already enabled by a pure resolver. Each chunk reserves ordered IDs, then inserts and returns its rows; rollback and non-reused IDs is guarded separately. Not an HTTP budget."
 }
