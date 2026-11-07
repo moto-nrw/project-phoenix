@@ -30,9 +30,9 @@ func init() {
 // goes when one of its children names a retired demo school as home school,
 // with its invoices (parent_billing.documents names it only by ID) and the
 // outbox copies and pushes of their mailed letters; the rest goes by
-// cascade. The deletion takes the run locks a send of a letter takes and the
-// period lock the release of a billing run takes, in the release's order, so
-// an invoice issued or a letter mailed concurrently cannot stay behind. A registration naming no such child
+// cascade. The deletion takes the period lock the release of a billing run
+// takes and then the run locks a send of a letter takes, so an invoice
+// issued or a letter mailed concurrently cannot stay behind. A registration naming no such child
 // cannot be told from the registrations of other visitors and stays.
 //
 // The deletion runs in the order's subtransaction under its lock_timeout like
@@ -245,20 +245,6 @@ const demoVisitorErasureHolidayRegistrationsUpSQL = `
 					-- and the contributions go with it by cascade. Its invoices copy
 					-- the family and name it only by ID, so they go first, with
 					-- their positions, letters, mailings and credit notes.
-					-- Mailing a letter locks its billing run (LockBillingRun) before
-					-- its outbox copy and push; take those run locks first, as the
-					-- release does, so a send in progress is seen before its copies
-					-- are cleaned up.
-					PERFORM 1 FROM parent_billing.runs AS run
-					WHERE (run.organization_id, run.id) IN (
-						SELECT document.organization_id, document.run_id
-						FROM parent_billing.documents AS document
-						JOIN enrollment.holiday_registration_children AS child
-							ON child.organization_id = document.organization_id
-							AND child.holiday_registration_id = document.holiday_registration_id
-						WHERE child.home_school_id = ANY (hidden_schools))
-					ORDER BY run.organization_id, run.id
-					FOR UPDATE;
 					-- The release of a billing run reads the registrations under
 					-- the period lock of parent_billing (LockPeriodBilling) and
 					-- issues their invoices; take it first, so a run released
@@ -272,6 +258,23 @@ const demoVisitorErasureHolidayRegistrationsUpSQL = `
 						WHERE child.home_school_id = ANY (hidden_schools)
 						ORDER BY 1, 2
 					) AS period;
+					-- Mailing a letter locks its billing run (LockBillingRun) before
+					-- its outbox copy and push. Lock the runs of every invoice now
+					-- visible, after the period lock, so also a run a release just
+					-- committed: a send in progress is seen before its copies are
+					-- cleaned up, a later one waits and finds no letter. A release
+					-- holds only its run before it issues invoices, and a send takes
+					-- no period lock, so neither waits for a lock held here.
+					PERFORM 1 FROM parent_billing.runs AS run
+					WHERE (run.organization_id, run.id) IN (
+						SELECT document.organization_id, document.run_id
+						FROM parent_billing.documents AS document
+						JOIN enrollment.holiday_registration_children AS child
+							ON child.organization_id = document.organization_id
+							AND child.holiday_registration_id = document.holiday_registration_id
+						WHERE child.home_school_id = ANY (hidden_schools))
+					ORDER BY run.organization_id, run.id
+					FOR UPDATE;
 					-- A confirmation letter mailed with an invoice is a copy on
 					-- Delivery's outbox, named by the send only by its ID.
 					DELETE FROM platform.email_delivery AS delivery

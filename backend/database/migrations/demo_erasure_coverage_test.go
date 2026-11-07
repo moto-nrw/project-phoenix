@@ -3,6 +3,11 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"go/ast"
+	"go/constant"
+	"go/parser"
+	"go/token"
+	"go/types"
 	"regexp"
 	"slices"
 	"sort"
@@ -28,225 +33,69 @@ import (
 // Each table in scope is erased by the function itself (DELETE or a
 // rewriting UPDATE in its current definition), goes by ON DELETE CASCADE
 // with a table the function deletes, or names its reason in
-// demoErasureExceptions. The demo school itself stays soft-deleted, so most
-// school tables are such exceptions until the full erasure of retired demo
-// schools (#5559) deletes them, the visitor's own free texts included.
+// demoErasureExceptions (test/demo_erasure_ratchet_test.go). The demo
+// school itself stays soft-deleted, so most school tables are such
+// exceptions until the full erasure of retired demo schools (#5559) deletes
+// them, the visitor's own free texts included.
 
 // demoErasureScopes are the catalog scopes in scope; only "platform" is not.
 var demoErasureScopes = []string{"tenant", "tenantChild", "organization", "account", "demo", "tenantReference", "school"}
 
-// The demo school stays soft-deleted, so its tenant rows stay with it: the
-// seed's invented school and whatever the visitor typed into it, free texts
-// included. They go with the full erasure of retired demo schools (#5559);
-// until then a nightly retention step, which also runs for retired demo
-// schools (#4728), deletes the rows that have a period.
-const schoolContentUntil5559 = "content of the retired demo school, which stays soft-deleted: the seed's school and the visitor's own entries and free texts in it; goes with the full erasure of retired demo schools (#5559), a row with a period earlier by the nightly retention (#4728)"
+// demoErasureRegisterFile holds demoErasureExceptions and
+// demoErasureExceptionBudget among the source ratchets, which compare them
+// with the pull request's base so they only fall.
+const demoErasureRegisterFile = "../../test/demo_erasure_ratchet_test.go"
 
-// Sign-in events keep the period every sign-in event has.
-const signInEventsKeepTheirPeriod = "sign-in events (IP address, user agent) keep the 90 days of every sign-in event, decision of the product owner of 02.11.2026 (#5543); the nightly run deletes them in retired demo schools too (#4728)"
+type noImports struct{}
 
-// The Träger-Büro of the shared demo Träger is the bootstrap admin of the
-// seed (seedTraegerBueroStep); no visitor account is ever a member of it.
-const traegerBueroOnly = "Träger-Büro of the shared demo Träger: the seed assigns only its bootstrap admin, never a visitor account (seedTraegerBueroStep)"
-
-// demoErasureExceptions are the tables in scope the erasure leaves on
-// purpose, each with its reason. A new table with personal data gets an
-// erasure path; an entry only with a reason that holds for it.
-var demoErasureExceptions = map[string]string{
-	"active.activity_session_attendance":             schoolContentUntil5559,
-	"active.activity_sessions":                       schoolContentUntil5559,
-	"active.attendance":                              schoolContentUntil5559,
-	"active.class_handover_children":                 schoolContentUntil5559,
-	"active.class_handovers":                         schoolContentUntil5559,
-	"active.excused_absence_requests":                schoolContentUntil5559,
-	"active.group_supervisors":                       schoolContentUntil5559,
-	"active.morning_attendance":                      schoolContentUntil5559,
-	"active.payroll_dispatches":                      schoolContentUntil5559,
-	"active.scheduled_checkouts":                     schoolContentUntil5559,
-	"active.staff_absence_audit":                     schoolContentUntil5559,
-	"active.staff_absence_type_allowance_changes":    schoolContentUntil5559,
-	"active.staff_absence_type_allowances":           schoolContentUntil5559,
-	"active.staff_absences":                          schoolContentUntil5559,
-	"active.staff_balance_adjustments":               schoolContentUntil5559,
-	"active.staff_month_balance_snapshots":           schoolContentUntil5559,
-	"active.staff_vacation_openings":                 schoolContentUntil5559,
-	"active.staff_vacation_quota":                    schoolContentUntil5559,
-	"active.staff_vacation_quota_changes":            schoolContentUntil5559,
-	"active.student_status_days":                     schoolContentUntil5559,
-	"active.visits":                                  schoolContentUntil5559,
-	"active.work_session_breaks":                     schoolContentUntil5559,
-	"active.work_sessions":                           schoolContentUntil5559,
-	"activities.student_enrollments":                 schoolContentUntil5559,
-	"activities.supervisors":                         schoolContentUntil5559,
-	"audit.attendance_corrections":                   schoolContentUntil5559,
-	"audit.auth_events":                              signInEventsKeepTheirPeriod,
-	"audit.class_list_entry_changes":                 schoolContentUntil5559,
-	"audit.data_access_log":                          schoolContentUntil5559,
-	"audit.data_deletions":                           schoolContentUntil5559,
-	"audit.deviation_events":                         schoolContentUntil5559,
-	"audit.enrollment_deletions":                     schoolContentUntil5559,
-	"audit.enrollment_offering_adjustments":          schoolContentUntil5559,
-	"audit.enrollment_restorations":                  schoolContentUntil5559,
-	"audit.export_transfers":                         schoolContentUntil5559,
-	"audit.file_events":                              schoolContentUntil5559,
-	"audit.guardian_financial_changes":               schoolContentUntil5559,
-	"audit.personnel_number_changes":                 schoolContentUntil5559,
-	"audit.staff_master_data_changes":                schoolContentUntil5559,
-	"audit.student_consent_changes":                  schoolContentUntil5559,
-	"audit.student_deletions":                        schoolContentUntil5559,
-	"audit.student_field_edits":                      schoolContentUntil5559,
-	"audit.substitution_changes":                     schoolContentUntil5559,
-	"audit.time_tracking_deletions":                  schoolContentUntil5559,
-	"audit.traeger_account_changes":                  traegerBueroOnly,
-	"audit.traeger_document_downloads":               traegerBueroOnly + "; only the Träger-Büro downloads",
-	"audit.unregistered_tag_scans":                   schoolContentUntil5559,
-	"audit.work_session_edits":                       schoolContentUntil5559,
-	"auth.account_avatar_file_cleanup":               "the erasure writes the avatar file intent itself; the hourly drain deletes it with the file",
-	"auth.caterer_accounts":                          "caterer login of a caterer business; the demo seed gives no visitor account a caterer membership",
-	"auth.caterer_invitations":                       schoolContentUntil5559,
-	"auth.guardian_invitations":                      schoolContentUntil5559,
-	"auth.invitation_tokens":                         schoolContentUntil5559,
-	"auth.organization_account_roles":                traegerBueroOnly,
-	"auth.parent_declaration_permission_grants":      schoolContentUntil5559,
-	"auth.traeger_invitations":                       traegerBueroOnly + "; invitations name synthetic example.org addresses",
-	"calendar.appointment_occurrence_overrides":      schoolContentUntil5559,
-	"calendar.appointment_recipient_students":        schoolContentUntil5559,
-	"calendar.appointment_recipients":                schoolContentUntil5559,
-	"calendar.appointment_reminder_push_deliveries":  schoolContentUntil5559,
-	"calendar.appointments":                          schoolContentUntil5559,
-	"calendar.parent_conference_bookings":            schoolContentUntil5559,
-	"calendar.parent_conferences":                    schoolContentUntil5559,
-	"calendar.staff_feed_tombstones":                 schoolContentUntil5559,
-	"config.setting_audit":                           schoolContentUntil5559,
-	"config.staff_target_overrides":                  schoolContentUntil5559,
-	"config.staff_work_schedules":                    schoolContentUntil5559,
-	"config.traeger_setting_audit":                   traegerBueroOnly,
-	"documents.announcement_attachment_cleanup":      schoolContentUntil5559,
-	"documents.announcement_attachments":             schoolContentUntil5559,
-	"documents.file_cleanup":                         schoolContentUntil5559,
-	"documents.files":                                schoolContentUntil5559,
-	"education.class_homework":                       schoolContentUntil5559,
-	"education.class_teachers":                       schoolContentUntil5559,
-	"education.grade_transition_class_list_entries":  schoolContentUntil5559,
-	"education.grade_transition_class_teachers":      schoolContentUntil5559,
-	"education.grade_transition_history":             schoolContentUntil5559,
-	"education.grade_transitions":                    schoolContentUntil5559,
-	"education.group_substitution":                   schoolContentUntil5559,
-	"education.group_teacher":                        schoolContentUntil5559,
-	"education.homework_feedback":                    schoolContentUntil5559,
-	"enrollment.care_offering_bookings":              schoolContentUntil5559,
-	"enrollment.change_request_messages":             schoolContentUntil5559,
-	"enrollment.change_requests":                     schoolContentUntil5559,
-	"enrollment.holiday_guest_contacts":              schoolContentUntil5559,
-	"enrollment.holiday_guests":                      schoolContentUntil5559,
-	"enrollment.holiday_host_groups":                 schoolContentUntil5559,
-	"enrollment.holiday_registration_deletions":      "counts per holiday period of the demo Träger, no name",
-	"enrollment.holiday_registration_rate_limits":    "abuse counter of the public holiday form, expires after a day",
-	"enrollment.late_invites":                        schoolContentUntil5559,
-	"enrollment.offering_change_requests":            schoolContentUntil5559,
-	"enrollment.request_child_offering_selections":   schoolContentUntil5559,
-	"enrollment.request_children":                    schoolContentUntil5559,
-	"enrollment.request_guardians":                   schoolContentUntil5559,
-	"enrollment.request_upload_cleanup":              schoolContentUntil5559,
-	"enrollment.request_uploads":                     schoolContentUntil5559,
-	"enrollment.submission_rate_limits":              schoolContentUntil5559,
-	"feedback.entries":                               schoolContentUntil5559,
-	"meta.meal_participation_permission_grants":      schoolContentUntil5559,
-	"meta.parent_student_consent_permission_grants":  schoolContentUntil5559,
-	"parent_billing.holiday_sibling_groups":          "a sibling group of the Träger-Büro names no person itself; its members go with their registrations, and a group left alone drops by trigger (drop_lone_holiday_sibling_group)",
-	"parent_billing.run_events":                      "trail of a billing run of the demo Träger: action, time and the Träger-Büro account, names no family",
-	"parent_billing.run_letters":                     "payment text and emergency numbers of the confirmation letters of a run of the demo Träger, written by the Träger-Büro, no family",
-	"platform.billing_key_date_counts":               "school name and counts of an invoice key date, no person",
-	"platform.email_suppressions":                    schoolContentUntil5559,
-	"platform.organization_accounts":                 traegerBueroOnly,
-	"platform.traeger_bank_accounts":                 traegerBueroOnly + "; invented bank details of the demo Träger",
-	"platform.traeger_document_reads":                "an opening keeps only the school ID and the account ID, which the erasure anonymizes; expires three years after the opening (#4692)",
-	"platform.traeger_document_releases":             traegerBueroOnly + "; a release names the school, not a person",
-	"platform.traeger_document_templates":            traegerBueroOnly,
-	"platform.traeger_documents":                     traegerBueroOnly,
-	"platform.traeger_master_data_audit":             traegerBueroOnly,
-	"platform.traeger_profiles":                      traegerBueroOnly + "; invented master data of the demo Träger",
-	"schedule.activity_exceptions":                   schoolContentUntil5559,
-	"schedule.activity_instances":                    schoolContentUntil5559,
-	"schedule.care_schedule_change_requests":         schoolContentUntil5559,
-	"schedule.grade_transition_roster_removals":      schoolContentUntil5559,
-	"schedule.group_week_protocol_days":              schoolContentUntil5559,
-	"schedule.group_week_protocol_pdfs":              schoolContentUntil5559,
-	"schedule.group_week_protocols":                  schoolContentUntil5559,
-	"schedule.instance_staff":                        schoolContentUntil5559,
-	"schedule.instance_students":                     schoolContentUntil5559,
-	"schedule.meal_participation_overrides":          schoolContentUntil5559,
-	"schedule.meal_participation_schedules":          schoolContentUntil5559,
-	"schedule.meal_registration_changes":             schoolContentUntil5559,
-	"schedule.meal_sickness_status_history":          schoolContentUntil5559,
-	"schedule.pickup_extension_tasks":                schoolContentUntil5559,
-	"schedule.staff_shift_series":                    schoolContentUntil5559,
-	"schedule.staff_shift_series_exceptions":         schoolContentUntil5559,
-	"schedule.staff_shifts":                          schoolContentUntil5559,
-	"schedule.student_arrival_exceptions":            schoolContentUntil5559,
-	"schedule.student_arrival_notes":                 schoolContentUntil5559,
-	"schedule.student_arrival_schedules":             schoolContentUntil5559,
-	"schedule.student_departure_exceptions":          schoolContentUntil5559,
-	"schedule.student_pickup_exceptions":             schoolContentUntil5559,
-	"schedule.student_pickup_notes":                  schoolContentUntil5559,
-	"schedule.student_pickup_schedules":              schoolContentUntil5559,
-	"users.care_withdrawal_completions":              schoolContentUntil5559,
-	"users.class_list_entries":                       schoolContentUntil5559,
-	"users.external_caregivers":                      schoolContentUntil5559,
-	"users.guardian_financial_data":                  schoolContentUntil5559,
-	"users.guardian_phone_numbers":                   schoolContentUntil5559,
-	"users.parent_announcement_declaration_versions": schoolContentUntil5559,
-	"users.parent_announcement_responses":            schoolContentUntil5559,
-	"users.parent_announcements":                     schoolContentUntil5559,
-	"users.parent_group_message_recipients":          schoolContentUntil5559,
-	"users.parent_group_messages":                    schoolContentUntil5559,
-	"users.parent_group_thread_reads":                schoolContentUntil5559,
-	"users.parent_group_threads":                     schoolContentUntil5559,
-	"users.parent_message_reads":                     schoolContentUntil5559,
-	"users.parent_message_threads":                   schoolContentUntil5559,
-	"users.parent_request_events":                    schoolContentUntil5559,
-	"users.parent_request_share_events":              schoolContentUntil5559,
-	"users.privacy_consents":                         schoolContentUntil5559,
-	"users.staff_document_file_cleanup":              schoolContentUntil5559,
-	"users.staff_documents":                          schoolContentUntil5559,
-	"users.staff_employment_profiles":                schoolContentUntil5559,
-	"users.staff_financial_data":                     schoolContentUntil5559,
-	"users.staff_master_data":                        schoolContentUntil5559,
-	"users.staff_message_participants":               schoolContentUntil5559,
-	"users.staff_message_reads":                      schoolContentUntil5559,
-	"users.staff_message_threads":                    schoolContentUntil5559,
-	"users.staff_messages":                           schoolContentUntil5559,
-	"users.staff_notices":                            schoolContentUntil5559,
-	"users.staff_offboarding_cleanup":                schoolContentUntil5559,
-	"users.staff_qualifications":                     schoolContentUntil5559,
-	"users.staff_school_memberships":                 schoolContentUntil5559,
-	"users.student_care_exit_removals":               schoolContentUntil5559,
-	"users.student_care_exit_source_removals":        schoolContentUntil5559,
-	"users.student_care_exits":                       schoolContentUntil5559,
-	"users.student_care_profiles":                    schoolContentUntil5559,
-	"users.student_companions":                       schoolContentUntil5559,
-	"users.student_data_change_requests":             schoolContentUntil5559,
-	"users.student_document_file_cleanup":            schoolContentUntil5559,
-	"users.student_documents":                        schoolContentUntil5559,
-	"users.student_family_protection_events":         schoolContentUntil5559,
-	"users.student_guardian_pickup_permissions":      schoolContentUntil5559,
-	"users.student_guardian_relationships":           schoolContentUntil5559,
-	"users.student_notes":                            schoolContentUntil5559,
-	"users.student_profiles":                         schoolContentUntil5559,
-	"users.student_school_memberships":               schoolContentUntil5559,
-	"users.survey_answers":                           schoolContentUntil5559,
-	"users.survey_participations":                    schoolContentUntil5559,
-	"users.survey_question_options":                  schoolContentUntil5559,
-	"users.survey_questions":                         schoolContentUntil5559,
-	"users.survey_responses":                         schoolContentUntil5559,
-	"users.surveys":                                  schoolContentUntil5559,
-	"users.teachers":                                 schoolContentUntil5559,
+func (noImports) Import(path string) (*types.Package, error) {
+	return nil, fmt.Errorf("the register needs no import, not %s", path)
 }
 
-// demoErasureExceptionBudget is the recorded size of demoErasureExceptions,
-// so every change of the list is a deliberate one: lower it when an entry
-// leaves, raise it only together with a reasoned new entry.
-const demoErasureExceptionBudget = 188
+// readDemoErasureRegister evaluates the register with go/types, as the
+// ratchet does: its reasons are constant expressions of that file.
+func readDemoErasureRegister(t *testing.T) (map[string]string, int) {
+	t.Helper()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, demoErasureRegisterFile, nil, 0)
+	require.NoError(t, err)
+	info := &types.Info{Types: map[ast.Expr]types.TypeAndValue{}, Defs: map[*ast.Ident]types.Object{}}
+	config := types.Config{Importer: noImports{}, Error: func(error) {}}
+	_, _ = config.Check(file.Name.Name, fset, []*ast.File{file}, info)
+	exceptions := map[string]string{}
+	budget := -1
+	for _, declaration := range file.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		for _, spec := range general.Specs {
+			value, ok := spec.(*ast.ValueSpec)
+			if !ok || len(value.Names) != 1 || len(value.Values) != 1 {
+				continue
+			}
+			switch value.Names[0].Name {
+			case "demoErasureExceptionBudget":
+				number, exact := constant.Int64Val(info.Types[value.Values[0]].Value)
+				require.True(t, exact, "the budget is an integer constant")
+				budget = int(number)
+			case "demoErasureExceptions":
+				literal, ok := value.Values[0].(*ast.CompositeLit)
+				require.True(t, ok, "the register is a map literal")
+				for _, element := range literal.Elts {
+					entry := element.(*ast.KeyValueExpr)
+					key, reason := info.Types[entry.Key].Value, info.Types[entry.Value].Value
+					require.NotNil(t, key, "a key of the register is a constant")
+					require.NotNil(t, reason, "a reason of the register is a constant")
+					exceptions[constant.StringVal(key)] = constant.StringVal(reason)
+				}
+			}
+		}
+	}
+	require.GreaterOrEqual(t, budget, 0, "%s declares demoErasureExceptionBudget", demoErasureRegisterFile)
+	require.NotEmpty(t, exceptions, "%s declares demoErasureExceptions", demoErasureRegisterFile)
+	return exceptions, budget
+}
 
 type cascadeEdge struct{ Child, Parent string }
 
@@ -376,7 +225,7 @@ func demoErasureCoverageProblems(in demoErasureCoverage) []string {
 	}
 	switch count := len(in.Exceptions); {
 	case count > in.Budget:
-		problems = append(problems, fmt.Sprintf("%d demo erasure exceptions, more than the %d recorded; erase the new table, or raise the budget with a reasoned entry", count, in.Budget))
+		problems = append(problems, fmt.Sprintf("%d demo erasure exceptions, more than the %d recorded; erase the new table instead, the budget only falls", count, in.Budget))
 	case count < in.Budget:
 		problems = append(problems, fmt.Sprintf("%d demo erasure exceptions, fewer than the %d recorded; lower demoErasureExceptionBudget", count, in.Budget))
 	}
@@ -417,9 +266,10 @@ func demoErasureCoverageOfSchema(t *testing.T) demoErasureCoverage {
 		JOIN pg_class AS pc ON pc.oid = f.confrelid JOIN pg_namespace AS pn ON pn.oid = pc.relnamespace
 		WHERE f.contype = 'f' AND f.confdeltype = 'c'`).Scan(ctx, &cascades))
 	sort.Strings(inScope)
+	exceptions, budget := readDemoErasureRegister(t)
 	return demoErasureCoverage{
 		InScope: inScope, FunctionSQL: functionSQL, Cascades: cascades,
-		Exceptions: demoErasureExceptions, Budget: demoErasureExceptionBudget,
+		Exceptions: exceptions, Budget: budget,
 	}
 }
 
