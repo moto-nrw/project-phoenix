@@ -285,52 +285,43 @@ export function RequestEditModal({
         )}
         {request.type === "excused" && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t("firstDay")}
-              </span>
-              <ISODatePicker
-                {...datePicker}
-                ariaLabel={t("firstDay")}
-                value={draft.from}
-                onChange={(next) =>
-                  set({ from: next, to: next > draft.to ? next : draft.to })
-                }
-                calendarLayout="popover"
-                hideClearButton
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t("lastDay")}
-              </span>
-              <ISODatePicker
-                {...datePicker}
-                ariaLabel={t("lastDay")}
-                value={draft.to}
-                min={draft.from}
-                onChange={(next) => set({ to: next })}
-                calendarLayout="popover"
-                hideClearButton
-              />
-            </label>
+            <ISODatePicker
+              {...datePicker}
+              id="request-first-day"
+              label={t("firstDay")}
+              ariaLabel={t("firstDay")}
+              value={draft.from}
+              onChange={(next) =>
+                set({ from: next, to: next > draft.to ? next : draft.to })
+              }
+              calendarLayout="popover"
+              hideClearButton
+            />
+            <ISODatePicker
+              {...datePicker}
+              id="request-last-day"
+              label={t("lastDay")}
+              ariaLabel={t("lastDay")}
+              value={draft.to}
+              min={draft.from}
+              onChange={(next) => set({ to: next })}
+              calendarLayout="popover"
+              hideClearButton
+            />
           </div>
         )}
         {request.type === "pickup_change" && (
           <>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t("day")}
-              </span>
-              <ISODatePicker
-                {...datePicker}
-                ariaLabel={t("day")}
-                value={draft.from}
-                onChange={(next) => set({ from: next, to: next })}
-                calendarLayout="popover"
-                hideClearButton
-              />
-            </label>
+            <ISODatePicker
+              {...datePicker}
+              id="request-day"
+              label={t("day")}
+              ariaLabel={t("day")}
+              value={draft.from}
+              onChange={(next) => set({ from: next, to: next })}
+              calendarLayout="popover"
+              hideClearButton
+            />
             <TimeField
               value={draft.time}
               onChange={(next) => set({ time: next })}
@@ -348,20 +339,15 @@ export function RequestEditModal({
           </>
         )}
         {request.type === "master_data" ? (
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              {request.label}
-            </span>
-            <Input
-              name="request-value"
-              aria-label={request.label}
-              autoComplete="off"
-              value={draft.text}
-              disabled={saving}
-              error={fieldError("request-value")}
-              onChange={(event) => set({ text: event.target.value })}
-            />
-          </label>
+          <Input
+            name="request-value"
+            label={request.label}
+            autoComplete="off"
+            value={draft.text}
+            disabled={saving}
+            error={fieldError("request-value")}
+            onChange={(event) => set({ text: event.target.value })}
+          />
         ) : (
           <Textarea
             name="request-reason"

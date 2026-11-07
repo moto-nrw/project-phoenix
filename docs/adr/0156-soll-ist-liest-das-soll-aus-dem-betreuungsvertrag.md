@@ -1,8 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Soll und Ist liest das Soll aus dem Betreuungsvertrag
+
+Freigegeben von Yannick Wenger am 07.11.2026
 
 Vorschlag vom 06.11.2026 zu [#4683](https://github.com/moto-nrw/project-phoenix/issues/4683),
 Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),

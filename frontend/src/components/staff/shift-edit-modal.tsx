@@ -52,6 +52,7 @@ import {
   RhythmPicker,
   WeekdayPicker,
 } from "./shift-recurrence-fields";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ShiftEditModal" });
 const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
@@ -1080,7 +1081,7 @@ export function ShiftEditModal({
                   // "Teil einer Serie" leaves the planner guessing which days the
                   // series covers and how far it runs — and the way to the whole
                   // series used to exist only as a dialog after Speichern.
-                  <div className="space-y-2 rounded-md bg-gray-50 px-3 py-2.5">
+                  <InsetPanel className="space-y-2">
                     <p className="text-xs text-gray-600">
                       {shift?.detached
                         ? "Diese Schicht gehört zu einer Serie und wurde für diese Woche angepasst."
@@ -1104,7 +1105,7 @@ export function ShiftEditModal({
                         Serie bearbeiten
                       </Button>
                     )}
-                  </div>
+                  </InsetPanel>
                 )}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Beginn">
@@ -1302,9 +1303,10 @@ export function ShiftEditModal({
                             ein.
                           </p>
                           {replacements.map((row, index) => (
-                            <div
+                            <InsetPanel
                               key={getStableObjectKey(row, "replacement")}
-                              className="space-y-2 rounded-md border border-gray-100 bg-gray-50/60 p-2.5"
+                              framed
+                              className="space-y-2"
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -1361,7 +1363,7 @@ export function ShiftEditModal({
                                   />
                                 </Field>
                               </div>
-                            </div>
+                            </InsetPanel>
                           ))}
                           <Button
                             type="button"

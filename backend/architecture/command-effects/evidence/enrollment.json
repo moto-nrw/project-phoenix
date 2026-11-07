@@ -1817,8 +1817,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.CountHolidayProofUpload",
+      "binding_digest": "7996dce0bf2df7d707891bbde68ac737",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.CountHolidayProofUpload",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
-      "binding_digest": "4c84622c03f79b55bfe9c4fc9e5e238b",
+      "binding_digest": "85a2c54cff95bb802efebea3a7fa883c",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.UploadHolidayProof",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
@@ -1826,7 +1834,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
-      "binding_digest": "5602a4edb0c23c7dc4bad90373350fbb",
+      "binding_digest": "ddec186488b8443e9656d3e8f8adeaf4",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.UploadHolidayProof",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
@@ -1943,6 +1951,22 @@
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents.Coordinator.ServeInline",
       "target_owner": "file-storage"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.CountUploadAttempt",
+      "binding_digest": "417a158613258b7d7d610365ab56687b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.CountUploadAttempt",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.CountUploadAttempt",
+      "binding_digest": "e851c5706dcce0c29c9b4d21195f88b3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.CountUploadAttempt",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.DiscardUpload",

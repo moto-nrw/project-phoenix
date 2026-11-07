@@ -13,6 +13,7 @@ import { Radio } from "~/components/ui/radio";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { staffService, type ExternalAccess, type Staff } from "~/lib/staff-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ExternalCaregiverEntry" });
 
@@ -430,41 +431,38 @@ export function ExternalCaregiverEntry({
   }
 
   return (
-    <div
-      ref={panelRef}
-      role="group"
-      aria-label="Externe Person eintragen"
-      className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3"
-    >
-      <p className="text-sm text-gray-600">{EXTERNAL_CAREGIVER_HINT}</p>
-      <FormErrorAlert message={form.error} />
-      <ExternalCaregiverFields
-        form={form}
-        onKeyDown={handleKeyDown}
-        autoFocus
-      />
-      <div className="flex justify-end gap-2">
-        {/* Not "Abbrechen": the dialog below already has one for itself. */}
-        <Button
-          type="button"
-          variant="ghost"
-          size="md"
-          onClick={close}
-          disabled={form.isSaving}
-        >
-          Nicht eintragen
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={() => void submitAndClose()}
-          isLoading={form.isSaving}
-          loadingText="Wird eingetragen ..."
-        >
-          Eintragen
-        </Button>
-      </div>
+    <div ref={panelRef} role="group" aria-label="Externe Person eintragen">
+      <InsetPanel framed className="space-y-3">
+        <p className="text-sm text-gray-600">{EXTERNAL_CAREGIVER_HINT}</p>
+        <FormErrorAlert message={form.error} />
+        <ExternalCaregiverFields
+          form={form}
+          onKeyDown={handleKeyDown}
+          autoFocus
+        />
+        <div className="flex justify-end gap-2">
+          {/* Not "Abbrechen": the dialog below already has one for itself. */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            onClick={close}
+            disabled={form.isSaving}
+          >
+            Nicht eintragen
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => void submitAndClose()}
+            isLoading={form.isSaving}
+            loadingText="Wird eingetragen ..."
+          >
+            Eintragen
+          </Button>
+        </div>
+      </InsetPanel>
     </div>
   );
 }

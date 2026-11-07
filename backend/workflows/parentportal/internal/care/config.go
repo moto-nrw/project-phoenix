@@ -78,6 +78,8 @@ type Config struct {
 	// ContractDocuments are the sent care contracts of the Träger in the
 	// same inbox (#4678, ADR 0153).
 	ContractDocuments ContractDocuments
+	// ContractNotices withdraw and terminate those contracts (#4682).
+	ContractNotices ContractNotices
 	// SharedDocuments are the documents a Träger released for parents in
 	// the same inbox (#4692).
 	SharedDocuments  TraegerSharedDocuments

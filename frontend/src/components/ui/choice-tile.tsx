@@ -21,20 +21,28 @@ import { cn } from "~/lib/utils";
  * - `div` is a row whose selection state is driven by a control inside it.
  *
  * `tone` colours the selected state: gray for neutral picks, green for the
- * brand action, blue for informational choices. The tile does not own its
+ * brand action, blue for informational choices. `red` is for a choice with
+ * serious consequences (Notfallkontakt, dauerhaft löschen): its frame stays
+ * red at rest, so the row reads as serious before anyone ticks it. The tile does not own its
  * padding beyond the default row (`px-3 py-2.5`); denser or roomier tiles
  * override it through `className` (`p-3`, `p-4`), which `cn` merges.
  *
  * A hand-rolled `rounded-xl border … bg-white` with a selected branch is
  * exactly what `ui-kit/no-hand-rolled-surface` rejects; use this instead.
  */
-type ChoiceTileTone = "gray" | "green" | "blue";
+type ChoiceTileTone = "gray" | "green" | "blue" | "red";
 
 const SELECTED_CLASS: Record<ChoiceTileTone, string> = {
   gray: "border-gray-300 bg-gray-50 text-gray-900",
   green: "border-moto-green/50 bg-moto-green/10 text-gray-900",
   blue: "border-moto-blue bg-moto-blue/10 text-gray-950",
+  red: "border-moto-red/40 bg-moto-red-soft text-gray-900",
 };
+
+const DEFAULT_REST_CLASS =
+  "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50";
+const RED_REST_CLASS =
+  "border-moto-red/20 bg-white text-gray-700 hover:border-moto-red/40";
 
 const BASE_CLASS =
   "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors";
@@ -65,8 +73,7 @@ function choiceTileClassName({
   } else if (selected) {
     state = SELECTED_CLASS[tone];
   } else {
-    state =
-      "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50";
+    state = tone === "red" ? RED_REST_CLASS : DEFAULT_REST_CLASS;
   }
   return cn(BASE_CLASS, disabled ? "" : FOCUS_CLASS[as], state, className);
 }

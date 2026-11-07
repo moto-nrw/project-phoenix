@@ -1,6 +1,7 @@
 "use client";
 
 import { Alert } from "~/components/ui/alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import type { FormError } from "~/components/ui/form-error";
@@ -768,7 +769,7 @@ export function StepPersonalKinder({
                       onAddOfferings={addSourceOfferings}
                     />
                   ) : sourceRosterDiff ? (
-                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                    <InsetPanel framed>
                       <p className="text-xs font-semibold text-gray-700">
                         Das ändert sich gegenüber Ihrer bisherigen Kinderliste
                       </p>
@@ -788,7 +789,7 @@ export function StepPersonalKinder({
                         Beim Speichern übernimmt der Regeltermin die Kinder aus
                         dem Angebot. Ihre bisherige Auswahl wird ersetzt.
                       </p>
-                    </div>
+                    </InsetPanel>
                   ) : null}
                   {sourcePhaseKidsFromWarning ? (
                     <Alert

@@ -851,8 +851,11 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   for the current state, `--ref v1.4.0` for exactly that release; runs from
   other branches attach nothing. It seeds a fresh stack, captures every shot,
   attaches the output as the artifact `product-screenshots-<version>` (7 days)
-  and as `product-screenshots-<version>.zip` to the GitHub release `v<version>`.
-  A rerun of the same version replaces the ZIP. Pull requests into `main` that
+  and as `product-screenshots-<version>.zip` to the GitHub release `v<version>`,
+  plus the same file as `product-screenshots.zip`: the newest images are always
+  at `https://github.com/moto-nrw/project-phoenix/releases/latest/download/product-screenshots.zip`
+  (PyrePortal does the same for the kiosk). A rerun of the same version replaces
+  both ZIPs. Pull requests into `main` that
   touch the pipeline run the capture without the release asset; pull requests
   into `development` do not run it. To test a pipeline change on a feature
   branch, start it by hand (`gh workflow run product-screenshots.yml --ref

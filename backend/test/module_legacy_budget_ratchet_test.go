@@ -224,11 +224,15 @@ var moduleLegacyFileBudgets = map[string]int{
 // Träger signature ledger of modules/auditlog/compose (+8) add exactly 66 LOC,
 // and the test hook that stores the signing link of a contract a test wrote
 // directly (+17, testhooks).
-const moduleComposeBudgetTotal = 13039
+// ADR 0159: the withdrawal and termination constructors of
+// modules/carecontract/compose (+35) and the notice port of
+// workflows/parentportal/compose (+1) add exactly 36 LOC.
+const moduleComposeBudgetTotal = 13075
 
 // moduleComposeBudgets maps every owner composition package to its production
-// LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
-// packages, 90627 LOC. #4084 carries the reduction to construction only;
+// LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
+// measured on 2026-10-15 on top of development c49b81c3a9: 61 packages,
+// 90627 LOC. #4084 carries the reduction to construction only;
 // modules/timetable/compose is the largest by far. Shrink-only — a new owner
 // composition starts small and is no reason to raise the total; split code
 // keeps its LOC counted. ADR 0078 raised modules/mealplan/compose and
@@ -292,8 +296,9 @@ var moduleComposeBudgets = map[string]int{
 	// ports of the contract reads for the schools' access logs.
 	// ADR 0156: the booked care read and the overrun evaluation (+19); #4681 lowers it by 2.
 	// ADR 0155: the signature, the paper contract and the reminders (+58),
-	// the test hook of the signing link (+17).
-	"modules/carecontract/compose":                142,
+	// the test hook of the signing link (+17); ADR 0159: withdrawal and
+	// termination (+35).
+	"modules/carecontract/compose":                177,
 	"modules/parentbilling/compose":               50,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
@@ -341,7 +346,7 @@ var moduleComposeBudgets = map[string]int{
 	// by ADR 0126: the document inbox ports and the push of a new document
 	// for the Delivery worker (+21); by ADR 0153: the contract port (+1);
 	// by ADR 0157: the shared document port (+1).
-	"workflows/parentportal/compose":     331,
+	"workflows/parentportal/compose":     332, // ADR 0159: the notice port (+1)
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,

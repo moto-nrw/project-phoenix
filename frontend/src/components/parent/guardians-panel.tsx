@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useTranslations } from "next-intl";
 import { Pencil, Plus, X } from "lucide-react";
 import {
@@ -39,6 +40,7 @@ import { createLogger } from "~/lib/logger";
 import { displayEmail, isDemoBuild } from "~/lib/demo-build";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -589,35 +591,22 @@ export default function GuardiansPanel({
               <p>{t("guardians.access.inviteIntro")}</p>
               <p>{t("guardians.access.inviteDetails")}</p>
             </div>
-            <div className="space-y-2">
-              <label
-                htmlFor="guardian-invite-email"
-                className="block text-sm font-medium text-gray-800"
-              >
-                {t("guardians.access.emailLabel")}
-              </label>
-              <Input
-                id="guardian-invite-email"
-                name="email"
-                error={inviteFieldError("email")}
-                type="email"
-                autoComplete="email"
-                required
-                value={inviteEmail}
-                onChange={(event) => {
-                  setInviteEmail(event.target.value);
-                  clearInviteError();
-                }}
-                placeholder={t("guardians.access.emailPlaceholder")}
-                aria-describedby="guardian-invite-email-hint"
-              />
-              <p
-                id="guardian-invite-email-hint"
-                className="text-xs leading-5 text-gray-500"
-              >
-                {t("guardians.access.emailHint")}
-              </p>
-            </div>
+            <Input
+              id="guardian-invite-email"
+              name="email"
+              label={t("guardians.access.emailLabel")}
+              hint={t("guardians.access.emailHint")}
+              error={inviteFieldError("email")}
+              type="email"
+              autoComplete="email"
+              required
+              value={inviteEmail}
+              onChange={(event) => {
+                setInviteEmail(event.target.value);
+                clearInviteError();
+              }}
+              placeholder={t("guardians.access.emailPlaceholder")}
+            />
           </form>
         </Modal>
       ) : null}
@@ -680,7 +669,10 @@ function ConnectedAccountRow({
   const removable = canRemove && !account.is_primary && !account.is_self;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl bg-gray-50 p-4 sm:flex-row sm:items-center">
+    <InsetPanel
+      padding="md"
+      className="flex flex-col gap-3 sm:flex-row sm:items-center"
+    >
       <Avatar tone="neutral" size="md" decorative name={name} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900">{name}</p>
@@ -737,7 +729,7 @@ function ConnectedAccountRow({
           )}
         </div>
       ) : null}
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -786,7 +778,7 @@ function GuardianRow({
     access.guardian_role !== "social_worker" &&
     Boolean(accessEmail);
   return (
-    <div className="rounded-xl bg-gray-50 p-4">
+    <InsetPanel padding="md">
       <div className="flex items-start gap-3">
         <Avatar tone="neutral" size="md" decorative name={name} />
         <div className="min-w-0 flex-1">
@@ -987,7 +979,7 @@ function GuardianRow({
           </Button>
         </div>
       )}
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -1228,10 +1220,8 @@ function ContactModal({
               {t("guardians.createContactIntro")}
             </p>
             <div>
-              <p className="mb-1 text-sm font-medium text-gray-700">
-                {t("guardians.relationshipLabel")}
-              </p>
               <CustomSelect
+                label={t("guardians.relationshipLabel")}
                 value={relationshipType}
                 options={RELATIONSHIP_TYPES.map((type) => ({
                   value: type,
@@ -1240,11 +1230,10 @@ function ContactModal({
                 onChange={(value) =>
                   setRelationshipType(value as RelationshipType)
                 }
-                ariaLabel={t("guardians.relationshipLabel")}
               />
             </div>
             {canManagePickup ? (
-              <div className="space-y-3 rounded-xl bg-gray-50 p-3">
+              <InsetPanel className="space-y-3">
                 <label
                   htmlFor="new-contact-can-pickup"
                   className="flex items-start gap-3"
@@ -1310,7 +1299,7 @@ function ContactModal({
                     </span>
                   </span>
                 </label>
-              </div>
+              </InsetPanel>
             ) : null}
           </div>
         ) : null}
@@ -1365,9 +1354,7 @@ function ContactModal({
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-gray-700">
-            {t("guardians.phoneNumbers")}
-          </p>
+          <FieldLabel>{t("guardians.phoneNumbers")}</FieldLabel>
           <div className="space-y-2">
             {phones.map((p, i) => (
               <div key={p.id} className="flex items-center gap-2">

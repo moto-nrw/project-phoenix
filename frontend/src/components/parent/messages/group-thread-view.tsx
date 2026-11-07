@@ -1,6 +1,7 @@
 "use client";
 
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 import {
   useCallback,
@@ -282,9 +283,9 @@ export function ParentGroupThreadView({
         ) : writable === null ? (
           <Skeleton shape="control" className="h-16 w-full" />
         ) : writable.length === 0 ? (
-          <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          <InsetPanel as="p" padding="md" className="text-sm text-gray-600">
             {t("writingDisabled")}
-          </p>
+          </InsetPanel>
         ) : (
           <div className="space-y-3">
             {writable.length > 1 && (

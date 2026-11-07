@@ -28,6 +28,12 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
+    file: "src/components/ui/switch.tsx",
+    lines: [39],
+    reason: "Switch: der Kit-Baustein für An/Aus (role=switch), kein Knopf",
+  },
+  {
+    rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/FilterPanel.tsx",
     lines: [224],
     reason: "Auswahloptionen eines Filters, kein Knopf",
@@ -76,12 +82,6 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/announcements/parent-target-picker.tsx",
-    lines: [49],
-    reason: "Zielgruppe ankreuzen (Häkchen-Zeile): Auswahlzeile",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/files/files-page.tsx",
     lines: [157],
     reason: "Ordner-Navigation (aria-current), Navigationszeile",
@@ -99,27 +99,9 @@ export const buttonRatchetAllowlist = [
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
-    rule: "no-hand-rolled-button",
-    file: "src/components/settings/fields/boolean-field.tsx",
-    lines: [17],
-    reason: "Schalter (role=switch)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3132],
-    reason: "Schalter (role=switch)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/app/operator/provisioning/provisioning-shared.tsx",
-    lines: [218],
-    reason: "Schalter (role=switch)",
-  },
-  {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [828, 861, 961, 1142],
+    lines: [829, 862, 962, 1143],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
@@ -133,7 +115,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/active-supervisions/spontaneous-activity-start.tsx",
-    lines: [379],
+    lines: [381],
     reason: "Startkachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
@@ -175,12 +157,6 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/timetable/event-form/step-termin.tsx",
-    lines: [149],
-    reason: "Typauswahl im Terminformular: Auswahlkachel",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
     lines: [305],
     reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
@@ -193,11 +169,5 @@ export const buttonRatchetAllowlist = [
     lines: [305],
     reason:
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/app/operator/announcements/page.tsx",
-    lines: [696, 841, 929],
-    reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
   },
 ];

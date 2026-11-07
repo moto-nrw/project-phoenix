@@ -125,6 +125,8 @@ func BuildDeliveryWorker(
 		parentbilling.MailKindBillingLetter: parentBillingLetterMailRenderer(parentBillingCompose.NewLetterMailRenderer(), defaultFrom),
 		// The care contract of a Träger, mailed with its PDF (#4678).
 		carecontract.MailKindContract: careContractMailRenderer(careContractCompose.NewContractMailRenderer(), defaultFrom),
+		// The confirmation of a withdrawal or termination (#4682).
+		carecontract.MailKindNotice: careContractNoticeMailRenderer(careContractCompose.NewNoticeMailRenderer(), defaultFrom),
 	}
 	enrollmentKinds := []string{}
 	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom) {
@@ -136,7 +138,7 @@ func BuildDeliveryWorker(
 		calendarService.EmailKindAppointmentPublished, calendarService.EmailKindAppointmentUpdated,
 		calendarService.EmailKindAppointmentCancelled, calendarService.EmailKindAppointmentReminder,
 		identityaccess.MailKindGuardianInvitation, identityaccess.MailKindGuardianWelcome,
-	}, enrollmentKinds, []string{TransactionalMailKind, identityaccess.MailKindStaffWelcome, parentbilling.MailKindBillingLetter, carecontract.MailKindContract})
+	}, enrollmentKinds, []string{TransactionalMailKind, identityaccess.MailKindStaffWelcome, parentbilling.MailKindBillingLetter, carecontract.MailKindContract, carecontract.MailKindNotice})
 	if err != nil {
 		return nil, err
 	}

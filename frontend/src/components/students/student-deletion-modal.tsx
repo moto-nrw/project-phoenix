@@ -320,7 +320,9 @@ export function StudentDeletionModal({
               <ChoiceTile
                 htmlFor="student-deletion-acknowledgement"
                 disabled={deleting}
-                className="border-moto-red/20 hover:border-moto-red/20 items-start p-4 font-normal"
+                tone="red"
+                selected={acknowledged}
+                className="items-start p-4 font-normal"
               >
                 <Checkbox
                   id="student-deletion-acknowledgement"

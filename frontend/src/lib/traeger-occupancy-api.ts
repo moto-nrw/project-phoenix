@@ -20,6 +20,8 @@ export interface TraegerOccupancyCareForm {
   readonly children: number;
   /** The places of the offer; `null` without a limit. */
   readonly capacity: number | null;
+  /** `false` when the school no longer offers it: its places are not free. */
+  readonly active: boolean;
 }
 
 export interface TraegerSchoolOccupancy extends TraegerSchool {
@@ -56,6 +58,7 @@ interface BackendOccupancy {
       name: string;
       children: number;
       capacity: number | null;
+      active: boolean;
     }[];
   }[];
 }
@@ -107,6 +110,7 @@ export async function fetchTraegerOccupancy(): Promise<TraegerOccupancy> {
         name: form.name,
         children: form.children,
         capacity: form.capacity ?? null,
+        active: form.active,
       })),
     })),
   };

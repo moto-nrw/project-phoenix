@@ -310,8 +310,8 @@ const ROW_ACTION_BASELINE = new Map(
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
     // Ziele einer Ankündigung, die es nicht mehr gibt (#5604, Formularwert).
     "src/app/operator/announcements/page.tsx": [
-      "aus Zielen entfernen@764",
-      "aus Zielen entfernen@797",
+      "aus Zielen entfernen@752",
+      "aus Zielen entfernen@785",
     ],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
       "Gericht entfernen@798",
@@ -321,7 +321,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Entfernen@2029",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@2007",
+      "Bedingung löschen@1986",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2514",
@@ -333,11 +333,11 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1310"],
     "src/components/staff/stammdaten-section-forms.tsx": [
-      "Qualifikation entfernen@476",
+      "Qualifikation entfernen@477",
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@298"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@792",
+      "Erziehungsberechtigte/n entfernen@794",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@810",
@@ -1586,13 +1586,13 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Termin bearbeiten Termin erstellen@1065",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@602",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@603",
     ],
     // Seit #5604 gilt die Regel im Schul- und Operator-Portal. Diese Formulare
     // haben keine eigene Objektroute; ein Umbau geht über das Seitengerüst
     // hinaus und ist nicht Teil von #5604.
     "src/app/operator/announcements/page.tsx": [
-      "Ankündigung bearbeiten Neue Ankündigung@532",
+      "Ankündigung bearbeiten Neue Ankündigung@534",
     ],
     "src/app/operator/provisioning/edit-organization-modal.tsx": [
       "Träger bearbeiten@83",
@@ -1607,10 +1607,10 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@268",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@995",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@997",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@951",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@952",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@146",
@@ -1622,7 +1622,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Tagesinformation bearbeiten Neue Tagesinformation@188",
     ],
     "src/components/timetable/calendar-period-modal.tsx": [
-      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@404",
+      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@405",
     ],
     // Kontoaktionen mit eigenem Ablauf (Begründung und Rückfrage bei der
     // Zwei-Faktor-Authentifizierung, Auflösen offener Zuordnungen bei der

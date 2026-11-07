@@ -4161,7 +4161,7 @@ describe("EnrollmentFormEditor", () => {
     );
   });
 
-  it("uses compact right-side controls for inherited standard legal blocks", async () => {
+  it("uses right-side kit switches and icon menus for inherited standard legal blocks", async () => {
     mocks.listSchemas.mockResolvedValue([]);
     mocks.listPhases.mockResolvedValue([]);
 
@@ -4183,12 +4183,11 @@ describe("EnrollmentFormEditor", () => {
       name: /^Aktionen für (AGB \/ Teilnahmebedingungen|Datenschutzinformation|Fotoeinwilligung|E-Mail-Kontakt)$/,
     });
 
+    // Kit-Switch (#5595): eine Größe für alle Schalter.
     expect(displaySwitches[0]?.tagName).toBe("BUTTON");
-    expect(displaySwitches[0]).toHaveClass("h-5", "w-9");
+    expect(displaySwitches[0]).toHaveAttribute("aria-checked", "false");
     fireEvent.click(displaySwitches[0]!);
-    expect(displaySwitches[0]!.querySelector("span")).toHaveClass(
-      "translate-x-[18px]",
-    );
+    expect(displaySwitches[0]).toHaveAttribute("aria-checked", "true");
     expect(actionMenus[0]).toHaveTextContent("");
     expect(actionMenus[0]).not.toHaveClass("border", "bg-white", "shadow-sm");
   });
@@ -4371,10 +4370,13 @@ describe("EnrollmentFormEditor", () => {
       name: "Muss bestätigt werden",
     });
 
-    expect(displayToggles[0]?.tagName).toBe("BUTTON");
-    expect(requiredToggles[0]?.tagName).toBe("BUTTON");
-    expect(displayToggles[0]).not.toHaveAttribute("type", "checkbox");
-    expect(requiredToggles[0]).not.toHaveAttribute("type", "checkbox");
+    // Kit-Checkbox (#5595): natives Kästchen, sichtbar über das gestaltete
+    // Kästchen daneben, kein unstyled Browser-Kästchen.
+    for (const toggle of [displayToggles[0], requiredToggles[0]]) {
+      expect(toggle).toHaveAttribute("type", "checkbox");
+      expect(toggle).toHaveClass("sr-only");
+      expect(toggle?.nextElementSibling).toHaveAttribute("aria-hidden", "true");
+    }
   });
 
   it("saves a required custom checkbox as terms instead of consent", async () => {

@@ -68,10 +68,12 @@ func (o *Overview) occupancyReads(ctx context.Context, scope []int64, now time.T
 	if reads.names, err = o.occupancy.GroupNames.GroupsByTenant(ctx, scope); err != nil {
 		return reads, err
 	}
-	if reads.bookings, err = o.occupancy.Bookings.CareOfferingBookingsByTenant(ctx, scope, calendar.DateFromTime(now)); err != nil {
+	day := calendar.DateFromTime(now)
+	var phases []int64
+	if reads.children, phases, err = o.occupancy.Children.BookedChildrenAndRunningPhases(ctx, scope, day); err != nil {
 		return reads, err
 	}
-	reads.children, err = o.occupancy.Children.ApprovedChildStudentIDsByTenant(ctx, scope)
+	reads.bookings, err = o.occupancy.Bookings.CareOfferingBookingsByTenant(ctx, scope, day, phases)
 	return reads, err
 }
 
@@ -130,7 +132,7 @@ func careFormOccupancy(roster map[int64]int64, offerings []traegerview.CareOffer
 				booked[student] = struct{}{}
 			}
 		}
-		forms = append(forms, traegerview.OccupancyCareForm{ID: offering.ID, Name: offering.Name, Children: len(students), Capacity: offering.Capacity})
+		forms = append(forms, traegerview.OccupancyCareForm{ID: offering.ID, Name: offering.Name, Children: len(students), Capacity: offering.Capacity, Active: offering.Active})
 	}
 	return forms, len(roster) - len(booked)
 }

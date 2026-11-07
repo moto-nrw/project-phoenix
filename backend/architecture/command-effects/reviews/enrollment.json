@@ -2379,11 +2379,22 @@
       "target_owner": "settings-platform"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.CountHolidayProofUpload",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.CountHolidayProofUpload",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTraeger (tenant-runtime) through api.holidayProofUnits.CountHolidayProofUpload, which counts a public proof upload before the route reads its body. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.UploadHolidayProof",
-      "reason": "Read-only target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through api.holidayProofUnits.UploadHolidayProof for the token of a proof of benefits (#5238). No persistent, lock or scope effect, like the uploads of #4783 (ADR 0098).",
+      "reason": "Read-only target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through api.holidayProofUnits.UploadHolidayProof for the token of a proof of benefits (#5238); the upload count moved to CountHolidayProofUpload. No persistent, lock or scope effect, like the uploads of #4783 (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
       "target_owner": "security-runtime"
@@ -2394,7 +2405,7 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.UploadHolidayProof",
-      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTraeger (tenant-runtime) through api.holidayProofUnits.UploadHolidayProof (#5238). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTraeger (tenant-runtime) through api.holidayProofUnits.UploadHolidayProof (#5238), which stores the proof after the route counted the upload through CountHolidayProofUpload. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
       "target_owner": "tenant-runtime"
@@ -2542,6 +2553,27 @@
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents.Coordinator.ServeInline",
       "target_owner": "file-storage"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.CountUploadAttempt",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.CountUploadAttempt",
+      "reason": "Read-only platform helper: enrollment reaches tenant.NewTenantID (tenant-runtime) through api.enrollmentUploadUnits.CountUploadAttempt. It validates the supplied tenant ID but performs no persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.CountUploadAttempt",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.CountUploadAttempt",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTenant (tenant-runtime) through api.enrollmentUploadUnits.CountUploadAttempt, which counts an upload before the route reads its body. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.DiscardUpload",

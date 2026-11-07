@@ -17,7 +17,7 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { Textarea } from "~/components/ui/textarea";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { SwitchRow } from "~/components/ui/switch";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
 import { createLogger } from "~/lib/logger";
@@ -400,61 +400,32 @@ export function VacationRequestModal({
             {range?.from &&
               range?.to &&
               (isSingleDay ? (
-                <div className="moto-content-surface flex items-center justify-between rounded-xl border px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">
-                      Halber Tag
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Aktivieren, wenn nur ein halber Arbeitstag beansprucht
-                      wird.
-                    </p>
-                  </div>
-                  <BooleanField
-                    value={startHalf || endHalf}
-                    onChange={(v) => {
-                      setStartHalf(v);
-                      setEndHalf(v);
-                    }}
-                  />
-                </div>
+                <SwitchRow
+                  label="Halber Tag"
+                  description="Aktivieren, wenn nur ein halber Arbeitstag beansprucht wird."
+                  checked={startHalf || endHalf}
+                  onCheckedChange={(v) => {
+                    setStartHalf(v);
+                    setEndHalf(v);
+                  }}
+                />
               ) : (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
                     Halbe Tage an den Rändern
                   </p>
-                  <div className="moto-content-surface flex items-center justify-between rounded-xl border px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">
-                        Erster Tag halbtags
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Nur Vor- oder Nachmittag am Startdatum.
-                      </p>
-                    </div>
-                    <BooleanField
-                      value={startHalf}
-                      onChange={(v) => {
-                        setStartHalf(v);
-                      }}
-                    />
-                  </div>
-                  <div className="moto-content-surface flex items-center justify-between rounded-xl border px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">
-                        Letzter Tag halbtags
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Nur Vor- oder Nachmittag am Enddatum.
-                      </p>
-                    </div>
-                    <BooleanField
-                      value={endHalf}
-                      onChange={(v) => {
-                        setEndHalf(v);
-                      }}
-                    />
-                  </div>
+                  <SwitchRow
+                    label="Erster Tag halbtags"
+                    description="Nur Vor- oder Nachmittag am Startdatum."
+                    checked={startHalf}
+                    onCheckedChange={setStartHalf}
+                  />
+                  <SwitchRow
+                    label="Letzter Tag halbtags"
+                    description="Nur Vor- oder Nachmittag am Enddatum."
+                    checked={endHalf}
+                    onCheckedChange={setEndHalf}
+                  />
                 </div>
               ))}
 

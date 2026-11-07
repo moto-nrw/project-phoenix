@@ -373,6 +373,29 @@ func TestRemoveRelatedAccount_EnabledDelegatesAsParent(t *testing.T) {
 	assert.Equal(t, chain.GuardianProfileID, invites.lastRevoke.GuardianProfileID)
 }
 
+// TestRemoveRelatedAccount_RefusesSocialWorker pins that a social worker's
+// relationship is school-managed: a parent with related_accounts.manage cannot
+// remove it, while a further non-primary legal guardian stays removable, as
+// the school setting describes.
+func TestRemoveRelatedAccount_RefusesSocialWorker(t *testing.T) {
+	t.Parallel()
+
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, true)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	socialWorkerID := linkRoleGuardian(t, db, chain.StudentID, "jugendamt", "social_worker")
+	legalID := linkRoleGuardian(t, db, chain.StudentID, "zweites-elternteil", "legal_guardian")
+
+	err := svc.RemoveRelatedAccount(ctx, chain.AccountID, chain.StudentID, socialWorkerID)
+	require.ErrorIs(t, err, parentService.ErrGuardianSocialWorkerManaged)
+	assert.Nil(t, invites.lastRevoke, "no revocation reaches Identity & Access")
+
+	require.NoError(t, svc.RemoveRelatedAccount(ctx, chain.AccountID, chain.StudentID, legalID))
+	require.NotNil(t, invites.lastRevoke)
+	assert.Equal(t, legalID, invites.lastRevoke.GuardianProfileID)
+}
+
 func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 	t.Parallel()
 

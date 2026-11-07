@@ -103,6 +103,7 @@ import {
   type AbsenceType,
   type AbsenceTypeAllowanceSummary,
 } from "~/lib/absence-type-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "AbwesenheitenTab" });
 
@@ -643,7 +644,10 @@ export function AbwesenheitenTab({
         bodyClassName="mt-4 space-y-3"
       >
         {rebookSelection ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2">
+          <InsetPanel
+            padding="compact"
+            className="flex flex-wrap items-center justify-between gap-2"
+          >
             <span className="text-sm text-gray-700">
               {rebookSelection.size === 1
                 ? "1 Eintrag gewählt"
@@ -668,7 +672,7 @@ export function AbwesenheitenTab({
                 Weiter
               </Button>
             </div>
-          </div>
+          </InsetPanel>
         ) : null}
         {history.length === 0 ? (
           <EmptyState title="Keine vergangenen oder abgelehnten Abwesenheiten." />
@@ -1076,7 +1080,11 @@ function VacationOpeningSummary({
   readonly opening: StaffVacationOpening;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-600">
+    <InsetPanel
+      framed
+      padding="compact"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-600"
+    >
       <span className="font-semibold tracking-wider text-gray-500 uppercase">
         Übernahme
       </span>
@@ -1085,7 +1093,7 @@ function VacationOpeningSummary({
       </span>
       <span className="text-gray-300">·</span>
       <span>Stichtag {formatDate(opening.effective_date)}</span>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -1303,7 +1311,10 @@ function VacationOpeningModal({
               : formErrors.fieldError("remaining_days")
           }
         />
-        <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
+        <InsetPanel
+          padding="compact"
+          className="space-y-1 text-sm text-gray-700"
+        >
           <p>
             Jahresanspruch inklusive Übertrag:{" "}
             <span className="font-medium tabular-nums">
@@ -1326,7 +1337,7 @@ function VacationOpeningModal({
               schreibt die Differenz zusätzlich gut.
             </p>
           )}
-        </div>
+        </InsetPanel>
         <Textarea
           label="Begründung (Pflicht)"
           id="vacation-opening-note"

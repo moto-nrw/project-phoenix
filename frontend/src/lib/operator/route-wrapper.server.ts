@@ -3,16 +3,17 @@ import { NextResponse } from "next/server";
 import { withOperatorAuth } from "~/server/auth/operator-route";
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { handleApiError, problemResponse } from "../api-helpers.server";
-import {
-  ApiResponseError,
-  isApiResponseError,
-} from "../api-response-error.server";
+import { ApiResponseError } from "../api-response-error.server";
 import { forwardBackendResponse } from "../backend-proxy-response.server";
 import { incomingClientForwardHeaders } from "../client-headers.server";
 import { withPrivateNoStore } from "../private-no-store";
 import { recordBackendProxyMetric } from "../backend-proxy-metrics";
 import { sanitizeEndpoint } from "../log-sanitize";
 import { makeProxyFactories } from "../route-proxy-factory.server";
+import {
+  executeWithTokenRefresh,
+  sendWithTokenRefresh,
+} from "../token-refresh-retry.server";
 import {
   extractParams,
   parseRequestBody,
@@ -34,32 +35,14 @@ export function operatorErrorResponse(
   return problemResponse(status, diagnostic, { code }, request);
 }
 
+async function readFreshOperatorSession() {
+  const { uncachedOperatorAuth } = await import("~/server/auth/operator");
+  return uncachedOperatorAuth();
+}
+
 async function readOperatorSession() {
   const { operatorAuth } = await import("~/server/auth/operator");
   return operatorAuth();
-}
-
-/**
- * Attempts to retry a request with a refreshed token.
- * NextAuth handles token refresh transparently via JWT callback —
- * calling auth() again may return a fresh token.
- */
-async function tryRetryWithRefreshedToken<T>(
-  originalToken: string,
-  retryFn: (token: string) => Promise<T>,
-): Promise<T | null> {
-  const { uncachedOperatorAuth: uncachedAuth } =
-    await import("~/server/auth/operator");
-  const updatedSession = await uncachedAuth();
-
-  if (
-    !updatedSession?.user?.token ||
-    updatedSession.user.token === originalToken
-  ) {
-    return null;
-  }
-
-  return retryFn(updatedSession.user.token);
 }
 
 async function operatorServerFetch<T>(
@@ -191,37 +174,6 @@ type WithBodyHandler<T, B> = (
   params: Record<string, unknown>,
 ) => Promise<T>;
 
-/**
- * Executes handler with retry logic on 401 errors.
- * Mirrors the teacher route-wrapper pattern.
- */
-async function executeWithRetry<T>(
-  request: NextRequest,
-  token: string,
-  executeHandler: (token: string) => Promise<T>,
-  formatResponse: (data: T) => NextResponse,
-): Promise<NextResponse> {
-  try {
-    const data = await executeHandler(token);
-    return formatResponse(data);
-  } catch (handlerError) {
-    if (!isApiResponseError(handlerError, 401)) {
-      throw handlerError;
-    }
-
-    try {
-      const retryData = await tryRetryWithRefreshedToken(token, executeHandler);
-      if (retryData !== null) {
-        return formatResponse(retryData);
-      }
-    } catch {
-      // Retry failed, fall through to token expired
-    }
-
-    return createTokenExpiredResponse(request);
-  }
-}
-
 function createOperatorNoBodyHandler<T>(
   handler: NoBodyHandler<T>,
   formatResponse: (data: T) => NextResponse,
@@ -232,11 +184,12 @@ function createOperatorNoBodyHandler<T>(
       if (!session?.user?.token) return createUnauthorizedResponse(request);
       const params = await extractParams(request, context);
 
-      return await executeWithRetry(
+      return await executeWithTokenRefresh(
         request,
         session.user.token,
         (token) => handler(request, token, params),
         formatResponse,
+        readFreshOperatorSession,
       );
     } catch (error) {
       return handleApiError(error, request);
@@ -252,11 +205,12 @@ function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
 
-      return await executeWithRetry(
+      return await executeWithTokenRefresh(
         request,
         session.user.token,
         (token) => handler(request, body, token, params),
         (data) => NextResponse.json(wrapInApiResponse(data)),
+        readFreshOperatorSession,
       );
     } catch (error) {
       return handleApiError(error, request);
@@ -331,15 +285,11 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
           body: JSON.stringify(body),
         });
 
-      let response = await makeRequest(session.user.token);
-
-      if (response.status === 401) {
-        const retried = await tryRetryWithRefreshedToken(
-          session.user.token,
-          async (newToken) => makeRequest(newToken),
-        );
-        if (retried) response = retried;
-      }
+      const response = await sendWithTokenRefresh(
+        session.user.token,
+        makeRequest,
+        readFreshOperatorSession,
+      );
 
       await recordOperatorBackendProxyMetric({
         method: "POST",
@@ -485,15 +435,11 @@ export function createOperatorProxyMethodHandler(
           },
         });
 
-      let response = await makeRequest(session.user.token);
-
-      if (response.status === 401) {
-        const retried = await tryRetryWithRefreshedToken(
-          session.user.token,
-          async (newToken) => makeRequest(newToken),
-        );
-        if (retried) response = retried;
-      }
+      const response = await sendWithTokenRefresh(
+        session.user.token,
+        makeRequest,
+        readFreshOperatorSession,
+      );
 
       if (response.status === 401) {
         return createTokenExpiredResponse(request);

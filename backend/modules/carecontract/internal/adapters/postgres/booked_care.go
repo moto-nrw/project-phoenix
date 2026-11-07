@@ -56,13 +56,18 @@ type bookedVersionRow struct {
 // overlaps the window and is neither rejected nor replaced, the newest
 // effective version of a child first. A replaced version holds on no day
 // (#4681), so it never enters the Soll, whatever the order of the versions.
-const bookedCareSQL = `SELECT c.id AS contract_id, c.student_id, v.version_number, v.effective_from, v.ends_on,
-	` + servicesSQL + ` AS services
+// A terminated contract ends its versions on its last day, and a withdrawn
+// one books no day at all (#4682), as VersionsInForce answers them.
+const bookedCareSQL = `SELECT * FROM (
+	SELECT c.id AS contract_id, c.student_id, v.version_number, v.effective_from,
+		LEAST(v.ends_on, c.ends_on) AS ends_on, ` + servicesSQL + ` AS services
 	FROM care_contract.contracts AS c
 	JOIN care_contract.contract_versions AS v ON v.contract_id = c.id AND v.organization_id = c.organization_id
-	WHERE c.school_id = ? AND c.student_id = ANY(?) AND c.status <> ?
-		AND v.status NOT IN (?, ?) AND v.effective_from <= ? AND (v.ends_on IS NULL OR v.ends_on >= ?)
-	ORDER BY c.student_id, v.effective_from DESC, v.version_number DESC, c.id DESC`
+	WHERE c.school_id = ? AND c.student_id = ANY(?) AND c.status NOT IN (?, '` + carecontract.StatusWithdrawn + `')
+		AND v.status NOT IN (?, ?) AND v.effective_from <= ?
+		AND (c.ends_on IS NULL OR v.effective_from <= c.ends_on)) AS b
+	WHERE b.ends_on IS NULL OR b.ends_on >= ?
+	ORDER BY b.student_id, b.effective_from DESC, b.version_number DESC, b.contract_id DESC`
 
 // BookedCare lists the booked care of the children by child. A child with
 // several contracts at the school gets the versions of all of them, the

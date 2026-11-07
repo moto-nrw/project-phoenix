@@ -1,17 +1,17 @@
 import type { ErrorCode } from "../error-codes.generated";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { traegerAuth } from "~/server/auth/traeger";
+import { traegerAuth, uncachedTraegerAuth } from "~/server/auth/traeger";
 import { withTraegerAuth } from "~/server/auth/traeger-route";
 import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
 import { forwardBackendResponse } from "../backend-proxy-response.server";
-import {
-  backendResponseError,
-  bffError,
-  isApiResponseError,
-} from "../api-response-error.server";
+import { backendResponseError, bffError } from "../api-response-error.server";
 import { makeProxyFactories } from "../route-proxy-factory.server";
+import {
+  executeWithTokenRefresh,
+  sendWithTokenRefresh,
+} from "../token-refresh-retry.server";
 import {
   buildQueryString,
   createTokenExpiredResponse,
@@ -67,16 +67,6 @@ async function traegerServerFetch<T>(
   return json as T;
 }
 
-/** A refreshed Träger session token, or null when there is none. */
-async function refreshedToken(originalToken: string): Promise<string | null> {
-  const { uncachedTraegerAuth } = await import("~/server/auth/traeger");
-  const updated = await uncachedTraegerAuth();
-  if (!updated?.user?.token || updated.user.token === originalToken) {
-    return null;
-  }
-  return updated.user.token;
-}
-
 type NoBodyHandler<T> = (
   request: NextRequest,
   token: string,
@@ -90,39 +80,6 @@ type WithBodyHandler<T, B> = (
   params: Record<string, unknown>,
 ) => Promise<T>;
 
-/**
- * Runs the request and, after a backend 401, once more with a refreshed
- * session. Only a missing refresh or a second 401 counts as an expired
- * session; any other answer of the retry (a business rejection, a null
- * DELETE result) is the answer of the request.
- */
-async function executeWithRetry<T>(
-  request: NextRequest,
-  token: string,
-  execute: (token: string) => Promise<T>,
-): Promise<NextResponse> {
-  try {
-    return NextResponse.json(wrapInApiResponse(await execute(token)));
-  } catch (error) {
-    if (!isApiResponseError(error, 401)) throw error;
-  }
-  let fresh: string | null = null;
-  try {
-    fresh = await refreshedToken(token);
-  } catch {
-    // The refresh itself failed: the session counts as expired.
-  }
-  if (fresh === null) return createTokenExpiredResponse(request);
-  try {
-    return NextResponse.json(wrapInApiResponse(await execute(fresh)));
-  } catch (retryError) {
-    if (isApiResponseError(retryError, 401)) {
-      return createTokenExpiredResponse(request);
-    }
-    throw retryError;
-  }
-}
-
 function createNoBodyHandler<T>(handler: NoBodyHandler<T>) {
   return withTraegerAuth(async (request, context): Promise<NextResponse> => {
     try {
@@ -130,8 +87,12 @@ function createNoBodyHandler<T>(handler: NoBodyHandler<T>) {
       const token = session?.user?.token;
       if (!token) return createUnauthorizedResponse(request);
       const params = await extractParams(request, context);
-      return await executeWithRetry(request, token, (current) =>
-        handler(request, current, params),
+      return await executeWithTokenRefresh(
+        request,
+        token,
+        (current) => handler(request, current, params),
+        (data) => NextResponse.json(wrapInApiResponse(data)),
+        uncachedTraegerAuth,
       );
     } catch (error) {
       return handleApiError(error, request);
@@ -147,8 +108,12 @@ function createWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
       if (!token) return createUnauthorizedResponse(request);
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
-      return await executeWithRetry(request, token, (current) =>
-        handler(request, body, current, params),
+      return await executeWithTokenRefresh(
+        request,
+        token,
+        (current) => handler(request, body, current, params),
+        (data) => NextResponse.json(wrapInApiResponse(data)),
+        uncachedTraegerAuth,
       );
     } catch (error) {
       return handleApiError(error, request);
@@ -264,18 +229,13 @@ export function proxyFile(
         if (bytes === null) throw bffError(400, "Request body too large");
         body = new TextDecoder().decode(bytes);
       }
-      const first = await traegerServerFile(target, token, body);
-      if (first.status !== 401)
-        return fileResponse(first, request, options.backendCacheControl);
-
-      const { uncachedTraegerAuth } = await import("~/server/auth/traeger");
-      const updated = await uncachedTraegerAuth();
-      if (!updated?.user?.token || updated.user.token === token) {
-        return createTokenExpiredResponse(request);
-      }
-      const retried = await traegerServerFile(target, updated.user.token, body);
-      if (retried.status === 401) return createTokenExpiredResponse(request);
-      return fileResponse(retried, request, options.backendCacheControl);
+      const response = await sendWithTokenRefresh(
+        token,
+        (bearer) => traegerServerFile(target, bearer, body),
+        uncachedTraegerAuth,
+      );
+      if (response.status === 401) return createTokenExpiredResponse(request);
+      return fileResponse(response, request, options.backendCacheControl);
     } catch (error) {
       return handleApiError(error, request);
     }
@@ -382,29 +342,14 @@ export function proxyUpload(
         typeof endpoint === "string"
           ? endpoint
           : endpoint(await extractParams(request, context));
-      const first = await traegerServerUpload(
-        path,
+      const response = await sendWithTokenRefresh(
         token,
-        contentType,
-        body,
-        options.method,
+        (bearer) =>
+          traegerServerUpload(path, bearer, contentType, body, options.method),
+        uncachedTraegerAuth,
       );
-      if (first.status !== 401) return forwardBackendResponse(first, request);
-
-      const { uncachedTraegerAuth } = await import("~/server/auth/traeger");
-      const updated = await uncachedTraegerAuth();
-      if (!updated?.user?.token || updated.user.token === token) {
-        return createTokenExpiredResponse(request);
-      }
-      const retried = await traegerServerUpload(
-        path,
-        updated.user.token,
-        contentType,
-        body,
-        options.method,
-      );
-      if (retried.status === 401) return createTokenExpiredResponse(request);
-      return forwardBackendResponse(retried, request);
+      if (response.status === 401) return createTokenExpiredResponse(request);
+      return forwardBackendResponse(response, request);
     } catch (error) {
       return handleApiError(error, request);
     }
