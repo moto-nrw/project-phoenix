@@ -584,7 +584,7 @@ export function CatalogPage<T extends CatalogItem>({
       titleAs="h3"
       title={`${config.singular} auswählen`}
       description={`Wählen Sie links einen Eintrag, um ihn zu ändern.`}
-      className="h-full justify-center"
+      className="h-full justify-center px-12"
     />
   );
 

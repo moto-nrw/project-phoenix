@@ -3892,6 +3892,16 @@ const noHandRolledEmptyState = {
         classes.includes("border-dashed") && classes.includes("text-center")
       );
     };
+    const belongsToClassNameAttribute = (node) => {
+      let parent = node.parent;
+      while (parent != null) {
+        if (parent.type === "JSXAttribute") {
+          return parent.name?.name === "className";
+        }
+        parent = parent.parent;
+      }
+      return false;
+    };
     return {
       // Über alle Teile des className-Ausdrucks, auch Template und cn()-Argumente.
       JSXAttribute(node) {
@@ -3906,7 +3916,7 @@ const noHandRolledEmptyState = {
       Literal(node) {
         if (
           typeof node.value === "string" &&
-          node.parent?.type !== "JSXAttribute" &&
+          !belongsToClassNameAttribute(node) &&
           isDashedAndCentered(node.value)
         ) {
           context.report({ node, messageId: "handRolled" });

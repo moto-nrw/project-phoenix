@@ -155,6 +155,19 @@ describe.concurrent("ui-kit/no-hand-rolled-empty-state", () => {
     expect(result.output).toContain(RULE);
   });
 
+  it("reports an expression-wrapped className string once", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className={"border-dashed text-center"}>Leer</div>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.split(RULE)).toHaveLength(2);
+  });
+
   it("reports the classes across a template and cn arguments", async () => {
     const template = `function Probe({ surface }) {
       return <div className={\`\${surface} border-dashed text-center\`}>Leer</div>;
