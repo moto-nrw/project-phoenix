@@ -75,13 +75,15 @@ export function versionPhase(
   // Replaced by a change on its own first day: it holds on no day.
   if (version.status === "ersetzt") return "replaced";
   // A withdrawal undoes the contract from its first day, so no version
-  // held; a termination ends every version on its last day.
+  // held; a termination ends every version on its last day. The versions
+  // read from the contract are already cut at that day, so the last one
+  // runs until it, and only an earlier version was replaced.
   if (end?.withdrawn) return "withdrawn";
   if (
     end?.endsOn &&
     (version.effectiveFrom > end.endsOn ||
       (end.endsOn < today &&
-        (version.validUntil === null || version.validUntil >= today)))
+        (version.validUntil === null || version.validUntil >= end.endsOn)))
   ) {
     return "ended";
   }

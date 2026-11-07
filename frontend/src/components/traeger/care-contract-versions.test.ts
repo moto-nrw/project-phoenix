@@ -28,6 +28,14 @@ describe("versionPhase", () => {
     expect(versionPhase(version({}), today, withdrawn)).toBe("withdrawn");
     const terminated = { withdrawn: false, endsOn: "2026-08-31" };
     expect(versionPhase(version({}), today, terminated)).toBe("ended");
+    // The backend cuts the last version at the end of the contract.
+    expect(
+      versionPhase(version({ validUntil: "2026-08-31" }), today, terminated),
+    ).toBe("ended");
+    // A version a change replaced before the end stays replaced.
+    expect(
+      versionPhase(version({ validUntil: "2026-08-15" }), today, terminated),
+    ).toBe("past");
     expect(
       versionPhase(version({ effectiveFrom: "2026-10-01" }), today, {
         withdrawn: false,
