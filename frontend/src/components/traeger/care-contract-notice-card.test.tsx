@@ -385,7 +385,7 @@ describe("CareContractNoticeCard (#4682)", () => {
     );
     expect(
       await screen.findByText(
-        "Dann endet der Vertrag am 31.12.2026, wie bei einer ordentlichen Kündigung.",
+        "Dann gilt sie als ordentliche Kündigung zum 31.12.2026.",
       ),
     ).toBeInTheDocument();
     fireEvent.click(

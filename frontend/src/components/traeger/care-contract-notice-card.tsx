@@ -216,41 +216,39 @@ function EndDecisionActions({
   onReject: () => void;
 }>) {
   return (
-    <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            className="w-full"
-            onClick={onSetEnd}
-          >
-            Vertragsende festlegen
-          </Button>
-          <p className="text-center text-sm text-gray-500">
-            Wenn Sie den Grund anerkennen. Sie wählen den letzten Tag.
-          </p>
-        </div>
-        <div className="space-y-1.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            className="w-full"
-            onClick={onReject}
-            disabled={!reinterpretedEndsOn}
-          >
-            Grund nicht anerkennen
-          </Button>
-          <p className="text-center text-sm text-gray-500">
-            {reinterpretedEndsOn
-              ? `Dann endet der Vertrag am ${formatDate(reinterpretedEndsOn)}, wie bei einer ordentlichen Kündigung.`
-              : "Dann gilt die Kündigung als ordentliche Kündigung."}
-          </p>
-        </div>
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          className="w-full"
+          onClick={onSetEnd}
+        >
+          Vertragsende festlegen
+        </Button>
+        <p className="text-center text-sm text-gray-500">
+          Sie erkennen den Grund an und wählen den letzten Tag.
+        </p>
       </div>
-      <p className="text-center text-sm text-gray-500">
+      <div className="space-y-1.5">
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          className="w-full"
+          onClick={onReject}
+          disabled={!reinterpretedEndsOn}
+        >
+          Grund nicht anerkennen
+        </Button>
+        <p className="text-center text-sm text-gray-500">
+          {reinterpretedEndsOn
+            ? `Dann gilt sie als ordentliche Kündigung zum ${formatDate(reinterpretedEndsOn)}.`
+            : "Dann gilt sie als ordentliche Kündigung."}
+        </p>
+      </div>
+      <p className="border-t border-gray-100 pt-3 text-center text-sm text-gray-500">
         Die Eltern bekommen Ihre Entscheidung per E-Mail und in der Eltern-App.
       </p>
     </div>
@@ -350,17 +348,6 @@ function NoticeFacts({
           <span className="wrap-anywhere">{notice.recipient}</span>
         </DataField>
       </DataGrid>
-      <figure
-        aria-label="Bestätigung, wie sie verschickt wurde"
-        className="moto-content-surface rounded-xl border p-4"
-      >
-        <figcaption className="mb-2 text-sm font-medium text-gray-900">
-          Bestätigung, wie sie verschickt wurde
-        </figcaption>
-        <p className="text-sm wrap-anywhere whitespace-pre-line text-gray-700">
-          {notice.confirmationText}
-        </p>
-      </figure>
       {notice.endNoticeText ? (
         <figure
           aria-label="Mitteilung zum Vertragsende, wie sie verschickt wurde"
@@ -374,6 +361,17 @@ function NoticeFacts({
           </p>
         </figure>
       ) : null}
+      <figure
+        aria-label="Bestätigung, wie sie verschickt wurde"
+        className="moto-content-surface rounded-xl border p-4"
+      >
+        <figcaption className="mb-2 text-sm font-medium text-gray-900">
+          Bestätigung, wie sie verschickt wurde
+        </figcaption>
+        <p className="text-sm wrap-anywhere whitespace-pre-line text-gray-700">
+          {notice.confirmationText}
+        </p>
+      </figure>
     </div>
   );
 }
