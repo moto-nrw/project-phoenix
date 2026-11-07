@@ -328,6 +328,8 @@ import type { traegerBriefkopfTopic as authored_traegerBriefkopfTopic } from "./
 
 import type { traegerCareContractsTopic as authored_traegerCareContractsTopic } from "./articles/traeger-care-contracts";
 
+import type { traegerCareTimeOverrunsTopic as authored_traegerCareTimeOverrunsTopic } from "./articles/traeger-care-time-overruns";
+
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
 
 import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplatesTopic } from "./articles/traeger-document-templates";
@@ -1236,9 +1238,10 @@ export const careTimeComparisonTopic =
         },
       ],
       result:
-        "Überschreitungen sind orange markiert und tragen den Text `Außerhalb der Buchung` oder `Da ohne Buchung`.",
+        "Überschreitungen tragen den Text `Außerhalb der Buchung` oder `Da ohne Buchung`. Ihre `Abweichung` steht in Rot.",
       notes: [
         "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
+        "Hat das Kind einen Vertrag vom Träger, gilt der Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Vertrag`. Das Ende ist die Endzeit des letzten Moduls an diesem Wochentag. Die Ankunft kommt weiter aus dem Wochenplan.",
         "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
         "Zeit im Unterricht wird nicht abgezogen. Unter `Hinweis` steht sie als `Zum Unterricht` mit der Uhrzeit.",
         "Kommt ein Kind nach dem Unterricht nicht zurück, endet `Tatsächlich` mit dieser Abmeldung. Die `Abweichung` ist dann groß und negativ. `Zum Unterricht: ab` mit der Uhrzeit zeigt, dass es nicht nach Hause gegangen ist.",
@@ -1250,6 +1253,7 @@ export const careTimeComparisonTopic =
       differences: [
         "Steht `Keine Zeiten hinterlegt`? Für das Kind ist kein Wochenplan eingetragen. Dann gibt es nichts zu vergleichen.",
         "Steht `Noch nicht abgemeldet`? Das Kind ist noch da, oder die Abmeldung fehlt.",
+        "Steht `Abholzeit fehlt`? Für diesen Tag ist keine Abholzeit gebucht, zum Beispiel ein Modul im Vertrag ohne Endzeit. Dann lässt sich das Gehen nicht vergleichen.",
       ],
       troubleshootingDetails: [
         "Fehlt `Soll und Ist` beim Kind? Ihr Konto darf die Kinderdaten nicht lesen.",
@@ -10327,6 +10331,52 @@ export const traegerCareContractsTopic =
       ],
     };
   } satisfies typeof authored_traegerCareContractsTopic;
+
+/**
+ * `/traeger/zeitvergleich` (#4683): wie oft Kinder an den Schulen des Trägers
+ * länger da waren als gebucht, je Schule und mit Recht auch je Kind.
+ */
+export const traegerCareTimeOverrunsTopic =
+  function traegerCareTimeOverrunsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareTimeOverruns,
+      title: "Länger als gebucht",
+      question: "Welche Kinder waren länger da als gebucht?",
+      summary:
+        "moto vergleicht die Zeiten im Vertrag mit dem Ein- und Auschecken. Sie sehen je Schule, wie oft Kinder länger da waren.",
+      group: "auswertung",
+      audience: "traeger",
+      icon: "Hourglass",
+      requirements: [
+        "Für die Zahlen je Schule brauchen Sie das Recht `Berichte lesen`. Es gehört zu den Rollen `Verwaltung`, `Abrechnung`, `Personal` und `Nur lesen`.",
+        "Für die Namen der Kinder brauchen Sie das Recht `Verträge verwalten`. Es gehört zur Rolle `Verwaltung`.",
+      ],
+      steps: [
+        "Wählen Sie in der Navigation `Länger als gebucht`.",
+        "Wählen Sie oben den Monat. Am Anfang ist es der laufende Monat bis heute.",
+        "Wählen Sie bei Bedarf eine Schule. Sonst sehen Sie alle Schulen.",
+        "Lesen Sie oben die Summen: `Kinder`, `Tage` und `Zusätzliche Zeit`.",
+        "Lesen Sie unter `Je Schule` die Zahlen jeder Schule. Tippen Sie auf eine Spalte, um nach ihr zu sortieren.",
+        "Mit der Rolle `Verwaltung` sehen Sie unter `Kinder` jedes Kind mit Namen. Das Kind mit der meisten zusätzlichen Zeit steht oben.",
+      ],
+      result:
+        "Rote Zahlen zeigen Überschreitungen. Sprechen Sie mit den Eltern, oder ändern Sie die Buchung.",
+      notes: [
+        "Das Soll kommt aus dem versendeten Vertrag: je Wochentag die Module und die Endzeit. Ohne Vertrag gilt der Betreuungsplan der Schule.",
+        "Das Ist reicht vom ersten Einchecken bis zum letzten Auschecken des Tages.",
+        "Eine Überschreitung ist mehr als 15 Minuten früher oder später als gebucht. Ein Tag ohne Buchung zählt ganz.",
+        "Krank, entschuldigt, abgemeldet, Schließtage und Feiertage zählen nicht.",
+        "Jedes Mal, wenn Sie Namen sehen, steht das im Zugriffsprotokoll der Schule.",
+      ],
+      differences: [
+        "Fehlt der Bereich mit den Namen? Ihre Rolle hat das Recht `Verträge verwalten` nicht. Dann sehen Sie nur die Zahlen je Schule.",
+        "Steht bei einer Schule `Check-ins erst ab` mit einem Datum? Die Schule bewahrt Check-ins nicht so lange auf. Verglichen wird ab diesem Tag.",
+        "Steht bei einer Schule `–` und `Keine Check-ins im Zeitraum`? Die Schule hat in diesem Zeitraum keine Check-ins. Dann kann moto nicht vergleichen. Das heißt nicht, dass alle Zeiten passen.",
+        "Steht bei einer Schule `Tage nicht verglichen`? An diesen Tagen war ein Kind da, aber es gab keinen Plan oder es ist noch nicht ausgecheckt. Diese Tage zählen nicht mit.",
+      ],
+      related: [HELP_TOPICS.traegerCareContracts, HELP_TOPICS.traegerAccessLog],
+    };
+  } satisfies typeof authored_traegerCareTimeOverrunsTopic;
 
 /** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen und ihre Auffälligkeiten (#4675). */
 export const traegerDashboardTopic =

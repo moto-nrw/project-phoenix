@@ -11,6 +11,7 @@ import { PickupTimesPanel } from "./pickup-times-panel";
 import { DisplayClock } from "./display-clock";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { infoDisplaysConcept } from "~/lib/concepts/infoDisplays";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "DisplayDashboardView" });
 
@@ -95,7 +96,10 @@ export function DisplayDashboardView({ token }: DisplayDashboardViewProps) {
   if (state.kind === "loading") {
     return (
       <DisplayShell>
-        <p className="text-3xl text-gray-400">Dashboard wird geladen …</p>
+        <p className="flex items-center gap-4 text-3xl text-gray-400">
+          <SpinnerIcon className="h-8 w-8" />
+          Dashboard wird geladen …
+        </p>
       </DisplayShell>
     );
   }

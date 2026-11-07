@@ -1,10 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Check, CheckSquare, Loader2 } from "lucide-react";
+import { Check, CheckSquare } from "lucide-react";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { useFloatingFabOffset } from "~/lib/hooks/use-floating-fab-offset";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 interface SchoolCheckinFabBaseProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -200,7 +201,7 @@ export function SchoolCheckinFab({
             style={{ color: GROUP_ROOM_SHADES.text }}
             aria-label={`${pendingCount} Aktionen laufen`}
           >
-            <Loader2 className="size-3 animate-spin" aria-hidden />
+            <SpinnerIcon className="size-3" />
           </span>
         ) : null}
       </button>

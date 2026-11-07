@@ -32,6 +32,7 @@ import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { permissionsConcept } from "~/lib/concepts/permissions";
 import { schoolsConcept } from "~/lib/concepts/schools";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "AccountTenantAccessModal" });
 
@@ -419,7 +420,7 @@ export function AccountTenantAccessModal({
         }
       >
         {loading ? (
-          <div className="py-8 text-sm text-gray-500">Wird geladen...</div>
+          <Loading fullPage={false} message="Wird geladen …" />
         ) : (
           <div className="space-y-6">
             <LoadErrorAlert error={accessLoad.error} />

@@ -25,6 +25,7 @@ import {
   type ParentRequestShareType,
   type RequestSharingState,
 } from "~/lib/parent-api";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 interface RequestSharingControlProps {
   readonly studentId: string;
@@ -63,14 +64,22 @@ export function RequestSharingSelector({
     return error ? (
       <LoadErrorAlert error={error} />
     ) : (
-      <p aria-busy="true" className="text-sm text-gray-500">
+      <p
+        aria-busy="true"
+        className="flex items-center gap-2 text-sm text-gray-500"
+      >
+        <SpinnerIcon className="h-4 w-4" />
         {t("loading")}
       </p>
     );
   }
   if (!state)
     return (
-      <p aria-busy="true" className="text-sm text-gray-500">
+      <p
+        aria-busy="true"
+        className="flex items-center gap-2 text-sm text-gray-500"
+      >
+        <SpinnerIcon className="h-4 w-4" />
         {t("loading")}
       </p>
     );
@@ -375,7 +384,11 @@ function SharingDialog({
     >
       <div className="space-y-4">
         {sharing.loading ? (
-          <p aria-busy="true" className="text-sm text-gray-500">
+          <p
+            aria-busy="true"
+            className="flex items-center gap-2 text-sm text-gray-500"
+          >
+            <SpinnerIcon className="h-4 w-4" />
             {t("loading")}
           </p>
         ) : null}
@@ -402,7 +415,11 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
   if (!props.isSelf) return null;
   if (sharing.loading)
     return (
-      <p aria-busy="true" className="text-sm text-gray-500">
+      <p
+        aria-busy="true"
+        className="flex items-center gap-2 text-sm text-gray-500"
+      >
+        <SpinnerIcon className="h-4 w-4" />
         {t("loading")}
       </p>
     );

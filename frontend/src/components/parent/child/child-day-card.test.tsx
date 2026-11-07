@@ -32,15 +32,39 @@ const noFeatures = {
   notes_enabled: false,
 } as unknown as ChildFeatures;
 
-function renderCard(today: ChildToday, features: ChildFeatures = allFeatures) {
+function renderCard(
+  today: ChildToday,
+  features: ChildFeatures = allFeatures,
+  loading = false,
+) {
   return render(
     <NextIntlClientProvider locale="de" messages={deMessages}>
-      <ChildDayCard child={child} today={today} features={features} />
+      <ChildDayCard
+        child={child}
+        today={today}
+        features={features}
+        loading={loading}
+      />
     </NextIntlClientProvider>,
   );
 }
 
 describe("ChildDayCard", () => {
+  it("behält beim Laden die Formen von Symbol und Aktionen", () => {
+    const { container } = renderCard(
+      { at_ogs: null, state: "unknown" },
+      allFeatures,
+      true,
+    );
+
+    expect(
+      container.querySelectorAll(".animate-pulse.rounded-full"),
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll(".animate-pulse.rounded-lg"),
+    ).toHaveLength(2);
+  });
+
   it("nennt das Kind und seine Klasse", () => {
     renderCard({ at_ogs: true, state: "present", since: "12:38" });
     expect(screen.getByText("Felix Schneider")).toBeInTheDocument();

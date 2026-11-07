@@ -35,6 +35,7 @@ import { login as loginApi } from "~/lib/mfa-api";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "SchoolLoginPage" });
 
@@ -255,12 +256,7 @@ function LoginForm() {
         brand={<MotoBrand />}
       >
         {isCheckingAuth && (
-          <div className="flex items-center justify-center py-12">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-              <p className="text-sm text-gray-500">Sitzung wird überprüft...</p>
-            </div>
-          </div>
+          <Loading fullPage={false} message="Sitzung wird überprüft..." />
         )}
 
         <div
@@ -426,10 +422,7 @@ export default function SchoolLoginPage() {
           variant="tenant"
           brand={<MotoBrand />}
         >
-          <div className="flex flex-col items-center gap-4 py-8">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-            <p className="text-sm text-gray-500">Laden...</p>
-          </div>
+          <Loading fullPage={false} message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >

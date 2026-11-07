@@ -29,6 +29,7 @@ import { InfoIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { NumberStepper } from "~/components/ui/number-stepper";
 import { ActivityWaitlistSection } from "./activity-waitlist-section";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "ActivityManagement" });
 
@@ -292,7 +293,7 @@ export function ActivityManagementModal({
         footer={footer}
       >
         {loading ? (
-          <ModalLoadingMessage message="Kategorien werden geladen…" />
+          <Loading fullPage={false} message="Kategorien werden geladen…" />
         ) : (
           <form
             ref={formRef}
@@ -470,16 +471,5 @@ export function ActivityManagementModal({
         error={deleteErrors.error}
       />
     </>
-  );
-}
-
-function ModalLoadingMessage({ message }: Readonly<{ message: string }>) {
-  return (
-    <div className="flex items-center justify-center py-12">
-      <div className="flex flex-col items-center gap-4">
-        <SpinnerIcon className="text-moto-blue h-12 w-12" />
-        <p className="text-gray-600">{message}</p>
-      </div>
-    </div>
   );
 }

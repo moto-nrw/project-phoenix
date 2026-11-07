@@ -1102,7 +1102,7 @@ export default function StatisticsPage() {
             {view === "occupancy" &&
               (occupancyLoading ||
               (occupancyLoad.error === null && !occupancy) ? (
-                <Skeleton className="h-64 w-full rounded-xl" />
+                <Skeleton shape="inner" className="h-64 w-full" />
               ) : occupancyLoad.error !== null ? (
                 <LoadErrorAlert error={occupancyLoad.error} />
               ) : occupancy && fromISO && toISO ? (

@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  DataFieldSkeleton,
-  DataGrid,
-} from "~/components/ui/detail-modal-components";
+import { DetailSectionSkeleton } from "~/components/ui/page-skeletons";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TenantPage } from "~/components/ui/tenant-page";
 
@@ -39,7 +36,7 @@ export function StudentDetailLoadingPage({
       back
       backHref={referrer}
       backLabel={backLabel}
-      leading={<Skeleton className="h-12 w-12 shrink-0 rounded-xl" />}
+      leading={<Skeleton shape="inner" className="h-12 w-12 shrink-0" />}
       stats={preview?.context}
       statsLoading={!preview?.context}
       tabs={{
@@ -70,19 +67,12 @@ function StudentDetailSkeleton() {
       className="w-full"
     >
       <div className="flex gap-3 sm:gap-4">
-        <Skeleton className="h-20 w-full rounded-2xl" />
-        <Skeleton className="h-20 w-full rounded-2xl" />
+        <Skeleton shape="card" className="h-20 w-full" />
+        <Skeleton shape="card" className="h-20 w-full" />
       </div>
 
       <div className="mt-6 space-y-6 max-sm:mt-3 max-sm:space-y-3">
-        <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
-          <Skeleton className="mb-4 h-5 w-40 rounded" />
-          <DataGrid>
-            {Array.from({ length: 6 }, (_, field) => (
-              <DataFieldSkeleton key={field} />
-            ))}
-          </DataGrid>
-        </div>
+        <DetailSectionSkeleton fields={6} />
       </div>
     </output>
   );

@@ -394,6 +394,10 @@ describe("StudentsInRoomSection", () => {
       expect(
         screen.getByRole("status", { name: "Kinderliste wird geladen" }),
       ).toBeInTheDocument();
+      const skeleton = screen.getByTestId("students-in-room-skeleton");
+      expect(skeleton.querySelectorAll(".rounded-xl.border")).toHaveLength(4);
+      expect(skeleton.querySelectorAll(".h-8.w-16")).toHaveLength(4);
+      expect(skeleton.querySelector(".divide-y")).not.toBeInTheDocument();
     });
 
     it("renders the catalog load error if the fetch fails", async () => {

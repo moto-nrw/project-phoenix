@@ -1,0 +1,8 @@
+{
+  "api/traeger/care-time-overruns": [
+    "GET traeger /traeger/care-time-overruns"
+  ],
+  "api/traeger/care-time-overruns/children": [
+    "GET traeger /traeger/care-time-overruns/children"
+  ]
+}

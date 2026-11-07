@@ -170,7 +170,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
-      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/compose.Command.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/compose.Command.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156).",
       "source_owner": "care-contract",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
       "target_owner": "audit-platform"
@@ -181,7 +181,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
-      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.AppendStore.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.AppendStore.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
       "target_owner": "audit-platform"
@@ -192,7 +192,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
-      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.Command.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.Command.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
       "target_owner": "audit-platform"
@@ -203,7 +203,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
-      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
       "target_owner": "audit-platform"
@@ -257,6 +257,17 @@
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.ContractOfferings.ContractOfferings",
       "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractCareTimes.Overruns",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolCareTimes.Overruns",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/studentpresence.StatisticsReports.CareTimeOverruns: reads the overrun list of Soll und Ist in the tenant transaction of each school of the Träger and records the read in that school's access log with the Träger-Büro's account (ADR 0139, ADR 0156, #4683).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.CareTimeOverruns",
+      "target_owner": "student-presence"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSignatures.ContractSignatureProofs",

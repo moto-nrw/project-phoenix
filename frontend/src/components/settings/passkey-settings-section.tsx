@@ -38,6 +38,7 @@ import {
   type PasskeyScope,
 } from "~/lib/passkey-api";
 import { passkeysConcept } from "~/lib/concepts/passkeys";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "PasskeySettingsSection" });
 
@@ -344,7 +345,7 @@ export function PasskeySettingsSection({
       {/* Bis der Text eines Ladefehlers da ist, bleibt der Ladehinweis
           stehen; danach steht der Fehler statt einer leeren Liste. */}
       {loading || (loadFailed && !loadError) ? (
-        <p className="text-sm text-gray-500">Laden...</p>
+        <Loading fullPage={false} message="Passkeys werden geladen …" />
       ) : loadFailed ? (
         <LoadErrorAlert error={loadError} />
       ) : credentials.length === 0 ? (

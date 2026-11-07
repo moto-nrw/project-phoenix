@@ -45,6 +45,7 @@ import {
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
 import { createLogger } from "~/lib/logger";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "PhaseEnrollmentActions" });
 
@@ -390,9 +391,10 @@ export function ManualApprovedEnrollmentModal({
             </div>
           </div>
           {loading ? (
-            <p className="text-sm text-gray-500">
-              Formularvorlage wird geladen...
-            </p>
+            <Loading
+              fullPage={false}
+              message="Formularvorlage wird geladen..."
+            />
           ) : prefetchedData && gradeLevelMax !== null ? (
             <EnrollmentForm
               phaseID={phase.id}

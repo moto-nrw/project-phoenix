@@ -164,7 +164,8 @@
     "withdrawalConfirmBack": "Wstecz",
     "withdrawalConfirmSubmit": "Wyślij prośbę",
     "errorObjectCatalog": "lista ofert",
-    "errorObjectRequest": "prośba o zmianę"
+    "errorObjectRequest": "prośba o zmianę",
+    "submitting": "Wysyłanie …"
   },
   "weekdayShort": {
     "1": "Pn",

@@ -15,6 +15,10 @@ import { BuildingsIcon, StackSimpleIcon, TagIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type { FormError, FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  ChoiceTileListSkeleton,
+  HistorySkeleton,
+} from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
@@ -447,29 +451,9 @@ export function RoomDetailContent({
 // shells of the loaded layout (Rauminformationen / Kinder im Raum /
 // Belegungshistorie) so the page doesn't visibly resize when real data
 // arrives.
-function SkeletonStudentRow({ withAvatar }: { withAvatar: boolean }) {
-  // Mirrors CompactStudentCard: full-width pill with name + meta line.
-  // When the per-tenant photo feature is on, also reserve the avatar
-  // slot (sm = 32px) so the populated row's content origin lines up
-  // with the skeleton, avoids a horizontal jump when data arrives.
-  return (
-    <div className="moto-content-surface flex items-center gap-3 rounded-xl border px-4 py-3">
-      {withAvatar ? (
-        <Skeleton className="h-8 w-8 flex-shrink-0 rounded-full" />
-      ) : null}
-      <div className="min-w-0 flex-1">
-        <Skeleton className="h-4 w-40 rounded" />
-        <Skeleton className="mt-2 h-3 w-24 rounded" />
-      </div>
-    </div>
-  );
-}
-
 export function RoomDetailSkeleton() {
-  // Read the per-tenant photo flag once at the top of the skeleton so the
-  // child-rows below match the populated CompactStudentCard shape exactly
-  // (avatar slot reserved when the tenant has photos on; original tighter
-  // shape otherwise).
+  // Read the per-tenant photo flag once at the top of the skeleton: the
+  // child rows reserve an avatar slot only when the tenant has photos on.
   const { enabled: photosEnabled } = useStudentPhotosEnabled();
   return (
     <output
@@ -489,29 +473,16 @@ export function RoomDetailSkeleton() {
       <SectionCard title="Kinder im Raum">
         {/* Subline (count + Kindersuche button) and three child rows. */}
         <div className="flex items-end justify-between gap-3">
-          <Skeleton className="h-3 w-40 rounded" />
-          <Skeleton className="h-7 w-32 rounded-lg" />
+          <Skeleton className="h-3 w-40" />
+          <Skeleton shape="control" className="h-7 w-32" />
         </div>
-        <div className="mt-4 flex flex-col gap-2">
-          <SkeletonStudentRow withAvatar={photosEnabled} />
-          <SkeletonStudentRow withAvatar={photosEnabled} />
-          <SkeletonStudentRow withAvatar={photosEnabled} />
+        <div className="mt-4">
+          <ChoiceTileListSkeleton rows={3} avatar={photosEnabled} />
         </div>
       </SectionCard>
 
       <SectionCard title="Belegungshistorie">
-        <div className="space-y-3">
-          <div className="rounded-lg border border-gray-100 bg-white p-4">
-            <Skeleton className="h-1 w-full -translate-y-2 rounded-full" />
-            <Skeleton className="h-4 w-32 rounded" />
-            <Skeleton className="mt-2 h-3 w-48 rounded" />
-          </div>
-          <div className="rounded-lg border border-gray-100 bg-white p-4">
-            <Skeleton className="h-1 w-full -translate-y-2 rounded-full" />
-            <Skeleton className="h-4 w-40 rounded" />
-            <Skeleton className="mt-2 h-3 w-36 rounded" />
-          </div>
-        </div>
+        <HistorySkeleton />
       </SectionCard>
     </output>
   );

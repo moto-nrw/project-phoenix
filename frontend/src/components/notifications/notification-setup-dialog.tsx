@@ -10,7 +10,6 @@ import {
   useSyncExternalStore,
 } from "react";
 import { useTranslations } from "next-intl";
-import { Loader2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
@@ -325,12 +324,10 @@ export function NotificationSetupDialog({
           type="button"
           size="md"
           className={ACTION_CLASS}
-          disabled={busy}
+          isLoading={busy}
+          loadingText={t("enabling")}
           onClick={() => void enable()}
         >
-          {busy && (
-            <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
-          )}
           {t("enable")}
         </Button>
       ) : mode === "install-android" && installPromptReady ? (

@@ -164,7 +164,8 @@
     "withdrawalConfirmBack": "Kthehu",
     "withdrawalConfirmSubmit": "Dërgo kërkesën",
     "errorObjectCatalog": "lista e ofertave",
-    "errorObjectRequest": "kërkesa për ndryshim"
+    "errorObjectRequest": "kërkesa për ndryshim",
+    "submitting": "Po dërgohet …"
   },
   "weekdayShort": {
     "1": "Hën",

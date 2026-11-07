@@ -200,7 +200,7 @@ export function StatCard(
           {label}
         </span>
         {loading ? (
-          <Skeleton className="h-4 w-8 rounded" />
+          <Skeleton className="h-4 w-8" />
         ) : (
           <span
             className="text-sm font-semibold text-gray-900 tabular-nums"

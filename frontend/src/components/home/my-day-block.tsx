@@ -9,7 +9,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import Link from "~/components/ui/navigation-link";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
-import { Skeleton } from "~/components/ui/skeleton";
+import { SkeletonRows } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { BlockState } from "~/components/home/day-flow-block";
 import { blockStaffNames } from "~/components/timetable/block-row-parts";
@@ -132,19 +132,7 @@ export function MyDayBlock() {
         if (loadError) return <LoadErrorAlert error={loadError} />;
         // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett.
         if ((isLoading && data === undefined) || error) {
-          return (
-            <div className="space-y-2" aria-hidden="true">
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
-                >
-                  <Skeleton className="h-4 w-20 rounded" />
-                  <Skeleton className="h-4 flex-1 rounded" />
-                </div>
-              ))}
-            </div>
-          );
+          return <SkeletonRows rows={4} labelClassName="w-20" />;
         }
         if (mine.length === 0) {
           return (

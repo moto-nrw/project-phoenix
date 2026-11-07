@@ -2381,9 +2381,9 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
-      "decision": "0090",
+      "decision": "0156",
       "id": "roots/owners/StatisticsAuditLog.RecordStatisticsAccess",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; the entry now carries the child of a single-child read (#4683, ADR 0156); semantic form review pending."
     },
     {
       "decision": "0090",

@@ -1948,9 +1948,9 @@ export function Sidebar({ className = "" }: SidebarProps) {
             <nav className={SIDEBAR_NAV_GAP}>
               {["w-24", "w-28", "w-20", "w-24"].map((widthClass, index) => (
                 <div key={index} className="flex h-10 items-center px-3">
-                  <Skeleton className="h-5 w-5 shrink-0 rounded" />
+                  <Skeleton className="h-5 w-5 shrink-0" />
                   {!collapsed && (
-                    <Skeleton className={`ml-3 h-4 ${widthClass} rounded`} />
+                    <Skeleton className={`ml-3 h-4 ${widthClass}`} />
                   )}
                 </div>
               ))}

@@ -194,7 +194,7 @@ function SkeletonBodyRows({
         <tr key={r} className={bodyRowClass} aria-hidden="true">
           {Array.from({ length: columnCount }, (_, c) => (
             <td key={c} className={bodyCellClass}>
-              <Skeleton className={`h-4 rounded ${skeletonWidth(r, c)}`} />
+              <Skeleton className={`h-4 ${skeletonWidth(r, c)}`} />
             </td>
           ))}
         </tr>
@@ -436,9 +436,9 @@ function StackedRows<T>({
         <ul className="divide-y divide-gray-100">
           {Array.from({ length: loadingRowCount }, (_, i) => (
             <li key={i} className="space-y-2 p-4">
-              <Skeleton className="h-4 w-40 rounded" />
-              <Skeleton className="h-3 w-full rounded" />
-              <Skeleton className="h-3 w-2/3 rounded" />
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-2/3" />
             </li>
           ))}
         </ul>
@@ -587,7 +587,7 @@ export function DataTableSkeleton({
 }: Readonly<{ rows?: number; columns?: number; caption?: boolean }>) {
   return (
     <div className="w-full" aria-hidden="true">
-      {caption && <Skeleton className="mb-3 h-4 w-56 rounded" />}
+      {caption && <Skeleton className="mb-3 h-4 w-56" />}
       <div className={surfaceClass}>
         <div className="overflow-x-auto">
           <table className={tableClass}>
@@ -595,9 +595,7 @@ export function DataTableSkeleton({
               <tr className={headRowClass}>
                 {Array.from({ length: columns }, (_, c) => (
                   <th key={c} scope="col" className={headCellClass}>
-                    <Skeleton
-                      className={`h-3 rounded ${c === 0 ? "w-24" : "w-16"}`}
-                    />
+                    <Skeleton className={`h-3 ${c === 0 ? "w-24" : "w-16"}`} />
                   </th>
                 ))}
               </tr>

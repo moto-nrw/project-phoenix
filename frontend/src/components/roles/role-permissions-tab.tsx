@@ -11,7 +11,6 @@ import {
 } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
-import { DetailLoadingSpinner } from "~/components/database/detail-loading-spinner";
 import { EditActions } from "~/components/ui/edit-actions";
 import {
   FormErrorAlert,
@@ -35,6 +34,7 @@ import {
   localizeResource,
   riskyPermissionHint,
 } from "~/lib/permission-labels";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "RolePermissionsTab" });
 
@@ -282,7 +282,9 @@ export function RolePermissionsTab({
   });
 
   if (loading || (loadFailed && !loadError)) {
-    return <DetailLoadingSpinner label="Berechtigungen werden geladen..." />;
+    return (
+      <Loading fullPage={false} message="Berechtigungen werden geladen..." />
+    );
   }
 
   if (loadError) {

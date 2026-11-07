@@ -232,6 +232,7 @@ export const HELP_TOPICS = {
   traegerBriefkopf: "briefkopf-des-traegers",
   traegerDocumentTemplates: "vorlagen-des-traegers",
   traegerCareContracts: "betreuungsvertraege-senden",
+  traegerCareTimeOverruns: "laenger-als-gebucht",
   traegerSharedDocuments: "dokumente-fuer-eltern-und-schulen-freigeben",
   schoolTraegerDocuments: "dokumente-vom-traeger-in-der-ogs",
   traegerSchoolSwitch: "in-eine-schule-wechseln",

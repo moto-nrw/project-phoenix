@@ -482,7 +482,9 @@ export function OgsConversation({
               aria-hidden="true"
             >
               <Skeleton className="h-5 w-48 max-w-2/3" />
-              {showChild ? <Skeleton className="h-7 w-28 rounded-lg" /> : null}
+              {showChild ? (
+                <Skeleton shape="control" className="h-7 w-28" />
+              ) : null}
             </div>
           ) : (
             <div className="flex items-center justify-between gap-3">
@@ -975,9 +977,9 @@ function EmptyThread({
 function ThreadSkeleton() {
   return (
     <div className="space-y-3">
-      <Skeleton className="h-12 w-2/3 rounded-2xl bg-gray-100" />
-      <Skeleton className="ml-auto h-12 w-1/2 rounded-2xl bg-gray-100" />
-      <Skeleton className="h-12 w-3/5 rounded-2xl bg-gray-100" />
+      <Skeleton shape="card" className="h-12 w-2/3 bg-gray-100" />
+      <Skeleton shape="card" className="ml-auto h-12 w-1/2 bg-gray-100" />
+      <Skeleton shape="card" className="h-12 w-3/5 bg-gray-100" />
     </div>
   );
 }
@@ -989,9 +991,9 @@ function ConversationComposerSkeleton() {
       className="moto-content-surface rounded-xl border p-3"
       aria-hidden="true"
     >
-      <Skeleton className="h-16 w-full rounded-lg" />
+      <Skeleton shape="control" className="h-16 w-full" />
       <div className="mt-3 flex justify-end">
-        <Skeleton className="h-9 w-24 rounded-lg" />
+        <Skeleton shape="control" className="h-9 w-24" />
       </div>
     </div>
   );

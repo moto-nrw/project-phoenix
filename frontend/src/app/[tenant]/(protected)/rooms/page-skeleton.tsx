@@ -1,6 +1,7 @@
 "use client";
 
 import { CollectionGrid } from "~/components/ui/collection-grid";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 
 // Single skeleton card that matches the populated room card's outer
@@ -9,23 +10,22 @@ import { Skeleton } from "~/components/ui/skeleton";
 // meta line, status pill, two middle rows, and the footer hint.
 function RoomCardSkeleton() {
   return (
-    <div className="moto-content-surface relative overflow-hidden rounded-2xl border">
-      <div className="bg-moto-blue absolute inset-0 rounded-2xl opacity-[0.03]"></div>
-      <div className="relative flex min-h-[180px] flex-col p-6">
+    <SectionCard padding="none">
+      <div className="flex min-h-[180px] flex-col p-6">
         <div className="mb-3 flex items-start justify-between">
           <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-5 w-2/3 rounded" />
-            <Skeleton className="h-3 w-1/3 rounded" />
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-3 w-1/3" />
           </div>
-          <Skeleton className="ml-3 h-6 w-16 flex-shrink-0 rounded-full" />
+          <Skeleton shape="round" className="ml-3 h-6 w-16 flex-shrink-0" />
         </div>
         <div className="flex-1 space-y-2">
-          <Skeleton className="h-3 w-3/4 rounded" />
-          <Skeleton className="h-3 w-1/2 rounded" />
+          <Skeleton className="h-3 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
         </div>
-        <Skeleton className="mt-2 h-3 w-24 rounded" />
+        <Skeleton className="mt-2 h-3 w-24" />
       </div>
-    </div>
+    </SectionCard>
   );
 }
 

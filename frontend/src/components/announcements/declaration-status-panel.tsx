@@ -42,6 +42,7 @@ import type {
   DeclarationSubmission,
   DeclarationVersion,
 } from "~/lib/parent-announcements-api";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "DeclarationStatusPanel" });
 
@@ -259,14 +260,22 @@ export function DeclarationStatusPanel({
     return loadError.error ? (
       <LoadErrorAlert error={loadError.error} />
     ) : (
-      <div aria-busy="true" className="text-sm text-gray-500">
+      <div
+        aria-busy="true"
+        className="flex items-center gap-2 text-sm text-gray-500"
+      >
+        <SpinnerIcon className="h-4 w-4" />
         Stand wird geladen …
       </div>
     );
   }
   if (!status) {
     return (
-      <div aria-busy="true" className="text-sm text-gray-500">
+      <div
+        aria-busy="true"
+        className="flex items-center gap-2 text-sm text-gray-500"
+      >
+        <SpinnerIcon className="h-4 w-4" />
         Stand wird geladen …
       </div>
     );

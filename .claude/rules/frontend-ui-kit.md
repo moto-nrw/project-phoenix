@@ -13,14 +13,14 @@ This kit is the de-facto MOTO design system for project-phoenix (much by Florian
 
 ## Source of truth
 
-| Concern                          | Location                                                                    |
-| -------------------------------- | --------------------------------------------------------------------------- |
-| UI components                    | `frontend/src/components/ui/`                                               |
-| Header / list-page kit           | `frontend/src/components/ui/page-header/`                                   |
-| Semantic brand colors            | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
-| Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in     |
+| Concern | Location |
+|---|---|
+| UI components | `frontend/src/components/ui/` |
+| Header / list-page kit | `frontend/src/components/ui/page-header/` |
+| Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
+| Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
-Imports are always by direct file path: `import { Button } from "~/components/ui/button"`. There is no `ui/index.ts` barrel — import every component from its own file.
+Imports are always by direct file path: `import { Button } from "~/components/ui/button"`. There is no `ui/index.ts` barrel.
 
 ## Page scaffolding — one shell, no per-page layout
 
@@ -125,7 +125,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Number with minus and plus (except time tracking's break stepper) | `NumberStepper` | `~/components/ui/number-stepper` |
 | Day strip on a phone | `PlanningDayChip stacked` (`marker`, `statusLabel`, `today`) | `~/components/ui/planning/planning-context-bar` |
 | Date / range picker | `DatePicker`, `DateRangePicker` (selection gray-900, today blue); with time: `DateTimePicker` | `~/components/ui/<kebab-name>` |
-| Loading / skeleton | `Loading`, `Skeleton` | `~/components/ui/loading`, `~/components/ui/skeleton` |
+| Loading | Area: `Loading fullPage={false}`; beside text or in icon button: `SpinnerIcon`; text button: `Button isLoading loadingText`; known shape: `SectionCard loading`, `page-skeletons` in `SkeletonRegion`, `Skeleton` (`shape`), `SkeletonRows` | `~/components/ui/`: `loading`, `icons`, `button`, `page-skeletons`, `skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |
 | File drop or choice | `Dropzone`; caller checks beyond `accept` | `~/components/ui/dropzone` |
 | Key or link to copy | `CopyField`; button only: `useClipboardCopy` | `~/components/ui/copy-field` |
@@ -218,20 +218,20 @@ Review check: with two or more entries that carry actions, the screen shows one 
 
 NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) for a brand-semantic purpose; the Tailwind hues differ from the brand. Prefer the kit component that already encodes the color, then a `moto-*` utility (`bg-moto-green`, `text-moto-red-strong`), then `LOCATION_COLORS` / `MOTO_COLOR_PALETTE` in a `style` prop. Do NOT hardcode the raw hex in an arbitrary-value class: a literal drifts when the palette moves.
 
-| Semantic                 | Hex       | `LOCATION_COLORS` key |
-| ------------------------ | --------- | --------------------- |
-| Brand green (primary)    | `#83CD2D` | `GROUP_ROOM`          |
-| Brand blue               | `#5080D8` | `OTHER_ROOM`          |
-| Neutral gray (Zuhause)   | `#6B7280` | `HOME`                |
-| Petrol (Schule)          | `#217A78` | `AT_SCHOOL`           |
-| Orange (Schulhof)        | `#F78C10` | `SCHOOLYARD`          |
-| Magenta (Unterwegs)      | `#D946EF` | `TRANSIT`             |
-| Red (Krank / Fehler)     | `#DC2626` | `SICK` / `DANGER`     |
-| Amber (Warnung)          | `#EAB308` | `WARNING`             |
-| Purple (Entschuldigt)    | `#7C3AED` | `EXCUSED`             |
-| Cyan (Klassenfahrt)      | `#0891B2` | `CLASS_TRIP`          |
-| Navy (Kommt heute nicht) | `#365D83` | `NOT_ARRIVAL`         |
-| Stone (Unbekannt)        | `#78716C` | `UNKNOWN`             |
+| Semantic | Hex | `LOCATION_COLORS` key |
+|---|---|---|
+| Brand green (primary) | `#83CD2D` | `GROUP_ROOM` |
+| Brand blue | `#5080D8` | `OTHER_ROOM` |
+| Neutral gray (Zuhause) | `#6B7280` | `HOME` |
+| Petrol (Schule) | `#217A78` | `AT_SCHOOL` |
+| Orange (Schulhof) | `#F78C10` | `SCHOOLYARD` |
+| Magenta (Unterwegs) | `#D946EF` | `TRANSIT` |
+| Red (Krank / Fehler) | `#DC2626` | `SICK` / `DANGER` |
+| Amber (Warnung) | `#EAB308` | `WARNING` |
+| Purple (Entschuldigt) | `#7C3AED` | `EXCUSED` |
+| Cyan (Klassenfahrt) | `#0891B2` | `CLASS_TRIP` |
+| Navy (Kommt heute nicht) | `#365D83` | `NOT_ARRIVAL` |
+| Stone (Unbekannt) | `#78716C` | `UNKNOWN` |
 
 `SICK` and `DANGER` are the same hex on purpose — one names the child status,
 the other the error semantic. `WARNING` is the amber "needs attention but is
@@ -306,6 +306,8 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading in the tenant portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a tenant or Träger page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline). `ui-kit/green-fill-white-text` (#5141, hard-zero) keeps text on opaque green surfaces white and on the dark fill steps. #5577: `no-dynamic-color-class`, `no-white-on-warm-fill` (white on orange only `-strong`). #5531: button ratchet, see [Buttons](#buttons). #5579: `no-shadcn-tokens`, `no-raw-z-index` (`z-[n]`). #5580: `no-select-override` (no look classes on selects, `DateRangePicker`). #5581: `no-important-override` (`!` on kit components, baseline), `no-section-card-bleed`. #5582: `no-hand-rolled-icon-tile` (also in `ui/`). #5583: `no-shadow-kit-name` (no local name equal to a kit export). #5584 (hard-zero): `no-hand-rolled-pill`, `no-pill-dot`, `no-hex-alpha-tint`. #5596 (hard-zero): `no-hand-rolled-weekday-toggle` (`.map` over weekdays returning a checkbox label or pressed button), `no-hand-rolled-removable-chip` (chip with its own X), `no-hand-rolled-number-stepper` (minus/plus around a field). #5599: `no-hand-rolled-dropzone` (`onDrop`), `no-hand-rolled-copy-field` (framed `<code>`, `navigator.clipboard`). `ui-kit/no-raw-input` (#5217, hard-zero) fails a hand-built `<input>`/`<textarea>` except in the primitives of `RAW_INPUT_KIT_PRIMITIVES`; `type="hidden"` and `type="file"` stay native. A field with no kit counterpart (OTP grid) stays behind `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`. A form jumps to its first failed field only through `FormErrorAlert`; there is no second scroll hook.
 
 `ui-kit/no-kit-domain-import` (#5586, hard-zero): `components/ui/` imports no other component folder and calls no `fetch`/`useSWR*`; context comes through props and slots. Planning pieces live in `ui/planning/`. `no-hand-rolled-surface` applies in `ui/` too.
+
+`ui-kit/no-own-spinner` (#5588, hard-zero): no `animate-spin` or icon-package spinner outside `ui/`. `bauart/no-own-skeleton` also fails `<Skeleton>` rows in an own surface and radius classes on it. The scaffold test fails visible loading text in `page.tsx`.
 
 `ui-kit/no-hand-rolled-dot` fails a hand-built dot or colour bar outside `ui/` (hard-zero); `ui-kit/no-status-dot-outside-plans` keeps `StatusDot` to the legends and plans listed in the plugin (ADR 0149).
 
