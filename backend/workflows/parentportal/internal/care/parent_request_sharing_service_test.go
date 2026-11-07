@@ -97,7 +97,7 @@ func TestSetRequestSharingRequiresTheRequestTypesSubmitPermission(t *testing.T) 
 
 	_, err := sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, parentportal.RequestShareMasterData, request.ID, nil)
 	require.NoError(t, err, "the author with the submit permission changes the sharing")
-	require.Equal(t, int64(1), shareEvents())
+	require.EqualValues(t, 1, shareEvents())
 
 	var linkID int64
 	require.NoError(t, db.NewSelect().TableExpr("users.student_guardian_relationships").Column("id").
@@ -106,7 +106,7 @@ func TestSetRequestSharingRequiresTheRequestTypesSubmitPermission(t *testing.T) 
 
 	_, err = sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, parentportal.RequestShareMasterData, request.ID, nil)
 	require.ErrorIs(t, err, parentportal.ErrGuardianPermissionDenied)
-	assert.Equal(t, int64(1), shareEvents(), "a refused change writes no share event")
+	assert.EqualValues(t, 1, shareEvents(), "a refused change writes no share event")
 
 	_, err = sharing.GetRequestSharing(ctx, author.AccountID, author.StudentID, parentportal.RequestShareMasterData, request.ID)
 	assert.NoError(t, err, "reading the sharing state stays on parent_portal.access")
