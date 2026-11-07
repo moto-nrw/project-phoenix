@@ -235,6 +235,17 @@ export async function revokeTraegerDocumentRelease(
   );
 }
 
+/**
+ * Löscht ein Dokument mit allen Freigaben (#5993). Wirft einen ApiError bei
+ * Ablehnung; dann ist nichts geändert.
+ */
+export async function deleteTraegerDocument(documentId: string): Promise<void> {
+  await traegerRequest(
+    `${traegerDocumentsPath}/${encodeURIComponent(documentId)}`,
+    { method: "DELETE" },
+  );
+}
+
 async function downloadFrom(
   path: string,
 ): Promise<{ readonly blob: Blob; readonly filename: string | null }> {

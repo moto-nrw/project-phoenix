@@ -3,10 +3,10 @@
 // its form template.
 
 import { Plus, Trash2 } from "lucide-react";
-import { InsetPanel } from "~/components/ui/inset-panel";
 
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Button } from "~/components/ui/button";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -118,33 +118,27 @@ export function PhoneListInput({
                 value={p.phone_number}
                 onChange={(e) => setRow(idx, { phone_number: e.target.value })}
               />
-              <label className="block" htmlFor={`${inputName}-${idx}-type`}>
-                <span className="text-xs font-medium text-gray-700">
-                  {tr("structured.type")}
-                </span>
-                <CustomSelect
-                  id={`${inputName}-${idx}-type`}
-                  value={p.phone_type}
-                  onChange={(value) =>
-                    setRow(idx, {
-                      phone_type: value as PhoneEntry["phone_type"],
-                    })
-                  }
-                  ariaLabel={tr("structured.type")}
-                  className="mt-1"
-                  options={(
-                    [
-                      "mobile",
-                      "home",
-                      "work",
-                      "other",
-                    ] as PhoneEntry["phone_type"][]
-                  ).map((key) => ({
-                    value: key,
-                    label: phoneTypeLabels[key] ?? key,
-                  }))}
-                />
-              </label>
+              <CustomSelect
+                id={`${inputName}-${idx}-type`}
+                label={tr("structured.type")}
+                value={p.phone_type}
+                onChange={(value) =>
+                  setRow(idx, {
+                    phone_type: value as PhoneEntry["phone_type"],
+                  })
+                }
+                options={(
+                  [
+                    "mobile",
+                    "home",
+                    "work",
+                    "other",
+                  ] as PhoneEntry["phone_type"][]
+                ).map((key) => ({
+                  value: key,
+                  label: phoneTypeLabels[key] ?? key,
+                }))}
+              />
               <StructuredToggle
                 checked={Boolean(p.is_primary)}
                 onChange={() =>

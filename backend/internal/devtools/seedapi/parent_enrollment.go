@@ -819,11 +819,11 @@ type seedCareOffering struct {
 }
 
 func demoCareOfferings() []seedCareOffering {
-	return []seedCareOffering{
-		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10, countsAsCare: true, pickupTime: "16:00", group: "Betreuungszeit",
+	return append([]seedCareOffering{
+		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, capacity: intPtr(60), sort: 10, countsAsCare: true, pickupTime: "16:00", group: "Betreuungszeit",
 			names:        map[string]string{"en": "All-day care", "ru": "Группа продлённого дня", "uk": "Група подовженого дня"},
 			descriptions: map[string]string{"en": "Care until 4 pm", "ru": "Присмотр до 16:00", "uk": "Догляд до 16:00"}},
-		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20, countsAsCare: true, pickupTime: "14:00", group: "Betreuungszeit",
+		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, capacity: intPtr(40), sort: 20, countsAsCare: true, pickupTime: "14:00", group: "Betreuungszeit",
 			names:        map[string]string{"en": "Short care", "ru": "Короткий присмотр", "uk": "Короткий догляд"},
 			descriptions: map[string]string{"en": "Care until 2 pm", "ru": "Присмотр до 14:00", "uk": "Догляд до 14:00"}},
 		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30,
@@ -835,7 +835,7 @@ func demoCareOfferings() []seedCareOffering {
 		// einer voll, der eine Anfrage auf die Warteliste setzt.
 		{key: "ag-fussball", name: "Fußball-AG", description: "Mittwochs auf dem Sportplatz", daysMode: "fixed", days: []string{"wed"}, capacity: intPtr(12), sort: 50},
 		{key: "ag-theater", name: "Theater-AG", description: "Donnerstags in der Aula", daysMode: "fixed", days: []string{"thu"}, capacity: intPtr(8), sort: 51},
-	}
+	}, occupancyDemoCareOfferings()...)
 }
 
 func (s parentEnrollmentSeedStep) createCareOfferings(rt *Runtime, auth AuthRef, phaseID, holidayPhaseID int64) (map[string]int64, error) {
