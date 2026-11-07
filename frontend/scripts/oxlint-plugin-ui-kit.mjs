@@ -3886,6 +3886,7 @@ const noHandRolledEmptyState = {
     if (EXEMPT_FILE_RE.test(key) || key.startsWith("src/components/ui/")) {
       return {};
     }
+    const sourceCode = context.sourceCode ?? context.getSourceCode?.();
     const DASHED = 1;
     const CENTERED = 2;
     const DASHED_AND_CENTERED = DASHED | CENTERED;
@@ -3898,6 +3899,53 @@ const noHandRolledEmptyState = {
     };
     const isDashedAndCentered = (text) =>
       emptyStateClassPath(text) === DASHED_AND_CENTERED;
+    const combineClassPaths = (left, right) =>
+      new Set(
+        [...left].flatMap((leftPath) =>
+          [...right].map((rightPath) => leftPath | rightPath),
+        ),
+      );
+    const eitherClassPaths = (left, right) => new Set([...left, ...right]);
+    const collectObjectClassPaths = (node) => {
+      let paths = new Set([0]);
+      const conditions = new Map();
+
+      for (const property of node.properties) {
+        if (property.type !== "Property" || property.computed) continue;
+        const keyPaths = collectClassPaths(property.key);
+        if (
+          property.value.type === "Literal" ||
+          (property.value.type === "Identifier" &&
+            property.value.name === "undefined")
+        ) {
+          if (property.value.value) {
+            paths = combineClassPaths(paths, keyPaths);
+          }
+          continue;
+        }
+
+        const negated =
+          property.value.type === "UnaryExpression" &&
+          property.value.operator === "!";
+        const condition = negated ? property.value.argument : property.value;
+        const conditionText = sourceCode?.getText(condition);
+        if (conditionText == null || conditionText === "") continue;
+        const variants = conditions.get(conditionText) ?? {
+          whenFalse: new Set([0]),
+          whenTrue: new Set([0]),
+        };
+        variants[negated ? "whenFalse" : "whenTrue"] = combineClassPaths(
+          variants[negated ? "whenFalse" : "whenTrue"],
+          keyPaths,
+        );
+        conditions.set(conditionText, variants);
+      }
+
+      for (const { whenFalse, whenTrue } of conditions.values()) {
+        paths = combineClassPaths(paths, eitherClassPaths(whenFalse, whenTrue));
+      }
+      return paths;
+    };
     const collectClassPaths = (node) => {
       if (node == null || typeof node !== "object") return new Set([0]);
       if (node.type === "Literal" && typeof node.value === "string") {
@@ -3906,14 +3954,6 @@ const noHandRolledEmptyState = {
       if (node.type === "TemplateElement") {
         return new Set([emptyStateClassPath(node.value.raw)]);
       }
-      const combine = (left, right) =>
-        new Set(
-          [...left].flatMap((leftPath) =>
-            [...right].map((rightPath) => leftPath | rightPath),
-          ),
-        );
-      const either = (left, right) => new Set([...left, ...right]);
-
       switch (node.type) {
         case "JSXExpressionContainer":
         case "ChainExpression":
@@ -3922,22 +3962,22 @@ const noHandRolledEmptyState = {
         case "TypeCastExpression":
           return collectClassPaths(node.expression);
         case "ConditionalExpression":
-          return either(
+          return eitherClassPaths(
             collectClassPaths(node.consequent),
             collectClassPaths(node.alternate),
           );
         case "LogicalExpression":
           return node.operator === "&&"
-            ? either(new Set([0]), collectClassPaths(node.right))
-            : either(
+            ? eitherClassPaths(new Set([0]), collectClassPaths(node.right))
+            : eitherClassPaths(
                 collectClassPaths(node.left),
                 collectClassPaths(node.right),
               );
         case "TemplateLiteral":
           return node.quasis.reduce(
             (paths, quasi, index) =>
-              combine(
-                combine(paths, collectClassPaths(quasi)),
+              combineClassPaths(
+                combineClassPaths(paths, collectClassPaths(quasi)),
                 node.expressions[index] == null
                   ? new Set([0])
                   : collectClassPaths(node.expressions[index]),
@@ -3946,12 +3986,14 @@ const noHandRolledEmptyState = {
           );
         case "CallExpression":
           return node.arguments.reduce(
-            (paths, argument) => combine(paths, collectClassPaths(argument)),
+            (paths, argument) =>
+              combineClassPaths(paths, collectClassPaths(argument)),
             new Set([0]),
           );
         case "ArrayExpression":
           return node.elements.reduce(
-            (paths, element) => combine(paths, collectClassPaths(element)),
+            (paths, element) =>
+              combineClassPaths(paths, collectClassPaths(element)),
             new Set([0]),
           );
         case "SpreadElement":
@@ -3961,11 +4003,13 @@ const noHandRolledEmptyState = {
           return collectClassPaths(node.quasi);
         case "BinaryExpression":
           return node.operator === "+"
-            ? combine(
+            ? combineClassPaths(
                 collectClassPaths(node.left),
                 collectClassPaths(node.right),
               )
             : new Set([0]);
+        case "ObjectExpression":
+          return collectObjectClassPaths(node);
         default:
           return new Set([0]);
       }

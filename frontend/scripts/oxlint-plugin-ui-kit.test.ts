@@ -208,6 +208,32 @@ describe.concurrent("ui-kit/no-hand-rolled-empty-state", () => {
     expect(result.output).toContain(RULE);
   });
 
+  it("reports dashed and centered keys in a cn class map", async () => {
+    const result = await lintSource(
+      `declare const empty: boolean;
+      declare function cn(classes: Record<string, boolean>): string;
+      export const Probe = () => (
+        <div className={cn({ "border-dashed": empty, "text-center": empty })}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain(RULE);
+  });
+
+  it("allows mutually exclusive keys in a cn class map", async () => {
+    const result = await lintSource(
+      `declare const empty: boolean;
+      declare function cn(classes: Record<string, boolean>): string;
+      export const Probe = () => (
+        <div className={cn({ "border-dashed": empty, "text-center": !empty })}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
+  });
+
   it("allows a dashed box that is not centered", async () => {
     const result = await lintSource(
       source.replace(" text-center", ""),
