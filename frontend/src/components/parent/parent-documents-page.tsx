@@ -296,7 +296,57 @@ function ParentDocumentCard({
           {formatDate(document.sent_at, false, locale)}
         </DataField>
       </DataGrid>
+      {contract ? <ContractNoticeRow document={document} /> : null}
     </InboxDocumentCard>
+  );
+}
+
+/**
+ * The way to end a care contract (#4682, § 312k BGB): the button „Verträge
+ * hier kündigen“ on an active contract, or the end and the confirmation of
+ * one the parents or the Träger ended.
+ */
+function ContractNoticeRow({
+  document,
+}: Readonly<{ document: ParentDocument }>) {
+  const t = useTranslations("parentDocuments");
+  const locale = useLocale();
+  const href = `/documents/vertraege/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}`;
+  const status = document.contract_status;
+  if (status === "aktiv") {
+    // Only where the declaration would pass: without the relationship right
+    // the button would open a page that refuses (#4682).
+    return (
+      <div className="mt-4 border-t border-gray-100 pt-4">
+        {document.can_end_contract ? (
+          <ButtonLink href={href} variant="outline" size="md">
+            {t("cancelContract")}
+          </ButtonLink>
+        ) : (
+          <p className="text-sm text-gray-500">{t("cancelNotPermitted")}</p>
+        )}
+      </div>
+    );
+  }
+  if (status !== "gekuendigt" && status !== "widerrufen") return null;
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+      <StatusBadge
+        label={
+          status === "widerrufen"
+            ? t("withdrawn")
+            : document.ends_on
+              ? t("terminatedOn", {
+                  date: formatDate(document.ends_on, false, locale),
+                })
+              : t("terminationInReview")
+        }
+        tone={status === "widerrufen" ? "red" : "orange"}
+      />
+      <ButtonLink href={href} variant="ghost" size="md">
+        {t("showConfirmation")}
+      </ButtonLink>
+    </div>
   );
 }
 

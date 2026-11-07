@@ -3106,6 +3106,16 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0159",
+      "id": "roots/owners/careContractNoticePost.NoticeDeliveries",
+      "reason": "Translates Träger-scoped Delivery statuses into positive timestamped provision evidence only; excludes enqueueing, transport acceptance without a receipt, failure and missing timestamps (ADR 0159)."
+    },
+    {
+      "decision": "0153",
+      "id": "roots/owners/careContractNoticeTemplates.NoticeTemplate",
+      "reason": "Consumer-port adapter (#4682): it picks the Träger setting of the confirmation template by the kind of the declaration and reads it at the Träger level; no environment value."
+    },
+    {
       "decision": "0155",
       "id": "roots/owners/careContractReminderSettings.SignatureReminderDays",
       "reason": "ADR 0155 (#4679): Consumer-port adapter that reads the Träger's reminder days through the Träger settings and answers the one value."
@@ -4496,9 +4506,9 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0153",
+      "decision": "0159",
       "id": "roots/owners/parentContractDocuments.ContractDocumentFile",
-      "reason": "ADR 0153 (#4678): Consumer-port adapter of the parents' inbox; it reads the stored PDF of a sent contract through the Betreuungsvertrag in the caller's Träger transaction and maps a contract outside the inbox to the workflow's not-found error."
+      "reason": "Maps the parent-download file explicitly, keeping the owner-private withdrawal-notice marker out of the parent workflow result. Preserves relationship-bound inbox access and refusal translation (ADR 0159)."
     },
     {
       "decision": "0155",
@@ -4509,6 +4519,16 @@
       "decision": "0155",
       "id": "roots/owners/parentContractDocuments.SignContract",
       "reason": "ADR 0155 (#4679): Consumer-port adapter of the parents' inbox; it signs a contract through the Betreuungsvertrag in the caller's Träger transaction and maps its errors to the workflow's."
+    },
+    {
+      "decision": "0153",
+      "id": "roots/owners/parentContractNotices.ContractNoticeOptions",
+      "reason": "Consumer-port adapter of the parents portal (#4682): it reads the notice options through the Betreuungsvertrag in the caller's Träger transaction and maps values and refusals into the workflow's words."
+    },
+    {
+      "decision": "0159",
+      "id": "roots/owners/parentContractNotices.DeclareContractNotice",
+      "reason": "Translates the parent declaration and expected displayed end date into Care Contract input and preserves refusal mapping. The owner rejects a date changed since confirmation (ADR 0159)."
     },
     {
       "decision": "0090",
