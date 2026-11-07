@@ -11,6 +11,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatDate } from "~/lib/date-helpers";
 import type {
+  CareDuplicate,
   CareInvoice,
   CarePosition,
   CareUnpriced,
@@ -268,6 +269,76 @@ export function CareUnpricedCard({
                 >
                   Preis eintragen
                 </ButtonLink>
+              </div>
+            </li>
+          );
+        })}
+      </ResponsiveActionList>
+    </SectionCard>
+  );
+}
+
+/**
+ * The children with two active contracts for the same module and weekday.
+ * The run bills none of them, so no child pays twice and none drops out
+ * unnoticed; each contract opens from here.
+ */
+export function CareDuplicatesCard({
+  duplicates,
+}: Readonly<{ duplicates: readonly CareDuplicate[] }>) {
+  if (duplicates.length === 0) return null;
+  const children = new Map<string, CareDuplicate[]>();
+  for (const entry of duplicates) {
+    const key = entry.contracts
+      .map((contract) => contract.contractId)
+      .join("-");
+    children.set(key, [...(children.get(key) ?? []), entry]);
+  }
+  return (
+    <SectionCard
+      title="Doppelter Vertrag – bitte prüfen"
+      titleBadge={
+        <span className="text-moto-orange-strong text-sm font-medium">
+          {children.size === 1 ? "1 Kind" : `${children.size} Kinder`}
+        </span>
+      }
+      description="Diese Kinder haben zwei gültige Verträge für dasselbe Modul am selben Tag. Der Lauf rechnet sie nicht ab, damit niemand doppelt zahlt. Beenden oder ändern Sie einen der Verträge. Danach kommt das Kind in den Lauf."
+    >
+      <ResponsiveActionList>
+        {[...children.entries()].map(([key, entries]) => {
+          const first = entries[0];
+          if (!first) return null;
+          const child = `${first.childFirstName} ${first.childLastName}`;
+          return (
+            <li
+              key={key}
+              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-900">{child}</p>
+                <p className="mt-0.5 text-sm text-gray-600">
+                  {entries
+                    .map(
+                      (entry) =>
+                        `${entry.moduleName} am ${WEEKDAY_LONG[entry.weekday]}`,
+                    )
+                    .join(", ")}
+                </p>
+              </div>
+              <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
+                {first.contracts.map((contract, index) => (
+                  <ButtonLink
+                    key={contract.contractId}
+                    href={traegerPath(
+                      `/traeger/vertraege/${contract.contractId}`,
+                    )}
+                    variant="surface"
+                    size="compact"
+                    aria-label={`Vertrag ${index + 1} von ${child} öffnen: ${contract.schoolName}`}
+                  >
+                    Vertrag {index + 1} · {contract.schoolName}
+                  </ButtonLink>
+                ))}
               </div>
             </li>
           );

@@ -131,9 +131,26 @@ export interface CareUnpriced {
   readonly weekday: CareWeekday;
 }
 
+/**
+ * A child whose active contracts book the same weekday of the same module
+ * in the month. The run bills none of them until the office checks them.
+ */
+export interface CareDuplicate {
+  readonly childFirstName: string;
+  readonly childLastName: string;
+  readonly moduleName: string;
+  readonly weekday: CareWeekday;
+  readonly contracts: readonly {
+    readonly contractId: string;
+    readonly schoolId: string;
+    readonly schoolName: string;
+  }[];
+}
+
 export interface CareRunDetail extends CareRun {
   readonly invoices: readonly CareInvoice[];
   readonly unpriced: readonly CareUnpriced[];
+  readonly duplicates: readonly CareDuplicate[];
   readonly billed: number;
   readonly previewCount: number;
   readonly previewCents: number;
@@ -223,6 +240,17 @@ interface BackendRunDetail extends BackendRun {
         care_offering_id: number;
         module_name: string;
         weekday: CareWeekday;
+      }[]
+    | null;
+  duplicates:
+    | {
+        child_first_name: string;
+        child_last_name: string;
+        module_name: string;
+        weekday: CareWeekday;
+        contracts:
+          | { contract_id: number; school_id: number; school_name: string }[]
+          | null;
       }[]
     | null;
   billed: number;
@@ -327,6 +355,17 @@ function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
       careOfferingId: id(entry.care_offering_id),
       moduleName: entry.module_name,
       weekday: entry.weekday,
+    })),
+    duplicates: (detail.duplicates ?? []).map((entry) => ({
+      childFirstName: entry.child_first_name,
+      childLastName: entry.child_last_name,
+      moduleName: entry.module_name,
+      weekday: entry.weekday,
+      contracts: (entry.contracts ?? []).map((contract) => ({
+        contractId: id(contract.contract_id),
+        schoolId: id(contract.school_id),
+        schoolName: contract.school_name,
+      })),
     })),
     billed: detail.billed,
     previewCount: detail.preview_count,

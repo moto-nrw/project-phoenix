@@ -16,6 +16,7 @@ import {
 } from "~/components/traeger/care-billing-format";
 import {
   CareRunInvoices,
+  CareDuplicatesCard,
   CareUnpricedCard,
 } from "~/components/traeger/care-run-invoices";
 import { formatEuro } from "~/components/traeger/contribution-format";
@@ -212,6 +213,7 @@ export default function TraegerCareRunPage() {
               }
             />
           ) : null}
+          {preview ? <CareDuplicatesCard duplicates={run.duplicates} /> : null}
           {preview ? <CareUnpricedCard unpriced={run.unpriced} /> : null}
           <CareRunInvoices
             invoices={run.invoices}
