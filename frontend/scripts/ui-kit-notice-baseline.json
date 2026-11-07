@@ -24,7 +24,6 @@
     "src/components/sse/SSEErrorBoundary.tsx": 1,
     "src/components/staff/arbeitszeitmodell-tab.tsx": 1,
     "src/components/students/care-weekly-plan-editor.tsx": 1,
-    "src/components/students/class-bulk-arrival-modal.tsx": 1,
     "src/components/students/class-trip-bulk-status-modal.tsx": 1,
     "src/components/students/student-create-modal.tsx": 1,
     "src/components/time-tracking/monatskarte.tsx": 1,
