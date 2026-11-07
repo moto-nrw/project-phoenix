@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import { DatabaseListLayout } from "~/components/database/database-list-layout";
 import {
@@ -60,9 +61,7 @@ export function RoomsList({ groupDefinitions, objectHref }: RoomsListProps) {
         )}
         keyFor={keyForRoom}
         emptyState={
-          <div className="text-center text-sm text-gray-500">
-            Keine Räume gefunden.
-          </div>
+          <EmptyState variant="compact" title="Keine Räume gefunden." />
         }
       />
     </DatabaseListLayout>
