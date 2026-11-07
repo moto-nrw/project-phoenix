@@ -820,12 +820,18 @@ type seedCareOffering struct {
 
 func demoCareOfferings() []seedCareOffering {
 	return []seedCareOffering{
-		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10, countsAsCare: true, pickupTime: "16:00", group: "Betreuungszeit",
+		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, capacity: intPtr(60), sort: 10, countsAsCare: true, pickupTime: "16:00", group: "Betreuungszeit",
 			names:        map[string]string{"en": "All-day care", "ru": "Группа продлённого дня", "uk": "Група подовженого дня"},
 			descriptions: map[string]string{"en": "Care until 4 pm", "ru": "Присмотр до 16:00", "uk": "Догляд до 16:00"}},
-		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20, countsAsCare: true, pickupTime: "14:00", group: "Betreuungszeit",
+		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, capacity: intPtr(40), sort: 20, countsAsCare: true, pickupTime: "14:00", group: "Betreuungszeit",
 			names:        map[string]string{"en": "Short care", "ru": "Короткий присмотр", "uk": "Короткий догляд"},
 			descriptions: map[string]string{"en": "Care until 2 pm", "ru": "Присмотр до 14:00", "uk": "Догляд до 14:00"}},
+		// Die Belegung des Trägers (#5977) zeigt jede Lage einer Betreuungsform:
+		// OGS Ganztag und Kurzbetreuung mit freien Plätzen, die Spätbetreuung
+		// voll (seedEnrollmentCourseBookings), die Betreuung bis 15 Uhr läuft
+		// ohne Buchung.
+		{key: "ogs-15-uhr", name: "Betreuung bis 15 Uhr", description: "Neu in diesem Schuljahr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 12000, capacity: intPtr(12), sort: 25, countsAsCare: true, pickupTime: "15:00", group: "Betreuungszeit"},
+		{key: "spaetbetreuung", name: "Spätbetreuung", description: "Betreuung bis 17 Uhr", daysMode: "fixed", days: []string{"mon", "tue", "wed", "thu", "fri"}, price: 4000, capacity: intPtr(4), sort: 26, countsAsCare: true, pickupTime: "17:00"},
 		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30,
 			names:        map[string]string{"en": "Lunch", "ru": "Обед", "uk": "Обід"},
 			descriptions: map[string]string{"en": "Hot meal on care days", "ru": "Горячее питание в дни присмотра", "uk": "Гаряча їжа в дні догляду"}},
