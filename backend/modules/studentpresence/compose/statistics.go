@@ -26,35 +26,27 @@ type (
 	ContractCareDay       = ports.ContractCareDay
 )
 
-// StatisticsDependencies binds the report to its foreign inputs. Attendance
-// days and intervals, room utilization and visit-retention consents are read
-// from Student Presence itself over DB.
+// StatisticsDependencies binds the report to its foreign inputs; attendance, rooms and consents come from Student Presence over DB.
 type StatisticsDependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
 
-	StatusDays  ports.StatusDays
-	Courses     ports.CourseStatistics
-	Holidays    ports.HolidayDates
-	ClosingDays ports.ClosingDayDates
-	Periods     ports.HolidayPeriods
-	// CalendarDays reads ClosingDays and Periods in one statement where
-	// bound (#5994).
-	CalendarDays    ports.CareCalendarDays
+	StatusDays      ports.StatusDays
+	Courses         ports.CourseStatistics
+	Holidays        ports.HolidayDates
+	ClosingDays     ports.ClosingDayDates
+	Periods         ports.HolidayPeriods
+	CalendarDays    ports.CareCalendarDays // ClosingDays and Periods in one statement (#5994)
 	Students        ports.StatisticsStudents
 	Rooms           ports.StatisticsRooms
 	AccessLog       ports.StatisticsAccessLog
 	Retention       ports.StatisticsRetention
 	PlannedCareDays ports.PlannedCareDays
-	// ContractCareDays replaces the care plan's Soll on the days a care
-	// contract covers (#4683); nil keeps the care plan alone.
+	// The contract (#4683), then the holiday booking (#5994) replace the Soll on the days they cover; nil keeps it.
 	ContractCareDays ports.ContractCareDays
-	// HolidayCareDays replaces both on the days a confirmed holiday booking
-	// covers (#5994); nil keeps them.
-	HolidayCareDays ports.HolidayCareDays
-	Logger          *slog.Logger
-	// Now is injectable for tests; nil means time.Now.
-	Now func() time.Time
+	HolidayCareDays  ports.HolidayCareDays
+	Logger           *slog.Logger
+	Now              func() time.Time // injectable for tests; nil means time.Now
 }
 
 // NewStatistics builds the Statistik report use case.

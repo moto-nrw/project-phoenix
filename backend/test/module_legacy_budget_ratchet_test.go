@@ -219,7 +219,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0156: the booked care read and the overrun evaluation of
 // modules/carecontract/compose (+19) and the contract Soll port of
 // modules/studentpresence/compose (+4) add exactly 23 LOC.
-const moduleComposeBudgetTotal = 12980
+const moduleComposeBudgetTotal = 12979
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -312,7 +312,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0156: the contract Soll port (+4).
-	"modules/studentpresence/compose":                 267,
+	"modules/studentpresence/compose":                 266,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
 	// Raised by ADR 0128: the student template days constructor (+5) and by

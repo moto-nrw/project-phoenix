@@ -1,6 +1,7 @@
 "use client";
 
 import { HolidayHealthFields } from "~/components/holiday/holiday-health-lines";
+import { StudentCareTimesSection } from "~/components/students/care-times-section";
 import {
   DataField,
   DataGrid,
@@ -10,7 +11,7 @@ import {
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { formatDate } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import {
   fetchHolidayGuestSheet,
   formatHolidayHostAnswer,
@@ -94,64 +95,81 @@ export function HolidayGuestSection({
   // A failed reload means the access ended (cancellation, expiry) or cannot
   // be checked: the cached contacts must not stay on the screen.
   const data = sheet.error ? undefined : sheet.data;
+  // Soll und Ist der Ferienwoche (#5994): erst ab ihrem ersten Tag, denn
+  // vorher ist das Kind noch nicht in der Schule.
+  const today = berlinTodayISO();
+  const careTimes =
+    data && data.startsOn <= today
+      ? { from: data.startsOn, to: data.endsOn < today ? data.endsOn : today }
+      : undefined;
   return (
-    <SectionCard title="Feriengast" description={description}>
-      {loadError && <LoadErrorAlert error={loadError} />}
-      {!data && !loadError && <Skeleton className="h-40 w-full" />}
-      {data && (
-        <div className="flex flex-col gap-4">
-          {data.readOnly && (
-            <InfoText>
-              Die Ferienwoche ist vorbei. Die Angaben bleiben noch 7 Tage zum
-              Nachlesen und werden dann gelöscht.
-            </InfoText>
-          )}
-          <InfoSection title="Betreuung">
-            <DataGrid>
-              <DataField label="Ferienwoche">
-                {`${formatDate(data.startsOn)} bis ${formatDate(data.endsOn)}`}
-              </DataField>
-              <DataField label="Zeitmodell">
-                {`${data.timeModelName} (${data.timeModelStartsAt} bis ${data.timeModelEndsAt} Uhr)`}
-              </DataField>
-              <DataField label="Schule" fullWidth>
-                {holidayGuestLabel(data.schoolName)}
-              </DataField>
-            </DataGrid>
-          </InfoSection>
-          <InfoSection title="Notfall">
-            <ContactList
-              contacts={data.emergencyContacts}
-              empty="Kein Notfallkontakt angegeben."
-            />
-          </InfoSection>
-          <InfoSection title="Abholung">
-            {data.pickupContacts.length > 0 && (
-              <InfoText>Außer den Eltern dürfen abholen:</InfoText>
+    <>
+      <SectionCard title="Feriengast" description={description}>
+        {loadError && <LoadErrorAlert error={loadError} />}
+        {!data && !loadError && <Skeleton className="h-40 w-full" />}
+        {data && (
+          <div className="flex flex-col gap-4">
+            {data.readOnly && (
+              <InfoText>
+                Die Ferienwoche ist vorbei. Die Angaben bleiben noch 7 Tage zum
+                Nachlesen und werden dann gelöscht.
+              </InfoText>
             )}
-            <ContactList
-              contacts={data.pickupContacts}
-              empty="Nur die Eltern dürfen das Kind abholen."
-            />
-          </InfoSection>
-          {data.health && (
-            <InfoSection title="Gesundheit">
-              <HolidayHealthFields health={data.health} />
-            </InfoSection>
-          )}
-          {data.answers.length > 0 && (
-            <InfoSection title="Angaben aus der Ferienanmeldung">
+            <InfoSection title="Betreuung">
               <DataGrid>
-                {data.answers.map((answer) => (
-                  <DataField key={answer.key} label={answer.label}>
-                    {formatHolidayHostAnswer(answer)}
-                  </DataField>
-                ))}
+                <DataField label="Ferienwoche">
+                  {`${formatDate(data.startsOn)} bis ${formatDate(data.endsOn)}`}
+                </DataField>
+                <DataField label="Zeitmodell">
+                  {`${data.timeModelName} (${data.timeModelStartsAt} bis ${data.timeModelEndsAt} Uhr)`}
+                </DataField>
+                <DataField label="Schule" fullWidth>
+                  {holidayGuestLabel(data.schoolName)}
+                </DataField>
               </DataGrid>
             </InfoSection>
-          )}
-        </div>
+            <InfoSection title="Notfall">
+              <ContactList
+                contacts={data.emergencyContacts}
+                empty="Kein Notfallkontakt angegeben."
+              />
+            </InfoSection>
+            <InfoSection title="Abholung">
+              {data.pickupContacts.length > 0 && (
+                <InfoText>Außer den Eltern dürfen abholen:</InfoText>
+              )}
+              <ContactList
+                contacts={data.pickupContacts}
+                empty="Nur die Eltern dürfen das Kind abholen."
+              />
+            </InfoSection>
+            {data.health && (
+              <InfoSection title="Gesundheit">
+                <HolidayHealthFields health={data.health} />
+              </InfoSection>
+            )}
+            {data.answers.length > 0 && (
+              <InfoSection title="Angaben aus der Ferienanmeldung">
+                <DataGrid>
+                  {data.answers.map((answer) => (
+                    <DataField key={answer.key} label={answer.label}>
+                      {formatHolidayHostAnswer(answer)}
+                    </DataField>
+                  ))}
+                </DataGrid>
+              </InfoSection>
+            )}
+          </div>
+        )}
+      </SectionCard>
+      {careTimes && (
+        <StudentCareTimesSection
+          key={`${careTimes.from}/${careTimes.to}`}
+          studentId={studentId}
+          active
+          initialRange={careTimes}
+        />
       )}
-    </SectionCard>
+    </>
   );
 }

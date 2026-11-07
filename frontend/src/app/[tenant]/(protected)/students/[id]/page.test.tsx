@@ -234,12 +234,6 @@ vi.mock("~/components/students/student-detail-components", () => ({
   ),
 }));
 
-vi.mock("~/components/students/holiday-guest-care-times", () => ({
-  HolidayGuestCareTimes: ({ studentId }: { studentId: string }) => (
-    <div data-testid="care-times-section">{studentId}</div>
-  ),
-}));
-
 // Mock des Bearbeiten-Zustands im Stammdaten-Reiter (kein Modal mehr).
 vi.mock("~/components/students/holiday-guest-section", () => ({
   HolidayGuestSection: ({
@@ -3162,37 +3156,6 @@ describe("StudentDetailPage", () => {
       );
       expect(
         screen.queryByRole("tablist", { name: "Bereiche der Kindakte" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("shows Soll und Ist of a holiday guest to staff who read child details (#5994)", () => {
-      mockUseStudentData.mockReturnValue({
-        ...mockUseStudentData(),
-        student: { ...mockStudent, school_class: "Feriengast" },
-      });
-
-      render(<StudentDetailPage />);
-
-      expect(screen.getByTestId("care-times-section")).toHaveTextContent("1");
-    });
-
-    it("keeps Soll und Ist of a holiday guest from staff without users:read", () => {
-      vi.mocked(useSession).mockReturnValue({
-        data: { user: { id: "1", permissions: ["students:read"] } },
-        status: "authenticated",
-      } as ReturnType<typeof useSession>);
-      mockUseStudentData.mockReturnValue({
-        ...mockUseStudentData(),
-        student: { ...mockStudent, school_class: "Feriengast" },
-      });
-
-      render(<StudentDetailPage />);
-
-      expect(screen.getByTestId("holiday-guest-section")).toHaveTextContent(
-        "1:false",
-      );
-      expect(
-        screen.queryByTestId("care-times-section"),
       ).not.toBeInTheDocument();
     });
 

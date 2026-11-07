@@ -14,7 +14,6 @@ func NewTenantHolidays(source schoolcalendar.NonWorkingDayQuery) application.Ten
 func NewTenantClosingDays(source schoolcalendar.NonWorkingDayQuery) application.TenantClosingDays {
 	return application.NewTenantClosingDays(source)
 }
-
 func NewCalendarPeriodIDs(source schoolcalendar.Query) application.CalendarPeriodIDs {
 	return application.NewCalendarPeriodIDs(source)
 }
