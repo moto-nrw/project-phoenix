@@ -122,6 +122,7 @@ type careInvoicePositionRow struct {
 	Weekdays              json.RawMessage `bun:"weekdays,type:jsonb"`
 	AmountCents           int64           `bun:"amount_cents"`
 	NetCents              int64           `bun:"net_cents"`
+	PayableCents          int64           `bun:"payable_cents"`
 }
 
 // CareTariffs reads every price of the Träger.
@@ -303,21 +304,43 @@ func (s *Store) CareRun(ctx context.Context, organizationID, runID int64, lock b
 	return row.run(), nil
 }
 
-// InvoicedContracts names the contracts an issued invoice of the month
-// already bills.
-func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]bool, error) {
+// InvoicedContracts reads the immutable amounts and scope of earlier runs.
+func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]parentbilling.CareInvoice, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
-	var ids []int64
-	if err := db.NewRaw(`SELECT care_contract_id FROM parent_billing.care_invoices
-		WHERE organization_id = ? AND billing_month = ?`, organizationID, month).Scan(ctx, &ids); err != nil {
+	var rows []struct {
+		ContractID     int64
+		SchoolID       int64
+		RecipientEmail string
+		TotalCents     int64
+		CareOfferingID int64
+		AmountCents    int64
+		PayableCents   int64
+		Reductions     []parentbilling.CareReduction `bun:",type:jsonb"`
+	}
+	if err := db.NewRaw(`SELECT i.care_contract_id AS contract_id, i.school_id, i.recipient_email, i.total_cents,
+		p.care_offering_id, p.amount_cents, COALESCE(p.payable_cents, p.amount_cents) AS payable_cents,
+		COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.position)
+			FROM parent_billing.care_invoice_reductions r
+			WHERE r.organization_id = i.organization_id AND r.invoice_id = i.id), '[]'::jsonb) AS reductions
+		FROM parent_billing.care_invoices i
+		JOIN parent_billing.care_invoice_positions p ON p.invoice_id = i.id AND p.organization_id = i.organization_id
+		WHERE i.organization_id = ? AND i.billing_month = ?
+		ORDER BY i.care_contract_id, p.position`, organizationID, month).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read invoiced contracts: %w", err)
 	}
-	invoiced := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		invoiced[id] = true
+	invoiced := make(map[int64]parentbilling.CareInvoice)
+	for _, row := range rows {
+		invoice := invoiced[row.ContractID]
+		invoice.ContractID, invoice.SchoolID = row.ContractID, row.SchoolID
+		invoice.Recipient.Email, invoice.TotalCents = row.RecipientEmail, row.TotalCents
+		invoice.Reductions = row.Reductions
+		invoice.Positions = append(invoice.Positions, parentbilling.CarePosition{
+			CareOfferingID: row.CareOfferingID, AmountCents: row.AmountCents, PayableCents: row.PayableCents,
+		})
+		invoiced[row.ContractID] = invoice
 	}
 	return invoiced, nil
 }
@@ -430,7 +453,7 @@ func carePositionRows(organizationID int64, rows []careInvoiceRow, invoices []pa
 			positions = append(positions, careInvoicePositionRow{
 				OrganizationID: organizationID, InvoiceID: rows[i].ID, Position: j + 1, CareOfferingID: position.CareOfferingID,
 				ModuleName: position.ModuleName, ContractVersionNumber: position.VersionNumber, ServiceFrom: position.ServiceFrom,
-				ServiceUntil: position.ServiceUntil, Weekdays: weekdays, AmountCents: position.AmountCents, NetCents: position.AmountCents,
+				ServiceUntil: position.ServiceUntil, Weekdays: weekdays, AmountCents: position.AmountCents, NetCents: position.AmountCents, PayableCents: position.PayableCents,
 			})
 		}
 	}

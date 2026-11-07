@@ -1,7 +1,9 @@
 package application
 
 import (
+	"maps"
 	"slices"
+	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -18,7 +20,7 @@ type careMonthInput struct {
 	rule       string
 	versions   []parentbilling.CareContractVersion
 	tariffs    []parentbilling.CareTariff
-	invoiced   map[int64]bool
+	invoiced   map[int64]parentbilling.CareInvoice
 	recipients map[int64]parentbilling.CareRecipient
 	// rules and evidences feed the rule chain (#4685); without them every
 	// invoice is its base price.
@@ -71,51 +73,58 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	entries := monthEntries(in.month, byContract, order)
 	prices := newPriceBook(in.tariffs)
 	result := careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{}, duplicates: duplicates}
-	// The chain ranks every child billed this month, also one an earlier
-	// run of the month already invoiced (issued): its entry is a copy.
-	var issued []*parentbilling.CareInvoice
 	var chained []*careChainEntry
 	childOf := childKeys(byContract, order)
 	for _, contractID := range order {
-		if in.invoiced[contractID] {
-			result.billed++
-		}
-		if held[contractID] {
+		if _, issued := in.invoiced[contractID]; issued || held[contractID] {
 			continue
 		}
 		invoice, unpriced := billContract(in.month, in.rule, byContract[contractID], entries[contractID], prices)
-		if len(unpriced) > 0 && !in.invoiced[contractID] {
+		if len(unpriced) > 0 {
 			result.unpriced = append(result.unpriced, unpriced...)
 			continue
 		}
-		if len(invoice.Positions) == 0 || len(unpriced) > 0 {
+		if len(invoice.Positions) == 0 {
 			continue
 		}
 		invoice.Recipient = in.recipients[contractID]
-		entry := &careChainEntry{child: childOf[contractID], birthDate: byContract[contractID][0].ChildBirthDate,
-			issued: in.invoiced[contractID]}
-		if entry.issued {
-			issued = append(issued, &invoice)
-			entry.invoice = issued[len(issued)-1]
-		} else {
-			result.invoices = append(result.invoices, invoice)
-		}
-		chained = append(chained, entry)
+		result.invoices = append(result.invoices, invoice)
+		chained = append(chained, &careChainEntry{child: childOf[contractID], birthDate: byContract[contractID][0].ChildBirthDate})
 	}
 	// result.invoices no longer grows: the entries point into it.
-	next := 0
-	for _, entry := range chained {
-		if !entry.issued {
-			entry.invoice = &result.invoices[next]
-			next++
-		}
+	for i, entry := range chained {
+		entry.invoice = &result.invoices[i]
 	}
+	chained = append(chained, issuedCareEntries(in.invoiced, childOf, byContract)...)
+	result.billed = len(in.invoiced)
 	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences})
 	slices.SortStableFunc(result.invoices, func(a, b parentbilling.CareInvoice) int {
 		return firstNonZero(compareOrdered(a.SchoolName, b.SchoolName), compareOrdered(a.ChildLastName, b.ChildLastName),
 			compareOrdered(a.ChildFirstName, b.ChildFirstName), compareOrdered(a.ContractID, b.ContractID))
 	})
 	return result, nil
+}
+
+// issuedCareEntries keeps earlier invoices independent of current pricing.
+func issuedCareEntries(invoiced map[int64]parentbilling.CareInvoice, childOf map[int64]string,
+	byContract map[int64][]parentbilling.CareContractVersion,
+) []*careChainEntry {
+	var entries []*careChainEntry
+	// Issued invoices keep their saved recipient, base prices and net amounts,
+	// even if current contracts, tariffs, rules or evidences have changed.
+	for _, id := range slices.Sorted(maps.Keys(invoiced)) {
+		invoice := invoiced[id]
+		child := childOf[id]
+		if child == "" {
+			child = "contract:" + strconv.FormatInt(id, 10)
+		}
+		entry := &careChainEntry{invoice: &invoice, child: child, issued: true}
+		if versions := byContract[id]; len(versions) > 0 {
+			entry.birthDate = versions[0].ChildBirthDate
+		}
+		entries = append(entries, entry)
+	}
+	return entries
 }
 
 // versionsByContract groups the versions by contract, each by start, and

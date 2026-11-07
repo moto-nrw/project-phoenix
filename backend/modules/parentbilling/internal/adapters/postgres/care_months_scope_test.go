@@ -138,7 +138,10 @@ func TestCareMonthsFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 
 		invoiced, err := store.InvoicedContracts(ctx, own.organization, september)
 		require.NoError(t, err)
-		assert.Equal(t, map[int64]bool{own.contract: true}, invoiced, "InvoicedContracts")
+		require.Len(t, invoiced, 1, "InvoicedContracts")
+		assert.Equal(t, own.contract, invoiced[own.contract].ContractID)
+		assert.Equal(t, int64(3200), invoiced[own.contract].TotalCents)
+		assert.Equal(t, int64(3200), invoiced[own.contract].Positions[0].PayableCents)
 
 		_, err = store.MarkCareRunReleased(ctx, own.organization, other.open, september, 1, 3200, parentbilling.MonthRuleVersionOnFirst)
 		assert.ErrorIs(t, err, parentbilling.ErrBillingRunReleased, "MarkCareRunReleased of another Träger's run")

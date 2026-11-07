@@ -36,7 +36,7 @@ type CareStore interface {
 	// ErrCareRunOpen.
 	InsertCareRun(ctx context.Context, organizationID, accountID int64, month calendar.Date) (parentbilling.CareRun, error)
 	CareRun(ctx context.Context, organizationID, runID int64, lock bool) (parentbilling.CareRun, error)
-	InvoicedContracts(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]bool, error)
+	InvoicedContracts(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]parentbilling.CareInvoice, error)
 	InsertCareRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
 	IssueCareInvoices(ctx context.Context, organizationID int64, run parentbilling.CareRun, rule string, year int, first int64, invoices []parentbilling.CareInvoice) error
 	MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string) (parentbilling.CareRun, error)

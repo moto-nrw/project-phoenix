@@ -46,6 +46,12 @@ func init() {
 //     name, parameters and the child's rank. It names no person and never
 //     changes; it goes with its invoice.
 const parentBillingCareReductionsUpSQL = `
+-- The amount due after reductions is separate from the net/tax split.
+-- NULL denotes a position issued before reductions existed (full amount due).
+ALTER TABLE parent_billing.care_invoice_positions
+	ADD COLUMN payable_cents BIGINT,
+	ADD CONSTRAINT chk_care_invoice_positions_payable CHECK (payable_cents BETWEEN 0 AND amount_cents);
+
 ALTER TABLE parent_billing.contribution_rules
 	ADD COLUMN name TEXT NOT NULL DEFAULT '',
 	ADD COLUMN school_ids BIGINT[] NOT NULL DEFAULT '{}',
@@ -194,6 +200,8 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA parent_billing TO phoenix_admin;
 `
 
 const parentBillingCareReductionsDownSQL = `
+ALTER TABLE parent_billing.care_invoice_positions DROP COLUMN payable_cents;
+
 DROP TABLE IF EXISTS parent_billing.care_invoice_reductions, parent_billing.care_evidence_events,
 	parent_billing.care_evidences;
 DELETE FROM parent_billing.contribution_rules WHERE service = 'care';

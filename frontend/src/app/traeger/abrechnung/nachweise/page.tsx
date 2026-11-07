@@ -40,22 +40,6 @@ const logger = createLogger({ component: "TraegerNachweisePage" });
 
 const KINDS: readonly CareEvidenceKind[] = ["income_level", "single_parent"];
 
-/** The evidence of a kind that holds today, else the next one. */
-function currentEvidence(
-  contract: CareEvidenceContract,
-  kind: CareEvidenceKind,
-  today: string,
-): CareEvidence | null {
-  const ofKind = contract.evidences.filter(
-    (evidence) =>
-      evidence.kind === kind &&
-      (evidence.validUntil === null || evidence.validUntil >= today),
-  );
-  return (
-    ofKind.find((evidence) => evidence.validFrom <= today) ?? ofKind[0] ?? null
-  );
-}
-
 function EvidenceCell({
   evidence,
   data,
@@ -68,6 +52,7 @@ function EvidenceCell({
   if (!evidence) return <span className="text-sm text-gray-500">–</span>;
   const level = data.levels.find((rule) => rule.id === evidence.ruleId);
   const starts = evidence.validFrom > today;
+  const expired = evidence.validUntil !== null && evidence.validUntil < today;
   return (
     <div className="min-w-0">
       <p className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
@@ -78,10 +63,13 @@ function EvidenceCell({
             label={`Ab ${formatDate(evidence.validFrom)}`}
           />
         ) : null}
+        {expired ? <StatusBadge tone="gray" label="Abgelaufen" /> : null}
       </p>
       <p className="mt-0.5 text-xs text-gray-600">
+        {formatDate(evidence.validFrom)} bis{" "}
+        {evidence.validUntil ? formatDate(evidence.validUntil) : "ohne Ende"}
+        {" · "}
         {evidence.evidence} · geprüft am {formatDate(evidence.checkedOn)}
-        {evidence.validUntil ? ` · bis ${formatDate(evidence.validUntil)}` : ""}
       </p>
     </div>
   );
@@ -151,8 +139,12 @@ export default function TraegerNachweisePage() {
   }, [data, search]);
 
   const counted = (kind: CareEvidenceKind) =>
-    (data?.contracts ?? []).filter(
-      (contract) => currentEvidence(contract, kind, today) !== null,
+    (data?.contracts ?? []).filter((contract) =>
+      contract.evidences.some(
+        (evidence) =>
+          evidence.kind === kind &&
+          (evidence.validUntil === null || evidence.validUntil >= today),
+      ),
     ).length;
 
   const columns: DataTableColumn<CareEvidenceContract>[] = [
@@ -179,11 +171,22 @@ export default function TraegerNachweisePage() {
       className: "align-top",
       render: (contract) =>
         data ? (
-          <EvidenceCell
-            evidence={currentEvidence(contract, kind, today)}
-            data={data}
-            today={today}
-          />
+          <div className="space-y-3">
+            {contract.evidences.filter((evidence) => evidence.kind === kind)
+              .length === 0 ? (
+              <span className="text-sm text-gray-500">–</span>
+            ) : null}
+            {contract.evidences
+              .filter((evidence) => evidence.kind === kind)
+              .map((evidence) => (
+                <EvidenceCell
+                  key={evidence.id}
+                  evidence={evidence}
+                  data={data}
+                  today={today}
+                />
+              ))}
+          </div>
         ) : null,
     })),
     {
@@ -193,26 +196,38 @@ export default function TraegerNachweisePage() {
       className: "w-12 align-top",
       render: (contract) => {
         const items = KINDS.flatMap((kind) => {
-          const evidence = currentEvidence(contract, kind, today);
-          if (kind === "income_level" && data?.levels.length === 0) return [];
-          return evidence
-            ? [
+          const existing = contract.evidences.filter(
+            (evidence) => evidence.kind === kind,
+          );
+          const canCreate =
+            kind !== "income_level" || data?.levels.length !== 0;
+          return [
+            ...(canCreate
+              ? [
+                  {
+                    label: `${EVIDENCE_KIND_LABELS[kind]} eintragen`,
+                    onClick: () =>
+                      setTarget({ contract, kind, evidence: null }),
+                  },
+                ]
+              : []),
+            ...existing.flatMap((evidence) => {
+              const description = `${formatDate(evidence.validFrom)} bis ${evidence.validUntil ? formatDate(evidence.validUntil) : "ohne Ende"}`;
+              return [
                 {
                   label: `${EVIDENCE_KIND_LABELS[kind]} ändern`,
+                  description,
                   onClick: () => setTarget({ contract, kind, evidence }),
                 },
                 {
                   label: `${EVIDENCE_KIND_LABELS[kind]} löschen`,
+                  description,
                   destructive: true,
                   onClick: () => setDeleting({ contract, evidence }),
                 },
-              ]
-            : [
-                {
-                  label: `${EVIDENCE_KIND_LABELS[kind]} eintragen`,
-                  onClick: () => setTarget({ contract, kind, evidence: null }),
-                },
               ];
+            }),
+          ];
         });
         return (
           <OverflowMenu
@@ -273,7 +288,7 @@ export default function TraegerNachweisePage() {
               title="Nachweis löschen?"
               description={
                 deleting
-                  ? `Der Nachweis für ${deleting.contract.childFirstName} ${deleting.contract.childLastName} fällt weg. Ab dem nächsten Monatslauf gilt die Ermäßigung nicht mehr. Ausgestellte Rechnungen bleiben, wie sie sind.`
+                  ? `Der Nachweis für ${deleting.contract.childFirstName} ${deleting.contract.childLastName} vom ${formatDate(deleting.evidence.validFrom)} bis ${deleting.evidence.validUntil ? formatDate(deleting.evidence.validUntil) : "ohne Ende"} fällt weg. Neue Monatsläufe rechnen diesen Zeitraum ohne den Nachweis ab. Ausgestellte Rechnungen bleiben, wie sie sind.`
                   : ""
               }
               confirmLabel="Löschen"

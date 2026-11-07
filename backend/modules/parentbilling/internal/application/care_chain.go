@@ -40,41 +40,22 @@ type careChainInput struct {
 func applyCareChain(entries []*careChainEntry, in careChainInput) {
 	rules := careRulesInForce(in.rules, in.month)
 	for _, entry := range entries {
-		entry.remaining = make([]int64, len(entry.invoice.Positions))
-		for i, position := range entry.invoice.Positions {
-			entry.remaining[i] = position.AmountCents
-		}
-		entry.invoice.Reductions = []parentbilling.CareReduction{}
+		entry.initialize()
 	}
 	for _, entry := range entries {
-		if evidence := careEvidenceInMonth(in.evidences, entry.invoice.ContractID, parentbilling.EvidenceIncomeLevel, in.month); evidence != nil {
-			if rule := ruleByID(rules, evidence.RuleID); rule != nil && rule.Kind == parentbilling.RuleIncomeLevel && appliesAt(rule.SchoolIDs, entry) {
-				entry.reduce(rule, discountOf(entry.scoped(rule), rule), nil, nil)
-			}
-		}
+		entry.applyIncome(in, rules)
 	}
 	for _, rule := range rulesOfKind(rules, parentbilling.RuleSibling) {
 		applyCareSiblingRule(entries, rule)
 	}
 	for _, entry := range entries {
-		if careEvidenceInMonth(in.evidences, entry.invoice.ContractID, parentbilling.EvidenceSingleParent, in.month) == nil {
-			continue
-		}
-		for _, rule := range rulesOfKind(rules, parentbilling.RuleSingleParent) {
-			if appliesAt(rule.SchoolIDs, entry) {
-				entry.reduce(rule, discountOf(entry.scoped(rule), rule), nil, nil)
-			}
-		}
+		entry.applySingleParent(in, rules)
 	}
 	for _, rule := range rulesOfKind(rules, parentbilling.RuleCap) {
 		applyCareCap(entries, rule)
 	}
 	for _, entry := range entries {
-		var total int64
-		for _, left := range entry.remaining {
-			total += left
-		}
-		entry.invoice.TotalCents = total
+		entry.finish()
 	}
 }
 
@@ -180,11 +161,10 @@ func discountOf(amount int64, rule *parentbilling.ContributionRule) int64 {
 
 // reduce takes discount from the positions the rule applies to, in
 // proportion to what is left of each (largest remainder, so the parts add up
-// to the cent), and writes the reduction. The entry of an issued invoice
-// is a copy: what it computes counts for the cap, the issued invoice keeps
-// what it issued.
+// to the cent), and writes the reduction. Issued invoices keep their saved
+// allocations and reductions.
 func (e *careChainEntry) reduce(rule *parentbilling.ContributionRule, discount int64, rank, children *int) {
-	if discount <= 0 {
+	if e.issued || discount <= 0 {
 		return
 	}
 	left := e.scoped(rule)
@@ -301,11 +281,7 @@ func applyCareSiblingRule(entries []*careChainEntry, rule *parentbilling.Contrib
 			if rank < *rule.SiblingFromChild {
 				continue
 			}
-			for _, entry := range child.entries {
-				if appliesAt(rule.SchoolIDs, entry) {
-					entry.reduce(rule, discountOf(entry.scoped(rule), rule), &rank, &total)
-				}
-			}
+			reduceCareSiblingChild(child, rule, rank, total)
 		}
 	}
 }
@@ -328,15 +304,116 @@ func applyCareCap(entries []*careChainEntry, rule *parentbilling.ContributionRul
 		}
 		excess := paid - *rule.CapCents
 		for c := len(children) - 1; c >= 0 && excess > 0; c-- {
-			for e := len(children[c].entries) - 1; e >= 0 && excess > 0; e-- {
-				entry := children[c].entries[e]
-				if entry.issued {
-					continue
-				}
-				take := min(excess, entry.scoped(rule))
-				entry.reduce(rule, take, nil, nil)
-				excess -= take
-			}
+			excess = children[c].takeCapExcess(rule, excess)
 		}
 	}
+}
+
+// reduceCareSiblingChild computes one discount per child, then shares it
+// across eligible draft contracts by largest remainder. Issued contracts
+// consume the fixed price or discount without being changed themselves.
+func reduceCareSiblingChild(child *rankedCareChild, rule *parentbilling.ContributionRule, rank, children int) {
+	var drafts []*careChainEntry
+	var amounts []int64
+	var draftTotal, issuedTotal, issuedDiscount int64
+	for _, entry := range child.entries {
+		if !appliesAt(rule.SchoolIDs, entry) {
+			continue
+		}
+		if entry.issued {
+			issuedTotal += entry.scoped(rule)
+			issuedDiscount += entry.issuedSiblingDiscount(rule.ID)
+		} else {
+			drafts = append(drafts, entry)
+			amounts = append(amounts, entry.scoped(rule))
+			draftTotal += entry.scoped(rule)
+		}
+	}
+	if draftTotal == 0 {
+		return
+	}
+	discount := discountOf(draftTotal, rule)
+	if rule.PriceCents != nil {
+		discount = min(draftTotal, discountOf(draftTotal+issuedTotal, rule))
+	} else if rule.DiscountCents != nil {
+		discount = min(draftTotal, max(*rule.DiscountCents-issuedDiscount, 0))
+	}
+	for i := range amounts {
+		amounts[i] *= discount
+	}
+	for i, part := range largestRemainder(amounts, draftTotal, discount) {
+		drafts[i].reduce(rule, part, &rank, &children)
+	}
+}
+
+func (e *careChainEntry) initialize() {
+	e.remaining = make([]int64, len(e.invoice.Positions))
+	for i, position := range e.invoice.Positions {
+		e.remaining[i] = position.AmountCents
+		if e.issued {
+			e.remaining[i] = position.PayableCents
+		}
+	}
+	if !e.issued {
+		e.invoice.Reductions = []parentbilling.CareReduction{}
+	}
+}
+
+func (e *careChainEntry) finish() {
+	if e.issued {
+		return
+	}
+	var total int64
+	for i, left := range e.remaining {
+		e.invoice.Positions[i].PayableCents = left
+		total += left
+	}
+	e.invoice.TotalCents = total
+}
+
+func (e *careChainEntry) issuedSiblingDiscount(ruleID int64) int64 {
+	var discount int64
+	for _, reduction := range e.invoice.Reductions {
+		if reduction.Kind == parentbilling.RuleSibling && reduction.RuleID == ruleID {
+			discount -= reduction.AmountCents
+		}
+	}
+	return discount
+}
+
+func (e *careChainEntry) applyIncome(in careChainInput, rules []*parentbilling.ContributionRule) {
+	if e.issued {
+		return
+	}
+	evidence := careEvidenceInMonth(in.evidences, e.invoice.ContractID, parentbilling.EvidenceIncomeLevel, in.month)
+	if evidence == nil {
+		return
+	}
+	if rule := ruleByID(rules, evidence.RuleID); rule != nil && rule.Kind == parentbilling.RuleIncomeLevel && appliesAt(rule.SchoolIDs, e) {
+		e.reduce(rule, discountOf(e.scoped(rule), rule), nil, nil)
+	}
+}
+
+func (e *careChainEntry) applySingleParent(in careChainInput, rules []*parentbilling.ContributionRule) {
+	if e.issued || careEvidenceInMonth(in.evidences, e.invoice.ContractID, parentbilling.EvidenceSingleParent, in.month) == nil {
+		return
+	}
+	for _, rule := range rulesOfKind(rules, parentbilling.RuleSingleParent) {
+		if appliesAt(rule.SchoolIDs, e) {
+			e.reduce(rule, discountOf(e.scoped(rule), rule), nil, nil)
+		}
+	}
+}
+
+func (c *rankedCareChild) takeCapExcess(rule *parentbilling.ContributionRule, excess int64) int64 {
+	for i := len(c.entries) - 1; i >= 0 && excess > 0; i-- {
+		entry := c.entries[i]
+		if entry.issued {
+			continue
+		}
+		take := min(excess, entry.scoped(rule))
+		entry.reduce(rule, take, nil, nil)
+		excess -= take
+	}
+	return excess
 }

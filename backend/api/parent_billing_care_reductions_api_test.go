@@ -179,6 +179,18 @@ func TestCareReductionsRunTheWholeChainThroughTheRoutes(t *testing.T) {
 	for _, invoice := range again.Invoices {
 		assert.Equal(t, totals[invoice.ContractID], invoice.TotalCents)
 	}
+	// Already issued amounts consume the cap even after the income rule
+	// changes. A later child cannot make the family pay above 70 euros.
+	lea := careContract(t, f.db, f.office.organization, school, "Lea", careReductionStart, sjrServices()[0])
+	sameFamily(t, f, lea, mia)
+	nextRun := f.startRun(t, careMonth)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(nextRun.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	next := decodeSchoolPortalData[careReductionRunBody](t, rec.Body.Bytes())
+	require.Len(t, next.Invoices, 1)
+	assert.Equal(t, lea, next.Invoices[0].ContractID)
+	assert.Zero(t, next.Invoices[0].TotalCents)
+
 }
 
 // A fixed end price differs from a fixed discount, and two scopes count

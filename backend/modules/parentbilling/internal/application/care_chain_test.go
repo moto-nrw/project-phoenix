@@ -380,7 +380,7 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			in := careMonthInput{month: day(t, billingMonth), rule: parentbilling.MonthRuleVersionOnFirst, tariffs: chainTariffs(t),
-				invoiced: map[int64]bool{}, recipients: map[int64]parentbilling.CareRecipient{}, rules: tc.rules(t)}
+				invoiced: map[int64]parentbilling.CareInvoice{}, recipients: map[int64]parentbilling.CareRecipient{}, rules: tc.rules(t)}
 			for _, child := range tc.children {
 				version := sjrVersion(t, child.contract, child.school, 1, billingMonth, "2027-01-31", child.booked...)
 				born := day(t, child.born)
@@ -388,11 +388,19 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 				in.versions = append(in.versions, version)
 				in.recipients[child.contract] = parentbilling.CareRecipient{FirstName: "Eva", LastName: "Beispiel", Email: child.family}
 			}
-			for _, contract := range tc.invoiced {
-				in.invoiced[contract] = true
-			}
 			if tc.evidences != nil {
 				in.evidences = tc.evidences(t)
+			}
+			if len(tc.invoiced) > 0 {
+				prior, err := buildCareMonth(in)
+				require.NoError(t, err)
+				for _, invoice := range prior.invoices {
+					for _, contract := range tc.invoiced {
+						if invoice.ContractID == contract {
+							in.invoiced[contract] = invoice
+						}
+					}
+				}
 			}
 			month, err := buildCareMonth(in)
 			require.NoError(t, err)
@@ -453,5 +461,115 @@ func TestCareSiblingReductionNamesRankAndFamily(t *testing.T) {
 		if invoice.ContractID == contractLea {
 			assert.Zero(t, invoice.TotalCents)
 		}
+	}
+}
+
+func TestCareCapKeepsIssuedAmounts(t *testing.T) {
+	t.Parallel()
+	issued := parentbilling.CareInvoice{ContractID: contractMia, SchoolID: schoolIspringen,
+		Recipient: parentbilling.CareRecipient{Email: familyEva}, TotalCents: 8000,
+		Positions: []parentbilling.CarePosition{{CareOfferingID: moduleUntil1400, AmountCents: 8000, PayableCents: 8000}}}
+	draft := parentbilling.CareInvoice{ContractID: contractNoah, SchoolID: schoolIspringen,
+		Recipient: issued.Recipient, TotalCents: 6000,
+		Positions: []parentbilling.CarePosition{{CareOfferingID: moduleUntil1630, AmountCents: 6000}}}
+	rules := []parentbilling.ContributionRule{
+		careRule(t, ruleIncome, parentbilling.RuleIncomeLevel, []int64{schoolIspringen}, func(rule *parentbilling.ContributionRule) {
+			rule.DiscountBasisPoints = ptr(5000)
+		}),
+		careRule(t, ruleCap, parentbilling.RuleCap, []int64{schoolIspringen}, func(rule *parentbilling.ContributionRule) {
+			rule.CapCents = ptr(int64(10000))
+		}),
+	}
+	applyCareChain([]*careChainEntry{{invoice: &issued, child: "mia", issued: true}, {invoice: &draft, child: "noah"}},
+		careChainInput{month: day(t, billingMonth), rules: rules,
+			evidences: []parentbilling.CareEvidence{evidence(t, contractMia, parentbilling.EvidenceIncomeLevel, ptr(ruleIncome), billingMonth, nil)}})
+	assert.Equal(t, int64(8000), issued.TotalCents)
+	assert.Empty(t, issued.Reductions)
+	assert.Equal(t, int64(2000), draft.TotalCents)
+}
+
+func TestCareSiblingFixedAmountsApplyOncePerChild(t *testing.T) {
+	t.Parallel()
+	for _, effect := range []string{"price", "amount"} {
+		t.Run(effect, func(t *testing.T) {
+			t.Parallel()
+			rule := careRule(t, ruleSiblingIspringen, parentbilling.RuleSibling, []int64{schoolIspringen}, func(rule *parentbilling.ContributionRule) {
+				rule.SiblingFromChild = ptr(2)
+				if effect == "price" {
+					rule.PriceCents = ptr(int64(2500))
+				} else {
+					rule.DiscountCents = ptr(int64(2500))
+				}
+			})
+			invoices := []parentbilling.CareInvoice{
+				{SchoolID: schoolIspringen, Recipient: parentbilling.CareRecipient{Email: familyEva}, Positions: []parentbilling.CarePosition{{AmountCents: 10000}}},
+				{SchoolID: schoolIspringen, Recipient: parentbilling.CareRecipient{Email: familyEva}, Positions: []parentbilling.CarePosition{{AmountCents: 4000}}},
+				{SchoolID: schoolIspringen, Recipient: parentbilling.CareRecipient{Email: familyEva}, Positions: []parentbilling.CarePosition{{AmountCents: 4001}}},
+			}
+			entries := []*careChainEntry{{invoice: &invoices[0], child: "first"}, {invoice: &invoices[1], child: "second"}, {invoice: &invoices[2], child: "second"}}
+			applyCareChain(entries, careChainInput{month: day(t, billingMonth), rules: []parentbilling.ContributionRule{rule}})
+			want := int64(2500)
+			if effect == "amount" {
+				want = 5501
+			}
+			assert.Equal(t, want, invoices[1].TotalCents+invoices[2].TotalCents)
+			assert.Equal(t, int64(10000), invoices[0].TotalCents)
+		})
+	}
+}
+
+func TestCareMonthUsesIssuedScopeWithoutCurrentPrices(t *testing.T) {
+	t.Parallel()
+	capRule := careRule(t, ruleCap, parentbilling.RuleCap, []int64{schoolIspringen}, func(rule *parentbilling.ContributionRule) {
+		rule.CapCents = ptr(int64(5000))
+		rule.CareOfferingIDs = []int64{moduleUntil1400}
+	})
+	issued := parentbilling.CareInvoice{ContractID: contractMia, SchoolID: schoolIspringen,
+		Recipient: parentbilling.CareRecipient{Email: familyEva}, TotalCents: 8000,
+		Positions: []parentbilling.CarePosition{
+			{CareOfferingID: moduleUntil1400, AmountCents: 8000, PayableCents: 4000},
+			{CareOfferingID: moduleUntil1630, AmountCents: 4000, PayableCents: 4000},
+		}}
+	month, err := buildCareMonth(careMonthInput{month: day(t, billingMonth), rule: parentbilling.MonthRuleVersionOnFirst,
+		versions: []parentbilling.CareContractVersion{sjrVersion(t, contractNoah, schoolIspringen, 1, billingMonth, "2027-01-31", mon1400)},
+		tariffs:  chainTariffs(t), invoiced: map[int64]parentbilling.CareInvoice{contractMia: issued},
+		recipients: map[int64]parentbilling.CareRecipient{contractNoah: {Email: familyEva}}, rules: []parentbilling.ContributionRule{capRule},
+	})
+	require.NoError(t, err)
+	require.Len(t, month.invoices, 1)
+	assert.Equal(t, int64(1000), month.invoices[0].TotalCents)
+	assert.Equal(t, 1, month.billed)
+	assert.Equal(t, int64(4000), issued.Positions[0].PayableCents)
+}
+
+func TestCareSiblingFixedAmountsCountEarlierContractsOfTheChild(t *testing.T) {
+	t.Parallel()
+	for _, effect := range []string{"price", "amount"} {
+		t.Run(effect, func(t *testing.T) {
+			t.Parallel()
+			rule := careRule(t, ruleSiblingIspringen, parentbilling.RuleSibling, []int64{schoolIspringen}, func(rule *parentbilling.ContributionRule) {
+				rule.SiblingFromChild = ptr(2)
+				if effect == "price" {
+					rule.PriceCents = ptr(int64(2500))
+				} else {
+					rule.DiscountCents = ptr(int64(2500))
+				}
+			})
+			issuedNet, want := int64(2500), int64(0)
+			if effect == "amount" {
+				issuedNet, want = 1500, 4000
+			}
+			invoices := []parentbilling.CareInvoice{
+				{SchoolID: schoolIspringen, Recipient: parentbilling.CareRecipient{Email: familyEva}, Positions: []parentbilling.CarePosition{{AmountCents: 10000}}},
+				{SchoolID: schoolIspringen, Recipient: parentbilling.CareRecipient{Email: familyEva}, TotalCents: issuedNet,
+					Positions:  []parentbilling.CarePosition{{AmountCents: 4000, PayableCents: issuedNet}},
+					Reductions: []parentbilling.CareReduction{{Kind: parentbilling.RuleSibling, RuleID: rule.ID, AmountCents: issuedNet - 4000}}},
+				{SchoolID: schoolIspringen, Recipient: parentbilling.CareRecipient{Email: familyEva}, Positions: []parentbilling.CarePosition{{AmountCents: 4000}}},
+			}
+			applyCareChain([]*careChainEntry{{invoice: &invoices[0], child: "first"}, {invoice: &invoices[1], child: "second", issued: true}, {invoice: &invoices[2], child: "second"}},
+				careChainInput{month: day(t, billingMonth), rules: []parentbilling.ContributionRule{rule}})
+			assert.Equal(t, want, invoices[2].TotalCents)
+			assert.Equal(t, issuedNet, invoices[1].TotalCents)
+		})
 	}
 }

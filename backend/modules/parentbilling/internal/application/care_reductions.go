@@ -286,6 +286,9 @@ func (c *CareReductions) SaveCareEvidence(ctx context.Context, reviewer parentbi
 	if evidenceID < 0 {
 		return parentbilling.CareEvidenceSet{}, parentbilling.ErrCareEvidenceNotFound
 	}
+	if err := c.store.LockCareBilling(ctx, reviewer.OrganizationID); err != nil {
+		return parentbilling.CareEvidenceSet{}, fmt.Errorf("parent billing: hold the monthly billing: %w", err)
+	}
 	rules, err := c.store.ListContributionRules(ctx, reviewer.OrganizationID, parentbilling.ServiceCare)
 	if err != nil {
 		return parentbilling.CareEvidenceSet{}, fmt.Errorf("parent billing: list care rules: %w", err)
@@ -293,9 +296,6 @@ func (c *CareReductions) SaveCareEvidence(ctx context.Context, reviewer parentbi
 	input, err = normalizeCareEvidence(input, rules, c.today())
 	if err != nil {
 		return parentbilling.CareEvidenceSet{}, err
-	}
-	if err := c.store.LockCareBilling(ctx, reviewer.OrganizationID); err != nil {
-		return parentbilling.CareEvidenceSet{}, fmt.Errorf("parent billing: hold the monthly billing: %w", err)
 	}
 	action := evidenceEventCreate
 	var contractID int64

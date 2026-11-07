@@ -10525,6 +10525,18 @@ export const traegerCareReductionsTopic =
             "Wählen Sie `Nachweis speichern`.",
           ],
         },
+        {
+          title: "Nachweise ändern und vorab eintragen",
+          description:
+            "Die Liste zeigt alle Zeiträume, auch abgelaufene und zukünftige.",
+          steps: [
+            "Wählen Sie beim Kind das Menü. Jeder Nachweis zeigt seinen Zeitraum.",
+            "Wählen Sie beim passenden Zeitraum `Einkommensstufe ändern` oder `Alleinerziehend ändern`.",
+            "Für einen weiteren Zeitraum wählen Sie `Einkommensstufe eintragen` oder `Alleinerziehend eintragen`.",
+            "Beenden Sie den bisherigen Zeitraum, bevor der neue beginnt. Zeiträume derselben Art dürfen sich nicht überschneiden.",
+            "Wählen Sie `Nachweis speichern`.",
+          ],
+        },
       ],
       result:
         "Der nächste Monatslauf rechnet die Ermäßigungen aus. Jede Rechnung zeigt jede Ermäßigung mit Namen und Betrag. Bei Geschwistern steht dabei, das wievielte Kind es ist.",

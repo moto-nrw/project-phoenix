@@ -168,7 +168,7 @@ export function CareRuleModal({
   );
   const moduleOptions = useMemo(() => {
     const seen = new Set<string>();
-    return data.modules
+    const options = data.modules
       .filter((module) => draft.schoolIds.includes(module.schoolId))
       .filter((module) => {
         if (seen.has(module.careOfferingId)) return false;
@@ -182,7 +182,18 @@ export function CareRuleModal({
             ? `${module.moduleName} (${module.schoolName})`
             : module.moduleName,
       }));
-  }, [data.modules, draft.schoolIds]);
+    for (const id of draft.moduleIds) {
+      if (options.some((option) => option.value === id)) continue;
+      const offering = data.modules.find((item) => item.careOfferingId === id);
+      options.push({
+        value: id,
+        label: offering
+          ? `${offering.moduleName} (${offering.schoolName})`
+          : `Nicht mehr angebotenes Modul (${id})`,
+      });
+    }
+    return options;
+  }, [data.modules, draft.schoolIds, draft.moduleIds]);
   const schoolOptions = data.schools.map((school) => ({
     value: school.id,
     label: school.name,
@@ -228,9 +239,7 @@ export function CareRuleModal({
       validFrom: draft.validFrom,
       validUntil: draft.validUntil ? monthEnd(draft.validUntil) : null,
       schoolIds: draft.schoolIds,
-      careOfferingIds: draft.moduleIds.filter((id) =>
-        moduleOptions.some((option) => option.value === id),
-      ),
+      careOfferingIds: draft.moduleIds,
       countSchoolIds: kind === "sibling" ? draft.countSchoolIds : [],
       siblingFromChild: kind === "sibling" ? draft.fromChild : null,
       discountBasisPoints: basisPoints,
