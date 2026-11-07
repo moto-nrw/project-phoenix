@@ -37,7 +37,12 @@ vi.mock("~/server/auth", () => ({
 
 global.fetch = mockFetch as unknown as typeof fetch;
 
-import { proxyGet, proxyPost, proxyPut } from "./route-wrapper.server";
+import {
+  proxyDelete,
+  proxyGet,
+  proxyPost,
+  proxyPut,
+} from "./route-wrapper.server";
 
 interface ApiResponse<T> {
   success: boolean;
@@ -238,5 +243,22 @@ describe("parent proxy factories", () => {
     await expect(response.json()).resolves.toMatchObject({
       data: { refreshed: true },
     });
+  });
+
+  it("answers the retry's empty result instead of 401 after a token refresh", async () => {
+    mockParentAuth
+      .mockResolvedValueOnce({ user: { token: "old-token" } })
+      .mockResolvedValueOnce({ user: { token: "new-token" } });
+    mockFetch
+      .mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ status: "success", data: null }));
+
+    const response = await proxyDelete("/parent/me/push/subscriptions")(
+      createRequest("/api/parent/me/push/subscriptions", { method: "DELETE" }),
+      createContext(),
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(200);
   });
 });

@@ -1,8 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Eltern unterschreiben den Betreuungsvertrag über den Signatur-Baustein beim Träger
+
+Freigegeben von Yannick Wenger am 07.11.2026
 
 Vorschlag vom 06.11.2026 zu [#4679](https://github.com/moto-nrw/project-phoenix/issues/4679),
 Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611).

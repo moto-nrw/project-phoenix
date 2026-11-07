@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
-import { sendWithTokenRefresh } from "~/lib/tenant-token-retry.server";
+import { auth, uncachedAuth } from "~/server/auth";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
@@ -48,7 +48,9 @@ async function GETHandler(
       headers: buildHeaders(bearer),
     });
 
-  const upstream = await sendWithTokenRefresh(token, makeRequest);
+  const upstream = await sendWithTokenRefresh(token, makeRequest, () =>
+    uncachedAuth(),
+  );
 
   // 304 keeps the browser on its cached copy.
   if (upstream.status === 304) {

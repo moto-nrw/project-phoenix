@@ -30,4 +30,8 @@ type TraegerDocumentStore interface {
 	// RevokeRelease revokes an active release of the document; revoked is
 	// false when there is none.
 	RevokeRelease(ctx context.Context, organizationID, accountID, documentID, releaseID int64) (revoked bool, err error)
+	// DeleteDocument revokes every active release, removes the file and
+	// records the deletion under the document's row lock; deleted is false
+	// for a document that is not the Träger's or is already deleted.
+	DeleteDocument(ctx context.Context, organizationID, accountID, documentID int64) (deleted bool, err error)
 }
