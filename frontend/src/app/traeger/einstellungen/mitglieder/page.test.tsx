@@ -172,6 +172,50 @@ describe("TraegerAccountsPage", () => {
     );
   });
 
+  // #5992: the role Dokumente has its own row with a plain description. A
+  // person who holds it keeps it when someone changes their other roles.
+  it("shows the role Dokumente and keeps it when roles change", async () => {
+    api.changeTraegerRoles.mockResolvedValue(undefined);
+    api.fetchTraegerBuero.mockResolvedValue({
+      ...BUERO,
+      members: [
+        ...BUERO.members,
+        {
+          accountId: "3",
+          email: "verwaltung@traeger.example",
+          roles: ["administration", "documents"],
+        },
+      ],
+    });
+    renderPage();
+
+    const [labels] = await screen.findAllByText("Verwaltung, Dokumente");
+    expect(labels).toBeInTheDocument();
+    await openMenu("verwaltung@traeger.example");
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Rollen ändern" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("checkbox", { name: /Dokumente/ }),
+    ).toBeChecked();
+    expect(
+      within(dialog).getByText(
+        "Darf Dokumente für Eltern und Schulen hochladen, freigeben und löschen.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Personal/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(api.changeTraegerRoles).toHaveBeenCalledWith("3", [
+        "administration",
+        "documents",
+        "personnel",
+      ]),
+    );
+  });
+
   it("keeps Leitung for its only holder and says why", async () => {
     api.changeTraegerRoles.mockResolvedValue(undefined);
     renderPage();
