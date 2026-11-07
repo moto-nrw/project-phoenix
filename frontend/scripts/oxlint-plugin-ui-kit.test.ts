@@ -1836,6 +1836,7 @@ describe.concurrent(
         `export const Probe = () => (
         <>
           <div className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">Hinweis in ganzer Breite</div>
+          <div className="w-fit rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">Kurzer Hinweis</div>
           <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/85 px-3 py-1.5 text-xs shadow-sm backdrop-blur-sm">Für Schulen</div>
           <div role="tooltip" className="inline-block rounded-md bg-gray-900 px-2 py-1 text-xs text-white">Hilfe</div>
         </>
@@ -1874,11 +1875,15 @@ describe.concurrent(
       writeFileSync(
         join(root, "src/lib/tones.ts"),
         `export function statusClass(status: string) {
-        return status === "aktiv" ? "bg-moto-green-soft" : "bg-gray-100";
-      }
-      export function statusName(status: string) {
-        return status === "aktiv" ? "Aktiv" : "Inaktiv";
-      }`,
+  return \`font-medium \${status === "aktiv" ? "bg-moto-green-soft" : "bg-gray-100"}\`;
+}
+export function statusName(status: string) {
+  return status === "aktiv" ? "Aktiv" : "Inaktiv";
+}
+async function other() {
+  return "bg-moto-red-soft";
+}
+void other;`,
       );
       const lintProbeFile = (name: string, helper: string) => {
         const path = join(root, "src/components", name);
@@ -1919,6 +1924,20 @@ describe.concurrent(
 );
 
 describe.concurrent("ui-kit/no-pill-dot", () => {
+  it("fails a dot inside a div pill", async () => {
+    const result = await lintSource(
+      `export const Probe = () => (
+        <div className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs">
+          <span className="h-1.5 w-1.5 rounded-full bg-gray-400" aria-hidden />
+          Keine Lücken
+        </div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-pill-dot)");
+  });
+
   it("fails a dot inside a pill (#2476)", async () => {
     const result = await lintSource(
       `function Probe() {

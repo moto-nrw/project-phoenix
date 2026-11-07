@@ -2338,17 +2338,17 @@ function hasHexAlphaTemplate(node) {
 }
 
 // A hint box and a pill share their classes on a `div`. Only a pill sizes to
-// its label: fully round, or inline. A shadow or blur marks a floating surface
-// such as the brand chips in auth-shell, not a status.
-const DIV_PILL_INLINE_RE = /^(?:inline-flex|inline-block|w-fit)$/;
-const FLOATING_SURFACE_RE = /^(?:shadow|backdrop-blur)(?:-|$)/;
+// its label: fully round, or inline. A blur marks a glass surface such as the
+// brand chips in auth-shell, not a status.
+const DIV_PILL_INLINE_RE = /^(?:inline-flex|inline-block)$/;
+const GLASS_SURFACE_RE = /^backdrop-blur(?:-|$)/;
 
 function isDivPill(text) {
   const tokens = pillTokens(text);
   return (
     (tokens.includes("rounded-full") ||
       tokens.some((token) => DIV_PILL_INLINE_RE.test(token))) &&
-    !tokens.some((token) => FLOATING_SURFACE_RE.test(token))
+    !tokens.some((token) => GLASS_SURFACE_RE.test(token))
   );
 }
 
@@ -2406,11 +2406,12 @@ function exportedStrings(source, name) {
   ).exec(source);
   if (!start) return null;
   const rest = source.slice(start.index + start[0].length);
-  const end = rest.search(/^(?:export|function|const|interface|type) /m);
+  // Formatted code: the declaration ends at the next line in column 0.
+  const end = rest.search(/\n\S/);
   const declaration = end === -1 ? rest : rest.slice(0, end);
   return (declaration.match(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g) ?? [])
-    .map((literal) => literal.slice(1, -1))
-    .join(" ");
+    .join(" ")
+    .replaceAll(/["'`]/g, " ");
 }
 
 function collectStaticClassSources(program, constants, context) {
