@@ -338,6 +338,7 @@ export const ENROLLMENT_SUB_PAGES: readonly SectionSubPage[] = [
  * Gehört `pathname` zu `prefix` — als exakter Treffer oder als Unterseite?
  * Die gemeinsame Pfadregel aller Navigationskataloge; ein blankes
  * `startsWith` würde z. B. /enrollment-phases-alt fälschlich mitzählen.
+ * `prefix` steht ohne abschließendes `/`: „/documents/“ träfe keine Seite.
  */
 export function matchesPathPrefix(pathname: string, prefix: string): boolean {
   // Das Zeichen hinter dem Präfix einzeln zu prüfen ist gleichbedeutend mit
