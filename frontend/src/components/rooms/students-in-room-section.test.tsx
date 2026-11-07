@@ -132,14 +132,34 @@ vi.mock("~/components/ui/button", () => ({
 }));
 
 vi.mock("~/components/ui/alert", () => ({
-  // Wie das echte Alert: `announce="polite"` ist eine Statusmeldung.
+  // Wie das echte Alert: Der Typ bestimmt die Standardansage; `off` setzt
+  // keine Live-Region.
   Alert: ({
+    type,
     message,
     announce,
   }: {
+    type: "error" | "success" | "warning" | "info";
     message: React.ReactNode;
     announce?: "assertive" | "polite" | "off";
-  }) => <div role={announce === "polite" ? "status" : "alert"}>{message}</div>,
+  }) => {
+    const isAssertive = type === "error" || type === "warning";
+    const announcement = announce ?? (isAssertive ? "assertive" : "polite");
+
+    return (
+      <div
+        role={
+          announcement === "off"
+            ? undefined
+            : announcement === "assertive"
+              ? "alert"
+              : "status"
+        }
+      >
+        {message}
+      </div>
+    );
+  },
 }));
 
 // Loading widget is no longer used here (replaced with a content-shaped
