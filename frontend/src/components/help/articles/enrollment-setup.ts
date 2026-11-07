@@ -39,7 +39,7 @@ export function enrollmentSetupTopic(): HelpTopic {
           "Öffnen Sie `Betreuungsangebote` und tragen Sie ein, was buchbar sein soll.",
           "Öffnen Sie `Anmeldeformulare`. Dort steht schon ein `Basisformular`. Für die meisten OGS reicht es.",
           "Sehen Sie es sich mit `Vorschau` an. Dort fehlen die Angebote noch.",
-          "Öffnen Sie `Anmeldephasen`, dann bei der Phase das Menü mit den drei Punkten, und wählen Sie `Formular ansehen`. Dort sehen Sie das Formular mit den Angeboten, so wie die Eltern.",
+          "Öffnen Sie `Anmeldephasen`, dann bei der Phase das Menü mit den drei Punkten, und wählen Sie `Vorschau mit Angeboten`. Dort sehen Sie das Formular mit den Angeboten, so wie die Eltern. Das geht auch, bevor die Phase aktiv ist.",
         ],
       },
       {

@@ -2,10 +2,13 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ExternalLink, Info } from "lucide-react";
+import { Eye, Info } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
+import {
+  EnrollmentForm,
+  type PreviewCareOfferings,
+} from "~/components/enrollment/enrollment-form";
 import {
   PublicEnrollmentBrand,
   PublicEnrollmentLocaleSwitcher,
@@ -16,6 +19,7 @@ import {
 import { BackLink } from "~/components/ui/back-link";
 import { buttonClassName } from "~/components/ui/button";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
+import { listCareOfferings, type CareOffering } from "~/lib/care-offering-api";
 import { useTenant } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
@@ -41,6 +45,11 @@ export default function EnrollmentPreviewPage() {
 
 function EnrollmentPreviewPageContent() {
   const searchParams = useSearchParams();
+  // With a phase in the address the page previews that phase with its
+  // offerings, whatever its state: the public link of an inactive or closed
+  // phase shows parents only an error, so a school could not check its
+  // offerings before opening the enrollment (#6044).
+  const phaseId = searchParams.get("phaseId");
   const schemaId = searchParams.get("schemaId");
   const isBasePreview = searchParams.get("base") === "1";
   const { tenant } = useTenant();
@@ -55,6 +64,9 @@ function EnrollmentPreviewPageContent() {
   // The phases using this template, for the links to their parents' view.
   // null: the list could not be loaded; the page then names the menu path.
   const [assignedPhases, setAssignedPhases] = useState<Phase[] | null>([]);
+  const [previewPhase, setPreviewPhase] = useState<Phase | null>(null);
+  const [previewOfferings, setPreviewOfferings] =
+    useState<PreviewCareOfferings>();
   const [loading, setLoading] = useState(true);
   // Without a template in the address there is nothing to load: a fixed
   // hint, not an API error.
@@ -69,8 +81,27 @@ function EnrollmentPreviewPageContent() {
 
   useEffect(() => {
     let cancelled = false;
+    async function loadPhasePreview(id: string) {
+      const [phases, offerings] = await Promise.all([
+        listPhases(),
+        listCareOfferings(id),
+      ]);
+      const phase = phases.find((candidate) => candidate.id === id);
+      if (!phase) {
+        throw new Error("Diese Anmeldephase gibt es nicht mehr.");
+      }
+      const result = await fetchEnrollmentPreviewBootstrap(
+        phase.form_schema_id
+          ? { schemaId: phase.form_schema_id }
+          : { base: true },
+      );
+      if (cancelled) return;
+      setPreviewPhase(phase);
+      setSchema(result.schema);
+      setPreviewOfferings(previewOfferingsFor(phase, offerings));
+    }
     async function load() {
-      if (!schemaId) {
+      if (!schemaId && !phaseId) {
         if (!isBasePreview) {
           setMissingSchema(true);
           setLoading(false);
@@ -81,6 +112,10 @@ function EnrollmentPreviewPageContent() {
       setMissingSchema(false);
       clearLoadError();
       try {
+        if (phaseId) {
+          await loadPhasePreview(phaseId);
+          return;
+        }
         const [result, phases] = await Promise.all([
           fetchEnrollmentPreviewBootstrap({ schemaId, base: isBasePreview }),
           // The phase links are a help, not the preview itself: without them
@@ -112,15 +147,23 @@ function EnrollmentPreviewPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [isBasePreview, schemaId, loadAttempt, clearLoadError, showLoadError]);
+  }, [
+    isBasePreview,
+    phaseId,
+    schemaId,
+    loadAttempt,
+    clearLoadError,
+    showLoadError,
+  ]);
 
   const previewSchema = useMemo<PublicFormSchema | null>(() => {
     if (!schema) return null;
     return schemaToPublicFormSchema(schema);
   }, [schema]);
 
-  const previewStatus =
-    activeAssignedPhaseCount > 0
+  const previewStatus = previewPhase
+    ? phasePreviewStatus(previewPhase)
+    : activeAssignedPhaseCount > 0
       ? {
           label: "Aktiv in Anmeldephase",
           hint: `Diese Vorlage wird in ${phaseCount(activeAssignedPhaseCount, "aktiven ")} verwendet.`,
@@ -139,7 +182,7 @@ function EnrollmentPreviewPageContent() {
           };
   const previewTitle = loading
     ? "Formularvorschau"
-    : (schema?.name ?? "Basisformular");
+    : (previewPhase?.name ?? schema?.name ?? "Basisformular");
 
   return (
     <PublicEnrollmentPageShell withInlineSwitcher>
@@ -154,12 +197,19 @@ function EnrollmentPreviewPageContent() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
           <div className="moto-content-surface rounded-2xl border p-5 sm:p-8">
-            <BackLink
-              href={tenantPath("/enrollment-form")}
-              label="Zurück zu den Anmeldeformularen"
-            />
+            {phaseId ? (
+              <BackLink
+                href={tenantPath("/enrollment-phases")}
+                label="Zurück zu den Anmeldephasen"
+              />
+            ) : (
+              <BackLink
+                href={tenantPath("/enrollment-form")}
+                label="Zurück zu den Anmeldeformularen"
+              />
+            )}
             <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
-              Formularvorschau
+              {phaseId ? "Vorschau der Anmeldephase" : "Formularvorschau"}
             </p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
               {previewTitle}
@@ -175,9 +225,9 @@ function EnrollmentPreviewPageContent() {
               )}
             </div>
             <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
-              Hier sehen Sie nur die Fragen dieses Formulars. Die
-              Betreuungsangebote fehlen hier. Eltern sehen sie über den Link der
-              Anmeldephase.
+              {phaseId
+                ? "So sehen Eltern diese Anmeldephase mit ihren Betreuungsangeboten. Hier können Sie nichts absenden."
+                : "Hier sehen Sie nur die Fragen dieses Formulars. Die Betreuungsangebote fehlen hier. Sie sehen sie in der Vorschau einer Anmeldephase."}
             </p>
           </div>
 
@@ -202,6 +252,7 @@ function EnrollmentPreviewPageContent() {
               profileFetcher={previewProfileFetcher}
               previewMode
               previewSchema={previewSchema}
+              previewOfferings={previewOfferings}
               skipCaptcha
             />
           )}
@@ -225,18 +276,22 @@ function EnrollmentPreviewPageContent() {
             </p>
           </section>
 
-          <PublicInfoCard
-            icon={<Info className="h-5 w-5" />}
-            title="Angebote prüfen"
-          >
-            <PhaseParentViewLinks
-              loading={loading}
-              phases={assignedPhases}
-              hrefFor={(phase) =>
-                tenantPath(`/anmeldung/${encodeURIComponent(phase.id)}`)
-              }
-            />
-          </PublicInfoCard>
+          {phaseId ? null : (
+            <PublicInfoCard
+              icon={<Info className="h-5 w-5" />}
+              title="Angebote prüfen"
+            >
+              <PhasePreviewLinks
+                loading={loading}
+                phases={assignedPhases}
+                hrefFor={(phase) =>
+                  tenantPath(
+                    `/anmeldung/preview?phaseId=${encodeURIComponent(phase.id)}`,
+                  )
+                }
+              />
+            </PublicInfoCard>
+          )}
           <PublicInfoCard
             icon={<MotoConceptIcon concept={permissionsConcept} size={22} />}
             title="Sichere Vorschau"
@@ -263,7 +318,7 @@ function parentViewUnavailableReason(phase: Phase, now: number): string | null {
     return "Nur mit Einladungslink erreichbar.";
   }
   if (!phase.is_active) {
-    return "Schalten Sie unter Anmeldephasen bei dieser Phase „Aktiv“ ein.";
+    return "Wählen Sie unter Anmeldephasen bei dieser Phase „Aktivieren“.";
   }
   if (phase.enrollment_open_at && now < Date.parse(phase.enrollment_open_at)) {
     return "Die Elternansicht ist erst ab der Öffnung erreichbar. Prüfen Sie unter Anmeldephasen „Öffnung“ und „Schließung“.";
@@ -277,7 +332,43 @@ function parentViewUnavailableReason(phase: Phase, now: number): string | null {
   return null;
 }
 
-function PhaseParentViewLinks({
+/** Active offerings in the order the public form lists them. */
+function previewOfferingsFor(
+  phase: Phase,
+  offerings: CareOffering[],
+): PreviewCareOfferings {
+  return {
+    offerings: offerings
+      .filter((offering) => offering.is_active)
+      .sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
+      ),
+    careOfferingSelectionMode: phase.care_offering_selection_mode,
+    eligibleGradeLevels: phase.eligible_grade_levels ?? [],
+  };
+}
+
+function phasePreviewStatus(phase: Phase): {
+  label: string;
+  hint: string;
+  tone: "green" | "gray";
+} {
+  const reason = parentViewUnavailableReason(phase, Date.now());
+  if (reason === null) {
+    return {
+      label: "Eltern erreichen diese Phase",
+      hint: "Eltern melden sich über den Link der Phase an.",
+      tone: "green",
+    };
+  }
+  return {
+    label: "Eltern erreichen diese Phase noch nicht",
+    hint: reason,
+    tone: "gray",
+  };
+}
+
+function PhasePreviewLinks({
   loading,
   phases,
   hrefFor,
@@ -290,8 +381,7 @@ function PhaseParentViewLinks({
   if (phases === null) {
     return (
       <>
-        Öffnen Sie unter Anmeldephasen bei der Phase „Formular ansehen“. Dort
-        stehen die Angebote.
+        Öffnen Sie unter Anmeldephasen bei der Phase „Vorschau mit Angeboten“.
       </>
     );
   }
@@ -307,42 +397,22 @@ function PhaseParentViewLinks({
     <>
       So sehen Eltern das Formular mit Ihren Angeboten:
       <ul className="mt-3 space-y-2">
-        {phases.map((phase) => {
-          const unavailableReason = parentViewUnavailableReason(
-            phase,
-            Date.now(),
-          );
-          return (
-            <li key={phase.id}>
-              {unavailableReason === null ? (
-                <a
-                  href={hrefFor(phase)}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`Elternansicht von „${phase.name}“ öffnen`}
-                  className={buttonClassName({
-                    variant: "outline",
-                    size: "md",
-                    className: "w-full justify-between gap-2",
-                  })}
-                >
-                  <span className="truncate">{phase.name}</span>
-                  <ExternalLink
-                    className="h-4 w-4 shrink-0"
-                    aria-hidden="true"
-                  />
-                </a>
-              ) : (
-                <span className="block text-sm text-gray-600">
-                  <span className="font-medium text-gray-900">
-                    {phase.name}
-                  </span>
-                  <span className="block">{unavailableReason}</span>
-                </span>
-              )}
-            </li>
-          );
-        })}
+        {phases.map((phase) => (
+          <li key={phase.id}>
+            <a
+              href={hrefFor(phase)}
+              aria-label={`Vorschau von „${phase.name}“ mit Angeboten öffnen`}
+              className={buttonClassName({
+                variant: "outline",
+                size: "md",
+                className: "w-full justify-between gap-2",
+              })}
+            >
+              <span className="truncate">{phase.name}</span>
+              <Eye className="h-4 w-4 shrink-0" aria-hidden="true" />
+            </a>
+          </li>
+        ))}
       </ul>
     </>
   );

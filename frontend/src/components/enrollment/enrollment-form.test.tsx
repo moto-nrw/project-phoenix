@@ -2417,6 +2417,30 @@ describe("EnrollmentForm", () => {
     expect(payload.consent_flags?.photo).toBe(false);
   });
 
+  // #6044: the staff preview of a phase shows its offerings without the
+  // public phase link, which an inactive or closed phase answers with an
+  // error. The preview must not call the public offering route.
+  it("shows the offerings a staff phase preview hands in", async () => {
+    mockFetchPublicCareOfferings.mockClear();
+
+    renderForm({
+      phaseID: undefined,
+      previewMode: true,
+      previewSchema: null,
+      previewOfferings: {
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        eligibleGradeLevels: [1, 2],
+      },
+    });
+    await waitForLoaded();
+    await chooseOption("Klassenstufe", "1. Klasse");
+
+    expect(await screen.findByText("Flexible Betreuung")).toBeVisible();
+    expect(screen.getByText("Fixe Betreuung")).toBeVisible();
+    expect(mockFetchPublicCareOfferings).not.toHaveBeenCalled();
+  });
+
   it("adds and removes children without submitting in preview mode", async () => {
     renderForm({ previewMode: true, previewSchema: schema() });
     await waitForLoaded();

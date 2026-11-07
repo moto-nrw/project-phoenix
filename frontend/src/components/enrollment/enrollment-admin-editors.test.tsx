@@ -2718,6 +2718,31 @@ describe("PhasesEditor", () => {
     ).toBeInTheDocument();
   });
 
+  // #6044: the public form of an inactive or closed phase shows parents an
+  // error, so „Formular ansehen“ never showed a school its offerings before
+  // opening the enrollment. Every phase offers the staff preview instead.
+  it.each([
+    { name: "Inaktive Phase", overrides: { is_active: false } },
+    { name: "Nur Konto", overrides: { audience: "linked_parents" as const } },
+  ])(
+    "offers the preview with offerings for a phase like $name",
+    async ({ name, overrides }) => {
+      mocks.listPhases.mockResolvedValue([
+        phase({ id: "12", name, ...overrides }),
+      ]);
+      mocks.listSchemas.mockResolvedValue([schema()]);
+
+      render(<PhasesEditor />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: `Aktionen für ${name}` }),
+      );
+      expect(
+        await screen.findByRole("menuitem", { name: "Vorschau mit Angeboten" }),
+      ).toHaveAttribute("href", "/demo/anmeldung/preview?phaseId=12");
+    },
+  );
+
   it("round-trips the Zielgruppe audience and eligible classes into the create payload (#1663)", async () => {
     mocks.listPhases.mockResolvedValue([]);
     mocks.listSchemas.mockResolvedValue([schema()]);
