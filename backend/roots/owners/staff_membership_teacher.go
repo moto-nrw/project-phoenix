@@ -304,7 +304,7 @@ func (r TeacherMembershipRepository) ListAllWithStaffAndPerson(ctx context.Conte
 
 func (r TeacherMembershipRepository) ListRosterWithStaffAndPerson(ctx context.Context) ([]*peopleValues.Teacher, error) {
 	const op = "list all with staff and person"
-	values, err := r.Membership.ListTeachers(ctx, schoolmembership.TeacherFilter{IncludeStaff: true})
+	values, err := r.Membership.ListTeachers(ctx, schoolmembership.TeacherFilter{IncludeStaff: true, MembershipOnly: true})
 	if err != nil {
 		return nil, membershipError(op, err)
 	}

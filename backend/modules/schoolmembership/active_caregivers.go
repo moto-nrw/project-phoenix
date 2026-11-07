@@ -114,7 +114,7 @@ func caregiverCandidates(ctx context.Context, membership CaregiverMembership, di
 	for _, teacher := range teachers {
 		staffIDs = append(staffIDs, teacher.StaffID)
 	}
-	staffValues, err := membership.ListStaff(ctx, StaffFilter{IDs: staffIDs, IncludeDeleted: true})
+	staffValues, err := membership.ListStaff(ctx, StaffFilter{IDs: staffIDs, IncludeDeleted: true, MembershipOnly: true})
 	if err != nil {
 		return nil, nil, err
 	}

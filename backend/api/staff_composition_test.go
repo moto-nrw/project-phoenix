@@ -302,8 +302,13 @@ func TestStaffAvatarStaysInsideTheSchool(t *testing.T) {
 
 	betreuer := testutil.WithJWTBearer(staffCompositionToken(t, betreuerPermissions...))
 
-	own := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet,
-		fmt.Sprintf("/staff/%d/avatar", ownStaffID), nil, betreuer))
+	counter := ctx.countQueries()
+	request := testutil.NewAuthenticatedRequest(t, http.MethodGet,
+		fmt.Sprintf("/staff/%d/avatar", ownStaffID), nil, betreuer)
+	own := testutil.ExecuteRequest(ctx.router, request.WithContext(counter.Context(request.Context())))
+	t.Logf("P3 staff avatar: %d statements", len(counter.Queries()))
+	require.Empty(t, counter.Selects("staff_employment_profiles"))
+	require.Len(t, counter.Selects("auth.accounts"), 1, "only the current avatar, not account metadata")
 	require.Equal(t, http.StatusOK, own.Code, own.Body.String())
 	assert.Equal(t, picture, own.Body.Bytes())
 
