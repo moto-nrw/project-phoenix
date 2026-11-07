@@ -68,6 +68,7 @@ import { statusLabel } from "./status-labels";
 import { useClassDayRefresh } from "./use-class-day-refresh";
 import { useSchoolReportRefusal } from "./use-school-report-refusal";
 import { useSchoolAbsenceReports } from "./use-school-absence-reports";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Die Ansicht bleibt bei Übergaben lange offen — sie muss sich selbst
 // aktualisieren, damit z. B. eine um 11:30 gemeldete Krankmeldung nicht
@@ -740,9 +741,9 @@ function ClassDayOverviewContent({
                             ) : (
                               <div className="mt-2 grid gap-3 lg:grid-cols-2">
                                 {groups.map((group) => (
-                                  <div
+                                  <InsetPanel
                                     key={group.schoolClass}
-                                    className="rounded-xl bg-gray-50 px-3 py-2"
+                                    padding="compact"
                                   >
                                     <NavigationLink
                                       href={schoolPath(
@@ -818,7 +819,7 @@ function ClassDayOverviewContent({
                                         );
                                       })}
                                     </ul>
-                                  </div>
+                                  </InsetPanel>
                                 ))}
                               </div>
                             )}
