@@ -1,5 +1,7 @@
 "use client";
 
+import { SectionCard } from "~/components/ui/section-card";
+import { EmptyState } from "~/components/ui/empty-state";
 import { useCallback, useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { CaretRightIcon, ChecksIcon } from "@phosphor-icons/react/ssr";
@@ -236,9 +238,13 @@ export function ParentMessagesPage() {
             description={t("description")}
           />
         </div>
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
-          {t("noChildren")}
-        </p>
+        <SectionCard>
+          <EmptyState
+            variant="compact"
+            description={t("noChildren")}
+            className="py-0"
+          />
+        </SectionCard>
       </ParentPage>
     );
   }

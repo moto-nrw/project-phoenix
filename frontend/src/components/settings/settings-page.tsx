@@ -188,14 +188,14 @@ function SettingsTabContent({
 
       {isFiltering ? (
         hits.length === 0 ? (
-          <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+          <SectionCard>
             <EmptyState
               variant="compact"
               icon={<SearchX className="h-5 w-5" aria-hidden="true" />}
               title={`Keine Einstellung passt zu „${query.trim()}“.`}
               description="Versuchen Sie ein anderes Wort, zum Beispiel „Abholung“ oder „Eltern“."
             />
-          </div>
+          </SectionCard>
         ) : (
           hits.map((hit) => (
             <SettingsCategory

@@ -64,33 +64,32 @@ export function TemplateList({
 
   if (templates.length === 0) {
     return (
-      <div className="moto-content-surface rounded-2xl border border-dashed px-6">
-        <EmptyState
-          icon={
-            <ConceptIconTile
-              concept={carePlanConcept}
-              size="page"
-              shape="round"
-            />
-          }
-          title="Keine Regeltermine in diesem Zeitraum"
-          description="Regeltermine sind wiederkehrende Termine, zum Beispiel Mensa jeden Montag oder Lernzeit alle zwei Wochen."
-          action={
-            canManage ? (
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                onClick={onCreate}
-                className="gap-2"
-              >
-                <Plus className="h-5 w-5 stroke-[2.5]" aria-hidden />
-                Regeltermin anlegen
-              </Button>
-            ) : undefined
-          }
-        />
-      </div>
+      <EmptyState
+        variant="dashed"
+        icon={
+          <ConceptIconTile
+            concept={carePlanConcept}
+            size="page"
+            shape="round"
+          />
+        }
+        title="Keine Regeltermine in diesem Zeitraum"
+        description="Regeltermine sind wiederkehrende Termine, zum Beispiel Mensa jeden Montag oder Lernzeit alle zwei Wochen."
+        action={
+          canManage ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={onCreate}
+              className="gap-2"
+            >
+              <Plus className="h-5 w-5 stroke-[2.5]" aria-hidden />
+              Regeltermin anlegen
+            </Button>
+          ) : undefined
+        }
+      />
     );
   }
 

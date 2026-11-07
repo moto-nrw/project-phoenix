@@ -9,6 +9,7 @@
  * assigned staff, children, attendance state, and admin corrections.
  */
 
+import { EmptyState } from "~/components/ui/empty-state";
 import type { ListRowTone } from "~/components/ui/list-row-styles";
 import { ListRow } from "~/components/ui/list-row";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -1459,12 +1460,8 @@ function StudentGroup({
   );
 }
 
-function EmptyLine({ children }: { children: React.ReactNode }) {
-  return (
-    <InsetPanel dashed className="text-xs text-gray-500">
-      {children}
-    </InsetPanel>
-  );
+function EmptyLine({ children }: { children: string }) {
+  return <EmptyState variant="dashed" title={children} className="px-3 py-2" />;
 }
 
 type IconActionTone = "green" | "red" | "slate";

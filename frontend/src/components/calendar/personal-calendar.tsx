@@ -1,4 +1,5 @@
 "use client";
+import { SectionCard } from "~/components/ui/section-card";
 import { FramedList } from "~/components/ui/framed-list";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
@@ -1548,9 +1549,9 @@ function EmptyCalendarState({
   viewMode,
 }: Readonly<{ viewMode: CalendarViewMode }>) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+    <SectionCard>
       <EmptyState title={calendarEmptyLabel(viewMode)} />
-    </div>
+    </SectionCard>
   );
 }
 

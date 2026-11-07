@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { me as meKeys } from "~/lib/swr/me";
 import { rooms as roomsKeys } from "~/lib/swr/rooms";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -529,9 +530,10 @@ export function TransitStudentsSection({
               {studentsLoading && students.length === 0 ? (
                 <Loading fullPage={false} message="Kinder werden geladen …" />
               ) : studentsError ? null : students.length === 0 ? (
-                <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500">
-                  Aktuell keine Kinder unterwegs.
-                </div>
+                <EmptyState
+                  variant="dashed"
+                  title="Aktuell keine Kinder unterwegs."
+                />
               ) : (
                 students.map((student) => {
                   const studentId = student.id.toString();

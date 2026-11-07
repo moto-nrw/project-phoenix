@@ -1,3 +1,4 @@
+import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -267,13 +268,17 @@ export function MultiSelectField({
 
       <InsetPanel tone="white" className="max-h-72 overflow-y-auto">
         {options.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-gray-500">
-            Keine Einträge gefunden
-          </div>
+          <EmptyState
+            variant="compact"
+            title="Keine Einträge gefunden"
+            className="px-2"
+          />
         ) : filteredOptions.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-gray-500">
-            Keine passenden Einträge gefunden
-          </div>
+          <EmptyState
+            variant="compact"
+            title="Keine passenden Einträge gefunden"
+            className="px-2"
+          />
         ) : (
           <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
             {filteredOptions.map((option) => {

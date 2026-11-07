@@ -7,6 +7,7 @@
 // Monatskarten-Kette ein. Dazu der einmalige Eröffnungssaldo (#2132), der den
 // Übernahme-Stand aus dem Altsystem setzt.
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Banknote, Clock4, Flag, RotateCcw, Trash2 } from "lucide-react";
 
@@ -166,10 +167,10 @@ export function StundenkontoPanel({
       }
     >
       {adjustments.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-400">
-          Noch keine Buchungen — Auszahlungen, Freizeitausgleich, Resets und
-          Eröffnungssalden erscheinen hier.
-        </p>
+        <EmptyState
+          variant="dashed"
+          title="Noch keine Buchungen — Auszahlungen, Freizeitausgleich, Resets und Eröffnungssalden erscheinen hier."
+        />
       ) : (
         <ul className="divide-y divide-gray-100">
           {adjustments.map((adjustment) => (

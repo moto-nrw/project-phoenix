@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { FramedList } from "~/components/ui/framed-list";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -165,9 +166,7 @@ export function RecipientList({
         />
       )}
       {filtered.length === 0 ? (
-        <p className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500">
-          Keine Treffer.
-        </p>
+        <EmptyState variant="compact" title="Keine Treffer." />
       ) : (
         <FramedList maxHeight="md">
           {filtered.map((rcpt) => (

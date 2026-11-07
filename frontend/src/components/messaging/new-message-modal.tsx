@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
@@ -368,9 +369,10 @@ export function NewMessageModal({
               ) : guardiansFailed ? (
                 <LoadErrorAlert error={guardiansError.error} />
               ) : guardians.length === 0 ? (
-                <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
-                  Für dieses Kind ist kein Eltern-Zugang hinterlegt.
-                </p>
+                <EmptyState
+                  variant="compact"
+                  description="Für dieses Kind ist kein Eltern-Zugang hinterlegt."
+                />
               ) : (
                 <div className="space-y-1">
                   {guardians.map((g) => (

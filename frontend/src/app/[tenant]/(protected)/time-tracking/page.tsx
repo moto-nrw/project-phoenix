@@ -2561,10 +2561,12 @@ function EditSessionModal({
                 <div>
                   {hasIndividualBreaks ? (
                     <div>
-                      <span className="mb-1 block text-sm font-medium text-gray-700">
-                        Pausen
-                      </span>
-                      <div className="space-y-2">
+                      <FieldLabel id="edit-breaks-label">Pausen</FieldLabel>
+                      <div
+                        role="group"
+                        aria-labelledby="edit-breaks-label"
+                        className="space-y-2"
+                      >
                         {session.breaks.map((brk) => (
                           <div key={brk.id} className="flex items-center gap-2">
                             <span className="w-12 shrink-0 text-xs text-gray-500 tabular-nums">
@@ -2602,46 +2604,28 @@ function EditSessionModal({
                       </div>
                     </div>
                   ) : (
-                    <div>
-                      <label
-                        id="edit-break-label"
-                        htmlFor="edit-break"
-                        className="mb-1 block text-sm font-medium text-gray-700"
-                      >
-                        Pause (Min)
-                      </label>
-                      <CustomSelect
-                        id="edit-break"
-                        ariaLabelledBy="edit-break-label"
-                        value={breakMins}
-                        onChange={setBreakMins}
-                        options={[0, 15, 30, 45, 60].map((m) => ({
-                          value: m.toString(),
-                          label: `${m} min`,
-                        }))}
-                      />
-                    </div>
+                    <CustomSelect
+                      id="edit-break"
+                      label="Pause (Min)"
+                      value={breakMins}
+                      onChange={setBreakMins}
+                      options={[0, 15, 30, 45, 60].map((m) => ({
+                        value: m.toString(),
+                        label: `${m} min`,
+                      }))}
+                    />
                   )}
                 </div>
-                <div>
-                  <label
-                    id="edit-status-label"
-                    htmlFor="edit-status"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Ort
-                  </label>
-                  <CustomSelect
-                    id="edit-status"
-                    ariaLabelledBy="edit-status-label"
-                    value={status}
-                    onChange={(next) => setStatus(next as SessionStatus)}
-                    options={[
-                      { value: "present", label: "In der OGS" },
-                      { value: "home_office", label: "Unterwegs" },
-                    ]}
-                  />
-                </div>
+                <CustomSelect
+                  id="edit-status"
+                  label="Ort"
+                  value={status}
+                  onChange={(next) => setStatus(next as SessionStatus)}
+                  options={[
+                    { value: "present", label: "In der OGS" },
+                    { value: "home_office", label: "Unterwegs" },
+                  ]}
+                />
               </div>
 
               <div>
@@ -2726,14 +2710,14 @@ function EditSessionModal({
                 <>
                   {/* Absence type */}
                   <div>
-                    <div className="mb-1 flex items-baseline justify-between gap-2">
-                      <label
+                    <div className="mb-2 flex items-baseline justify-between gap-2">
+                      <FieldLabel
                         id="edit-abs-type-label"
                         htmlFor="edit-abs-type"
-                        className="block text-sm font-medium text-gray-700"
+                        className="mb-0"
                       >
                         Art der Abwesenheit
-                      </label>
+                      </FieldLabel>
                       {/* Eigene Namen pflegt die Datenverwaltung (#3114); der
                           Link öffnet ein zweites Fenster, damit dieser Eintrag
                           stehen bleibt. */}
@@ -2754,39 +2738,27 @@ function EditSessionModal({
 
                   {/* Date range */}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label
-                        htmlFor="edit-abs-start"
-                        className="mb-1 block text-sm font-medium text-gray-700"
-                      >
-                        Von
-                      </label>
-                      <ISODatePicker
-                        id="edit-abs-start"
-                        error={formErrors.fieldError("date_start")}
-                        value={absDateStart}
-                        onChange={setAbsDateStart}
-                        calendarLayout="popover"
-                        hideClearButton
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="edit-abs-end"
-                        className="mb-1 block text-sm font-medium text-gray-700"
-                      >
-                        Bis
-                      </label>
-                      <ISODatePicker
-                        id="edit-abs-end"
-                        error={formErrors.fieldError("date_end")}
-                        value={absDateEnd}
-                        min={absDateStart || undefined}
-                        onChange={setAbsDateEnd}
-                        calendarLayout="popover"
-                        hideClearButton
-                      />
-                    </div>
+                    <ISODatePicker
+                      id="edit-abs-start"
+                      name="date_start"
+                      label="Von"
+                      error={formErrors.fieldError("date_start")}
+                      value={absDateStart}
+                      onChange={setAbsDateStart}
+                      calendarLayout="popover"
+                      hideClearButton
+                    />
+                    <ISODatePicker
+                      id="edit-abs-end"
+                      name="date_end"
+                      label="Bis"
+                      error={formErrors.fieldError("date_end")}
+                      value={absDateEnd}
+                      min={absDateStart || undefined}
+                      onChange={setAbsDateEnd}
+                      calendarLayout="popover"
+                      hideClearButton
+                    />
                   </div>
 
                   {/* Half day toggle */}
@@ -2802,27 +2774,17 @@ function EditSessionModal({
                   </div>
 
                   {/* Absence note */}
-                  <div>
-                    <label
-                      htmlFor="edit-abs-note"
-                      className="mb-1 block text-sm font-medium text-gray-700"
-                    >
-                      Bemerkung{" "}
-                      <span className="font-normal text-gray-400">
-                        (optional)
-                      </span>
-                    </label>
-                    <Textarea
-                      id="edit-abs-note"
-                      name="note"
-                      error={formErrors.fieldError("note")}
-                      value={absNote}
-                      onChange={(e) => setAbsNote(e.target.value)}
-                      rows={2}
-                      maxLength={2000}
-                      placeholder="z. B. Arzttermin, Schulung …"
-                    />
-                  </div>
+                  <Textarea
+                    id="edit-abs-note"
+                    name="note"
+                    label="Bemerkung (optional)"
+                    error={formErrors.fieldError("note")}
+                    value={absNote}
+                    onChange={(e) => setAbsNote(e.target.value)}
+                    rows={2}
+                    maxLength={2000}
+                    placeholder="z. B. Arzttermin, Schulung …"
+                  />
 
                   {/* Destructive action */}
                   <div className="pt-1">
@@ -2964,14 +2926,14 @@ function CreateAbsenceModal({
         <FormErrorAlert message={formErrors.error} />
         {/* Absence type */}
         <div>
-          <div className="mb-1 flex items-baseline justify-between gap-2">
-            <label
+          <div className="mb-2 flex items-baseline justify-between gap-2">
+            <FieldLabel
               id="absence-type-label"
               htmlFor="absence-type"
-              className="block text-sm font-medium text-gray-700"
+              className="mb-0"
             >
               Art der Abwesenheit
-            </label>
+            </FieldLabel>
             {canManageAbsenceTypes && (
               <CatalogManageLink
                 href="/database/absence-types"
@@ -2989,39 +2951,27 @@ function CreateAbsenceModal({
 
         {/* Date range */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="absence-start"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Von
-            </label>
-            <ISODatePicker
-              id="absence-start"
-              error={formErrors.fieldError("date_start")}
-              value={dateStart}
-              onChange={setDateStart}
-              calendarLayout="popover"
-              hideClearButton
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="absence-end"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Bis
-            </label>
-            <ISODatePicker
-              id="absence-end"
-              error={formErrors.fieldError("date_end")}
-              value={dateEnd}
-              min={dateStart || undefined}
-              onChange={setDateEnd}
-              calendarLayout="popover"
-              hideClearButton
-            />
-          </div>
+          <ISODatePicker
+            id="absence-start"
+            name="date_start"
+            label="Von"
+            error={formErrors.fieldError("date_start")}
+            value={dateStart}
+            onChange={setDateStart}
+            calendarLayout="popover"
+            hideClearButton
+          />
+          <ISODatePicker
+            id="absence-end"
+            name="date_end"
+            label="Bis"
+            error={formErrors.fieldError("date_end")}
+            value={dateEnd}
+            min={dateStart || undefined}
+            onChange={setDateEnd}
+            calendarLayout="popover"
+            hideClearButton
+          />
         </div>
 
         {/* Half day toggle */}
@@ -3035,25 +2985,17 @@ function CreateAbsenceModal({
         </div>
 
         {/* Note */}
-        <div>
-          <label
-            htmlFor="absence-note"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Bemerkung{" "}
-            <span className="font-normal text-gray-400">(optional)</span>
-          </label>
-          <Textarea
-            id="absence-note"
-            name="note"
-            error={formErrors.fieldError("note")}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={2}
-            maxLength={2000}
-            placeholder="z. B. Arzttermin, Schulung …"
-          />
-        </div>
+        <Textarea
+          id="absence-note"
+          name="note"
+          label="Bemerkung (optional)"
+          error={formErrors.fieldError("note")}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          maxLength={2000}
+          placeholder="z. B. Arzttermin, Schulung …"
+        />
       </div>
     </Modal>
   );
@@ -4129,23 +4071,19 @@ function TimeTrackingContent() {
                 Bitte geben Sie einen kurzen Grund an. Er wird beim Eintrag
                 gespeichert.
               </p>
-              <label
-                htmlFor="deviation-reason"
-                className="mt-4 block text-xs font-medium text-gray-700"
-              >
-                Grund
-              </label>
-              <Textarea
-                id="deviation-reason"
-                name="reason"
-                error={deviationErrors.fieldError("reason")}
-                value={deviationReason}
-                onChange={(e) => setDeviationReason(e.target.value)}
-                disabled={deviationSubmitting}
-                placeholder="z. B. Elterngespräch lief länger"
-                rows={3}
-                className="mt-1"
-              />
+              <div className="mt-4">
+                <Textarea
+                  id="deviation-reason"
+                  name="reason"
+                  label="Grund"
+                  error={deviationErrors.fieldError("reason")}
+                  value={deviationReason}
+                  onChange={(e) => setDeviationReason(e.target.value)}
+                  disabled={deviationSubmitting}
+                  placeholder="z. B. Elterngespräch lief länger"
+                  rows={3}
+                />
+              </div>
             </div>
           </Modal>
         </>

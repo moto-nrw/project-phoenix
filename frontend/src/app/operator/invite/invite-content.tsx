@@ -1,7 +1,8 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Circle } from "lucide-react";
+import { AlertTriangle, Check, Circle } from "lucide-react";
 import { AuthShell, OperatorBrand } from "~/components/auth/auth-shell";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -212,12 +213,11 @@ export function InviteContent() {
         formMaxWidth="max-w-[31rem]"
       >
         <div className="text-center">
-          <div className="bg-moto-green-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-            <Check
-              className="text-moto-green-strong h-9 w-9"
-              aria-hidden="true"
-            />
-          </div>
+          <EmptyState
+            tone="success"
+            icon={<Check aria-hidden="true" />}
+            className="py-0 pb-4"
+          />
           <ButtonLink
             href={operatorPath("/operator/login")}
             variant="primary"
@@ -242,9 +242,11 @@ export function InviteContent() {
         formMaxWidth="max-w-[31rem]"
       >
         <div className="text-center">
-          <div className="bg-moto-red-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-            <span className="text-moto-red text-2xl font-semibold">!</span>
-          </div>
+          <EmptyState
+            tone="error"
+            icon={<AlertTriangle aria-hidden="true" />}
+            className="py-0 pb-4"
+          />
           <LoadErrorAlert
             error={invitationLoad.error}
             className="mb-4 text-left"

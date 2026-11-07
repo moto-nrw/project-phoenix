@@ -143,6 +143,144 @@ describe.concurrent("ui-kit/no-hand-rolled-dropzone", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-hand-rolled-empty-state", () => {
+  const RULE = "ui-kit(no-hand-rolled-empty-state)";
+  const source = `function Probe() {
+    return <div className="rounded-xl border border-dashed px-4 py-6 text-center">Leer</div>;
+  }
+  void Probe;`;
+
+  it("reports a dashed, centered box", async () => {
+    const result = await lintSource(source, "src/components/probe.tsx");
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
+  it("reports an expression-wrapped className string once", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className={"border-dashed text-center"}>Leer</div>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.split(RULE)).toHaveLength(2);
+  });
+
+  it("reports a template-literal class constant", async () => {
+    const result = await lintSource(
+      `const classes = \`border-dashed text-center\`;
+      export const Probe = () => <div className={classes}>Leer</div>;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
+  it("reports the classes across a template and cn arguments", async () => {
+    const template = `function Probe({ surface }) {
+      return <div className={\`\${surface} border-dashed text-center\`}>Leer</div>;
+    }
+    void Probe;`;
+    const split = `function Probe({ cn }) {
+      return <div className={cn("rounded-xl border-dashed", "text-center")}>Leer</div>;
+    }
+    void Probe;`;
+
+    for (const probe of [template, split]) {
+      const result = await lintSource(probe, "src/components/probe.tsx");
+      expect(result.output).toContain(RULE);
+    }
+  });
+
+  it("reports classes combined from constants", async () => {
+    const result = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      const dashedClasses = "border-dashed";
+      const centeredClasses = "text-center";
+      export const Probe = () => (
+        <div className={cn(dashedClasses, centeredClasses)}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
+  it("allows mutually exclusive dashed and centered classes", async () => {
+    const result = await lintSource(
+      `declare const loading: boolean;
+      export const Probe = () => (
+        <div className={loading ? "border-dashed" : "text-center"}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
+  });
+
+  it("reports when a conditional branch has both classes", async () => {
+    const result = await lintSource(
+      `declare const loading: boolean;
+      export const Probe = () => (
+        <div className={loading ? "border-dashed text-center" : "p-4"}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain(RULE);
+  });
+
+  it("reports dashed and centered keys in a cn class map", async () => {
+    const result = await lintSource(
+      `declare const empty: boolean;
+      declare function cn(classes: Record<string, boolean>): string;
+      export const Probe = () => (
+        <div className={cn({ "border-dashed": empty, "text-center": empty })}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain(RULE);
+  });
+
+  it("allows mutually exclusive keys in a cn class map", async () => {
+    const result = await lintSource(
+      `declare const empty: boolean;
+      declare function cn(classes: Record<string, boolean>): string;
+      export const Probe = () => (
+        <div className={cn({ "border-dashed": empty, "text-center": !empty })}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
+  });
+
+  it("allows a dashed box that is not centered", async () => {
+    const result = await lintSource(
+      source.replace(" text-center", ""),
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
+  });
+
+  it("allows the kit itself", async () => {
+    const result = await lintSource(
+      source,
+      "src/components/ui/empty-state.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
+  });
+});
+
 describe.concurrent("ui-kit/no-hand-rolled-copy-field", () => {
   it("reports a framed code value", async () => {
     const result = await lintSource(

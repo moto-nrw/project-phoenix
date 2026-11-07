@@ -14,6 +14,7 @@
 
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { me as meKeys } from "~/lib/swr/me";
 import { rooms as roomsKeys } from "~/lib/swr/rooms";
 import {
@@ -834,9 +835,7 @@ function StudentsInRoomBody({
     // room.
     return (
       <div className="flex flex-col gap-2">
-        <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500">
-          Aktuell keine Kinder im Raum.
-        </div>
+        <EmptyState variant="dashed" title="Aktuell keine Kinder im Raum." />
       </div>
     );
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useContext,
@@ -2841,11 +2842,19 @@ export function LegalBlocksSection({
         )}
 
         {customEntries.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-200 bg-white/70 p-4 text-sm leading-6 text-gray-600">
-            {customOnly
-              ? "Noch keine eigenen Hinweise oder Einwilligungen."
-              : "Noch keine eigenen Zustimmungen. Füge hier nur zusätzliche Inhalte hinzu, die nicht in den allgemeinen Einstellungen stehen."}
-          </div>
+          <EmptyState
+            variant="dashed"
+            title={
+              customOnly
+                ? "Noch keine eigenen Hinweise oder Einwilligungen."
+                : "Noch keine eigenen Zustimmungen."
+            }
+            description={
+              customOnly
+                ? undefined
+                : "Füge hier nur zusätzliche Inhalte hinzu, die nicht in den allgemeinen Einstellungen stehen."
+            }
+          />
         ) : null}
       </div>
 

@@ -3,6 +3,7 @@
 // Jahrgangsstufenwechsel admin flow (#405): list of transitions, draft
 // editor, preview + apply, revert. Consumes /api/admin/grade-transitions.
 
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -553,16 +554,10 @@ export function GradeTransitionsManager({
           defaultSortKey="createdAt"
           defaultSortDirection="desc"
           emptyState={
-            <div className="py-8 text-center text-sm text-gray-500">
-              <p className="font-medium text-gray-700">
-                Noch kein Schuljahreswechsel angelegt.
-              </p>
-              <p className="mt-1">
-                Mit einem neuen Schuljahreswechsel werden alle Klassen
-                automatisch vorgeschlagen (z. B. 1a in 2a) und lassen sich vor
-                dem Anwenden anpassen.
-              </p>
-            </div>
+            <EmptyState
+              title="Noch kein Schuljahreswechsel angelegt."
+              description="Mit einem neuen Schuljahreswechsel werden alle Klassen automatisch vorgeschlagen (z. B. 1a in 2a) und lassen sich vor dem Anwenden anpassen."
+            />
           }
         />
       </SectionCard>

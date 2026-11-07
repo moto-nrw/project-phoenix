@@ -7,6 +7,7 @@
 
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useState } from "react";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
@@ -108,9 +109,11 @@ export function RemindersBell() {
     >
       {() =>
         count === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-gray-500">
-            Keine aktiven Erinnerungen.
-          </p>
+          <EmptyState
+            variant="compact"
+            title="Keine aktiven Erinnerungen."
+            className="px-4 py-4"
+          />
         ) : (
           <>
             <ul className="divide-y divide-gray-100">

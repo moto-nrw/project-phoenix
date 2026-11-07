@@ -379,24 +379,19 @@ export function BulkSubstitutionModal({
           <div ref={formRef} className="space-y-4">
             {staffLoadError && <LoadErrorAlert error={staffLoadErrorMessage} />}
 
-            <div>
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                Abwesende Person
-              </span>
-              <CustomSelect
-                value={absentStaffId}
-                options={absentOptions}
-                name="absent_staff_id"
-                invalid={Boolean(formErrors.fieldError("absent_staff_id"))}
-                ariaLabel="Abwesende Person"
-                placeholder="Person wählen…"
-                onChange={(value) => {
-                  setAbsentStaffId(value);
-                  if (value === substituteStaffId) setSubstituteStaffId("");
-                  setDeselected(new Set());
-                }}
-              />
-            </div>
+            <CustomSelect
+              value={absentStaffId}
+              options={absentOptions}
+              name="absent_staff_id"
+              label="Abwesende Person"
+              error={formErrors.fieldError("absent_staff_id")}
+              placeholder="Person wählen…"
+              onChange={(value) => {
+                setAbsentStaffId(value);
+                if (value === substituteStaffId) setSubstituteStaffId("");
+                setDeselected(new Set());
+              }}
+            />
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <ISODatePicker
@@ -515,24 +510,17 @@ export function BulkSubstitutionModal({
               </div>
             )}
 
-            <div>
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                Ersatzperson
-              </span>
-              <CustomSelect
-                value={substituteStaffId}
-                options={substituteOptions}
-                name="substitute_staff_id"
-                invalid={Boolean(formErrors.fieldError("substitute_staff_id"))}
-                ariaLabel="Ersatzperson"
-                placeholder="Keine — nur abwesend melden"
-                disabled={staffLoadError}
-                onChange={setSubstituteStaffId}
-              />
-              <p className="mt-1 text-sm text-gray-500">
-                Ohne Ersatzperson werden die Termine nur als abwesend markiert.
-              </p>
-            </div>
+            <CustomSelect
+              value={substituteStaffId}
+              options={substituteOptions}
+              name="substitute_staff_id"
+              label="Ersatzperson"
+              hint="Ohne Ersatzperson werden die Termine nur als abwesend markiert."
+              error={formErrors.fieldError("substitute_staff_id")}
+              placeholder="Keine — nur abwesend melden"
+              disabled={staffLoadError}
+              onChange={setSubstituteStaffId}
+            />
 
             <Input
               id="bulk-substitution-reason"
