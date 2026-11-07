@@ -90,7 +90,7 @@ SELECT document.id, document.title, document.file_name, document.content_type, d
 	(SELECT COUNT(*) FROM platform.traeger_document_reads AS reading
 		WHERE reading.organization_id = document.organization_id AND reading.document_id = document.id) AS reads
 FROM platform.traeger_documents AS document
-WHERE document.organization_id = ?
+WHERE document.organization_id = ? AND document.deleted_at IS NULL
 ORDER BY document.created_at DESC, document.id DESC`
 
 const listTraegerReleasesQuery = `
@@ -155,14 +155,16 @@ func (s *TraegerDocumentStore) InsertDocument(ctx context.Context, organizationI
 	return row.toDomain(nil), nil
 }
 
-// DocumentFile reads the file of a document of the Träger.
+// DocumentFile reads the file of a document of the Träger; a deleted
+// document has no file any more.
 func (s *TraegerDocumentStore) DocumentFile(ctx context.Context, organizationID, documentID int64) (organizationtenancy.TraegerDocumentFile, bool, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return organizationtenancy.TraegerDocumentFile{}, false, err
 	}
 	var rows []traegerFileRow
-	if err := db.NewRaw(`SELECT file_name, content_type, content FROM platform.traeger_documents WHERE organization_id = ? AND id = ?`,
+	if err := db.NewRaw(`SELECT file_name, content_type, content FROM platform.traeger_documents
+		WHERE organization_id = ? AND id = ? AND deleted_at IS NULL`,
 		organizationID, documentID).Scan(ctx, &rows); err != nil {
 		return organizationtenancy.TraegerDocumentFile{}, false, fmt.Errorf("organization tenancy postgres: read Träger document: %w", err)
 	}
@@ -202,11 +204,15 @@ func (s *TraegerDocumentStore) ReachedSchools(ctx context.Context, organizationI
 // active release of the same audience violates it.
 const activeReleaseIndex = "uq_traeger_document_releases_active"
 
+// insertTraegerReleaseQuery locks the document row FOR SHARE, so a release
+// waits for a deletion running at the same time and then finds the document
+// deleted (#5993); the deletion locks the row FOR UPDATE before it revokes.
 const insertTraegerReleaseQuery = `
 INSERT INTO platform.traeger_document_releases (organization_id, document_id, audience, school_id, group_id, group_name, released_by)
 SELECT document.organization_id, document.id, ?, ?, ?, ?, ?
 FROM platform.traeger_documents AS document
-WHERE document.organization_id = ? AND document.id = ?
+WHERE document.organization_id = ? AND document.id = ? AND document.deleted_at IS NULL
+FOR SHARE OF document
 RETURNING id, document_id, audience, school_id, group_id, group_name, released_at`
 
 // InsertRelease adds an active release of a document of the Träger.
@@ -256,6 +262,41 @@ func (s *TraegerDocumentStore) RevokeRelease(ctx context.Context, organizationID
 	return affected == 1, nil
 }
 
+// DeleteDocument deletes a document of the Träger (#5993): it locks the row,
+// revokes every active release with the acting account, removes the file
+// and records who deleted it when. Releases, reads and downloads stay with
+// their own retention. deleted is false for a document that is not the
+// Träger's or is already deleted.
+func (s *TraegerDocumentStore) DeleteDocument(ctx context.Context, organizationID, accountID, documentID int64) (bool, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return false, err
+	}
+	var locked []int64
+	if err := db.NewRaw(`SELECT id FROM platform.traeger_documents
+		WHERE organization_id = ? AND id = ? AND deleted_at IS NULL FOR UPDATE`,
+		organizationID, documentID).Scan(ctx, &locked); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return false, fmt.Errorf("organization tenancy postgres: lock Träger document: %w", err)
+	}
+	if len(locked) == 0 {
+		return false, nil
+	}
+	actor := traegerActor(accountID)
+	if _, err := db.ExecContext(ctx, `
+		UPDATE platform.traeger_document_releases SET revoked_at = CURRENT_TIMESTAMP, revoked_by = ?
+		WHERE organization_id = ? AND document_id = ? AND revoked_at IS NULL`,
+		actor, organizationID, documentID); err != nil {
+		return false, fmt.Errorf("organization tenancy postgres: revoke releases of a deleted Träger document: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		UPDATE platform.traeger_documents SET content = NULL, deleted_at = CURRENT_TIMESTAMP, deleted_by = ?
+		WHERE organization_id = ? AND id = ? AND deleted_at IS NULL`,
+		actor, organizationID, documentID); err != nil {
+		return false, fmt.Errorf("organization tenancy postgres: delete Träger document: %w", err)
+	}
+	return true, nil
+}
+
 // parentReleasesQuery selects the active parent releases that cover the
 // parent: for every school of the Träger, for one of the parent's schools,
 // or for a group of a child at one of them. parentDocumentReleaseQuery
@@ -266,6 +307,7 @@ SELECT release.id, release.document_id, release.audience, release.school_id, rel
 FROM platform.traeger_document_releases AS release
 JOIN platform.traeger_documents AS document
 	ON document.organization_id = release.organization_id AND document.id = release.document_id
+	AND document.deleted_at IS NULL
 WHERE release.organization_id = ? AND release.audience = 'parents' AND release.revoked_at IS NULL
 	AND (release.school_id IS NULL
 		OR (release.group_id IS NULL AND release.school_id = ANY(?::bigint[]))
@@ -280,6 +322,7 @@ SELECT release.id, release.document_id, release.audience, release.school_id, rel
 FROM platform.traeger_document_releases AS release
 JOIN platform.traeger_documents AS document
 	ON document.organization_id = release.organization_id AND document.id = release.document_id
+	AND document.deleted_at IS NULL
 WHERE release.organization_id = ? AND release.audience = 'parents' AND release.revoked_at IS NULL
 	AND (release.school_id IS NULL
 		OR (release.group_id IS NULL AND release.school_id = ANY(?::bigint[]))

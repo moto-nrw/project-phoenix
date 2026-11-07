@@ -274,6 +274,21 @@ func (d *TraegerDocuments) audienceGroupName(ctx context.Context, organizationID
 	return groups[index].Name, nil
 }
 
+// Delete deletes a document of the Träger in one Träger transaction: the
+// releases end, the file goes, the deletion is recorded, all or nothing.
+func (d *TraegerDocuments) Delete(ctx context.Context, organizationID, accountID, documentID int64) error {
+	if organizationID <= 0 {
+		return errTraegerRequired
+	}
+	return d.ports.Runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
+		deleted, err := d.store.DeleteDocument(txCtx, organizationID, accountID, documentID)
+		if err == nil && !deleted {
+			err = organizationtenancy.ErrTraegerDocumentNotFound
+		}
+		return err
+	})
+}
+
 // Revoke revokes an active release of a document.
 func (d *TraegerDocuments) Revoke(ctx context.Context, organizationID, accountID, documentID, releaseID int64) error {
 	if organizationID <= 0 {

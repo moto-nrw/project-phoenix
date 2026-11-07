@@ -30,7 +30,7 @@ const maxDocumentBody = organizationtenancy.TraegerDocumentMaxBytes + 64<<10
 // schools (#4692) at /traeger/documents. Every route sits behind the Träger
 // session; the Träger comes from the session, never from the request, and
 // the Owner opens the transactions itself. Reading needs the Träger right
-// "Übersicht lesen", uploading, releasing and revoking "Anmeldung
+// "Übersicht lesen", uploading, releasing, revoking and deleting "Anmeldung
 // verwalten", the right of the Verwaltung that works with parents and
 // schools.
 type DocumentsResource struct {
@@ -62,6 +62,7 @@ func (rs *DocumentsResource) TraegerRouter(protectedTraegerRoutes func(chi.Route
 		manage.Get("/audiences", rs.audiences)
 		manage.Post("/{id}/releases", rs.release)
 		manage.Delete("/{id}/releases/{releaseId}", rs.revoke)
+		manage.Delete("/{id}", rs.delete)
 	})
 	return r
 }
@@ -207,6 +208,24 @@ func (rs *DocumentsResource) revoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, nil, "Träger document release revoked successfully")
+}
+
+// delete deletes a document with all its releases (#5993).
+func (rs *DocumentsResource) delete(w http.ResponseWriter, r *http.Request) {
+	organizationID, accountID, ok := session(w, r)
+	if !ok {
+		return
+	}
+	documentID, err := common.ParseIDParam(r, "id")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if err := rs.documents.Delete(r.Context(), organizationID, accountID, documentID); err != nil {
+		renderDocumentError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Träger document deleted successfully")
 }
 
 // renderDocumentError answers a refused document operation; every other
