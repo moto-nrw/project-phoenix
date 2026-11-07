@@ -22,6 +22,15 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	if err != nil {
 		return nil, err
 	}
+	// Take the gates the student sync needs before the request and child row
+	// locks, as an approved change request does: a phase edit holds the
+	// recurrence gate while it rewrites the children's pending weekly plans
+	// (#6043 review).
+	if s.deps.Decisions != nil && s.deps.BookingGates != nil {
+		if err := s.deps.BookingGates.LockOfferingDerivedWrites(ctx); err != nil {
+			return nil, fmt.Errorf("admin data correction: lock offering-derived writes: %w", err)
+		}
+	}
 	req, err := decodedRequestByID(ctx, s.deps.Requests, input.RequestID, true)
 	if err != nil && !s.deps.Runtime.NotFound(err) {
 		return nil, err

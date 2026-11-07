@@ -81,6 +81,7 @@ import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { EnrollmentRequestUploadList } from "~/components/enrollment/admin-enrollment-upload-list";
 import { AdminEnrollmentSignature } from "~/components/enrollment/admin-enrollment-signature";
 import { formatCalendarDate } from "~/lib/localized-date-format";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
@@ -769,11 +770,7 @@ function ChildInformationCard({
           </p>
         ) : null}
         {child.status === "approved" && child.weekly_plan_on ? (
-          <Alert
-            type="info"
-            announce="off"
-            message={`Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab ${formatPlainDate(child.weekly_plan_on)}. Bis dahin bleiben die bisherigen.`}
-          />
+          <WeeklyPlanNotice on={child.weekly_plan_on} />
         ) : null}
         <ChildOfferings
           offerings={child.offerings}
@@ -1130,6 +1127,28 @@ export function formatDateTime(
     ...options,
     timeZone: "Europe/Berlin",
   });
+}
+
+// WeeklyPlanNotice names when the weekly plan of a renewal approved before
+// its start applies (#6043). The hourly run applies it on that day and
+// clears it; a plan still shown after its day could not be applied, so the
+// previous values still apply and the run retries every hour.
+function WeeklyPlanNotice({ on }: Readonly<{ on: string }>) {
+  const today = useBerlinToday();
+  if (on < today) {
+    return (
+      <Alert
+        type="warning"
+        announce="off"
+        message={`Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung sollten ab ${formatPlainDate(on)} gelten. moto konnte sie noch nicht übernehmen. Darum gelten noch die bisherigen. moto versucht es jede Stunde neu. Bleibt dieser Hinweis, melden Sie sich bitte beim moto-Team.`}
+      />
+    );
+  }
+  const message =
+    on === today
+      ? "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab heute. moto übernimmt sie im Lauf des Tages."
+      : `Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab ${formatPlainDate(on)}. Bis dahin bleiben die bisherigen.`;
+  return <Alert type="info" announce="off" message={message} />;
 }
 
 export function formatPlainDate(value: string): string {

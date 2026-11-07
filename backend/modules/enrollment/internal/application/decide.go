@@ -48,6 +48,9 @@ func (d *Decisions) Decide(ctx context.Context, input enrollmentNative.DecideInp
 	if err := validateDecideInput(input); err != nil {
 		return nil, err
 	}
+	if err := d.lockApprovalGates(ctx, input.Status); err != nil {
+		return nil, err
+	}
 	target, err := d.lockDecisionTarget(ctx, input)
 	if err != nil {
 		return nil, err
@@ -104,6 +107,23 @@ func validateDecideInput(input enrollmentNative.DecideInput) error {
 		return fmt.Errorf("%w: %s", enrollmentNative.ErrDecisionInvalidStatus, input.Status)
 	}
 	return nil
+}
+
+// lockApprovalGates takes the class-writes and recurrence gates of an
+// approval before the request and child row locks and before the phase read
+// (#6043 review). A phase edit holds the recurrence gate while it moves the
+// service start and reschedules the pending weekly plans of the phase's
+// children: an approval that read the phase first planned the old start, and
+// one that held a sibling's row lock while waiting for the gate closed a lock
+// cycle with the edit. Other decisions write no gated state.
+func (d *Decisions) lockApprovalGates(ctx context.Context, status enrollmentNative.DecisionStatus) error {
+	if status != enrollmentNative.DecisionApproved {
+		return nil
+	}
+	if d.deps.StudentEnrollment == nil {
+		return d.lockTemplateRecurrence(ctx)
+	}
+	return d.lockExistingStudentGates(ctx)
 }
 
 // lockDecisionTarget locks the parent before its children. Cleanup, editing,

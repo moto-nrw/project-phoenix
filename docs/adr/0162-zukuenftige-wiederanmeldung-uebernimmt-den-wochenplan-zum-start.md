@@ -54,7 +54,12 @@ Begleitnotiz.
   übrigen Felder.
 - Verschiebt die Schule den Start der Phase, folgen offene Pläne ihrer
   Anmeldungen in derselben Transaktion dem neuen Datum. Bereits übernommene
-  Pläne entstehen dadurch nicht neu.
+  Pläne entstehen dadurch nicht neu. Die Phasenänderung hält dabei die
+  Wiederholungssperre. Bestätigung und direkte Korrektur nehmen deshalb
+  Klassen- und Wiederholungssperre vor den Zeilensperren der Anmeldung und vor
+  dem Lesen der Phase: Eine wartende Bestätigung plant so den gespeicherten
+  Start, und keine der beiden Seiten wartet mit gesperrter Kindzeile auf die
+  Sperre der anderen.
 - Als Urheber der neuen Wochenzeilen speichert der Plan die Mitarbeiterin, die
   bestätigt hat, oder zuletzt geändert hat (`weekly_plan_author`). Der Start
   hängt damit nicht davon ab, dass dieses Konto Monate später noch besteht.

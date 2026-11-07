@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { setTestClock } from "~/test/clock";
 
 // Errors and success messages run through the real display path (#2515).
 const render = (ui: ReactElement) =>
@@ -2255,6 +2256,45 @@ describe("AdminEnrollmentDetail future renewal (#6043)", () => {
         "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab 03.02.2027. Bis dahin bleiben die bisherigen.",
       ),
     ).toBeVisible();
+  });
+
+  it("says on the start day that the weekly plan applies today", async () => {
+    setTestClock("2027-02-03T09:00:00+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(
+      await screen.findByText(
+        "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab heute. moto übernimmt sie im Lauf des Tages.",
+      ),
+    ).toBeVisible();
+  });
+
+  // A plan the hourly run could not apply stays set after its day; the
+  // previous values still apply and the office learns what to do (#6043).
+  it("warns that an overdue weekly plan has not applied yet", async () => {
+    setTestClock("2027-02-10T09:00:00+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(
+      await screen.findByText(
+        "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung sollten ab 03.02.2027 gelten. moto konnte sie noch nicht übernehmen. Darum gelten noch die bisherigen. moto versucht es jede Stunde neu. Bleibt dieser Hinweis, melden Sie sich bitte beim moto-Team.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(/gelten ab 03\.02\.2027/),
+    ).not.toBeInTheDocument();
   });
 
   it("shows no hint once the weekly plan applies", async () => {
