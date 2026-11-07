@@ -3,8 +3,13 @@
   "contract_input_invalid": "Please select at least one and at most 200 entries.",
   "contract_not_draft": "The contract has already been sent. It can no longer be discarded.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
+  "contract_not_signable": "Ta umowa jest już podpisana lub nie czeka na podpis. Odśwież stronę.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
+  "paper_document_invalid": "Prześlij podpisaną umowę jako plik PDF. Plik może mieć maksymalnie 10 MB.",
   "school_outside_traeger": "This school does not belong to your provider.",
-  "template_invalid": "Please check the marked fields."
+  "signature_invalid": "Brak podpisu lub podpis jest pusty. Podpisz jeszcze raz.",
+  "signing_link_invalid": "Ten link jest już nieważny. Został użyty lub wygasł. Umowę znajdziesz w aplikacji dla rodziców w zakładce „Dokumenty”. Możesz też poprosić organizatora o nowy link.",
+  "template_invalid": "Please check the marked fields.",
+  "withdrawal_notice_required": "Potwierdź, że przeczytałeś pouczenie o prawie odstąpienia od umowy."
 }

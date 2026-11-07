@@ -332,15 +332,15 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
       "Entfernen@589",
-      "Telefonnummer entfernen@864",
+      "Telefonnummer entfernen@857",
     ],
     "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1310"],
     "src/components/staff/stammdaten-section-forms.tsx": [
-      "Qualifikation entfernen@485",
+      "Qualifikation entfernen@476",
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@298"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@795",
+      "Erziehungsberechtigte/n entfernen@792",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@810",
@@ -1228,7 +1228,7 @@ const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
     "src/components/students/planned-status-days-modal.tsx": [
-      "Bearbeiten@1178",
+      "Bearbeiten@1162",
     ],
   }),
 );

@@ -1,0 +1,30 @@
+{{define "care-contract-signed.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>Ihr Betreuungsvertrag ist unterschrieben</h1>
+
+    <p>Guten Tag{{if .GuardianName}} {{.GuardianName}}{{end}},</p>
+
+    <p>vielen Dank. Sie haben den Betreuungsvertrag{{if .ChildName}} für <strong>{{.ChildName}}</strong>{{end}}{{if .Modules}} mit der Betreuung <strong>{{.Modules}}</strong>{{end}} unterschrieben. Den Vertrag finden Sie im Anhang.</p>
+
+    <div class="highlight-box">
+        <p style="margin: 0; font-size: 14px;"><strong>Ihre Unterschrift</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Unterschrieben von {{.SignerName}} am {{.SignedAt}}.</p>
+        {{if .EarlyStart}}<p style="margin: 8px 0 0 0; font-size: 14px;">Sie wollen, dass die Betreuung schon vor dem Ende der Widerrufsfrist beginnt.</p>{{end}}
+        {{if .DocumentSHA256}}<p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280; word-break: break-all;">Prüfsumme des Vertrags (SHA-256): {{.DocumentSHA256}}</p>{{end}}
+    </div>
+
+    {{if .WithdrawalNotice}}
+    <h2 style="font-size: 16px;">Widerrufsbelehrung{{if .WithdrawalEndsOn}} (Frist bis {{.WithdrawalEndsOn}}){{end}}</h2>
+    {{range .WithdrawalNotice}}<p style="font-size: 14px;">{{.}}</p>
+    {{end}}
+    {{end}}
+
+    <p>Haben Sie die moto Eltern-App? Dann finden Sie den Vertrag auch dort unter „Dokumente“.</p>
+
+    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

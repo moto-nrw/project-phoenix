@@ -69,9 +69,12 @@ type WorkerDependencies struct {
 	CareContractConclusion CareContractConclusion
 	// StaffQualificationReminders sends the Nachweis reminders (#4808).
 	StaffQualificationReminders StaffQualificationReminders
-	WeekProtocols               WeekProtocolEvenings
-	PayrollDispatch             PayrollDispatch
-	MealOrders                  MealOrderSettlement
+	// CareContractReminders reminds parents of unsigned care contracts
+	// (#4679); nil leaves the job out.
+	CareContractReminders CareContractReminders
+	WeekProtocols         WeekProtocolEvenings
+	PayrollDispatch       PayrollDispatch
+	MealOrders            MealOrderSettlement
 	// SchoolVacations renews the school vacations of every federal state
 	// (#5345); nil leaves the job out.
 	SchoolVacations           SchoolVacationSync

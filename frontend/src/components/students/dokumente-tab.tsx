@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, FileImage, File as FileIcon } from "lucide-react";
 import { AccidentReportCreateModal } from "~/components/students/accident-report-create-modal";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -376,12 +377,9 @@ export function StudentDokumenteTab({
           /* Upload row: category choice + drop zone */
           <div className="mb-5 space-y-3">
             <div className="flex flex-wrap items-center gap-3">
-              <label
-                htmlFor="kind-dokument-kategorie"
-                className="text-xs font-medium text-gray-600"
-              >
+              <FieldLabel htmlFor="kind-dokument-kategorie" className="mb-0">
                 Kategorie
-              </label>
+              </FieldLabel>
               <CustomSelect
                 id="kind-dokument-kategorie"
                 value={effectiveUploadCategory ?? ""}
@@ -417,12 +415,9 @@ export function StudentDokumenteTab({
           // passten auf Handy und Tablet nicht in die Karte, die Pillen
           // überlagerten sich und die letzten waren nicht erreichbar (#4975).
           <div className="mb-4 flex flex-wrap items-center gap-3">
-            <label
-              htmlFor="kind-dokument-filter"
-              className="text-xs font-medium text-gray-600"
-            >
+            <FieldLabel htmlFor="kind-dokument-filter" className="mb-0">
               Anzeigen
-            </label>
+            </FieldLabel>
             <CustomSelect
               id="kind-dokument-filter"
               value={filter}

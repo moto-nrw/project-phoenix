@@ -3,8 +3,13 @@
   "contract_input_invalid": "Bitte wählen Sie mindestens einen und höchstens 200 Einträge aus.",
   "contract_not_draft": "Der Vertrag ist schon versendet. Er lässt sich nicht mehr verwerfen.",
   "contract_not_found": "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
+  "contract_not_signable": "Dieser Vertrag ist schon unterschrieben oder wartet nicht auf eine Unterschrift. Bitte laden Sie die Seite neu.",
   "letterhead_too_long": "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
   "offering_not_found": "Dieses Angebot gibt es an der Schule nicht mehr. Bitte laden Sie die Seite neu.",
+  "paper_document_invalid": "Bitte laden Sie den unterschriebenen Vertrag als PDF hoch. Die Datei darf höchstens 10 MB groß sein.",
   "school_outside_traeger": "Diese Schule gehört nicht zu Ihrem Träger.",
-  "template_invalid": "Bitte prüfen Sie die markierten Felder."
+  "signature_invalid": "Die Unterschrift fehlt oder ist leer. Bitte unterschreiben Sie noch einmal.",
+  "signing_link_invalid": "Dieser Link gilt nicht mehr. Er war schon benutzt oder ist abgelaufen. Den Vertrag finden Sie in der Eltern-App unter „Dokumente“. Oder fragen Sie beim Träger nach einem neuen Link.",
+  "template_invalid": "Bitte prüfen Sie die markierten Felder.",
+  "withdrawal_notice_required": "Bitte bestätigen Sie, dass Sie die Widerrufsbelehrung gelesen haben."
 }
