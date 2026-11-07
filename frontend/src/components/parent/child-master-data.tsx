@@ -905,7 +905,7 @@ function DepartureSection({
             {DEPARTURE_DAYS.map((day, dayIndex) => (
               <InsetPanel key={day} framed>
                 <fieldset>
-                  <legend className="px-1 text-sm font-semibold text-gray-900">
+                  <legend className="text-sm font-semibold text-gray-900">
                     {t(`departureDays.${day}`)}
                   </legend>
                   <div className="mt-1 space-y-1">

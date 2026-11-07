@@ -90,7 +90,7 @@ export function PhoneListInput({
         aria-invalid={error ? "true" : undefined}
         aria-describedby={error ? errorId : undefined}
       >
-        <legend className="px-1 text-sm font-semibold text-gray-900">
+        <legend className="text-sm font-semibold text-gray-900">
           {field.label}
           {field.required && <RequiredMark />}
         </legend>
