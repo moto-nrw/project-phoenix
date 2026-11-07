@@ -411,8 +411,10 @@ export function VacationRequestModal({
                   }}
                 />
               ) : (
-                <div className="space-y-2">
-                  <SectionLabel as="p">Halbe Tage an den Rändern</SectionLabel>
+                <fieldset className="space-y-2">
+                  <SectionLabel as="legend">
+                    Halbe Tage an den Rändern
+                  </SectionLabel>
                   <SwitchRow
                     label="Erster Tag halbtags"
                     description="Nur Vor- oder Nachmittag am Startdatum."
@@ -425,7 +427,7 @@ export function VacationRequestModal({
                     checked={endHalf}
                     onCheckedChange={setEndHalf}
                   />
-                </div>
+                </fieldset>
               ))}
 
             <div>
