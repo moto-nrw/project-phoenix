@@ -44,13 +44,9 @@ func (r *templateRosterReview) FutureRosters(ctx context.Context, templateIDs []
 	if err != nil {
 		return nil, err
 	}
-	targets, err := legacyGroupTargets(ctx, s.deps.ActivityGroupRepo, templateIDs)
+	targets, members, err := futureRosterTargets(ctx, s.deps.ActivityGroupRepo, templateIDs)
 	if err != nil {
-		return nil, &ports.ScheduleError{Op: "future rosters: load targets", Err: err}
-	}
-	members, err := s.deps.ActivityGroupRepo.ListTargetStudentIDs(ctx, templateIDs)
-	if err != nil {
-		return nil, &ports.ScheduleError{Op: "future rosters: load target students", Err: err}
+		return nil, err
 	}
 	schedulesByTemplate := make(map[int64][]*activityContract.Schedule, len(templateIDs))
 	for _, schedule := range schedules {
@@ -62,6 +58,37 @@ func (r *templateRosterReview) FutureRosters(ctx context.Context, templateIDs []
 		result[templateID] = roster
 	}
 	return result, nil
+}
+
+// futureRosterTargets reads the targets and their members. One target-input
+// read answers both from the same target rows (#5769, decision E2: an early
+// shared read may replace the former separate target and member reads; the
+// review takes no lock). A query without it keeps the two reads.
+func futureRosterTargets(ctx context.Context, groups timetable.ActivityGroupQuery, templateIDs []int64) (map[int64][]*activityContract.GroupTarget, map[int64][]int64, error) {
+	if inputs, ok := groups.(interface {
+		ListTemplateTargetInputs(context.Context, []int64) (timetable.TemplateTargetInputs, error)
+	}); ok {
+		values, err := inputs.ListTemplateTargetInputs(ctx, templateIDs)
+		if err != nil {
+			return nil, nil, &ports.ScheduleError{Op: "future rosters: load targets", Err: err}
+		}
+		targets := make(map[int64][]*activityContract.GroupTarget, len(values.Targets))
+		for groupID, rows := range values.Targets {
+			for _, row := range rows {
+				targets[groupID] = append(targets[groupID], legacyGroupTarget(row))
+			}
+		}
+		return targets, values.StudentIDs, nil
+	}
+	targets, err := legacyGroupTargets(ctx, groups, templateIDs)
+	if err != nil {
+		return nil, nil, &ports.ScheduleError{Op: "future rosters: load targets", Err: err}
+	}
+	members, err := groups.ListTargetStudentIDs(ctx, templateIDs)
+	if err != nil {
+		return nil, nil, &ports.ScheduleError{Op: "future rosters: load target students", Err: err}
+	}
+	return targets, members, nil
 }
 
 // PlannedRosters reads the enrollment rows and the target members of all

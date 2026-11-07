@@ -119,6 +119,9 @@ type ClassListEntryStudents interface {
 	// class carrying exactly that name, matched case-insensitively and
 	// trimmed on all three keys.
 	ListStudentIDsByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]int64, error)
+	// ListStudentIDsByNamesAndClasses answers ListStudentIDsByNameAndClass
+	// for every entry in one read; result[i] answers entries[i].
+	ListStudentIDsByNamesAndClasses(ctx context.Context, entries []ClassListEntryFields) ([][]int64, error)
 	// IsEnrolledStudent reports whether the ID names a student that has not
 	// graduated.
 	IsEnrolledStudent(ctx context.Context, studentID int64) (bool, error)
@@ -146,6 +149,7 @@ type ClassListEntryTrail interface {
 type ClassListEntries interface {
 	ListClassListEntriesInDisplayOrder(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
 	MatchingStudentIDs(context.Context, ClassListEntryFields) ([]int64, error)
+	MatchingStudentIDsForEntries(context.Context, []ClassListEntryFields) ([][]int64, error)
 	AddClassListEntry(context.Context, AddClassListEntry) (ClassListEntry, error)
 	ReviseClassListEntry(context.Context, ReviseClassListEntry) (ClassListEntry, error)
 	RemoveClassListEntry(context.Context, RemoveClassListEntry) error

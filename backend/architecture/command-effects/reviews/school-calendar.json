@@ -3061,16 +3061,6 @@
       "target_owner": "people-directory"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarRelationshipPort.FindByGuardianProfileID",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.GuardianRelationships.FindByGuardianProfileID",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentGuardianRepository.FindByGuardianProfileID; modules/peopledirectory/ports/repository_contracts.go:375. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "school-calendar",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentGuardianRepository.FindByGuardianProfileID",
-      "target_owner": "people-directory"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarIdentityPort.GetCurrentStaff",
       "classification": "query",
       "effect": "query",

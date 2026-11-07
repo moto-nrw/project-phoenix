@@ -1,7 +1,6 @@
 {
   "errorObjectPhases": "lista e fazave të regjistrimit",
   "errorObjectForm": "formulari i regjistrimit",
-  "brandEyebrow": "Regjistrim online",
   "fallbackSchool": "OGS-ja juaj",
   "steps": {
     "phase": "Zgjedhja",
@@ -10,7 +9,6 @@
     "aria": "Përparimi i regjistrimit"
   },
   "loading": "Regjistrimi po ngarkohet…",
-  "phaseEyebrow": "Nis regjistrimin",
   "phaseTitle": "Për çfarë dëshironi ta regjistroni fëmijën?",
   "phaseDescription": "Zgjidhni periudhën kur fëmija duhet të marrë përkujdesje. Në hapin tjetër jepni kontaktet, të dhënat e fëmijës dhe ofertat e dëshiruara.",
   "disabled": "Regjistrimi online nuk është aktualisht aktiv për këtë shkollë. Ju lutemi kontaktoni OGS-në.",
@@ -35,7 +33,6 @@
   "parentEmbeddedDescription": "Kontrolloni të dhënat e plotësuara paraprakisht dhe shtoni informacionet që mungojnë. Pas dërgimit, statusin e shihni direkt në portalin e prindërve dhe merrni edhe një konfirmim me e-mail.",
   "carePeriod": "Periudha e përkujdesjes",
   "deadline": "Afati i regjistrimit",
-  "submittedEyebrow": "Regjistrimi u pranua",
   "submittedTitle": "Faleminderit. Regjistrimi juaj u dërgua.",
   "submittedText": "Një e-mail konfirmimi me lidhjen e statusit është duke u dërguar. Me këtë lidhje mund të shihni në çdo kohë statusin aktual.",
   "chooseOfferTitle": "Zgjidhni ofertën",
