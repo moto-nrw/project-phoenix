@@ -242,11 +242,11 @@ func (d *Decisions) syncApprovedChildGuardianFields(ctx context.Context, run *ap
 // departure plan.
 func (d *Decisions) syncApprovedChildTargetedFields(ctx context.Context, run *approvedChildSync, guardian *GuardianProfile, keep map[int64]bool) error {
 	student := run.student
-	beforeTargetedSync := *student
 	scope, err := d.approvedChildTargetScope(ctx, run)
 	if err != nil {
 		return err
 	}
+	beforeTargetedSync := *student
 	planSynced, terr := d.applyTargetedFields(ctx, run.request, run.child, student, guardian, run.input.ActorAccountID, targetedFieldSyncOptions{
 		Scope:                  scope,
 		Replace:                run.input.ReplaceTargetedData,

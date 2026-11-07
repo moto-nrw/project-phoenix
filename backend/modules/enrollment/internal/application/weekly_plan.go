@@ -134,20 +134,23 @@ func (d *Decisions) approvedChildTargetScope(ctx context.Context, run *approvedC
 // ApplyDueWeeklyPlans replaces the running weekly plan of every approved
 // re-enrollment whose planned day has come with the approved submission and
 // clears the plans (#6043). The rollover tick runs it in the tenant
-// transaction. Each child applies in its own savepoint: a failure rolls that
-// child back completely, keeps its running plan and leaves the plan due for
-// the next tick, while the other children still apply.
+// transaction. Connected companion plans share a savepoint and a final stranding
+// verdict. A failure keeps that group due without blocking unrelated plans.
 func (d *Decisions) ApplyDueWeeklyPlans(ctx context.Context, asOf calendar.Date) (int, error) {
 	due, err := d.deps.Children.DueWeeklyPlans(ctx, enrollmentNative.Date(asOf.String()))
 	if err != nil {
 		return 0, fmt.Errorf("weekly plan: list due plans: %w", err)
 	}
+	groups, err := d.weeklyPlanGroups(ctx, due)
+	if err != nil {
+		return 0, err
+	}
 	applied := 0
-	for _, plan := range due {
-		var ok bool
+	for _, group := range groups {
+		var count int
 		apply := func(applyCtx context.Context) error {
 			var applyErr error
-			ok, applyErr = d.applyWeeklyPlan(applyCtx, plan)
+			count, applyErr = d.applyWeeklyPlanGroup(applyCtx, group)
 			return applyErr
 		}
 		if d.deps.Runtime.InTransaction(ctx) {
@@ -156,17 +159,15 @@ func (d *Decisions) ApplyDueWeeklyPlans(ctx context.Context, asOf calendar.Date)
 			err = apply(ctx)
 		}
 		if err != nil && d.deps.Runtime.IsSavepointControl(err) {
-			return applied, fmt.Errorf("weekly plan: savepoint for request child %d: %w", plan.RequestChildID, err)
+			return applied, fmt.Errorf("weekly plan: savepoint for request child %d: %w", group.plans[0].RequestChildID, err)
 		}
 		if err != nil {
 			d.logger().Error("weekly plan: apply failed, the running plan stays",
-				slog.Int64("request_child_id", plan.RequestChildID),
+				slog.Int64("request_child_id", group.plans[0].RequestChildID),
 				slog.String("error", err.Error()))
 			continue
 		}
-		if ok {
-			applied++
-		}
+		applied += count
 	}
 	return applied, nil
 }
@@ -187,11 +188,8 @@ func (d *Decisions) applyWeeklyPlan(ctx context.Context, plan enrollmentNative.W
 	if err != nil {
 		return false, fmt.Errorf("weekly plan: load request: %w", err)
 	}
-	var reviewedBy int64
-	if child.ReviewedBy != nil {
-		reviewedBy = *child.ReviewedBy
-	}
-	if err := d.applyPlannedWeeklyFields(ctx, request, child, student, reviewedBy, plan); err != nil {
+	// The tick is the system actor; the stored staff ID authors weekly rows.
+	if err := d.applyPlannedWeeklyFields(ctx, request, child, student, 0, plan); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -201,6 +199,7 @@ func (d *Decisions) applyWeeklyPlan(ctx context.Context, plan enrollmentNative.W
 // a correction made after the plan became due. Use the caller's student so
 // the correction's remaining fields cannot overwrite the activated plan.
 func (d *Decisions) applyPlannedWeeklyFields(ctx context.Context, request *Request, child *RequestChild, student *Student, actorAccountID int64, plan enrollmentNative.WeeklyPlan) error {
+	before := *student
 	planSynced, err := d.applyTargetedFields(ctx, request, child, student, nil, actorAccountID, targetedFieldSyncOptions{
 		Replace:               plan.Replace,
 		ReplaceSchedules:      true,
@@ -209,6 +208,17 @@ func (d *Decisions) applyPlannedWeeklyFields(ctx context.Context, request *Reque
 	})
 	if err != nil {
 		return fmt.Errorf("weekly plan: apply: %w", err)
+	}
+	if d.deps.StudentAudit != nil {
+		var auditErr error
+		if actorAccountID == 0 {
+			auditErr = d.deps.StudentAudit.RecordSystemChanges(ctx, &before, student)
+		} else {
+			auditErr = d.deps.StudentAudit.RecordChangesForActor(ctx, &before, student, actorAccountID)
+		}
+		if auditErr != nil {
+			return fmt.Errorf("weekly plan: audit departure change: %w", auditErr)
+		}
 	}
 	if err := d.finishWeeklyPlan(ctx, plan.RequestChildID, nil); err != nil {
 		return err

@@ -2241,6 +2241,14 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentRows.VerifyCompanionStrandingBatch",
+      "binding_digest": "92d15547aa945258246df5a85fb4faed",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CompanionStrandings.VerifyCompanionStrandingBatch",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.VerifyCompanionStrandingBatch",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.AdjustOfferings",
       "binding_digest": "bb387e48a62fe521c097bd44f6ef3033",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.DecisionBookings.AdjustOfferings",
@@ -3385,6 +3393,14 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentAudit.RecordSystemChanges",
+      "binding_digest": "525eaaa0e6999025aed54788a215e43d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentAudit.RecordSystemChanges",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentAuditService.RecordChanges",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentAudit.RecordSystemStatusChange",
       "binding_digest": "15ed829ba1724cb13d25e1a248eee042",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentAudit.RecordSystemStatusChange",
@@ -3500,6 +3516,14 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPlanBroadcasts.BroadcastStudentCompanionsChanged",
       "binding_digest": "5d9d953f97ab754ce0056d1cecff4348",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentPlanBroadcasts.BroadcastStudentCompanionsChanged",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.studentUpdatedOnly.BroadcastStudentUpdated",
+      "binding_digest": "0d6b71811badf6fe0d90af4ea606fc1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentPlanBroadcasts.BroadcastStudentUpdated",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
       "target_owner": "delivery-platform"

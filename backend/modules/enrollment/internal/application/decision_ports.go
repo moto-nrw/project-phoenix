@@ -137,6 +137,7 @@ type (
 	// StudentAudit records tracked profile changes made while approving or
 	// synchronizing enrollment data for an existing student.
 	StudentAudit interface {
+		RecordSystemChanges(ctx context.Context, before, after *Student) error
 		RecordChangesForActor(ctx context.Context, before, after *Student, editedBy int64) error
 		RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error
 	}

@@ -1,12 +1,15 @@
 package enrollmenthttp_test
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
@@ -59,7 +62,14 @@ func setupFutureRenewal(t *testing.T) *futureRenewal {
 	env.sourcePhase.FormSchemaID = &schema.ID
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 
-	existing := testpkg.CreateTestStudent(t, env.db, "Mara", "Februar", "2a")
+	return setupFutureRenewalChild(t, env, "Februar")
+}
+
+func setupFutureRenewalChild(t *testing.T, env *decisionTestEnv, lastName string) *futureRenewal {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	start := calendar.NewDate(2027, 2, 3)
+	existing := testpkg.CreateTestStudent(t, env.db, "Mara", lastName, "2a")
 	stored, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	stored.Status = peopleValues.StudentStatusActive
@@ -75,7 +85,7 @@ func setupFutureRenewal(t *testing.T) *futureRenewal {
 	testpkg.CreateTestArrivalSchedule(t, env.db, existing.ID, timetable.WeekdayThursday, author.ID, "")
 
 	reviewerStaff, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
-	requestID, childID := submitOneChildWithCustomData(t, env, "februar-renewal@example.com", "Mara", "Februar", map[string]any{
+	requestID, childID := submitOneChildWithCustomData(t, env, fmt.Sprintf("future-%d@example.com", existing.ID), "Mara", lastName, map[string]any{
 		"pickup_times":  map[string]any{"mon": "15:10"},
 		"arrival_times": map[string]any{"mon": "07:45"},
 		"allowed_modes": map[string]any{"mon": []any{"pickup"}},
@@ -341,6 +351,17 @@ func TestDecisionService_SyncApprovedChildData_AppliesDueWeeklyPlan(t *testing.T
 			require.NoError(t, err)
 			assert.Nil(t, child.WeeklyPlanOn)
 			assert.Zero(t, r.applyDue(t, r.start), "the correction applied the plan once")
+			if !tc.replaceBefore && !tc.replaceNow {
+				history, auditErr := testpkg.TenantQuery1(t, ctx, r.env.db, r.env.reposAudit.StudentFieldEdit.GetByStudentID, r.studentID)
+				require.NoError(t, auditErr)
+				departures := 0
+				for _, entry := range history {
+					if entry.FieldName == peopleValues.StudentFieldDepartureDays {
+						departures++
+					}
+				}
+				assert.Equal(t, 1, departures, "an edit that activates a due plan audits its departure transition once")
+			}
 		})
 	}
 }
@@ -403,4 +424,132 @@ func TestDecisionService_ApplyDueWeeklyPlans_KeepsAuthorWithoutReviewerAccount(t
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, r.reviewerStaffID, rows[0].CreatedBy, "the stored approver authors the applied rows")
+}
+
+func TestDecisionService_ApplyDueWeeklyPlans_AuditsDeferredDeparture(t *testing.T) {
+	t.Parallel()
+	r := setupFutureRenewal(t)
+	r.approve(t)
+	ctx := testpkg.Ctx(t)
+	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
+	require.NoError(t, err)
+	child.CustomData["allowed_modes"] = map[string]any{"mon": []any{"bus"}}
+	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
+	_, err = changeRequestApplierForTest(t, r.env).SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
+		RequestID: r.requestID, ChildID: r.childID, ActorAccountID: r.reviewerAccountID, ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+	history, err := testpkg.TenantQuery1(t, ctx, r.env.db, r.env.reposAudit.StudentFieldEdit.GetByStudentID, r.studentID)
+	require.NoError(t, err)
+	beforeCount := len(history)
+	assert.Equal(t, 1, r.applyDue(t, r.start))
+	history, err = testpkg.TenantQuery1(t, ctx, r.env.db, r.env.reposAudit.StudentFieldEdit.GetByStudentID, r.studentID)
+	require.NoError(t, err)
+	var departures int
+	for _, entry := range history {
+		if entry.FieldName == peopleValues.StudentFieldDepartureDays {
+			departures++
+			assert.Equal(t, peopleValues.StudentAuditSystemActorID, entry.EditedBy)
+			assert.Equal(t, peopleValues.StudentAuditSystemActorName, entry.EditedByName)
+			require.NotNil(t, entry.OldValue)
+			require.NotNil(t, entry.NewValue)
+			assert.Contains(t, *entry.OldValue, "Mo: Allein")
+			assert.Contains(t, *entry.NewValue, "Bus")
+		}
+	}
+	assert.Equal(t, 1, departures, "activation records the deferred Heimweg change exactly once")
+	assert.Greater(t, len(history), beforeCount)
+	assert.Zero(t, r.applyDue(t, r.start.AddDays(1)))
+	again, err := testpkg.TenantQuery1(t, ctx, r.env.db, r.env.reposAudit.StudentFieldEdit.GetByStudentID, r.studentID)
+	require.NoError(t, err)
+	assert.Len(t, again, len(history))
+}
+
+func TestDecisionService_ApplyDueWeeklyPlans_ActivatesCompanionsTogether(t *testing.T) {
+	t.Parallel()
+	for _, failure := range []string{"none", "invalid plan", "stranded bridge"} {
+		t.Run(failure, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			first := setupFutureRenewal(t)
+			second := setupFutureRenewalChild(t, first.env, "Geschwister")
+			independent := setupFutureRenewalChild(t, first.env, "Unabhängig")
+			first.approve(t)
+			second.approve(t)
+			independent.approve(t)
+			ctx := testpkg.Ctx(t)
+			members := []*futureRenewal{first, second}
+			if failure == "stranded bridge" {
+				members = append(members, setupFutureRenewalChild(t, first.env, "Laufpartner"))
+			}
+			for _, r := range members {
+				student := r.student(t)
+				student.AllowedDepartureModes = peopleValues.AllowedDepartureModes{"mon": {peopleValues.DepartureAccompanied}}
+				student.DepartureDays, student.BusDays, student.PickupDays = nil, nil, nil
+				note := "Geschwisterkind"
+				student.DepartureCompanionNote = &note
+				require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, r.env.repos.Student.Update, student))
+			}
+
+			partners := []int64{second.studentID}
+			if failure == "stranded bridge" {
+				partners = []int64{members[2].studentID}
+			}
+			for _, subject := range []*futureRenewal{first, second} {
+				if failure != "stranded bridge" && subject == second {
+					continue
+				}
+				edge, err := api.NewStudentCompanionEdge(subject.studentID, partners[0], timetable.WeekdayMonday)
+				require.NoError(t, err)
+				require.NoError(t, api.ReplaceStudentCompanions(ctx, owners.NewStudentCompanionRepository(first.env.reposCare.CarePlan), subject.studentID, []*careplan.CompanionEdge{edge}))
+			}
+			for _, r := range members {
+				student := r.student(t)
+				student.DepartureCompanionNote = nil
+				require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, r.env.repos.Student.Update, student))
+			}
+			if failure == "invalid plan" {
+				child, readErr := enrollmentAPI.ReadOwnerChildForTest(ctx, second.env.repos.Enrollment(), second.childID)
+				require.NoError(t, readErr)
+				child.CustomData["pickup_times"] = map[string]any{"mon": "25:99"}
+				require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, second.env.repos.Enrollment(), child))
+			}
+			want := 3
+			if failure != "none" {
+				want = 1
+			}
+			assert.Equal(t, want, first.applyDue(t, first.start))
+			for _, r := range []*futureRenewal{first, second} {
+				history, auditErr := testpkg.TenantQuery1(t, ctx, r.env.db, r.env.reposAudit.StudentFieldEdit.GetByStudentID, r.studentID)
+				require.NoError(t, auditErr)
+				departures := 0
+				for _, entry := range history {
+					if entry.FieldName == peopleValues.StudentFieldDepartureDays {
+						departures++
+					}
+				}
+				expectedAudits := 1
+				if failure != "none" {
+					expectedAudits = 0
+				}
+				assert.Equal(t, expectedAudits, departures, "the departure audit commits or rolls back with its companion group")
+				child, readErr := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
+				require.NoError(t, readErr)
+				if failure != "none" {
+					require.NotNil(t, child.WeeklyPlanOn)
+					assert.Equal(t, peopleValues.DepartureAccompanied, r.student(t).AllowedDepartureModes.DepartureDays().ModeFor("mon"))
+					assert.Equal(t, map[int]string{1: "14:25", 3: "14:25"}, r.pickups(t))
+				} else {
+					assert.Nil(t, child.WeeklyPlanOn)
+					assert.Equal(t, peopleValues.DeparturePickup, r.student(t).AllowedDepartureModes.DepartureDays().ModeFor("mon"))
+				}
+			}
+			edges, err := owners.NewStudentCompanionRepository(first.env.reposCare.CarePlan).ListForStudent(ctx, first.studentID)
+			require.NoError(t, err)
+			if failure != "none" {
+				assert.Len(t, edges, 1)
+			} else {
+				assert.Empty(t, edges)
+			}
+		})
+	}
 }
