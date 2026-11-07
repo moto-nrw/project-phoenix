@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import Image from "next/image";
 import { Download } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
@@ -75,7 +76,7 @@ export function AdminEnrollmentSignature({
       }
     >
       {signature.image_png ? (
-        <div className="rounded-xl bg-gray-50 p-2">
+        <InsetPanel padding="compact">
           {/* A stored PNG as data URL; next/image cannot optimise it. */}
           <Image
             src={`data:image/png;base64,${signature.image_png}`}
@@ -85,7 +86,7 @@ export function AdminEnrollmentSignature({
             unoptimized
             className="h-24 w-full object-contain"
           />
-        </div>
+        </InsetPanel>
       ) : null}
       <DataGrid>
         <DataField label="Unterschrieben von">

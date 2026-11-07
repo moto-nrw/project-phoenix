@@ -44,6 +44,7 @@ import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Account-status pill: the tint carries the status (no dot, #2476). Routes
 // color through LOCATION_COLORS.
@@ -368,9 +369,12 @@ export default function GuardianList({
 
             {/* Notes */}
             {guardian.notes && (
-              <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 sm:text-sm">
+              <InsetPanel
+                padding="compact"
+                className="mt-2 text-xs text-gray-600 sm:text-sm"
+              >
                 {guardian.notes}
-              </div>
+              </InsetPanel>
             )}
 
             {/* Contact Actions */}

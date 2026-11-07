@@ -1557,7 +1557,7 @@ func TestAccountUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d", account.ID), body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
@@ -1568,7 +1568,7 @@ func TestAccountUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/99999", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -1579,7 +1579,7 @@ func TestAccountUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/1", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertBadRequest(t, rr)
 	})

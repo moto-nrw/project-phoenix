@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/render"
@@ -134,11 +135,38 @@ func detectDocumentContentType(file io.ReadSeeker, filename string, kinds []ooxm
 	default:
 		return "", uploadRefusal{code: CodeFilesFileTypeNotAllowed, text: invalidMessage}
 	}
+	// The original name is stored and served as the download name, so a PDF
+	// named brief.html would be saved by the browser as HTML.
+	if !ExtensionMatchesContent(filename, contentType) {
+		return "", uploadRefusal{code: CodeFilesFileTypeNotAllowed, text: invalidMessage}
+	}
 
 	if _, err := file.Seek(0, 0); err != nil {
 		return "", uploadRefusal{code: CodeFilesFileUnreadable, text: "failed to process file"}
 	}
 	return contentType, nil
+}
+
+// ExtensionMatchesContent reports whether the file name's extension names
+// the detected content type. A PDF renamed to .png or .html, or a file
+// without a known extension, is refused even though the bytes alone pass.
+func ExtensionMatchesContent(filename, contentType string) bool {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".pdf":
+		return contentType == "application/pdf"
+	case ".png":
+		return contentType == "image/png"
+	case ".jpg", ".jpeg":
+		return contentType == "image/jpeg" || contentType == "image/jpg"
+	case docxKind.extension:
+		return contentType == DocxContentType
+	case xlsxKind.extension:
+		return contentType == XlsxContentType
+	case pptxKind.extension:
+		return contentType == PptxContentType
+	default:
+		return false
+	}
 }
 
 func matchOOXMLKind(filename string, kinds []ooxmlKind) (ooxmlKind, bool) {

@@ -52,6 +52,7 @@ import {
 } from "~/lib/student-arrival-api";
 import { timetableService } from "~/lib/timetable-api";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ClassArrivalExceptionPanel" });
 
@@ -469,75 +470,74 @@ function ClassArrivalExceptionPanelBody({
       {loadError ? <LoadErrorAlert error={load.error} /> : null}
 
       {!loading && !loadError && canEdit ? (
-        <div
-          ref={formRef}
-          className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4"
-        >
-          <FormErrorAlert message={formErrors.error} />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <FieldLabel htmlFor="class-arrival-exception-date">
-                Datum
-              </FieldLabel>
-              <DatePicker
-                id="class-arrival-exception-date"
-                value={date}
-                onChange={setDate}
-                minDate={today}
-                maxDate={maxDate}
-                disabledDay={weekendOpen ? undefined : isWeekend}
-                placeholder="Datum wählen"
-                hideClearButton
-                required
+        <div ref={formRef}>
+          <InsetPanel framed padding="md" className="space-y-3">
+            <FormErrorAlert message={formErrors.error} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <FieldLabel htmlFor="class-arrival-exception-date">
+                  Datum
+                </FieldLabel>
+                <DatePicker
+                  id="class-arrival-exception-date"
+                  value={date}
+                  onChange={setDate}
+                  minDate={today}
+                  maxDate={maxDate}
+                  disabledDay={weekendOpen ? undefined : isWeekend}
+                  placeholder="Datum wählen"
+                  hideClearButton
+                  required
+                />
+              </div>
+              <Input
+                id="class-arrival-exception-time"
+                name="arrival_time"
+                label="Kommt um"
+                type="time"
+                error={formErrors.fieldError("arrival_time")}
+                value={time}
+                onChange={(event) => setTime(event.target.value.slice(0, 5))}
               />
             </div>
             <Input
-              id="class-arrival-exception-time"
-              name="arrival_time"
-              label="Kommt um"
-              type="time"
-              error={formErrors.fieldError("arrival_time")}
-              value={time}
-              onChange={(event) => setTime(event.target.value.slice(0, 5))}
+              id="class-arrival-exception-reason"
+              name="reason"
+              error={formErrors.fieldError("reason")}
+              label="Grund (optional)"
+              type="text"
+              maxLength={255}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="zum Beispiel Wandertag"
             />
-          </div>
-          <Input
-            id="class-arrival-exception-reason"
-            name="reason"
-            error={formErrors.fieldError("reason")}
-            label="Grund (optional)"
-            type="text"
-            maxLength={255}
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="zum Beispiel Wandertag"
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => void applyCancelledPreset()}
-              disabled={presetPending || saving}
-            >
-              {presetPending
-                ? "Blockbeginn wird geladen..."
-                : CLASS_ARRIVAL_CANCELLED_REASON}
-            </Button>
-            <Button
-              type="button"
-              variant="success"
-              size="md"
-              onClick={() => void handleSave()}
-              disabled={!canSave}
-            >
-              {saving ? "Speichern..." : "Tag speichern"}
-            </Button>
-          </div>
-          <p className="text-xs text-gray-500">
-            „Unterricht fällt aus“ setzt die Uhrzeit auf den Beginn des ersten
-            Betreuungsblocks an diesem Tag. Sie können sie danach ändern.
-          </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => void applyCancelledPreset()}
+                disabled={presetPending || saving}
+              >
+                {presetPending
+                  ? "Blockbeginn wird geladen..."
+                  : CLASS_ARRIVAL_CANCELLED_REASON}
+              </Button>
+              <Button
+                type="button"
+                variant="success"
+                size="md"
+                onClick={() => void handleSave()}
+                disabled={!canSave}
+              >
+                {saving ? "Speichern..." : "Tag speichern"}
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500">
+              „Unterricht fällt aus“ setzt die Uhrzeit auf den Beginn des ersten
+              Betreuungsblocks an diesem Tag. Sie können sie danach ändern.
+            </p>
+          </InsetPanel>
         </div>
       ) : null}
 

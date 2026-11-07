@@ -28,6 +28,7 @@ import type {
   CarePlanSlot,
 } from "~/lib/student-care-plan-api";
 import { parseTimeToMinutes } from "~/lib/timetable-helpers";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface CarePlanDayTimelineProps {
   readonly day: CarePlanDay | null;
@@ -204,8 +205,9 @@ function FreeCareBandRow({
   readonly compact: boolean;
 }) {
   return (
-    <div
-      className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2"
+    <InsetPanel
+      dashed
+      padding="compact"
       style={{ color: LOCATION_COLORS.UNKNOWN }}
     >
       <div className="flex items-baseline justify-between gap-2">
@@ -216,7 +218,7 @@ function FreeCareBandRow({
           {band.startTime}–{band.endTime}
         </span>
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 

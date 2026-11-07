@@ -18,6 +18,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   ArrowDown,
   ArrowUp,
@@ -504,7 +505,11 @@ export function FieldEditorRow({
               </p>
             </div>
           ) : isTargetField ? (
-            <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-2 text-xs leading-5 text-gray-600">
+            <InsetPanel
+              framed
+              padding="compact"
+              className="text-xs leading-5 text-gray-600"
+            >
               <p className="font-medium text-gray-800">
                 Wird bei bestätigter Anmeldung in die Stammdaten übernommen.
               </p>
@@ -513,14 +518,18 @@ export function FieldEditorRow({
                 fest vorgegeben. Entfernen Sie den Vorschlag, wenn diese Angabe
                 nicht abgefragt werden soll.
               </p>
-            </div>
+            </InsetPanel>
           ) : (
-            <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-2 text-xs leading-5 text-gray-600">
+            <InsetPanel
+              framed
+              padding="compact"
+              className="text-xs leading-5 text-gray-600"
+            >
               <p className="font-medium text-gray-800">
                 {freeQuestionNote.title}
               </p>
               <p className="mt-0.5">{freeQuestionNote.text}</p>
-            </div>
+            </InsetPanel>
           )}
 
           {isInfo ? (

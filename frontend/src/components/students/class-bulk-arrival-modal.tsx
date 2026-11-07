@@ -29,8 +29,8 @@ import {
 import { SchoolPeriodSelect } from "./school-period-select";
 import { formatDate } from "~/lib/date-helpers";
 import { schoolClassLabel } from "~/lib/school-class-label";
-import { cn } from "~/lib/utils";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "FilteredBulkArrivalModal" });
 
@@ -407,12 +407,12 @@ export function FilteredBulkArrivalModal({
                 const value = draft[day.value] ?? "";
                 const invalid = !isValidTime(value);
                 return (
-                  <div
+                  <InsetPanel
                     key={day.value}
-                    className={cn(
-                      "grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5",
-                      invalid && "border-moto-red/30 bg-moto-red-soft",
-                    )}
+                    tone={invalid ? "danger" : "muted"}
+                    framed
+                    padding="compact"
+                    className="grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-x-3 gap-y-1"
                   >
                     <FieldLabel
                       htmlFor={`bulk-arrival-${day.value}`}
@@ -464,7 +464,7 @@ export function FilteredBulkArrivalModal({
                         nicht ändern
                       </span>
                     ) : null}
-                  </div>
+                  </InsetPanel>
                 );
               })}
             </div>

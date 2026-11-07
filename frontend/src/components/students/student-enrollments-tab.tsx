@@ -36,6 +36,7 @@ import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { createLogger } from "~/lib/logger";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { studentKeys } from "~/lib/swr/portal-keys";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "StudentEnrollmentsTab" });
 
@@ -185,10 +186,7 @@ function EnrollmentRequestCard({
 
       <div className="space-y-4 p-4">
         {request.children.map((child) => (
-          <section
-            key={child.id}
-            className="rounded-xl border border-gray-100 bg-gray-50/70 p-3"
-          >
+          <InsetPanel as="section" key={child.id} framed>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h5 className="text-sm font-semibold text-gray-900">
@@ -235,7 +233,7 @@ function EnrollmentRequestCard({
               child={child}
               schemaFields={request.schema_fields}
             />
-          </section>
+          </InsetPanel>
         ))}
 
         <RequestExtraSection request={request} />

@@ -36,7 +36,7 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 	}
 
 	// Open Excel file
-	f, err := excelize.OpenReader(buf, excelize.Options{
+	f, err := openXLSX(buf, excelize.Options{
 		ShortDatePattern: studentImportShortDatePattern,
 	})
 	if err != nil {
@@ -53,7 +53,7 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 	}
 
 	// Read all rows from the sheet
-	rows, err := f.GetRows(sheetName)
+	rows, err := readXLSXRows(f, sheetName)
 	if err != nil {
 		return nil, fmt.Errorf("read rows: %w", err)
 	}
