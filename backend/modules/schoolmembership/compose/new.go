@@ -73,14 +73,6 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
 	}
 	store := postgres.New(postgres.NewContextDatabase(tenant.TenantFromContext, tenant.TransactionFromContext, tenant.IsAdminTx))
-	var quota ports.ChildQuota
-	if dependencies.ChildQuota != nil {
-		quota = dependencies.ChildQuota
-	}
-	today := postgres.BerlinToday
-	if dependencies.Today != nil {
-		today = func() string { return dependencies.Today().String() }
-	}
-	service := application.New(store, application.NewStaffEmployment(dependencies.Employment), quota, today, application.TenantTransaction{}, dependencies.Observe, classList)
+	service := application.New(store, application.NewStaffEmployment(dependencies.Employment), dependencies.ChildQuota, postgres.SchoolDay(dependencies.Today), application.TenantTransaction{}, dependencies.Observe, classList)
 	return service, nil
 }
