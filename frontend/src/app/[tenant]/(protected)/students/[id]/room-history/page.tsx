@@ -684,7 +684,7 @@ function HistoryTable({
             </div>
 
             {/* Mobile card layout */}
-            <div className="overflow-hidden rounded-xl border border-gray-100 md:hidden">
+            <div className="moto-content-surface overflow-hidden rounded-xl border md:hidden">
               {days.map((day) => (
                 <DayCard
                   key={day.date}

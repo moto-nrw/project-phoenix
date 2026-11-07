@@ -1300,14 +1300,14 @@ describe.concurrent("ui-kit/no-em-dash-empty-value", () => {
   it("reports an em dash as JSX text and as a fallback value", async () => {
     const result = await lintSource(`
       export function Probe({ name }: { name?: string }) {
-        return <div><span>—</span><span>{name ?? "—"}</span><span>Abholzeit: —</span></div>;
+        return <div><span>—</span><span>{name ?? "—"}</span><span>Abholzeit: —</span><span>{\`Gehzeit: —\`}</span></div>;
       }
     `);
 
     expect(result.status).toBe(1);
     expect(
       result.output.match(/ui-kit\(no-em-dash-empty-value\)/g),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
   });
 
   it("accepts the en dash and an em dash inside a sentence", async () => {

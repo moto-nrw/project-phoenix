@@ -603,7 +603,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         render: (row) => (
           <div>
             <p className="font-medium text-gray-900">
-              {formatDays(row.effective_days) || "-"}
+              {formatDays(row.effective_days) || "–"}
             </p>
             <p className="text-xs text-gray-500">
               {row.day_count === 1
@@ -619,7 +619,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         header: "Gehzeiten",
         render: (row) => (
           <p className="max-w-48 text-sm text-gray-700">
-            {formatPickupByDay(row.pickup_by_day ?? {}) || "-"}
+            {formatPickupByDay(row.pickup_by_day ?? {}) || "–"}
           </p>
         ),
         sortValue: (row) => formatPickupByDay(row.pickup_by_day ?? {}),

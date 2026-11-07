@@ -1124,12 +1124,7 @@ export function StaffSessionTable({
                   {
                     columnKey: "actions",
                     content: (
-                      <div
-                        className="flex shrink-0 items-center"
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
-                        role="presentation"
-                      >
+                      <div className="flex shrink-0 items-center">
                         <OverflowMenu
                           ariaLabel={`Aktionen für Block ${blockIndex + 1}`}
                           triggerSize="sm"

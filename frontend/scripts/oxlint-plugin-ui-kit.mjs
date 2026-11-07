@@ -1848,6 +1848,12 @@ const noEmDashEmptyValue = {
           context.report({ node, messageId: "emDash" });
         }
       },
+      TemplateLiteral(node) {
+        const text = node.quasis[0]?.value.cooked ?? "";
+        if (node.quasis.length === 1 && EM_DASH_VALUE_RE.test(text)) {
+          context.report({ node, messageId: "emDash" });
+        }
+      },
     };
   },
 };

@@ -56,6 +56,8 @@ export function formatEditValue(
 
 interface EditRow {
   readonly edit: WorkSessionEdit;
+  // Datum, Person und Grund stehen je Speichervorgang nur in der ersten Zeile.
+  readonly firstOfSave: boolean;
   readonly dateStr: string;
   readonly editorLabel: string;
   readonly notes: string | null | undefined;
@@ -66,13 +68,19 @@ const EDIT_COLUMNS: DataTableColumn<EditRow>[] = [
     key: "date",
     header: "Datum",
     className: "whitespace-nowrap",
-    render: (row) => <span className="text-gray-500">{row.dateStr}</span>,
+    render: (row) =>
+      row.firstOfSave ? (
+        <span className="text-gray-500">{row.dateStr}</span>
+      ) : null,
   },
   {
     key: "editor",
     header: "Von",
     className: "whitespace-nowrap",
-    render: (row) => <span className="text-gray-600">{row.editorLabel}</span>,
+    render: (row) =>
+      row.firstOfSave ? (
+        <span className="text-gray-600">{row.editorLabel}</span>
+      ) : null,
   },
   {
     key: "field",
@@ -107,10 +115,14 @@ const EDIT_COLUMNS: DataTableColumn<EditRow>[] = [
   {
     key: "reason",
     header: "Grund",
-    render: (row) =>
-      row.notes ? (
+    render: (row) => {
+      if (!row.firstOfSave) return null;
+      return row.notes ? (
         <span className="text-gray-400 italic">&ldquo;{row.notes}&rdquo;</span>
-      ) : null,
+      ) : (
+        "–"
+      );
+    },
   },
 ];
 
@@ -213,10 +225,10 @@ export function EditHistoryAccordion({
           rows={rows.flatMap(({ dateStr, fieldEdits, notes, editorLabel }) =>
             fieldEdits.map((edit, index) => ({
               edit,
-              // Datum, Person und Grund stehen je Speichervorgang einmal.
-              dateStr: index === 0 ? dateStr : "",
-              editorLabel: index === 0 ? editorLabel : "",
-              notes: index === 0 ? notes : null,
+              firstOfSave: index === 0,
+              dateStr,
+              editorLabel,
+              notes,
             })),
           )}
           getRowKey={(row) => row.edit.id}

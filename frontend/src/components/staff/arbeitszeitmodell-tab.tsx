@@ -238,7 +238,7 @@ export function ArbeitszeitmodellTab({
                             : "text-gray-300"
                         }`}
                       >
-                        {minutes > 0 ? formatDuration(minutes) : "-"}
+                        {minutes > 0 ? formatDuration(minutes) : "–"}
                       </div>
                       {minutes > 0 && entry?.startTime && (
                         <div className="text-xs text-gray-400 tabular-nums">
@@ -828,7 +828,7 @@ function TemplatePreviewBlock({ model }: { readonly model: WorkTimeModel }) {
                       {dayLabels[d]}{" "}
                       {entry && entry.targetMinutes > 0
                         ? `${entry.startTime ? `ab ${entry.startTime} · ` : ""}${formatDuration(entry.targetMinutes)}`
-                        : "-"}
+                        : "–"}
                     </span>
                   );
                 })}

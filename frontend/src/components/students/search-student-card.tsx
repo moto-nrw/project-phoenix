@@ -296,7 +296,7 @@ function SearchStudentCardImpl({
                 excused: student.excused,
               });
               const absenceWording = isToday ? undefined : "Kommt nicht";
-              // Absence rows fill the arrival slot; a neutral "Gehzeit: —" row
+              // Absence rows fill the arrival slot; a neutral "Gehzeit: –" row
               // (deliberately without the planned time, so no overdue styling
               // can fire for a child who is not coming) keeps absent and
               // present cards at the same four-row height.

@@ -118,8 +118,8 @@ export const ExpandableWithSubRowsAndSummary: Story = {
             { key: `${row.id}-note`, content: "Keine weiteren Angaben." },
           ]
         : [],
-    summaryRow: (row, next) =>
-      next === undefined
+    summaryRow: (row) =>
+      row.id === "3"
         ? {
             key: "sum",
             cells: [{ columnKey: "name", colSpan: 2, content: "3 Personen" }],

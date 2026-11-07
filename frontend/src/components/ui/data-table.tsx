@@ -82,7 +82,8 @@ export interface DataTableHeading {
 /**
  * Rows that open on a click or with Enter/Space, one at a time. The table owns
  * which row is open and draws the chevron in the first column. Rows without
- * `canExpand` stay plain: nothing to reveal, no pointer, no hover.
+ * `canExpand` stay plain: nothing to reveal, no pointer, no hover. On a row
+ * that can open, a click opens it; `onRowClick` applies only to the others.
  */
 interface DataTableExpandable<T> {
   readonly canExpand?: (row: T) => boolean;
@@ -172,9 +173,9 @@ interface DataTableProps<T> {
   // Rows under a table row: always there (blocks of a day) or only while it is
   // open (`expanded`). Table layout only, the stacked phone rows leave them out.
   renderSubRows?: (row: T, expanded: boolean) => readonly DataTableExtraRow[];
-  // A summary after a row and its sub rows, e.g. the sum closing a week; `next`
-  // is the row that follows in the current order. Table layout only.
-  summaryRow?: (row: T, next: T | undefined) => DataTableExtraRow | null;
+  // A summary after a row and its sub rows, e.g. the sum closing a week. Table
+  // layout only.
+  summaryRow?: (row: T) => DataTableExtraRow | null;
   rowTone?: (row: T) => DataTableRowTone | null;
   // Narrower cells for a table with many columns.
   dense?: boolean;
@@ -333,7 +334,7 @@ function ExtraRow<T>({
         )}
       </td>,
     );
-    index += (cell?.colSpan ?? 1) - 1;
+    index += Math.max(cell?.colSpan ?? 1, 1) - 1;
   }
   return (
     <tr className={rowClass}>
@@ -1050,7 +1051,7 @@ export function DataTable<T>({
                   </td>
                 </tr>
               ) : (
-                visibleRows.map((row, rowIndex) => {
+                visibleRows.map((row) => {
                   const rowKey = getRowKey(row);
                   const active =
                     activeRowKey != null && rowKey === activeRowKey;
@@ -1087,7 +1088,7 @@ export function DataTable<T>({
                           else onRowClick?.(row);
                         }
                       : undefined;
-                  const summary = summaryRow?.(row, visibleRows[rowIndex + 1]);
+                  const summary = summaryRow?.(row);
                   return (
                     <Fragment key={rowKey}>
                       <tr

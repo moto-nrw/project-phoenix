@@ -904,8 +904,8 @@ describe("DataTable expandable rows, sub rows and summary rows (#5600)", () => {
   it("closes a row with a summary after its sub rows, honouring colSpan", () => {
     renderHours({
       renderSubRows: (row) => details(row, true),
-      summaryRow: (row, next) =>
-        next === undefined
+      summaryRow: (row) =>
+        row.id === "di"
           ? {
               key: `${row.id}-sum`,
               cells: [
@@ -943,6 +943,31 @@ describe("DataTable expandable rows, sub rows and summary rows (#5600)", () => {
       "right-0",
       "bg-gray-50",
     );
+  });
+
+  it("carries the row tone into the pinned column, but not on an open row", () => {
+    renderHours({
+      columns: [
+        ...hourColumns.slice(0, 3),
+        {
+          key: "actions",
+          header: "Aktionen",
+          headerSrOnly: true,
+          render: () => <span>Menü</span>,
+        },
+      ],
+      rowTone: () => "today",
+    });
+
+    const menuCell = screen.getAllByText("Menü")[0]!.closest("td")!;
+    expect(menuCell).toHaveClass("from-moto-blue-soft/60");
+    expect(menuCell.closest("tr")).toHaveClass("bg-moto-blue-soft/60");
+
+    fireEvent.click(menuCell.closest("tr")!);
+
+    expect(menuCell).not.toHaveClass("from-moto-blue-soft/60");
+    expect(menuCell.closest("tr")).not.toHaveClass("bg-moto-blue-soft/60");
+    expect(menuCell).toHaveClass("bg-gray-50");
   });
 
   it("shows the tooltip of a column head", () => {
