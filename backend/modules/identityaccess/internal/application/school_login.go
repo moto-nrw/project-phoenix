@@ -34,7 +34,7 @@ func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, emai
 		return nil, err
 	}
 	if mfaRequired && !enrolled {
-		return s.mfaEnrollmentResult(account, portalTenantID, domain.ScopeSchool)
+		return s.mfaEnrollmentResult(account, portalTenantID, domain.PortalSchool)
 	}
 	trustedDeviceVerified := false
 	if mfaRequired && enrolled && trustedDeviceCookie != "" && s.mfa.Configured() {
@@ -42,7 +42,7 @@ func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, emai
 		trustedDeviceVerified = ok
 	}
 	if mfaRequired && enrolled && !trustedDeviceVerified {
-		return s.mfaChallengeResult(ctx, account, portalTenantID, domain.ScopeSchool, ipAddress)
+		return s.mfaChallengeResult(ctx, account, portalTenantID, domain.PortalSchool, ipAddress)
 	}
 
 	return s.mintSchoolLogin(ctx, account, portalTenantID, mfaRequired, enrolled, email, ipAddress, userAgent, trustedDeviceCookie)
@@ -77,7 +77,7 @@ func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx con
 	if len(proofs) > 0 {
 		proof = &proofs[0]
 	}
-	session, err := s.createRefreshSessionGuarded(ctx, account, tenantID, domain.ScopeSchool, s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeSchool, s.schoolMintGuard(account.ID, tenantID, &claims)), "", true)
+	session, err := s.createRefreshSessionGuarded(ctx, account, tenantID, domain.PortalSchool.Claim, s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeSchool, s.schoolMintGuard(account.ID, tenantID, &claims)), "", true)
 	if err != nil {
 		return "", "", wrapSchoolMintError("issue school tokens", err)
 	}
@@ -126,7 +126,7 @@ func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int6
 		return "", "", err
 	}
 	var claims *domain.AccountClaimsPayload
-	session, err := s.createRefreshSessionGuarded(ctx, account, targetTenantID, domain.ScopeSchool, s.schoolMintGuard(accountID, targetTenantID, &claims), sourceFamilyID)
+	session, err := s.createRefreshSessionGuarded(ctx, account, targetTenantID, domain.PortalSchool.Claim, s.schoolMintGuard(accountID, targetTenantID, &claims), sourceFamilyID)
 	if err != nil {
 		return "", "", wrapSchoolMintError("switch school", err)
 	}
@@ -318,7 +318,7 @@ func (s *AccountAuthentication) loadSchoolMetadataForTenant(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	metadata.Scope = domain.ScopeSchool
+	metadata.Scope = domain.PortalSchool.Claim
 	var (
 		school        domain.School
 		schoolFound   bool
@@ -355,7 +355,7 @@ func (s *AccountAuthentication) schoolClaimsPayloadInTx(ctx context.Context, acc
 	if err != nil {
 		return nil, err
 	}
-	metadata.Scope = domain.ScopeSchool
+	metadata.Scope = domain.PortalSchool.Claim
 	return metadata, nil
 }
 

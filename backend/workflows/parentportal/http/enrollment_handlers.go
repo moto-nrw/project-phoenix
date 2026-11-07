@@ -101,7 +101,7 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 // getEnrollmentBootstrap serves the enrollment form-load payload for the
 // authenticated parents portal. It mirrors the anonymous public
 // /form-bootstrap endpoint. Tenant comes from the path slug (admin-tx
-// resolves it); the parent JWT (scope=parent, enforced by ParentMiddleware)
+// resolves it); the parent JWT (scope=parent, enforced by ParentScopeMiddleware)
 // is the authorization boundary. Captcha is skipped — the JWT is the
 // anti-bot signal.
 //

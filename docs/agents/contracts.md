@@ -703,16 +703,16 @@ Backend paths in this section are relative to `backend/`:
   `identity.use_school_portal`). Dual-role accounts remain eligible. The school-only
   guard applies at all four tenant-session mint/renew sites, including refresh.
 - Parents login requires a guardian role on at least one tenant mapping
-  (`ErrAccountNoGuardianRole`, 403). `ParentMiddleware` accepts only `scope=parent`.
+  (`ErrAccountNoGuardianRole`, 403). `ParentScopeMiddleware` accepts only `scope=parent`.
 - School login requires a school-portal role (currently `lehrkraft`) on an
-  active mapping and pins that school's `tenant_id`. `SchoolMiddleware`
+  active mapping and pins that school's `tenant_id`. `SchoolScopeMiddleware`
   accepts only `scope=school`; `common.ProtectedSchoolGroup` includes tenant
   transactions. Unlike parent scope, school scope is tenant-bound.
 - Caterer login requires a caterer account (`auth.caterer_accounts`) that
   supplies at least one school; any other account answers like a wrong
   password. The session row is pinned to a supplied school; refresh re-pins
   it when that school ends the supply and fails once none is left. The token
-  carries no school: `CatererMiddleware` accepts only `scope=caterer`, and the
+  carries no school: `CatererScopeMiddleware` accepts only `scope=caterer`, and the
   caterer portal (`workflows/catererportal`) opens each supplied school's
   tenant transaction itself (ADR 0077). The `caterer scope matrix` contract in
   `TestFullProductionRouterGolden` checks both directions.
@@ -732,7 +732,7 @@ Backend paths in this section are relative to `backend/`:
   `platform.organization_accounts` of an active Träger and mints `scope=org`
   with `org_id` and no `tenant_id`; an account in several Träger chooses one
   (`organization_selection_required`). Refresh and validation re-check the
-  membership. `TraegerMiddleware` accepts only `scope=org`; the Träger rights
+  membership. `TraegerScopeMiddleware` accepts only `scope=org`; the Träger rights
   come from fixed role bundles in `auth.organization_account_roles`. Reads
   across schools run through the `traeger-view` projection in an admin
   transaction filtered on the Träger's schools. The Träger's own tables
@@ -777,7 +777,12 @@ Backend paths in this section are relative to `backend/`:
   login routes answer it like wrong credentials (#5546). The erasure passes
   over an account a login holds; a login waits for an erasure holding the
   account only until that transaction ends.
-- `TenantMiddleware` rejects parent, school, caterer, and org scopes.
+- Every route group's scope gate (`sessiontoken.PortalGate`) admits only the
+  portals it names and answers every other scope, including one no portal
+  issues, with 401 `general.permission`. Tenant routes accept the tenant
+  portal (empty or legacy `tenant` claim) and `platform`. The portal facts
+  live in `tokenprimitives.AllPortalClaims()` and `internal/domain/portal.go`,
+  pinned to each other by `TestPortalTableMatchesTheTokenGates`.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,

@@ -105,7 +105,7 @@ func (c *CatererAccess) signInGate(ctx context.Context, account domain.LoginAcco
 			return guard(c.tenantless(guardCtx), presented)
 		}}, nil
 	}
-	result, err := c.auth.mfaChallengeResult(schoolless, account, 0, domain.ScopeCaterer, request.IPAddress)
+	result, err := c.auth.mfaChallengeResult(schoolless, account, 0, domain.PortalCaterer, request.IPAddress)
 	if err != nil {
 		return catererSignInGate{}, err
 	}
@@ -122,7 +122,7 @@ func (c *CatererAccess) signInGate(ctx context.Context, account domain.LoginAcco
 // issues its pair. The login is filed at that school.
 func (c *CatererAccess) mintSession(ctx context.Context, account domain.LoginAccount, schoolID int64, verified bool, guard mintGuard, ipAddress, userAgent string) (identityaccess.CatererLoginResult, error) {
 	ctx = c.runtime.WithTenantID(ctx, schoolID)
-	session, err := c.auth.createRefreshSessionGuarded(ctx, account, schoolID, domain.ScopeCaterer, guard, "", verified)
+	session, err := c.auth.createRefreshSessionGuarded(ctx, account, schoolID, domain.PortalCaterer.Claim, guard, "", verified)
 	if err != nil {
 		return identityaccess.CatererLoginResult{}, err
 	}
@@ -166,7 +166,7 @@ func (c *CatererAccess) verifyMFA(ctx context.Context, verification identityacce
 	if c.mfa == nil {
 		return identityaccess.CatererSession{}, errCatererMFAUnavailable
 	}
-	proof, err := c.mfa.VerifyChallengeForScope(ctx, verification.ChallengeToken, verification.Code, domain.MFAChallengeScopeCaterer)
+	proof, err := c.mfa.VerifyChallengeForScope(ctx, verification.ChallengeToken, verification.Code, domain.PortalCaterer.Name)
 	if err != nil {
 		return identityaccess.CatererSession{}, err
 	}
@@ -210,7 +210,7 @@ func (c *CatererAccess) resendMFA(ctx context.Context, challengeToken string, ip
 	if c.mfa == nil {
 		return "", errCatererMFAUnavailable
 	}
-	return c.mfa.ResendChallengeForScope(ctx, challengeToken, ip, domain.MFAChallengeScopeCaterer)
+	return c.mfa.ResendChallengeForScope(ctx, challengeToken, ip, domain.PortalCaterer.Name)
 }
 
 // CatererMFAStatus reports whether the caterer switched its second factor on.
@@ -263,7 +263,7 @@ func (c *CatererAccess) startMFA(ctx context.Context, accountID int64, ip net.IP
 	if enrolled {
 		return identityaccess.CatererMFAChallenge{}, identityaccess.ErrMFAAlreadyEnrolled
 	}
-	token, err := c.mfa.StartChallenge(ctx, accountID, 0, domain.MFAChallengeScopeCaterer, ip)
+	token, err := c.mfa.StartChallenge(ctx, accountID, 0, domain.PortalCaterer.Name, ip)
 	if err != nil {
 		return identityaccess.CatererMFAChallenge{}, err
 	}
@@ -285,7 +285,7 @@ func (c *CatererAccess) confirmMFA(ctx context.Context, confirmation identityacc
 	if _, err := c.signedInCaterer(ctx, confirmation.AccountID); err != nil {
 		return identityaccess.CatererSession{}, err
 	}
-	proof, err := c.mfa.VerifyChallengeForOwner(ctx, confirmation.ChallengeToken, confirmation.Code, domain.MFAChallengeScopeCaterer, confirmation.AccountID, 0)
+	proof, err := c.mfa.VerifyChallengeForOwner(ctx, confirmation.ChallengeToken, confirmation.Code, domain.PortalCaterer.Name, confirmation.AccountID, 0)
 	if err != nil {
 		return identityaccess.CatererSession{}, err
 	}

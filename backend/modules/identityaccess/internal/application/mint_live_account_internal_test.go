@@ -19,14 +19,14 @@ import (
 // no session, whatever the scope and whether a guard ran.
 func TestSessionMintRefusesAnAccountErasedAfterItsChecks(t *testing.T) {
 	t.Parallel()
-	for _, scope := range []string{domain.ScopeTenant, domain.ScopeParent, domain.ScopeSchool, domain.ScopeCaterer, domain.ScopeOrg} {
+	for _, scope := range []string{domain.PortalTenant.Claim, domain.PortalParent.Claim, domain.PortalSchool.Claim, domain.PortalCaterer.Claim, domain.PortalOrg.Claim} {
 		t.Run("scope "+domain.PersistedPortalScope(scope), func(t *testing.T) {
 			t.Parallel()
 			f := newAuthFixture(t)
 			f.seedStaff(1, 10, "user")
 			f.store.erasedBeforeMint = true
 			tenantID := int64(10)
-			if scope == domain.ScopeOrg {
+			if scope == domain.PortalOrg.Claim {
 				tenantID = 0
 			}
 			_, err := f.auth.createRefreshSessionGuarded(context.Background(), f.store.accounts[1], tenantID, scope, nil, "", true)

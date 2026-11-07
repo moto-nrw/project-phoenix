@@ -5,7 +5,7 @@
 // (e.g. /school/auth/login, /school/class-day). They share two properties:
 //
 //  1. Authenticated routes require a school-scope JWT (scope="school")
-//     enforced by sessiontoken.SchoolMiddleware. Tenant, org, platform, and parent
+//     enforced by SchoolScopeMiddleware. Tenant, org, platform, and parent
 //     tokens are hard-rejected with 401 — the symmetric guard to the tenant
 //     middleware's ScopeSchool rejection.
 //  2. School tokens are tenant-bound (unlike parent tokens): the login pins

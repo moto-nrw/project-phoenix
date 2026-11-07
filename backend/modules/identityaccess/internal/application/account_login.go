@@ -76,12 +76,12 @@ func (s *AccountAuthentication) loginWithMFAGate(ctx context.Context, email, pas
 		return nil, err
 	}
 	if mfaRequired && !enrolled {
-		return s.mfaEnrollmentResult(account, metadata.TenantID, domain.ScopeTenant)
+		return s.mfaEnrollmentResult(account, metadata.TenantID, domain.PortalTenant)
 	}
 	// Issue a challenge exactly when MFA is required, the factor is enrolled
 	// and no valid trusted-device cookie is presented.
 	if mfaRequired && enrolled && !s.trustedDeviceVerified(ctx, account.ID, metadata.TenantID, trustedDeviceCookie) {
-		return s.mfaChallengeResult(ctx, account, metadata.TenantID, domain.ScopeTenant, ipAddress)
+		return s.mfaChallengeResult(ctx, account, metadata.TenantID, domain.PortalTenant, ipAddress)
 	}
 
 	var guard mintGuard
@@ -120,15 +120,8 @@ func (s *AccountAuthentication) resolveTenantMFAGate(ctx context.Context, accoun
 
 // mfaEnrollmentResult issues an enrollment JWT only the portal's
 // /mfa/enroll/* surface accepts.
-func (s *AccountAuthentication) mfaEnrollmentResult(account domain.LoginAccount, tenantID int64, scope string) (*domain.LoginResult, error) {
-	enrollmentScope := "tenant"
-	switch scope {
-	case domain.ScopeSchool:
-		enrollmentScope = "school"
-	case domain.ScopeOrg:
-		enrollmentScope = "org"
-	}
-	token, err := s.codec.IssueMFAEnrollmentToken(account.ID, tenantID, enrollmentScope, domain.MFAEnrollmentTokenTTL)
+func (s *AccountAuthentication) mfaEnrollmentResult(account domain.LoginAccount, tenantID int64, portal domain.Portal) (*domain.LoginResult, error) {
+	token, err := s.codec.IssueMFAEnrollmentToken(account.ID, tenantID, portal.Name, domain.MFAEnrollmentTokenTTL)
 	if err != nil {
 		return nil, failed("issue mfa enrollment token", err)
 	}
@@ -150,21 +143,12 @@ func (s *AccountAuthentication) trustedDeviceVerified(ctx context.Context, accou
 
 // mfaChallengeResult is the "MFA required, factor enrolled" response: an
 // email code plus a challenge token bound to the portal scope.
-func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account domain.LoginAccount, tenantID int64, scope, ipAddress string) (*domain.LoginResult, error) {
-	challengeScope := "tenant"
-	switch scope {
-	case domain.ScopeSchool:
-		challengeScope = "school"
-	case domain.ScopeOrg:
-		challengeScope = "org"
-	case domain.ScopeCaterer:
-		challengeScope = domain.MFAChallengeScopeCaterer
-	}
-	challenge, err := s.mfa.StartChallenge(ctx, account.ID, tenantID, challengeScope, ipAddress)
+func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account domain.LoginAccount, tenantID int64, portal domain.Portal, ipAddress string) (*domain.LoginResult, error) {
+	challenge, err := s.mfa.StartChallenge(ctx, account.ID, tenantID, portal.Name, ipAddress)
 	if err != nil {
 		return nil, failed("start mfa challenge", err)
 	}
-	if scope == domain.ScopeOrg {
+	if portal.Name == domain.PortalOrg.Name {
 		// The Träger-Portal remembers no device: it has no school whose
 		// trusted-device settings would apply.
 		return &domain.LoginResult{Status: domain.LoginStatusMFARequired, ChallengeToken: challenge, MaskedEmail: domain.MaskEmail(account.Email)}, nil

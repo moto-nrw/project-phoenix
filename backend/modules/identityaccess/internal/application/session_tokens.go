@@ -3,6 +3,7 @@ package application
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwt"
@@ -95,8 +96,8 @@ func (c *SessionCodec) IssueAccessToken(claims identityaccess.SessionClaims) (st
 }
 
 func (c *SessionCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error) {
-	if scope != "school" && scope != "platform" && scope != "org" {
-		scope = "tenant"
+	if portal, ok := domain.PortalNamed(scope); !ok || !portal.Enrollment {
+		return "", fmt.Errorf("portal %q has no mfa enrollment", scope)
 	}
 	now := time.Now()
 	wire := map[string]any{"account_id": accountID, "scope": scope, "mfa_enrollment_pending": true, "iat": now.Unix(), "exp": now.Add(ttl).Unix()}

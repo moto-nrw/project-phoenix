@@ -53,7 +53,7 @@ func tagSentrySession(scope *sentry.Scope, claims sessiontoken.AppClaims) {
 	switch {
 	case claims.IsPlatformScope():
 		portal, role = "operator", "operator"
-	case claims.Scope == "parent":
+	case claims.IsParentScope():
 		portal, role = "parent", "guardian"
 	case claims.IsCatererScope():
 		portal, role = "caterer", "caterer"
@@ -73,7 +73,7 @@ func tagSentrySession(scope *sentry.Scope, claims sessiontoken.AppClaims) {
 
 func tenantRole(claims sessiontoken.AppClaims) string {
 	switch {
-	case claims.Scope == "org":
+	case claims.IsOrgScope():
 		return "carrier"
 	case claims.IsAdmin || claims.IsReadOnlyPreview():
 		return "admin"

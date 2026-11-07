@@ -383,7 +383,7 @@ func TestOperatorMFAStartChallengeMailsTheCode(t *testing.T) {
 	token, err := fixture.flows.StartChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
 	require.NoError(t, err)
 	assert.Equal(t, "challenge-token", token)
-	assert.Equal(t, domain.MFAChallengeScopePlatform, fixture.codec.issued.Scope,
+	assert.Equal(t, domain.PortalPlatform.Name, fixture.codec.issued.Scope,
 		"the operator id reuses the account slot, so the scope is what distinguishes it")
 	assert.Equal(t, operator.ID, fixture.codec.issued.AccountID)
 
@@ -411,7 +411,7 @@ func TestOperatorMFAVerifyChallengeRefusesTheConsumeRaceLoser(t *testing.T) {
 		consumeErr: errors.New("operator mfa challenge was already consumed or activated"),
 	}
 	fixture := newOperatorMFAFixture(t, operator, store)
-	fixture.codec.parse["token"] = domain.MFAChallengeClaims{AccountID: operator.ID, Scope: domain.MFAChallengeScopePlatform}
+	fixture.codec.parse["token"] = domain.MFAChallengeClaims{AccountID: operator.ID, Scope: domain.PortalPlatform.Name}
 
 	verified, err := fixture.flows.VerifyChallenge(context.Background(), "token", "123456")
 	require.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid,
@@ -444,7 +444,7 @@ func TestOperatorMFAVerifyChallengeRefusesForeignScope(t *testing.T) {
 	operator := domain.Operator{ID: 13, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	fixture := newOperatorMFAFixture(t, operator, nil)
 	fixture.codec.parse["tenant-token"] = domain.MFAChallengeClaims{
-		AccountID: operator.ID, Scope: domain.MFAChallengeScopeTenant,
+		AccountID: operator.ID, Scope: domain.PortalTenant.Name,
 	}
 
 	_, err := fixture.flows.VerifyChallenge(context.Background(), "tenant-token", "123456")
@@ -459,7 +459,7 @@ func TestOperatorMFAVerifyChallengeWrongCodeCountsTheAttempt(t *testing.T) {
 	operator := domain.Operator{ID: 14, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	store := &fakeOperatorMFAStore{challenge: &domain.OperatorMFAChallenge{ID: 7, OperatorID: 14, CodeHash: "hash:123456"}}
 	fixture := newOperatorMFAFixture(t, operator, store)
-	fixture.codec.parse["token"] = domain.MFAChallengeClaims{AccountID: operator.ID, Scope: domain.MFAChallengeScopePlatform}
+	fixture.codec.parse["token"] = domain.MFAChallengeClaims{AccountID: operator.ID, Scope: domain.PortalPlatform.Name}
 
 	_, err := fixture.flows.VerifyChallenge(context.Background(), "token", "000000")
 	require.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)

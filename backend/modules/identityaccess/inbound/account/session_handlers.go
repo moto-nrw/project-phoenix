@@ -287,7 +287,7 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 
 // authorizeRoleAssignment validates the role_id from the request and returns it
 // along with the caller's tenant ID. Auth and permission checks are handled by
-// middleware (Authenticator + TenantMiddleware + RequiresPermission). Returns
+// middleware (Authenticator + TenantScopeMiddleware + RequiresPermission). Returns
 // the role ID, the tenant ID, and whether the handler should return early
 // (true = error rendered).
 func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, int64, bool) {

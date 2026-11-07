@@ -10,36 +10,26 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-// scopeNeedsMFA selects the sessions the school MFA policy governs. The
-// Träger-Portal is not bound to the MFA mode of any school (ADR 0084): every
-// Träger session needs its second factor (#4651), see requireSessionMFA.
-// Neither is the caterer portal (ADR 0077 point 7): its session row is kept
-// at a supplied school, but no school's mode reaches the caterer.
-func scopeNeedsMFA(scope string) bool {
-	return scope != domain.PortalScopeParent && scope != domain.PortalScopeOrg && scope != domain.PortalScopeCaterer
-}
-
 // requireSessionMFA runs under the policy/account lock at every persistence
 // boundary, including refresh hand-off recovery. Legacy sessions have no proof.
-// Parent sessions carry no staff authority and retain their separate policy.
-// A Träger session needs its proof for every role, so a session minted before
-// the duty or one whose proof an MFA reset revoked is refused at mint and at
-// refresh. A caterer session needs it once the caterer switched its second
-// factor on (#4497): a session minted before that ends at its next refresh.
+// A Träger session minted before the duty or one whose proof an MFA reset
+// revoked is refused at mint and at refresh. A caterer session needs its
+// proof once the caterer switched its second factor on (#4497): a session
+// minted before that ends at its next refresh.
 func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID, tenantID int64, scope string, verified bool) error {
 	if !s.mfa.Configured() {
 		return nil
 	}
-	if scope == domain.PortalScopeOrg {
+	switch domain.MFARuleOf(scope) {
+	case domain.MFAAlways:
 		if !verified {
 			return identityaccess.ErrInvalidToken
 		}
 		return nil
-	}
-	if scope == domain.PortalScopeCaterer {
+	case domain.MFAAccountChoice:
 		return s.requireCatererSessionMFA(ctx, accountID, verified)
-	}
-	if !scopeNeedsMFA(scope) {
+	case domain.MFASchoolPolicy:
+	default:
 		return nil
 	}
 	if _, err := s.store.LockAccountPermissionSources(ctx, accountID, tenantID); err != nil {
@@ -81,7 +71,7 @@ func (s *AccountAuthentication) requireCatererSessionMFA(ctx context.Context, ac
 // prepareSessionMint orders policy -> account -> permission-source locks and
 // rejects the transaction before it persists an unverified privileged session.
 func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account domain.LoginAccount, session *domain.AccountSession, tenantID int64, guard mintGuard, sourceFamilyID string) (time.Time, error) {
-	if s.mfa.Configured() && scopeNeedsMFA(session.PortalScope) {
+	if s.mfa.Configured() && domain.MFARuleOf(session.PortalScope) == domain.MFASchoolPolicy {
 		if err := s.lockMFAPolicyForMint(ctx, account.ID, tenantID); err != nil {
 			return time.Time{}, err
 		}
@@ -203,10 +193,10 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	}
 	// The Absprung guard already checked the Träger proof under this lock;
 	// it must not be replaced by a same-school-portal proof lookup.
-	if domain.IsTraegerSchoolSession(*session) && source.PortalScope == domain.PortalScopeOrg {
+	if domain.IsTraegerSchoolSession(*session) && source.PortalScope == domain.PortalOrg.Name {
 		return nil
 	}
-	if session.PortalScope != domain.PortalScopeTenant && session.PortalScope != domain.PortalScopeSchool {
+	if session.PortalScope != domain.PortalTenant.Name && session.PortalScope != domain.PortalSchool.Name {
 		return nil
 	}
 	verified, err := s.switchMFAProof(ctx, accountID, familyID, session.PortalScope)

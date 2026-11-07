@@ -1,5 +1,7 @@
 package sessiontoken
 
+import "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+
 // MFA challenge scope values — distinguish tenant accounts from platform
 // operators and school-portal (Lehrkraft) logins. The school scope (#2207)
 // exists so a challenge started at /school/auth/login can only ever be
@@ -7,11 +9,11 @@ package sessiontoken
 // and vice versa. The org scope (#4651) does the same for the Träger-Portal,
 // the caterer scope (#4497) for the caterer portal.
 const (
-	MFAChallengeScopeTenant   = "tenant"
-	MFAChallengeScopePlatform = "platform"
-	MFAChallengeScopeSchool   = "school"
-	MFAChallengeScopeOrg      = "org"
-	MFAChallengeScopeCaterer  = "caterer"
+	MFAChallengeScopeTenant   = tokenprimitives.PortalTenant
+	MFAChallengeScopePlatform = tokenprimitives.PortalPlatform
+	MFAChallengeScopeSchool   = tokenprimitives.PortalSchool
+	MFAChallengeScopeOrg      = tokenprimitives.PortalOrg
+	MFAChallengeScopeCaterer  = tokenprimitives.PortalCaterer
 )
 
 // MFAChallengeClaims represents a short-lived JWT issued after a successful

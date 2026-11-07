@@ -5,8 +5,8 @@
 // Every route below /traeger shares two properties:
 //
 //  1. Authenticated routes require a Träger token (scope org) enforced by
-//     sessiontoken.TraegerMiddleware. Tenant, school, parent and platform
-//     tokens are rejected with 401, the symmetric guard to TenantMiddleware's
+//     TraegerScopeMiddleware. Tenant, school, parent and platform
+//     tokens are rejected with 401, the symmetric guard to TenantScopeMiddleware's
 //     org rejection.
 //  2. A Träger token names its Träger and no school, so no route opens a
 //     tenant transaction. Reads across the schools of the Träger go through

@@ -65,7 +65,7 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 	}
 	// A caterer session is a case of its own: it has no school membership,
 	// so none of the tenant rules below apply (ADR 0077).
-	if claims.Scope == domain.ScopeCaterer {
+	if claims.Scope == domain.PortalCaterer.Claim {
 		return s.refreshCatererSession(ctx, claims, ipAddress, userAgent)
 	}
 	if err := s.validateRefreshSchool(ctx, claims); err != nil {
@@ -117,8 +117,7 @@ func (s *AccountAuthentication) validateRefreshSchool(ctx context.Context, claim
 			return err
 		}
 	}
-	// A school token without a school is dead on arrival.
-	if claims.Scope == domain.ScopeSchool && claims.TenantID <= 0 {
+	if claims.Scope == domain.PortalSchool.Claim && !domain.PortalSchool.Holds(claims.TenantID, claims.OrgID) {
 		s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", claims.AccountID, claims.TenantID)
 		return failed("refresh school session", identityaccess.ErrTenantAccessDenied)
 	}
@@ -140,7 +139,7 @@ func (s *AccountAuthentication) refreshAuditContext(ctx context.Context, claims 
 // their successor gets the account's default mapping.
 func (s *AccountAuthentication) refreshTenant(claims domain.RefreshClaims) successorTenant {
 	return func(ctx context.Context, accountID int64, _ domain.AccountSession) (int64, error) {
-		if claims.Scope == domain.ScopeOrg {
+		if claims.Scope == domain.PortalOrg.Claim {
 			return 0, nil
 		}
 		if claims.TenantID > 0 {
@@ -164,10 +163,10 @@ func (s *AccountAuthentication) refreshMintGuard(claims domain.RefreshClaims, me
 		return s.traegerSchoolMintGuard(claims.OrgID, claims.TenantID, metadata), nil
 	}
 	switch claims.Scope {
-	case domain.ScopeSchool:
+	case domain.PortalSchool.Claim:
 		return s.schoolRefreshMintGuard(claims.AccountID, claims.TenantID, metadata), nil
-	case domain.ScopeOrg:
-		if claims.OrgID <= 0 || claims.TenantID != 0 {
+	case domain.PortalOrg.Claim:
+		if !domain.PortalOrg.Holds(claims.TenantID, claims.OrgID) {
 			s.logRefreshDecision("refresh_session_rejected", "traeger_token_without_traeger", claims.AccountID, claims.TenantID)
 			return nil, failed("refresh Träger session", identityaccess.ErrInvalidToken)
 		}
@@ -181,7 +180,7 @@ func (s *AccountAuthentication) refreshMintGuard(claims domain.RefreshClaims, me
 // opened through the Absprung: a school-bound refresh token that names its
 // Träger. Other OGS refresh tokens name none.
 func traegerSchoolRefresh(claims domain.RefreshClaims) bool {
-	return domain.PersistedPortalScope(claims.Scope) == domain.PortalScopeTenant && claims.OrgID > 0
+	return domain.PersistedPortalScope(claims.Scope) == domain.PortalTenant.Name && claims.OrgID > 0
 }
 
 // refreshClaimsGuard assembles the claims of a non-school refresh (tenant and
@@ -190,7 +189,7 @@ func traegerSchoolRefresh(claims domain.RefreshClaims) bool {
 // that predate it, a guardian-only role set at the refresh tenant.
 func (s *AccountAuthentication) refreshClaimsGuard(scope string, tenantID int64, out **domain.AccountClaimsPayload) mintGuard {
 	return func(ctx context.Context, account domain.LoginAccount) error {
-		if scope == domain.ScopeParent {
+		if scope == domain.PortalParent.Claim {
 			*out = buildParentMetadata(account)
 			return nil
 		}
@@ -290,7 +289,7 @@ func (r *refreshRotation) run(ctx context.Context) error {
 }
 
 func (r *refreshRotation) lockAccount(ctx context.Context) error {
-	if r.service.mfa.Configured() && r.claims.Scope != domain.ScopeParent && r.claims.TenantID > 0 {
+	if r.service.mfa.Configured() && r.claims.Scope != domain.PortalParent.Claim && r.claims.TenantID > 0 {
 		if err := r.service.lockMFAPolicyForMint(ctx, r.claims.AccountID, r.claims.TenantID); err != nil {
 			return err
 		}
@@ -333,7 +332,7 @@ func (r *refreshRotation) presentedSession(ctx context.Context) (domain.AccountS
 }
 
 func (r *refreshRotation) validatePresented(ctx context.Context, presented domain.AccountSession, now time.Time) error {
-	traegerToken, traegerSession := r.claims.Scope == domain.ScopeOrg, presented.PortalScope == domain.PortalScopeOrg
+	traegerToken, traegerSession := r.claims.Scope == domain.PortalOrg.Claim, presented.PortalScope == domain.PortalOrg.Name
 	viaTraeger := traegerSchoolRefresh(r.claims) || domain.IsTraegerSchoolSession(presented)
 	if presented.AccountID != r.claims.AccountID || (r.claims.TenantID > 0 && presented.TenantID != r.claims.TenantID) ||
 		traegerToken != traegerSession || ((traegerToken || viaTraeger) && presented.OrganizationID != r.claims.OrgID) {
@@ -671,7 +670,7 @@ func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.
 	if tenantID == 0 {
 		tenantID = claimTenantID
 	}
-	if revoked.PortalScope == domain.PortalScopeOrg {
+	if revoked.PortalScope == domain.PortalOrg.Name {
 		tenantID = 0
 	} else if tenantID == 0 {
 		s.logger.Error("failed to audit logout",
@@ -738,6 +737,6 @@ func (s *AccountAuthentication) requireAccountRecoveryProof(ctx context.Context,
 
 func sameAccountSessionLineage(current, next domain.AccountSession) bool {
 	sameTenant := current.TenantID == 0 || next.TenantID == current.TenantID
-	catererRepin := current.PortalScope == domain.PortalScopeCaterer && next.PortalScope == domain.PortalScopeCaterer
+	catererRepin := current.PortalScope == domain.PortalCaterer.Name && next.PortalScope == domain.PortalCaterer.Name
 	return next.FamilyID == current.FamilyID && next.AccountID == current.AccountID && (sameTenant || catererRepin) && next.OrganizationID == current.OrganizationID && next.Generation == current.Generation+1
 }

@@ -25,9 +25,7 @@ type AppClaims struct {
 	Permissions []string `json:"permissions,omitempty"` // Added permissions field
 	// Static role flags for quick access
 	IsAdmin bool `json:"is_admin,omitempty"`
-	// Scope distinguishes tenant tokens from platform tokens
-	// "platform" = operator tokens (moto DevOps team)
-	// "" or "tenant" = regular user tokens
+	// Scope is the portal claim; tokenprimitives.PortalOfClaim resolves it.
 	Scope string `json:"scope,omitempty"`
 	// Multi-tenancy fields (Phase 1)
 	TenantID int64 `json:"tenant_id,omitempty"` // School ID (tenant boundary)
@@ -64,26 +62,26 @@ func (c *AppClaims) IsReadOnlyPreview() bool {
 	return c.ReadOnly
 }
 
-// IsPlatformScope returns true if this is a platform/operator token
+// IsPlatformScope reports an operator token.
 func (c *AppClaims) IsPlatformScope() bool {
-	return c.Scope == "platform"
+	return c.Scope == tokenprimitives.PlatformClaims.Claim
 }
 
 // IsOrgScope returns true if this is a Träger-portal token (#4649).
 func (c *AppClaims) IsOrgScope() bool {
-	return c.Scope == claimScopeOrg
+	return c.Scope == tokenprimitives.OrgClaims.Claim
 }
 
 // IsParentScope returns true if this is a parent-portal token.
 func (c *AppClaims) IsParentScope() bool {
-	return c.Scope == claimScopeParent
+	return c.Scope == tokenprimitives.ParentClaims.Claim
 }
 
 // IsCatererScope returns true if this is a caterer-portal token (ADR 0077).
 // Caterer tokens carry no tenant; the caterer portal opens each school it
 // supplies in that school's own tenant transaction.
 func (c *AppClaims) IsCatererScope() bool {
-	return c.Scope == claimScopeCaterer
+	return c.Scope == tokenprimitives.CatererClaims.Claim
 }
 
 // IsSchoolScope returns true if this is a school-portal token ("moto schule",
@@ -92,7 +90,7 @@ func (c *AppClaims) IsCatererScope() bool {
 // is open — which is why authorization rules that must not apply to a
 // Lehrkraft ask this question instead of inspecting roles (#2527).
 func (c *AppClaims) IsSchoolScope() bool {
-	return c.Scope == "school"
+	return c.Scope == tokenprimitives.SchoolClaims.Claim
 }
 
 // Error format for missing claims
@@ -293,7 +291,7 @@ type RefreshClaims struct {
 	ID       int    `json:"id,omitempty"`
 	Token    string `json:"token,omitempty"`
 	TenantID int64  `json:"tenant_id,omitempty"` // Multi-tenancy: School ID
-	Scope    string `json:"scope,omitempty"`     // "", "org", "platform", "parent", "school"
+	Scope    string `json:"scope,omitempty"`
 	CommonClaims
 }
 

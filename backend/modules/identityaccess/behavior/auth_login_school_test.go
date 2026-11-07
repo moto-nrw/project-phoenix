@@ -219,7 +219,7 @@ func TestRefreshToken_SchoolScope_Preserved(t *testing.T) {
 	t.Parallel()
 
 	// A school-scope refresh token must round-trip as a school token — a
-	// silent demotion to tenant scope would fail SchoolMiddleware on the
+	// silent demotion to tenant scope would fail SchoolScopeMiddleware on the
 	// next request and dead-end the portal session.
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // TrustedDeviceCookieName mirrors the tenant-side constant. The operator
@@ -155,7 +156,7 @@ func (rs *Resource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	// Pre-fix deterministic operator refresh tokens had no persisted session
 	// and no platform scope claim; reject them before the lookup, as well as
 	// every tenant or user token.
-	if claims.Scope != "platform" || claims.Token == "" {
+	if claims.Scope != tokenprimitives.PlatformClaims.Claim || claims.Token == "" {
 		common.RenderError(w, r, rs.responses.Unauthorized())
 		return
 	}

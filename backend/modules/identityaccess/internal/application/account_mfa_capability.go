@@ -245,11 +245,11 @@ func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID 
 	}
 	challengeScope := identityaccess.MFAChallengeScopeTenant
 	switch scope {
-	case domain.ScopeSchool:
+	case domain.PortalSchool.Claim:
 		challengeScope = identityaccess.MFAChallengeScopeSchool
-	case domain.ScopeOrg:
+	case domain.PortalOrg.Claim:
 		challengeScope = identityaccess.MFAChallengeScopeOrg
-	case domain.ScopeCaterer:
+	case domain.PortalCaterer.Claim:
 		challengeScope = identityaccess.MFAChallengeScopeCaterer
 	}
 	return g.Capability.StartMFAChallenge(ctx, accountID, tenantID, challengeScope, parseGateIP(ipAddress))

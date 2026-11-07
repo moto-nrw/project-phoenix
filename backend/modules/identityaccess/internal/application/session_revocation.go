@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"time"
 
@@ -415,37 +416,8 @@ func (s *AccountAuthentication) deletePushForFamilies(ctx context.Context, accou
 	return nil
 }
 
-// Push portals per persisted portal scope: tenant and org sessions belong to
-// the staff portal; unknown legacy rows may belong to any portal.
-const (
-	pushPortalStaff  = "staff"
-	pushPortalParent = "parent"
-	pushPortalSchool = "school"
-)
-
-func pushPortalsForScope(portalScope string) []string {
-	switch portalScope {
-	case domain.PortalScopeParent:
-		return []string{pushPortalParent}
-	case domain.PortalScopeSchool:
-		return []string{pushPortalSchool}
-	case domain.PortalScopeCaterer:
-		// The caterer portal has no push messages.
-		return nil
-	case domain.PortalScopeUnknown, "":
-		return []string{pushPortalStaff, pushPortalParent, pushPortalSchool}
-	default:
-		return []string{pushPortalStaff}
-	}
-}
-
 func sessionMatchesPushPortal(portalScope, portal string) bool {
-	for _, candidate := range pushPortalsForScope(portalScope) {
-		if candidate == portal {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(domain.PushPortalsOf(portalScope), portal)
 }
 
 func sessionTenantIDsForPortal(sessions []domain.AccountSession, portal string) []int64 {
@@ -468,7 +440,7 @@ func sessionTenantIDsForPortal(sessions []domain.AccountSession, portal string) 
 }
 
 func (s *AccountAuthentication) deletePushUnboundForSessions(ctx context.Context, accountID int64, sessions []domain.AccountSession) error {
-	for _, portal := range []string{pushPortalStaff, pushPortalSchool, pushPortalParent} {
+	for _, portal := range []string{domain.PushPortalStaff, domain.PushPortalSchool, domain.PushPortalParent} {
 		if err := s.deletePushUnboundAtTenants(ctx, accountID, sessionTenantIDsForPortal(sessions, portal), portal); err != nil {
 			return err
 		}
@@ -607,7 +579,7 @@ func (s *AccountAuthentication) runScheduledAccountWipe(txCtx context.Context, a
 func schoolSessions(sessions []domain.AccountSession) []domain.AccountSession {
 	kept := make([]domain.AccountSession, 0, len(sessions))
 	for _, session := range sessions {
-		if session.PortalScope != domain.PortalScopeOrg {
+		if session.PortalScope != domain.PortalOrg.Name {
 			kept = append(kept, session)
 		}
 	}

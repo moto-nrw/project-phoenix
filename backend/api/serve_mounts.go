@@ -173,8 +173,8 @@ func mountCommunicationRoutes(
 
 // mountDeliveryRoutes serves the live streams and the file storage: the staff
 // routes under /api and the portal routes at the root. The portal routes sit
-// at the root because /parent is a catch-all mount; ParentMiddleware and
-// SchoolMiddleware authenticate them.
+// at the root because /parent is a catch-all mount; ParentScopeMiddleware and
+// SchoolScopeMiddleware authenticate them.
 func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore filestorageModule.Capability, parent *parentportal.Portal, hub *realtime.Hub, caller *owners.CallerRows, identity identityaccess.Owner) error {
 	files := filestoreAPI.NewResource(fileStore, logger.With("handler", "filestore"))
 	attachmentReads, err := filestorageModule.TenantReads(fileStore)

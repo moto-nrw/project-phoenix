@@ -104,7 +104,7 @@ func (f *AccountPasskeyFlows) StartEnrollmentChallenge(ctx context.Context, acco
 	if err != nil || !found {
 		return domain.PasskeyEnrollmentChallenge{}, domain.ErrAccountNotFound
 	}
-	token, err := f.mfa.StartChallenge(ctx, accountID, tenantID, domain.MFAChallengeScopeTenant, ip)
+	token, err := f.mfa.StartChallenge(ctx, accountID, tenantID, domain.PortalTenant.Name, ip)
 	if err != nil {
 		return domain.PasskeyEnrollmentChallenge{}, err
 	}
@@ -119,7 +119,7 @@ func (f *AccountPasskeyFlows) BeginRegistration(ctx context.Context, request dom
 	if err := domain.ValidateTenantPasskeyOrigin(request.ExpectedOrigin, request.TenantSubdomain, f.tenantDomain); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	if err := f.mfa.VerifyCodeForAccount(ctx, request.AccountID, request.TenantID, request.Code, domain.MFAChallengeScopeTenant); err != nil {
+	if err := f.mfa.VerifyCodeForAccount(ctx, request.AccountID, request.TenantID, request.Code, domain.PortalTenant.Name); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
 	account, found, err := f.accounts.FindAccountIdentity(ctx, request.AccountID)

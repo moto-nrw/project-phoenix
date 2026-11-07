@@ -90,14 +90,14 @@ func (s *AccountAuthentication) mintSchoolLogin(ctx context.Context, account dom
 	if mfaRequired && enrolled {
 		guard = s.trustedDeviceMintGuard(account.ID, portalTenantID, trustedDeviceCookie, guard)
 	}
-	session, err := s.createRefreshSessionGuarded(ctx, account, portalTenantID, domain.ScopeSchool, guard, "", mfaRequired && enrolled)
+	session, err := s.createRefreshSessionGuarded(ctx, account, portalTenantID, domain.PortalSchool.Claim, guard, "", mfaRequired && enrolled)
 	if errors.Is(err, errSchoolMFARequiredAtMint) {
 		// Nothing was written; send the login down the branch it would have
 		// taken had the requirement been there from the start.
 		if !enrolled {
-			return s.mfaEnrollmentResult(account, portalTenantID, domain.ScopeSchool)
+			return s.mfaEnrollmentResult(account, portalTenantID, domain.PortalSchool)
 		}
-		return s.mfaChallengeResult(ctx, account, portalTenantID, domain.ScopeSchool, ipAddress)
+		return s.mfaChallengeResult(ctx, account, portalTenantID, domain.PortalSchool, ipAddress)
 	}
 	if err != nil {
 		return nil, wrapSchoolMintError("school login", err)

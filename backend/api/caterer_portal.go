@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -19,7 +20,7 @@ import (
 
 // CatererScopeMiddleware accepts caterer-portal tokens only and binds no
 // school (ADR 0077).
-var CatererScopeMiddleware = sessiontoken.CatererMiddleware(tenant.ClaimScope{})
+var CatererScopeMiddleware = sessiontoken.PortalGate(tenant.ClaimScope{}, tokenprimitives.CatererClaims)
 
 // CatererSessionChain authenticates the routes of a caterer session.
 func CatererSessionChain(r chi.Router) {

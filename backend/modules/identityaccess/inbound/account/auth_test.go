@@ -106,7 +106,7 @@ func setupPublicRouterWithDB(t *testing.T) (*bun.DB, chi.Router) {
 
 // setupProtectedRouter mounts the resource's real Router() under /auth, so
 // tests exercise the production middleware chain (Verifier → Authenticator →
-// TenantMiddleware → RequiresPermission → TenantTxMiddleware). Requests carry a
+// TenantScopeMiddleware → RequiresPermission → TenantTxMiddleware). Requests carry a
 // signed JWT minted by executeWithAuth.
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()

@@ -36,7 +36,7 @@ func TestOperatorLogin_WithoutGateIssuesTokenPairAndAudits(t *testing.T) {
 	assert.Equal(t, "operator:42", claims.Email, "the subject names the operator")
 	assert.Equal(t, operator.Email, claims.Username)
 	assert.Equal(t, []string{domain.OperatorRoleName}, claims.Roles)
-	assert.Equal(t, domain.ScopePlatform, claims.Scope)
+	assert.Equal(t, domain.PortalPlatform.Claim, claims.Scope)
 	assert.NotEmpty(t, claims.FamilyID)
 
 	sessions := f.store.operatorSessionsOf(42)

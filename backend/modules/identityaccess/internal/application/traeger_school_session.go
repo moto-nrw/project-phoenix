@@ -60,7 +60,7 @@ func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, r
 		return "", err
 	}
 	var metadata *domain.AccountClaimsPayload
-	session := s.newRefreshSession(account.ID, domain.ScopeTenant)
+	session := s.newRefreshSession(account.ID, domain.PortalTenant.Claim)
 	session.OrganizationID = request.OrganizationID
 	session.Expiry = time.Now().Add(domain.TraegerSchoolHandoffTTL)
 	session.MFAVerified = proof
@@ -203,7 +203,7 @@ func (s *AccountAuthentication) traegerSchoolClaims(ctx context.Context, account
 		IsAdmin:     domain.IsAdmin(roleNames),
 		TenantID:    schoolID,
 		OrgID:       organizationID,
-		Scope:       domain.ScopeTenant,
+		Scope:       domain.PortalTenant.Claim,
 		ViaTraeger:  true,
 	}, nil
 }
@@ -215,7 +215,7 @@ func (s *AccountAuthentication) traegerSessionMFAProof(ctx context.Context, acco
 	if familyID == "" {
 		return false, nil
 	}
-	verified, err := s.switchMFAProof(ctx, accountID, familyID, domain.PortalScopeOrg)
+	verified, err := s.switchMFAProof(ctx, accountID, familyID, domain.PortalOrg.Name)
 	if err != nil || !verified {
 		return false, err
 	}
@@ -293,7 +293,7 @@ func (s *AccountAuthentication) traegerSwitchTarget(ctx context.Context, account
 // school files the switch like an Absprung.
 func (s *AccountAuthentication) switchTraegerSchool(ctx context.Context, account domain.LoginAccount, school domain.School, presentedFamilyID string) (string, string, error) {
 	var metadata *domain.AccountClaimsPayload
-	session := s.newRefreshSession(account.ID, domain.ScopeTenant)
+	session := s.newRefreshSession(account.ID, domain.PortalTenant.Claim)
 	session.OrganizationID = school.OrganizationID
 	guard := s.traegerSchoolAuditGuard(school.OrganizationID, school.ID, "", "", s.traegerSchoolMintGuard(school.OrganizationID, school.ID, &metadata))
 	session, err := s.persistNewSession(ctx, account, session, school.ID, guard, presentedFamilyID, presentedFamilyID)

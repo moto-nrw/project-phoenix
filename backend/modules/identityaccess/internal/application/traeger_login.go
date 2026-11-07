@@ -70,7 +70,7 @@ func (s *AccountAuthentication) traegerSecondFactor(ctx context.Context, account
 		return nil, failed("check mfa enrollment", identityaccess.ErrMFAStatusUnavailable)
 	}
 	if !enrolled {
-		result, err := s.mfaEnrollmentResult(account, 0, domain.ScopeOrg)
+		result, err := s.mfaEnrollmentResult(account, 0, domain.PortalOrg)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +79,7 @@ func (s *AccountAuthentication) traegerSecondFactor(ctx context.Context, account
 			MaskedEmail: result.MaskedEmail, OrganizationID: organizationID,
 		}, nil
 	}
-	result, err := s.mfaChallengeResult(ctx, account, 0, domain.ScopeOrg, ipAddress)
+	result, err := s.mfaChallengeResult(ctx, account, 0, domain.PortalOrg, ipAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (s *AccountAuthentication) IssueTraegerTokensForVerifiedMFA(ctx context.Con
 // an unverified Träger session wherever the second factor is composed.
 func (s *AccountAuthentication) mintTraegerSession(ctx context.Context, account domain.LoginAccount, organizationID int64, proof *identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (*identityaccess.TraegerLoginResult, error) {
 	var metadata *domain.AccountClaimsPayload
-	session := s.newRefreshSession(account.ID, domain.ScopeOrg)
+	session := s.newRefreshSession(account.ID, domain.PortalOrg.Claim)
 	session.OrganizationID = organizationID
 	session.MFAVerified = proof != nil
 	guard := s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeOrg, s.traegerMintGuard(organizationID, &metadata))
@@ -189,7 +189,7 @@ func (s *AccountAuthentication) traegerMintGuard(organizationID int64, out **dom
 			Permissions: identityaccess.TraegerRights(roles),
 			Username:    account.Username,
 			OrgID:       organizationID,
-			Scope:       domain.ScopeOrg,
+			Scope:       domain.PortalOrg.Claim,
 		}
 		return nil
 	}

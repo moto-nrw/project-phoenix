@@ -96,7 +96,7 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 		return nil, err
 	}
 	if !enrolled {
-		token, err := s.codec.IssueMFAEnrollmentToken(operator.ID, 0, domain.OperatorMFAEnrollmentScope, domain.MFAEnrollmentTokenTTL)
+		token, err := s.codec.IssueMFAEnrollmentToken(operator.ID, 0, domain.PortalPlatform.Name, domain.MFAEnrollmentTokenTTL)
 		if err != nil {
 			return nil, fmt.Errorf("issue operator mfa enrollment token: %w", err)
 		}
@@ -252,10 +252,10 @@ func (s *OperatorAuthentication) mintTokenPair(operator domain.Operator, session
 		Roles:        []string{domain.OperatorRoleName},
 		RoleIsSystem: []bool{true},
 		Permissions:  []string{},
-		Scope:        domain.OperatorScope,
+		Scope:        domain.PortalPlatform.Claim,
 		FamilyID:     session.FamilyID,
 	}
-	refresh := domain.RefreshClaims{AccountID: operator.ID, Token: session.Token, Scope: domain.OperatorScope, ExpiresAt: session.Expiry.Unix()}
+	refresh := domain.RefreshClaims{AccountID: operator.ID, Token: session.Token, Scope: domain.PortalPlatform.Claim, ExpiresAt: session.Expiry.Unix()}
 	accessToken, refreshToken, err := s.codec.IssueTokenPair(access, refresh)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate tokens: %w", err)

@@ -13,17 +13,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 const headerMotoFrontendOrigin = "X-Moto-Frontend-Origin"
-
-// The session scopes of a tenant account: a school user carries the empty
-// scope (older sessions "tenant"), an organisation user "org". They are the
-// tenant runtime's scope values.
-const (
-	claimScopeTenant       = ""
-	claimScopeTenantLegacy = "tenant"
-)
 
 var errPasskeyServiceUnavailable = errors.New("passkey service is not configured for this deployment")
 
@@ -54,13 +47,11 @@ func requireTenantPasskeyClaims(w http.ResponseWriter, r *http.Request) (session
 		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
 		return sessiontoken.AppClaims{}, false
 	}
-	switch claims.Scope {
-	case claimScopeTenant, claimScopeTenantLegacy:
-		return claims, true
-	default:
+	if portal, ok := tokenprimitives.PortalOfClaim(claims.Scope); !ok || portal.Name != tokenprimitives.PortalTenant {
 		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
 		return sessiontoken.AppClaims{}, false
 	}
+	return claims, true
 }
 
 func (rs *Resource) passkeyLoginOptions(w http.ResponseWriter, r *http.Request) {

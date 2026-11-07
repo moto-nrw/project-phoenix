@@ -176,6 +176,21 @@ func TestNativeSessionCodecTokenBoundaries(t *testing.T) {
 	}
 }
 
+// An enrollment token exists only for a portal with an enrollment surface: a
+// caterer, parent or unnamed portal is refused, never minted as tenant.
+func TestNativeSessionCodecRefusesEnrollmentOfPortalsWithoutEnrollment(t *testing.T) {
+	t.Parallel()
+	legacy, err := sessiontoken.NewTokenAuthWithDurations("enrollment-scope-test-key-not-for-deployment", time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	native, err := identityCompose.NewSessionTokenCodec(legacy.JwtAuth, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	for _, scope := range []string{"caterer", "parent", "", "unknown"} {
+		token, err := native.IssueMFAEnrollmentToken(42, 73, scope, time.Hour)
+		require.Error(t, err, scope)
+		require.Empty(t, token, scope)
+	}
+}
+
 // TestNativeSessionCodecRejectsOtherHMACAlgorithms pins the signature algorithm:
 // a token signed with the deployment key but HS384 or HS512 is rejected on every
 // parse path, as the legacy decoder rejects it.

@@ -55,7 +55,7 @@ func TestSchoolMintGuard_LiveSessionPasses(t *testing.T) {
 	// The guard is also where the JWT payload comes from: a nil payload on a
 	// passing guard would mint a token with no roles and no permissions.
 	require.NotNil(t, claims)
-	assert.Equal(t, domain.ScopeSchool, claims.Scope)
+	assert.Equal(t, domain.PortalSchool.Claim, claims.Scope)
 	assert.Equal(t, int64(10), claims.TenantID)
 	assert.Equal(t, []string{"lehrkraft"}, claims.RoleNames)
 	assert.Equal(t, []string{"school:read"}, claims.Permissions)
@@ -132,7 +132,7 @@ func TestCreateRefreshSessionGuarded_GuardRefusalWritesNoToken(t *testing.T) {
 	f.store.inactive[mappingKey{1, 10}] = true
 	var claims *domain.AccountClaimsPayload
 
-	_, err := f.auth.createRefreshSessionGuarded(context.Background(), account, 10, domain.ScopeSchool, f.auth.schoolMintGuard(account.ID, 10, &claims), "")
+	_, err := f.auth.createRefreshSessionGuarded(context.Background(), account, 10, domain.PortalSchool.Claim, f.auth.schoolMintGuard(account.ID, 10, &claims), "")
 	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied, "the guard's sentinel surfaces verbatim")
 	assert.Empty(t, f.store.sessionsOf(account.ID), "a refused mint persists nothing")
 	assert.NotContains(t, f.store.calls, "RecordAccountLogin", "a refused mint records no login")
@@ -344,5 +344,5 @@ func TestLoadSchoolMetadataForTenant_LookupFailuresPropagate(t *testing.T) {
 
 	payload, err := f.auth.loadSchoolMetadataForTenant(context.Background(), account, 10)
 	require.NoError(t, err)
-	assert.Equal(t, domain.ScopeSchool, payload.Scope)
+	assert.Equal(t, domain.PortalSchool.Claim, payload.Scope)
 }

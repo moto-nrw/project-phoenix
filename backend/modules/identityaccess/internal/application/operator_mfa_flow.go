@@ -145,7 +145,7 @@ func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64,
 	// two id spaces.
 	token, err := f.codec.IssueChallengeToken(domain.MFAChallengeClaims{
 		AccountID: operatorID,
-		Scope:     domain.MFAChallengeScopePlatform,
+		Scope:     domain.PortalPlatform.Name,
 	}, domain.OperatorMFAChallengeTTL)
 	if err != nil {
 		return "", fmt.Errorf("mint operator challenge jwt: %w", err)
@@ -156,7 +156,7 @@ func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64,
 // VerifyChallenge redeems a code against the challenge JWT that carried it.
 func (f *OperatorMFAFlows) VerifyChallenge(ctx context.Context, challengeToken, code string) (domain.OperatorVerifiedChallenge, error) {
 	claims, err := f.codec.ParseChallengeToken(challengeToken)
-	if err != nil || claims.Scope != domain.MFAChallengeScopePlatform {
+	if err != nil || claims.Scope != domain.PortalPlatform.Name {
 		return domain.OperatorVerifiedChallenge{}, identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	challenge, err := f.verifyActiveCode(ctx, claims.AccountID, code, identityaccess.ErrMFAChallengeTokenInvalid)
@@ -174,7 +174,7 @@ func (f *OperatorMFAFlows) VerifyChallenge(ctx context.Context, challengeToken, 
 // returns the renewed JWT, so the frontend can replace the in-flight token.
 func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	claims, err := f.codec.ParseChallengeToken(challengeToken)
-	if err != nil || claims.Scope != domain.MFAChallengeScopePlatform {
+	if err != nil || claims.Scope != domain.PortalPlatform.Name {
 		return "", identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	return f.StartChallenge(ctx, claims.AccountID, ip)

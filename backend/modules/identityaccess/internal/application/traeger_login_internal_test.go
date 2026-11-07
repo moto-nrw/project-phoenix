@@ -49,7 +49,7 @@ func TestTraegerMintGuard_MintsForALiveMember(t *testing.T) {
 	claims, err := runTraegerMintGuard(t, f, f.store.accounts[1])
 	require.NoError(t, err)
 	require.NotNil(t, claims)
-	assert.Equal(t, domain.ScopeOrg, claims.Scope)
+	assert.Equal(t, domain.PortalOrg.Claim, claims.Scope)
 	assert.Equal(t, int64(7), claims.OrgID)
 	assert.Contains(t, f.store.recorded(), "FindLoginAccount(forUpdate)", "the guard locks the account row")
 }

@@ -57,7 +57,7 @@ func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account d
 	// The refresh session row is pinned to the first guardian tenant with
 	// the portal for the foreign key and RLS; the token itself is
 	// cross-tenant on read.
-	session, err := s.createRefreshSession(ctx, account, bookedTenantIDs[0], domain.ScopeParent)
+	session, err := s.createRefreshSession(ctx, account, bookedTenantIDs[0], domain.PortalParent.Claim)
 	if err != nil {
 		return "", "", err
 	}
@@ -74,7 +74,7 @@ func buildParentMetadata(account domain.LoginAccount) *domain.AccountClaimsPaylo
 		RoleNames:   []string{domain.GuardianRoleName},
 		Permissions: nil,
 		Username:    account.Username,
-		Scope:       domain.ScopeParent,
+		Scope:       domain.PortalParent.Claim,
 	}
 }
 

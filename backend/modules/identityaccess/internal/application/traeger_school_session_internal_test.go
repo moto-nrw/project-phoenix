@@ -46,7 +46,7 @@ func TestTraegerSchoolHandoffGuard_AdmitsALiveTraegerFamily(t *testing.T) {
 	f.store.mu.Lock()
 	f.store.sessions[50] = domain.AccountSession{
 		ID: 50, AccountID: 1, OrganizationID: 7, Token: "traeger-token", FamilyID: "live-traeger-family",
-		PortalScope: domain.PortalScopeOrg, Expiry: time.Now().Add(time.Hour),
+		PortalScope: domain.PortalOrg.Name, Expiry: time.Now().Add(time.Hour),
 	}
 	f.store.mu.Unlock()
 

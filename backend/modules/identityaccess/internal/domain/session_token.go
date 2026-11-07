@@ -13,9 +13,9 @@ func SessionProvesInvitationOwnership(claims SessionClaims, now time.Time) bool 
 		return false
 	}
 	switch claims.Scope {
-	case "", "tenant", "org", "school":
+	case PortalTenant.Claim, PortalTenant.LegacyClaim, PortalOrg.Claim, PortalSchool.Claim:
 		return claims.TenantID > 0
-	case "parent":
+	case PortalParent.Claim:
 		return true
 	default:
 		return false
@@ -32,7 +32,7 @@ func DecodeMFAChallengeToken(wire map[string]any, now time.Time) (MFAChallengeCl
 		return MFAChallengeClaims{}, errors.New("missing required claim: account_id")
 	}
 	scope := text(wire, "scope")
-	if scope != MFAChallengeScopePlatform && !AccountMFAChallengeScope(scope) {
+	if portal, ok := PortalNamed(scope); !ok || !portal.Challenge {
 		return MFAChallengeClaims{}, fmt.Errorf("invalid scope claim: %q", scope)
 	}
 	if !flag(wire, "mfa_pending") {

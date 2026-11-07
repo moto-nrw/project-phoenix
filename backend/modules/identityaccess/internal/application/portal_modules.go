@@ -72,9 +72,9 @@ func (s *AccountAuthentication) logPortalRefusal(op string, accountID, tenantID 
 // parents- or school-portal session; tenant and Träger sessions pass.
 func (s *AccountAuthentication) requirePortalBookedForRefresh(ctx context.Context, claims domain.RefreshClaims) error {
 	switch claims.Scope {
-	case domain.ScopeSchool:
+	case domain.PortalSchool.Claim:
 		return s.requireSchoolPortal(ctx, "refresh school session", claims.AccountID, claims.TenantID)
-	case domain.ScopeParent:
+	case domain.PortalParent.Claim:
 		return s.requireParentPortalForAccount(ctx, "refresh parent session", claims.AccountID)
 	default:
 		return nil

@@ -19,10 +19,9 @@ import (
 //   - Same account, same scope, same tenant → one shared budget across all
 //     sessions (browser tabs, refreshed tokens, re-logins).
 //   - A tenant switch mints a JWT with a different tenant_id and gets its
-//     own budget. Different portal scopes ("", "org", "platform", "parent")
-//     are separate budgets too — scope must be in the key because operator
-//     IDs (platform.operators) and account IDs (auth.accounts) are
-//     different ID spaces.
+//     own budget. Different portal scopes are separate budgets too —
+//     scope must be in the key because operator IDs (platform.operators)
+//     and account IDs (auth.accounts) are different ID spaces.
 //   - Requests without a verified identity — missing, expired, or
 //     manipulated JWTs, non-JWT bearer values such as IoT device API keys,
 //     and MFA challenge/enrollment tokens (no "id" claim) — return "" and
