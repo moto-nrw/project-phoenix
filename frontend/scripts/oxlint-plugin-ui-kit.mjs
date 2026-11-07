@@ -4278,6 +4278,16 @@ const noHandRolledEmptyState = {
           context.report({ node, messageId: "handRolled" });
         }
       },
+      TemplateLiteral(node) {
+        if (
+          !belongsToClassNameAttribute(node) &&
+          [...collectClassPaths(node)].some(
+            (path) => path === DASHED_AND_CENTERED,
+          )
+        ) {
+          context.report({ node, messageId: "handRolled" });
+        }
+      },
     };
   },
 };

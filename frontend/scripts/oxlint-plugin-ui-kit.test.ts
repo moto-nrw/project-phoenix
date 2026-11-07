@@ -169,6 +169,17 @@ describe.concurrent("ui-kit/no-hand-rolled-empty-state", () => {
     expect(result.output.split(RULE)).toHaveLength(2);
   });
 
+  it("reports a template-literal class constant", async () => {
+    const result = await lintSource(
+      `const classes = \`border-dashed text-center\`;
+      export const Probe = () => <div className={classes}>Leer</div>;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
   it("reports the classes across a template and cn arguments", async () => {
     const template = `function Probe({ surface }) {
       return <div className={\`\${surface} border-dashed text-center\`}>Leer</div>;
