@@ -153,7 +153,7 @@ func (s *SurveyStore) ParticipantAccounts(ctx context.Context, surveyID int64) (
 
 // Tally counts the answers of a survey. Every statement groups or shuffles:
 // none returns a response id, and the free texts come in random order.
-func (s *SurveyStore) Tally(ctx context.Context, surveyID int64) (*communication.SurveyTally, error) {
+func (s *SurveyStore) Tally(ctx context.Context, surveyID int64, includeTexts bool) (*communication.SurveyTally, error) {
 	db, tenantID, err := s.tenantDB(ctx, "count survey answers")
 	if err != nil {
 		return nil, err
@@ -171,8 +171,10 @@ func (s *SurveyStore) Tally(ctx context.Context, surveyID int64) (*communication
 	if err := tallyAnswers(ctx, db, tenantID, surveyID, tally); err != nil {
 		return nil, err
 	}
-	if err := tallyTexts(ctx, db, tenantID, surveyID, tally); err != nil {
-		return nil, err
+	if includeTexts {
+		if err := tallyTexts(ctx, db, tenantID, surveyID, tally); err != nil {
+			return nil, err
+		}
 	}
 	return tally, nil
 }
