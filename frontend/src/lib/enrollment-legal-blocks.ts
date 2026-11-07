@@ -67,7 +67,7 @@ export const STANDARD_LEGAL_BLOCKS: FormLegalBlock[] = [
   },
 ];
 
-export const STANDARD_LEGAL_BLOCK_KEYS: ReadonlySet<string> = new Set(
+const STANDARD_LEGAL_BLOCK_KEYS: ReadonlySet<string> = new Set(
   STANDARD_LEGAL_BLOCKS.map((block) => block.key),
 );
 

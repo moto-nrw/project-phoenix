@@ -157,7 +157,7 @@ interface FormFieldValidation {
   pattern?: string | null;
 }
 
-export const MAX_ENROLLMENT_DOCUMENT_BYTES = 10 * 1024 * 1024;
+const MAX_ENROLLMENT_DOCUMENT_BYTES = 10 * 1024 * 1024;
 /** The document limit as the editor names it ("10 MB"). */
 export const MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL = `${MAX_ENROLLMENT_DOCUMENT_BYTES / (1024 * 1024)} MB`;
 
