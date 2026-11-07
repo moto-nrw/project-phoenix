@@ -32,6 +32,7 @@ import { timetableService } from "~/lib/timetable-api";
 import type { OfferingSourceOption } from "~/lib/timetable-types";
 
 import { OfferingPreviewList } from "./offering-preview-list";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "ConnectOfferingModal" });
 
@@ -258,7 +259,8 @@ export function ConnectOfferingModal({
               Das ändert sich
             </span>
             {loading ? (
-              <p className="text-sm text-gray-600">
+              <p className="flex items-center gap-2 text-sm text-gray-600">
+                <SpinnerIcon className="h-4 w-4" />
                 Die Vorschau wird geladen.
               </p>
             ) : null}

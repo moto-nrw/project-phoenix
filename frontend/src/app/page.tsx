@@ -55,6 +55,8 @@ export default function RootPage() {
     window.location.href = `${window.location.protocol}//${host}/`;
   };
 
+  const placeholder = loading ? "Laden..." : "Bitte auswählen...";
+
   return (
     <AuthShell
       eyebrow="Einrichtung auswählen"
@@ -100,11 +102,11 @@ export default function RootPage() {
                 value={selectedSlug}
                 disabled={loading || isNavigating}
                 onChange={setSelectedSlug}
-                placeholder={loading ? "Laden..." : "Bitte auswählen..."}
+                placeholder={placeholder}
                 options={[
                   {
                     value: "",
-                    label: loading ? "Laden..." : "Bitte auswählen...",
+                    label: placeholder,
                   },
                   ...tenants.map((tenant) => ({
                     value: tenant.slug,
@@ -117,12 +119,14 @@ export default function RootPage() {
             <Button
               type="button"
               disabled={!selectedSlug || isNavigating}
+              isLoading={isNavigating}
+              loadingText="OGS wird geladen..."
               onClick={handleNavigate}
               variant="primary"
               size="field"
               className="w-full gap-2"
             >
-              {isNavigating ? "OGS wird geladen..." : "Weiter"}
+              Weiter
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </>

@@ -29,7 +29,8 @@
     "reasonRequiredError": "Введіть коротку примітку для OGS.",
     "requestSentTitle": "Запит надіслано",
     "requestSentBody": "OGS ще має підтвердити відсутність. До того часу вашу дитину очікують у догляді.",
-    "errorObject": "повідомлення про відсутність"
+    "errorObject": "повідомлення про відсутність",
+    "submitting": "Повідомлення …"
   },
   "summary": {
     "none": "Немає повідомлення про відсутність",
@@ -93,7 +94,9 @@
     "modeStaffSet": "OGS уже встановила спосіб забирання на цей день: {mode}.",
     "pendingMode": "Новий спосіб забирання: {to}",
     "statusApprovedChange": "Підтверджено, зміну застосовано.",
-    "errorStaffConflictGeneric": "OGS уже внесла зміну на цей день. Зверніться до команди OGS."
+    "errorStaffConflictGeneric": "OGS уже внесла зміну на цей день. Зверніться до команди OGS.",
+    "submitting": "Надсилання …",
+    "savingEdit": "Збереження …"
   },
   "actions": {
     "sick": {

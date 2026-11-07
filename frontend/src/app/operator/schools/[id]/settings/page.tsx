@@ -215,8 +215,8 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
               key={idx}
               className="moto-content-surface rounded-2xl border p-6"
             >
-              <Skeleton className="mb-4 h-5 w-32 rounded" />
-              <Skeleton className="h-20 w-full rounded" />
+              <Skeleton className="mb-4 h-5 w-32" />
+              <Skeleton className="h-20 w-full" />
             </div>
           ))}
         </div>

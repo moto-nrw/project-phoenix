@@ -28,6 +28,7 @@ import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatCard } from "~/components/ui/stat-card";
 import { getUserDisplayName } from "~/lib/auth-utils";
@@ -544,7 +545,7 @@ export function ClassDayOverview({
         } as CSSProperties
       }
     >
-      <section className="moto-content-surface rounded-2xl border p-5">
+      <SectionCard overflow="visible">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-wide text-[var(--class-day-blue)] uppercase">
@@ -807,7 +808,7 @@ export function ClassDayOverview({
               )}
             </>
           )}
-      </section>
+      </SectionCard>
       <ConfirmationModal
         isOpen={canReportAbsences && absenceReports.withdrawTarget !== null}
         onClose={absenceReports.closeWithdraw}

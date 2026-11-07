@@ -55,6 +55,15 @@ describe("NewTeamMessageModal", () => {
     return { onOpened };
   }
 
+  it("keeps the recipient loader compact inside the bounded picker", () => {
+    api.fetchRecipients.mockImplementation(() => new Promise(() => {}));
+    renderModal();
+
+    const loading = screen.getByRole("status", { name: "Wird geladen …" });
+    expect(loading).toHaveClass("min-h-0", "py-3");
+    expect(loading).not.toHaveClass("fixed", "min-h-40", "py-8");
+  });
+
   // #2517: Katalogtext statt Serversatz, nie „Es gibt niemanden …“ für eine
   // Liste, die nicht geladen wurde.
   it("shows a failed list load in the dialog and reloads on retry", async () => {

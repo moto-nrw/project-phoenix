@@ -394,20 +394,20 @@ function CalendarPageSkeleton() {
             <div key={rowCount} className="space-y-3">
               <Skeleton className="h-6 w-32" />
               {Array.from({ length: rowCount }, (_, index) => (
-                <Skeleton key={index} className="h-20 w-full rounded-r-lg" />
+                <Skeleton key={index} shape="control" className="h-20 w-full" />
               ))}
             </div>
           ))}
         </section>
         <section className="moto-content-surface hidden h-full overflow-hidden rounded-2xl border lg:block">
           <div className="flex items-center justify-between border-b border-gray-200 p-4">
-            <Skeleton className="size-8 rounded-md" />
+            <Skeleton className="size-8" />
             <Skeleton className="h-5 w-36" />
-            <Skeleton className="size-8 rounded-md" />
+            <Skeleton className="size-8" />
           </div>
           <div className="grid grid-cols-7 gap-px bg-gray-100 p-px">
             {Array.from({ length: 42 }, (_, index) => (
-              <Skeleton key={index} className="h-24 rounded-none bg-white" />
+              <Skeleton key={index} shape="none" className="h-24 bg-white" />
             ))}
           </div>
         </section>

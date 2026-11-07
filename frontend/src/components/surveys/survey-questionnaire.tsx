@@ -345,8 +345,8 @@ export function SurveyAnswerPanel({
   if (!form) {
     return (
       <div className="space-y-3" aria-busy="true">
-        <Skeleton className="h-16 w-full rounded-xl" />
-        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton shape="inner" className="h-16 w-full" />
+        <Skeleton shape="inner" className="h-24 w-full" />
       </div>
     );
   }

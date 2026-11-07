@@ -2,6 +2,7 @@
 // Skeleton mirror of StudentCard, shared by the OGS groups and student
 // search pages so their loading state keeps the exact card-grid footprint.
 
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TenantPage } from "~/components/ui/tenant-page";
 
@@ -12,24 +13,24 @@ import { TenantPage } from "~/components/ui/tenant-page";
  */
 function StudentCardSkeleton() {
   return (
-    <div className="moto-content-surface w-full overflow-hidden rounded-2xl border">
+    <SectionCard padding="none" className="w-full">
       <div className="p-6 pb-5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-start gap-3">
-              <Skeleton className="h-10 w-10 flex-shrink-0 rounded-full" />
+              <Skeleton shape="round" className="h-10 w-10 flex-shrink-0" />
               <div className="min-w-0 flex-1 space-y-2">
-                <Skeleton className="h-5 w-2/3 rounded" />
-                <Skeleton className="h-4 w-1/2 rounded" />
+                <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="h-4 w-1/2" />
               </div>
             </div>
-            <Skeleton className="mt-3 h-3.5 w-3/5 rounded" />
+            <Skeleton className="mt-3 h-3.5 w-3/5" />
           </div>
-          <Skeleton className="h-6 w-20 flex-shrink-0 rounded-full" />
+          <Skeleton shape="round" className="h-6 w-20 flex-shrink-0" />
         </div>
-        <Skeleton className="h-3 w-28 rounded" />
+        <Skeleton className="h-3 w-28" />
       </div>
-    </div>
+    </SectionCard>
   );
 }
 

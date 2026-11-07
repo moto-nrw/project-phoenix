@@ -13,7 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { AlertCircle, Check, Loader2 } from "lucide-react";
+import { AlertCircle, Check } from "lucide-react";
 import { PencilSimpleIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -66,6 +66,7 @@ import { accountsConcept } from "~/lib/concepts/accounts";
 import { childrenConcept } from "~/lib/concepts/children";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -1463,7 +1464,7 @@ function SaveIndicator({
         role="status"
         className="inline-flex items-center gap-1 text-xs text-gray-500"
       >
-        <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+        <SpinnerIcon className="h-3 w-3" />
       </span>
     );
   }

@@ -4,7 +4,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
-import { Skeleton } from "~/components/ui/skeleton";
+import { SkeletonRows } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -62,19 +62,7 @@ export function RemindersBlock() {
         if (loadError) return <LoadErrorAlert error={loadError} />;
         // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett.
         if ((isLoading && data === undefined) || error) {
-          return (
-            <div className="space-y-2" aria-hidden="true">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
-                >
-                  <Skeleton className="h-4 w-24 rounded" />
-                  <Skeleton className="h-4 flex-1 rounded" />
-                </div>
-              ))}
-            </div>
-          );
+          return <SkeletonRows />;
         }
         if (shown.length === 0) {
           return (

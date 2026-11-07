@@ -15,5 +15,6 @@
   "understood": "Got it",
   "closeGuide": "Close guide",
   "close": "Close dialog",
-  "introStaff": "Turn on notifications. moto will then tell you about important events, even when the app is closed."
+  "introStaff": "Turn on notifications. moto will then tell you about important events, even when the app is closed.",
+  "enabling": "Turning on …"
 }

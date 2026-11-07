@@ -66,10 +66,13 @@ export function RefreshButton({
       className={drawer ? "w-full justify-start gap-3" : ""}
     >
       <div className="relative h-5 w-5">
+        {/* Der eigene Pfeil dreht sich als Antwort auf den Klick und läuft die
+            Drehung zu Ende, bevor das Häkchen kommt; das kann SpinnerIcon nicht. */}
         <RotateCw
           className={`absolute inset-0 h-5 w-5 ${
             state === "spinning"
-              ? "animate-spin"
+              ? // oxlint-disable-next-line ui-kit/no-own-spinner -- eigener Pfeil, läuft die Drehung zu Ende
+                "animate-spin"
               : `transition-[opacity,scale] duration-200 ${state === "success" ? "scale-50 opacity-0" : ""}`
           }`}
           onAnimationIteration={handleAnimationIteration}

@@ -1,9 +1,10 @@
 "use client";
 
-import { CheckSquare, Download, Loader2, LogIn, LogOut } from "lucide-react";
+import { CheckSquare, Download, LogIn, LogOut } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import type { SchoolCheckinAction } from "~/lib/student-api";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 interface StudentSelectionBarProps {
   /** Marked children that are on screen right now. */
@@ -84,7 +85,7 @@ export function StudentSelectionBar({
                 disabled={isRunning}
               >
                 {checkin.runningAction === "in" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  <SpinnerIcon className="h-3.5 w-3.5" />
                 ) : (
                   <LogIn className="h-3.5 w-3.5" aria-hidden />
                 )}
@@ -98,7 +99,7 @@ export function StudentSelectionBar({
                 disabled={isRunning}
               >
                 {checkin.runningAction === "out" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  <SpinnerIcon className="h-3.5 w-3.5" />
                 ) : (
                   <LogOut className="h-3.5 w-3.5" aria-hidden />
                 )}

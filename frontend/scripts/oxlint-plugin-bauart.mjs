@@ -108,8 +108,12 @@
 //                               together with a neutral `bg-gray-*` fill —
 //                               the silhouette of a placeholder. A pulsing
 //                               live dot (occupied room, „nähert sich“) has
-//                               no gray fill and passes. Hard-zero since
-//                               #3119; tenant portal only.
+//                               no gray fill and passes. Since #5588 it also
+//                               flags a row or card rebuilt from several
+//                               `<Skeleton>` inside an own surface (tenant
+//                               portal only) and, in every portal, a radius
+//                               class on `<Skeleton>`: `shape` chooses the
+//                               radius. Hard-zero since #3119.
 //
 //   bauart/no-raw-status-hex — status and planning colors come from
 //                               LOCATION_COLORS / MOTO_COLOR_PALETTE or a
@@ -319,8 +323,8 @@ const ROW_ACTION_BASELINE = new Map(
       "Bedingung löschen@2004",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
-      "abweichend bearbeiten@2513",
-      "Auswahlzeit entfernen@3436",
+      "abweichend bearbeiten@2514",
+      "Auswahlzeit entfernen@3438",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
       "Entfernen@593",
@@ -330,7 +334,7 @@ const ROW_ACTION_BASELINE = new Map(
     "src/components/staff/stammdaten-section-forms.tsx": [
       "Qualifikation entfernen@485",
     ],
-    "src/components/students/companion-picker.tsx": ["entfernen@297"],
+    "src/components/students/companion-picker.tsx": ["entfernen@298"],
     "src/components/students/student-create-modal.tsx": [
       "Erziehungsberechtigte/n entfernen@796",
     ],
@@ -1595,7 +1599,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@992",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@947",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@948",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@145",
@@ -1617,7 +1621,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Zwei-Faktor-Authentifizierung verwalten@385",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
-      "resolve Zuordnungen auflösen: Betreuung verwalten:@333",
+      "resolve Zuordnungen auflösen: Betreuung verwalten:@334",
     ],
   }),
 );
@@ -1729,6 +1733,54 @@ const noLocalFieldGrid = {
 const PULSE_CLASS_RE = /(?:^|\s)animate-pulse(?:\s|$)/;
 const PLACEHOLDER_FILL_RE =
   /(?:^|\s)(?:[^\s:]+:)*bg-gray-\d{2,3}(?:\/[^\s]+)?(?=\s|$)/;
+// Radius belongs to the `shape` prop of ui/skeleton (#5588).
+const SKELETON_RADIUS_RE = /(?:^|\s)(?:[^\s:]+:)*rounded(?:-[^\s]+)?(?=\s|$)/;
+// Epic #5576, Out of Scope: Startseite und Kinderkarten des Elternportals.
+const SKELETON_RADIUS_OUT_OF_SCOPE = new Set([
+  "src/components/parent/start/parent-start-page.tsx",
+  "src/components/parent/child/child-day-card.tsx",
+]);
+// An own surface: the card class, or a rounded element with a frame or a fill.
+const OWN_SURFACE_CARD_RE = /(?:^|\s)moto-content-surface(?:\s|$)/;
+const OWN_SURFACE_ROUNDED_RE =
+  /(?:^|\s)(?:[^\s:]+:)*rounded-(?:md|lg|xl|2xl)(?:\s|$)/;
+const OWN_SURFACE_FRAME_RE =
+  /(?:^|\s)(?:[^\s:]+:)*(?:border(?:-\d)?|shadow(?:-[^\s]+)?|bg-[^\s]+)(?:\s|$)/;
+
+// Termine im Stundenraster sitzen frei positioniert; das ist Raster-Inneres.
+const POSITIONED_RE = /(?:^|\s)absolute(?:\s|$)/;
+
+function hasOwnSurface(classes) {
+  if (POSITIONED_RE.test(classes)) return false;
+  return (
+    OWN_SURFACE_CARD_RE.test(classes) ||
+    (OWN_SURFACE_ROUNDED_RE.test(classes) && OWN_SURFACE_FRAME_RE.test(classes))
+  );
+}
+
+/** `<Skeleton>` below `node`; one inside a loop stands for several rows. */
+function countSkeletons(node, inLoop = false, seen = new WeakSet()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return 0;
+  seen.add(node);
+  if (
+    node.type === "JSXElement" &&
+    jsxName(node.openingElement.name) === "Skeleton"
+  ) {
+    return inLoop ? 2 : 1;
+  }
+  const loops =
+    inLoop ||
+    (node.type === "CallExpression" &&
+      ["map", "from"].includes(node.callee?.property?.name));
+  let count = 0;
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent") continue;
+    for (const child of Array.isArray(value) ? value : [value]) {
+      count += countSkeletons(child, loops, seen);
+    }
+  }
+  return count;
+}
 
 const noOwnSkeleton = {
   meta: {
@@ -1740,15 +1792,47 @@ const noOwnSkeleton = {
     messages: {
       ownSkeleton:
         "Eigenes Ladeskelett (`animate-pulse` auf grauer Fläche): Laden kommt aus `TenantPage.loading` mit `Skeleton`/`SkeletonRegion` aus ui/page-skeletons (BAUARTEN-SPEC Bauart 1 Regel 7, Bauart 3 Regel 5, #3118).",
+      ownSkeletonSurface:
+        "Nachgebaute Ladezeilen aus mehreren `<Skeleton>` in eigener Fläche: `CardSkeleton`, `ListSkeleton` oder `DetailSectionSkeleton` aus ui/page-skeletons nehmen, sonst die Fläche aus dem Kit (`SectionCard`). Fehlt die Form, gehört sie ins Kit (#5588).",
+      skeletonRadius:
+        "`Skeleton` bekommt keinen Radius über `className`: die Prop `shape` wählt ihn (#5588).",
     },
     schema: [],
   },
   create(context) {
     if (isExempt(context)) return {};
     const key = fileKey(context);
-    if (OTHER_PORTAL_RE.test(key)) return {};
+    const reportRadius = (node) => {
+      if (SKELETON_RADIUS_OUT_OF_SCOPE.has(key)) return;
+      if (jsxName(node.name) !== "Skeleton") return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      const chunks = [];
+      collectStaticStrings(className.value, chunks);
+      if (SKELETON_RADIUS_RE.test(chunks.join(" "))) {
+        context.report({ node: className, messageId: "skeletonRadius" });
+      }
+    };
+    if (OTHER_PORTAL_RE.test(key)) return { JSXOpeningElement: reportRadius };
 
     return {
+      JSXOpeningElement: reportRadius,
+      JSXElement(node) {
+        const opening = node.openingElement;
+        const name = jsxName(opening.name);
+        // Großgeschriebene Namen sind Kit- oder Domänen-Bausteine, keine Fläche.
+        if (!name || !/^[a-z]/.test(name)) return;
+        const className = jsxAttribute(opening, "className");
+        if (!className?.value) return;
+        const chunks = [];
+        collectStaticStrings(className.value, chunks);
+        if (!hasOwnSurface(chunks.join(" "))) return;
+        let skeletons = 0;
+        for (const child of node.children) skeletons += countSkeletons(child);
+        if (skeletons >= 2) {
+          context.report({ node: opening, messageId: "ownSkeletonSurface" });
+        }
+      },
       JSXAttribute(node) {
         if (
           node.name?.type !== "JSXIdentifier" ||

@@ -196,9 +196,9 @@ export function SidebarAccordionSection({
             {isLoading && (
               /* Skeleton shimmer */
               <div className="space-y-1 pr-3 pl-11">
-                <Skeleton className="h-6 w-3/4 rounded" />
-                <Skeleton className="h-6 w-2/3 rounded" />
-                <Skeleton className="h-6 w-1/2 rounded" />
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-6 w-2/3" />
+                <Skeleton className="h-6 w-1/2" />
               </div>
             )}
             {!isLoading && hasChildren && children}
