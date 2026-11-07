@@ -8,7 +8,7 @@ import (
 
 // Activities is the activity catalog the special rooms provision from.
 type ActivityCatalog interface {
-	Find(ctx context.Context, id int64) (*devicescan.Activity, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*devicescan.Activity, error)
 	ListByName(ctx context.Context, name string) ([]devicescan.Activity, error)
 	ListCategories(ctx context.Context) ([]devicescan.Category, error)
 	CreateCategory(ctx context.Context, category devicescan.NewCategory) (devicescan.Category, error)

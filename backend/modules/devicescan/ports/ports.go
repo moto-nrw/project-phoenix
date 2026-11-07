@@ -116,7 +116,7 @@ type Visits interface {
 	// it before it reads and ends the student's visit, the order every
 	// presence write that holds a student keeps (#5278).
 	LockStudent(ctx context.Context, studentID int64) error
-	// Current is nil, nil when the student has no open visit.
+	// Current returns a location without room names; the workflow batches room reads.
 	Current(ctx context.Context, studentID int64) (*CurrentVisit, error)
 	EndVisit(ctx context.Context, visitID int64) error
 	// Record opens a visit. A full room is *RoomCapacityExceeded, a

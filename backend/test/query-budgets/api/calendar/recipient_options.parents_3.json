@@ -1,0 +1,6 @@
+{
+  "scenario": "api.calendar.recipient_options.parents_3",
+  "max": 19,
+  "exact": true,
+  "description": "Real calendar recipient-options Resource with tenant session/permission middleware and real owner composition; 3 active relationship-authorized parent profiles. Entire route capture, fixture/signing excluded; outer live-session verification excluded."
+}

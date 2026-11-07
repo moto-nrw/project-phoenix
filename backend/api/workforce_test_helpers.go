@@ -160,7 +160,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 			WorkSessionEdit: owners.NewTestAuditPersistence(db, nil).WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
 			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
 		},
-		People: usersService, Holidays: nonWorkingDayService,
+		People: usersService, Holidays: nonWorkingDayService, StatutoryHolidays: schoolCalendarCompose.NewTenantHolidays(calendar),
 		Events: owners.TimeTrackingEvents(realtimeHub),
 		Logger: logger, Today: today,
 	})

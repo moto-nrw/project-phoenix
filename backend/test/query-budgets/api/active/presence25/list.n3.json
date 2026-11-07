@@ -1,0 +1,6 @@
+{
+  "scenario": "api.active.presence25.list.n3",
+  "max": 5,
+  "exact": true,
+  "description": "Full protected GET list visits, positive N3; all visit fields asserted."
+}

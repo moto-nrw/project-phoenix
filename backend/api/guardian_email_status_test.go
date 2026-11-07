@@ -28,7 +28,7 @@ type guardianEmailRoute struct {
 func setupGuardianEmailRoute(t *testing.T) guardianEmailRoute {
 	t.Helper()
 	db, svc := setupGuardianModule(t)
-	resource := newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(testpkg.NewDatabase(t, db)), "", slog.Default())
+	resource := NewGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(testpkg.NewDatabase(t, db)), "", slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/guardians", resource.Router())
@@ -257,7 +257,7 @@ func TestGuardianEmailStatusQueryBudget(t *testing.T) {
 	t.Parallel()
 	db, svc := setupGuardianModule(t)
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	resource := newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(testpkg.NewDatabase(t, db)), "", slog.Default())
+	resource := NewGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(testpkg.NewDatabase(t, db)), "", slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/guardians", resource.Router())

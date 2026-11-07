@@ -20,6 +20,10 @@ func (s *service) CreateVisit(ctx context.Context, visit *studentpresence.Visit)
 }
 
 func (s *service) createVisit(ctx context.Context, visit *studentpresence.Visit) error {
+	return s.createVisitWithAdmission(ctx, visit, s.ensureStudentCheckinAllowed)
+}
+
+func (s *service) createVisitWithAdmission(ctx context.Context, visit *studentpresence.Visit, admission func(context.Context, int64) (*StudentRecord, error)) error {
 	if !validPresenceVisit(visit) {
 		return &ActiveError{Op: "CreateVisit", Err: ErrInvalidData}
 	}
@@ -30,7 +34,8 @@ func (s *service) createVisit(ctx context.Context, visit *studentpresence.Visit)
 	// Runs BEFORE the binary-mode short-circuit: binary-mode check-ins reach
 	// CreateVisit via the timetable path and would otherwise mark a departed
 	// alumnus present without ever hitting this guard.
-	if err := s.ensureStudentCheckinAllowed(ctx, visit.StudentID); err != nil {
+	student, err := admission(ctx, visit.StudentID)
+	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 
@@ -45,10 +50,17 @@ func (s *service) createVisit(ctx context.Context, visit *studentpresence.Visit)
 		return nil
 	}
 
+	// Only membership routing is stable under the guard's existing row lock.
+	// Copy it before status clears; do not reuse the record's live flags.
+	var educationGroupID *int64
+	if student != nil && student.GroupID != nil {
+		groupID := *student.GroupID
+		educationGroupID = &groupID
+	}
 	if err := s.prepareVisitCheckIn(ctx, visit); err != nil {
 		return err
 	}
-	return s.recordCheckedInVisit(ctx, visit)
+	return s.recordCheckedInVisit(ctx, visit, educationGroupID, student != nil)
 }
 
 // prepareVisitCheckIn runs the checks and attendance writes that precede a
@@ -99,7 +111,7 @@ func createVisitError(err error) error {
 
 // recordCheckedInVisit inserts the visit, mirrors it into its timetable slot
 // and queues the success event.
-func (s *service) recordCheckedInVisit(ctx context.Context, visit *studentpresence.Visit) error {
+func (s *service) recordCheckedInVisit(ctx context.Context, visit *studentpresence.Visit, educationGroupID *int64, groupKnown bool) error {
 	// Create the visit record
 	visit.TenantID = tenant.FromContext(ctx)
 	stored, err := s.SchoolPresence.RecordVisit(ctx, studentpresence.Visit{
@@ -131,7 +143,11 @@ func (s *service) recordCheckedInVisit(ctx context.Context, visit *studentpresen
 	}
 
 	// Queue the success event for commit.
-	s.broadcastVisitCreated(ctx, visit, snapshot)
+	if groupKnown {
+		s.broadcastVisitCreated(ctx, visit, snapshot, educationGroupID)
+	} else {
+		s.broadcastVisitCreated(ctx, visit, snapshot)
+	}
 
 	return nil
 }
@@ -438,22 +454,28 @@ func (s *service) deleteVisit(ctx context.Context, id int64) error {
 // ends the child's visit and opens the next one locks the child before it
 // reads that visit.
 func (s *service) LockStudent(ctx context.Context, studentID int64) error {
+	_, err := s.lockVisitStudent(ctx, studentID)
+	return err
+}
+
+func (s *service) lockVisitStudent(ctx context.Context, studentID int64) (*StudentRecord, error) {
 	if err := tenant.RequireTransaction(ctx); err != nil {
-		return &ActiveError{Op: "LockStudent", Err: err}
+		return nil, &ActiveError{Op: "LockStudent", Err: err}
 	}
 	if studentID <= 0 {
-		return &ActiveError{Op: "LockStudent", Err: ErrStudentNotFound}
+		return nil, &ActiveError{Op: "LockStudent", Err: ErrStudentNotFound}
 	}
 	if s.StudentRepo == nil {
-		return nil
+		return nil, nil
 	}
-	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
+	if err != nil {
 		if IsNoRows(err) {
-			return &ActiveError{Op: "LockStudent", Err: ErrStudentNotFound}
+			return nil, &ActiveError{Op: "LockStudent", Err: ErrStudentNotFound}
 		}
-		return &ActiveError{Op: "LockStudent", Err: errors.Join(ErrDatabaseOperation, err)}
+		return nil, &ActiveError{Op: "LockStudent", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
-	return nil
+	return student, nil
 }
 
 func (s *service) EndVisit(ctx context.Context, id int64) error {

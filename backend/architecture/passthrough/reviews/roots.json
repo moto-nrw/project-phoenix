@@ -57,11 +57,6 @@
     },
     {
       "decision": "0090",
-      "id": "api/ClassDaySlotListSettings.TimetableEnabled",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "api/ClassDayWriteScope.SchoolMayWriteClassArrivalExceptions",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

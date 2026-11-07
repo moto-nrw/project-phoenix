@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.peopledirectory.staff_recipients.empty_no_staff",
+  "max": 5,
+  "exact": true,
+  "description": "Real recipient router with no staff in the caller school and active staff in another school. Complete request: transaction frame, settings and authoritative school staff read only; no person hydration or writes."
+}

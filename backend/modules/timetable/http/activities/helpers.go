@@ -204,6 +204,16 @@ func newSupervisorResponse(supervisor *activityContract.SupervisorPlanned) Super
 // DATA RETRIEVAL HELPERS
 // =============================================================================
 
+func activityGroupIDs(groups []*activityContract.Group) []int64 {
+	ids := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		if group != nil {
+			ids = append(ids, group.ID)
+		}
+	}
+	return ids
+}
+
 // getEnrollmentCount returns the number of enrolled students for an activity.
 func (rs *Resource) getEnrollmentCount(ctx context.Context, activityID int64) (int, error) {
 	students, err := rs.ActivityService.GetEnrolledStudents(ctx, activityID)

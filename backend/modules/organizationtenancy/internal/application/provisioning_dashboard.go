@@ -20,7 +20,8 @@ func (p *Provisioning) GetProvisioningStats(ctx context.Context) (*organizationt
 		if err != nil {
 			return nil, fmt.Errorf("count devices for provisioning stats: %w", err)
 		}
-		schools, err := p.dashboard.SchoolSummaries(adminCtx, nil)
+		// Account totals from SchoolSummaries are not used by these aggregates.
+		schools, err := p.organizations.ListSchools(adminCtx)
 		if err != nil {
 			return nil, fmt.Errorf("load schools for provisioning stats: %w", err)
 		}
@@ -53,7 +54,8 @@ func (p *Provisioning) ListOrganizationSummaries(ctx context.Context) ([]*organi
 		if err != nil {
 			return nil, err
 		}
-		schools, err := p.dashboard.SchoolSummaries(adminCtx, nil)
+		// Account totals from SchoolSummaries are not used by these aggregates.
+		schools, err := p.organizations.ListSchools(adminCtx)
 		if err != nil {
 			return nil, fmt.Errorf("load schools for organization summaries: %w", err)
 		}

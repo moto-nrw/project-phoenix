@@ -13293,7 +13293,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.FindWithStaffAndPerson",
-      "reason": "Read-only already reviewed target: people-directory reaches modules/schoolmembership.Capability.ListStaff (school-membership) through roots/owners.TeacherMembershipRepository.FindWithStaffAndPerson. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed teacher hydration extraction: the legacy detail/all-list paths still read School Membership ListStaff with their original tombstone filter, then resolve People persons through the extracted hydrateTeacherPersons helper. The new kiosk-only roster path is separate. This binding remains a tenant-scoped nonlocking read without writes or detached effects.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -13313,7 +13313,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.FindWithStaffAndPerson",
-      "reason": "Read-only already reviewed target: people-directory reaches modules/schoolmembership.Owner.ListStaff (school-membership) through roots/owners.TeacherMembershipRepository.FindWithStaffAndPerson. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed teacher hydration extraction: the legacy detail/all-list paths still read School Membership ListStaff with their original tombstone filter, then resolve People persons through the extracted hydrateTeacherPersons helper. The new kiosk-only roster path is separate. This binding remains a tenant-scoped nonlocking read without writes or detached effects.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -13323,7 +13323,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.FindWithStaffAndPersonByIDs",
-      "reason": "Read-only already reviewed target: people-directory reaches modules/schoolmembership.Capability.ListStaff (school-membership) through roots/owners.TeacherMembershipRepository.FindWithStaffAndPersonByIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed teacher hydration extraction: the legacy detail/all-list paths still read School Membership ListStaff with their original tombstone filter, then resolve People persons through the extracted hydrateTeacherPersons helper. The new kiosk-only roster path is separate. This binding remains a tenant-scoped nonlocking read without writes or detached effects.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -13343,7 +13343,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.FindWithStaffAndPersonByIDs",
-      "reason": "Read-only already reviewed target: people-directory reaches modules/schoolmembership.Owner.ListStaff (school-membership) through roots/owners.TeacherMembershipRepository.FindWithStaffAndPersonByIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed teacher hydration extraction: the legacy detail/all-list paths still read School Membership ListStaff with their original tombstone filter, then resolve People persons through the extracted hydrateTeacherPersons helper. The new kiosk-only roster path is separate. This binding remains a tenant-scoped nonlocking read without writes or detached effects.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -13433,7 +13433,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListAllWithStaffAndPerson",
-      "reason": "Read-only already reviewed target: people-directory reaches modules/schoolmembership.Capability.ListStaff (school-membership) through roots/owners.TeacherMembershipRepository.ListAllWithStaffAndPerson. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed teacher hydration extraction: the legacy detail/all-list paths still read School Membership ListStaff with their original tombstone filter, then resolve People persons through the extracted hydrateTeacherPersons helper. The new kiosk-only roster path is separate. This binding remains a tenant-scoped nonlocking read without writes or detached effects.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -13453,7 +13453,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListAllWithStaffAndPerson",
-      "reason": "Read-only already reviewed target: people-directory reaches modules/schoolmembership.Owner.ListStaff (school-membership) through roots/owners.TeacherMembershipRepository.ListAllWithStaffAndPerson. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed teacher hydration extraction: the legacy detail/all-list paths still read School Membership ListStaff with their original tombstone filter, then resolve People persons through the extracted hydrateTeacherPersons helper. The new kiosk-only roster path is separate. This binding remains a tenant-scoped nonlocking read without writes or detached effects.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -13464,6 +13464,26 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListAllWithStaffAndPerson",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListTeachers; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TeacherMembershipRepository.ListRosterWithStaffAndPerson",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListRosterWithStaffAndPerson",
+      "reason": "Kiosk roster reads School Membership teacher/live-staff facts in one statement via ListTeachers(IncludeStaff), preserving the separate Workforce employment read and People person read. No writes, locks, scope switches or detached work.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TeacherMembershipRepository.ListRosterWithStaffAndPerson",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListRosterWithStaffAndPerson",
+      "reason": "Kiosk roster reads School Membership teacher/live-staff facts in one statement via ListTeachers(IncludeStaff), preserving the separate Workforce employment read and People person read. No writes, locks, scope switches or detached work.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListTeachers",
       "target_owner": "school-membership"

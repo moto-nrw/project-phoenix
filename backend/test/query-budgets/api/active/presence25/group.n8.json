@@ -1,0 +1,6 @@
+{
+  "scenario": "api.active.presence25.group.n8",
+  "max": 5,
+  "exact": true,
+  "description": "Full protected GET group visits, positive N8; all visit fields asserted."
+}

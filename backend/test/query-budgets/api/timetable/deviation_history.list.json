@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.deviation_history.list",
+  "max": 21,
+  "exact": false,
+  "description": "N3/N8 populated audit history with distinct staff. Existing best-effort per-ID name reads remain linear; this ceiling guards N8, not a flat-growth claim."
+}

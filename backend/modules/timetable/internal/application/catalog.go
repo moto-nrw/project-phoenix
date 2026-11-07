@@ -31,6 +31,23 @@ func (c Catalog) FindCatalogGroup(ctx context.Context, id int64) (*timetable.Gro
 	return &group, err
 }
 
+func (c Catalog) FindCatalogGroups(ctx context.Context, ids []int64) ([]timetable.Group, error) {
+	if len(ids) == 0 {
+		return []timetable.Group{}, nil
+	}
+	rows, err := c.Source.ListGroups(ctx, &activityContract.GroupListQuery{IDs: ids})
+	if err != nil {
+		return nil, err
+	}
+	groups := make([]timetable.Group, 0, len(rows))
+	for _, row := range rows {
+		if row != nil {
+			groups = append(groups, CatalogGroup(row))
+		}
+	}
+	return groups, nil
+}
+
 func (c Catalog) ListCatalogGroups(ctx context.Context, name string) ([]timetable.Group, error) {
 	rows, err := c.Source.ListGroups(ctx, &activityContract.GroupListQuery{Name: name})
 	if err != nil {

@@ -5,6 +5,10 @@ package api
 import (
 	"log/slog"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/common"
+	staffmessagingHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
+
 	"github.com/moto-nrw/project-phoenix/realtime"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -20,6 +24,15 @@ import (
 // StaffMessagingTestModule is the Communication owner's staff messaging.
 type StaffMessagingTestModule struct {
 	StaffMessaging communication.StaffMessagingRuntime
+}
+
+// SchoolStaffMessagingRouterForTests mounts the actual school-scope resource
+// with the production problem response middleware in the typed test root.
+func (m StaffMessagingTestModule) SchoolStaffMessagingRouterForTests() chi.Router {
+	router := chi.NewRouter()
+	router.Use(common.ProblemResponseMiddleware)
+	router.Mount("/school/staff-messages", staffmessagingHTTP.NewResource(m.StaffMessaging).SchoolRouter(ProtectedSchoolRoutes))
+	return router
 }
 
 // NewStaffMessagingTestModule composes the staff messaging over db and

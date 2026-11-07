@@ -12,8 +12,8 @@
     },
     {
       "decision": "0090",
-      "id": "api/activityCatalog.Find",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "id": "api/activityCatalog.FindByIDs",
+      "reason": "ADR 0075 consumer-port adapter: replaces the single-ID catalog read with the ID-set catalog read, mapping Timetable groups to scan activities. The only other caller (capacity validation) uses a singleton ID set with unchanged failures. No new forwarding debt or owner-budget growth."
     },
     {
       "decision": "0090",

@@ -11,13 +11,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-func NewParticipantDirectory(find mealplan.ParticipantFinder, names mealplan.StudentNameFinder) participantDirectory {
-	return participantDirectory{find: find, names: names}
+func NewParticipantDirectory(find mealplan.ParticipantFinder, names mealplan.StudentNameFinder, days mealplan.ParticipantDaysFinder) participantDirectory {
+	return participantDirectory{find: find, names: names, days: days}
 }
 
 type participantDirectory struct {
 	find  mealplan.ParticipantFinder
 	names mealplan.StudentNameFinder
+	days  mealplan.ParticipantDaysFinder
 }
 
 func (d participantDirectory) FindStudentNames(ctx context.Context, ids []int64) (map[int64]domain.DailyCandidate, domain.OperationStats, error) {
@@ -45,6 +46,29 @@ func (d participantDirectory) FindDailyCandidates(ctx context.Context, date doma
 		})
 	}
 	return candidates, stats, nil
+}
+
+func (d participantDirectory) FindCandidatesOnDates(ctx context.Context, dates []domain.Date) (map[domain.Date][]domain.DailyCandidate, domain.OperationStats, error) {
+	requested := make([]string, 0, len(dates))
+	for _, date := range dates {
+		requested = append(requested, date.String())
+	}
+	started := time.Now()
+	rows, err := d.days(ctx, requested)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return nil, stats, err
+	}
+	result := make(map[domain.Date][]domain.DailyCandidate, len(dates))
+	for _, date := range dates {
+		candidates := make([]domain.DailyCandidate, 0, len(rows[date.String()]))
+		for _, row := range rows[date.String()] {
+			candidates = append(candidates, domain.DailyCandidate(row))
+		}
+		result[date] = candidates
+		stats.Rows += int64(len(candidates))
+	}
+	return result, stats, nil
 }
 
 func NewSchoolCalendar(find mealplan.CalendarFinder) schoolCalendar {
