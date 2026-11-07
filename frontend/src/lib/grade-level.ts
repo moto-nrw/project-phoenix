@@ -1,5 +1,5 @@
 const MIN_SUPPORTED_GRADE_LEVEL = 1;
-export const MAX_SUPPORTED_GRADE_LEVEL = 13;
+const MAX_SUPPORTED_GRADE_LEVEL = 13;
 
 /**
  * Guards tenant/API grade caps before they reach form constraints. Missing,
