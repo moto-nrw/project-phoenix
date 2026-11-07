@@ -23,6 +23,7 @@ import {
   formatTerm,
   serviceDays,
 } from "~/components/traeger/care-contract-format";
+import { CareContractChangeCard } from "~/components/traeger/care-contract-change-card";
 import { CareContractNoticeCard } from "~/components/traeger/care-contract-notice-card";
 import {
   CareContractVersions,
@@ -356,7 +357,7 @@ export default function TraegerVertragPage() {
           {planned ? (
             <Alert
               type="info"
-              message={`Ab ${formatDate(planned.effectiveFrom)} gilt Version ${planned.number}. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.`}
+              message={`Ab ${formatDate(planned.effectiveFrom)} gilt Version ${planned.number}. Eine Änderung der Betreuung ist freigegeben. Was sich ändert, steht unten unter „Versionen“.`}
             />
           ) : null}
           <CareContractSignatureCard contract={contract} onChanged={load} />
@@ -562,6 +563,12 @@ export default function TraegerVertragPage() {
                   </form>
                 ) : null}
               </SectionCard>
+              {contract.status === "aktiv" ? (
+                <CareContractChangeCard
+                  contractId={contract.id}
+                  onDecided={() => void load()}
+                />
+              ) : null}
               {contract.concluded ? (
                 <CareContractNoticeCard
                   contractId={contract.id}
