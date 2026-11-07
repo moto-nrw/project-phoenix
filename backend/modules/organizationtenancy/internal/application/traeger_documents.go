@@ -31,8 +31,8 @@ var _ organizationtenancy.TraegerDocuments = (*TraegerDocuments)(nil)
 // NewTraegerDocuments builds the Träger-Büro's service.
 func NewTraegerDocuments(store ports.TraegerDocumentStore, dependencies organizationtenancy.TraegerDocumentPorts) *TraegerDocuments {
 	if store == nil || dependencies.Schools == nil || dependencies.Groups == nil || dependencies.Runtime == nil ||
-		dependencies.Access == nil || dependencies.Downloads == nil {
-		panic("organization tenancy: the document store, the schools, the groups, the runtime and both audit logs are required")
+		dependencies.Access == nil || dependencies.Downloads == nil || dependencies.Notices == nil {
+		panic("organization tenancy: the document store, the schools, the groups, the runtime, both audit logs and the notices are required")
 	}
 	return &TraegerDocuments{store: store, ports: dependencies}
 }
@@ -242,7 +242,10 @@ func (d *TraegerDocuments) Release(ctx context.Context, organizationID, accountI
 	err = d.ports.Runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
 		var insertErr error
 		release, insertErr = d.store.InsertRelease(txCtx, organizationID, accountID, documentID, input, groupName)
-		return insertErr
+		if insertErr != nil {
+			return insertErr
+		}
+		return d.enqueueReleaseNotice(txCtx, organizationID, documentID, release)
 	})
 	return release, err
 }

@@ -64,9 +64,10 @@ export function traegerSharedDocumentsTopic(): HelpTopic {
     ],
     steps: [],
     result:
-      "Eltern finden das Dokument in der Eltern-App unter `Dokumente`. Die OGS-Leitung findet es in moto unter `Dateien` bei `Vom Träger`. Nach dem Zurücknehmen sehen sie es sofort nicht mehr, außer eine andere Freigabe des Dokuments gilt auch für sie. Nach dem Löschen sieht es niemand mehr, auch nicht über einen gespeicherten Link.",
+      "Eltern finden das Dokument in der Eltern-App unter `Dokumente`. Die OGS-Leitung findet es in moto unter `Dateien` bei `Vom Träger`. Nach dem Zurücknehmen sehen sie es sofort nicht mehr, außer eine andere Freigabe des Dokuments gilt auch für sie. Nach dem Löschen sieht es niemand mehr, auch nicht über einen gespeicherten Link. Eltern mit eingeschalteter Nachricht `Neues Dokument vom Träger` bekommen bei der Freigabe eine Nachricht aufs Handy. Sie nennt keinen Titel und kein Kind.",
     notes: [
       "Ein Dokument kann mehrere Freigaben haben. Zum Beispiel für die Eltern einer Gruppe und für alle Schulen.",
+      "Eltern, die ein Dokument schon sehen, bekommen bei einer weiteren Freigabe keine zweite Nachricht. Nehmen Sie die Freigabe zurück, kommt auch keine Nachricht mehr.",
       "Eine Freigabe für Eltern sieht auch die OGS-Leitung der Schule. So weiß sie, was die Eltern bekommen haben.",
       "Bei `Geöffnet` sehen Sie, wie oft Eltern und Schulen das Dokument geöffnet haben.",
       "Auch nach dem Löschen bleibt im Nachweis, wer das Dokument wann freigegeben, geöffnet und gelöscht hat.",

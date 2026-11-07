@@ -26,6 +26,7 @@ export const TILE_CARD_SURFACE =
 
 export function TileCard({
   href,
+  nativeAnchor = false,
   onClick,
   disabled = false,
   padding = "md",
@@ -41,6 +42,13 @@ export function TileCard({
 }: Readonly<{
   /** Ziel, wenn die Kachel navigiert. Ohne `href` wird sie zur Schaltfläche. */
   href?: string;
+  /**
+   * Navigiert per Dokumentwechsel (`<a>`) statt per Client-Navigation. Nur,
+   * wenn die Zielseite eigene Kopfzeilen braucht, die eine Client-Navigation
+   * nicht lädt: das Anmeldeformular setzt die Turnstile-CSP, die strengere
+   * Richtlinie der Auswahlseite bliebe sonst stehen (#5594).
+   */
+  nativeAnchor?: boolean;
   onClick?: () => void;
   disabled?: boolean;
   /** `none`, wenn der Inhalt seine Ränder selbst setzt (Kopfleiste, Bild). */
@@ -73,15 +81,16 @@ export function TileCard({
   );
 
   if (href && !disabled) {
+    const Anchor = nativeAnchor ? "a" : Link;
     return (
-      <Link
+      <Anchor
         href={href}
         aria-label={ariaLabel}
         className={shared}
         data-testid={testId}
       >
         {children}
-      </Link>
+      </Anchor>
     );
   }
 

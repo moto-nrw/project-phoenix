@@ -96,6 +96,7 @@ func newDownloadFixture(store documentStoreDouble, current traegerSchoolsDouble)
 	f := downloadFixture{runtime: &downloadRuntimeDouble{}, downloads: &downloadLogDouble{}, schools: &schoolAccessDouble{}}
 	f.service = NewTraegerDocuments(store, organizationtenancy.TraegerDocumentPorts{
 		Schools: current, Groups: groupsDouble{}, Runtime: f.runtime, Access: f.schools, Downloads: f.downloads,
+		Notices: &releaseNoticesDouble{},
 	})
 	return f
 }
