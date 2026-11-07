@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   BellRing,
@@ -164,9 +165,7 @@ export function RecipientList({
         />
       )}
       {filtered.length === 0 ? (
-        <p className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500">
-          Keine Treffer.
-        </p>
+        <EmptyState variant="compact" title="Keine Treffer." />
       ) : (
         <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
           {filtered.map((rcpt) => (

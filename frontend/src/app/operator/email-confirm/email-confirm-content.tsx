@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -110,15 +111,14 @@ export function EmailConfirmContent() {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
-            <Mail className="h-8 w-8 text-gray-600" aria-hidden="true" />
-          </div>
-          <h1 className="mb-2 text-xl font-semibold text-gray-900">
-            E-Mail-Adresse bestätigen
-          </h1>
-          <p className="mb-6 text-gray-600">
-            Klicke auf den Button, um deine neue E-Mail-Adresse zu bestätigen.
-          </p>
+          <EmptyState
+            tone="neutral"
+            icon={<Mail aria-hidden="true" />}
+            titleAs="h1"
+            title="E-Mail-Adresse bestätigen"
+            description="Klicke auf den Button, um deine neue E-Mail-Adresse zu bestätigen."
+            className="py-0 pb-6"
+          />
           <Button
             type="button"
             variant="primary"
@@ -148,19 +148,14 @@ export function EmailConfirmContent() {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
-            <Check className="text-moto-green h-8 w-8" aria-hidden="true" />
-          </div>
-          <h1 className="mb-2 text-xl font-semibold text-gray-900">
-            E-Mail-Adresse geändert
-          </h1>
-          <p className="mb-2 text-gray-600">
-            Deine E-Mail-Adresse wurde erfolgreich geändert.
-          </p>
-          <p className="mb-6 text-sm text-gray-400">
-            Es kann einige Minuten dauern, bis die Änderung in deinem Profil
-            sichtbar ist. Eine erneute Anmeldung übernimmt die Änderung sofort.
-          </p>
+          <EmptyState
+            tone="success"
+            icon={<Check aria-hidden="true" />}
+            titleAs="h1"
+            title="E-Mail-Adresse geändert"
+            description="Deine E-Mail-Adresse wurde erfolgreich geändert. Es kann einige Minuten dauern, bis die Änderung in deinem Profil sichtbar ist. Eine erneute Anmeldung übernimmt die Änderung sofort."
+            className="py-0 pb-6"
+          />
           <Link
             href={operatorPath("/operator/settings?tab=profile")}
             ref={primaryRef as React.RefObject<HTMLAnchorElement>}
@@ -180,12 +175,13 @@ export function EmailConfirmContent() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
-          <X className="text-moto-red h-8 w-8" aria-hidden="true" />
-        </div>
-        <h1 className="mb-2 text-xl font-semibold text-gray-900">
-          Bestätigung fehlgeschlagen
-        </h1>
+        <EmptyState
+          tone="error"
+          icon={<X aria-hidden="true" />}
+          titleAs="h1"
+          title="Bestätigung fehlgeschlagen"
+          className="py-0 pb-4"
+        />
         <FormErrorAlert
           message={confirmErrors.error}
           className="mb-6 text-left"

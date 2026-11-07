@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Plus, RefreshCw, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -212,7 +213,7 @@ export function AttachmentEditor({
           ))}
         </ol>
       ) : (
-        <p className="text-sm text-gray-500">Noch keine PDFs angehängt.</p>
+        <EmptyState variant="compact" title="Noch keine PDFs angehängt." />
       )}
       <div className="space-y-2">
         <Button

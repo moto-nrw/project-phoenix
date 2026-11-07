@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useCallback,
@@ -134,10 +135,10 @@ export function StudentEnrollmentsTab({
       ) : error ? (
         <LoadErrorAlert error={load.error} />
       ) : requests.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm text-gray-600">
-          Für dieses Kind ist keine angenommene oder übernommene
-          Online-Anmeldung verknüpft.
-        </div>
+        <EmptyState
+          variant="compact"
+          title="Für dieses Kind ist keine angenommene oder übernommene Online-Anmeldung verknüpft."
+        />
       ) : (
         <div className="space-y-4">
           {requests.map((request) => (

@@ -9,6 +9,7 @@
  * assigned staff, children, attendance state, and admin corrections.
  */
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import {
@@ -91,7 +92,6 @@ import {
 import {
   instanceStatusTone,
   timetableDangerPanel,
-  timetableMutedSurface,
   timetableNestedSurface,
   type TimetableTone,
 } from "./timetable-style";
@@ -1466,14 +1466,8 @@ function StudentGroup({
   );
 }
 
-function EmptyLine({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className={`${timetableMutedSurface} border-dashed px-3 py-2 text-xs text-gray-500`}
-    >
-      {children}
-    </div>
-  );
+function EmptyLine({ children }: { children: string }) {
+  return <EmptyState variant="dashed" title={children} className="px-3 py-2" />;
 }
 
 /**

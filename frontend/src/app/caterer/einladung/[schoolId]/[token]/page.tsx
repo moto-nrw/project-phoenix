@@ -5,6 +5,7 @@
 // caterer sets its password, a caterer with an account confirms with its
 // password and adds the school. Afterwards the caterer is signed in.
 
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -45,7 +46,6 @@ import { catererPath } from "~/lib/caterer-url";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button, ButtonLink } from "~/components/ui/button";
-import { IconTile } from "~/components/ui/icon-tile";
 
 const logger = createLogger({ component: "CatererInvitationPage" });
 
@@ -273,26 +273,16 @@ function AcceptForm({
 
   if (accepted) {
     return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="flex flex-col items-center py-12"
-      >
-        <IconTile
-          size="page"
-          shape="round"
-          tone="inverse"
-          className="mb-6"
-          icon={<Check className="text-white" aria-hidden="true" />}
-        />
-        <h3 className="mb-1 text-base font-semibold text-gray-900">
-          {existing ? "Schule hinzugefügt" : "Konto erstellt"}
-        </h3>
+      <div role="status" aria-live="polite">
         {/* „weitergeleitet“, nicht „angemeldet“: scheitert die automatische
             Anmeldung, geht es zur Anmeldeseite. */}
-        <p className="text-sm text-gray-500">
-          Sie werden gleich weitergeleitet.
-        </p>
+        <EmptyState
+          tone="success"
+          icon={<Check aria-hidden="true" />}
+          titleAs="h3"
+          title={existing ? "Schule hinzugefügt" : "Konto erstellt"}
+          description="Sie werden gleich weitergeleitet."
+        />
       </div>
     );
   }

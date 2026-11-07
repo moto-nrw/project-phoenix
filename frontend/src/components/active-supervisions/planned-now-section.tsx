@@ -1,5 +1,7 @@
 "use client";
 
+import { SectionCard } from "~/components/ui/section-card";
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   HANDOVER_ABSENT_WORDING,
   handoverDetail,
@@ -108,25 +110,23 @@ export function PlannedNowSection({
 
   if (sortedPlanned.length === 0) {
     return (
-      <section
-        className="moto-content-surface mb-4 rounded-2xl border p-4"
-        data-setup-tour="supervision-next"
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">
-              Als Nächstes
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Keine geplante Betreuung in Sicht
-            </p>
-          </div>
-          <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
-            <MotoConceptIcon concept={carePlanConcept} size={18} />
-            Heute
-          </span>
-        </div>
-      </section>
+      <div className="mb-4" data-setup-tour="supervision-next">
+        <SectionCard
+          title="Als Nächstes"
+          action={
+            <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
+              <MotoConceptIcon concept={carePlanConcept} size={18} />
+              Heute
+            </span>
+          }
+        >
+          <EmptyState
+            variant="compact"
+            title="Keine geplante Betreuung in Sicht"
+            className="py-0"
+          />
+        </SectionCard>
+      </div>
     );
   }
 

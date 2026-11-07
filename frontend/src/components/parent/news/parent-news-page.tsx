@@ -1,5 +1,7 @@
 "use client";
 
+import { SectionCard } from "~/components/ui/section-card";
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -149,9 +151,9 @@ export function ParentNewsPage() {
       ) : loadError ? (
         <LoadErrorAlert error={loadError} />
       ) : items.length === 0 ? (
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
-          {t("empty")}
-        </p>
+        <SectionCard>
+          <EmptyState variant="compact" title={t("empty")} className="py-0" />
+        </SectionCard>
       ) : (
         <div className="space-y-8">
           {outstandingItems.length > 0 && (

@@ -141,6 +141,39 @@ describe.concurrent("ui-kit/no-hand-rolled-dropzone", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-hand-rolled-empty-state", () => {
+  const RULE = "ui-kit(no-hand-rolled-empty-state)";
+  const source = `function Probe() {
+    return <div className="rounded-xl border border-dashed px-4 py-6 text-center">Leer</div>;
+  }
+  void Probe;`;
+
+  it("reports a dashed, centered box", async () => {
+    const result = await lintSource(source, "src/components/probe.tsx");
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
+  it("allows a dashed box that is not centered", async () => {
+    const result = await lintSource(
+      source.replace(" text-center", ""),
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
+  });
+
+  it("allows the kit itself", async () => {
+    const result = await lintSource(
+      source,
+      "src/components/ui/empty-state.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
+  });
+});
+
 describe.concurrent("ui-kit/no-hand-rolled-copy-field", () => {
   it("reports a framed code value", async () => {
     const result = await lintSource(

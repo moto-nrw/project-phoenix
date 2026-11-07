@@ -12,6 +12,8 @@
 // Anlegen als Kopf-Aktion. Eine Route liefert nur noch ihre Daten und ihre
 // Felder.
 
+import { MousePointer2 } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
@@ -20,7 +22,6 @@ import { DatabaseDetailHeader } from "~/components/database/database-detail-head
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { DetailPanel } from "~/components/database/detail-panel";
-import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import {
   GroupedList,
   type GroupDefinition,
@@ -579,9 +580,12 @@ export function CatalogPage<T extends CatalogItem>({
       onTabChange={() => undefined}
     />
   ) : (
-    <EmptyDetailState
+    <EmptyState
+      icon={<MousePointer2 className="h-10 w-10" aria-hidden="true" />}
+      titleAs="h3"
       title={`${config.singular} auswählen`}
       description={`Wählen Sie links einen Eintrag, um ihn zu ändern.`}
+      className="h-full justify-center"
     />
   );
 

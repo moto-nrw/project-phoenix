@@ -59,13 +59,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/guardians/guardian-picker-panel.tsx",
-    lines: [326],
+    lines: [329],
     reason: "Trefferzeile der Erziehungsberechtigten-Suche: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-message-modal.tsx",
-    lines: [377],
+    lines: [379],
     reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
   },
   {
@@ -107,7 +107,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3123],
+    lines: [3132],
     reason: "Schalter (role=switch)",
   },
   {
@@ -139,7 +139,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1066],
+    lines: [1067],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
@@ -200,7 +200,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/parent-messages-card.tsx",
-    lines: [135],
+    lines: [144],
     reason: "Nachrichtenzeile, öffnet den Verlauf: Navigationszeile",
   },
   {

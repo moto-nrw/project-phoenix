@@ -1,5 +1,7 @@
 "use client";
 
+import { MousePointer2 } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import { Pencil } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -11,7 +13,6 @@ import {
   DetailPanel,
   type DetailTab,
 } from "~/components/database/detail-panel";
-import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
@@ -95,9 +96,7 @@ export function RolesMasterDetail({
       renderItem={renderItem}
       keyFor={keyForRole}
       emptyState={
-        <div className="text-center text-sm text-gray-500">
-          Keine Rollen gefunden.
-        </div>
+        <EmptyState variant="compact" title="Keine Rollen gefunden." />
       }
     />
   );
@@ -114,9 +113,12 @@ export function RolesMasterDetail({
       onPermissionsSaved={onPermissionsSaved}
     />
   ) : (
-    <EmptyDetailState
+    <EmptyState
+      icon={<MousePointer2 className="h-10 w-10" aria-hidden="true" />}
+      titleAs="h3"
       title="Keine Rolle ausgewählt"
       description="Wähle links eine Rolle, um die Details zu sehen."
+      className="h-full justify-center"
     />
   );
 
