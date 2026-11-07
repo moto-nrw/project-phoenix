@@ -2884,9 +2884,10 @@ describe.concurrent("ui-kit/no-hand-rolled-notice (#5591)", () => {
   });
 
   it("fails one finding more than a file's baseline", async () => {
-    const [file, allowed] = Object.entries(
+    // Leere Baseline: jede Datei steht auf null Funden.
+    const [file, allowed]: [string, number] = Object.entries(
       noticeBaseline["no-hand-rolled-notice"]!,
-    )[0]!;
+    )[0] ?? ["src/components/probe-notice.tsx", 0];
     const boxes = Array.from(
       { length: allowed + 1 },
       (_, index) =>
