@@ -9,7 +9,7 @@ export const WEEKDAY_CODES = [
   "sun",
 ] as const;
 
-export type WeekdayCode = (typeof WEEKDAY_CODES)[number];
+type WeekdayCode = (typeof WEEKDAY_CODES)[number];
 
 /** The five school days, the default care week. */
 export const SCHOOL_WEEKDAY_CODES = WEEKDAY_CODES.slice(0, 5);
