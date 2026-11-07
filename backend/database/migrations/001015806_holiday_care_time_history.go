@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
-const holidayCareTimeHistoryVersion = "1.15.805"
+const holidayCareTimeHistoryVersion = "1.15.806"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -26,6 +27,14 @@ const holidayCareTimeHistorySQL = `
 ALTER TABLE enrollment.holiday_week_time_models
  ADD COLUMN care_time_history JSONB NOT NULL DEFAULT '{}'::jsonb
  CHECK (jsonb_typeof(care_time_history) = 'object');
+
+-- Existing guest copies may be older than their already edited model. Keep
+-- their stored past baseline at cutover; reconciliation never overwrites it.
+ALTER TABLE enrollment.holiday_guests ADD COLUMN care_time_baseline JSONB
+ CHECK (care_time_baseline IS NULL OR jsonb_typeof(care_time_baseline) = 'object');
+UPDATE enrollment.holiday_guests SET care_time_baseline = jsonb_build_object(
+ 'valid_until', ?::date, 'starts_on', starts_on, 'ends_on', ends_on,
+ 'starts_at', time_model_starts_at, 'ends_at', time_model_ends_at);
 
 CREATE FUNCTION enrollment.holiday_time_model_windows(p_history JSONB, p_start TIME, p_end TIME)
  RETURNS TABLE (valid_from DATE, valid_until DATE, starts_at TIME, ends_at TIME)
@@ -158,30 +167,49 @@ CREATE FUNCTION enrollment.holiday_host_guest_bookings(p_from DATE, p_to DATE)
  LANGUAGE sql STABLE SECURITY DEFINER
  SET search_path = pg_catalog, pg_temp
  AS $$
- SELECT guest.student_id, GREATEST(booked.starts_on, guest.starts_on),
+ SELECT guest.student_id, GREATEST(booked.starts_on, guest.starts_on, (guest.care_time_baseline->>'valid_until')::date),
   LEAST(booked.ends_on, guest.ends_on, guest.ended_on - 1), booked.starts_at, booked.ends_at
  FROM enrollment.holiday_host_booked_windows(p_from, p_to) AS booked
  JOIN enrollment.holiday_guests AS guest ON guest.organization_id = booked.organization_id
   AND guest.holiday_registration_child_id = booked.child_id AND guest.holiday_period_week_id = booked.week_id
  WHERE guest.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
-  AND GREATEST(booked.starts_on, guest.starts_on) <= LEAST(booked.ends_on, guest.ends_on, guest.ended_on - 1)
+  AND GREATEST(booked.starts_on, guest.starts_on, (guest.care_time_baseline->>'valid_until')::date) <= LEAST(booked.ends_on, guest.ends_on, guest.ended_on - 1)
  UNION ALL
  -- Copies without a surviving registration (legacy/imported guests) retain
  -- their existing tenant-scoped care window. Never overlay a real booking.
- SELECT guest.student_id, guest.starts_on, LEAST(guest.ends_on, guest.ended_on - 1),
+ SELECT guest.student_id, GREATEST(guest.starts_on, (guest.care_time_baseline->>'valid_until')::date), LEAST(guest.ends_on, guest.ended_on - 1),
   guest.time_model_starts_at::time, guest.time_model_ends_at::time
  FROM enrollment.holiday_guests AS guest
  WHERE guest.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
-  AND guest.starts_on <= p_to AND guest.ends_on >= p_from
+  AND GREATEST(guest.starts_on, (guest.care_time_baseline->>'valid_until')::date) <= p_to AND guest.ends_on >= p_from
   AND NOT EXISTS (SELECT 1 FROM enrollment.holiday_registration_children AS child
    WHERE child.organization_id = guest.organization_id AND child.id = guest.holiday_registration_child_id)
+ UNION ALL
+ -- Cutover snapshots keep exactly the past care the school could read
+ -- before deployment, independently of later model edits or reconciliation.
+ SELECT guest.student_id, (guest.care_time_baseline->>'starts_on')::date,
+  LEAST((guest.care_time_baseline->>'ends_on')::date,
+   (guest.care_time_baseline->>'valid_until')::date - 1, guest.ended_on - 1),
+  (guest.care_time_baseline->>'starts_at')::time, (guest.care_time_baseline->>'ends_at')::time
+ FROM enrollment.holiday_guests AS guest
+ WHERE guest.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
+  AND guest.care_time_baseline IS NOT NULL
+  AND (guest.care_time_baseline->>'starts_on')::date <= p_to
+  AND LEAST((guest.care_time_baseline->>'ends_on')::date,
+   (guest.care_time_baseline->>'valid_until')::date - 1, guest.ended_on - 1) >= p_from
+  AND (guest.care_time_baseline->>'starts_on')::date <= LEAST((guest.care_time_baseline->>'ends_on')::date,
+   (guest.care_time_baseline->>'valid_until')::date - 1, guest.ended_on - 1)
  $$;
 REVOKE ALL ON FUNCTION enrollment.holiday_host_guest_bookings(DATE, DATE) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION enrollment.holiday_host_guest_bookings(DATE, DATE) TO phoenix_tenant;
 `
 
 func holidayCareTimeHistoryUp(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, holidayCareTimeHistorySQL+holidayHostBookedWindowsSQL); err != nil {
+	return holidayCareTimeHistoryUpOn(ctx, db, calendar.TodayDate())
+}
+
+func holidayCareTimeHistoryUpOn(ctx context.Context, db *bun.DB, cutover calendar.Date) error {
+	if _, err := db.ExecContext(ctx, holidayCareTimeHistorySQL+holidayHostBookedWindowsSQL, cutover); err != nil {
 		return fmt.Errorf("add effective holiday care times: %w", err)
 	}
 	return nil
@@ -273,7 +301,8 @@ const holidayCareTimeHistoryDownSQL = `
  DROP FUNCTION enrollment.holiday_host_guest_bookings(DATE, DATE);
  DROP FUNCTION enrollment.holiday_host_booked_windows(DATE, DATE);
  DROP FUNCTION enrollment.holiday_time_model_windows(JSONB, TIME, TIME);
- ALTER TABLE enrollment.holiday_week_time_models DROP COLUMN care_time_history;`
+ ALTER TABLE enrollment.holiday_week_time_models DROP COLUMN care_time_history;
+ ALTER TABLE enrollment.holiday_guests DROP COLUMN care_time_baseline;`
 
 func holidayCareTimeHistoryDown(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, holidayOwnBookingsRestoreSQL+holidayCareTimeHistoryDownSQL); err != nil {
