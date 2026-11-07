@@ -276,32 +276,39 @@ func (s *service) fillCourseSection(ctx context.Context, report *studentpresence
 // careDays returns the ordered set of care days in the window and the
 // exclusion breakdown.
 func (s *service) careDays(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, studentpresence.StatisticsExcludedDays, error) {
-	var excluded studentpresence.StatisticsExcludedDays
+	care, _, excluded, err := s.careCalendar(ctx, from, to)
+	return care, excluded, err
+}
+
+// careCalendar is careDays plus the care weekdays that only a holiday period
+// excludes: holiday care is open on them (#5994), unlike on a public holiday
+// or a closing day.
+func (s *service) careCalendar(ctx context.Context, from, to calendar.Date) (care, vacationOnly map[calendar.Date]bool, excluded studentpresence.StatisticsExcludedDays, err error) {
 	holidays, err := s.holidayDates(ctx, from, to)
 	if err != nil {
-		return nil, excluded, err
+		return nil, nil, excluded, err
 	}
 	closing, vacation, err := s.calendarDates(ctx, from, to)
 	if err != nil {
-		return nil, excluded, err
+		return nil, nil, excluded, err
 	}
-
-	care := map[calendar.Date]bool{}
+	care, vacationOnly = map[calendar.Date]bool{}, map[calendar.Date]bool{}
 	for d := from; !d.After(to); d = d.AddDays(1) {
 		// A weekend counts only where it follows Friday's plan (#3921).
 		careWeekday, err := calendar.IsCareWeekday(ctx, d)
 		if err != nil {
-			return nil, excluded, fmt.Errorf("statistics: resolve weekend plan: %w", err)
+			return nil, nil, excluded, fmt.Errorf("statistics: resolve weekend plan: %w", err)
 		}
 		if !careWeekday {
 			continue
 		}
 		if countExclusions(&excluded, holidays[d], closing[d], vacation[d]) {
+			vacationOnly[d] = vacation[d] && !holidays[d] && !closing[d]
 			continue
 		}
 		care[d] = true
 	}
-	return care, excluded, nil
+	return care, vacationOnly, excluded, nil
 }
 
 // countExclusions adds a weekday to every exclusion bucket it falls into and

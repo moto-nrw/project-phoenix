@@ -90,6 +90,32 @@ describe("Soll und Ist je Kind (#4774)", () => {
     );
   });
 
+  it("lädt neu, wenn sich die Buchung ändert, und behält den Zeitraum (#5994)", async () => {
+    mockFetch.mockResolvedValue(result([]));
+    const range = { from: "2026-09-07", to: "2026-09-09" };
+    const { rerender } = render(
+      <StudentCareTimesSection
+        studentId="7"
+        active
+        initialRange={range}
+        refreshKey="08:00-13:00"
+      />,
+    );
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <StudentCareTimesSection
+        studentId="7"
+        active
+        initialRange={range}
+        refreshKey="08:00-16:00"
+      />,
+    );
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    expect(mockFetch).toHaveBeenLastCalledWith("7", "2026-09-07", "2026-09-09");
+  });
+
   it("nennt die Quelle der gebuchten Zeit: Ferienbuchung, Vertrag oder keine (#5994)", async () => {
     mockFetch.mockResolvedValue(
       result([

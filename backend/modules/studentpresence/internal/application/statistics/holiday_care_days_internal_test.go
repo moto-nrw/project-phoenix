@@ -163,3 +163,42 @@ func TestCancellationSurvivesContractAndHolidayBooking(t *testing.T) {
 	assert.False(t, day.Expected, "the holiday booking does not undo it")
 	assert.Equal(t, studentpresence.PlannedCareSourceHoliday, day.Source)
 }
+
+// Holiday care runs in the school holidays: a missed day of a holiday booking
+// in a holiday period is absent, not closed. A public holiday or a closing day
+// stays closed, and a contract day in the holidays stays closed too (#5994).
+func TestMissedHolidayBookingInTheSchoolHolidaysIsAbsent(t *testing.T) {
+	t.Parallel()
+	mon := calendar.NewDate(2026, 7, 20)
+	tue, wed, thu := mon.AddDays(1), mon.AddDays(2), mon.AddDays(3)
+	holidays := holidayStub{days: map[int64]map[calendar.Date]ports.HolidayCareDay{11: {
+		mon: holidayBooked(8, 16), tue: holidayBooked(8, 16), wed: holidayBooked(8, 16),
+	}}}
+	cfg := Config{
+		Students: careTimeStudents{{ID: 11, FirstName: "Ida", LastName: "Ferien", EnrolledOn: enrolledEveryDay}},
+		PlannedCareDays: WithHolidayCareDays(plannedStub{11: {
+			thu: contractDay(wallClockAt(13, 0)),
+		}}, holidays),
+		StatusDays:          statusDayList{},
+		AttendanceIntervals: &attendanceRowsStub{},
+		Holidays:            dateSet{tue: true},
+		ClosingDays:         dateSet{wed: true},
+		Periods:             periodList{{StartDate: mon.AddDays(-7), EndDate: mon.AddDays(14)}},
+		Retention:           reportRetention{},
+		AccessLog:           &reportAudit{},
+		Now:                 func() time.Time { return berlin(mon.AddDays(7), 12, 0) },
+	}
+	child, err := NewService(cfg).StudentCareTimes(context.Background(), 11, mon, thu, careTimeActor)
+	require.NoError(t, err)
+	kinds := map[calendar.Date]studentpresence.CareTimeDayKind{}
+	for _, day := range child.Days {
+		kinds[day.Date] = day.Kind
+	}
+	assert.Equal(t, map[calendar.Date]studentpresence.CareTimeDayKind{
+		mon: studentpresence.CareTimeDayAbsent,
+		tue: studentpresence.CareTimeDayClosed,
+		wed: studentpresence.CareTimeDayClosed,
+		thu: studentpresence.CareTimeDayClosed,
+	}, kinds)
+	assert.Equal(t, 1, child.Summary.AbsentDays)
+}

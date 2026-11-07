@@ -170,6 +170,7 @@ export function HolidayGuestSection({
           studentId={studentId}
           active
           initialRange={careTimes}
+          refreshKey={`${data?.timeModelStartsAt}-${data?.timeModelEndsAt}`}
         />
       )}
     </>

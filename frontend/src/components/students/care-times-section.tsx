@@ -144,11 +144,14 @@ export function StudentCareTimesSection({
   studentId,
   active,
   initialRange,
+  refreshKey,
 }: Readonly<{
   studentId: string;
   active: boolean;
   /** Erster Zeitraum ("YYYY-MM-DD"), sonst der laufende Monat bis heute. */
   initialRange?: { from: string; to: string };
+  /** Ändert sich der Wert, lädt der Vergleich neu (geänderte Buchung). */
+  refreshKey?: string;
 }>) {
   const todayISO = berlinTodayISO();
   const today = useMemo(() => parseISODate(todayISO), [todayISO]);
@@ -204,6 +207,7 @@ export function StudentCareTimesSection({
     fromISO,
     toISO,
     reloadKey,
+    refreshKey,
     showLoadError,
     clearLoadError,
   ]);
