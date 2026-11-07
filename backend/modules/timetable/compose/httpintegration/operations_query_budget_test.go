@@ -3,6 +3,7 @@ package httpintegration_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,6 +166,65 @@ func TestTimetableOperationsPlannedNowCarriesPlanningTrackColour(t *testing.T) {
 		require.Contains(t, byID, untracked.ID)
 		assert.Nil(t, byID[untracked.ID].PlanningTrackColor)
 		assert.Nil(t, byID[untracked.ID].PlanningTrackName)
+		return nil
+	}))
+}
+
+// With the roster preview, every block's roster reuses the block row and
+// participant rows PlannedNow read for the whole day (#5735, decision E2):
+// the day is read once, never again per block.
+func TestTimetableOperationsPlannedNowRosterReusesDayRead(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	date := calendar.NewDate(2026, time.October, 19)
+	now := date.BerlinMidnight().Add(13*time.Hour + 50*time.Minute)
+	staff := testpkg.CreateTestStaff(t, db, "PlannedRoster", "Teacher")
+	room := testpkg.CreateTestRoom(t, db, "PlannedRosterRoom")
+	operations := newPlannedNowBudgetOperations(t, db, staff, now)
+
+	created := 0
+	notes := map[int64]string{}
+	addInstances := func(n int) {
+		for range n {
+			instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
+				StartHHMM: "14:00",
+				EndHHMM:   "15:00",
+				Title:     fmt.Sprintf("Planned roster %d", created),
+			})
+			testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+			for i := range 2 {
+				student := testpkg.CreateTestStudent(t, db, "PlannedRoster", fmt.Sprintf("Student%d_%d", created, i), "PR1")
+				testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, fixtures.AttendanceStatusExpected())
+			}
+			notes[instance.ID] = ""
+			created++
+		}
+	}
+
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.TenantIDFromContext(ctx), func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		run := func() (total, dayReads int) {
+			counter.Reset()
+			result, err := operations.PlannedNow(ctx, 1, false, date, now, timetable.PlannedNowOptions{IncludeRoster: true})
+			require.NoError(t, err)
+			require.Len(t, result, created)
+			for _, block := range result {
+				require.Len(t, block.RosterPreview, 2, "block %d keeps both planned children", block.ID)
+			}
+			dayReads = len(counter.Matching(func(sql string) bool {
+				return strings.HasPrefix(strings.TrimSpace(sql), "select") &&
+					(strings.HasPrefix(sql, `select "activity_instance".id,`) || strings.HasPrefix(sql, `select "instance_student".id,`))
+			}))
+			return counter.Total(), dayReads
+		}
+		for _, step := range []int{1, 2, 5} {
+			addInstances(step)
+			total, dayReads := run()
+			t.Logf("planned-now with roster, N%d: %d statements, %d block/participant reads", created, total, dayReads)
+			assert.Equal(t, 2, dayReads, "one block read and one participant read for the whole day")
+		}
 		return nil
 	}))
 }
