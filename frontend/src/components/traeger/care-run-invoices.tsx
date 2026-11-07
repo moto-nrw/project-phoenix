@@ -14,6 +14,7 @@ import type {
   CareDuplicate,
   CareInvoice,
   CarePosition,
+  CareReduction,
   CareUnpriced,
 } from "~/lib/traeger-care-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
@@ -24,6 +25,10 @@ import {
   invoiceCountLabel,
 } from "./care-billing-format";
 import { formatEuro } from "./contribution-format";
+import {
+  CARE_RULE_KIND_LABELS,
+  reductionExplanation,
+} from "./care-reduction-format";
 
 interface SchoolGroup {
   readonly schoolId: string;
@@ -100,6 +105,25 @@ function PositionLine({
   );
 }
 
+/** A reduction of the chain (#4685): rule, explanation, negative amount. */
+function ReductionLine({ reduction }: Readonly<{ reduction: CareReduction }>) {
+  return (
+    <li className="flex items-baseline justify-between gap-4 py-1.5">
+      <div className="min-w-0">
+        <p className="text-sm text-gray-900">
+          {CARE_RULE_KIND_LABELS[reduction.kind]}: {reduction.name}
+        </p>
+        <p className="mt-0.5 text-xs text-gray-600">
+          {reductionExplanation(reduction)}
+        </p>
+      </div>
+      <span className="text-moto-green-strong shrink-0 text-sm tabular-nums">
+        {formatEuro(reduction.amountCents)}
+      </span>
+    </li>
+  );
+}
+
 function invoiceColumns(month: string): DataTableColumn<CareInvoice>[] {
   return [
     {
@@ -140,7 +164,15 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoice>[] {
               key={`${position.careOfferingId}-${position.serviceFrom}`}
               position={position}
               month={month}
-              showAmount={invoice.positions.length > 1}
+              showAmount={
+                invoice.positions.length > 1 || invoice.reductions.length > 0
+              }
+            />
+          ))}
+          {invoice.reductions.map((reduction, index) => (
+            <ReductionLine
+              key={`${reduction.kind}-${index}`}
+              reduction={reduction}
             />
           ))}
         </ul>

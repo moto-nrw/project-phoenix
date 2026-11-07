@@ -59,6 +59,19 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	care := NewCareBillingHTTP(organizations, settings)
 	root.Mount("/traeger/care-tariffs", care.TariffRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-billing-runs", care.RunRouter(ProtectedTraegerRoutes))
+	reductions := NewCareReductionHTTP(organizations)
+	root.Mount("/traeger/care-rules", reductions.RuleRouter(ProtectedTraegerRoutes))
+	root.Mount("/traeger/care-evidences", reductions.EvidenceRouter(ProtectedTraegerRoutes))
+}
+
+// NewCareReductionHTTP binds the rule chain of the monthly contribution
+// (#4685) to the right "Abrechnung", to the versions in force of the
+// Betreuungsvertrag and to the schools of the Träger.
+func NewCareReductionHTTP(organizations HolidayOrganizations) *parentBillingHTTP.CareReductionResource {
+	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
+	return parentBillingHTTP.NewCareReductionResource(parentBillingCompose.NewCareReductions(contracts,
+		parentBillingCareSchools{organizations: organizations}),
+		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
 // NewCareBillingHTTP binds the monthly contribution of the care contract

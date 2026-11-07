@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.care_evidences",
+  "max": 99,
+  "exact": true,
+  "description": "TBD"
+}

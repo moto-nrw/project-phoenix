@@ -45,6 +45,9 @@ type CareStore interface {
 	InsertCareRunHolds(ctx context.Context, organizationID, runID int64, holds []parentbilling.CareRunHold) error
 	CareRunHolds(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareRunHold, error)
 	CareRunInvoices(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareInvoice, error)
+	// ListContributionRules and CareEvidences feed the rule chain (#4685).
+	ListContributionRules(ctx context.Context, organizationID int64, service string) ([]parentbilling.ContributionRule, error)
+	CareEvidences(ctx context.Context, organizationID int64, contractIDs []int64) ([]parentbilling.CareEvidence, error)
 	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
 	ReserveNumbers(ctx context.Context, organizationID int64, service string, year, count int) (int64, error)
 }
@@ -499,8 +502,16 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	if err != nil {
 		return "", careMonth{}, fmt.Errorf("parent billing: read the contract parties: %w", err)
 	}
+	rules, err := c.store.ListContributionRules(ctx, organizationID, parentbilling.ServiceCare)
+	if err != nil {
+		return "", careMonth{}, fmt.Errorf("parent billing: read the care rules: %w", err)
+	}
+	evidences, err := c.store.CareEvidences(ctx, organizationID, versionContracts(versions))
+	if err != nil {
+		return "", careMonth{}, err
+	}
 	month, err := buildCareMonth(careMonthInput{month: run.BillingMonth, rule: rule, versions: versions, tariffs: tariffs,
-		invoiced: invoiced, recipients: recipients})
+		invoiced: invoiced, recipients: recipients, rules: rules, evidences: evidences})
 	return rule, month, err
 }
 

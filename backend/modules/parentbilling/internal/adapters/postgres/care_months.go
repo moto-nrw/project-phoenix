@@ -416,7 +416,7 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 	if _, err := db.NewInsert().Model(&positions).Exec(ctx); err != nil {
 		return fmt.Errorf("insert care invoice positions: %w", err)
 	}
-	return nil
+	return insertCareReductions(ctx, db, organizationID, rows, invoices)
 }
 
 func carePositionRows(organizationID int64, rows []careInvoiceRow, invoices []parentbilling.CareInvoice) ([]careInvoicePositionRow, error) {
@@ -484,6 +484,10 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 		Where("invoice_id = ANY(?)", pgdialect.Array(ids)).OrderExpr("invoice_id, position").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read care invoice positions: %w", err)
 	}
+	reductions, err := careReductionsOf(ctx, db, organizationID, ids)
+	if err != nil {
+		return nil, err
+	}
 	byInvoice := map[int64][]parentbilling.CarePosition{}
 	for _, row := range positions {
 		position := parentbilling.CarePosition{
@@ -502,7 +506,10 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 			ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, ContractID: row.CareContractID, SchoolID: row.SchoolID,
 			SchoolName: row.SchoolName, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName,
 			Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail},
-			Positions: byInvoice[row.ID], TotalCents: row.TotalCents,
+			Positions: byInvoice[row.ID], Reductions: reductions[row.ID], TotalCents: row.TotalCents,
+		}
+		if invoices[i].Reductions == nil {
+			invoices[i].Reductions = []parentbilling.CareReduction{}
 		}
 		if invoices[i].Positions == nil {
 			invoices[i].Positions = []parentbilling.CarePosition{}

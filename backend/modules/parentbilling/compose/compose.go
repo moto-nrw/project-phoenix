@@ -53,3 +53,8 @@ func NewBillingFamilies() parentbilling.BillingFamilies {
 func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings) parentbilling.CareBilling {
 	return application.NewCareBilling(postgres.NewStore(), contracts, schools, settings, calendar.TodayDate)
 }
+
+// NewCareReductions builds the rules and evidences of the monthly contribution (#4685) over the contracts and schools the root binds.
+func NewCareReductions(contracts parentbilling.CareContracts, schools parentbilling.CareSchools) parentbilling.CareReductions {
+	return application.NewCareReductions(postgres.NewStore(), contracts, schools, calendar.TodayDate)
+}

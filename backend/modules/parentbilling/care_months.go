@@ -198,7 +198,10 @@ type CareInvoice struct {
 	ChildLastName  string         `json:"child_last_name"`
 	Recipient      CareRecipient  `json:"recipient"`
 	Positions      []CarePosition `json:"positions"`
-	TotalCents     int64          `json:"total_cents"`
+	// Reductions are the rules of the chain in their order (#4685); the
+	// total is the positions less the reductions.
+	Reductions []CareReduction `json:"reductions"`
+	TotalCents int64           `json:"total_cents"`
 }
 
 // CareUnpriced is a booked weekday of a module the price list has no price

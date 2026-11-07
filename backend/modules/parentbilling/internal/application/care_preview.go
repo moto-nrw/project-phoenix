@@ -20,6 +20,10 @@ type careMonthInput struct {
 	tariffs    []parentbilling.CareTariff
 	invoiced   map[int64]bool
 	recipients map[int64]parentbilling.CareRecipient
+	// rules and evidences feed the rule chain (#4685); without them every
+	// invoice is its base price.
+	rules     []parentbilling.ContributionRule
+	evidences []parentbilling.CareEvidence
 }
 
 // careMonth is the preview of one month: the draft invoices, the bookings
@@ -67,25 +71,46 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	entries := monthEntries(in.month, byContract, order)
 	prices := newPriceBook(in.tariffs)
 	result := careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{}, duplicates: duplicates}
+	// The chain ranks every child billed this month, also one an earlier
+	// run of the month already invoiced (issued): its entry is a copy.
+	var issued []*parentbilling.CareInvoice
+	var chained []*careChainEntry
+	childOf := childKeys(byContract, order)
 	for _, contractID := range order {
 		if in.invoiced[contractID] {
 			result.billed++
-			continue
 		}
 		if held[contractID] {
 			continue
 		}
 		invoice, unpriced := billContract(in.month, in.rule, byContract[contractID], entries[contractID], prices)
-		if len(unpriced) > 0 {
+		if len(unpriced) > 0 && !in.invoiced[contractID] {
 			result.unpriced = append(result.unpriced, unpriced...)
 			continue
 		}
-		if len(invoice.Positions) == 0 {
+		if len(invoice.Positions) == 0 || len(unpriced) > 0 {
 			continue
 		}
 		invoice.Recipient = in.recipients[contractID]
-		result.invoices = append(result.invoices, invoice)
+		entry := &careChainEntry{child: childOf[contractID], birthDate: byContract[contractID][0].ChildBirthDate,
+			issued: in.invoiced[contractID]}
+		if entry.issued {
+			issued = append(issued, &invoice)
+			entry.invoice = issued[len(issued)-1]
+		} else {
+			result.invoices = append(result.invoices, invoice)
+		}
+		chained = append(chained, entry)
 	}
+	// result.invoices no longer grows: the entries point into it.
+	next := 0
+	for _, entry := range chained {
+		if !entry.issued {
+			entry.invoice = &result.invoices[next]
+			next++
+		}
+	}
+	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences})
 	slices.SortStableFunc(result.invoices, func(a, b parentbilling.CareInvoice) int {
 		return firstNonZero(compareOrdered(a.SchoolName, b.SchoolName), compareOrdered(a.ChildLastName, b.ChildLastName),
 			compareOrdered(a.ChildFirstName, b.ChildFirstName), compareOrdered(a.ContractID, b.ContractID))

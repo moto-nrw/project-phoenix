@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.care_rules",
+  "max": 99,
+  "exact": true,
+  "description": "TBD"
+}
