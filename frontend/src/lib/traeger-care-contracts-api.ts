@@ -88,7 +88,8 @@ export type TemplateIssue =
   | "acceptance_missing"
   | "acceptance_changed"
   | "recipient_missing"
-  | "mail_blocked";
+  | "mail_blocked"
+  | "mail_stopped";
 
 /**
  * Why the application gives no proof of the parents' agreement for a

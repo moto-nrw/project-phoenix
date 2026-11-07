@@ -58,16 +58,31 @@ function bySchool(candidates: readonly ContractCandidate[]): SchoolGroup[] {
 }
 
 /** The warning when children get no draft yet, with the reason. */
-/**
- * Which children wait for a corrected mail address before their contract
- * comes at the acceptance (#4680), and who acts next.
- */
-function heldMailMessage(children: readonly ContractCandidate[]): string {
+/** The children's names as one list: „Jona Kern und Lea Kern“. */
+function nameList(children: readonly ContractCandidate[]): string {
   const names = children.map(childName);
-  if (names.length === 1) {
-    return `Der Vertrag für ${names[0]} kommt erst, wenn die Mail-Adresse der Eltern korrigiert ist. Mails an diese Adresse kommen gerade nicht an. Die Schule korrigiert sie in der Anmeldung.`;
+  return names.length === 1
+    ? names[0]!
+    : `${names.slice(0, -1).join(", ")} und ${names.at(-1)}`;
+}
+
+/**
+ * Which children wait for the school before their contract comes at the
+ * acceptance (#4680), and what the school does there. The address of an
+ * application cannot be changed; the school frees it at the child.
+ */
+function heldMailMessage(
+  children: readonly ContractCandidate[],
+  issue: "mail_blocked" | "mail_stopped",
+): string {
+  const one = children.length === 1;
+  const subject = one
+    ? `Der Vertrag für ${nameList(children)} kommt`
+    : `Die Verträge für ${nameList(children)} kommen`;
+  if (issue === "mail_stopped") {
+    return `${subject} erst, wenn die Schule wieder Mails an die Eltern sendet. Die Schule hat die Mails gestoppt. Sie wählt beim Kind unter „Erziehungsberechtigte“ „Mails wieder senden“.`;
   }
-  return `Die Verträge für ${names.slice(0, -1).join(", ")} und ${names.at(-1)} kommen erst, wenn die Mail-Adressen der Eltern korrigiert sind. Mails an diese Adressen kommen gerade nicht an. Die Schule korrigiert sie in der Anmeldung.`;
+  return `${subject} erst, wenn die Schule die Sperre der Mail-Adresse aufhebt. Mails an ${one ? "diese Adresse" : "diese Adressen"} kamen nicht an. Die Schule prüft die Adresse beim Kind unter „Erziehungsberechtigte“ und wählt „Sperre aufheben“.`;
 }
 
 function conditionsMessage(missing: number, differing: number): string {
@@ -123,8 +138,11 @@ export function CareContractCreateModal({
   const differing = candidates.filter(
     (candidate) => candidate.templateIssue === "templates_differ",
   ).length;
-  const heldMail = candidates.filter(
+  const blockedMail = candidates.filter(
     (candidate) => candidate.templateIssue === "mail_blocked",
+  );
+  const stoppedMail = candidates.filter(
+    (candidate) => candidate.templateIssue === "mail_stopped",
   );
   const toggle = (key: string) =>
     setSelected((current) => {
@@ -219,8 +237,17 @@ export function CareContractCreateModal({
             }
           />
         ) : null}
-        {heldMail.length > 0 ? (
-          <Alert type="warning" message={heldMailMessage(heldMail)} />
+        {blockedMail.length > 0 ? (
+          <Alert
+            type="warning"
+            message={heldMailMessage(blockedMail, "mail_blocked")}
+          />
+        ) : null}
+        {stoppedMail.length > 0 ? (
+          <Alert
+            type="warning"
+            message={heldMailMessage(stoppedMail, "mail_stopped")}
+          />
         ) : null}
         {ready.length > 1 ? (
           <label className="flex items-center gap-3 text-sm font-medium text-gray-900">

@@ -337,7 +337,7 @@ describe("TraegerVertraegePage", () => {
     ).toBeInTheDocument();
   });
 
-  it("names the children whose contract waits for a corrected mail address", async () => {
+  it("names the children whose contract waits for a freed mail address and how the school frees it", async () => {
     api.fetchConclusionModes.mockResolvedValue([
       { schoolId: "3", schoolName: "OGS Am Lindenhof", mode: "bei_annahme" },
     ]);
@@ -363,12 +363,24 @@ describe("TraegerVertraegePage", () => {
 
     // Only the child whose mail goes out is promised a contract in minutes.
     expect(screen.getAllByText("Entsteht bei der Annahme")).toHaveLength(1);
-    expect(screen.getAllByText("Mail-Adresse gesperrt")).toHaveLength(2);
+    expect(screen.getByText("Mail-Adresse gesperrt")).toBeInTheDocument();
+    expect(screen.getByText("Mails gestoppt")).toBeInTheDocument();
+    // A failed address is freed at the child; the application's address
+    // cannot be changed.
     expect(
       screen.getByText(
-        "Die Verträge für Jona Kern und Lea Kern kommen erst, wenn die Mail-Adressen der Eltern korrigiert sind. Mails an diese Adressen kommen gerade nicht an. Die Schule korrigiert sie in der Anmeldung.",
+        "Der Vertrag für Jona Kern kommt erst, wenn die Schule die Sperre der Mail-Adresse aufhebt. Mails an diese Adresse kamen nicht an. Die Schule prüft die Adresse beim Kind unter „Erziehungsberechtigte“ und wählt „Sperre aufheben“.",
       ),
     ).toBeInTheDocument();
+    // A stop is the school's own choice, not a wrong address.
+    expect(
+      screen.getByText(
+        "Der Vertrag für Lea Kern kommt erst, wenn die Schule wieder Mails an die Eltern sendet. Die Schule hat die Mails gestoppt. Sie wählt beim Kind unter „Erziehungsberechtigte“ „Mails wieder senden“.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/in der Anmeldung korrigiert/),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the held mail out of a school that sends later", async () => {

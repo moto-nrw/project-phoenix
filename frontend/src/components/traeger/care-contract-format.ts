@@ -167,6 +167,7 @@ export const TEMPLATE_ISSUE_LABELS: Record<TemplateIssue, string> = {
   acceptance_changed: "Bedingungen nach der Anmeldung geändert",
   recipient_missing: "E-Mail-Adresse der Eltern fehlt",
   mail_blocked: "Mail-Adresse gesperrt",
+  mail_stopped: "Mails gestoppt",
 };
 
 /**
