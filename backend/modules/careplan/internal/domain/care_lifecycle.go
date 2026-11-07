@@ -35,7 +35,7 @@ func (s CareStudent) CareEndedOn(day calendar.Date) bool {
 // child without a start day is not placed.
 func (s CareStudent) AwaitsCareStartOn(day calendar.Date) bool {
 	return s.Status == careplan.StudentStatusPending && s.EnrolledFrom != nil &&
-		!s.EnrolledFrom.IsZero() && day.Before(*s.EnrolledFrom)
+		*s.EnrolledFrom != "" && day.Before(*s.EnrolledFrom)
 }
 
 // IsAlumnus reports whether the child left with a grade transition.

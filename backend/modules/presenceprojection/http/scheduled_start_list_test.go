@@ -1,15 +1,16 @@
 package presenceprojectionhttp_test
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xuri/excelize/v2"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -95,18 +96,23 @@ func TestStudentListCountsAScheduledChildOnlyFromItsCareStart(t *testing.T) {
 		request := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/export", body)
 		response := authExec(t, tc, request, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, response.Code, "Body: %s", response.Body.String())
-		book, err := excelize.OpenReader(bytes.NewReader(response.Body.Bytes()))
+		// An xlsx file is a zip of XML parts; the names stand in their text.
+		data := response.Body.Bytes()
+		archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, book.Close()) })
-		var cells strings.Builder
-		for _, sheet := range book.GetSheetList() {
-			sheetRows, err := book.GetRows(sheet)
-			require.NoError(t, err)
-			for _, row := range sheetRows {
-				cells.WriteString(strings.Join(row, "\t") + "\n")
+		var text strings.Builder
+		for _, part := range archive.File {
+			if !strings.HasSuffix(part.Name, ".xml") {
+				continue
 			}
+			reader, err := part.Open()
+			require.NoError(t, err)
+			content, err := io.ReadAll(reader)
+			require.NoError(t, reader.Close())
+			require.NoError(t, err)
+			text.Write(content)
 		}
-		return cells.String()
+		return text.String()
 	}
 	todayExport := exported("")
 	assert.NotContains(t, todayExport, "Februarstart", "the export leaves the scheduled child out before its start")
