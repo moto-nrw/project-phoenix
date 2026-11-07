@@ -106,7 +106,6 @@ const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
 
 type PhaseDetailTab = "requests" | "responses";
 
-const ALL_STATUS_FILTER = "all";
 const ALL_VALUE = "all";
 const DAY_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
 
@@ -136,7 +135,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [phase, setPhase] = useState<Phase | null>(null);
   const [requests, setRequests] = useState<AdminRequestSummary[]>([]);
   const [statusFilter, setStatusFilter] =
-    useState<EnrollmentReportStatus>(ALL_STATUS_FILTER);
+    useState<EnrollmentReportStatus>(ALL_VALUE);
   const [defaultOfferingIds, setDefaultOfferingIds] = useState<string[]>([]);
   const [explicitOfferingIds, setExplicitOfferingIds] = useState<
     string[] | null
@@ -204,7 +203,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         // Export honours the active status filter so it matches the list
         // the admin is looking at; "Alle" means no filter.
         const childStatus =
-          statusFilter === ALL_STATUS_FILTER ? undefined : statusFilter;
+          statusFilter === ALL_VALUE ? undefined : statusFilter;
         await exportPhaseRegistrations(phaseId, format, childStatus);
       } catch (err) {
         logger.error("phase_export_failed", {
@@ -643,7 +642,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         value: statusFilter,
         onChange: (value) => setStatusFilter(value as EnrollmentReportStatus),
         options: [
-          { value: ALL_STATUS_FILTER, label: "Alle Status" },
+          { value: ALL_VALUE, label: "Alle Status" },
           ...Object.entries(CHILD_STATUS_LABELS).map(([value, label]) => ({
             value,
             label,
@@ -756,11 +755,11 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   const activeFilters = useMemo<ActiveFilter[]>(() => {
     const entries: ActiveFilter[] = [];
-    if (statusFilter !== ALL_STATUS_FILTER) {
+    if (statusFilter !== ALL_VALUE) {
       entries.push({
         id: "status",
         label: `Status: ${CHILD_STATUS_LABELS[statusFilter as ChildStatus] ?? statusFilter}`,
-        onRemove: () => setStatusFilter(ALL_STATUS_FILTER),
+        onRemove: () => setStatusFilter(ALL_VALUE),
       });
     }
     if (explicitOfferingIds !== null) {
@@ -809,7 +808,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   ]);
 
   const clearAllFilters = useCallback(() => {
-    setStatusFilter(ALL_STATUS_FILTER);
+    setStatusFilter(ALL_VALUE);
     setExplicitOfferingIds(null);
     setDayCount(ALL_VALUE);
     setGradeLevel(ALL_VALUE);
