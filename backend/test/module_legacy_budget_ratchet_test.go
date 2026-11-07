@@ -287,7 +287,8 @@ var moduleComposeBudgets = map[string]int{
 	// Added by ADR 0153: construction of the care contract owner, with the
 	// ports of the contract reads for the schools' access logs.
 	// ADR 0156: the booked care read and the overrun evaluation (+19); #4681 lowers it by 2.
-	"modules/carecontract/compose":                67,
+	"modules/carecontract/compose": 67,
+	// Raised by ADR 0158: the monthly contribution constructor (+5).
 	"modules/parentbilling/compose":               55,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
