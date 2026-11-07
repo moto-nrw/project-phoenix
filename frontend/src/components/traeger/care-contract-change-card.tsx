@@ -7,7 +7,7 @@
 
 import { ArrowLeftRight } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -43,6 +43,14 @@ const DecideChangeModal = dynamic(
   { ssr: false },
 );
 
+/** What the card shows, with the contract it was read for. */
+interface CardState {
+  readonly contractId: string;
+  readonly changes: ContractChanges | null;
+  readonly impact: RosterImpact | null;
+  readonly refreshed: boolean;
+}
+
 export function CareContractChangeCard({
   contractId,
   onDecided,
@@ -51,20 +59,40 @@ export function CareContractChangeCard({
   /** The contract page reads again: the next version follows the decision. */
   onDecided: () => void;
 }>) {
-  const [refreshed, setRefreshed] = useState(false);
-  const [impact, setImpact] = useState<RosterImpact | null>(null);
-  const [changes, setChanges] = useState<ContractChanges | null>(null);
+  // Everything the card shows belongs to the contract it was read for: a
+  // late answer for the previous contract never shows on the next one.
+  const [state, setState] = useState<CardState | null>(null);
   const [deciding, setDeciding] = useState<{
+    contractId: string;
     request: ContractChangeRequest;
     approve: boolean;
   } | null>(null);
+  const latestContract = useRef(contractId);
   const { error, show, clear } = useApiLoadError();
+  const current = state?.contractId === contractId ? state : null;
+  const changes = current?.changes ?? null;
+  const impact = current?.impact ?? null;
+  const refreshed = current?.refreshed ?? false;
+
+  useEffect(() => {
+    latestContract.current = contractId;
+  }, [contractId]);
 
   const load = useCallback(async () => {
+    const readFor = contractId;
     try {
-      setChanges(await fetchContractChanges(contractId));
+      const next = await fetchContractChanges(readFor);
+      if (latestContract.current !== readFor) return;
+      setState((previous) => ({
+        contractId: readFor,
+        changes: next,
+        impact: previous?.contractId === readFor ? previous.impact : null,
+        refreshed: previous?.contractId === readFor && previous.refreshed,
+      }));
       clear();
     } catch (err) {
+      // A failure for a contract the page left shows nothing.
+      if (latestContract.current !== readFor) return;
       logger.error("traeger_care_contract_changes_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -81,10 +109,9 @@ export function CareContractChangeCard({
 
   const onConflict = useCallback(() => {
     setDeciding(null);
-    setChanges(null);
-    setRefreshed(true);
+    setState({ contractId, changes: null, impact: null, refreshed: true });
     void load();
-  }, [load]);
+  }, [contractId, load]);
   const request = changes?.pending[0] ?? null;
 
   return (
@@ -110,7 +137,9 @@ export function CareContractChangeCard({
               type="button"
               variant="outline_danger"
               size="md"
-              onClick={() => setDeciding({ request, approve: false })}
+              onClick={() =>
+                setDeciding({ contractId, request, approve: false })
+              }
             >
               Ablehnen
             </Button>
@@ -119,7 +148,9 @@ export function CareContractChangeCard({
                 type="button"
                 variant="success"
                 size="md"
-                onClick={() => setDeciding({ request, approve: true })}
+                onClick={() =>
+                  setDeciding({ contractId, request, approve: true })
+                }
               >
                 Freigeben
               </Button>
@@ -151,7 +182,7 @@ export function CareContractChangeCard({
           <ChangeFollowUp impact={impact} />
         </div>
       ) : null}
-      {deciding ? (
+      {deciding?.contractId === contractId ? (
         <DecideChangeModal
           isOpen
           onClose={() => setDeciding(null)}
@@ -161,9 +192,12 @@ export function CareContractChangeCard({
           reasonRequired={changes?.reasonRequired ?? true}
           onConflict={onConflict}
           onDecided={(next) => {
-            setImpact(next.rosterImpact ?? null);
-            setRefreshed(false);
-            setChanges(next);
+            setState({
+              contractId,
+              changes: next,
+              impact: next.rosterImpact ?? null,
+              refreshed: false,
+            });
             setDeciding(null);
             onDecided();
           }}

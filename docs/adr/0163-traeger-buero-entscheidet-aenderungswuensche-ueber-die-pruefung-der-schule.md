@@ -36,26 +36,33 @@ und [ADR 0067](0067-principle-owners-meet-through-contracts-and-write-together-i
    Teilnahme an einem Befehl nach ADR 0067: Care Contract schreibt in dieser
    Transaktion nur den Eintrag im Zugriffsprotokoll der Schule, Care Plan
    behält Validierung, Sperren und Schreiben.
-2. **Berechtigung vor der Schul-Transaktion.** Die Route verlangt
+2. **Vertragssperre während der Entscheidung.** Care Contract hält während der
+   Entscheidung die Zeilensperre des Vertrags, die auch Widerruf und Kündigung
+   nehmen (#4682), und prüft den Status unter ihr. Die Schul-Transaktion läuft
+   neben der Träger-Transaktion, nicht in ihr. Care Plan nimmt keine
+   Vertragssperre, Widerruf und Kündigung nehmen keine Antragssperre: Die
+   Reihenfolge ist immer Vertrag, dann Antrag. Ein beendeter Vertrag bekommt so
+   keine Buchungsänderung, der er nicht mehr mit einer Version folgt.
+3. **Berechtigung vor der Schul-Transaktion.** Die Route verlangt
    „Verträge verwalten“. Care Contract liest den Vertrag in der
    Träger-Transaktion (Filter auf `organization_id` und RLS) und prüft, dass
    die Vertragsschule noch zu den Schulen des Trägers gehört. Erst dann
    öffnet es die Schul-Transaktion. Keine Transaktion trägt beides.
-3. **Reichweite des Büros.** Die Bindung markiert den Kontext als
+4. **Reichweite des Büros.** Die Bindung markiert den Kontext als
    Entscheidung des Träger-Büros. Nur diese Markierung gibt der
    Prüfungsreichweite die ganze Schule; der Schlüssel ist privat in der Root.
    Care Plan prüft zusätzlich unter der Antragssperre, dass der Antrag zum
    Kind und zur Anmeldung des Vertrags gehört
    (`OfferingChangeDecisionInput.StudentID` und `RequestChildID`).
-4. **Kein doppeltes Freigeben.** Schule und Büro sperren dieselbe Antragszeile.
+5. **Kein doppeltes Freigeben.** Schule und Büro sperren dieselbe Antragszeile.
    Wer die Sperre als Zweiter bekommt, sieht einen entschiedenen Antrag und
    bekommt den Fehlercode `students.change_request_not_pending`; nur eine
    Freigabe ändert Buchungen.
-5. **Die Version folgt wie bisher.** Der Worker gleicht nach dem Abschluss
+6. **Die Version folgt wie bisher.** Der Worker gleicht nach dem Abschluss
    die aktiven Verträge ab; die Freigabe des Büros erzeugt dieselben Buchungen
    und damit dieselbe Version wie die der Schule, unter der Vertragssperre aus
    #4680 und den Regeln der Zeitleiste aus #5953.
-6. **Audit.** Lesen und Entscheiden schreiben je einen Eintrag ins
+7. **Audit.** Lesen und Entscheiden schreiben je einen Eintrag ins
    Zugriffsprotokoll der Schule (`care_contract_changes`) in derselben
    Schul-Transaktion; die Spur der Elternanfragen nennt das Konto des Büros
    als Entscheider.
@@ -64,9 +71,11 @@ und [ADR 0067](0067-principle-owners-meet-through-contracts-and-write-together-i
 
 - `modules/carecontract/compose` wächst um den Konstruktor
   `NewContractChanges` (+5 LOC); das Budget und die Summe steigen genau darum.
-- Eine neue Träger-Transaktionsstelle
-  (`*ContractChanges.contract`, Lesen des Vertrags) steht in
-  `test/transaction_boundaries.json` und `test/traeger_transaction.go`.
+- Zwei neue Träger-Transaktionsstellen
+  (`*ContractChanges.contract`, Lesen des Vertrags, und
+  `*ContractChanges.DecideContractChange`, Vertragssperre während der
+  Entscheidung) stehen in `test/transaction_boundaries.json` und
+  `test/traeger_transaction.go`.
 - Ein vollständiger Abmeldewunsch bleibt eine Kündigung (#4682). Das Büro kann
   ihn hier nur ablehnen; das Freigeben verlangt die Bestätigung der
   Komplett-Abmeldung, die nur die Schule gibt.

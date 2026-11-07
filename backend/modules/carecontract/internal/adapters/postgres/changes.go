@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
 )
@@ -18,6 +20,23 @@ func (Store) ChangeContract(ctx context.Context, organizationID, contractID int6
 	if err != nil {
 		return ports.ChangeContract{}, err
 	}
+	return scanChangeContract(ctx, db.NewRaw(`SELECT id, school_id, request_child_id, student_id, status FROM care_contract.contracts
+		WHERE organization_id = ? AND id = ?`, organizationID, contractID))
+}
+
+// LockChangeContract reads the contract like ChangeContract under the row
+// lock withdrawal and termination take (#4682), so its status holds until
+// the caller's Träger transaction ends.
+func (Store) LockChangeContract(ctx context.Context, organizationID, contractID int64) (ports.ChangeContract, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return ports.ChangeContract{}, err
+	}
+	return scanChangeContract(ctx, db.NewRaw(`SELECT id, school_id, request_child_id, student_id, status FROM care_contract.contracts
+		WHERE organization_id = ? AND id = ? FOR UPDATE`, organizationID, contractID))
+}
+
+func scanChangeContract(ctx context.Context, query *bun.RawQuery) (ports.ChangeContract, error) {
 	var row struct {
 		ID             int64  `bun:"id"`
 		SchoolID       int64  `bun:"school_id"`
@@ -25,8 +44,7 @@ func (Store) ChangeContract(ctx context.Context, organizationID, contractID int6
 		StudentID      *int64 `bun:"student_id"`
 		Status         string `bun:"status"`
 	}
-	err = db.NewRaw(`SELECT id, school_id, request_child_id, student_id, status FROM care_contract.contracts
-		WHERE organization_id = ? AND id = ?`, organizationID, contractID).Scan(ctx, &row)
+	err := query.Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.ChangeContract{}, carecontract.ErrContractNotFound
 	}

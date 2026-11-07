@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -181,4 +182,47 @@ func TestTheOfficeDecisionNeedsItsDayOrItsReason(t *testing.T) {
 	_, err = changes.DecideContractChange(context.Background(), own, f.contract, f.request, carecontract.ChangeDecisionInput{Reason: "  "})
 	require.ErrorIs(t, err, carecontract.ErrChangeReasonRequired)
 	assert.Empty(t, school.decisions)
+}
+
+// A termination that holds the contract while the office decides wins: the
+// decision waits for the contract's row lock, then finds the contract ended
+// and changes no booking (#5979). Without the lock it would read the old
+// status and book a change the contract never follows with a version.
+func TestTheOfficeDecisionWaitsForATerminationAndBooksNothing(t *testing.T) {
+	t.Parallel()
+	f := newChangeFixture(t, carecontract.StatusActive)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	account := testpkg.CreateTestAccountWithPassword(t, f.db, fmt.Sprintf("wunsch-sperre-%d@test.local", testpkg.UniqueTestTenantID(t)), testpkg.NewTestPassword())
+	own := carecontract.Reviewer{OrganizationID: f.organization, AccountID: account.ID}
+	school := &changeSchool{request: f.request, schools: []carecontract.School{f.school}}
+
+	termination, err := f.db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = termination.Rollback() }()
+	_, err = termination.ExecContext(ctx, `UPDATE care_contract.contracts SET status = ? WHERE id = ?`, carecontract.StatusTerminated, f.contract)
+	require.NoError(t, err)
+	var pid int
+	require.NoError(t, termination.NewRaw("SELECT pg_backend_pid()").Scan(ctx, &pid))
+
+	done := make(chan error, 1)
+	go func() {
+		_, decideErr := f.changes(school).DecideContractChange(ctx, own, f.contract, f.request, approval())
+		done <- decideErr
+	}()
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := f.db.NewRaw("SELECT EXISTS (SELECT 1 FROM pg_locks l WHERE NOT l.granted AND ? = ANY(pg_blocking_pids(l.pid)))", pid).Scan(ctx, &waiting)
+		return err == nil && waiting
+	}, 5*time.Second, 10*time.Millisecond, "the decision must wait for the termination's row lock")
+	require.NoError(t, termination.Commit())
+
+	select {
+	case decideErr := <-done:
+		require.ErrorIs(t, decideErr, carecontract.ErrContractNotActive)
+	case <-ctx.Done():
+		t.Fatal("the decision did not finish after the termination")
+	}
+	assert.Empty(t, school.decisions, "no booking is changed for an ended contract")
+	assert.Empty(t, school.accesses)
 }

@@ -364,4 +364,40 @@ describe("CareContractChangeCard (#5979)", () => {
       screen.queryByRole("link", { name: /Im Betreuungsplan ansehen/ }),
     ).not.toBeInTheDocument();
   });
+
+  it("never shows a late answer for the previous contract on the next one", async () => {
+    let answerFirst: (value: ContractChanges) => void = () => {};
+    mocks.fetchContractChanges.mockImplementation((contractId: string) =>
+      contractId === "25"
+        ? new Promise<ContractChanges>((resolve) => {
+            answerFirst = resolve;
+          })
+        : Promise.resolve({
+            ...pending,
+            pending: [
+              {
+                ...pending.pending[0]!,
+                id: "77",
+                parentNote: "Wunsch zum zweiten Vertrag.",
+              },
+            ],
+          }),
+    );
+    const { rerender } = render(
+      <CareContractChangeCard contractId="25" onDecided={vi.fn()} />,
+    );
+    rerender(<CareContractChangeCard contractId="26" onDecided={vi.fn()} />);
+    expect(
+      await screen.findByText(/Wunsch zum zweiten Vertrag/),
+    ).toBeInTheDocument();
+
+    answerFirst(pending);
+    await waitFor(() =>
+      expect(mocks.fetchContractChanges).toHaveBeenCalledWith("25"),
+    );
+    expect(screen.getByText(/Wunsch zum zweiten Vertrag/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Ab Oktober arbeite ich dienstags länger/),
+    ).not.toBeInTheDocument();
+  });
 });

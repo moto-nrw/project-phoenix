@@ -76,9 +76,6 @@ func (c *ContractChanges) DecideContractChange(ctx context.Context, reviewer car
 	if err != nil {
 		return carecontract.ContractChanges{}, err
 	}
-	if contract.Status != carecontract.StatusActive {
-		return carecontract.ContractChanges{}, carecontract.ErrContractNotActive
-	}
 	if contract.StudentID <= 0 {
 		return carecontract.ContractChanges{}, carecontract.ErrChangeNotFound
 	}
@@ -86,22 +83,36 @@ func (c *ContractChanges) DecideContractChange(ctx context.Context, reviewer car
 	if input.Approve {
 		view = changeViewApprove
 	}
+	input.Reason = strings.TrimSpace(input.Reason)
 	var result carecontract.ContractChanges
-	err = c.ports.Runtime.WithinSchool(ctx, contract.SchoolID, func(ctx context.Context) error {
-		input.Reason = strings.TrimSpace(input.Reason)
-		impact, decideErr := c.ports.Requests.DecideChange(ctx, carecontract.ChangeDecision{
-			ChangeDecisionInput: input, StudentID: contract.StudentID, RequestChildID: contract.RequestChildID, RequestID: requestID, AccountID: reviewer.AccountID,
+	// The decision holds the contract's row lock, the lock withdrawal and
+	// termination take (#4682): the contract cannot end between the status
+	// check and the booked change. The school transaction runs beside the
+	// Träger transaction, not inside it; Care Plan takes no contract lock, so
+	// the order is always contract, then request.
+	err = c.ports.Runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(traegerCtx context.Context) error {
+		locked, lockErr := c.store.LockChangeContract(traegerCtx, reviewer.OrganizationID, contractID)
+		if lockErr != nil {
+			return lockErr
+		}
+		if locked.Status != carecontract.StatusActive {
+			return carecontract.ErrContractNotActive
+		}
+		return c.ports.Runtime.WithinSchool(ctx, contract.SchoolID, func(ctx context.Context) error {
+			impact, decideErr := c.ports.Requests.DecideChange(ctx, carecontract.ChangeDecision{
+				ChangeDecisionInput: input, StudentID: contract.StudentID, RequestChildID: contract.RequestChildID, RequestID: requestID, AccountID: reviewer.AccountID,
+			})
+			if decideErr != nil {
+				return decideErr
+			}
+			read, readErr := c.read(ctx, contract, true, nil)
+			if readErr != nil {
+				return readErr
+			}
+			result = read
+			result.RosterImpact = impact
+			return c.log(ctx, reviewer, contract, view, 1)
 		})
-		if decideErr != nil {
-			return decideErr
-		}
-		read, readErr := c.read(ctx, contract, true, nil)
-		if readErr != nil {
-			return readErr
-		}
-		result = read
-		result.RosterImpact = impact
-		return c.log(ctx, reviewer, contract, view, 1)
 	})
 	if err != nil {
 		return carecontract.ContractChanges{}, err

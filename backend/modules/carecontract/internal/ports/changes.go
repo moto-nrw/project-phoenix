@@ -15,4 +15,6 @@ type ChangeContract struct {
 // ChangeStore reads the contract of a change in its Träger transaction.
 type ChangeStore interface {
 	ChangeContract(ctx context.Context, organizationID, contractID int64) (ChangeContract, error)
+	// LockChangeContract reads it under the contract's row lock.
+	LockChangeContract(ctx context.Context, organizationID, contractID int64) (ChangeContract, error)
 }
