@@ -1780,6 +1780,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":"71","organization_id":"3"}]}`)
 			return
 		}
+		if r.URL.Path == "/parent/me/documents/contracts" {
+			// The first seeded parent's contract waiting for the signature
+			// (#4679).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":"72","organization_id":"3","contract_status":"versendet"}]}`)
+			return
+		}
 		if r.URL.Path == "/parent/holiday-registrations/link-key/family" {
 			// The first seeded parent's prefill of the same link (#4662).
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"guardian":{},"children":[{"student_id":"9","school_id":"1"}]}}`)

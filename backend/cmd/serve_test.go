@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"testing"
 
 	"github.com/getsentry/sentry-go"
@@ -293,4 +294,86 @@ func testHealthDataKeys() string {
 		panic(err)
 	}
 	return "test:" + base64.StdEncoding.EncodeToString(key)
+}
+
+func TestScrubSentryEventRedactsContractSigningCredentials(t *testing.T) {
+	t.Parallel()
+	path := "/public/care-contract-signing/42.sentry-signing-credential/sign"
+	page := "https://parents.example/vertrag-unterschreiben/42.sentry-signing-credential"
+	event := &sentry.Event{
+		Message: "request " + path, Transaction: path,
+		Request:     &sentry.Request{URL: "https://api.example" + path, Headers: map[string]string{"Referer": page, "Content-Type": "application/json"}},
+		Exception:   []sentry.Exception{{Value: "failed " + path}},
+		Breadcrumbs: []*sentry.Breadcrumb{nil, {Message: page, Data: map[string]any{"url": path, "status": 500}}},
+	}
+	scrubbed := scrubSentryEvent(event)
+	data, err := json.Marshal(scrubbed)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "sentry-signing-credential")
+	assert.Equal(t, "https://api.example/public/care-contract-signing/[REDACTED]/sign", scrubbed.Request.URL)
+	assert.Equal(t, "application/json", scrubbed.Request.Headers["Content-Type"])
+	assert.Equal(t, 500, scrubbed.Breadcrumbs[1].Data["status"])
+}
+
+// signingToken is the secret part of a care contract's one-time link
+// (#4679); it must reach Sentry in no field.
+const signingToken = "geheimes-signier-token-0123456789"
+
+func signingPath() string { return "/public/care-contract-signing/7." + signingToken + "/sign" }
+
+// TestScrubSentryEvent_RedactsSigningTokensInEveryField: one case per field
+// that carries text, each red when that field is sent unscrubbed.
+func TestScrubSentryEvent_RedactsSigningTokensInEveryField(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		event *sentry.Event
+		field func(*sentry.Event) string
+	}{
+		"message": {
+			event: &sentry.Event{Message: "POST " + signingPath() + " failed"},
+			field: func(e *sentry.Event) string { return e.Message },
+		},
+		"exception value": {
+			event: &sentry.Event{Exception: []sentry.Exception{{Value: "request to " + signingPath() + " timed out"}}},
+			field: func(e *sentry.Event) string { return e.Exception[0].Value },
+		},
+		"breadcrumb message": {
+			event: &sentry.Event{Breadcrumbs: []*sentry.Breadcrumb{{Message: "GET " + signingPath()}}},
+			field: func(e *sentry.Event) string { return e.Breadcrumbs[0].Message },
+		},
+		"breadcrumb data": {
+			event: &sentry.Event{Breadcrumbs: []*sentry.Breadcrumb{{Data: map[string]any{"url": "https://api.example" + signingPath()}}}},
+			field: func(e *sentry.Event) string { return e.Breadcrumbs[0].Data["url"].(string) },
+		},
+		"request url": {
+			event: &sentry.Event{Request: &sentry.Request{URL: "https://api.example" + signingPath()}},
+			field: func(e *sentry.Event) string { return e.Request.URL },
+		},
+		"request query": {
+			event: &sentry.Event{Request: &sentry.Request{QueryString: "back=" + signingPath()}},
+			field: func(e *sentry.Event) string { return e.Request.QueryString },
+		},
+		"contexts": {
+			event: &sentry.Event{Contexts: map[string]sentry.Context{"request": {
+				"url": "https://api.example" + signingPath(), "nested": map[string]any{"path": []any{signingPath()}},
+			}}},
+			field: func(e *sentry.Event) string {
+				encoded, err := json.Marshal(e.Contexts)
+				require.NoError(t, err)
+				return string(encoded)
+			},
+		},
+		"tags": {
+			event: &sentry.Event{Tags: map[string]string{"url": "https://api.example" + signingPath()}},
+			field: func(e *sentry.Event) string { return e.Tags["url"] },
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			value := tc.field(scrubSentryEvent(tc.event))
+			assert.NotContains(t, value, signingToken)
+			assert.Contains(t, value, "[REDACTED]")
+		})
+	}
 }

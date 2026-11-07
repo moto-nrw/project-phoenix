@@ -367,20 +367,15 @@ export function ConflictDecisionGroup({
           />
           <span>Keine Änderung</span>
         </label>
-        <label
-          htmlFor={`${name}-reason`}
-          className="block space-y-1 text-sm font-medium text-gray-800"
-        >
-          <span>Begründung</span>
-          <Textarea
-            id={`${name}-reason`}
-            name="reason"
-            rows={2}
-            value={reason}
-            error={errors.fieldError("reason")}
-            onChange={(event) => setReason(event.target.value)}
-          />
-        </label>
+        <Textarea
+          label="Begründung"
+          id={`${name}-reason`}
+          name="reason"
+          rows={2}
+          value={reason}
+          error={errors.fieldError("reason")}
+          onChange={(event) => setReason(event.target.value)}
+        />
         <FormErrorAlert message={errors.error} />
         <Button
           type="button"

@@ -35,23 +35,18 @@ export function BulkApprovalPanel({
             : "Alle ausgewählten Anfragen werden freigegeben. Klappt eine nicht, wird keine freigegeben."}
         </p>
       </div>
-      <label
-        htmlFor="bulk-approval-reason"
-        className="block space-y-1 text-sm font-medium text-gray-800"
-      >
-        <span>
-          {reasonRequired
+      <Textarea
+        label={
+          reasonRequired
             ? "Gemeinsame Begründung"
-            : "Gemeinsame Begründung (freiwillig)"}
-        </span>
-        <Textarea
-          id="bulk-approval-reason"
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-          rows={2}
-          placeholder="Warum können diese Anfragen freigegeben werden?"
-        />
-      </label>
+            : "Gemeinsame Begründung (freiwillig)"
+        }
+        id="bulk-approval-reason"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        rows={2}
+        placeholder="Warum können diese Anfragen freigegeben werden?"
+      />
       <Button
         type="button"
         variant="primary"

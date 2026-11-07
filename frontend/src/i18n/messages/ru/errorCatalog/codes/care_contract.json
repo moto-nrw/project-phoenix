@@ -3,8 +3,13 @@
   "contract_input_invalid": "Please select at least one and at most 200 entries.",
   "contract_not_draft": "The contract has already been sent. It can no longer be discarded.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
+  "contract_not_signable": "Этот договор уже подписан или не ожидает подписи. Пожалуйста, обновите страницу.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
+  "paper_document_invalid": "Пожалуйста, загрузите подписанный договор в формате PDF. Размер файла не более 10 МБ.",
   "school_outside_traeger": "This school does not belong to your provider.",
-  "template_invalid": "Please check the marked fields."
+  "signature_invalid": "Подпись отсутствует или пуста. Пожалуйста, подпишите ещё раз.",
+  "signing_link_invalid": "Эта ссылка больше не действует. Она уже была использована или срок её действия истёк. Договор находится в приложении для родителей в разделе «Документы». Или попросите у организации новую ссылку.",
+  "template_invalid": "Please check the marked fields.",
+  "withdrawal_notice_required": "Пожалуйста, подтвердите, что вы прочитали информацию о праве на отказ от договора."
 }

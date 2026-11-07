@@ -3,8 +3,13 @@
   "contract_input_invalid": "Please select at least one and at most 200 entries.",
   "contract_not_draft": "The contract has already been sent. It can no longer be discarded.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
+  "contract_not_signable": "This contract is already signed or is not waiting for a signature. Please reload the page.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
+  "paper_document_invalid": "Please upload the signed contract as a PDF. The file may be at most 10 MB.",
   "school_outside_traeger": "This school does not belong to your provider.",
-  "template_invalid": "Please check the marked fields."
+  "signature_invalid": "The signature is missing or empty. Please sign again.",
+  "signing_link_invalid": "This link is no longer valid. It was already used or has expired. You can find the contract in the parent app under “Documents”, or ask the provider for a new link.",
+  "template_invalid": "Please check the marked fields.",
+  "withdrawal_notice_required": "Please confirm that you have read the cancellation policy."
 }

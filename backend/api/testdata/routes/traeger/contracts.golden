@@ -4,6 +4,8 @@ GET /traeger/contracts/candidates
 GET /traeger/contracts/conclusion-modes
 GET /traeger/contracts/{id}
 GET /traeger/contracts/{id}/document
+GET /traeger/contracts/{id}/paper-signature
 GET /traeger/contracts/{id}/versions/{number}/document
 POST /traeger/contracts/
 POST /traeger/contracts/send
+POST /traeger/contracts/{id}/paper-signature

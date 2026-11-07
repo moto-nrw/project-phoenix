@@ -3,8 +3,13 @@
   "contract_input_invalid": "Please select at least one and at most 200 entries.",
   "contract_not_draft": "The contract has already been sent. It can no longer be discarded.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
+  "contract_not_signable": "Kjo kontratë është nënshkruar tashmë ose nuk pret nënshkrim. Ju lutemi rifreskoni faqen.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
+  "paper_document_invalid": "Ju lutemi ngarkoni kontratën e nënshkruar si PDF. Skedari mund të jetë maksimumi 10 MB.",
   "school_outside_traeger": "This school does not belong to your provider.",
-  "template_invalid": "Please check the marked fields."
+  "signature_invalid": "Nënshkrimi mungon ose është bosh. Ju lutemi nënshkruani përsëri.",
+  "signing_link_invalid": "Ky link nuk është më i vlefshëm. Është përdorur tashmë ose ka skaduar. Kontratën e gjeni në aplikacionin për prindër te „Dokumente“. Ose kërkoni një link të ri nga ofruesi.",
+  "template_invalid": "Please check the marked fields.",
+  "withdrawal_notice_required": "Ju lutemi konfirmoni që e keni lexuar udhëzimin për të drejtën e tërheqjes."
 }

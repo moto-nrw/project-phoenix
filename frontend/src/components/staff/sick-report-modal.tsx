@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { FieldLabel } from "~/components/ui/field-label";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -214,10 +215,11 @@ export function SickReportModal({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className={halfDay ? "sm:col-span-2" : undefined}>
-              <span className="mb-2 block text-sm font-medium text-gray-700">
+              <FieldLabel htmlFor="managed-absence-start">
                 {halfDay ? "Datum" : "Von"}
-              </span>
+              </FieldLabel>
               <DatePicker
+                id="managed-absence-start"
                 value={dateStart ? parseISODate(dateStart) : null}
                 onChange={handleStartDateChange}
                 dropdownPlacement="down"
@@ -226,10 +228,9 @@ export function SickReportModal({
             </div>
             {!halfDay && (
               <div>
-                <span className="mb-2 block text-sm font-medium text-gray-700">
-                  Bis
-                </span>
+                <FieldLabel htmlFor="managed-absence-end">Bis</FieldLabel>
                 <DatePicker
+                  id="managed-absence-end"
                   value={dateEnd ? parseISODate(dateEnd) : null}
                   onChange={(picked) =>
                     setDateEnd(picked ? toISODate(picked) : "")
