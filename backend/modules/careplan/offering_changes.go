@@ -218,6 +218,11 @@ type OfferingChangeDecisionInput struct {
 	// ReasonRequired says the school's reason policy asks for a reason on an
 	// approval; a rejection always needs one (#2267).
 	ReasonRequired bool
+	// StudentID pins the child the caller decides for: a request of another
+	// child is reported as missing, checked under the request lock. The
+	// Träger-Büro decides from the child's contract (#5979). Zero skips the
+	// check.
+	StudentID int64
 }
 
 // OfferingChangeRequests is the offering-change lifecycle of the parents

@@ -1,5 +1,9 @@
 {
   "application_not_found": "Diese Anmeldung gibt es nicht mehr oder sie ist nicht angenommen. Bitte laden Sie die Seite neu.",
+  "change_contract_not_active": "Dieser Vertrag gilt nicht mehr. Änderungswünsche entscheidet jetzt die Schule.",
+  "change_ends_care": "Die Eltern melden damit die ganze Betreuung ab. Das ist eine Kündigung. Bitte tragen Sie sie unter „Vertrag beenden“ ein oder lehnen Sie den Wunsch ab.",
+  "change_not_applicable": "Die Schule lässt diese Änderung gerade nicht zu. Bitte sprechen Sie mit der Schule.",
+  "change_not_found": "Diesen Änderungswunsch gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "contract_input_invalid": "Bitte wählen Sie mindestens einen und höchstens 200 Einträge aus.",
   "contract_not_draft": "Der Vertrag ist schon versendet. Er lässt sich nicht mehr verwerfen.",
   "contract_not_endable": "Dieser Vertrag ist schon gekündigt oder widerrufen oder noch nicht abgeschlossen. Bitte laden Sie die Seite neu.",

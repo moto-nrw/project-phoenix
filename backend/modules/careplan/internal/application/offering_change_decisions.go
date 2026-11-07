@@ -22,6 +22,9 @@ func (s *OfferingChanges) Decide(ctx context.Context, input careplan.OfferingCha
 	if err != nil {
 		return careplan.RosterImpact{}, err
 	}
+	if input.StudentID > 0 && row.StudentID != input.StudentID {
+		return careplan.RosterImpact{}, careplan.ErrOfferingChangeNotFound
+	}
 	if err := s.authorizeDecision(ctx, row.StudentID); err != nil {
 		return careplan.RosterImpact{}, err
 	}

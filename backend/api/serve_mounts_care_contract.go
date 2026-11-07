@@ -263,6 +263,10 @@ func (l careContractAccessLog) RecordAccess(ctx context.Context, access carecont
 	case carecontract.SchoolAccessContracts:
 		resource = auditModels.ResourceTypeCareContracts
 		metadata["contract_ids"] = access.ContractIDs
+	case carecontract.SchoolAccessChanges:
+		resource = auditModels.ResourceTypeCareContractChanges
+		metadata["contract_ids"] = access.ContractIDs
+		metadata["student_ids"] = access.StudentIDs
 	case carecontract.SchoolAccessOverruns:
 		resource = auditModels.ResourceTypeCareTimeOverruns
 		metadata["student_ids"] = access.StudentIDs
