@@ -1308,25 +1308,17 @@ function PreviewCustomField({
         action={
           field.visible_when ? <ConditionalBadge field={field} /> : undefined
         }
+        title={field.label.trim() || "Infotext"}
         message={
-          <>
-            {field.label.trim() ? (
-              <p className="text-sm font-semibold">{field.label}</p>
-            ) : (
-              <p className="font-medium">Infotext</p>
-            )}
-            {field.content?.trim() ? (
-              <p className="mt-1 leading-5 whitespace-pre-line">
-                {field.content}
-              </p>
-            ) : (
-              <p className="mt-1 leading-5 italic opacity-70">
-                Noch kein Text hinterlegt.
-              </p>
-            )}
-            <PreviewAttachmentNames attachments={field.attachments} />
-          </>
+          field.content?.trim() ? (
+            <p className="leading-5 whitespace-pre-line">{field.content}</p>
+          ) : (
+            <p className="leading-5 italic opacity-70">
+              Noch kein Text hinterlegt.
+            </p>
+          )
         }
+        details={<PreviewAttachmentNames attachments={field.attachments} />}
       />
     );
   }

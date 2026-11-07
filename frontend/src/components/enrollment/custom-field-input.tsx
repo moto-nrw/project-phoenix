@@ -20,19 +20,36 @@ type FieldInputTranslator = (key: string) => string;
  * HTML/markdown), so it is safe to render directly.
  */
 export function InfoBlock({ field }: { readonly field: FormField }) {
+  const attachments = (
+    <DocumentAttachmentList attachments={field.attachments} />
+  );
+  // Mit Titel und Text steht das Symbol oben am Titel (Alert mit `details`),
+  // sonst trägt die Meldung allein den Titel oder den Text.
+  if (field.label && field.content) {
+    return (
+      <Alert
+        type="info"
+        announce="off"
+        title={field.label}
+        message={
+          <p className="leading-6 whitespace-pre-line">{field.content}</p>
+        }
+        details={attachments}
+      />
+    );
+  }
   return (
     <Alert
       type="info"
       announce="off"
       message={
         <>
-          {field.label && <p className="font-semibold">{field.label}</p>}
-          {field.content && (
-            <p className="mt-1 leading-6 whitespace-pre-line first:mt-0">
-              {field.content}
-            </p>
+          {field.label ? (
+            <p className="font-semibold">{field.label}</p>
+          ) : (
+            <p className="leading-6 whitespace-pre-line">{field.content}</p>
           )}
-          <DocumentAttachmentList attachments={field.attachments} />
+          {attachments}
         </>
       }
     />
