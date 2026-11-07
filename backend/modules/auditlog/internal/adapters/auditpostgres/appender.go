@@ -134,6 +134,8 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 		table, query = "audit.substitution_changes", db.NewInsert().Model(value).ModelTableExpr("audit.substitution_changes")
 	case *auditModels.TraegerAccountChange:
 		table, query = "audit.traeger_account_changes", db.NewInsert().Model(value).ModelTableExpr("audit.traeger_account_changes")
+	case *auditModels.TraegerDocumentDownload:
+		table, query = "audit.traeger_document_downloads", db.NewInsert().Model(value).ModelTableExpr("audit.traeger_document_downloads")
 	case *auditModels.TimeTrackingDeletion:
 		table, query = "audit.time_tracking_deletions", db.NewInsert().Model(value).ModelTableExpr("audit.time_tracking_deletions")
 	case *auditModels.WorkSessionEdit:
@@ -207,6 +209,8 @@ func validateEvent(event any) error {
 	case *auditModels.TimeTrackingDeletion:
 		err = value.Validate()
 	case *auditModels.TraegerAccountChange:
+		err = value.Validate()
+	case *auditModels.TraegerDocumentDownload:
 		err = value.Validate()
 	case *auditModels.WorkSessionEdit:
 		err = value.Validate()

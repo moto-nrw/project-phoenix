@@ -1,0 +1,5 @@
+{
+  "api/traeger-documents": [
+    "GET tenant /api/traeger-documents/"
+  ]
+}

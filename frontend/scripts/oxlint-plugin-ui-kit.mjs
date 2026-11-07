@@ -6,7 +6,6 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
@@ -59,6 +58,8 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 //   ui-kit/no-hand-rolled-dot       — dots and colour bars by hand outside
 //                                     src/components/ui/; hard-zero
+//   ui-kit/no-hand-rolled-portal-nav — sidebar and bottom bar of a portal only
+//                                     from the kit; hard-zero (#5603)
 //   ui-kit/no-status-dot-outside-plans — StatusDot only in legends and plans
 //
 // Three more catch classes that never render or miss contrast (#5577):
@@ -106,7 +107,7 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     also inside src/components/ui/; use
 //                                     IconTile or ConceptIconTile
 //
-// Three more are the shrink-only pill ratchet (#5584):
+// Three more keep one pill (#5584, hard-zero):
 //
 //   ui-kit/no-hand-rolled-pill      — tinted `span` pills outside StatusBadge
 //   ui-kit/no-pill-dot              — a dot inside a pill (#2476)
@@ -1112,12 +1113,10 @@ const TINY_TEXT_RE = /\btext-\[(?:9|10|11)px\]/g;
 const TINY_TEXT_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/calendar/page.tsx",
   "src/app/[tenant]/(protected)/meal-plan/page.tsx",
-  "src/app/[tenant]/(protected)/time-tracking/page.tsx",
   "src/app/[tenant]/(protected)/time-tracking/week-chart.tsx",
   "src/app/help/nfc/erste-schritte/page.tsx",
   "src/app/operator/provisioning/soft-delete-shared.tsx",
   "src/components/auth/role-permission-management-modal.tsx",
-  "src/components/calendar/personal-calendar.tsx",
   "src/components/dashboard/header/reminders-bell.tsx",
   "src/components/dashboard/sidebar.tsx",
   "src/components/enrollment/admin-enrollments-list.tsx",
@@ -1127,7 +1126,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/guardians/guardian-list.tsx",
   "src/components/parent/calendar/parent-calendar-page.tsx",
   "src/components/parent/parent-meal-plan-page.tsx",
-  "src/components/planning/closing-day-marker.tsx",
   "src/components/staff/absence-request-row.tsx",
   "src/components/staff/dienstplan-resource-grid.tsx",
   "src/components/staff/staff-session-table.tsx",
@@ -1149,7 +1147,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/timetable/substitution-slide-over.tsx",
   "src/components/timetable/template-card.tsx",
   "src/components/timetable/vertretung-day-list.tsx",
-  "src/components/timetable/vertretung-week-list.tsx",
   "src/components/timetable/weekly-calendar-grid.tsx",
   "src/components/ui/avatar.tsx",
   "src/components/ui/planning/coverage-indicator.tsx",
@@ -1163,44 +1160,40 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 ]);
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1337 text-[11px]@1337 text-[10px]@1341 text-[10px]@1350 text-[11px]@1350
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@231
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/calendar/personal-calendar.tsx|text-[11px]@907 text-[11px]@935 text-[11px]@1022 text-[11px]@1083 text-[11px]@1091 text-[11px]@1097 text-[11px]@1144 text-[11px]@1150 text-[10px]@1166 text-[11px]@1215 text-[11px]@1295 text-[11px]@1306 text-[11px]@1311
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
+src/components/files/files-page.tsx|text-[11px]@180 text-[11px]@292
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
-src/components/guardians/guardian-list.tsx|text-[10px]@378
+src/components/guardians/guardian-list.tsx|text-[10px]@462
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
-src/components/planning/closing-day-marker.tsx|text-[10px]@54
 src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600 text-[10px]@734
+src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
 src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
 src/components/students/school-checkin-fab.tsx|text-[10px]@199
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@374
-src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@148 text-[10px]@301 text-[11px]@307
+src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@529
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-[11px]@310
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
-src/components/timetable/gap-jump-list.tsx|text-[10px]@109 text-[11px]@132 text-[11px]@147
+src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@325 text-[9px]@442 text-[9px]@1076 text-[11px]@1390 text-[11px]@1416 text-[11px]@1592 text-[10px]@1701 text-[11px]@1724
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1359 text-[11px]@1385 text-[11px]@1561 text-[10px]@1670 text-[11px]@1693
 src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@199 text-[10px]@215 text-[11px]@224 text-[10px]@266 text-[10px]@290 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@471
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
-src/components/timetable/substitution-slide-over.tsx|text-[10px]@579 text-[9px]@584 text-[11px]@743 text-[11px]@747 text-[10px]@787 text-[10px]@791 text-[10px]@795 text-[10px]@799 text-[11px]@1241
-src/components/timetable/template-card.tsx|text-[11px]@130 text-[11px]@144 text-[10px]@208
+src/components/timetable/substitution-slide-over.tsx|text-[11px]@747 text-[11px]@751
+src/components/timetable/template-card.tsx|text-[11px]@131 text-[10px]@201
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
-src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@401 text-[9px]@417 text-[10px]@477 text-[11px]@477 text-[11px]@482 text-[10px]@505 text-[10px]@540 text-[11px]@540
+src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@456 text-[11px]@456 text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[10px]@282
@@ -2310,7 +2303,7 @@ const noGreyButtonFill = makeRatchetRule({
   }),
 });
 
-// --- Pillen-Ratchet (#5584) --------------------------------------------------
+// --- Pillen (#5584) -----------------------------------------------------------
 
 const PILL_KIT_FILE = "src/components/ui/status-badge.tsx";
 const PILL_RADIUS_RE = /^rounded-(?:full|md)$/;
@@ -2394,17 +2387,17 @@ function pillClassText(node, textOf) {
   return isPillShape(text) ? text : null;
 }
 
-function makePillRatchetRule(options) {
+// Hard-zero: der Bestand ist abgebaut, jede neue Stelle schlägt fehl.
+function makePillRule(options) {
   return makeRatchetRule({
     ...options,
-    baselines: pillRatchetBaseline,
+    baselines: {},
     allowlist: [],
-    countEnv: "UI_KIT_PILL_RATCHET",
     kitFile: PILL_KIT_FILE,
   });
 }
 
-const noHandRolledPill = makePillRatchetRule({
+const noHandRolledPill = makePillRule({
   ruleName: "no-hand-rolled-pill",
   description:
     "Build status pills from StatusBadge, StatusColorBadge or DataTableStatusBadge instead of a hand-styled span.",
@@ -2422,7 +2415,7 @@ const noHandRolledPill = makePillRatchetRule({
   }),
 });
 
-const noPillDot = makePillRatchetRule({
+const noPillDot = makePillRule({
   ruleName: "no-pill-dot",
   description: "Disallow a decorative dot inside a status pill (#2476).",
   message:
@@ -2554,7 +2547,7 @@ const noStatusDotOutsidePlans = {
   },
 };
 
-const noHexAlphaTint = makePillRatchetRule({
+const noHexAlphaTint = makePillRule({
   ruleName: "no-hex-alpha-tint",
   description:
     "Disallow `${color}1A`-style hex alpha tints in a pill's style; the kit tone carries the tint.",
@@ -3011,6 +3004,99 @@ function readKitExportNames() {
   return names;
 }
 
+// Die Klassen, an denen sich ein Nachbau der Portal-Navigation verrät (#5603).
+// Jede steht nur in portal-bottom-nav.tsx oder portal-sidebar.tsx.
+const PORTAL_NAV_SHELL_SIGNATURES = [
+  ["shadow-[0_-2px_20px_rgba(0,0,0,0.08)]"],
+  ["absolute", "top-0", "h-full", "rounded-full", "bg-gray-100"],
+  ["flex", "min-h-[44px]", "justify-center", "gap-2.5", "rounded-full"],
+  ["border-r", "border-gray-200/70", "bg-white/95"],
+  ["top-[73px]", "h-[calc(100vh-73px)]"],
+  ["top-[121px]", "h-[calc(100vh-121px)]"],
+  ["top-[153px]", "h-[calc(100vh-153px)]"],
+];
+const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
+  "PORTAL_ICON_CLASSES",
+  "portalSidebarRowClasses",
+]);
+
+function hasPortalNavShellSignature(text) {
+  const tokens = new Set(text.split(/\s+/));
+  return PORTAL_NAV_SHELL_SIGNATURES.some((signature) =>
+    signature.every((token) => tokens.has(token)),
+  );
+}
+
+const noHandRolledPortalNav = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Sidebar and bottom bar of a portal exist once, in the UI kit (#5603).",
+    },
+    messages: {
+      shell:
+        "Keine eigene Portal-Navigation: PortalSidebar, PortalSidebarFrame oder PortalBottomNav aus dem Kit nehmen (#5603, .claude/rules/frontend-ui-kit.md).",
+      row: "`{{name}}` gehört in die Kit-Zeilen: PortalSidebarLink oder PortalSidebarButton nehmen (#5603, .claude/rules/frontend-ui-kit.md).",
+    },
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (
+      !key.startsWith("src/") ||
+      EXEMPT_FILE_RE.test(key) ||
+      key.startsWith(UI_KIT_DIR)
+    ) {
+      return {};
+    }
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
+    const check = (node, text) => {
+      if (typeof text !== "string") return;
+      if (hasPortalNavShellSignature(text)) {
+        context.report({ node, messageId: "shell" });
+      }
+    };
+    return {
+      Literal: (node) => check(node, node.value),
+      TemplateLiteral(node) {
+        const chunks = [];
+        collectStaticStrings(node, chunks);
+        const combinations = classCombinations(
+          node,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [chunks.join(" ")];
+        const rendered = combinations?.find(hasPortalNavShellSignature);
+        if (rendered !== undefined) check(node, rendered);
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some(hasPortalNavShellSignature)) return;
+        const combinations = classCombinations(
+          node.value,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [chunks.join(" ")];
+        const rendered = combinations.find(hasPortalNavShellSignature);
+        if (rendered !== undefined) check(node, rendered);
+      },
+      ImportSpecifier(node) {
+        const name = node.imported?.name;
+        if (PORTAL_NAV_KIT_ROW_EXPORTS.has(name)) {
+          context.report({ node, messageId: "row", data: { name } });
+        }
+      },
+    };
+  },
+};
+
 let kitExportNames;
 
 const noShadowKitName = {
@@ -3052,6 +3138,175 @@ const noShadowKitName = {
     };
   },
 };
+
+// Eingabe-Bausteine (#5596): drei Muster, die es im Kit genau einmal gibt.
+
+/** Direkte JSX-Kinder, auch hinter `&&`, `?:`, Fragment und `{…}`. */
+function flatJsxChildren(element) {
+  const result = [];
+  const visit = (node) => {
+    if (!node) return;
+    if (node.type === "JSXElement") result.push(node);
+    else if (node.type === "JSXFragment") node.children.forEach(visit);
+    else if (node.type === "JSXExpressionContainer") visit(node.expression);
+    else if (node.type === "LogicalExpression") visit(node.right);
+    else if (node.type === "ConditionalExpression") {
+      visit(node.consequent);
+      visit(node.alternate);
+    }
+  };
+  element.children?.forEach(visit);
+  return result;
+}
+
+function isActionElement(element) {
+  const name = jsxName(element.openingElement.name);
+  return name === "button" || name === "Button";
+}
+
+function actionHoldsIcon(element, iconNames) {
+  return (
+    isActionElement(element) &&
+    flatJsxChildren(element).some((child) =>
+      iconNames.has(jsxName(child.openingElement.name) ?? ""),
+    )
+  );
+}
+
+/** Das Kreuz als Symbol oder als Textzeichen „×“. */
+function actionRemoves(element) {
+  return (
+    actionHoldsIcon(element, REMOVE_ICONS) ||
+    (isActionElement(element) &&
+      element.children.some(
+        (child) => child.type === "JSXText" && child.value.trim() === "×",
+      ))
+  );
+}
+
+const REMOVE_ICONS = new Set(["X", "XIcon", "CloseIcon"]);
+
+function kitInputRule({ description, message, kitFile, visitors }) {
+  return {
+    meta: {
+      type: "problem",
+      docs: { description },
+      messages: { finding: message },
+      schema: [],
+    },
+    create(context) {
+      const key = fileKey(context);
+      if (
+        EXEMPT_FILE_RE.test(key) ||
+        key.endsWith(kitFile) ||
+        key.startsWith("src/test/")
+      ) {
+        return {};
+      }
+      const constants = new Map();
+      return {
+        VariableDeclarator(node) {
+          if (node.id?.type === "Identifier" && node.init) {
+            constants.set(node.id.name, node.init);
+          }
+        },
+        ...visitors({
+          found: (node) => context.report({ node, messageId: "finding" }),
+          textOf: (value) => classText(value, constants),
+        }),
+      };
+    },
+  };
+}
+
+const noHandRolledRemovableChip = kitInputRule({
+  description:
+    "A chip with its own remove button is RemovableChip; do not rebuild it.",
+  message:
+    "Kein eigener Chip mit Entfernen-Kreuz: RemovableChip aus ~/components/ui/removable-chip nehmen (#5596, .claude/rules/frontend-ui-kit.md).",
+  kitFile: "src/components/ui/removable-chip.tsx",
+  visitors: ({ found, textOf }) => ({
+    JSXElement(node) {
+      const opening = node.openingElement;
+      if (!new Set(["span", "li", "div"]).has(jsxName(opening.name) ?? "")) {
+        return;
+      }
+      const className = jsxAttribute(opening, "className");
+      if (!className?.value) return;
+      const text = textOf(className.value);
+      const isChip =
+        /(?:^|\s)inline-flex(?:\s|$)/.test(text) &&
+        /(?:^|\s)rounded(?:-[a-z0-9]+)?(?:\s|$)/.test(text) &&
+        /(?:^|\s)(?:border|bg-[a-z])/.test(text);
+      if (!isChip) return;
+      if (flatJsxChildren(node).some(actionRemoves)) found(opening);
+    },
+  }),
+});
+
+const noHandRolledNumberStepper = kitInputRule({
+  description:
+    "Minus and plus around a number field is NumberStepper; do not rebuild it.",
+  message:
+    "Kein eigener Zahl-Stepper: NumberStepper aus ~/components/ui/number-stepper nehmen (#5596, .claude/rules/frontend-ui-kit.md).",
+  kitFile: "src/components/ui/number-stepper.tsx",
+  visitors: ({ found }) => ({
+    JSXElement(node) {
+      const children = flatJsxChildren(node);
+      const hasStep = (icon) =>
+        children.some((child) => actionHoldsIcon(child, new Set([icon])));
+      if (hasStep("Minus") && hasStep("Plus")) found(node.openingElement);
+    },
+  }),
+});
+
+const WEEKDAY_LIST_RE = /week_?(?:days?|dates)|dayOptions$/i;
+
+/** Das Element, das der `.map`-Callback direkt zurückgibt. */
+function returnedJsxElement(body) {
+  let node = body;
+  if (node?.type === "BlockStatement") {
+    node = node.body.find(
+      (statement) => statement.type === "ReturnStatement",
+    )?.argument;
+  }
+  while (node?.type === "ParenthesizedExpression") node = node.expression;
+  return node?.type === "JSXElement" ? node : null;
+}
+
+const noHandRolledWeekdayToggle = kitInputRule({
+  description:
+    "A row of weekday toggles is WeekdayToggleGroup; do not rebuild it from checkboxes or pressed buttons.",
+  message:
+    "Keine eigene Wochentagsauswahl: WeekdayToggleGroup aus ~/components/ui/weekday-toggle-group nehmen, für einen Tagesstreifen PlanningDayChip stacked (#5596, .claude/rules/frontend-ui-kit.md).",
+  kitFile: "src/components/ui/weekday-toggle-group.tsx",
+  visitors: ({ found }) => ({
+    CallExpression(node) {
+      const callee = node.callee;
+      if (
+        callee?.type !== "MemberExpression" ||
+        callee.property?.name !== "map" ||
+        callee.object?.type !== "Identifier" ||
+        !WEEKDAY_LIST_RE.test(callee.object.name)
+      ) {
+        return;
+      }
+      const element = returnedJsxElement(node.arguments[0]?.body);
+      if (!element) return;
+      const opening = element.openingElement;
+      const name = jsxName(opening.name);
+      const isCheckboxLabel =
+        name === "label" &&
+        flatJsxChildren(element).some(
+          (child) => jsxName(child.openingElement.name) === "Checkbox",
+        );
+      const isPressedButton =
+        (name === "button" || name === "Button") &&
+        jsxAttribute(opening, "aria-pressed") !== undefined;
+      if (isCheckboxLabel || isPressedButton) found(node);
+    },
+  }),
+});
 
 // ui-kit/no-hand-rolled-dropzone und ui-kit/no-hand-rolled-copy-field (#5599).
 // Eine Ablagefläche besteht aus Zieh-Zustand, Dateiauswahl und Tastaturweg; die
@@ -3148,10 +3403,14 @@ export default {
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
+    "no-hand-rolled-number-stepper": noHandRolledNumberStepper,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-pill": noHandRolledPill,
+    "no-hand-rolled-portal-nav": noHandRolledPortalNav,
+    "no-hand-rolled-removable-chip": noHandRolledRemovableChip,
     "no-hand-rolled-surface": noHandRolledSurface,
+    "no-hand-rolled-weekday-toggle": noHandRolledWeekdayToggle,
     "no-hex-alpha-tint": noHexAlphaTint,
     "no-important-override": noImportantOverride,
     "no-pill-dot": noPillDot,

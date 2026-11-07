@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -34,14 +35,14 @@ func (s *AccountAuthentication) IssueParentTokensForAuthenticatedAccount(ctx con
 }
 
 // issueParentTokens refuses an account without a guardian role on an active
-// mapping and mints the parent-scope session.
+// mapping at a live school and mints the parent-scope session.
 func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account domain.LoginAccount, email, ipAddress, userAgent string) (string, string, error) {
 	guardianTenantIDs, err := s.findGuardianTenantForAccount(ctx, account.ID)
 	if err != nil {
 		return "", "", failed("parent login: enumerate tenants", err)
 	}
 	if len(guardianTenantIDs) == 0 {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Not a guardian at any school")
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Not a guardian at any live school")
 		return "", "", failed("parent login", identityaccess.ErrAccountNoGuardianRole)
 	}
 	// The parents portal opens while at least one guardian school booked
@@ -78,8 +79,10 @@ func buildParentMetadata(account domain.LoginAccount) *domain.AccountClaimsPaylo
 }
 
 // findGuardianTenantForAccount returns every active mapping that carries the
-// guardian role, in mapping order, read inside an administrative
-// transaction; the parent flows have no tenant transaction yet.
+// guardian role at a live school, in mapping order, read inside an
+// administrative transaction; the parent flows have no tenant transaction
+// yet. A school switched inactive or deleted opens no parents portal, as it
+// opens no staff session; school liveness belongs to Organisation & Tenancy.
 func (s *AccountAuthentication) findGuardianTenantForAccount(ctx context.Context, accountID int64) ([]int64, error) {
 	var guardianTenantIDs []int64
 	if err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
@@ -97,11 +100,30 @@ func (s *AccountAuthentication) findGuardianTenantForAccount(ctx context.Context
 				guardianTenantIDs = append(guardianTenantIDs, tenantID)
 			}
 		}
-		return nil
+		var liveErr error
+		guardianTenantIDs, liveErr = s.liveSchoolIDs(adminCtx, guardianTenantIDs)
+		return liveErr
 	}); err != nil {
 		return nil, err
 	}
 	return guardianTenantIDs, nil
+}
+
+// liveSchoolIDs keeps the schools that are switched active and not deleted,
+// in the given order, inside the caller's transaction.
+func (s *AccountAuthentication) liveSchoolIDs(ctx context.Context, tenantIDs []int64) ([]int64, error) {
+	if len(tenantIDs) == 0 {
+		return tenantIDs, nil
+	}
+	live, err := s.schools.ListActiveSchoolsByID(ctx, tenantIDs)
+	if err != nil {
+		return nil, err
+	}
+	operational := make(map[int64]bool, len(live))
+	for _, school := range live {
+		operational[school.ID] = true
+	}
+	return slices.DeleteFunc(tenantIDs, func(tenantID int64) bool { return !operational[tenantID] }), nil
 }
 
 // FindGuardianTenant is findGuardianTenantForAccount for the retained

@@ -333,9 +333,17 @@ vi.mock("~/lib/timetable-operations-api", async (importOriginal) => {
 
 import { fireEvent } from "@testing-library/react";
 import { fetchStudents } from "~/lib/student-api";
+
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 
 import { ToastProvider } from "~/contexts/ToastContext";
+
+const SINGLE_PAGE = {
+  current_page: 1,
+  page_size: 25,
+  total_pages: 1,
+  total_records: 3,
+};
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
@@ -865,6 +873,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
         makeStudent("202", "Marie", "Garschagen"),
         makeStudent("203", "Lara Marie", "Brüggemann"),
       ],
+      pagination: SINGLE_PAGE,
     });
 
     const { rerender } = render(<MeinRaumPage />);
@@ -926,6 +935,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
         makeStudent("201", "Marie", "Beier"),
         makeStudent("202", "Marie", "Garschagen"),
       ],
+      pagination: SINGLE_PAGE,
     });
 
     const { rerender } = render(<MeinRaumPage />);
@@ -998,6 +1008,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
   it("clears a single match on instance change, then restores the quick path", async () => {
     vi.mocked(fetchStudents).mockResolvedValue({
       students: [makeStudent("201", "Marie", "Beier")],
+      pagination: SINGLE_PAGE,
     });
 
     const unsafeCommits: boolean[] = [];

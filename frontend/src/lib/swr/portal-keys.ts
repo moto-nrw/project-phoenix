@@ -5,6 +5,7 @@ import {
 } from "./search-students-key";
 import { previewRow, previewText, type ListPreview } from "./list-preview";
 import { resourceKey } from "./resource-key";
+import { groupKeys } from "./groups-keys";
 
 export { announcementKeys, dashboardKeys } from "./shell-keys";
 export { parentKeys } from "./parent-keys";
@@ -128,17 +129,59 @@ export const messageKeys = {
     `group-message-${encodeURIComponent(id ?? "")}`,
 } as const;
 
+/**
+ * The per-child cache families the SSE hook invalidates by prefix. Every key
+ * of a family starts with its prefix and continues with the child's id.
+ */
+export const STUDENT_KEY_FAMILIES = {
+  detail: "student-detail-",
+  carePlanDay: "care-plan-day-",
+  carePlanWeek: "care-plan-week-",
+  // Also the start of the absence overview's "student-status-days-overview-":
+  // a student update refreshes that list too.
+  statusDays: "student-status-days-",
+  partialAbsences: "student-partial-absences-",
+  statusDayOverview: "student-status-days-overview-",
+  pickupData: "pickup-data-",
+  arrivalData: "arrival-data-",
+} as const;
+
 export const studentKeys = {
   search: searchKey,
   schoolClasses: () => "search-student-school-classes",
   statisticsReport: (params: object) =>
     resourceKey("student-statistics-report-", params),
-  detail: (id: string) => `student-detail-${encodeURIComponent(id)}`,
+  detail: (id: string) =>
+    `${STUDENT_KEY_FAMILIES.detail}${encodeURIComponent(id)}`,
+  notes: (id: string) => `student-notes-${encodeURIComponent(id)}`,
+  noteActivities: (id: string) =>
+    `student-note-activities-${encodeURIComponent(id)}`,
+  permanentNotes: (id: string) =>
+    `student-permanent-notes-${encodeURIComponent(id)}`,
+  enrollments: (id: string) => `student-enrollments-${encodeURIComponent(id)}`,
+  holidayGuest: (id: string) => `holiday-guest:${encodeURIComponent(id)}`,
+  carePlanDay: (id: string, date: string) =>
+    `${STUDENT_KEY_FAMILIES.carePlanDay}${encodeURIComponent(id)}-${date}`,
+  carePlanWeek: (id: string, from: string, to: string) =>
+    `${STUDENT_KEY_FAMILIES.carePlanWeek}${encodeURIComponent(id)}-${from}-${to}`,
+  statusDays: (id: string, from: string, to: string) =>
+    `${STUDENT_KEY_FAMILIES.statusDays}${encodeURIComponent(id)}-${from}-${to}`,
+  statusDayOverview: (params: {
+    from: string;
+    to: string;
+    page: number;
+    query: string;
+    status: string;
+    groupId: string;
+  }) =>
+    `${STUDENT_KEY_FAMILIES.statusDayOverview}${params.from}-${params.to}-${params.page}-${params.query}-${params.status}-${params.groupId}`,
+  partialAbsences: (id: string, from: string, to: string) =>
+    `${STUDENT_KEY_FAMILIES.partialAbsences}${encodeURIComponent(id)}-${from}-${to}`,
   previewSources: (key: string) =>
     key.startsWith(SEARCH_STUDENTS_KEY_PREFIX) ||
-    key.startsWith("ogs-students-") ||
+    key.startsWith(groupKeys.liveFamily) ||
     key.startsWith("room-students-") ||
-    key.startsWith("student-status-days-overview-") ||
+    key.startsWith(STUDENT_KEY_FAMILIES.statusDayOverview) ||
     key.startsWith("student-statistics-report-"),
   preview(data: unknown, id: string): ListPreview | undefined {
     const row = previewRow(data, id);
@@ -165,13 +208,12 @@ export const studentKeys = {
     `student-threads-${encodeURIComponent(id ?? "")}`,
   changeHistory: (id: string) =>
     `student-change-history-${encodeURIComponent(id)}`,
-  privacyConsent: (id: string) =>
-    `student-privacy-consent-${encodeURIComponent(id)}`,
-  // The SSE hook invalidates the "pickup-data-" / "arrival-data-" prefixes.
-  pickupData: (id: string) => `pickup-data-${encodeURIComponent(id)}`,
+  pickupData: (id: string) =>
+    `${STUDENT_KEY_FAMILIES.pickupData}${encodeURIComponent(id)}`,
   name: (id: string) => `student-name-${encodeURIComponent(id)}`,
   documents: (id: string) => `student-documents-${encodeURIComponent(id)}`,
-  arrivalData: (id: string) => `arrival-data-${encodeURIComponent(id)}`,
+  arrivalData: (id: string) =>
+    `${STUDENT_KEY_FAMILIES.arrivalData}${encodeURIComponent(id)}`,
 } as const;
 
 export const timetableKeys = {
@@ -259,6 +301,10 @@ export const parentAnnouncementKeys = {
 } as const;
 
 export const displayKeys = { list: () => "info-displays" } as const;
+/** Dokumente, die der Träger für die Schule freigegeben hat (#4692). */
+export const schoolTraegerDocumentKeys = {
+  list: () => "traeger-documents-school",
+} as const;
 export const timeTrackingKeys = {
   current: () => "time-tracking-current",
   // Eigene Schichten auf „Mein Dienstplan“ (#3821). Beide teilen das Präfix
@@ -284,6 +330,9 @@ export const traegerKeys = {
     `traeger-holiday-period-detail-${encodeURIComponent(id)}`,
   settings: () => "traeger-settings-schema",
   billingRuns: () => "traeger-billing-run-list",
+  // Geteilte Dokumente (#4692): Titel, Dateiname und Freigaben, keine Inhalte.
+  documents: () => "traeger-document-list",
+  documentAudiences: () => "traeger-document-audiences",
   periodPreview(data: unknown, id: string): ListPreview | undefined {
     const row = previewRow(data, id);
     const name = previewText(row?.name);

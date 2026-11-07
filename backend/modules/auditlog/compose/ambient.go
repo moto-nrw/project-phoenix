@@ -26,7 +26,7 @@ func NewTenantPersistence(db *bun.DB) (*Persistence, error) {
 
 	return NewPersistence(PersistenceDependencies{
 		Reads:   audit.NewHandoffRuntime(audit.NewTenantHandoff(tenant.FromContext, tenant.IsAdminTx, tenant.TransactionFromContext)),
-		Appends: audit.NewHandoffRuntime(audit.NewTenantHandoff(tenant.FromContext, tenant.IsAdminTx, tenant.TransactionFromContext)),
+		Appends: audit.NewHandoffRuntime(audit.NewAppendHandoff(tenant.FromContext, tenant.IsAdminTx, tenant.TraegerTransactionFromContext, tenant.TransactionFromContext)),
 	})
 }
 

@@ -1230,7 +1230,7 @@ describe("BetreuungsplanView", () => {
     expect(call).toBeDefined();
     await (call![1] as () => Promise<unknown>)();
     expect(fetchStudents).toHaveBeenCalledWith({
-      page_size: 500,
+      pageSize: 500,
       view: "names",
     });
     expect(mockUseSWRAuth).not.toHaveBeenCalledWith(

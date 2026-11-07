@@ -427,6 +427,11 @@
     },
     {
       "decision": "0090",
+      "id": "api/careContractPost.ContractMailStates",
+      "reason": "#5934: Consumer-port adapter of the contract's post; it names Delivery's outcome of each mail in the contract's words."
+    },
+    {
+      "decision": "0090",
       "id": "api/childQuotaStudentsReader.ChildQuotaUsage",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -851,9 +856,9 @@
       "reason": "ADR 0126 (#4671): Consumer-port adapter of the post of the confirmation letters; it marshals the notice and enqueues the Träger's deferred push that a letter is in the inbox of the parents portal through Delivery in the caller's Träger transaction, keyed by the letter."
     },
     {
-      "decision": "0123",
-      "id": "api/parentBillingLetterPost.LetterMailStates",
-      "reason": "ADR 0123 (#4670): Consumer-port adapter of the post of the confirmation letters; it reads the mails of a billing run of the session's Träger through Delivery in the caller's Träger transaction and names their state in the Elternabrechnung's words."
+      "decision": "0090",
+      "id": "api/parentBillingLetterPost.LetterMailBlocks",
+      "reason": "#5934: Consumer-port adapter of the post of the letters; it turns the provider's current block into the Elternabrechnung's words."
     },
     {
       "decision": "0123",
@@ -1149,6 +1154,21 @@
       "decision": "0109",
       "id": "api/traegerBureauAddresses.BureauAddresses",
       "reason": "ADR 0109 (#4655): root translation of the Identity \u0026 Access Träger accounts; only accounts with a Träger role at the Träger are named."
+    },
+    {
+      "decision": "0084",
+      "id": "api/traegerDocumentAccessLog.RecordAccess",
+      "reason": "ADR 0084 (#4692): Consumer-port adapter that writes a download of the Träger-Büro into the access log of a school as audit.data_access_log entry of the Träger portal (ADR 0084 section 7)."
+    },
+    {
+      "decision": "0084",
+      "id": "api/traegerDocumentDownloadLedger.RecordDownload",
+      "reason": "ADR 0084 (#4692): Consumer-port adapter that appends a download of the Träger-Büro to the Träger document download ledger of the Audit Platform in the caller's Träger transaction (ADR 0157)."
+    },
+    {
+      "decision": "0084",
+      "id": "api/traegerDocumentGroups.SchoolGroups",
+      "reason": "ADR 0084 (#4692): Consumer-port adapter that lists the groups of the school of the tenant transaction through School Structure and translates them into the groups a Träger document release may name."
     },
     {
       "decision": "0084",
@@ -4499,6 +4519,16 @@
       "decision": "0090",
       "id": "roots/owners/parentPhaseReads.ListEnrollable",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0084",
+      "id": "roots/owners/parentSharedDocuments.ListSharedDocuments",
+      "reason": "ADR 0084 (#4692): Consumer-port adapter that lists the documents a Träger released for the parent through Organisation \u0026 Tenancy and translates them into the shared documents of the parents portal's inbox."
+    },
+    {
+      "decision": "0084",
+      "id": "roots/owners/parentSharedDocuments.SharedDocumentFile",
+      "reason": "ADR 0084 (#4692): root translation of the parent's opening of a shared document and of its refusal onto the parents portal contract (ErrSharedDocumentNotFound)."
     },
     {
       "decision": "0090",

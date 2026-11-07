@@ -31,6 +31,12 @@ func (fakeHolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(contex
 	return 0, nil
 }
 
+type fakeTraegerDocumentReadRetention struct{}
+
+func (fakeTraegerDocumentReadRetention) DeleteExpiredTraegerDocumentReads(context.Context) (int, error) {
+	return 0, nil
+}
+
 type fakeAccountRetention struct{}
 
 func (fakeAccountRetention) EraseUnusedAccounts(context.Context) (int, error) { return 0, nil }
@@ -58,6 +64,7 @@ func minimalWorkerDependencies(t *testing.T) ports.WorkerDependencies {
 		OperatorRetention:            ports.OperatorRetention{Ledger: fakeOperatorRetention{}, Accounts: fakeOperatorRetention{}},
 		AccountRetention:             fakeAccountRetention{},
 		HolidayRegistrationRetention: fakeHolidayRegistrationRetention{},
+		TraegerDocumentReadRetention: fakeTraegerDocumentReadRetention{},
 		FeedbackCleaner:              &fakeFeedbackCleaner{},
 		CleanupRuns:                  newFakeCleanupRuns(),
 		Lease: ports.WorkerLease{
@@ -96,6 +103,7 @@ func TestNewWorkerRejectsMissingTokenCleanupDependencies(t *testing.T) {
 		{name: "operator invitation cleanup", remove: func(deps *ports.WorkerDependencies) { deps.OperatorInvitationCleanup = nil }},
 		{name: "account retention", remove: func(deps *ports.WorkerDependencies) { deps.AccountRetention = nil }},
 		{name: "holiday registration retention", remove: func(deps *ports.WorkerDependencies) { deps.HolidayRegistrationRetention = nil }},
+		{name: "Träger document read retention", remove: func(deps *ports.WorkerDependencies) { deps.TraegerDocumentReadRetention = nil }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -200,6 +208,30 @@ func TestAccountAvatarJobOwnsItsTransactionAndReportsPartialFailure(t *testing.T
 	require.ErrorIs(t, err, partial)
 	require.True(t, retention.cleaned)
 	require.True(t, retention.caterers, "a file failure does not stop the caterer deletion")
+}
+
+// transactionalTraegerDocumentReadRetention records whether the hourly
+// cleanup handed it the scheduler's administrative transaction.
+type transactionalTraegerDocumentReadRetention struct{ inAdmin []bool }
+
+func (r *transactionalTraegerDocumentReadRetention) DeleteExpiredTraegerDocumentReads(ctx context.Context) (int, error) {
+	r.inAdmin = append(r.inAdmin, ctx.Value(cleanupTransactionKey{}) == true)
+	return 0, nil
+}
+
+// The Träger document reads expire across every Träger, which only the
+// administrative transaction may do (#4692): the job runs inside the
+// scheduler's WithinAdmin, never with an own transaction.
+func TestTraegerDocumentReadRetentionRunsInTheAdministrativeTransaction(t *testing.T) {
+	t.Parallel()
+	deps := minimalWorkerDependencies(t)
+	deps.TenantRuntime = markingCleanupRuntime{unitTenantRuntime()}
+	retention := &transactionalTraegerDocumentReadRetention{}
+	deps.TraegerDocumentReadRetention = retention
+
+	require.NoError(t, newScheduler(deps).runCleanupJobs(t.Context()))
+
+	require.Equal(t, []bool{true}, retention.inAdmin, "the job runs once, inside the administrative transaction")
 }
 
 func TestNewWorkerRejectsMissingSettings(t *testing.T) {

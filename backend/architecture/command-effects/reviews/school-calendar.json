@@ -2969,6 +2969,26 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarElternAppBookings.ElternAppBooked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.ElternAppBookings.ElternAppBooked",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.SettingsSnapshot.Bool (settings-platform) through roots/owners.calendarElternAppBookings.ElternAppBooked, which reports which schools booked Eltern-App so the calendar keeps only their children. One batch settings read inside the calendar's administrative lookup; no persistent, lock or scope effect.",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Bool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarElternAppBookings.ElternAppBooked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.ElternAppBookings.ElternAppBooked",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.BatchSettingsService.ResolveManyForTenants (settings-platform) through roots/owners.calendarElternAppBookings.ElternAppBooked, which reports which schools booked Eltern-App so the calendar keeps only their children. One batch settings read inside the calendar's administrative lookup; no persistent, lock or scope effect.",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarGroupPort.List",
       "classification": "query",
       "effect": "query",

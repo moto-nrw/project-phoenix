@@ -2,9 +2,10 @@ import {
   ApiError,
   apiErrorFromBody,
   apiErrorFromResponse,
-  transportFetch,
 } from "~/lib/api-error";
+import { bffJson } from "~/lib/bff-fetch";
 import type { ErrorCode } from "~/lib/error-codes.generated";
+import { sessionFetch } from "~/lib/session-cache";
 
 export type StudentStatusKind = "sick" | "excused" | "class_trip";
 
@@ -23,14 +24,11 @@ export interface StudentStatusDay {
   updated_at: string;
 }
 
-interface ApiResponse<T> {
-  status: string;
-  data?: T;
-  conflicts?: T;
+/** The 409 body of a status-day write that would overwrite existing days. */
+interface ConflictBody {
+  conflicts?: BackendStudentStatusDay[];
   /** Full conflict count when `conflicts` is a capped sample. */
   conflict_count?: number;
-  message?: string;
-  /** Stable backend conflict code (e.g. students.partial_absence_conflict). */
   code?: string;
   instance?: string;
 }
@@ -78,13 +76,11 @@ export class StudentStatusDayConflictError extends ApiError {
   }
 }
 
-function parseConflictError(
-  result: ApiResponse<BackendStudentStatusDay[]>,
-): Error {
+function parseConflictError(result: ConflictBody): Error {
   if (result.code === PARTIAL_ABSENCE_CONFLICT_CODE) {
     return apiErrorFromBody("partial absence conflict", 409, result);
   }
-  const conflicts = (result.conflicts ?? result.data ?? []).map(mapStatusDay);
+  const conflicts = (result.conflicts ?? []).map(mapStatusDay);
   const totalCount =
     typeof result.conflict_count === "number" &&
     Number.isFinite(result.conflict_count)
@@ -96,15 +92,24 @@ function parseConflictError(
   });
 }
 
-async function parseApiResult<T>(
-  response: Response,
+/**
+ * A status-day write. Its 409 is a question with the conflicting days in the
+ * body (or the partial-absence refusal), not a plain failure.
+ */
+async function writeStatusDays<T>(
+  url: string,
+  body: unknown,
   fallback: string,
 ): Promise<T> {
-  const result = (await response.json()) as ApiResponse<T>;
-  if (!result.data) {
-    throw apiErrorFromBody(fallback, response.status, result);
+  const response = await sessionFetch(url, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  if (response.status === 409) {
+    throw parseConflictError((await response.json()) as ConflictBody);
   }
-  return result.data;
+  if (!response.ok) throw await apiErrorFromResponse(response, fallback);
+  return ((await response.json()) as { data: T }).data;
 }
 
 export async function fetchStudentStatusDays(
@@ -112,20 +117,10 @@ export async function fetchStudentStatusDays(
   from: string,
   to: string,
 ): Promise<StudentStatusDay[]> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/status-days?from=${from}&to=${to}`,
+  const rows = await bffJson<BackendStudentStatusDay[]>(
+    `/api/students/${encodeURIComponent(studentId)}/status-days?from=${from}&to=${to}`,
   );
-  if (!response.ok) {
-    throw await apiErrorFromResponse(
-      response,
-      "Geplante Einträge konnten nicht geladen werden",
-    );
-  }
-  const data = await parseApiResult<BackendStudentStatusDay[]>(
-    response,
-    "Geplante Einträge konnten nicht geladen werden",
-  );
-  return data.map(mapStatusDay);
+  return rows.map(mapStatusDay);
 }
 
 /**
@@ -171,17 +166,7 @@ export async function fetchStatusDayOverview(
   if (filters.query.trim()) params.set("q", filters.query.trim());
   if (filters.status !== "all") params.set("status", filters.status);
   if (filters.groupId !== "all") params.set("group_id", filters.groupId);
-  const response = await transportFetch(`/api/students/status-days?${params}`);
-  if (!response.ok) {
-    throw await apiErrorFromResponse(
-      response,
-      "Abwesenheiten konnten nicht geladen werden",
-    );
-  }
-  return parseApiResult<StatusDayOverview>(
-    response,
-    "Abwesenheiten konnten nicht geladen werden",
-  );
+  return bffJson<StatusDayOverview>(`/api/students/status-days?${params}`);
 }
 
 export async function createStudentStatusDays(
@@ -190,35 +175,12 @@ export async function createStudentStatusDays(
   dates: string[],
   reason?: string,
 ): Promise<StudentStatusDay[]> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/status-days`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // Only include the reason when one is supplied so the default request
-      // shape is unchanged (the backend treats an absent reason as no note).
-      body: JSON.stringify(
-        reason ? { status, dates, reason } : { status, dates },
-      ),
-    },
-  );
-  if (response.status === 409) {
-    const result = (await response.json()) as ApiResponse<
-      BackendStudentStatusDay[]
-    >;
-    throw parseConflictError(result);
-  }
-  if (!response.ok) {
-    throw await apiErrorFromResponse(
-      response,
-      "Geplante Einträge konnten nicht gespeichert werden",
-    );
-  }
-  const data = await parseApiResult<BackendStudentStatusDay[]>(
-    response,
+  const rows = await writeStatusDays<BackendStudentStatusDay[]>(
+    `/api/students/${encodeURIComponent(studentId)}/status-days`,
+    reason ? { status, dates, reason } : { status, dates },
     "Geplante Einträge konnten nicht gespeichert werden",
   );
-  return data.map(mapStatusDay);
+  return rows.map(mapStatusDay);
 }
 
 export async function bulkCreateStudentStatusDays(
@@ -228,29 +190,12 @@ export async function bulkCreateStudentStatusDays(
   to: string,
   reason?: string,
 ): Promise<{ student_count: number; date_count: number }> {
-  const response = await transportFetch("/api/students/status-days/bulk", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(
-      reason
-        ? { student_ids: studentIds.map(Number), status, from, to, reason }
-        : { student_ids: studentIds.map(Number), status, from, to },
-    ),
-  });
-  if (response.status === 409) {
-    const result = (await response.json()) as ApiResponse<
-      BackendStudentStatusDay[]
-    >;
-    throw parseConflictError(result);
-  }
-  if (!response.ok) {
-    throw await apiErrorFromResponse(
-      response,
-      "Klassenfahrt konnte nicht gespeichert werden",
-    );
-  }
-  return parseApiResult<{ student_count: number; date_count: number }>(
-    response,
+  const student_ids = studentIds.map(Number);
+  return writeStatusDays<{ student_count: number; date_count: number }>(
+    "/api/students/status-days/bulk",
+    reason
+      ? { student_ids, status, from, to, reason }
+      : { student_ids, status, from, to },
     "Klassenfahrt konnte nicht gespeichert werden",
   );
 }
@@ -259,14 +204,8 @@ export async function deleteStudentStatusDay(
   studentId: string,
   statusDayId: string,
 ): Promise<void> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/status-days/${statusDayId}`,
+  await bffJson<unknown>(
+    `/api/students/${encodeURIComponent(studentId)}/status-days/${encodeURIComponent(statusDayId)}`,
     { method: "DELETE" },
   );
-  if (!response.ok) {
-    throw await apiErrorFromResponse(
-      response,
-      "Geplanter Eintrag konnte nicht gelöscht werden",
-    );
-  }
 }

@@ -204,10 +204,13 @@ vi.mock("~/lib/hooks/use-user-context", async (importOriginal) => ({
   useUserContext: () => mockUseUserContext(),
 }));
 
+vi.mock("~/lib/student-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-api")>()),
+  fetchStudents: (...args: unknown[]) => mockGetStudents(...args),
+  fetchSchoolClasses: vi.fn(() => Promise.resolve([])),
+}));
+
 vi.mock("~/lib/api", () => ({
-  studentService: {
-    getStudents: (...args: unknown[]) => mockGetStudents(...args),
-  },
   groupService: {
     getGroups: vi.fn(() => Promise.resolve([])),
   },
@@ -342,7 +345,7 @@ describe("StudentSearchPage — room_id deep-link (#1323)", () => {
       error: null,
     });
 
-    // Capture the SWR fetcher and invoke it so the studentService spy actually
+    // Capture the SWR fetcher and invoke it so the fetchStudents spy actually
     // sees the call — useSWRAuth's real impl runs the fetcher synchronously
     // for the test path; we mimic that here.
     mockUseSWRAuth.mockImplementation(
@@ -374,7 +377,7 @@ describe("StudentSearchPage — room_id deep-link (#1323)", () => {
     localStorage.clear();
   });
 
-  it("forwards room_id from the URL into studentService.getStudents", async () => {
+  it("forwards room_id from the URL into fetchStudents", async () => {
     currentSearch = new URLSearchParams({
       room_id: "42",
       room_name: "OGS-Raum 1",
@@ -517,7 +520,7 @@ describe("StudentSearchPage — Kinder nur über Alle Kinder (#1321)", () => {
       error: null,
     });
 
-    // Capture the SWR fetcher and invoke it so the studentService spy actually
+    // Capture the SWR fetcher and invoke it so the fetchStudents spy actually
     // sees the call — useSWRAuth's real impl runs the fetcher synchronously
     // for the test path; we mimic that here.
     mockUseSWRAuth.mockImplementation(
@@ -1132,7 +1135,7 @@ describe("StudentSearchPage — planning date (#1939)", () => {
     vi.useRealTimers();
   });
 
-  it("forwards a non-today date from the URL into studentService.getStudents", async () => {
+  it("forwards a non-today date from the URL into fetchStudents", async () => {
     const tomorrow = isoDaysFromToday(1);
     currentSearch = new URLSearchParams({ date: tomorrow });
 

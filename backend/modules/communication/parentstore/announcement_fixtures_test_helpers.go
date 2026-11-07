@@ -23,7 +23,7 @@ func NewParentAnnouncementFixtures(repo recordports.ParentAnnouncementRepository
 	return ParentAnnouncementFixtures{repo: repo}
 }
 
-func (f ParentAnnouncementFixtures) Create(ctx context.Context, value *communication.ParentAnnouncementFixture) error {
+func (f ParentAnnouncementFixtures) Create(ctx context.Context, value *ParentAnnouncementFixture) error {
 	row := announcementFixtureToRow(value)
 	if err := f.repo.Create(ctx, row); err != nil {
 		return err
@@ -32,7 +32,7 @@ func (f ParentAnnouncementFixtures) Create(ctx context.Context, value *communica
 	return nil
 }
 
-func (f ParentAnnouncementFixtures) FindByID(ctx context.Context, id int64) (*communication.ParentAnnouncementFixture, error) {
+func (f ParentAnnouncementFixtures) FindByID(ctx context.Context, id int64) (*ParentAnnouncementFixture, error) {
 	row, err := f.repo.FindByID(ctx, id)
 	return announcementFixtureFromRow(row), err
 }
@@ -44,7 +44,7 @@ func (f ParentAnnouncementFixtures) SetPublished(ctx context.Context, id int64, 
 	return f.repo.SetPublished(ctx, id, at)
 }
 
-func (f ParentAnnouncementFixtures) ReplaceTargets(ctx context.Context, tenantID, id int64, values []*communication.ParentAnnouncementTargetFixture) error {
+func (f ParentAnnouncementFixtures) ReplaceTargets(ctx context.Context, tenantID, id int64, values []*ParentAnnouncementTargetFixture) error {
 	rows := announcementTargetFixtureRows(values)
 	err := f.repo.ReplaceTargets(ctx, tenantID, id, rows)
 	for i, row := range rows {
@@ -55,7 +55,7 @@ func (f ParentAnnouncementFixtures) ReplaceTargets(ctx context.Context, tenantID
 	return err
 }
 
-func (f ParentAnnouncementFixtures) ReplaceOptions(ctx context.Context, tenantID, id int64, values []*communication.ParentAnnouncementOptionFixture) error {
+func (f ParentAnnouncementFixtures) ReplaceOptions(ctx context.Context, tenantID, id int64, values []*ParentAnnouncementOptionFixture) error {
 	rows := announcementOptionFixtureRows(values)
 	err := f.repo.ReplaceOptions(ctx, tenantID, id, rows)
 	for i, row := range rows {
@@ -66,12 +66,12 @@ func (f ParentAnnouncementFixtures) ReplaceOptions(ctx context.Context, tenantID
 	return err
 }
 
-func (f ParentAnnouncementFixtures) ListOptions(ctx context.Context, id int64) ([]*communication.ParentAnnouncementOptionFixture, error) {
+func (f ParentAnnouncementFixtures) ListOptions(ctx context.Context, id int64) ([]*ParentAnnouncementOptionFixture, error) {
 	rows, err := f.repo.ListOptions(ctx, id)
 	if rows == nil {
 		return nil, err
 	}
-	values := make([]*communication.ParentAnnouncementOptionFixture, len(rows))
+	values := make([]*ParentAnnouncementOptionFixture, len(rows))
 	for i, row := range rows {
 		values[i] = announcementOptionFixture(row)
 	}
@@ -92,7 +92,7 @@ func (f ParentAnnouncementFixtures) ListDeclarationSubmissions(ctx context.Conte
 	return rows, err
 }
 
-func announcementFixtureToRow(value *communication.ParentAnnouncementFixture) *communication.PortalParentAnnouncement {
+func announcementFixtureToRow(value *ParentAnnouncementFixture) *communication.PortalParentAnnouncement {
 	if value == nil {
 		return nil
 	}
@@ -121,11 +121,11 @@ func announcementFixtureToRow(value *communication.ParentAnnouncementFixture) *c
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }
-func announcementFixtureFromRow(row *communication.PortalParentAnnouncement) *communication.ParentAnnouncementFixture {
+func announcementFixtureFromRow(row *communication.PortalParentAnnouncement) *ParentAnnouncementFixture {
 	if row == nil {
 		return nil
 	}
-	value := &communication.ParentAnnouncementFixture{
+	value := &ParentAnnouncementFixture{
 		ID:                      row.ID,
 		TenantID:                row.TenantID,
 		CreatedAt:               row.CreatedAt,
@@ -151,20 +151,20 @@ func announcementFixtureFromRow(row *communication.PortalParentAnnouncement) *co
 		Declaration:             communication.ParentDeclarationSettings(row.Declaration),
 	}
 	if row.Targets != nil {
-		value.Targets = make([]*communication.ParentAnnouncementTargetFixture, len(row.Targets))
+		value.Targets = make([]*ParentAnnouncementTargetFixture, len(row.Targets))
 		for i, r := range row.Targets {
 			value.Targets[i] = announcementTargetFixture(r)
 		}
 	}
 	if row.Options != nil {
-		value.Options = make([]*communication.ParentAnnouncementOptionFixture, len(row.Options))
+		value.Options = make([]*ParentAnnouncementOptionFixture, len(row.Options))
 		for i, r := range row.Options {
 			value.Options[i] = announcementOptionFixture(r)
 		}
 	}
 	return value
 }
-func announcementTargetFixtureRows(values []*communication.ParentAnnouncementTargetFixture) []*communication.PortalParentAnnouncementTarget {
+func announcementTargetFixtureRows(values []*ParentAnnouncementTargetFixture) []*communication.PortalParentAnnouncementTarget {
 	if values == nil {
 		return nil
 	}
@@ -186,11 +186,11 @@ func announcementTargetFixtureRows(values []*communication.ParentAnnouncementTar
 	}
 	return rows
 }
-func announcementTargetFixture(row *communication.PortalParentAnnouncementTarget) *communication.ParentAnnouncementTargetFixture {
+func announcementTargetFixture(row *communication.PortalParentAnnouncementTarget) *ParentAnnouncementTargetFixture {
 	if row == nil {
 		return nil
 	}
-	return &communication.ParentAnnouncementTargetFixture{
+	return &ParentAnnouncementTargetFixture{
 		ID:             row.ID,
 		TenantID:       row.TenantID,
 		AnnouncementID: row.AnnouncementID,
@@ -200,7 +200,7 @@ func announcementTargetFixture(row *communication.PortalParentAnnouncementTarget
 		CreatedAt:      row.CreatedAt,
 	}
 }
-func announcementOptionFixtureRows(values []*communication.ParentAnnouncementOptionFixture) []*communication.PortalParentAnnouncementOption {
+func announcementOptionFixtureRows(values []*ParentAnnouncementOptionFixture) []*communication.PortalParentAnnouncementOption {
 	if values == nil {
 		return nil
 	}
@@ -221,11 +221,11 @@ func announcementOptionFixtureRows(values []*communication.ParentAnnouncementOpt
 	}
 	return rows
 }
-func announcementOptionFixture(row *communication.PortalParentAnnouncementOption) *communication.ParentAnnouncementOptionFixture {
+func announcementOptionFixture(row *communication.PortalParentAnnouncementOption) *ParentAnnouncementOptionFixture {
 	if row == nil {
 		return nil
 	}
-	return &communication.ParentAnnouncementOptionFixture{
+	return &ParentAnnouncementOptionFixture{
 		ID:             row.ID,
 		TenantID:       row.TenantID,
 		AnnouncementID: row.AnnouncementID,

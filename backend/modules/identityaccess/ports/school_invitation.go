@@ -22,6 +22,9 @@ type SchoolInvitationDelivery interface {
 	// A resend calls DispatchSchoolInvitation only, so it never repeats the
 	// welcome.
 	QueueSchoolWelcome(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, rolePermissions []string) error
+	// InvitationMailStates reports what became of the last mail of each
+	// invitation; an invitation without a mail has no key.
+	InvitationMailStates(ctx context.Context, tenantID int64, invitationIDs []int64) (map[int64]identityaccess.InvitationMailState, error)
 }
 
 // EmploymentReset is the school's stored instruction, executed only when

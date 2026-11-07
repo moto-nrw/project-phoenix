@@ -42,7 +42,7 @@ var lettermintOutcomes = map[string]lettermintOutcome{
 	"policy_rejected": {state: domain.EmailDeliveryFailed, keepsAddress: true, reroute: true},
 	"suppressed":      {state: domain.EmailDeliverySuppressed, reroute: true},
 	"spam_complaint":  {state: domain.EmailDeliveryComplained},
-	"unsubscribed":    {state: domain.EmailDeliverySuppressed},
+	"unsubscribed":    {state: domain.EmailDeliveryUnsubscribed},
 }
 
 // lettermintStateless are documented events that say nothing about the outcome. They need

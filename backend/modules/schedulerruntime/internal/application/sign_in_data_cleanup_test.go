@@ -79,3 +79,16 @@ func TestTokenCleanupRegistersTheSignInDataRetention(t *testing.T) {
 		"Guardian invitation cleanup", "Caterer invitation cleanup", "MFA email code cleanup", "Passkey session cleanup", "Operator session cleanup",
 	})
 }
+
+// The reads of the Träger documents expire in the hourly cleanup, also for a
+// Träger whose documents nobody opens any more (#4692).
+func TestTokenCleanupRegistersTheTraegerDocumentReadRetention(t *testing.T) {
+	t.Parallel()
+	scheduler := newScheduler(minimalWorkerDependencies(t))
+
+	descriptions := make([]string, 0, len(scheduler.cleanupJobs))
+	for _, job := range scheduler.cleanupJobs {
+		descriptions = append(descriptions, job.Description)
+	}
+	assert.Contains(t, descriptions, "Träger document read retention")
+}

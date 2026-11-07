@@ -1189,6 +1189,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": data})
 			return
 		}
+		// The shared document step (#4692) reads the schools with their
+		// groups and the documents, then uploads one document at a time.
+		if data, ok := fakeTraegerDocumentData(r.Method, r.URL.Path); ok {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": data})
+			return
+		}
 		// The care contract step (#4678) reads the offerings and the
 		// accepted applications; this fake Träger has neither.
 		if r.Method == seedHTTPMethodGet && (r.URL.Path == "/traeger/contract-templates/" || r.URL.Path == "/traeger/contracts/candidates") {

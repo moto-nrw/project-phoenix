@@ -490,7 +490,7 @@ func toDirectoryGuardian(profile *peopledirectory.GuardianProfileSnapshot) peopl
 		AddressStreet: profile.AddressStreet, AddressCity: profile.AddressCity, AddressPostalCode: profile.AddressPostalCode,
 		PreferredContactMethod: profile.PreferredContactMethod, LanguagePreference: profile.LanguagePreference,
 		Notes: profile.Notes, HasAccount: profile.HasAccount, AccountID: profile.AccountID,
-		PhoneNumbers: toDirectoryPhones(profile.PhoneNumbers),
+		PhoneNumbers: toDirectoryPhones(profile.PhoneNumbers), EmailsStopped: profile.EmailsStoppedAt != nil,
 	}
 }
 

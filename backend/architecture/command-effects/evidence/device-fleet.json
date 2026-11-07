@@ -26,7 +26,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
-      "binding_digest": "e4ad3faaacf3b494bf6203d863a29f6d",
+      "binding_digest": "ad6e400458907724a36bc50ebaeda165",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
       "source_owner": "device-fleet",
       "target": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
@@ -34,7 +34,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
-      "binding_digest": "a0cf7c158725479c78f9d11e6bb99fc4",
+      "binding_digest": "f93f12b08285a9bbfab9dab37cfc3854",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
@@ -42,7 +42,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
-      "binding_digest": "bf9451a77e41a6748df378c18bdea04a",
+      "binding_digest": "098fc8676484ff4adc0cbbc8f8de321a",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySlug",
@@ -50,7 +50,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
-      "binding_digest": "6f92ae333d9ced0d90d7d99419edf29f",
+      "binding_digest": "6330b97288368da8798703ea657b028f",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySubdomain",
@@ -58,7 +58,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
-      "binding_digest": "f9d949808b4a63a20409d11056b90e06",
+      "binding_digest": "92faf50d18b8d7fcc20ca555fed42f56",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
@@ -66,7 +66,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
-      "binding_digest": "b7b8169dceef3d943464abb9c5004d5c",
+      "binding_digest": "97a4503e7536e771d7ee0c24eee1c96c",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySlug",
@@ -74,7 +74,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
-      "binding_digest": "8fd4d926b1ab29c5b4bbf403c44faaf5",
+      "binding_digest": "de6b87dc1db427cf866b716f7fc98865",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySubdomain",
@@ -82,7 +82,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
-      "binding_digest": "1e53a97403ea97fca4809ff637fb45f1",
+      "binding_digest": "cbce42629d0132c0684cc4cf351d2bf8",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
@@ -90,7 +90,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
-      "binding_digest": "5677c56e8f50a7768e6fb1342d0ed247",
+      "binding_digest": "78c5b8dba180255c6597c507f9d77304",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
@@ -98,7 +98,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
-      "binding_digest": "f62a8c6f7fccda1a1ed86bc83ef08bd3",
+      "binding_digest": "dbed5ab7627c9730c84534c800ed5d84",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
@@ -106,7 +106,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
-      "binding_digest": "813e30ca0fd1423ac60a03417f461383",
+      "binding_digest": "17ab872c571ed24e5dec6ca799191290",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
       "source_owner": "device-fleet",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",

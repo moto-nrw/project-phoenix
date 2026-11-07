@@ -126,8 +126,10 @@ function leadTopics(
     // Zuerst der Zugang: ohne Konto sieht eine Familie weder Mitteilung
     // noch Elternbrief noch Essensplan.
     articles.inviteGuardiansTopic(),
+    articles.emailDeliveryTopic(),
     articles.parentAnnouncementTopic(),
     articles.parentLetterTopic(),
+    articles.schoolTraegerDocumentsTopic(),
     articles.parentSurveyTopic(),
     articles.leadSurveysTopic(),
     articles.parentDeclarationTopic(),
@@ -249,6 +251,7 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   articles.traegerHolidayContributionTopic(),
   articles.traegerCareContractsTopic(),
   articles.traegerBillingRunTopic(),
+  articles.traegerSharedDocumentsTopic(),
   articles.traegerAccessLogTopic(),
   articles.traegerBriefkopfTopic(),
   articles.traegerDocumentTemplatesTopic(),

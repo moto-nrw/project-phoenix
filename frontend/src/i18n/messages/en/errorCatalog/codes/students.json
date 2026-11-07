@@ -87,5 +87,8 @@
   "staff_profile_required": "The parents set this time. Only someone with a staff profile can change it.",
   "staff_value_invalid": "{object} could not be saved. Please check your entries.",
   "staff_value_unsupported": "{object} could not be saved. Please check your entries.",
-  "status_day_conflict": "Some days already have an entry. These days were not changed."
+  "status_day_conflict": "Some days already have an entry. These days were not changed.",
+  "guardian_email_block_needs_review": "{object} could not be saved. Please check your entries.",
+  "guardian_email_block_lift_failed": "{object} could not be saved. Please check your entries.",
+  "guardian_email_block_stays": "{object} could not be saved. Please check your entries."
 }

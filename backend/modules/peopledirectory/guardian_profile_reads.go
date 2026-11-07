@@ -24,6 +24,7 @@ type GuardianProfileSnapshot struct {
 	PreferredContactMethod string                          `json:"preferred_contact_method"`
 	LanguagePreference     string                          `json:"language_preference"`
 	PortalLocale           *string                         `json:"portal_locale,omitempty"`
+	EmailsStoppedAt        *time.Time                      `json:"emails_stopped_at,omitempty"`
 	Notes                  *string                         `json:"notes,omitempty"`
 	PhoneNumbers           []*GuardianProfilePhoneSnapshot `json:"phone_numbers,omitempty"`
 }

@@ -122,6 +122,14 @@ type GuardianRelationships interface {
 type Children interface {
 	ListByAccount(context.Context, int64) ([]*ChildSummary, error)
 }
+
+// ElternAppBookings tells, in one read, which of these schools booked the
+// parents' app (Eltern-App). The read joins the ambient administrative
+// transaction the calendar lists the children in. A school the answer
+// leaves out was not read.
+type ElternAppBookings interface {
+	ElternAppBooked(context.Context, []int64) (map[int64]bool, error)
+}
 type Groups interface {
 	List(context.Context) ([]*Group, error)
 }

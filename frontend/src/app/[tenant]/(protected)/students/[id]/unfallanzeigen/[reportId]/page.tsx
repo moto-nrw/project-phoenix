@@ -24,7 +24,7 @@ import {
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
-import { transportFetch } from "~/lib/api-error";
+import { fetchStudent } from "~/lib/student-api";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { hasPermission } from "~/lib/auth-utils";
 import { berlinClockFromISO, formatBerlinDate } from "~/lib/date-helpers";
@@ -58,20 +58,12 @@ function stamp(iso: string | null): string {
 function useStudentName(studentId: string): string | null {
   const { data } = useSWRAuth<string | null>(
     studentKeys.name(studentId),
-    async () => {
-      const res = await transportFetch(`/api/students/${studentId}`);
-      // The name only labels the page; without it the report still shows.
-      if (!res.ok) return null;
-      const body = (await res.json()) as {
-        data?: { name?: string; first_name?: string; second_name?: string };
-      };
-      const student = body.data;
-      if (!student) return null;
-      return (
-        student.name ??
-        `${student.first_name ?? ""} ${student.second_name ?? ""}`
-      ).trim();
-    },
+    // The name only labels the page; without it the report still shows.
+    () =>
+      fetchStudent(studentId).then(
+        (student) => student.name,
+        () => null,
+      ),
   );
   return data ?? null;
 }

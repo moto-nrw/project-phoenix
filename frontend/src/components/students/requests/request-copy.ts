@@ -7,6 +7,7 @@
 
 import { formatDate } from "~/lib/date-helpers";
 import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
+import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import type {
   AggregatedRequestType,
   BulkIneligibleReason,
@@ -178,3 +179,18 @@ export const CURRENT_VALUE_CHANGED_WARNING =
 
 export const PAST_REQUEST_HINT =
   "Diese Anfrage betrifft nur vergangene Tage. Sie ändert nichts mehr.";
+
+/**
+ * Status-Beschriftung und -Farbe einer entschiedenen Anfrage. Geteilt mit der
+ * Lese-Ansicht aus dem Nachrichten-Verlauf (#3135), damit ein Status dort
+ * nicht anders heißt als in der Historie.
+ */
+export const HISTORY_STATUS_META: Record<
+  string,
+  { label: string; tone: StatusBadgeTone }
+> = {
+  approved: { label: "Freigegeben", tone: "green" },
+  rejected: { label: "Abgelehnt", tone: "red" },
+  withdrawn: { label: "Zurückgezogen", tone: "gray" },
+  auto_applied: { label: "Automatisch übernommen", tone: "gray" },
+};

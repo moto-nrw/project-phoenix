@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import {
   type RouteContext,
+  allowedQueryString,
   buildQueryString,
 } from "./route-wrapper-utils.server";
 
@@ -28,6 +29,25 @@ interface ProxyOptions {
   raw?: boolean;
 }
 
+interface GetProxyOptions extends ProxyOptions {
+  /**
+   * Forward only these query parameters (first non-empty value each) instead
+   * of the whole query string, for endpoints whose backend audits or bounds
+   * what it is asked.
+   */
+  forwardQuery?: readonly string[];
+}
+
+interface PostProxyOptions extends ProxyOptions {
+  /** Reject a larger request body with 413 while reading it. */
+  maxBodyBytes?: number;
+}
+
+interface DeleteProxyOptions {
+  /** Forward the JSON request body, e.g. a confirmation payload. */
+  withBody?: boolean;
+}
+
 type WiredHandler = (
   request: NextRequest,
   context: RouteContext,
@@ -37,13 +57,18 @@ type NoBodyFactory = <T>(
   handler: (request: NextRequest, token: string, params: Params) => Promise<T>,
 ) => WiredHandler;
 
-type WithBodyFactory = <T, B>(
-  handler: (
-    request: NextRequest,
-    body: B,
-    token: string,
-    params: Params,
-  ) => Promise<T>,
+type BodyHandler<T, B> = (
+  request: NextRequest,
+  body: B,
+  token: string,
+  params: Params,
+) => Promise<T>;
+
+type WithBodyFactory = <T, B>(handler: BodyHandler<T, B>) => WiredHandler;
+
+type BoundedBodyFactory = <T, B>(
+  handler: BodyHandler<T, B>,
+  options: { maxBodyBytes: number },
 ) => WiredHandler;
 
 type ReadFetcher = <T>(endpoint: string, token: string) => Promise<T>;
@@ -54,18 +79,28 @@ type WriteFetcher = <T, B = unknown>(
   idempotencyKey?: string,
 ) => Promise<T>;
 type DeleteFetcher = (endpoint: string, token: string) => Promise<unknown>;
+type DeleteWithBodyFetcher = (
+  endpoint: string,
+  token: string,
+  body: unknown,
+) => Promise<unknown>;
 
-export interface PortalBindings {
+interface PortalBindings {
   get: NoBodyFactory;
   post: WithBodyFactory;
   put: WithBodyFactory;
   patch?: WithBodyFactory;
   del: NoBodyFactory;
+  /** Portals that bound request bodies while reading them. */
+  boundedPost?: BoundedBodyFactory;
+  /** Portals with DELETE routes that carry a JSON body. */
+  delWithBody?: WithBodyFactory;
   apiGet: ReadFetcher;
   apiPost: WriteFetcher;
   apiPut: WriteFetcher;
   apiPatch?: WriteFetcher;
   apiDelete: DeleteFetcher;
+  apiDeleteWithBody?: DeleteWithBodyFetcher;
   /** True when the portal's fetchers already unwrap the backend `data` envelope. */
   fetcherUnwrapsData: boolean;
 }
@@ -79,10 +114,13 @@ export function makeProxyFactories(b: PortalBindings) {
     return (response as { data: T }).data;
   };
 
+  const query = (request: NextRequest, allowed?: readonly string[]): string =>
+    allowed ? allowedQueryString(request, allowed) : buildQueryString(request);
+
   /** GET proxy: forwards the query string, unwraps `data` unless `{ raw: true }`. */
-  function proxyGet<T>(endpoint: ProxyEndpoint, options?: ProxyOptions) {
+  function proxyGet<T>(endpoint: ProxyEndpoint, options?: GetProxyOptions) {
     return b.get<T>(async (request, token, params) => {
-      const target = `${resolve(endpoint, params)}${buildQueryString(request)}`;
+      const target = `${resolve(endpoint, params)}${query(request, options?.forwardQuery)}`;
       return unwrap<T>(await b.apiGet<unknown>(target, token), options?.raw);
     });
   }
@@ -90,15 +128,22 @@ export function makeProxyFactories(b: PortalBindings) {
   /** POST proxy: forwards the parsed body, unwraps `data` unless `{ raw: true }`. */
   function proxyPost<T, B = unknown>(
     endpoint: ProxyEndpoint,
-    options?: ProxyOptions,
+    options?: PostProxyOptions,
   ) {
-    return b.post<T, B>(async (request, body, token, params) => {
+    const handler: BodyHandler<T, B> = async (request, body, token, params) => {
       const idempotencyKey = request.headers.get("Idempotency-Key");
       const target = resolve(endpoint, params);
       const response = idempotencyKey
         ? await b.apiPost<unknown, B>(target, token, body, idempotencyKey)
         : await b.apiPost<unknown, B>(target, token, body);
       return unwrap<T>(response, options?.raw);
+    };
+    if (options?.maxBodyBytes === undefined) return b.post<T, B>(handler);
+    if (!b.boundedPost) {
+      throw new Error("maxBodyBytes is not supported for this portal");
+    }
+    return b.boundedPost<T, B>(handler, {
+      maxBodyBytes: options.maxBodyBytes,
     });
   }
 
@@ -133,10 +178,21 @@ export function makeProxyFactories(b: PortalBindings) {
     );
   }
 
-  /** DELETE proxy: forwards no body; null result becomes 204 (per the base handler). */
-  function proxyDelete(endpoint: ProxyEndpoint) {
-    return b.del<null>(async (_request, token, params) => {
-      await b.apiDelete(resolve(endpoint, params), token);
+  /** DELETE proxy: null result becomes 204 (per the base handler). */
+  function proxyDelete(endpoint: ProxyEndpoint, options?: DeleteProxyOptions) {
+    if (!options?.withBody) {
+      return b.del<null>(async (_request, token, params) => {
+        await b.apiDelete(resolve(endpoint, params), token);
+        return null;
+      });
+    }
+    const delWithBody = b.delWithBody;
+    const apiDeleteWithBody = b.apiDeleteWithBody;
+    if (!delWithBody || !apiDeleteWithBody) {
+      throw new Error("DELETE with body is not configured for this portal");
+    }
+    return delWithBody<null, unknown>(async (_request, body, token, params) => {
+      await apiDeleteWithBody(resolve(endpoint, params), token, body);
       return null;
     });
   }

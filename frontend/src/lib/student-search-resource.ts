@@ -1,9 +1,7 @@
-import { studentService } from "~/lib/api";
+import { fetchStudents, type StudentFilters } from "~/lib/student-api";
 import { createLogger } from "~/lib/logger";
+
 const logger = createLogger({ component: "StudentSearch" });
-type SearchFilters = NonNullable<
-  Parameters<typeof studentService.getStudents>[0]
->;
 
 /** UI selections shared by the reader and navigation intent. */
 export interface StudentSearchFilterInput {
@@ -12,19 +10,19 @@ export interface StudentSearchFilterInput {
   schoolClasses: readonly string[];
   years: readonly string[];
   roomId: string;
-  dayStatus: "all" | NonNullable<SearchFilters["dayStatus"]>;
+  dayStatus: "all" | NonNullable<StudentFilters["dayStatus"]>;
   date: string;
   isToday: boolean;
-  bus: "all" | NonNullable<SearchFilters["bus"]>;
-  photoConsent: "all" | NonNullable<SearchFilters["photoConsent"]>;
-  pickupStatus: "all" | NonNullable<SearchFilters["pickupStatus"]>;
+  bus: "all" | NonNullable<StudentFilters["bus"]>;
+  photoConsent: "all" | NonNullable<StudentFilters["photoConsent"]>;
+  pickupStatus: "all" | NonNullable<StudentFilters["pickupStatus"]>;
   companions: boolean;
 }
 
-/** Keep default omission, room page size and slim projection identical. */
+/** The search filters, identical for the page and its navigation intent. */
 export function buildStudentSearchFilters(
   params: StudentSearchFilterInput,
-): SearchFilters {
+): StudentFilters {
   return {
     search: params.search,
     groupId: [...params.groupIds],
@@ -38,8 +36,6 @@ export function buildStudentSearchFilters(
       params.photoConsent === "all" ? undefined : params.photoConsent,
     pickupStatus:
       params.pickupStatus === "all" ? undefined : params.pickupStatus,
-    // The proxy caps a page at 1000; the bounded page walk loads the remainder.
-    pageSize: params.roomId ? 1000 : undefined,
     includePickupTimes: true,
     includeArrivalTimes: true,
     includeCompanions: params.companions,
@@ -47,14 +43,15 @@ export function buildStudentSearchFilters(
   };
 }
 
+const MAX_STUDENT_SEARCH_PAGES = 20;
+
 /** Same bounded page walk for the destination and navigation intent. */
 export async function fetchStudentSearch(
-  filters: NonNullable<Parameters<typeof studentService.getStudents>[0]>,
+  filters: StudentFilters,
   requestDate: string,
   requestIsToday: boolean,
 ) {
-  const MAX_STUDENT_SEARCH_PAGES = 20;
-  const result = await studentService.getStudents(filters);
+  const result = await fetchStudents(filters);
   const students = [...result.students];
 
   // Walk the remaining pages when the selection is larger than one page.
@@ -69,7 +66,7 @@ export async function fetchStudentSearch(
   const totalPages = result.pagination?.total_pages ?? 1;
   const lastPage = Math.min(totalPages, MAX_STUDENT_SEARCH_PAGES);
   for (let page = 2; page <= lastPage; page++) {
-    const nextPage = await studentService.getStudents({ ...filters, page });
+    const nextPage = await fetchStudents({ ...filters, page });
     students.push(...nextPage.students);
   }
   // Past the bound the list is incomplete, and everything downstream — the

@@ -1202,14 +1202,12 @@ export function ShiftEditModal({
                     </p>
                     <FieldGroup label="Wochentage">
                       <WeekdayPicker
-                        idPrefix="shift-series-edit"
                         weekdays={seriesWeekdays}
                         onToggle={toggleSeriesWeekday}
                       />
                     </FieldGroup>
                     <FieldGroup label="Wochenrhythmus">
                       <RhythmPicker
-                        idPrefix="shift-series-edit"
                         biweekly={seriesBiweekly}
                         onBiweeklyChange={setSeriesBiweekly}
                         abPattern={seriesAbPattern}
@@ -1401,7 +1399,6 @@ export function ShiftEditModal({
                       <div className="space-y-3">
                         <FieldGroup label="Wochentage">
                           <WeekdayPicker
-                            idPrefix="shift-series"
                             weekdays={weekdays}
                             onToggle={toggleWeekday}
                           />
@@ -1435,7 +1432,6 @@ export function ShiftEditModal({
                         </Field>
                         <FieldGroup label="Wochenrhythmus">
                           <RhythmPicker
-                            idPrefix="shift-series"
                             biweekly={biweekly}
                             onBiweeklyChange={setBiweekly}
                             abPattern={abPattern}

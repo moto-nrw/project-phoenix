@@ -263,15 +263,23 @@ func TestRetentionRemovesExpiredEventsAndSuppressions(t *testing.T) {
 		if events, err = store.DeleteExpiredEmailDeliveryEvents(txCtx, school, time.Now().Add(-domain.RetentionWindow)); err != nil {
 			return err
 		}
-		if keptSuppressions, err = store.DeleteExpiredEmailSuppressions(txCtx, school, time.Now().Add(-domain.SuppressionRetention)); err != nil {
+		if keptSuppressions, err = store.DeleteUnheldEmailSuppressions(txCtx, school); err != nil {
 			return err
 		}
-		suppressions, err = store.DeleteExpiredEmailSuppressions(txCtx, school, time.Now().Add(time.Minute))
+		return err
+	}))
+	// However old the mark, it stays until someone at the school checked the
+	// address (#5934).
+	_, err = db.ExecContext(context.Background(), `UPDATE platform.email_suppressions SET updated_at = NOW() - INTERVAL '10 years' WHERE tenant_id = ?`, school)
+	require.NoError(t, err)
+	require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		suppressions, err = store.DeleteUnheldEmailSuppressions(txCtx, school)
 		return err
 	}))
 	assert.Equal(t, 1, events)
-	assert.Zero(t, keptSuppressions, "a fresh entry of a known address stays for the period")
-	assert.Equal(t, 1, suppressions)
+	assert.Zero(t, keptSuppressions, "a fresh entry of a known address stays")
+	assert.Zero(t, suppressions, "an old entry of a known address stays too")
 }
 
 // Deleting a person must end the entry, whichever path deleted them (#5932).
@@ -287,7 +295,7 @@ func TestRetentionRemovesASuppressionNobodyAtTheSchoolHolds(t *testing.T) {
 	var removed int
 	require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		removed, err = store.DeleteExpiredEmailSuppressions(txCtx, school, time.Now().Add(-domain.SuppressionRetention))
+		removed, err = store.DeleteUnheldEmailSuppressions(txCtx, school)
 		return err
 	}))
 	assert.Equal(t, 1, removed)
@@ -617,15 +625,19 @@ func TestLiftEmailSuppressionFreesOnlyABounceOfThatSchool(t *testing.T) {
 	insert(other, "bounce@example.com", "failed")
 	insert(school, "complaint@example.com", "complained")
 
-	reason, listed, err := store.EmailSuppressionReason(ctx, school, " Complaint@Example.com ")
-	require.NoError(t, err)
-	assert.True(t, listed)
-	assert.Equal(t, domain.EmailDeliveryComplained, reason)
-	_, listed, err = store.EmailSuppressionReason(ctx, school, "nobody@example.com")
-	require.NoError(t, err)
-	assert.False(t, listed)
-
-	require.NoError(t, store.DeleteEmailSuppression(ctx, school, "Bounce@Example.com"))
+	inSchool := func(run func(txCtx context.Context) error) {
+		require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error { return run(txCtx) }))
+	}
+	inSchool(func(txCtx context.Context) error {
+		reason, listed, err := store.EmailSuppressionReason(txCtx, school, " Complaint@Example.com ")
+		require.NoError(t, err)
+		assert.True(t, listed)
+		assert.Equal(t, domain.EmailSuppressionComplained, reason)
+		_, listed, err = store.EmailSuppressionReason(txCtx, school, "nobody@example.com")
+		require.NoError(t, err)
+		assert.False(t, listed)
+		return store.DeleteEmailSuppression(txCtx, school, "Bounce@Example.com")
+	})
 
 	stillListed, err := store.EmailAddressSuppressed(ctx, school, "bounce@example.com")
 	require.NoError(t, err)
@@ -699,7 +711,10 @@ func TestComplaintAfterFallbackStillSuppressesTheAddress(t *testing.T) {
 	suppressed, err := store.EmailAddressSuppressed(ctx, school, eventAddress)
 	require.NoError(t, err)
 	assert.True(t, suppressed)
-	assert.ErrorIs(t, store.DeleteEmailSuppression(ctx, school, eventAddress), domain.ErrSuppressionNeedsReview)
+	require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
+		assert.ErrorIs(t, store.DeleteEmailSuppression(txCtx, school, eventAddress), domain.ErrSuppressionNeedsReview)
+		return nil
+	}))
 	suppressed, err = store.EmailAddressSuppressed(ctx, school, eventAddress)
 	require.NoError(t, err)
 	assert.True(t, suppressed)
@@ -714,18 +729,29 @@ func TestLiftSuppressionPreservesAComplaintRecordedAfterTheEligibilityCheck(t *t
 	token := eventMailToken(t, db, mail.ID)
 	_, err := store.RecordEmailDeliveryEvent(ctx, eventAt(token, "bounce", domain.EmailDeliveryFailed, time.Now()))
 	require.NoError(t, err)
-	reason, listed, err := store.EmailSuppressionReason(ctx, school, eventAddress)
-	require.NoError(t, err)
+	var reason domain.EmailSuppressionReason
+	var listed bool
+	readReason := func() {
+		t.Helper()
+		require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
+			var readErr error
+			reason, listed, readErr = store.EmailSuppressionReason(txCtx, school, eventAddress)
+			return readErr
+		}))
+	}
+	readReason()
 	require.True(t, listed)
-	require.Equal(t, domain.EmailDeliveryFailed, reason)
+	require.Equal(t, domain.EmailSuppressionFailed, reason)
 	// A webhook commits the complaint while the provider call is in progress.
 	_, err = store.RecordEmailDeliveryEvent(ctx, eventAt(token, "complaint", domain.EmailDeliveryComplained, time.Now()))
 	require.NoError(t, err)
-	require.ErrorIs(t, store.DeleteEmailSuppression(ctx, school, eventAddress), domain.ErrSuppressionNeedsReview)
-	reason, listed, err = store.EmailSuppressionReason(ctx, school, eventAddress)
-	require.NoError(t, err)
+	require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
+		require.ErrorIs(t, store.DeleteEmailSuppression(txCtx, school, eventAddress), domain.ErrSuppressionNeedsReview)
+		return nil
+	}))
+	readReason()
 	assert.True(t, listed)
-	assert.Equal(t, domain.EmailDeliveryComplained, reason)
+	assert.Equal(t, domain.EmailSuppressionComplained, reason)
 }
 
 // A mail that arrived or drew a complaint is not sent a second time, whatever
@@ -890,29 +916,6 @@ func TestOpenProviderMailsNameTheirLastCheck(t *testing.T) {
 	require.Len(t, mails, 1)
 	require.NotNil(t, mails[0].CheckedAt)
 	assert.True(t, mails[0].CheckedAt.Equal(checkedAt))
-}
-
-func TestSchoolMailedAddressIsExactAndOfThatSchool(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	store, ctx := testStore(t, db)
-	school, other := testpkg.Tenant(t), testpkg.NewTenantScope(t, db).TenantID
-	enqueueEventMail(t, db, store, ctx, school, "mailed", false)
-
-	for name, test := range map[string]struct {
-		school  int64
-		address string
-		want    bool
-	}{
-		"same address":   {school, "guardian@example.com", true},
-		"any case":       {school, " GUARDIAN@example.com ", true},
-		"part of it":     {school, "guardian@example.co", false},
-		"another school": {other, "guardian@example.com", false},
-	} {
-		mailed, err := store.SchoolMailedAddress(ctx, test.school, test.address)
-		require.NoError(t, err, name)
-		assert.Equal(t, test.want, mailed, name)
-	}
 }
 
 // Only the bounce goes, under the school's own row-level security.

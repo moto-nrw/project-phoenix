@@ -218,7 +218,8 @@ interface BackendSchool {
   city?: string | null;
 }
 
-async function readJson(response: Response): Promise<unknown> {
+/** Reads a JSON body; null for an empty or unreadable one. */
+export async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;
   try {

@@ -52,6 +52,8 @@ import type { dutyRosterTopic as authored_dutyRosterTopic } from "./articles/dut
 
 import type { editStudentTopic as authored_editStudentTopic } from "./articles/edit-student";
 
+import type { emailDeliveryTopic as authored_emailDeliveryTopic } from "./articles/email-delivery";
+
 import type { emergencyTopic as authored_emergencyTopic } from "./articles/emergency";
 
 import type { endCareTopic as authored_endCareTopic } from "./articles/end-care";
@@ -226,6 +228,8 @@ import type { roomsCatalogTopic as authored_roomsCatalogTopic } from "./articles
 
 import type { roomsTopic as authored_roomsTopic } from "./articles/rooms";
 
+import type { schoolTraegerDocumentsTopic as authored_schoolTraegerDocumentsTopic } from "./articles/school-traeger-documents";
+
 import type { settingsGuideTopic as authored_settingsGuideTopic } from "./articles/settings-guide";
 
 import type { settingsTopic as authored_settingsTopic } from "./articles/settings";
@@ -351,6 +355,8 @@ import type { traegerSchoolSwitchTopic as authored_traegerSchoolSwitchTopic } fr
 import type { traegerSchoolViewTopic as authored_traegerSchoolViewTopic } from "./articles/traeger-school-view";
 
 import type { traegerSettingsTopic as authored_traegerSettingsTopic } from "./articles/traeger-settings";
+
+import type { traegerSharedDocumentsTopic as authored_traegerSharedDocumentsTopic } from "./articles/traeger-shared-documents";
 
 import type { traegerTestSystemTopic as authored_traegerTestSystemTopic } from "./articles/traeger-test-system";
 
@@ -2101,6 +2107,100 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
   };
 } satisfies typeof authored_editStudentTopic;
 
+/**
+ * Die Zustellhinweise (#5934). Sie stehen an fünf Stellen: Einladung der Eltern,
+ * Elternbrief, Einladung ins Personal, Anmeldung und, für den Träger, im Versand
+ * der Schreiben. Hier steht, was jedes Wort bedeutet und wer als Nächstes handelt.
+ * `Versendet` heißt nur: Die Mail ist raus. `Zugestellt` meldet erst der
+ * Mail-Dienst, und ohne ihn (Strato, Brevo, Notweg) bleibt es bei `Versendet`.
+ */
+export const emailDeliveryTopic = function emailDeliveryTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadEmailDelivery,
+    title: "Wenn eine E-Mail nicht ankommt",
+    question: "Was bedeuten Zugestellt, Verzögert und Adresse prüfen?",
+    summary:
+      "moto zeigt bei jeder Mail an Eltern, was aus ihr geworden ist und was Sie tun können.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "EnvelopeSimple",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Das bedeuten die Hinweise",
+        ordered: false,
+        steps: [
+          "`Wird gesendet`: Die Mail wartet noch.",
+          "`Versendet`: Die Mail ist raus. Ob sie im Postfach ankam, ist nicht bekannt.",
+          "`Zugestellt`: Die Mail ist angekommen.",
+          "`Verzögert`: Die Mail kommt später an. Es wird weiter versucht. Bitte senden Sie sie nicht noch einmal.",
+          "`Überfällig`: Die Mail ist seit Tagen verzögert. Sie können sie noch einmal senden.",
+          "`Nicht zustellbar`: Die Mail kam nicht an.",
+          "`Nicht gesendet`: Die Mail ging nicht raus. Der Hinweis nennt den Grund. Besteht er nicht mehr, können Sie neu senden.",
+          "`Gesperrt`: Diese Adresse ist gesperrt. Eine neue Mail hilft nicht. Der moto-Support muss das klären.",
+          "`Stand unklar`: Ob die Adresse gesperrt ist, lässt sich gerade nicht prüfen. Versuchen Sie es später noch einmal.",
+          "`Nicht versendet`: Es gab keine Mail, zum Beispiel weil die Adresse fehlt.",
+          "`Fehlgeschlagen`: Das Senden hat nicht geklappt. Bitte senden Sie neu.",
+          "`Ergebnis unbekannt`: Ob die Mail rausging, ist nicht bekannt.",
+          "`Abgebrochen`: Die Mail wurde nicht mehr gesendet.",
+          "`Abgemeldet`: Die Person hat sich von den Mails abgemeldet. Sprechen Sie sie direkt an.",
+          "`Adresse prüfen`: An diese Adresse geht keine Mail mehr raus, weil sie gesperrt ist.",
+          "`Versand gestoppt`: Ihre Schule hat die Mails an diese Person gestoppt. Nutzt noch jemand diese Adresse, gehen Mails an die Adresse weiter raus.",
+        ],
+      },
+      {
+        title: "Einen Elternbrief neu senden",
+        description:
+          "Das geht für Mails, die nicht ankamen. Gesperrte Adressen und gestoppte Personen bekommen keine neue Mail.",
+        steps: [
+          "Öffnen Sie den Elternbrief und sehen Sie sich den Status an.",
+          "Steht bei einer Person `Adresse prüfen`? Prüfen Sie zuerst die Adresse wie unten beschrieben.",
+          "Wählen Sie `Fehlgeschlagene erneut senden`. moto sendet an die aktuelle Adresse der Person.",
+        ],
+      },
+      {
+        title: "Eine gesperrte Adresse prüfen",
+        description:
+          "Die Sperre gilt, bis jemand an Ihrer Schule die Adresse geprüft hat.",
+        steps: [
+          "Öffnen Sie das Kind und den Reiter `Erziehungsberechtigte`.",
+          "Fragen Sie die Familie nach der richtigen Adresse.",
+          "Ist die Adresse falsch: Wählen Sie im Menü der Person `Bearbeiten` und tragen Sie die richtige ein.",
+          "Ist die Adresse richtig: Wählen Sie im Menü der Person `Sperre aufheben` und bestätigen Sie.",
+          "Senden Sie danach neu, zum Beispiel mit `Erneut einladen`.",
+        ],
+      },
+      {
+        title: "Mails an eine Person stoppen",
+        description:
+          "Zum Beispiel, wenn eine Person keine Mails der Schule mehr bekommen möchte. Der Stopp bleibt, auch wenn sich die Adresse ändert.",
+        steps: [
+          "Öffnen Sie das Kind und den Reiter `Erziehungsberechtigte`.",
+          "Wählen Sie im Menü der Person `Mails stoppen` und bestätigen Sie mit `Stoppen`.",
+          "Später heben Sie das im selben Menü mit `Mails wieder senden` auf.",
+        ],
+      },
+    ],
+    notes: [
+      "Anmeldecodes und Mails zum Passwort kommen auch an eine gesperrte Adresse.",
+      "Abrechnungsbriefe des Trägers gehen auch an gesperrte Adressen und gestoppte Personen.",
+      "Mails an das Team hält eine Sperre nicht zurück. Die Einladung zeigt den Hinweis trotzdem.",
+    ],
+    troubleshootingDetails: [
+      "Hat die Person eine Mail als unerwünscht gemeldet? Dann können Sie die Sperre nicht aufheben. Sprechen Sie die Person direkt an. Eine andere Adresse tragen Sie unter `Bearbeiten` ein.",
+      "`Erneut einladen` fehlt? Dann ist die Adresse gesperrt oder die letzte Mail noch unterwegs. Der Hinweis bei der Person sagt, was davon zutrifft.",
+      "Steht bei der Person `Gesperrt`? Die Schule kann das nicht aufheben. Wenden Sie sich an den moto-Support. Die Sperre lässt sich nicht weiter zuordnen.",
+      "Ist die Adresse in einem Elternbrief geändert? Die Zeile nennt die Adresse, an die die Mail ging, und darunter die aktuelle Adresse. Das Ergebnis gehört zur ersten.",
+      "Kommt nach dem Aufheben wieder eine Mail zurück? Dann sperrt moto die Adresse erneut. Fragen Sie die Familie nach einer anderen Adresse.",
+    ],
+    related: [
+      HELP_TOPICS.leadInviteGuardians,
+      HELP_TOPICS.leadInviteStaff,
+      HELP_TOPICS.leadManageStudent,
+    ],
+  };
+} satisfies typeof authored_emailDeliveryTopic;
+
 export const emergencyTopic = function emergencyTopic(
   presenceMode: HelpPresenceMode,
 ): HelpTopic {
@@ -2501,6 +2601,8 @@ export const enrollmentReviewTopic =
         "Die Eltern sehen die Entscheidung bei ihrer Anmeldung. Bei `Bestätigen` wird das Kind übernommen.",
       notes: [
         "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
+        // #5934
+        "Unter `E-Mails an die Familie` sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind. Steht dort `Adresse prüfen`, sprechen Sie die Familie direkt an.",
         "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",
         "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
         "Hat die Vorlage `Unterschrift erforderlich`, steht die Unterschrift der Eltern im Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie den Anmeldenachweis mit der Unterschrift herunter.",
@@ -3442,7 +3544,7 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
       },
     ],
     result:
-      "Die Person bekommt eine E-Mail mit einem Link. Sobald sie ihr Passwort festlegt, sieht sie ihr Kind im Elternportal.",
+      "Die Person bekommt eine E-Mail mit einem Link. Bei der Person sehen Sie, ob die Mail angekommen ist. Sobald sie ihr Passwort festlegt, sieht sie ihr Kind im Elternportal.",
     notes: [
       "Hinter dem Namen steht, wie weit die Person ist: `Kein Konto`, `Einladung offen` oder `Konto aktiv`.",
       "Bei `Einladung offen` heißt der Knopf `Erneut einladen`. Damit geht die E-Mail noch einmal raus.",
@@ -3456,11 +3558,13 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "`Einladen` bewirkt nichts? Dann fehlt die `E-Mail`. Tragen Sie sie über `Bearbeiten` nach.",
+      "Bei der Person steht `Adresse prüfen` oder `Verzögert`, und `Erneut einladen` fehlt? Der Hinweis dort sagt, was zu tun ist. Mehr dazu unter `Wenn eine E-Mail nicht ankommt`.",
       "Die Person ist schon bei einem anderen Kind eingetragen? Wählen Sie `Vorhandene/n suchen` statt `+ Hinzufügen`. Sonst entstehen zwei Einträge für dieselbe Person.",
       "Fehlt `Elternzugänge` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
       "Eine Anfrage passt nicht? Wählen Sie `Ablehnen` und bestätigen Sie mit `Ablehnen`. Es wird kein Zugang gewährt.",
     ],
     related: [
+      HELP_TOPICS.leadEmailDelivery,
       HELP_TOPICS.leadManageStudent,
       HELP_TOPICS.leadParentVisibility,
       HELP_TOPICS.parentMessage,
@@ -3577,7 +3681,8 @@ export const inviteStaffTopic = function inviteStaffTopic(): HelpTopic {
       "Auf dem Handy steht `+ Personal` als runder Knopf unten rechts. Er öffnet dieselbe Auswahl.",
     ],
     troubleshootingDetails: [
-      "Die Einladung kam nicht an? Prüfen Sie die E-Mail-Adresse und den Spam-Ordner. Danach laden Sie erneut ein.",
+      "Die Einladung kam nicht an? Unter `Offene Einladungen` steht bei der Adresse `Nicht zustellbar` oder `Adresse prüfen`. Stimmt die Adresse nicht, löschen Sie die Einladung und laden neu ein. Prüfen Sie auch den Spam-Ordner.",
+      "Bei der Adresse steht `Verzögert`, und `Erneut senden` fehlt? Die Mail kommt später an. Bitte warten Sie, sonst kommt sie doppelt an.",
       "Eine Zeile wird als Fehler gemeldet? Dann gibt es die Person schon.",
       "moto erkennt eine bekannte Zeile an der Personalnummer, sonst an der E-Mail, sonst am Namen.",
       "Fehlt `Personal` in der Seitenleiste? Dafür braucht Ihre Rolle ein eigenes Recht.",
@@ -5653,33 +5758,38 @@ export const parentDepartureTopic = function parentDepartureTopic(): HelpTopic {
   };
 } satisfies typeof authored_parentDepartureTopic;
 
-/** `/parents/documents` (#4671, #4678): Schreiben und Verträge des Trägers. */
+/**
+ * `/parents/documents` (#4671, #4678, #4692): Schreiben und Verträge des
+ * Trägers und Dokumente, die der Träger für Eltern freigegeben hat.
+ */
 export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.parentDocuments,
     title: "Dokumente vom Träger finden",
     question: "Wo finde ich Schreiben vom Träger?",
     summary:
-      "Unter `Dokumente` liegen die Schreiben und Verträge, die Ihnen der Träger geschickt hat.",
+      "Unter `Dokumente` liegen die Schreiben und Verträge, die Ihnen der Träger geschickt hat. Dort finden Sie auch Dokumente, die der Träger für Eltern freigegeben hat, etwa eine Hausordnung.",
     group: "nachrichten",
     audience: "parent",
     icon: "FileText",
     steps: [
       "Tippen Sie unten auf `Mehr`.",
       "Wählen Sie `Dokumente`.",
-      "Wählen Sie beim Schreiben `Als PDF laden`.",
+      "Wählen Sie beim Schreiben `Als PDF laden`. Bei einem freigegebenen Dokument wählen Sie `Herunterladen`.",
     ],
     result:
-      "Sie bekommen das Schreiben als PDF. Sie können es speichern oder drucken.",
+      "Sie bekommen das Dokument auf Ihr Gerät. Sie können es speichern oder drucken.",
     notes: [
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
+      "Bei einem freigegebenen Dokument steht `Vom Träger für Eltern freigegeben`. Es gilt für alle Eltern, für die der Träger es freigegeben hat, zum Beispiel für eine Gruppe. Diese Dokumente kommen nicht per Mail.",
       "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein Bestätigungsschreiben kommt? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Einen Betreuungsvertrag bekommen Sie per Mail.",
     ],
     troubleshootingDetails: [
       "Ein Schreiben fehlt? Hier liegt es nur, wenn es an die Mail-Adresse Ihres Kontos ging. Haben Sie bei der Anmeldung eine andere Adresse angegeben, bekommen Sie es nur per Mail.",
       "Statt der Liste steht, dass Ihnen die Berechtigung fehlt? Bitte fragen Sie die Schule.",
+      "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen.",
     ],
     related: [
       HELP_TOPICS.parentHolidayRegistration,
@@ -6202,6 +6312,7 @@ export const parentLetterTopic = function parentLetterTopic(): HelpTopic {
     result:
       "Der Brief steht im Elternportal. Die erreichten Eltern bekommen zusätzlich eine E-Mail.",
     notes: [
+      "Unter `Empfänger` steht bei jeder Mail, was aus ihr geworden ist. Steht dort `Adresse prüfen`, korrigieren Sie die Adresse beim Kind unter `Erziehungsberechtigte`.",
       "Unter `Wer erhält die E-Mail?` wählen Sie `Nur mit Portalzugang` oder `Alle Bezugspersonen`.",
       "Die Eltern bestätigen den Brief. Eine Bestätigung pro Kind genügt.",
       "Der Kasten im Fenster zählt auf, was beim Veröffentlichen automatisch passiert.",
@@ -7280,6 +7391,44 @@ export const roomsTopic = function roomsTopic(
 } satisfies typeof authored_roomsTopic;
 
 /**
+ * `/dateien`, Karte `Vom Träger` (#4692): Dokumente, die der Träger für die
+ * Schule oder die Eltern an ihr freigegeben hat.
+ */
+export const schoolTraegerDocumentsTopic =
+  function schoolTraegerDocumentsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.schoolTraegerDocuments,
+      title: "Dokumente vom Träger finden",
+      question: "Wo finde ich Dokumente, die der Träger freigegeben hat?",
+      summary:
+        "Ihr Träger kann Dokumente für Ihre Schule freigeben. Sie finden sie unter `Dateien`.",
+      group: "elternarbeit",
+      audience: "lead",
+      icon: "Download",
+      requirements: ["Sie dürfen die Dateien Ihrer Schule verwalten."],
+      steps: [
+        "Klappen Sie in der Seitenleiste `Verwaltung` auf und öffnen Sie `Dateien`.",
+        "Oben steht die Karte `Vom Träger`.",
+        "Unter jedem Titel steht, für wen der Träger das Dokument freigegeben hat.",
+        "Wählen Sie `Herunterladen`.",
+      ],
+      result:
+        "Sie haben das Dokument auf Ihrem Gerät. Ändern kann es nur der Träger.",
+      notes: [
+        "Hier stehen auch Dokumente, die der Träger für die Eltern Ihrer Schule oder einer Gruppe freigegeben hat. So wissen Sie, was die Eltern bekommen haben.",
+        "Soll das Team ein Dokument sehen? Laden Sie es in einen Ordner unter `Dateien` hoch.",
+      ],
+      differences: [
+        "Die Karte `Vom Träger` fehlt? Dann hat der Träger zurzeit nichts für Ihre Schule freigegeben. Oder Ihnen fehlt das Recht, die Dateien zu verwalten.",
+      ],
+      troubleshootingDetails: [
+        "Ein Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen. Fragen Sie beim Träger nach.",
+      ],
+      related: [HELP_TOPICS.sharedFiles],
+    };
+  } satisfies typeof authored_schoolTraegerDocumentsTopic;
+
+/**
  * Die wichtigsten Einstellungen je Bereich (#3727). Bewusst eine Auswahl, keine
  * vollständige Liste: Die vollständige Liste steht auf `/settings` selbst, mit
  * einem Satz unter jeder Einstellung. Bezeichnungen stammen aus der Registry
@@ -7545,7 +7694,7 @@ export const staffNoticesTopic = function staffNoticesTopic(): HelpTopic {
       "Wählen Sie bei `Wichtigkeit`, wie dringend der Hinweis ist.",
       "Wählen Sie bei `Woche`, ob der Hinweis sich wiederholt.",
       "Tragen Sie `Gilt ab` und bei Bedarf `Gilt bis (optional)` ein.",
-      "Haken Sie unter `Wochentage` die Tage an, an denen der Hinweis erscheint.",
+      "Wählen Sie unter `Wochentage` die Tage aus, an denen der Hinweis erscheint.",
       "Wählen Sie `Speichern`.",
     ],
     result: "Der Hinweis steht sofort unter `Heute` für die gewählte Gruppe.",
@@ -9258,6 +9407,7 @@ export const teacherParentLettersTopic =
         "Wählen Sie den Brief in der Liste. Dort sehen Sie, wer gelesen, bestätigt oder zugestimmt hat.",
         "Ein gesendeter Brief lässt sich nicht mehr ändern. Sie können ihn über `Zurückziehen` zurücknehmen.",
         "Die OGS sieht Ihre Briefe in ihrer Übersicht. Ändern kann sie nur Sie.",
+        "Unter `Empfänger` steht bei jeder Mail, was aus ihr geworden ist. Steht dort `Adresse prüfen`, sagen Sie der OGS Bescheid. Sie korrigiert die Adresse.",
       ],
       differences: [
         "Sie sehen nur Ihre eigenen Briefe. Briefe anderer Lehrkräfte stehen nicht in Ihrer Liste.",
@@ -9824,7 +9974,9 @@ export const traegerBillingRunTopic =
             "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat die Familie ein Konto in der Eltern-App mit derselben Mail-Adresse, liegt es auch dort unter `Dokumente`. Familien ohne E-Mail geben Sie das gedruckte Schreiben.",
           steps: [
             "Wählen Sie im freigegebenen Lauf bei `Versand per Mail` den Knopf `An alle Familien senden`. moto schickt nur Mails, die noch nicht gesendet sind.",
-            "Neben jeder Familie steht, ob die Mail gesendet ist. `Nicht angekommen` heißt: Die Mail kam nicht an.",
+            "Neben jeder Familie steht, was aus der Mail geworden ist. `Gesendet` heißt: Die Mail ist raus. `Zugestellt` heißt: Sie ist angekommen. `Nicht angekommen` und `Nicht zustellbar` heißen: Die Mail kam nicht an.",
+            "Bei `Verzögert` kommt die Mail später an. Warten Sie dann. `Erneut senden` steht erst danach wieder bereit. Spätestens bei `Überfällig` können Sie neu senden.",
+            "Bei `Nicht gesendet` und `Abgemeldet` zählt, ob die Sperre noch besteht. Besteht sie, fehlt `Erneut senden`, und der Hinweis sagt, was zu tun ist. Drucken Sie das Schreiben dann und geben Sie es der Familie. Ist sie weg, können Sie neu senden.",
             "Wählen Sie bei dieser Familie `Erneut senden`. Mit `Senden` schicken Sie das Schreiben an eine einzelne Familie.",
             "Wählen Sie `Alle Schreiben drucken`. Sie bekommen alle Schreiben des Laufs in einer Datei.",
           ],
@@ -10075,6 +10227,7 @@ export const traegerCareContractsTopic =
         "Die Suche und die Filter gelten für alle Verträge. Mit `Weitere Verträge laden` zeigen Sie ältere Treffer an.",
         "Beim ersten Senden hält moto das PDF fest. Ändern Sie danach Bedingungen oder Brieftext, bleibt der versendete Vertrag gleich.",
         "Unter `Versand` sehen Sie, ob die Mail gesendet wurde. Mit `Versand aktualisieren` prüfen Sie den neuen Stand. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern.",
+        "Neben jedem Versand steht, was aus der Mail geworden ist: wie bei der Abrechnung. Der Hinweis oben nennt den Grund und den nächsten Schritt. Bei `Verzögert` warten Sie. Hat die Schule die Mails gestoppt, klären Sie das mit der Schule. Bei `Gesperrt` klärt das der moto-Support. Solange das gilt, ist `Erneut senden` aus.",
         "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
         "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
       ],
@@ -10987,6 +11140,79 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],
   };
 } satisfies typeof authored_traegerSettingsTopic;
+
+/**
+ * `/traeger/dokumente` (#4692): vorhandene Dokumente hochladen und für
+ * Eltern oder Schulen freigeben; eine Freigabe zurücknehmen.
+ */
+export const traegerSharedDocumentsTopic =
+  function traegerSharedDocumentsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerSharedDocuments,
+      title: "Dokumente für Eltern und Schulen freigeben",
+      question: "Wie teile ich ein Dokument mit Eltern oder Schulen?",
+      summary:
+        "Sie laden eine Datei hoch, die Sie schon haben, zum Beispiel eine Hausordnung oder eine Liste. Dann geben Sie sie für Eltern oder für Schulen frei.",
+      group: "elternarbeit",
+      audience: "traeger",
+      icon: "EnvelopeOpen",
+      requirements: [
+        "Sie haben die Rolle `Verwaltung`.",
+        "Die Datei ist ein PDF, ein Word-, Excel- oder PowerPoint-Dokument oder ein Bild. Sie ist höchstens 10 MB groß.",
+      ],
+      instructionGroups: [
+        {
+          title: "Dokument hochladen",
+          steps: [
+            "Wählen Sie in der Navigation `Dokumente`.",
+            "Wählen Sie oben `Dokument hochladen`.",
+            "Ziehen Sie die Datei in das Feld. Oder wählen Sie `Datei auswählen`.",
+            "Prüfen Sie den `Titel`. Eltern und Schulen sehen diesen Titel.",
+            "Wählen Sie `Hochladen`. moto öffnet danach die Seite des Dokuments.",
+          ],
+        },
+        {
+          title: "Dokument freigeben",
+          steps: [
+            "Öffnen Sie das Dokument in der Liste `Dokumente`.",
+            "Wählen Sie oben `Freigeben`.",
+            "Wählen Sie bei `Für wen?` entweder `Eltern` oder `Schulen`.",
+            "Wählen Sie bei `An welchen Schulen?`: `Alle Schulen`, `Eine Schule` oder bei Eltern auch `Eine Gruppe`.",
+            "Wählen Sie dann die `Schule` und gegebenenfalls die `Gruppe`.",
+            "Prüfen Sie den Kasten `Sichtbar für`. Wählen Sie `Freigeben`.",
+          ],
+        },
+        {
+          title: "Freigabe zurücknehmen",
+          steps: [
+            "Öffnen Sie das Dokument.",
+            "Wählen Sie bei der Freigabe `Zurücknehmen`.",
+            "Bestätigen Sie mit `Ja, zurücknehmen` und dann `Zurücknehmen`.",
+          ],
+        },
+      ],
+      steps: [],
+      result:
+        "Eltern finden das Dokument in der Eltern-App unter `Dokumente`. Die OGS-Leitung findet es in moto unter `Dateien` bei `Vom Träger`. Nach dem Zurücknehmen sehen sie es sofort nicht mehr, außer eine andere Freigabe des Dokuments gilt auch für sie.",
+      notes: [
+        "Ein Dokument kann mehrere Freigaben haben. Zum Beispiel für die Eltern einer Gruppe und für alle Schulen.",
+        "Eine Freigabe für Eltern sieht auch die OGS-Leitung der Schule. So weiß sie, was die Eltern bekommen haben.",
+        "Bei `Geöffnet` sehen Sie, wie oft Eltern und Schulen das Dokument geöffnet haben.",
+      ],
+      differences: [
+        "Sie sehen `Dokument hochladen` und `Freigeben` nicht? Ihnen fehlt die Rolle `Verwaltung`. Sie können die Dokumente nur ansehen.",
+      ],
+      troubleshootingDetails: [
+        "moto nimmt die Datei nicht an? Prüfen Sie Art und Größe. Eine umbenannte Datei erkennt moto am Inhalt.",
+        "Bei `Eine Gruppe` steht keine Gruppe? Die Schule hat in moto noch keine Gruppen angelegt.",
+        "Die Meldung sagt, das Dokument ist schon freigegeben? Für diese Menschen gibt es schon eine Freigabe.",
+      ],
+      related: [
+        HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.errorMessages,
+      ],
+    };
+  } satisfies typeof authored_traegerSharedDocumentsTopic;
 
 /** Hinweis `Testsystem` im Träger-Portal (#4658): erfundene Beispielkinder. */
 export const traegerTestSystemTopic =

@@ -11,12 +11,13 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import {
   NOTE_KIND_PERMANENT,
   NOTE_ORIGIN_MASTER_DATA,
-  NOTE_SHARED_WITH_SCHOOL_BADGE,
   NOTE_VISIBILITY_ALL_STAFF,
   studentNotesService,
   type StudentNote,
 } from "~/lib/student-notes-api";
+import { NOTE_SHARED_WITH_SCHOOL_BADGE } from "~/components/students/note-badges";
 import { useSWRAuth } from "~/lib/swr";
+import { studentKeys } from "~/lib/swr/portal-keys";
 
 // The durable hints of one child on the Stammdaten tab (#3632). They replace
 // the former free-text field "Betreuernotizen": same place, same purpose, but
@@ -65,7 +66,7 @@ export function StudentPermanentNotesCard({
   readonly studentId: string;
 }) {
   const { data, isLoading, error, mutate } = useSWRAuth<StudentNote[]>(
-    `student-permanent-notes-${studentId}`,
+    studentKeys.permanentNotes(studentId),
     () => studentNotesService.list(studentId, NOTE_KIND_PERMANENT),
   );
   const load = useApiLoadError();

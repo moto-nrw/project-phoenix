@@ -16,16 +16,24 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
+// The announcement construction values of Communication's store, for suites
+// that reach them through the root's test hooks.
+type (
+	ParentAnnouncementFixture       = parentstore.ParentAnnouncementFixture
+	ParentAnnouncementTargetFixture = parentstore.ParentAnnouncementTargetFixture
+	ParentAnnouncementOptionFixture = parentstore.ParentAnnouncementOptionFixture
+)
+
 // ParentAnnouncementFixtures constructs native test values through the actual
 // owner store. Declaration values use the native public workflow vocabulary.
 type ParentAnnouncementFixtures interface {
-	Create(context.Context, *communication.ParentAnnouncementFixture) error
-	FindByID(context.Context, int64) (*communication.ParentAnnouncementFixture, error)
+	Create(context.Context, *ParentAnnouncementFixture) error
+	FindByID(context.Context, int64) (*ParentAnnouncementFixture, error)
 	Delete(context.Context, int64) error
 	SetPublished(context.Context, int64, *time.Time) error
-	ReplaceTargets(context.Context, int64, int64, []*communication.ParentAnnouncementTargetFixture) error
-	ReplaceOptions(context.Context, int64, int64, []*communication.ParentAnnouncementOptionFixture) error
-	ListOptions(context.Context, int64) ([]*communication.ParentAnnouncementOptionFixture, error)
+	ReplaceTargets(context.Context, int64, int64, []*ParentAnnouncementTargetFixture) error
+	ReplaceOptions(context.Context, int64, int64, []*ParentAnnouncementOptionFixture) error
+	ListOptions(context.Context, int64) ([]*ParentAnnouncementOptionFixture, error)
 	InsertDeclarationVersion(context.Context, *parentportal.DeclarationVersion) error
 	ListDeclarationSubmissions(context.Context, int64, int64) ([]*parentportal.DeclarationSubmission, error)
 }

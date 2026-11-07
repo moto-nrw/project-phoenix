@@ -49,6 +49,10 @@ func (s *invitationsStub) AcceptSchoolInvitation(ctx context.Context, token stri
 	return s.acceptSchool(ctx, token, registration)
 }
 
+func (s *invitationsStub) SchoolInvitationMailStates(context.Context, int64, []int64) (map[int64]identityaccess.InvitationMailState, error) {
+	return nil, nil
+}
+
 func (s *invitationsStub) ListPendingSchoolInvitations(ctx context.Context) ([]identityaccess.SchoolInvitation, error) {
 	return s.listPending(ctx)
 }

@@ -156,9 +156,15 @@ describe("ShiftEditModal series creation", () => {
 
     // 2026-09-07 is a Monday.
     await waitFor(() => {
-      expect(screen.getByLabelText("Mo")).toBeChecked();
+      expect(screen.getByRole("button", { name: "Mo" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
     });
-    expect(screen.getByLabelText("Di")).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Di" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     expect(listPeriods).toHaveBeenCalledTimes(1);
   });
 
@@ -175,9 +181,15 @@ describe("ShiftEditModal series creation", () => {
     fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
     // The period select defaults asynchronously once the periods loaded.
     await screen.findByText("1. Halbjahr 2026/27");
-    fireEvent.click(screen.getByLabelText("Mi"));
-    expect(screen.getByLabelText("Mi")).toBeChecked();
-    expect(screen.getByLabelText("Mo")).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Mi" }));
+    expect(screen.getByRole("button", { name: "Mi" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Mo" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Serie anlegen" }));
 
@@ -265,7 +277,7 @@ describe("ShiftEditModal series creation", () => {
     await screen.findByText("1. Halbjahr 2026/27");
     // Enable A/B on the cycle period, then switch to a period without a
     // cycle: the hidden biweekly flag must not leak into the payload.
-    fireEvent.click(screen.getByRole("radio", { name: "Alle 2 Wochen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Alle 2 Wochen" }));
     fireEvent.click(screen.getByRole("combobox", { name: "Kalenderzeitraum" }));
     fireEvent.click(
       screen.getByRole("option", { name: "Ganzjahr ohne Zyklus" }),
@@ -286,20 +298,23 @@ describe("ShiftEditModal series creation", () => {
 
     fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
     await screen.findByText("1. Halbjahr 2026/27");
-    fireEvent.click(screen.getByRole("radio", { name: "Alle 2 Wochen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Alle 2 Wochen" }));
 
-    const weekA = screen.getByRole("radio", { name: "Woche A" });
-    await waitFor(() => expect(weekA).toBeChecked());
-    // Native radios do not emit change when the checked option is clicked. The
-    // click still represents an explicit choice and must stop future defaults.
+    const weekA = screen.getByRole("button", { name: "Woche A" });
+    await waitFor(() => expect(weekA).toHaveAttribute("aria-pressed", "true"));
+    // Clicking the active option changes no value. The click still represents
+    // an explicit choice and must stop future defaults.
     fireEvent.click(weekA);
     fireEvent.click(screen.getByRole("combobox", { name: "Kalenderzeitraum" }));
     fireEvent.click(
       screen.getByRole("option", { name: "Versetzter A/B-Zyklus" }),
     );
 
-    expect(weekA).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Woche B" })).not.toBeChecked();
+    expect(weekA).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Woche B" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("sends the inclusive 'Gültig bis' date as the exclusive valid_until", async () => {
@@ -453,9 +468,18 @@ describe("ShiftEditModal series rule editing", () => {
 
     expect(await screen.findByText("Serie bearbeiten")).toBeInTheDocument();
     // Weekdays come from the rule, not from the clicked occurrence.
-    expect(screen.getByLabelText("Mo")).toBeChecked();
-    expect(screen.getByLabelText("Mi")).toBeChecked();
-    expect(screen.getByLabelText("Di")).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Mo" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Mi" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Di" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("applies changed weekdays and window from the opened date onwards", async () => {
@@ -469,7 +493,7 @@ describe("ShiftEditModal series rule editing", () => {
     renderModal({ mode: "edit", shift: seriesShift, onSaved, onClose });
 
     await openSeriesEditor();
-    fireEvent.click(await screen.findByLabelText("Fr"));
+    fireEvent.click(await screen.findByRole("button", { name: "Fr" }));
     fireEvent.change(screen.getByLabelText("Ende"), {
       target: { value: "14:00" },
     });
@@ -545,7 +569,7 @@ describe("ShiftEditModal series rule editing", () => {
     renderModal({ mode: "edit", shift: seriesShift });
 
     await openSeriesEditor();
-    fireEvent.click(await screen.findByLabelText("Fr"));
+    fireEvent.click(await screen.findByRole("button", { name: "Fr" }));
     fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
 
     await waitFor(() => {

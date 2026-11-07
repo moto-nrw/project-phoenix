@@ -34,9 +34,9 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 vi.mock("~/lib/breadcrumb-context", () => ({ useSetBreadcrumb: vi.fn() }));
-vi.mock("~/lib/api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/lib/api")>()),
-  studentService: { getStudent: state.detail },
+vi.mock("~/lib/student-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-api")>()),
+  fetchStudent: state.detail,
 }));
 vi.mock("~/lib/usercontext-api", () => ({
   userContextService: {

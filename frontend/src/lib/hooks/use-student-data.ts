@@ -3,22 +3,20 @@
 import {
   fetchStudentDetail,
   type StudentDetailResponse,
-  type ExtendedStudent,
 } from "~/lib/student-detail-resource";
-export type { ExtendedStudent } from "~/lib/student-detail-resource";
 import { studentKeys } from "~/lib/swr/portal-keys";
 
 import { useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
 import { useSWRAuth } from "~/lib/swr";
-import type { SupervisorContact } from "~/lib/student-helpers";
+import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentData" });
 
 interface StudentDataState {
-  student: ExtendedStudent | null;
+  student: Student | null;
   loading: boolean;
   /**
    * The failed load as thrown by the client (an `ApiError` with code and

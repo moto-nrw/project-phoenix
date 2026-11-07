@@ -13,7 +13,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { ClassArrivalExceptionPanel } from "./class-arrival-exception-panel";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type ArrivalScheduleInput,
@@ -208,7 +208,7 @@ export function FilteredBulkArrivalModal({
     let cancelled = false;
     void fetchArrivalSettings()
       .then((settings) => {
-        if (!cancelled) setSchoolPeriods(settings.school_periods ?? []);
+        if (!cancelled) setSchoolPeriods(settings.schoolPeriods);
       })
       .catch((err) => {
         logger.warn("school_periods_fetch_failed", {
