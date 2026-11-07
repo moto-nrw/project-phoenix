@@ -264,7 +264,7 @@ const mockSchool: {
 };
 
 interface SetupOpts {
-  orgs?: (typeof mockOrg)[];
+  orgs?: (typeof mockOrg & { testSystem?: boolean })[];
   schools?: (typeof mockSchool)[];
   orgsLoading?: boolean;
   schoolsLoading?: boolean;
@@ -397,6 +397,7 @@ describe("OperatorOrganizationDetailPage", () => {
   // --- Header + listing ---
 
   it("renders the schools table and org header", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
     setupSWR();
 
     await renderPage();
@@ -421,21 +422,64 @@ describe("OperatorOrganizationDetailPage", () => {
     expect(tabs.closest("header")).not.toBeNull();
   });
 
-  it("keeps the tab content directly below the tabs, figures after it", async () => {
+  it("opens on the overview tab with the figures below the tabs", async () => {
     setupSWR();
 
     await renderPage();
 
-    const tabAction = await screen.findByRole("button", {
-      name: "Neue Schule",
-    });
+    const overviewTab = await screen.findByRole("tab", { name: "Übersicht" });
+    expect(overviewTab).toHaveAttribute("aria-selected", "true");
     expect(
-      tabAction.compareDocumentPosition(screen.getByText("Seit")) &
+      overviewTab.compareDocumentPosition(screen.getByText("Seit")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Neue Schule" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("falls back to the overview tab for an unknown ?tab= value", async () => {
+    currentSearchParams = new URLSearchParams("tab=gibt-es-nicht");
+    setupSWR();
+
+    await renderPage();
+
+    expect(
+      await screen.findByRole("tab", { name: "Übersicht" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Seit")).toBeInTheDocument();
+  });
+
+  it("keeps the figures off a table tab", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
+    setupSWR();
+
+    await renderPage();
+
+    expect(
+      await screen.findByRole("button", { name: "Neue Schule" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Seit")).not.toBeInTheDocument();
+  });
+
+  it("shows the test system section of a test Träger on the overview only", async () => {
+    setupSWR({ orgs: [{ ...mockOrg, testSystem: true }] });
+    const { unmount } = await renderPage();
+
+    expect(await screen.findByText("Testsystem")).toBeInTheDocument();
+    unmount();
+
+    currentSearchParams = new URLSearchParams("tab=schulen");
+    setupSWR({ orgs: [{ ...mockOrg, testSystem: true }] });
+    await renderPage();
+
+    await screen.findByRole("button", { name: "Neue Schule" });
+    expect(screen.queryByText("Testsystem")).not.toBeInTheDocument();
   });
 
   it("renders empty state when no schools", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
     setupSWR({ schools: [] });
 
     await renderPage();
@@ -498,6 +542,7 @@ describe("OperatorOrganizationDetailPage", () => {
   // --- Create school flow ---
 
   it("opens create school modal", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
     setupSWR();
 
     await renderPage();
@@ -511,6 +556,7 @@ describe("OperatorOrganizationDetailPage", () => {
   });
 
   it("validates invalid slug when creating school", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
     setupSWR();
 
     await renderPage();
@@ -545,6 +591,7 @@ describe("OperatorOrganizationDetailPage", () => {
   });
 
   it("validates invalid subdomain when creating school", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
     setupSWR();
 
     await renderPage();
@@ -579,6 +626,7 @@ describe("OperatorOrganizationDetailPage", () => {
   });
 
   it("shows subdomain conflict error when creating school", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
     setupSWR();
     mockCreateSchool.mockRejectedValue(
       new ApiError("subdomain already exists", 409, {
@@ -611,6 +659,7 @@ describe("OperatorOrganizationDetailPage", () => {
   });
 
   it("creates school successfully and revalidates tenant cache", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
     setupSWR();
     mockCreateSchool.mockResolvedValue(mockSchool);
 
@@ -692,6 +741,7 @@ describe("OperatorOrganizationDetailPage", () => {
   // --- Trash + restore for schools ---
 
   it("shows Papierkorb button when deleted schools exist under the org", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
     setupSWR({
       schools: [
         mockSchool,
@@ -705,6 +755,7 @@ describe("OperatorOrganizationDetailPage", () => {
   });
 
   it("restores a deleted school via Papierkorb", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
     mockRestoreSchool.mockResolvedValue(undefined);
     setupSWR({
       schools: [
@@ -744,6 +795,7 @@ describe("OperatorOrganizationDetailPage", () => {
   // --- Navigation ---
 
   it("navigates to school detail when row is clicked", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
     setupSWR();
 
     await renderPage();
@@ -1330,6 +1382,7 @@ describe("OperatorOrganizationDetailPage", () => {
 
   describe("schools table column sorting", () => {
     it("sorts by Schule / Konten / Geräte / Personen / Status when headers are clicked", async () => {
+      currentSearchParams = new URLSearchParams("tab=schulen");
       const altSchool = {
         ...mockSchool,
         id: "11",
@@ -1435,8 +1488,26 @@ describe("OperatorOrganizationDetailPage", () => {
     });
   });
 
-  it("clears ?tab=… when navigating back to the default Schulen tab", async () => {
+  it("clears ?tab=… when navigating back to the default Übersicht tab", async () => {
     currentSearchParams = new URLSearchParams("tab=geraete");
+    setupSWR();
+
+    await renderPage();
+
+    const tab = await screen.findByRole("tab", { name: "Übersicht" });
+    fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(tab, { button: 0 });
+    fireEvent.click(tab);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/operator/organizations/test-org",
+        { scroll: false },
+      );
+    });
+  });
+
+  it("pushes ?tab=schulen when the Schulen tab is clicked", async () => {
     setupSWR();
 
     await renderPage();
@@ -1448,7 +1519,7 @@ describe("OperatorOrganizationDetailPage", () => {
 
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith(
-        "/operator/organizations/test-org",
+        "/operator/organizations/test-org?tab=schulen",
         { scroll: false },
       );
     });
@@ -1499,6 +1570,7 @@ describe("OperatorOrganizationDetailPage", () => {
   // would otherwise stay uncovered.
 
   it("opens the create-school modal from the empty-state action", async () => {
+    currentSearchParams = new URLSearchParams("tab=schulen");
     setupSWR({ schools: [] });
 
     await renderPage();

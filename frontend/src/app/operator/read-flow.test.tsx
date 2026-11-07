@@ -241,7 +241,7 @@ describe("operator reads with real SWR", () => {
     );
   });
 
-  it("starts school and organization lookups together, then accounts and usage together", async () => {
+  it("starts school and organization lookups together, then the usage of the overview tab", async () => {
     const organizations = deferred<OrganizationSummary[]>();
     api.listOrganizationSummaries.mockReturnValue(organizations.promise);
     const params = Promise.resolve({ slug: org.slug, schoolSlug: school.slug });
@@ -256,10 +256,25 @@ describe("operator reads with real SWR", () => {
       organizations.resolve([org]);
     });
     expect(await screen.findByText("Schule A")).toBeInTheDocument();
-    expect(api.listSchoolAccounts).toHaveBeenCalledWith("10");
     expect(api.getSchoolPWAUsage).toHaveBeenCalledWith("10");
+    expect(api.listSchoolAccounts).not.toHaveBeenCalled();
     // Anker: the matched school is fully resolved, not a permanent skeleton.
     expect(screen.getByText("Schule A")).toBeInTheDocument();
+    expect(api.listOrganizationSchools).not.toHaveBeenCalled();
+  });
+
+  it("loads the accounts of a school on its Konten tab, without the usage", async () => {
+    state.query = "tab=konten";
+    const params = Promise.resolve({ slug: org.slug, schoolSlug: school.slug });
+    await params;
+    await act(async () => {
+      renderPage(<SchoolPage params={params} />);
+    });
+    expect(await screen.findByText("Schule A")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(api.listSchoolAccounts).toHaveBeenCalledWith("10"),
+    );
+    expect(api.getSchoolPWAUsage).not.toHaveBeenCalled();
     expect(api.listOrganizationSchools).not.toHaveBeenCalled();
   });
 
@@ -288,6 +303,7 @@ describe("operator reads with real SWR", () => {
       name: "Fremde Schule",
       organizationId: "2",
     };
+    state.query = "tab=schulen";
     // Even a malformed response may not expose a row from another organization.
     api.listOrganizationSchools.mockResolvedValue([school, otherSchool]);
     const params = Promise.resolve({ slug: org.slug });

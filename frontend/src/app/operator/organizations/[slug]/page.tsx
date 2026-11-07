@@ -79,6 +79,7 @@ const ORGANIZATIONS_BACK = {
 } as const;
 
 const TAB_ITEMS = [
+  { id: "uebersicht", label: "Übersicht" },
   { id: "schulen", label: "Schulen" },
   { id: "konten", label: "Konten" },
   { id: "geraete", label: "Geräte" },
@@ -114,7 +115,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const activeTab: TabId = isTabId(tabParam) ? tabParam : "schulen";
+  const activeTab: TabId = isTabId(tabParam) ? tabParam : "uebersicht";
   const [caregiverAccount, setCaregiverAccount] = useState<
     SchoolAccount | OrgAccount | null
   >(null);
@@ -138,12 +139,13 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   );
   const [deactivateOpen, setDeactivateOpen] = useState(false);
 
-  const currentTabSearch = activeTab === "schulen" ? "" : `?tab=${activeTab}`;
+  const currentTabSearch =
+    activeTab === "uebersicht" ? "" : `?tab=${activeTab}`;
 
   const setActiveTab = useCallback(
     (next: TabId) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (next === "schulen") {
+      if (next === "uebersicht") {
         params.delete("tab");
       } else {
         params.set("tab", next);
@@ -844,6 +846,19 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     >
       <LoadErrorAlert error={organizationsLoadError} />
 
+      {activeTab === "uebersicht" ? (
+        <>
+          <EntityStats stats={headerStats} createdAt={organization.createdAt} />
+          {organization.testSystem ? (
+            <TestTraegerSection
+              organizationId={organization.id}
+              organizationActive={organization.active}
+              onChanged={refreshOrganizationDrillIn}
+            />
+          ) : null}
+        </>
+      ) : null}
+
       {tabActions ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
           {tabActions}
@@ -988,16 +1003,6 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         <TraegerErasureOrderSection
           organizationId={organization.id}
           organizationActive={organization.active}
-        />
-      ) : null}
-
-      <EntityStats stats={headerStats} createdAt={organization.createdAt} />
-
-      {organization.testSystem ? (
-        <TestTraegerSection
-          organizationId={organization.id}
-          organizationActive={organization.active}
-          onChanged={refreshOrganizationDrillIn}
         />
       ) : null}
     </TenantPage>

@@ -60,6 +60,7 @@ import { LOCATION_COLORS } from "~/lib/location-helper";
 const logger = createLogger({ component: "OperatorSchoolDetailPage" });
 
 const TAB_ITEMS = [
+  { id: "uebersicht", label: "Übersicht" },
   { id: "konten", label: "Konten" },
   { id: "geraete", label: "Geräte" },
   { id: "personen", label: "Personen" },
@@ -92,7 +93,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const activeTab: TabId = isTabId(tabParam) ? tabParam : "konten";
+  const activeTab: TabId = isTabId(tabParam) ? tabParam : "uebersicht";
   const [caregiverAccount, setCaregiverAccount] = useState<
     SchoolAccount | OrgAccount | null
   >(null);
@@ -121,12 +122,13 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const [deletePersonTarget, setDeletePersonTarget] =
     useState<OperatorPerson | null>(null);
 
-  const currentTabSearch = activeTab === "konten" ? "" : `?tab=${activeTab}`;
+  const currentTabSearch =
+    activeTab === "uebersicht" ? "" : `?tab=${activeTab}`;
 
   const setActiveTab = useCallback(
     (next: TabId) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (next === "konten") {
+      if (next === "uebersicht") {
         params.delete("tab");
       } else {
         params.set("tab", next);
@@ -254,14 +256,13 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     },
   );
 
-  // PWA standalone usage (#2189): shown in the header, so it loads with the
-  // page instead of a tab.
+  // PWA standalone usage (#2189): one of the figures on the overview tab.
   const {
     data: pwaUsage,
     error: pwaUsageError,
     mutate: mutatePwaUsage,
   } = useSWRAuth(
-    isAuthenticated && school != null
+    activeTab === "uebersicht" && isAuthenticated && school != null
       ? operatorProvisioningKeys.schoolPwaUsage(school.id)
       : null,
     () => operatorProvisioningService.getSchoolPWAUsage(school?.id ?? ""),
@@ -487,7 +488,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           href={
             school
               ? `/operator/schools/${school.id}/settings?back=${encodeURIComponent(
-                  `/operator/organizations/${slug}/schools/${schoolSlug}`,
+                  `/operator/organizations/${slug}/schools/${schoolSlug}${currentTabSearch}`,
                 )}`
               : "#"
           }
@@ -508,7 +509,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         </Button>
       </>
     ),
-    [handleToggleSchoolActive, school, schoolDelete, schoolSlug, slug],
+    [
+      currentTabSearch,
+      handleToggleSchoolActive,
+      school,
+      schoolDelete,
+      schoolSlug,
+      slug,
+    ],
   );
 
   const tabActions = useMemo(() => {
@@ -554,7 +562,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   }, [activeTab]);
 
   const organizationBack = {
-    href: `/operator/organizations/${encodeURIComponent(slug)}`,
+    href: `/operator/organizations/${encodeURIComponent(slug)}?tab=schulen`,
     label: "Zurück zum Träger",
   };
 
@@ -802,7 +810,13 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       }
     >
       <LoadErrorAlert error={headLoadError} />
-      <LoadErrorAlert error={pwaUsageLoadError} />
+
+      {activeTab === "uebersicht" ? (
+        <>
+          <LoadErrorAlert error={pwaUsageLoadError} />
+          <EntityStats stats={headerStats} createdAt={school.createdAt} />
+        </>
+      ) : null}
 
       {tabActions ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -870,8 +884,6 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           )}
         </>
       ) : null}
-
-      <EntityStats stats={headerStats} createdAt={school.createdAt} />
     </TenantPage>
   );
 }
