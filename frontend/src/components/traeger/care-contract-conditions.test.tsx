@@ -25,6 +25,45 @@ const OPEN: OfferingTemplate = {
 describe("CareContractConditions", () => {
   beforeEach(() => api.saveContractTemplate.mockReset());
 
+  it("shows the saved enrollment text read-only, separate from unsaved conditions", () => {
+    render(
+      <ToastProvider>
+        <CareContractConditions
+          offerings={[
+            {
+              ...OPEN,
+              acceptanceText: "Vollständige gespeicherte Bedingungen",
+              template: {
+                id: "7",
+                updatedAt: "2026-09-09T10:00:00Z",
+                termKind: "school_year",
+                termMonths: null,
+                noticeMonths: 1,
+                noticeTo: "month_end",
+                contractPartner: "Träger",
+                specialTermination: false,
+                specialTerminationNote: "",
+                statuteRequired: false,
+                statuteTitle: "",
+                statuteUrl: "",
+              },
+            },
+          ]}
+          onSaved={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    const text = screen.getByRole("textbox", {
+      name: "Gespeicherter Text für das Anmeldeformular",
+    });
+    expect(text).toHaveAttribute("readonly");
+    expect(text).toHaveValue("Vollständige gespeicherte Bedingungen");
+    fireEvent.change(screen.getByLabelText("Vertragspartner"), {
+      target: { value: "Anderer Träger" },
+    });
+    expect(text).toHaveValue("Vollständige gespeicherte Bedingungen");
+  });
+
   it("selects a fixed term through the shared width-constrained selector", async () => {
     const onSaved = vi.fn();
     api.saveContractTemplate.mockResolvedValue(OPEN);

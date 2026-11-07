@@ -3,8 +3,9 @@
 // Betreuungsverträge des Trägers (#4678, ADR 0153): alle Verträge mit Status,
 // gefiltert nach Status, Schule und Name. „Verträge erstellen“ legt Entwürfe
 // aus angenommenen Anmeldungen an; ausgewählte Entwürfe gehen per Mail und in
-// die Eltern-App. Nur die Rolle mit dem Recht „Verträge verwalten“ sieht die
-// Seite.
+// die Eltern-App. Schulen mit „Gilt bei der Annahme“ (#4680) brauchen das
+// nicht: ihr Vertrag entsteht von selbst und ist sofort aktiv. Nur die Rolle
+// mit dem Recht „Verträge verwalten“ sieht die Seite.
 
 import { Plus, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -16,8 +17,11 @@ import {
   useRef,
   useState,
 } from "react";
+import { useSession } from "next-auth/react";
 import { CareContractCreateModal } from "~/components/traeger/care-contract-create-modal";
 import {
+  CONCLUSION_MODE_LABELS,
+  CONCLUSION_MODE_TONES,
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_ORDER,
   CONTRACT_STATUS_TONES,
@@ -26,7 +30,7 @@ import {
   formatModules,
 } from "~/components/traeger/care-contract-format";
 import { careContractTabs } from "~/components/traeger/care-contract-tabs";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -35,6 +39,8 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
+import { SectionCard } from "~/components/ui/section-card";
+import { hasPermission } from "~/lib/auth-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
@@ -51,7 +57,9 @@ import {
   type CareContractSummary,
   type ContractCandidate,
   type CreateResult,
+  type SchoolConclusionMode,
   fetchCareContracts,
+  fetchConclusionModes,
   fetchContractCandidates,
   sendCareContracts,
 } from "~/lib/traeger-care-contracts-api";
@@ -67,6 +75,18 @@ interface PageData {
   readonly list: CareContractList;
   readonly candidates: readonly ContractCandidate[];
   readonly schools: readonly TraegerSchool[];
+  readonly modes: readonly SchoolConclusionMode[];
+}
+
+function conclusionDescription(modes: readonly SchoolConclusionMode[]): string {
+  const onAcceptance = modes.filter((school) => school.mode === "bei_annahme");
+  if (onAcceptance.length === 0) {
+    return "Sie erstellen jeden Vertrag hier und schicken ihn den Eltern.";
+  }
+  if (onAcceptance.length === modes.length) {
+    return "Nimmt die Schule eine Anmeldung an, gilt der Vertrag. Die Eltern bekommen ihn per E-Mail und in der Eltern-App. Voraussetzung: Die Eltern haben im Anmeldeformular den Vertragsbedingungen zugestimmt, und Sie haben die Bedingungen seitdem nicht geändert.";
+  }
+  return "Bei „Gilt bei der Annahme“ entsteht der Vertrag von selbst, sobald die Schule die Anmeldung annimmt. Voraussetzung: Die Eltern haben im Anmeldeformular den Vertragsbedingungen zugestimmt. Die anderen Verträge erstellen und verschicken Sie hier.";
 }
 
 function contractHref(contract: CareContractSummary): string {
@@ -137,7 +157,11 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
           label={CONTRACT_STATUS_LABELS[contract.status]}
           tone={CONTRACT_STATUS_TONES[contract.status]}
         />
-        {contract.sentAt ? (
+        {contract.concluded ? (
+          <span className="text-xs text-gray-500">
+            seit {formatBerlinDate(contract.concluded.at)}
+          </span>
+        ) : contract.sentAt ? (
           <span className="text-xs text-gray-500">
             am {formatBerlinDate(contract.sentAt)}
           </span>
@@ -158,6 +182,7 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
 
 export default function TraegerVertraegePage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [data, setData] = useState<PageData | null>(null);
   const [status, setStatus] = useState<StatusChoice>("all");
   const [schoolId, setSchoolId] = useState("");
@@ -166,6 +191,7 @@ export default function TraegerVertraegePage() {
   const context = useRef<{
     candidates: ContractCandidate[];
     schools: TraegerSchool[];
+    modes: SchoolConclusionMode[];
   } | null>(null);
   const request = useRef(0);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -193,7 +219,35 @@ export default function TraegerVertraegePage() {
             Promise.all([
               fetchContractCandidates(),
               fetchTraegerSchools(),
-            ]).then(([candidates, schools]) => ({ candidates, schools })),
+              fetchConclusionModes(),
+            ]).then(([candidates, schools, modes]) => ({
+              candidates: candidates.map((candidate) =>
+                modes.some(
+                  (school) =>
+                    school.schoolId === candidate.schoolId &&
+                    school.mode === "bei_annahme",
+                )
+                  ? {
+                      ...candidate,
+                      templateIssue:
+                        candidate.templateIssue ??
+                        (!candidate.guardianEmail.trim()
+                          ? ("recipient_missing" as const)
+                          : null) ??
+                        candidate.acceptanceIssue ??
+                        (candidate.mailBlock === "stopped"
+                          ? ("mail_stopped" as const)
+                          : null) ??
+                        (candidate.mailBlock === "address"
+                          ? ("mail_blocked" as const)
+                          : null) ??
+                        ("conclusion_automatic" as const),
+                    }
+                  : candidate,
+              ),
+              schools,
+              modes,
+            })),
         ]);
         if (currentRequest !== request.current) return;
         context.current = metadata;
@@ -246,6 +300,7 @@ export default function TraegerVertraegePage() {
   );
   const drafts = data?.list.counts.entwurf ?? 0;
   const sentCount = data?.list.counts.versendet ?? 0;
+  const activeCount = data?.list.counts.aktiv ?? 0;
   const candidates = data?.candidates ?? [];
   const selectedDrafts = contracts.filter(
     (contract) => selected.has(contract.id) && contract.status === "entwurf",
@@ -366,20 +421,18 @@ export default function TraegerVertraegePage() {
   return (
     <TenantPage
       title="Verträge"
-      info="Hier erstellen Sie Betreuungsverträge aus den angenommenen Anmeldungen Ihrer Schulen. moto übernimmt Kind, Eltern, Beginn und die gebuchten Module je Wochentag. Sie prüfen den Entwurf und senden ihn per Mail und in die Eltern-App."
+      info="Hier sehen Sie die Betreuungsverträge aus den angenommenen Anmeldungen Ihrer Schulen. moto übernimmt Kind, Eltern, Beginn und die gebuchten Module je Wochentag. Gilt der Vertrag bei der Annahme, entsteht er von selbst. Sonst prüfen Sie den Entwurf und senden ihn per Mail und in die Eltern-App."
       tabs={careContractTabs("vertraege")}
       stats={
         total > 0 || candidates.length > 0 ? (
           <TenantPageStats
-            items={[
-              {
-                value: total,
-                label: total === 1 ? "Vertrag" : "Verträge",
-              },
-              { value: drafts, label: drafts === 1 ? "Entwurf" : "Entwürfe" },
-              { value: sentCount, label: "versendet" },
-              { value: candidates.length, label: "ohne Vertrag" },
-            ]}
+            items={statusFigures(
+              total,
+              drafts,
+              sentCount,
+              activeCount,
+              candidates.length,
+            )}
           />
         ) : null
       }
@@ -441,6 +494,43 @@ export default function TraegerVertraegePage() {
         ) : null
       }
     >
+      {data && data.modes.length > 0 ? (
+        <SectionCard
+          title="Wann gilt der Vertrag?"
+          description={conclusionDescription(data.modes)}
+          action={
+            hasPermission(session, "traeger_overview:read") ? (
+              <ButtonLink
+                href={traegerPath("/traeger/einstellungen")}
+                variant="surface"
+                size="compact"
+              >
+                In den Einstellungen ändern
+              </ButtonLink>
+            ) : null
+          }
+        >
+          <ul
+            aria-label="Abschluss je Schule"
+            className="divide-y divide-gray-100"
+          >
+            {data.modes.map((school) => (
+              <li
+                key={school.schoolId}
+                className="flex flex-wrap items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+              >
+                <span className="min-w-0 text-sm font-medium wrap-anywhere text-gray-900">
+                  {school.schoolName}
+                </span>
+                <StatusBadge
+                  label={CONCLUSION_MODE_LABELS[school.mode]}
+                  tone={CONCLUSION_MODE_TONES[school.mode]}
+                />
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      ) : null}
       {data ? (
         <DataTable
           columns={COLUMNS}
@@ -471,7 +561,12 @@ export default function TraegerVertraegePage() {
                   className="h-12 w-12"
                 />
               }
-              {...emptyText(total, candidates.length)}
+              {...emptyText(
+                total,
+                candidates.length,
+                data.modes.length > 0 &&
+                  data.modes.every((school) => school.mode === "bei_annahme"),
+              )}
             />
           }
         />
@@ -499,8 +594,16 @@ export default function TraegerVertraegePage() {
 function emptyText(
   contracts: number,
   candidates: number,
+  allOnAcceptance: boolean,
 ): { title: string; description?: string } {
   if (contracts > 0) return { title: "Kein Vertrag passt zu Ihrer Suche." };
+  if (allOnAcceptance) {
+    return {
+      title: "Noch kein Vertrag.",
+      description:
+        "Sobald eine Schule eine Anmeldung annimmt, erscheint hier der Vertrag. Er gilt dann schon.",
+    };
+  }
   if (candidates > 0) {
     return {
       title: "Noch kein Vertrag.",
@@ -512,4 +615,32 @@ function emptyText(
     description:
       "Sobald eine Schule eine Anmeldung annimmt, können Sie hier den Vertrag erstellen.",
   };
+}
+
+/**
+ * The figures of the status line: at most three fit (TenantPageStats). The
+ * states that hold contracts come first, active before sent before drafts;
+ * without any of them the total, then the children still without one.
+ */
+function statusFigures(
+  total: number,
+  drafts: number,
+  sent: number,
+  active: number,
+  candidates: number,
+): { value: number; label: string }[] {
+  const figures = [
+    { value: active, label: "aktiv" },
+    { value: sent, label: "versendet" },
+    { value: drafts, label: drafts === 1 ? "Entwurf" : "Entwürfe" },
+  ].filter((figure) => figure.value > 0);
+  if (figures.length < 2) {
+    figures.unshift({
+      value: total,
+      label: total === 1 ? "Vertrag" : "Verträge",
+    });
+  }
+  if (candidates > 0)
+    figures.push({ value: candidates, label: "ohne Vertrag" });
+  return figures.slice(0, 3);
 }

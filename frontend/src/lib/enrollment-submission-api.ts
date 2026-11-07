@@ -101,6 +101,12 @@ export interface SubmitEnrollmentPayload {
    */
   additional_guardians?: SubmitGuardianPayload[];
   consent_flags?: Record<string, unknown>;
+  /**
+   * The form version the page showed. The server stores it beside the
+   * version in force, so the evidence shows the parent ticked exactly these
+   * legal texts (#4680).
+   */
+  form_schema_id?: number;
   custom_data?: Record<string, unknown>;
   children: SubmitChildPayload[];
   captcha_token?: string;

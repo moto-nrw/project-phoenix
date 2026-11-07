@@ -5,9 +5,16 @@
  */
 
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
-import { formatDate } from "~/lib/date-helpers";
+import {
+  formatBerlinDate,
+  formatBerlinTime,
+  formatDate,
+} from "~/lib/date-helpers";
 import type {
   CareContractStatus,
+  ConclusionMethod,
+  ConclusionMode,
+  ContractConclusion,
   ContractMailState,
   ContractNoticeTo,
   ContractService,
@@ -155,6 +162,26 @@ export function formatServiceDays(
 export const TEMPLATE_ISSUE_LABELS: Record<TemplateIssue, string> = {
   template_missing: "Vertragsbedingungen fehlen",
   templates_differ: "Bedingungen der Module weichen ab",
+  conclusion_automatic: "Entsteht bei der Annahme",
+  acceptance_missing: "Zustimmung zum Vertrag fehlt",
+  acceptance_changed: "Bedingungen nach der Anmeldung geändert",
+  recipient_missing: "E-Mail-Adresse der Eltern fehlt",
+  mail_blocked: "Mail-Adresse gesperrt",
+  mail_stopped: "Mails gestoppt",
+};
+
+/**
+ * The reason in one plain sentence, with the next step, where the label
+ * alone does not tell what happens (#4680).
+ */
+export const TEMPLATE_ISSUE_REASONS: Partial<Record<TemplateIssue, string>> = {
+  conclusion_automatic: "Der Vertrag entsteht in wenigen Minuten von selbst.",
+  recipient_missing:
+    "Die Schule ergänzt die E-Mail-Adresse in der Anmeldung. Danach versucht moto es erneut. Bis dahin entsteht kein Vertrag.",
+  acceptance_missing:
+    "Die Eltern haben in der Anmeldung den Vertragsbedingungen nicht zugestimmt. Es entsteht kein Vertrag. Zum Senden stellen Sie die Schule auf „Später verschicken“.",
+  acceptance_changed:
+    "Sie haben die Bedingungen nach der Anmeldung geändert. Die Eltern haben ihnen nicht zugestimmt. Es entsteht kein Vertrag. Zum Senden stellen Sie die Schule auf „Später verschicken“.",
 };
 
 export const NOTICE_TO_LABELS: Record<ContractNoticeTo, string> = {
@@ -213,3 +240,29 @@ export function childName(contract: {
 }): string {
   return `${contract.childFirstName} ${contract.childLastName}`.trim();
 }
+
+/** How a contract was concluded, as the office reads it. */
+const CONCLUSION_METHOD_LABELS: Record<ConclusionMethod, string> = {
+  mit_anmeldung: "bei der Annahme der Anmeldung",
+  einfach_elektronisch: "mit der Unterschrift der Eltern",
+  papier: "mit dem unterschriebenen Vertrag auf Papier",
+};
+
+/**
+ * The conclusion in one line: „Am 06.11.2026 um 16:12 Uhr, bei der Annahme
+ * der Anmeldung“.
+ */
+export function formatConclusion(conclusion: ContractConclusion): string {
+  return `Am ${formatBerlinDate(conclusion.at)} um ${formatBerlinTime(conclusion.at)} Uhr, ${CONCLUSION_METHOD_LABELS[conclusion.method]}`;
+}
+
+/** How the contracts of a school come about (#4680). */
+export const CONCLUSION_MODE_LABELS: Record<ConclusionMode, string> = {
+  bei_annahme: "Gilt bei der Annahme",
+  nachtraeglich: "Sie verschicken ihn",
+};
+
+export const CONCLUSION_MODE_TONES: Record<ConclusionMode, StatusBadgeTone> = {
+  bei_annahme: "green",
+  nachtraeglich: "gray",
+};

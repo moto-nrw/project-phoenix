@@ -1,6 +1,7 @@
 DELETE /traeger/contracts/{id}
 GET /traeger/contracts/
 GET /traeger/contracts/candidates
+GET /traeger/contracts/conclusion-modes
 GET /traeger/contracts/{id}
 GET /traeger/contracts/{id}/document
 POST /traeger/contracts/

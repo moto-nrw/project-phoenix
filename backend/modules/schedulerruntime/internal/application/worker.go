@@ -68,6 +68,7 @@ func requiredWorkerJobIDs() []ports.JobID {
 		"booking-consistency-audit",
 		"holiday-guest-reconciliation",
 		"planned-staff-exits",
+		"care-contract-conclusion",
 		"staff-qualification-reminders",
 		"week-protocols",
 		"payroll-dispatch",
@@ -114,6 +115,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.bookingConsistency), "booking-consistency-audit", s.scheduleBookingConsistencyAuditTask)
 	add(!isNilDependency(s.holidayGuests), "holiday-guest-reconciliation", s.scheduleHolidayGuestReconciliationTask)
 	add(!isNilDependency(s.plannedStaffExits), "planned-staff-exits", s.schedulePlannedStaffExitsTask)
+	add(s.careContractConclusion != nil, "care-contract-conclusion", s.scheduleCareContractConclusionTask)
 	add(!isNilDependency(s.staffQualificationReminders), "staff-qualification-reminders", s.scheduleStaffQualificationRemindersTask)
 	add(!isNilDependency(s.weekProtocols), "week-protocols", s.scheduleWeekProtocolsTask)
 	add(!isNilDependency(s.payrollDispatch), "payroll-dispatch", s.schedulePayrollDispatchTask)
