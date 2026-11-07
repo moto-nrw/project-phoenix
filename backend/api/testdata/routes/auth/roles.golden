@@ -1,7 +1,6 @@
 DELETE /auth/roles/{id}/
 GET /auth/roles/
 GET /auth/roles/{id}/
-GET /auth/roles/{id}/permissions
 GET /auth/roles/{roleId}/permissions/
 POST /auth/roles/
 PUT /auth/roles/{id}/

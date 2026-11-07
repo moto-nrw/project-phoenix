@@ -331,7 +331,10 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 
 	rs.mountRoleAndPermissionRoutes(r)
 
-	// Role permission assignments
+	// Role permission assignments. This route serves both
+	// /auth/roles/{roleId}/permissions and .../permissions/; chi prefers it
+	// over the /roles/{id} subrouter, so a second GET there would never run
+	// (#5549).
 	r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 		r.With(common.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
 		r.With(common.RequiresPermission(permRolesManage)).Put("/", rs.replaceRolePermissions)
@@ -361,7 +364,6 @@ func (rs *Resource) mountRoleAndPermissionRoutes(r chi.Router) {
 			r.With(common.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
 			r.With(common.RequiresPermission("roles:update")).Put("/", rs.updateRole)
 			r.With(common.RequiresPermission("roles:delete")).Delete("/", rs.deleteRole)
-			r.With(common.RequiresPermission(permRolesRead)).Get(pathPermissions, rs.getRolePermissions)
 		})
 	})
 

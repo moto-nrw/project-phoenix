@@ -75,6 +75,13 @@ func TestRBACRolePermissionsListQueryBudget(t *testing.T) {
 		t.Logf("own custom role N%d statements=%d", n, len(queries))
 		measurements = append(measurements, queries)
 	}
+	// The form without trailing slash is the same route with the same
+	// permission, not a separate alias (#5549).
+	unslashed := path(own.ID)
+	rr, queries := f.get(t, unslashed[:len(unslashed)-1], f.token)
+	rbacBudgetCollection(t, rr, "Role permissions retrieved successfully", want)
+	f.successFrame(t, "auth.roles")
+	measurements = append(measurements, queries)
 
 	// Global system roles stay readable, with the same selection for every school.
 	roles, err := f.module.AccountAuthentication.ListRoles(testpkg.Ctx(t), identityaccess.RoleFilter{Name: "admin"})
