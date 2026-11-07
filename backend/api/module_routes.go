@@ -47,6 +47,9 @@ var moduleRouteRules = []moduleRouteRule{
 	// #4805: the payroll office's one-time link. The file was already sent;
 	// only a close of a school that books Zeiterfassung queues one.
 	{"/public/payroll-download", moduleRouteBasis},
+	// #4679: the one-time link to sign a care contract of a Träger. The
+	// contract lives at the Träger, not at a booked school module.
+	{"/public/care-contract-signing", moduleRouteBasis},
 	{"/public/enrollment-legal-documents", settings.ModuleOnlineAnmeldung},
 	{"/public/enrollment-form-legal-documents", settings.ModuleOnlineAnmeldung},
 	// #5199: public period PDFs, no person data or school membership.

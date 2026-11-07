@@ -1,0 +1,6 @@
+{
+  "scenario": "api.enrollment.growth.phases",
+  "max": 4,
+  "exact": true,
+  "description": "Positive mounted phase handler, every SQL statement including transaction envelope and real settings; N3/N8 ordered tenant phases."
+}

@@ -37,23 +37,27 @@ func (w *Workflow) countOtherStudentRecords(ctx context.Context, studentID int64
 	return rosterRemovals + history + appointments + auditReferences + feedback, nil
 }
 
-func (w *Workflow) lockInitialCompanions(ctx context.Context, subjectID int64, ids []int64) (map[int64]bool, int64, error) {
+func (w *Workflow) lockInitialCompanions(ctx context.Context, subjectID int64, ids []int64) (map[int64]bool, int64, *peopledirectory.EnrollmentRecord, error) {
 	held := make(map[int64]bool, len(ids))
 	var maxHeld int64
+	var subject *peopledirectory.EnrollmentRecord
 	for _, id := range ascending(ids) {
-		found, err := w.lockStudent(ctx, id, "update")
+		student, found, err := w.lockStudent(ctx, id, "update")
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, nil, err
 		}
 		if !found && id == subjectID {
-			return nil, 0, ErrStudentNotFound
+			return nil, 0, nil, ErrStudentNotFound
+		}
+		if id == subjectID {
+			subject = &student
 		}
 		held[id] = true
 		if id > maxHeld {
 			maxHeld = id
 		}
 	}
-	return held, maxHeld, nil
+	return held, maxHeld, subject, nil
 }
 
 func (w *Workflow) requireCompanionUnstranded(ctx context.Context, id int64, days []string, covered map[string]bool) error {

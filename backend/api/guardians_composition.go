@@ -114,10 +114,10 @@ func guardianProtectedRoutes(router chi.Router, register func(chi.Router, usersA
 	ProtectedTenantRoutes(router, register)
 }
 
-// newGuardiansResource binds the guardian HTTP adapter over the People
+// NewGuardiansResource binds the guardian HTTP adapter over the People
 // Directory and the legacy-service runtime. appEnv gates the seed-only raw
 // invitation token.
-func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirectoryRuntime, appEnv string, logger *slog.Logger) *usersAPI.GuardianResource {
+func NewGuardiansResource(module peopleModule.Capability, runtime GuardianDirectoryRuntime, appEnv string, logger *slog.Logger) *usersAPI.GuardianResource {
 	return usersAPI.NewGuardianResource(module, usersAPI.GuardianRuntime{
 		Protected: guardianProtectedRoutes,
 		Permission: func(permission string) usersAPI.Middleware {

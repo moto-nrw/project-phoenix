@@ -279,6 +279,9 @@ type Decisions interface {
 	// StudentDecisionRequests lists the requests whose children created the
 	// student, keeping only those children.
 	StudentDecisionRequests(ctx context.Context, studentID int64) ([]*DecisionSummary, error)
+	// StudentExtraFieldRequests loads linked submissions for the student's
+	// extra fields, including their historical phases and children.
+	StudentExtraFieldRequests(ctx context.Context, studentID int64) ([]*DecisionSummary, error)
 	// DecisionRequest loads one request with its children, guardians and the
 	// late invite it was submitted through.
 	DecisionRequest(ctx context.Context, requestID int64) (*DecisionSummary, error)

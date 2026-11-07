@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
@@ -37,7 +38,7 @@ func stayInOtherRoom(t *testing.T, k *kiosk, studentID, _ int64) {
 // measureScan runs the scan at a kiosk with three and then eight children
 // present, asserts that the statement count does not grow, and returns the
 // statements of the larger run.
-func measureScan(t *testing.T, before stayBefore, action string) []string {
+func measureScan(t *testing.T, before stayBefore, action string, requestMemo ...bool) []string {
 	t.Helper()
 	k := setupCheckinRoute(t)
 	device, deviceID := k.deviceRow(t, "budget-"+action)
@@ -59,6 +60,9 @@ func measureScan(t *testing.T, before stayBefore, action string) []string {
 		router := testutil.NewTenantRouter(k.db)
 		router.Mount("/", k.resource.Router())
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", checkinBody(tag, roomID), device, staff)
+		if len(requestMemo) > 0 && requestMemo[0] {
+			req = req.WithContext(settings.WithSettingsRequestCache(req.Context()))
+		}
 		counter.Reset()
 		rr := testutil.ExecuteRequest(router, req.WithContext(counter.Context(req.Context())))
 		testutil.AssertSuccessResponse(t, rr, 200)
@@ -70,6 +74,7 @@ func measureScan(t *testing.T, before stayBefore, action string) []string {
 	small := scan()
 	addPresent(5)
 	large := scan()
+	t.Logf("scan=%s N3=%d N8=%d request_memo=%v", action, len(small), len(large), requestMemo)
 	assert.Equal(t, len(small), len(large), "the scan must not grow with the children present")
 	return large
 }
@@ -87,4 +92,18 @@ func TestScanQueryBudget_CheckOut(t *testing.T) {
 func TestScanQueryBudget_RoomChange(t *testing.T) {
 	t.Parallel()
 	querybudgets.AssertQueryBudget(t, "api.iot.checkin.room_change", measureScan(t, stayInOtherRoom, "transferred"))
+}
+
+// Request memoization matches production middleware and warms lazily.
+func TestScanQueryBudget_RequestMemoCheckIn(t *testing.T) {
+	t.Parallel()
+	querybudgets.AssertQueryBudget(t, "api.iot.checkin.request_memo.check_in", measureScan(t, noStay, "checked_in", true))
+}
+func TestScanQueryBudget_RequestMemoCheckOut(t *testing.T) {
+	t.Parallel()
+	querybudgets.AssertQueryBudget(t, "api.iot.checkin.request_memo.check_out", measureScan(t, stayInKioskRoom, "checked_out", true))
+}
+func TestScanQueryBudget_RequestMemoRoomChange(t *testing.T) {
+	t.Parallel()
+	querybudgets.AssertQueryBudget(t, "api.iot.checkin.request_memo.room_change", measureScan(t, stayInOtherRoom, "transferred", true))
 }

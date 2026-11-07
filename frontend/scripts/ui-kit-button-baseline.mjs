@@ -77,7 +77,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/announcements/parent-target-picker.tsx",
-    lines: [48],
+    lines: [49],
     reason: "Zielgruppe ankreuzen (Häkchen-Zeile): Auswahlzeile",
   },
   {
@@ -170,7 +170,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [946],
+    lines: [930],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {

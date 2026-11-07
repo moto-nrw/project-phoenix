@@ -50,7 +50,7 @@ func TestProvisioningGetProvisioningStats(t *testing.T) {
 	}{
 		"counts":        {func(h *provisioningHarness) { h.dashboard.fail["Counts"] = errBoom }, ""},
 		"device counts": {func(h *provisioningHarness) { h.devices.fail["CountDevicesByTenant"] = errBoom }, "count devices for provisioning stats"},
-		"school rows":   {func(h *provisioningHarness) { h.dashboard.fail["SchoolSummaries"] = errBoom }, "load schools for provisioning stats"},
+		"school rows":   {func(h *provisioningHarness) { h.engine.fail["ListSchools"] = errBoom }, "load schools for provisioning stats"},
 	} {
 		t.Run(name+" failure", func(t *testing.T) {
 			t.Parallel()
@@ -111,7 +111,7 @@ func TestProvisioningListOrganizationSummaries(t *testing.T) {
 		"organisation rows": {func(h *provisioningHarness) { h.dashboard.fail["OrganizationSummaries"] = errBoom }, ""},
 		"device counts":     {func(h *provisioningHarness) { h.devices.fail["CountDevicesByTenant"] = errBoom }, "count devices for organization summaries"},
 		"person counts":     {func(h *provisioningHarness) { h.people.fail["CountPersonsByTenant"] = errBoom }, "count persons for organization summaries"},
-		"school rows":       {func(h *provisioningHarness) { h.dashboard.fail["SchoolSummaries"] = errBoom }, "load schools for organization summaries"},
+		"school rows":       {func(h *provisioningHarness) { h.engine.fail["ListSchools"] = errBoom }, "load schools for organization summaries"},
 	} {
 		t.Run(name+" failure", func(t *testing.T) {
 			t.Parallel()

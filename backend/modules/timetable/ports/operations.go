@@ -47,6 +47,12 @@ type OperationPeople interface {
 	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error)
 }
 
+// OperationStaffIdentity resolves the verified caller's staff identity through
+// Identity's existing request memo. Failures retain the directory fallback.
+type OperationStaffIdentity interface {
+	StaffID(context.Context) (int64, error)
+}
+
 // EducationGroupNames is the consumer-owned port to School Structure's
 // education groups: the names of the given groups, missing ones absent.
 type EducationGroupNames interface {
@@ -178,6 +184,7 @@ type OperationDependencies struct {
 	Attendance           OperationAttendance
 	Students             OperationStudents
 	People               OperationPeople
+	CallerStaff          OperationStaffIdentity
 	EducationGroups      EducationGroupNames
 	Rooms                RoomNames
 	BlockMetadata        BlockDisplayMetadata

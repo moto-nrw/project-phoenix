@@ -27,5 +27,11 @@
   "releasedAt": "Paylaşım tarihi",
   "downloadFile": "İndir",
   "sharedErrorObject": "kurumun belgeleri",
-  "image": "Resim"
+  "image": "Resim",
+  "awaitingSignature": "İmzanızı bekliyor",
+  "signed": "İmzalandı",
+  "concluded": "Sözleşme tamamlandı",
+  "signNow": "Oku ve imzala",
+  "signedAt": "İmzalanma tarihi",
+  "status": "Durum"
 }

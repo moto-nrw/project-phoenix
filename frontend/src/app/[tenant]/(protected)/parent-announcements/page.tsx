@@ -50,6 +50,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Radio } from "~/components/ui/radio";
 import { DatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { TimeField } from "~/components/ui/time-field";
 import {
   DEFAULT_REMINDER_TIME,
@@ -1751,12 +1752,13 @@ function AnnouncementFormModal({
                   <div className="grid gap-4 sm:grid-cols-2">
                     {hasDeadline && (
                       <div>
-                        <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                        <FieldLabel htmlFor="announcement-deadline">
                           {isDeclarationForm
                             ? "Frist (optional)"
                             : "Antwortfrist (optional)"}
-                        </span>
+                        </FieldLabel>
                         <DatePicker
+                          id="announcement-deadline"
                           value={deadline}
                           onChange={setDeadline}
                           placeholder="Keine Frist"
@@ -1772,10 +1774,11 @@ function AnnouncementFormModal({
                       </div>
                     )}
                     <div>
-                      <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                      <FieldLabel htmlFor="announcement-expires-at">
                         Ablaufdatum (optional)
-                      </span>
+                      </FieldLabel>
                       <DatePicker
+                        id="announcement-expires-at"
                         value={expiresAt}
                         onChange={setExpiresAt}
                         placeholder="Kein Ablaufdatum"
@@ -1817,10 +1820,11 @@ function AnnouncementFormModal({
                     </p>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
-                        <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                        <FieldLabel htmlFor="announcement-reminder-day">
                           Erinnern am (optional)
-                        </span>
+                        </FieldLabel>
                         <DatePicker
+                          id="announcement-reminder-day"
                           value={reminderDay}
                           onChange={setReminderDay}
                           placeholder="Keine Erinnerung"
@@ -1863,9 +1867,7 @@ function AnnouncementFormModal({
                   </h3>
 
                   <div>
-                    <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                      Priorität
-                    </span>
+                    <FieldLabel>Priorität</FieldLabel>
                     <SegmentedControl
                       variant="pills"
                       ariaLabel="Priorität"

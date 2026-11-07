@@ -1,0 +1,6 @@
+{
+  "scenario": "parent.mealplan.week",
+  "max": 20,
+  "exact": true,
+  "description": "Production parent meal-plan route with relationship-scoped access, real tenant Meal Plan capability and 3/8 dishes; full route SQL excluding independently budgeted session-family verification."
+}

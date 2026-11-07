@@ -17,10 +17,17 @@
     <div class="highlight-box">
         <p style="margin: 0; font-size: 14px;"><strong>Was müssen Sie tun?</strong></p>
         <p style="margin: 8px 0 0 0; font-size: 14px;">Bitte lesen Sie den Vertrag in Ruhe. Prüfen Sie die gebuchte Betreuung je Wochentag, den Beginn und den Beitrag. Stimmt etwas nicht? Dann melden Sie sich beim Träger.</p>
+        {{if .SigningURL}}<p style="margin: 8px 0 0 0; font-size: 14px;">Stimmt alles? Dann unterschreiben Sie den Vertrag online.</p>{{end}}
+    </div>
+{{if .SigningURL}}
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.SigningURL}}">Vertrag unterschreiben</a>
     </div>
     {{end}}
 
-    <p>Haben Sie die moto Eltern-App? Dann finden Sie den Vertrag auch dort unter „Dokumente“.</p>
+    <p class="security-note">Der Link gilt einmal{{if .LinkExpiresOn}} und bis zum {{.LinkExpiresOn}}{{end}}. Geben Sie ihn nicht weiter. Sie können auch auf Papier unterschreiben: Drucken Sie den Vertrag aus und geben Sie ihn beim Träger ab.</p>
+{{end}}
+    <p>Haben Sie die moto Eltern-App? Dann finden Sie den Vertrag auch dort unter „Dokumente“{{if .SigningURL}} und können ihn dort unterschreiben{{end}}.</p>
 
     <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}. Die Kontaktdaten stehen im Vertrag.</p>
 </div>

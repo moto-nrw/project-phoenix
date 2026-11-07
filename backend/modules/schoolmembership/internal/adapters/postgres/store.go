@@ -320,6 +320,9 @@ func (s *Store) ListTeachers(ctx context.Context, filter schoolmembership.Teache
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
+	if filter.IncludeStaff {
+		return listTeachersWithStaff(ctx, db, scope, filter)
+	}
 	rows := []teacherRow{}
 	query, ok := teacherListQuery(withTenant(teacherSelect(db, &rows), "teacher", scope), filter)
 	if !ok {

@@ -27,5 +27,11 @@
   "releasedAt": "Ndarë më",
   "downloadFile": "Shkarko",
   "sharedErrorObject": "dokumentet e ofruesit",
-  "image": "Imazh"
+  "image": "Imazh",
+  "awaitingSignature": "Pret nënshkrimin tuaj",
+  "signed": "Nënshkruar",
+  "concluded": "Kontrata u lidh",
+  "signNow": "Lexo dhe nënshkruaj",
+  "signedAt": "Nënshkruar më",
+  "status": "Statusi"
 }

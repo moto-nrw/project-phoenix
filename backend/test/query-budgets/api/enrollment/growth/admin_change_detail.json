@@ -1,0 +1,6 @@
+{
+  "scenario": "api.enrollment.growth.admin_change_detail",
+  "max": 8,
+  "exact": true,
+  "description": "Positive mounted HTTP admin detail with N3/N8 persisted parent messages and two children, complete DTO and transaction SQL."
+}

@@ -1,0 +1,6 @@
+{
+  "scenario": "school.staff_messages.recipients.empty",
+  "max": 9,
+  "exact": true,
+  "description": "GET /school/staff-messages/recipients through SchoolRouter and ProtectedSchoolRoutes with an active staff viewer but no addressable peers: N=0,3,8 disabled accounts, inactive mappings, deleted staff and foreign-school staff. Counts the complete protected tenant/RLS request and asserts the full empty-array response and no DML. Viewer remains an active candidate, so person hydration runs but role classification is skipped. Excludes outer server live-session verification."
+}

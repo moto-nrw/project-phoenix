@@ -55,7 +55,7 @@ func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.St
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	deps := active.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
-		GroupRepo:          sessionGroups(reposPresence.ActiveGroup),
+		GroupRepo:          forceCancellationGroups(sessionGroups(reposPresence.ActiveGroup)),
 		SessionStartLock:   reposPresence.SessionStartLock,
 		SupervisorRepo:     sessionSupervisors(reposPresence.ActiveGroup),
 		SchoolPresence:     presence,

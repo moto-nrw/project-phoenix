@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"errors"
+	"regexp"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
@@ -91,15 +92,14 @@ func mockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	return db, mock
 }
 
-// mockTenantTxDB returns a bun DB whose tenant transaction (BEGIN, SET LOCAL
-// ROLE, set_config, COMMIT/ROLLBACK) is satisfied by sqlmock; the access lookup
+// mockTenantTxDB returns a bun DB whose tenant transaction (BEGIN, combined
+// role/tenant set_config, COMMIT/ROLLBACK) is satisfied by sqlmock; the access lookup
 // itself is faked, so no statement inside the transaction is expected.
 func mockTenantTxDB(t *testing.T, commits bool) *bun.DB {
 	t.Helper()
 	db, mock := mockDB(t)
 	mock.ExpectBegin()
-	mock.ExpectExec("SET LOCAL ROLE phoenix_tenant").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("^" + regexp.QuoteMeta("SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_tenant_id', '41', true)") + "$").WillReturnResult(sqlmock.NewResult(0, 0))
 	if commits {
 		mock.ExpectCommit()
 	} else {

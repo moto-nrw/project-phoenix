@@ -4,7 +4,6 @@ package compose
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -39,34 +38,14 @@ func NewOperatorSchoolSettings(deps OperatorDependencies) settings.OperatorSchoo
 		logger = slog.Default()
 	}
 	runtime := operatorSettingsRuntime{db: deps.DB}
-	return &operatorSchoolSettings{
-		settings:        deps.Settings,
-		runtime:         runtime,
-		SettingsSchemas: deps.Settings,
-		OperatorSettingsService: configSvc.NewOperatorSettingsService(
+	return configSvc.NewOperatorSchoolSettings(deps.Settings, runtime,
+		configSvc.NewOperatorSettingsService(
 			deps.Settings,
 			runtime,
 			deps.Notify,
 			deps.OpenAttendance,
 			logger, deps.OnValueSet,
-		),
-	}
-}
-
-type operatorSchoolSettings struct {
-	configModel.SettingsSchemas
-	configSvc.OperatorSettingsService
-	settings configModel.SettingsService
-	runtime  operatorSettingsRuntime
-}
-
-// Schema passes nil permissions: operators see every setting.
-func (s *operatorSchoolSettings) Schema(ctx context.Context, schoolID int64) (json.RawMessage, error) {
-	return configSvc.OperatorSettingSchema(ctx, schoolID, s.runtime.WithinTenant, func() configModel.SettingsService { return s.settings })
-}
-
-func (s *operatorSchoolSettings) Reveal(ctx context.Context, schoolID int64, key string) (any, error) {
-	return configSvc.OperatorSettingReveal(ctx, schoolID, key, s.runtime.WithinTenant, func() configModel.SettingsService { return s.settings })
+		))
 }
 
 type operatorSettingsRuntime struct{ db *bun.DB }

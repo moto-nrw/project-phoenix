@@ -2,13 +2,11 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -65,7 +63,10 @@ func (s *service) collectSlotContexts(ctx context.Context, params listRequest, r
 		selected = int64StructSet(params.InstanceIDs)
 	}
 
-	roomCache := map[int64]string{}
+	roomNames, err := s.slotRoomNames(ctx, instances, params.ListKind)
+	if err != nil {
+		return nil, nil, err
+	}
 	process := make([]slotContext, 0, len(instances))
 	// deferredInstances flags reconciliation occurrences reached before their
 	// scheduled start with no active group yet. They still enter `process` (their
@@ -79,10 +80,7 @@ func (s *service) collectSlotContexts(ctx context.Context, params listRequest, r
 		if !selectableSlot(inst, params.ListKind) {
 			continue
 		}
-		sc, deferred, err := s.buildSlotContext(ctx, inst, params, roomCache, result)
-		if err != nil {
-			return nil, nil, err
-		}
+		sc, deferred := s.buildSlotContext(inst, params, roomNames[inst.RoomID], result)
 		// deferredInstances is recorded before the selection gate — a non-selected
 		// deferred slot is never looked up, but keeping the order identical to the
 		// pre-split code avoids any behavioral surprise.
@@ -118,11 +116,7 @@ func slotSelected(selected map[int64]struct{}, instanceID int64) bool {
 // buildSlotContext publishes one matching instance as selectable context on
 // result.Slots and returns its slotContext plus whether it is a deferred
 // (not-yet-started reconciliation) occurrence.
-func (s *service) buildSlotContext(ctx context.Context, inst *slotInstance, params listRequest, roomCache map[int64]string, result *classday.Result) (slotContext, bool, error) {
-	roomName, err := s.lookupRoomName(ctx, inst.RoomID, roomCache)
-	if err != nil {
-		return slotContext{}, false, err
-	}
+func (s *service) buildSlotContext(inst *slotInstance, params listRequest, roomName string, result *classday.Result) (slotContext, bool) {
 	listKind := ""
 	if inst.ListKind != nil {
 		listKind = *inst.ListKind
@@ -153,7 +147,7 @@ func (s *service) buildSlotContext(ctx context.Context, inst *slotInstance, para
 		}
 	}
 	slotLabel := fmt.Sprintf("%s (%s–%s)", inst.Title, inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout))
-	return slotContext{inst: inst, slotLabel: slotLabel, roomName: roomName}, deferred, nil
+	return slotContext{inst: inst, slotLabel: slotLabel, roomName: roomName}, deferred
 }
 
 // loadSlotPresence bulk-loads the rosters, the shared care-day verdict, and the
@@ -597,27 +591,6 @@ func instanceMatchesListKind(inst *slotInstance, listKind classday.ListKind) boo
 		return false
 	}
 	return *inst.ListKind == string(listKind)
-}
-
-// lookupRoomName resolves a room's display name, cached per build. A missing
-// room is non-fatal (room grouping just shows the "Ohne Raum" bucket).
-func (s *service) lookupRoomName(ctx context.Context, roomID int64, cache map[int64]string) (string, error) {
-	if roomID == 0 {
-		return "", nil
-	}
-	if name, ok := cache[roomID]; ok {
-		return name, nil
-	}
-	room, err := s.rooms.FindRoom(ctx, roomID)
-	if err != nil {
-		if errors.Is(err, facilities.ErrRoomNotFound) {
-			cache[roomID] = ""
-			return "", nil
-		}
-		return "", fmt.Errorf("lookup room %d: %w", roomID, err)
-	}
-	cache[roomID] = room.Name
-	return room.Name, nil
 }
 
 // beforeEffectiveArrival reports whether the service clock is still earlier than

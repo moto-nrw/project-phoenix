@@ -61,7 +61,10 @@ type StatusFlagArchive struct {
 	Source           string
 }
 
+// CarePlanDeletionCounts is one owner-local read window of the deletion preview.
+// ScheduleRows keeps the seven schedule categories separate from status/request rows.
 type CarePlanDeletionCounts struct {
+	ScheduleRows    int
 	StatusDays      int
 	ExcusedRequests int
 	CareRequests    int

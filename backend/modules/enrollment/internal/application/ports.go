@@ -108,6 +108,7 @@ type CalendarPeriods interface {
 type FormSchemaRecords interface {
 	ActiveSchema(context.Context) (*enrollment.FormSchema, error)
 	Schema(context.Context, int64) (*enrollment.FormSchema, error)
+	StudentExtraFieldSchemas(context.Context, []int64) ([]enrollment.SchemaVersionResult, error)
 	SchemaVersions(context.Context) ([]*enrollment.FormSchema, error)
 	LockSchemaLineages(context.Context) error
 	NextSchemaVersionForName(context.Context, string) (int, error)
