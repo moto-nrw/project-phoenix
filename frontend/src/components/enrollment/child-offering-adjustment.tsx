@@ -24,6 +24,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import {
   BLOCKED_OFFERING_ROW_TONE,
+  OfferingOccupancyLine,
   OfferingRowShell,
 } from "~/components/enrollment/offering-row-shell";
 import { formatDateTime } from "~/components/enrollment/enrollment-request-display";
@@ -38,8 +39,6 @@ import {
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
-  formatOfferingOccupancy,
-  offeringIsFull,
 } from "~/lib/care-offering-booking-stats";
 import { materializeCareSelection } from "~/lib/care-offering-selection";
 import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
@@ -51,7 +50,7 @@ import {
   listAdminChildOfferingAdjustments,
   updateAdminChildOfferings,
 } from "~/lib/enrollment-admin-api";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { supportedGradeLevelMax } from "~/lib/grade-level";
 import { createLogger } from "~/lib/logger";
 import { describeOfferingAdjustmentChanges } from "~/lib/offering-adjustment-history";
 import { mapRosterImpact, type RosterImpact } from "~/lib/roster-impact";
@@ -59,27 +58,6 @@ import { useCareOfferingsEnabled, useTenant } from "~/lib/tenant-context";
 import { weekdayShortLabel, weekdayShortList } from "~/lib/weekdays";
 
 const logger = createLogger({ component: "ChildOfferingAdjustment" });
-
-/**
- * One-line occupancy hint under an offering in the admin pickers. Renders
- * nothing when there is no stats entry, so a failed stats load degrades to
- * the previous UI instead of an empty placeholder (#2186).
- */
-function OfferingOccupancyLine({
-  stats,
-}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
-  const label = formatOfferingOccupancy(stats);
-  if (!label) return null;
-  return (
-    <span
-      className={`mt-1 block text-xs ${
-        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
-      }`}
-    >
-      {label}
-    </span>
-  );
-}
 
 /**
  * An offering the child's grade level rules out. Parents never see these;
@@ -183,9 +161,7 @@ export function ChildOfferingAdjustment({
   // The tenant's configured ceiling, so a blocked-offering reason names only
   // grades this school actually has (#2186 review).
   const { tenant } = useTenant();
-  const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
-    ? tenant.gradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(tenant?.gradeLevelMax);
   // Der Bearbeiten-Zustand der Fläche (Bauart 2 Regel 3, #3119): die
   // Auswahl erscheint an Ort und Stelle, kein Modal.
   const [editing, setEditing] = useState(false);

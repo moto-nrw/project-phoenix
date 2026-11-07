@@ -1,3 +1,4 @@
+import { MAX_SUPPORTED_GRADE_LEVEL } from "~/lib/grade-level";
 import type { CareOfferingAvailabilityRule } from "~/lib/care-offering-api";
 
 export interface AvailabilityAwareOffering {
@@ -64,13 +65,6 @@ export function formatGradeLevelList(values: readonly number[]): string {
 export function gradeNoun(values: readonly number[]): string {
   return new Set(values).size === 1 ? "Klasse" : "Klassen";
 }
-
-/**
- * Highest grade the backend's rule validation accepts
- * (`CareOfferingAvailabilityRule.NormalizeAndValidate`). Used as the default
- * ceiling when a caller has no tenant-specific maximum to hand.
- */
-const MAX_SUPPORTED_GRADE_LEVEL = 13;
 
 function normalizedGradeLevelMax(gradeLevelMax?: number): number {
   return Number.isInteger(gradeLevelMax) && (gradeLevelMax ?? 0) >= 1

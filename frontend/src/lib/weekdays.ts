@@ -12,7 +12,13 @@ export const WEEKDAY_CODES = [
 type WeekdayCode = (typeof WEEKDAY_CODES)[number];
 
 /** The five school days, the default care week. */
-export const SCHOOL_WEEKDAY_CODES = WEEKDAY_CODES.slice(0, 5);
+export const SCHOOL_WEEKDAY_CODES = [
+  "mon",
+  "tue",
+  "wed",
+  "thu",
+  "fri",
+] as const satisfies readonly WeekdayCode[];
 
 const SHORT_LABELS: Readonly<Record<WeekdayCode, string>> = {
   mon: "Mo",

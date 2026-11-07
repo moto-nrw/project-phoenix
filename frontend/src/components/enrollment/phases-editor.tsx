@@ -59,7 +59,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
 import { useTenant } from "~/lib/tenant-context";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { supportedGradeLevelMax } from "~/lib/grade-level";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -304,9 +304,7 @@ export function PhasesEditor() {
   const [highlightActions, setHighlightActions] = useState(false);
   const { tenantSlug, tenant } = useTenant();
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
-  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
-    ? resolvedGradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(resolvedGradeLevelMax);
   const tenantPath = useTenantAwarePath();
   const toast = useToast();
   const tenantMutate = useTenantMutate();

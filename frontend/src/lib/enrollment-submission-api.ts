@@ -14,6 +14,7 @@ import {
   sendEnrollmentRequest,
 } from "~/lib/enrollment-http";
 
+import type { PhaseAudience } from "~/lib/enrollment-phase-api";
 import type { ChangeRequestStatus, ChildStatus } from "~/lib/enrollment-status";
 
 const logger = createLogger({ component: "EnrollmentSubmissionAPI" });
@@ -389,7 +390,7 @@ export interface PublicPhase {
    * "linked_parents" phases never reach the public picker (filtered
    * server-side).
    */
-  audience?: "open" | "new_students" | "existing_students" | "linked_parents";
+  audience?: PhaseAudience;
   /**
    * Grade restriction (#1663). Empty (or missing) = no restriction;
    * otherwise only children in one of these grades may apply. The form

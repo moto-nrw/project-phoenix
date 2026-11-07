@@ -21,7 +21,7 @@ import {
 import { BackLink } from "~/components/ui/back-link";
 import { useTenant } from "~/lib/tenant-context";
 import { formatDate } from "~/lib/date-helpers";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { supportedGradeLevelMax } from "~/lib/grade-level";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   fetchPublicEnrollmentBootstrap,
@@ -113,9 +113,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
 
   const phase = bootstrap ? localizeNamed(bootstrap.phase, locale) : null;
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
-  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
-    ? resolvedGradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(resolvedGradeLevelMax);
   const prefetchedData = useMemo<
     EnrollmentFormPrefetchedData | undefined
   >(() => {

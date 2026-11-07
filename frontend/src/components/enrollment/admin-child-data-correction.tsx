@@ -1,5 +1,6 @@
 "use client";
 
+import { MAX_SUPPORTED_GRADE_LEVEL } from "~/lib/grade-level";
 import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Pencil } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -215,7 +216,7 @@ export function AdminChildDataCorrection({
               error={errors.fieldError("target_grade_level")}
               type="number"
               min={1}
-              max={13}
+              max={MAX_SUPPORTED_GRADE_LEVEL}
               step={1}
               value={grade}
               onChange={(event) => setGrade(event.target.value)}

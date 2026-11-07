@@ -319,7 +319,9 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     minute: "2-digit",
   });
   const childStats = summarizeChildren(data.children);
-  const statusHref = tenantPath(`/anmeldung/status/${data.status_token}`);
+  const statusHref = tenantPath(
+    `/anmeldung/status/${encodeURIComponent(data.status_token)}`,
+  );
   // The restore action shows whenever at least one child is withdrawn —
   // exactly the backend's restore precondition. Individual child withdraws
   // never stamp withdrawn_at, and RestoreWithdrawn restores the withdrawn
@@ -343,7 +345,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     <TenantPage
       title={`${data.guardian_first_name} ${data.guardian_last_name}`}
       back
-      backHref={`/admin/enrollments/phases/${data.phase_id}`}
+      backHref={`/admin/enrollments/phases/${encodeURIComponent(data.phase_id)}`}
       backLabel="Zurück zur Anmeldephase"
       stats={statusLine}
       leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
@@ -392,12 +394,16 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             child={
               deletionTarget?.type === "child" ? deletionTarget : undefined
             }
-            studentHref={(studentId) => tenantPath(`/students/${studentId}`)}
+            studentHref={(studentId) =>
+              tenantPath(`/students/${encodeURIComponent(studentId)}`)
+            }
             onClose={() => setDeletionTarget(null)}
             onDeleted={(impact) => {
               setDeletionTarget(null);
               if (impact.deletes_request) {
-                router.push(`/admin/enrollments/phases/${data.phase_id}`);
+                router.push(
+                  `/admin/enrollments/phases/${encodeURIComponent(data.phase_id)}`,
+                );
                 return;
               }
               toast.success("Das Kind wurde aus der Anmeldung gelöscht.");
@@ -595,14 +601,11 @@ function ChildInformationCard({
 }>) {
   const terminal = isTerminalChildStatus(child.status);
   const canDeleteFromEnrollment =
-    child.created_student_id === undefined &&
-    (child.status === "rejected" ||
-      child.status === "withdrawn" ||
-      child.status === "approved");
+    terminal && child.created_student_id === undefined;
   const tenantPath = useTenantAwarePath();
   const studentHref = tenantPath(
     child.created_student_id
-      ? `/students/${child.created_student_id}`
+      ? `/students/${encodeURIComponent(child.created_student_id)}`
       : "/students",
   );
   return (

@@ -125,13 +125,10 @@ import {
   careOfferingIsAvailable,
   careOfferingRuleExcludesNobody,
 } from "~/lib/care-offering-availability";
-import {
-  type CareOfferingBookingStats,
-  formatOfferingOccupancy,
-  offeringIsFull,
-} from "~/lib/care-offering-booking-stats";
+import { type CareOfferingBookingStats } from "~/lib/care-offering-booking-stats";
 import {
   BLOCKED_OFFERING_ROW_TONE,
+  OfferingOccupancyLine,
   OfferingRowShell,
 } from "~/components/enrollment/offering-row-shell";
 
@@ -3095,27 +3092,6 @@ function offeringRuleHint(rule: string, tr: TranslationFn): string {
 // a parent's pick; choosable offerings keep the interactive green-check
 // checkbox. The day picker stays available for parent_choice offerings in
 // both cases.
-/**
- * Occupancy line under an offering in ADMIN flows (#2186). Renders nothing
- * without stats, so the parent form and a failed stats load look exactly as
- * they did before.
- */
-function OfferingOccupancyLine({
-  stats,
-}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
-  const label = formatOfferingOccupancy(stats);
-  if (!label) return null;
-  return (
-    <div
-      className={`mt-1 text-xs ${
-        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
-      }`}
-    >
-      {label}
-    </div>
-  );
-}
-
 /**
  * An offering an availability rule rules out for this child, shown greyed
  * with the reason. Admin flows only — for parents, silently omitting an
