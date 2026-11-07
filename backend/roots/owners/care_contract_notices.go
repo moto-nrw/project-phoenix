@@ -44,6 +44,10 @@ func (t careContractNoticeTemplates) NoticeTemplate(ctx context.Context, organiz
 		key = configModels.KeyCareContractWithdrawalConfirmation
 	case carecontract.TerminationExtraordinary:
 		key = configModels.KeyCareContractExtraordinaryConfirmation
+	case carecontract.NoticeTemplateEndSet:
+		key = configModels.KeyCareContractEndSetNotice
+	case carecontract.NoticeTemplateReasonRejected:
+		key = configModels.KeyCareContractReasonRejectedNotice
 	}
 	texts, err := t.settings.TraegerTexts(ctx, organizationID, []string{key})
 	if err != nil {
@@ -111,6 +115,7 @@ func parentNoticeOptions(options carecontract.NoticeOptions) parentportal.Contra
 		result.Notice = &parentportal.ContractNotice{
 			Kind: notice.Kind, TerminationKind: notice.TerminationKind, Reason: notice.Reason, Channel: notice.Channel, DeclaredAt: notice.DeclaredAt,
 			DispatchedOn: notice.DispatchedOn, ReceivedOn: notice.ReceivedOn, EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
+			EndDecision: notice.EndDecision, EndDecidedAt: notice.EndDecidedAt, EndNoticeText: notice.EndNoticeText,
 		}
 	}
 	return result

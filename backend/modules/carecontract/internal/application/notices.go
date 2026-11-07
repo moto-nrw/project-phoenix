@@ -404,6 +404,10 @@ func (n *Notices) options(ctx context.Context, organizationID int64, record Cont
 		Modules:   joinGerman(ModuleNames(record.Version.Services)), Terms: NoticeText(record.Version.Terms),
 		EarlyStart: state.EarlyStart, Notice: state.Notice,
 	}
+	if includeExpiredWithdrawal && endIsOpen(record, state.Notice) {
+		end := reinterpretedEnd(record, state)
+		options.ReinterpretedEndsOn = &end
+	}
 	if record.Summary.Status != carecontract.StatusActive || record.Concluded == nil {
 		return options, nil
 	}
