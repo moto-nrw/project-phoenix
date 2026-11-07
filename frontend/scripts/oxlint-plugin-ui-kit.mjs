@@ -1144,6 +1144,8 @@ const noHandRolledSurface = {
           if (SURFACE_CONTROL_ELEMENTS.has(jsxName(node.name) ?? "")) return;
           const className = jsxAttribute(node, "className");
           if (!className?.value) return;
+          const chunks = [];
+          collectStaticStrings(className.value, chunks);
           const combinations = classCombinations(
             className.value,
             new Set(),
