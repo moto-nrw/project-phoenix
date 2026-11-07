@@ -3313,7 +3313,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (a StatisticsAuditLog) RecordStatisticsAccess(ctx context.Context, event presenceCompose.StatisticsAccessEvent) error {\n\tentry := \u0026auditModels.DataAccessLog{ActorAccountID: event.ActorAccountID, ActorRole: event.ActorRole, ResourceType: auditModels.ResourceTypeAttendanceStatistics, RangeStart: event.RangeStart, RangeEnd: event.RangeEnd, AccessedAt: event.AccessedAt}\n\tfor key, value := range event.Metadata {\n\t\tentry.SetMetadata(key, value)\n\t}\n\treturn a.Log.Create(ctx, entry)\n}",
+      "evidence": "func (a StatisticsAuditLog) RecordStatisticsAccess(ctx context.Context, event presenceCompose.StatisticsAccessEvent) error {\n\tentry := \u0026auditModels.DataAccessLog{ActorAccountID: event.ActorAccountID, ActorRole: event.ActorRole, StudentID: event.StudentID, ResourceType: auditModels.ResourceTypeAttendanceStatistics, RangeStart: event.RangeStart, RangeEnd: event.RangeEnd, AccessedAt: event.AccessedAt}\n\tfor key, value := range event.Metadata {\n\t\tentry.SetMetadata(key, value)\n\t}\n\treturn a.Log.Create(ctx, entry)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/StatisticsAuditLog.RecordStatisticsAccess",
       "owner": "roots"
