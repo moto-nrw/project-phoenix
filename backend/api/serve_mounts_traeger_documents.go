@@ -30,8 +30,8 @@ const traegerDocumentGroupLimit = 500
 // mountTraegerDocumentRoutes serves the documents a Träger shares (#4692):
 // the Träger-Büro's routes at /traeger/documents and the school's at
 // /api/traeger-documents. The parents read them through the parents portal.
-func mountTraegerDocumentRoutes(root, tenantRouter chi.Router, db transactionruntime.Database, organizations HolidayOrganizations, accessLog owners.DataAccessAppender, ledger auditModels.Command) error {
-	traegerDocuments, err := NewTraegerDocumentsHTTP(db, organizations, accessLog, ledger)
+func mountTraegerDocumentRoutes(root, tenantRouter chi.Router, db transactionruntime.Database, organizations HolidayOrganizations, accessLog owners.DataAccessAppender, ledger auditModels.Command, delivery owners.DeferredPushOutbox) error {
+	traegerDocuments, err := NewTraegerDocumentsHTTP(db, organizations, accessLog, ledger, delivery)
 	if err != nil {
 		return err
 	}
@@ -41,9 +41,10 @@ func mountTraegerDocumentRoutes(root, tenantRouter chi.Router, db transactionrun
 }
 
 // NewTraegerDocumentsHTTP binds the Träger-Büro's documents: the schools to
-// Organisation & Tenancy and the groups of a school to School Structure in
-// that school's tenant transaction.
-func NewTraegerDocumentsHTTP(db transactionruntime.Database, organizations HolidayOrganizations, accessLog owners.DataAccessAppender, ledger auditModels.Command) (*organizationTenancyTraeger.DocumentsResource, error) {
+// Organisation & Tenancy, the groups of a school to School Structure in
+// that school's tenant transaction and the push of a release for parents to
+// Delivery's outbox (#5941).
+func NewTraegerDocumentsHTTP(db transactionruntime.Database, organizations HolidayOrganizations, accessLog owners.DataAccessAppender, ledger auditModels.Command, delivery owners.DeferredPushOutbox) (*organizationTenancyTraeger.DocumentsResource, error) {
 	groups, err := schoolStructureCompose.New(schoolStructureCompose.Dependencies{DB: db.Pool(), Observe: func(schoolStructureCompose.Observation) {}})
 	if err != nil {
 		return nil, fmt.Errorf("traeger documents: school groups: %w", err)
@@ -54,6 +55,7 @@ func NewTraegerDocumentsHTTP(db transactionruntime.Database, organizations Holid
 		Runtime:   traegerDocumentRuntime{},
 		Access:    traegerDocumentAccessLog{log: accessLog},
 		Downloads: traegerDocumentDownloadLedger{command: ledger},
+		Notices:   owners.TraegerDocumentReleaseNotices{Delivery: delivery},
 	})
 	return organizationTenancyTraeger.NewDocumentsResource(documents,
 		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightDocumentsManage)), nil

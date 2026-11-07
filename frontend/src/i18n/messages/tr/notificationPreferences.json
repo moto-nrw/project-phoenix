@@ -39,7 +39,7 @@
     },
     "parent_billing_document": {
       "label": "Kurumdan yeni belge",
-      "description": "Kurum size bir belge gönderdiğinde, örneğin bir onay yazısı."
+      "description": "Kurum size bir belge gönderdiğinde veya paylaştığında, örneğin bir sözleşme."
     }
   },
   "errorObjectList": "bildirim listesi",

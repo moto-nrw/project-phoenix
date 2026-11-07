@@ -197,12 +197,12 @@ func bindOwners(deps Dependencies) owners {
 
 // NewDocumentNotices builds the push of a new document (ADR 0126) for the
 // Delivery worker over the children, their Träger, the accounts, the
-// guardian's language and the notifier of deps; it needs no other flow.
-func NewDocumentNotices(deps Dependencies) parentportal.DocumentNotices {
+// guardian's language and the notifier of deps, and the pushes (#5941).
+func NewDocumentNotices(deps Dependencies, pushes care.DocumentPushPorts) parentportal.DocumentNotices {
 	if deps.Runtime == nil || deps.ChildRepo == nil || deps.SchoolTraeger == nil || deps.ParentAccounts == nil || deps.DocumentNotifier == nil || deps.Logger == nil {
 		panic("parent portal: document notices need the runtime, the children, the Träger, the accounts, the notifier and a logger")
 	}
 	return &care.Service{Config: care.Config{Runtime: deps.Runtime, ChildRepo: deps.ChildRepo, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, GuardianProfileRepo: deps.GuardianProfileRepo, DocumentNotifier: deps.DocumentNotifier,
-		Logger: deps.Logger}}
+		TraegerRuntime: deps.TraegerRuntime, StudentRepo: deps.StudentRepo, DocumentPushPorts: pushes, Logger: deps.Logger}}
 }

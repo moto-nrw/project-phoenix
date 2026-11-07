@@ -43,6 +43,15 @@ type (
 	DocumentInbox                   = care.DocumentInbox
 	BillingDocumentFile             = care.BillingDocumentFile
 	BillingDocumentPush             = care.BillingDocumentPush
+	ContractInboxNoticesPort        = care.ContractInboxNotices
+	ContractNoticeTarget            = care.ContractNoticeTarget
+	ReleaseNoticesPort              = care.ReleaseNotices
+	ReleaseNoticeAudience           = care.ReleaseNoticeAudience
+	ReleaseSchoolsPort              = care.ReleaseSchools
+	ReleaseRecipientsPort           = care.ReleaseRecipients
+	ReleaseFanOutPort               = care.ReleaseFanOut
+	DocumentPushPorts               = care.DocumentPushPorts
+	TraegerDocumentNotifierPort     = care.TraegerDocumentNotifier
 	BillingDocumentReader           = care.BillingDocumentReader
 	BillingDocumentsPort            = care.BillingDocuments
 	ContractDocumentsPort           = care.ContractDocuments
@@ -92,6 +101,9 @@ type (
 )
 
 const (
+	DocumentPushBilling          = care.DocumentPushBilling
+	DocumentPushContract         = care.DocumentPushContract
+	DocumentPushRelease          = care.DocumentPushRelease
 	DocumentKindContract         = care.DocumentKindContract
 	DocumentInboxLetters         = care.DocumentInboxLetters
 	DocumentInboxContracts       = care.DocumentInboxContracts
@@ -274,4 +286,13 @@ type (
 // of the parents portal (#4671, ADR 0126).
 type DocumentNotices interface {
 	NotifyBillingDocument(ctx context.Context, organizationID, documentID int64, recipientEmail string) error
+	// NotifyContractDocument sends the push of a care contract sent to
+	// recipientEmail (#5941).
+	NotifyContractDocument(ctx context.Context, organizationID, contractID int64, recipientEmail string) error
+	// NotifyTraegerDocumentRelease sends the push of a release for parents
+	// (#5941).
+	NotifyTraegerDocumentRelease(ctx context.Context, organizationID, releaseID int64) error
+	// NotifyTraegerDocumentReleaseAccount sends the push of a release to one
+	// account the release fanned out to (#5941).
+	NotifyTraegerDocumentReleaseAccount(ctx context.Context, organizationID, releaseID, accountID int64) error
 }

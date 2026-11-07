@@ -39,7 +39,7 @@
     },
     "parent_billing_document": {
       "label": "Dokument i ri nga ofruesi",
-      "description": "Kur ofruesi ju dërgon një dokument, për shembull një konfirmim."
+      "description": "Kur ofruesi ju dërgon ose ju ndan një dokument, për shembull një kontratë."
     }
   },
   "errorObjectList": "lista e njoftimeve",
