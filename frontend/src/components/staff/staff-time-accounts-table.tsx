@@ -253,7 +253,7 @@ export function StaffTimeAccountsTable({
   return (
     <SectionCard
       title="Zeitkonten"
-      titleClassName="text-sm"
+      titleSize="sm"
       headingLevel={3}
       description={description}
       actions={

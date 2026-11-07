@@ -4,7 +4,8 @@ import { useState, useMemo } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import type { AnnouncementViewDetail } from "~/lib/operator/announcements-helpers";
-import { getRelativeTime, getInitial } from "~/lib/format-utils";
+import { getRelativeTime } from "~/lib/format-utils";
+import { Avatar } from "~/components/ui/avatar";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSWRAuth } from "~/lib/swr";
 import { operatorAnnouncementKeys } from "~/lib/swr/portal-keys";
@@ -104,10 +105,7 @@ export function AnnouncementViewsAccordion({
                     key={detail.userId}
                     className="flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
                   >
-                    {/* Initials avatar */}
-                    <div className="bg-moto-green/15 text-moto-green-strong flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium">
-                      {getInitial(detail.userName)}
-                    </div>
+                    <Avatar name={detail.userName} decorative />
 
                     {/* Content */}
                     <div className="min-w-0 flex-1">

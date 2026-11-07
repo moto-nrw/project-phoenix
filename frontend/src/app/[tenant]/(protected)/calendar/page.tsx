@@ -44,11 +44,8 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import {
-  ListSkeleton,
-  SkeletonRegion,
-  TableSkeleton,
-} from "~/components/ui/page-skeletons";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   errorAlertActions,

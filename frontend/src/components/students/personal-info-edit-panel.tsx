@@ -60,9 +60,9 @@ import {
 } from "~/lib/student-update-errors";
 import type { AllowedDepartureModes } from "~/lib/departure-plan";
 import {
-  ParentVisibleBadge,
+  VisibilityBadge,
   ParentVisibilityLegend,
-} from "~/components/ui/parent-visible-badge";
+} from "~/components/ui/visibility-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { createLogger } from "~/lib/logger";
@@ -954,7 +954,7 @@ function TextInput({
           {label}
         </label>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <Input
@@ -1022,7 +1022,7 @@ function DateInput({
           {label}
         </label>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <ISODatePicker
@@ -1067,7 +1067,7 @@ function TextAreaInput({
           {label}
         </label>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <Textarea

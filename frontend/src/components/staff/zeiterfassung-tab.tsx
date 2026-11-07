@@ -8,8 +8,8 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   CardGridSkeleton,
   SkeletonRegion,
-  TableSkeleton,
 } from "~/components/ui/page-skeletons";
+import { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
 import { SectionCard } from "~/components/ui/section-card";
 import { staffShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";

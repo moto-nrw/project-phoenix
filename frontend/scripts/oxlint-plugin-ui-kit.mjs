@@ -130,6 +130,18 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //   ui-kit/no-pill-dot              — a dot inside a pill (#2476)
 //   ui-kit/no-hex-alpha-tint        — `${color}1A` tints in a pill's style
 //
+// Four keep the kit variants of #5606 in use, hard-zero:
+//
+//   ui-kit/no-tabs-override         — no look classes on TabsList/TabsTrigger;
+//                                     pick a variant, pass layout only
+//   ui-kit/no-section-card-title-size — no text size in SectionCard's
+//                                     titleClassName; use titleSize
+//   ui-kit/no-empty-state-surface   — no card classes on EmptyState; the card
+//                                     comes from SectionCard or the page's
+//                                     `empty`
+//   ui-kit/no-hand-rolled-avatar    — no tinted circle around initials; use
+//                                     Avatar
+//
 // One more keeps select fields on one look (#5580):
 //
 //   ui-kit/no-select-override       — no frame, fill, height or radius
@@ -1189,7 +1201,7 @@ src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/files/files-page.tsx|text-[11px]@180 text-[11px]@292
 src/components/guardians/guardian-list.tsx|text-[10px]@462
-src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809
+src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@716 text-[11px]@781
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600
@@ -4096,6 +4108,163 @@ const noHandRolledDropzone = {
   },
 };
 
+// --- Kit-Varianten aus #5606 ---------------------------------------------------
+
+const TABS_LOOK_RES = [
+  /^bg-/,
+  /^rounded(?:-|$)/,
+  /^shadow(?:-|$)/,
+  /^(?:min-)?h-/,
+  /^text-/,
+  /^font-/,
+  /^flex-col$/,
+];
+
+function classTokens(attribute) {
+  if (!attribute?.value) return [];
+  return classText(attribute.value, new Map()).split(/\s+/).filter(Boolean);
+}
+
+const noTabsOverride = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Keep the look of TabsList and TabsTrigger in the kit; className carries layout only.",
+    },
+    messages: {
+      override:
+        'Keine eigene Optik an den Reitern ({{tokens}}): `variant` an TabsList wählen ("default", "line", "icon"), className nur für Layout (#5606).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    return {
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (name !== "TabsList" && name !== "TabsTrigger") return;
+        const tokens = classTokens(jsxAttribute(node, "className")).filter(
+          (token) => TABS_LOOK_RES.some((re) => re.test(bareToken(token))),
+        );
+        if (tokens.length === 0) return;
+        context.report({
+          node,
+          messageId: "override",
+          data: { tokens: [...new Set(tokens)].join(" ") },
+        });
+      },
+    };
+  },
+};
+
+const TITLE_SIZE_RE = /^text-(?:xs|sm|base|lg|\d?xl|\[)/;
+
+const noSectionCardTitleSize = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "SectionCard title sizes come from the titleSize prop.",
+    },
+    messages: {
+      titleSize:
+        "Keine Titelgröße über titleClassName ({{tokens}}): `titleSize` an SectionCard wählen (#5606).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    return {
+      JSXOpeningElement(node) {
+        if (jsxName(node.name) !== "SectionCard") return;
+        const tokens = classTokens(jsxAttribute(node, "titleClassName")).filter(
+          (token) => TITLE_SIZE_RE.test(bareToken(token)),
+        );
+        if (tokens.length === 0) return;
+        context.report({
+          node,
+          messageId: "titleSize",
+          data: { tokens: tokens.join(" ") },
+        });
+      },
+    };
+  },
+};
+
+const noEmptyStateSurface = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "EmptyState carries no card classes of its own.",
+    },
+    messages: {
+      surface:
+        "Keine eigene Karte am Leerzustand: `empty` am Seitengerüst (TenantPage, ParentPage) oder EmptyState in SectionCard (#5606).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    return {
+      JSXOpeningElement(node) {
+        if (jsxName(node.name) !== "EmptyState") return;
+        const tokens = classTokens(jsxAttribute(node, "className"));
+        if (tokens.includes("moto-content-surface")) {
+          context.report({ node, messageId: "surface" });
+        }
+      },
+    };
+  },
+};
+
+const INITIALS_NAME_RE = /initial/i;
+
+function rendersInitials(element) {
+  return element.children.some((child) => {
+    if (child.type !== "JSXExpressionContainer") return false;
+    const expression = child.expression;
+    const name =
+      expression.type === "CallExpression"
+        ? expression.callee?.name
+        : expression.name;
+    return typeof name === "string" && INITIALS_NAME_RE.test(name);
+  });
+}
+
+const noHandRolledAvatar = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "Initials in a tinted circle come from Avatar.",
+    },
+    messages: {
+      avatar:
+        'Initialen im eigenen Kreis: Avatar aus ~/components/ui/avatar nehmen, grau mit tone="neutral" (#5606).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    return {
+      JSXElement(node) {
+        const opening = node.openingElement;
+        const name = jsxName(opening.name);
+        if (!name || !/^[a-z]/.test(name)) return;
+        const tokens = classTokens(jsxAttribute(opening, "className"));
+        if (!tokens.includes("rounded-full")) return;
+        if (!tokens.some((token) => bareToken(token).startsWith("bg-"))) return;
+        if (rendersInitials(node)) {
+          context.report({ node: opening, messageId: "avatar" });
+        }
+      },
+    };
+  },
+};
+
 // ui-kit/no-hand-rolled-empty-state (#5597). Gestrichelt und zentriert ist der
 // Leer-Platzhalter; der kommt aus EmptyState. Die übrigen gestrichelten Flächen
 // (Vorschau eines Upload-Felds, vorgemerkte Termine) sind nicht zentriert.
@@ -4375,7 +4544,11 @@ export default {
     "no-own-spinner": noOwnSpinner,
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
+    "no-empty-state-surface": noEmptyStateSurface,
+    "no-hand-rolled-avatar": noHandRolledAvatar,
     "no-hand-rolled-empty-state": noHandRolledEmptyState,
+    "no-section-card-title-size": noSectionCardTitleSize,
+    "no-tabs-override": noTabsOverride,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-field-label": noHandRolledFieldLabel,
     "no-hand-rolled-menu": noHandRolledMenu,

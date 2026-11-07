@@ -61,7 +61,7 @@ describe("ParentNewsPage", () => {
       screen.getByRole("heading", { name: "Elternbriefe" }),
     ).toBeInTheDocument();
     const skeleton = screen.getByTestId("parent-news-skeleton");
-    expect(skeleton.querySelectorAll(".rounded-2xl.border")).toHaveLength(2);
+    expect(screen.getByRole("status")).toContainElement(skeleton);
     expect(skeleton.querySelectorAll(".animate-pulse").length).toBeGreaterThan(
       10,
     );
