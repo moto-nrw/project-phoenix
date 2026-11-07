@@ -214,6 +214,37 @@ func TestAccountManagementForeignUpdateDoesNotLeakExistence(t *testing.T) {
 	assert.Equal(t, originalEmail, email)
 }
 
+// TestAccountIdentityUpdateRequiresUsersManage pins that changing another
+// account's login address is an administrator action: users:update, which
+// the plain "user" role holds, would otherwise let a Betreuer move an admin's
+// address to a mailbox they control and take the account over through a
+// password reset.
+func TestAccountIdentityUpdateRequiresUsersManage(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	targetID, originalEmail := e.accountForTenant(t, "account-scope-identity-admin", e.tenantID)
+	path := fmt.Sprintf("/auth/accounts/%d", targetID)
+	storedEmail := func() string {
+		var email string
+		require.NoError(t, e.tc.db.NewSelect().Column("email").TableExpr("auth.accounts").Where("id = ?", targetID).Scan(context.Background(), &email))
+		return email
+	}
+
+	stolen := map[string]string{"email": fmt.Sprintf("stolen-%d@example.test", targetID)}
+	staffOnly := testutil.TenantUserTestClaims(e.claims.ID, e.tenantID, "users:update", "users:read", "users:list")
+	assertAccountActionStatus(t, e, staffOnly, http.MethodPut, path, stolen, http.StatusForbidden)
+	assert.Equal(t, originalEmail, storedEmail())
+
+	foreignManager := testutil.TenantUserTestClaims(e.claims.ID, e.foreignTenantID, "users:manage")
+	assertAccountActionStatus(t, e, foreignManager, http.MethodPut, path, stolen, http.StatusNotFound)
+	assert.Equal(t, originalEmail, storedEmail())
+
+	updated := fmt.Sprintf("account-scope-identity-%d@example.test", targetID)
+	manager := testutil.TenantUserTestClaims(e.claims.ID, e.tenantID, "users:manage")
+	assertAccountActionStatus(t, e, manager, http.MethodPut, path, map[string]string{"email": updated}, http.StatusNoContent)
+	assert.Equal(t, updated, storedEmail())
+}
+
 func assertSameNotFoundResponse(t *testing.T, e *accountIsolationEnv, foreignMethod, foreignPath, missingMethod, missingPath string, body any) {
 	t.Helper()
 	foreign := e.execute(t, e.claims, foreignMethod, foreignPath, body)
