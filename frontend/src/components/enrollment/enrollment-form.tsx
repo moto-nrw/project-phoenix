@@ -287,6 +287,9 @@ interface Props {
 }
 
 export interface PreviewCareOfferings {
+  schoolClass?: PublicSchoolClassConfig;
+  collectGradeLevel?: boolean;
+  careOfferingsEnabled?: boolean;
   offerings: PublicCareOffering[];
   careOfferingSelectionMode: CareOfferingSelectionMode;
   eligibleGradeLevels: number[];
@@ -408,6 +411,11 @@ export function EnrollmentForm({
   const isExistingStudentsPhase =
     prefetchedData?.audience === "existing_students";
   const initialOfferings = prefetchedData?.offerings ?? [];
+  const templatePreview =
+    previewMode &&
+    !phaseID &&
+    prefetchedData === undefined &&
+    previewOfferings === undefined;
   const initialCollectGradeLevel = prefetchedData?.collectGradeLevel !== false;
   const initialRequiredOfferingIDs = initialOfferings
     .filter((o) => o.is_required && careOfferingIsAvailable(o, undefined))
@@ -728,9 +736,12 @@ export function EnrollmentForm({
                   previewOfferings?.careOfferingSelectionMode ??
                   ("optional" as const),
                 careRequired: false,
-                schoolClass: EMPTY_SCHOOL_CLASS_CONFIG,
-                collectGradeLevel: true,
-                careOfferingsEnabled: true,
+                schoolClass:
+                  previewOfferings?.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
+                collectGradeLevel:
+                  previewOfferings?.collectGradeLevel !== false,
+                careOfferingsEnabled:
+                  previewOfferings?.careOfferingsEnabled !== false,
                 // Without a phase there is no phase-level grade restriction.
                 eligibleGradeLevels:
                   previewOfferings?.eligibleGradeLevels ?? [],
@@ -1162,18 +1173,18 @@ export function EnrollmentForm({
             relevantCareDaysForChild(
               c,
               childOfferings,
-              previewMode,
+              templatePreview,
               careOfferingGradeForChild(c),
               offerings.length > 0,
             ),
-            careDaysAreConstrained(offerings, previewMode),
+            careDaysAreConstrained(offerings, templatePreview),
           )
         ) {
           newFieldErrors[`children_${i}_custom_${field.key}`] =
             requiredMessageForField(
               field,
               tr,
-              careDaysAreConstrained(offerings, previewMode),
+              careDaysAreConstrained(offerings, templatePreview),
             );
         }
       }
@@ -1186,7 +1197,7 @@ export function EnrollmentForm({
       const relevantDays = relevantCareDaysForChild(
         c,
         childOfferings,
-        previewMode,
+        templatePreview,
         careOfferingGradeForChild(c),
         offerings.length > 0,
       );
@@ -1419,7 +1430,7 @@ export function EnrollmentForm({
             relevantCareDaysForChild(
               c,
               childOfferings,
-              previewMode,
+              templatePreview,
               careOfferingGradeForChild(c),
               offerings.length > 0,
             ),
@@ -2616,13 +2627,13 @@ export function EnrollmentForm({
                           relevantDays={relevantCareDaysForChild(
                             child,
                             childOfferings,
-                            previewMode,
+                            templatePreview,
                             careOfferingGradeForChild(child),
                             offerings.length > 0,
                           )}
                           careConstrained={careDaysAreConstrained(
                             offerings,
-                            previewMode,
+                            templatePreview,
                           )}
                           singleMode={
                             f.type === "weekday_multi_mode" &&

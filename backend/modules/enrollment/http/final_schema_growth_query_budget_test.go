@@ -55,3 +55,43 @@ func TestEnrollmentSchemaPositiveGrowthQueryBudget(t *testing.T) {
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.schema_preview", large[0])
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.public_schema", large[1])
 }
+
+func TestEnrollmentPhasePreviewEffectiveConfiguration(t *testing.T) {
+	t.Parallel()
+	f := newEnrollmentGrowthFixture(t)
+	for _, collectGrade := range []bool{true, false} {
+		t.Run(fmt.Sprintf("collect_grade_%t", collectGrade), func(t *testing.T) {
+			ctx := testpkg.Ctx(t)
+			for key, value := range map[string]bool{
+				settingKeyCollectGradeLevel:    collectGrade,
+				settingKeyCollectSchoolClass:   true,
+				settingKeyCareOfferingsEnabled: false,
+			} {
+				require.NoError(t, testpkg.TenantCommand4(t, ctx, f.env.db, f.settings.Settings.SetValue, key, any(value), &f.env.creatorID, []string{"config:update"}))
+			}
+			phase := *f.env.phase
+			phase.ID = 0
+			phase.Name = fmt.Sprintf("Inactive preview %t", collectGrade)
+			phase.IsActive = false
+			phase.FormSchemaID = nil
+			phase.Audience = enrollment.PhaseAudienceLinkedParents
+			phase.AvailableSchoolClasses = []string{"2a", "2b"}
+			phase.EligibleSchoolClasses = []string{"2b"}
+			phase.RequireSchoolClass = true
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, f.env.db, f.env.repos.Enrollment().InsertPhase, &phase))
+			counter := testpkg.CaptureQueries(t, f.env.db)
+			raw, _ := growthGET(t, f.router(t), counter, f.token, fmt.Sprintf("/schema/preview?base=1&phaseId=%d", phase.ID))
+			var preview enrollmenthttp.SchemaPreviewBootstrapResponse
+			require.NoError(t, json.Unmarshal(raw, &preview))
+			require.NotNil(t, preview.PhaseOfferings)
+			config := preview.PhaseOfferings
+			require.Equal(t, collectGrade, config.CollectGradeLevel)
+			require.Equal(t, collectGrade, config.SchoolClass.Collect)
+			require.Equal(t, []string{"2a", "2b"}, config.SchoolClass.AvailableClasses)
+			require.True(t, config.SchoolClass.Require)
+			require.False(t, config.CareOfferingsEnabled)
+			require.Empty(t, config.Offerings)
+			require.Equal(t, enrollment.PhaseCareOfferingSelectionOptional, config.CareOfferingSelectionMode)
+		})
+	}
+}

@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   search: new URLSearchParams(),
   fetchEnrollmentPreviewBootstrap: vi.fn(),
   listPhases: vi.fn(),
-  listCareOfferings: vi.fn(),
   formProps: [] as Record<string, unknown>[],
 }));
 
@@ -32,10 +31,6 @@ vi.mock("~/lib/enrollment-form-schema-api", () => ({
 
 vi.mock("~/lib/enrollment-phase-api", () => ({
   listPhases: mocks.listPhases,
-}));
-
-vi.mock("~/lib/care-offering-api", () => ({
-  listCareOfferings: mocks.listCareOfferings,
 }));
 
 vi.mock("~/components/enrollment/enrollment-form", () => ({
@@ -113,8 +108,6 @@ describe("EnrollmentPreviewPage", () => {
     mocks.fetchEnrollmentPreviewBootstrap.mockReset();
     mocks.listPhases.mockReset();
     mocks.listPhases.mockResolvedValue([]);
-    mocks.listCareOfferings.mockReset();
-    mocks.listCareOfferings.mockResolvedValue([]);
   });
 
   // Der Rückweg zeigte auf `/enrollment-form` ohne Schule und landete im
@@ -158,6 +151,11 @@ describe("EnrollmentPreviewPage", () => {
         name: "Vorschau von „2. Halbjahr 2026/27“ mit Angeboten öffnen",
       }),
     ).toHaveAttribute("href", "/demo/anmeldung/preview?phaseId=13");
+    expect(
+      screen.getByRole("link", {
+        name: "Vorschau von „2. Halbjahr 2026/27“ mit Angeboten öffnen",
+      }),
+    ).toHaveAttribute("data-button-link");
     expect(
       screen.getByRole("link", {
         name: "Vorschau von „Schuljahr 2027/28“ mit Angeboten öffnen",
@@ -210,15 +208,26 @@ describe("EnrollmentPreviewPage", () => {
         eligible_grade_levels: [1, 2],
       }),
     ]);
-    mocks.listCareOfferings.mockResolvedValue([
-      offering({ id: "1", name: "Ganztag bis 15:10", sort_order: 30 }),
-      offering({ id: "2", name: "Alt", sort_order: 5, is_active: false }),
-      offering({ id: "3", name: "Ganztag bis 13:40", sort_order: 10 }),
-    ]);
     mocks.fetchEnrollmentPreviewBootstrap.mockResolvedValue({
       schema,
       assigned_phase_count: 1,
       active_assigned_phase_count: 0,
+      phase_offerings: {
+        offerings: [
+          offering({ id: "3", name: "Früh", sort_order: 0 }),
+          offering({ id: "1", name: "Spät", sort_order: 2 }),
+        ],
+        care_offering_selection_mode: "at_least_one",
+        eligible_grade_levels: [1, 2],
+        school_class: {
+          collect: true,
+          available_classes: ["2a"],
+          require: true,
+          collect_grade_1: false,
+        },
+        collect_grade_level: true,
+        care_offerings_enabled: true,
+      },
     });
 
     await renderPage();
@@ -230,9 +239,9 @@ describe("EnrollmentPreviewPage", () => {
       }),
     ).toBeVisible();
     expect(screen.getByText("Elternformular")).toBeVisible();
-    expect(mocks.listCareOfferings).toHaveBeenCalledWith("13");
     expect(mocks.fetchEnrollmentPreviewBootstrap).toHaveBeenCalledWith({
       schemaId: "80",
+      phaseId: "13",
     });
     const props = mocks.formProps.at(-1)!;
     expect(props.previewMode).toBe(true);
@@ -244,6 +253,14 @@ describe("EnrollmentPreviewPage", () => {
       ],
       careOfferingSelectionMode: "at_least_one",
       eligibleGradeLevels: [1, 2],
+      schoolClass: {
+        collect: true,
+        available_classes: ["2a"],
+        require: true,
+        collect_grade_1: false,
+      },
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
     });
     expect(
       screen.getAllByText("Eltern erreichen diese Phase noch nicht").length,
@@ -263,6 +280,13 @@ describe("EnrollmentPreviewPage", () => {
     mocks.search = new URLSearchParams("phaseId=13");
     mocks.listPhases.mockResolvedValue([phase({ form_schema_id: null })]);
     mocks.fetchEnrollmentPreviewBootstrap.mockResolvedValue({
+      phase_offerings: {
+        offerings: [],
+        care_offering_selection_mode: "optional",
+        eligible_grade_levels: [],
+        collect_grade_level: true,
+        care_offerings_enabled: true,
+      },
       schema: null,
       assigned_phase_count: 0,
       active_assigned_phase_count: 0,
@@ -273,6 +297,7 @@ describe("EnrollmentPreviewPage", () => {
     expect(await screen.findByText("Elternformular")).toBeVisible();
     expect(mocks.fetchEnrollmentPreviewBootstrap).toHaveBeenCalledWith({
       base: true,
+      phaseId: "13",
     });
   });
 
@@ -302,6 +327,13 @@ describe("EnrollmentPreviewPage", () => {
       mocks.search = new URLSearchParams("phaseId=13");
       mocks.listPhases.mockResolvedValue([phase(overrides)]);
       mocks.fetchEnrollmentPreviewBootstrap.mockResolvedValue({
+        phase_offerings: {
+          offerings: [],
+          care_offering_selection_mode: "optional",
+          eligible_grade_levels: [],
+          collect_grade_level: true,
+          care_offerings_enabled: true,
+        },
         schema,
         assigned_phase_count: 1,
         active_assigned_phase_count: 1,
@@ -325,6 +357,14 @@ describe("EnrollmentPreviewPage", () => {
       }),
     ]);
     mocks.fetchEnrollmentPreviewBootstrap.mockResolvedValue({
+      phase_offerings: {
+        offerings: [],
+        care_offering_selection_mode: "optional",
+        eligible_grade_levels: [],
+        school_class: { collect: false, available_classes: [], require: false },
+        collect_grade_level: true,
+        care_offerings_enabled: true,
+      },
       schema,
       assigned_phase_count: 1,
       active_assigned_phase_count: 1,

@@ -17,9 +17,8 @@ import {
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
 import { BackLink } from "~/components/ui/back-link";
-import { buttonClassName } from "~/components/ui/button";
+import { ButtonLink } from "~/components/ui/button";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
-import { listCareOfferings, type CareOffering } from "~/lib/care-offering-api";
 import { useTenant } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
@@ -82,23 +81,29 @@ function EnrollmentPreviewPageContent() {
   useEffect(() => {
     let cancelled = false;
     async function loadPhasePreview(id: string) {
-      const [phases, offerings] = await Promise.all([
-        listPhases(),
-        listCareOfferings(id),
-      ]);
+      const phases = await listPhases();
       const phase = phases.find((candidate) => candidate.id === id);
       if (!phase) {
         throw new Error("Diese Anmeldephase gibt es nicht mehr.");
       }
       const result = await fetchEnrollmentPreviewBootstrap(
         phase.form_schema_id
-          ? { schemaId: phase.form_schema_id }
-          : { base: true },
+          ? { schemaId: phase.form_schema_id, phaseId: id }
+          : { base: true, phaseId: id },
       );
       if (cancelled) return;
       setPreviewPhase(phase);
       setSchema(result.schema);
-      setPreviewOfferings(previewOfferingsFor(phase, offerings));
+      const config = result.phase_offerings;
+      if (!config) throw new Error("Phase preview configuration is missing");
+      setPreviewOfferings({
+        offerings: config.offerings,
+        careOfferingSelectionMode: config.care_offering_selection_mode,
+        eligibleGradeLevels: config.eligible_grade_levels,
+        schoolClass: config.school_class,
+        collectGradeLevel: config.collect_grade_level,
+        careOfferingsEnabled: config.care_offerings_enabled,
+      });
     }
     async function load() {
       if (!schemaId && !phaseId) {
@@ -109,6 +114,8 @@ function EnrollmentPreviewPageContent() {
         }
       }
       setLoading(true);
+      setPreviewPhase(null);
+      setPreviewOfferings(undefined);
       setMissingSchema(false);
       clearLoadError();
       try {
@@ -332,22 +339,6 @@ function parentViewUnavailableReason(phase: Phase, now: number): string | null {
   return null;
 }
 
-/** Active offerings in the order the public form lists them. */
-function previewOfferingsFor(
-  phase: Phase,
-  offerings: CareOffering[],
-): PreviewCareOfferings {
-  return {
-    offerings: offerings
-      .filter((offering) => offering.is_active)
-      .sort(
-        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
-      ),
-    careOfferingSelectionMode: phase.care_offering_selection_mode,
-    eligibleGradeLevels: phase.eligible_grade_levels ?? [],
-  };
-}
-
 function phasePreviewStatus(phase: Phase): {
   label: string;
   hint: string;
@@ -399,18 +390,16 @@ function PhasePreviewLinks({
       <ul className="mt-3 space-y-2">
         {phases.map((phase) => (
           <li key={phase.id}>
-            <a
+            <ButtonLink
               href={hrefFor(phase)}
               aria-label={`Vorschau von „${phase.name}“ mit Angeboten öffnen`}
-              className={buttonClassName({
-                variant: "outline",
-                size: "md",
-                className: "w-full justify-between gap-2",
-              })}
+              variant="outline"
+              size="md"
+              className="w-full min-w-0 justify-between gap-2"
             >
               <span className="truncate">{phase.name}</span>
               <Eye className="h-4 w-4 shrink-0" aria-hidden="true" />
-            </a>
+            </ButtonLink>
           </li>
         ))}
       </ul>

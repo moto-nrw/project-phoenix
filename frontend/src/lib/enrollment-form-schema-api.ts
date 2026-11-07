@@ -1,3 +1,4 @@
+import type { PublicEnrollmentBootstrap } from "./enrollment-submission-api";
 import {
   ApiError,
   apiErrorFromResponse,
@@ -364,17 +365,27 @@ export function schemaToPublicFormSchema(schema: FormSchema): PublicFormSchema {
 }
 
 export interface EnrollmentPreviewBootstrap {
+  phase_offerings?: Pick<
+    PublicEnrollmentBootstrap,
+    | "offerings"
+    | "care_offering_selection_mode"
+    | "school_class"
+    | "collect_grade_level"
+    | "care_offerings_enabled"
+  > & { eligible_grade_levels: number[] };
   schema: FormSchema | null;
   assigned_phase_count: number;
   active_assigned_phase_count: number;
 }
 
 export async function fetchEnrollmentPreviewBootstrap(params: {
+  phaseId?: string;
   schemaId?: string | null;
   base?: boolean;
 }): Promise<EnrollmentPreviewBootstrap> {
   const search = new URLSearchParams();
   if (params.schemaId) search.set("schemaId", params.schemaId);
+  if (params.phaseId) search.set("phaseId", params.phaseId);
   if (params.base) search.set("base", "1");
   const response = await send(`${SCHEMA_PATH}/preview?${search.toString()}`, {
     cache: "no-store",

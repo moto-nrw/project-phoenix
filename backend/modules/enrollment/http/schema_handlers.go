@@ -129,9 +129,10 @@ type PublicFormSchemaResponse struct {
 }
 
 type SchemaPreviewBootstrapResponse struct {
-	Schema                   *FormSchemaResponse `json:"schema"`
-	AssignedPhaseCount       int                 `json:"assigned_phase_count"`
-	ActiveAssignedPhaseCount int                 `json:"active_assigned_phase_count"`
+	PhaseOfferings           *PublicCareOfferingsResponse `json:"phase_offerings,omitempty"`
+	Schema                   *FormSchemaResponse          `json:"schema"`
+	AssignedPhaseCount       int                          `json:"assigned_phase_count"`
+	ActiveAssignedPhaseCount int                          `json:"active_assigned_phase_count"`
 }
 
 func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Request) {
@@ -145,9 +146,24 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	var phaseID int64
+	if raw := r.URL.Query().Get("phaseId"); raw != "" {
+		var err error
+		phaseID, err = strconv.ParseInt(raw, 10, 64)
+		if err != nil || phaseID <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId must be a positive integer")))
+			return
+		}
+		if rs.RequestService == nil {
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase preview endpoint not configured")))
+			return
+		}
+	}
+
 	var (
-		schema *capability.FormSchema
-		phases []*capability.Phase
+		phaseOfferings *PublicCareOfferingsResponse
+		schema         *capability.FormSchema
+		phases         []*capability.Phase
 	)
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		if schemaID > 0 {
@@ -156,6 +172,27 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 				return loadErr
 			}
 			schema = loaded
+		}
+		if phaseID > 0 {
+			data, loadErr := bootstrapValue(rs.RequestService.LoadPhasePreviewCareOfferings(ctx, phaseID))
+			if loadErr != nil {
+				return loadErr
+			}
+			capabilities := data.EffectiveCapabilities
+			items := make([]CareOfferingResponse, 0, len(data.Offerings))
+			for _, offering := range data.Offerings {
+				items = append(items, toPublicCareOfferingResponse(offering))
+			}
+			mode := data.Phase.CareOfferingSelectionMode
+			phaseOfferings = &PublicCareOfferingsResponse{
+				Offerings:                 items,
+				CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(mode, capabilities.CareOfferingsEnabled),
+				CareRequired:              capabilities.CareOfferingsEnabled && mode != capability.PhaseCareOfferingSelectionOptional,
+				SchoolClass:               toPublicSchoolClassConfig(data.Phase, capabilities.CollectSchoolClass),
+				CollectGradeLevel:         capabilities.CollectGradeLevel,
+				CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
+				EligibleGradeLevels:       publicEligibleGradeLevels(data.Phase),
+			}
 		}
 		list, listErr := rs.PhaseService.Phases(ctx)
 		phases = list
@@ -181,6 +218,7 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 	assigned, active := countAssignedPreviewPhases(phases, schema)
 	common.Respond(w, r, http.StatusOK, SchemaPreviewBootstrapResponse{
 		Schema:                   schemaOut,
+		PhaseOfferings:           phaseOfferings,
 		AssignedPhaseCount:       assigned,
 		ActiveAssignedPhaseCount: active,
 	}, "Schema preview bootstrap retrieved")
