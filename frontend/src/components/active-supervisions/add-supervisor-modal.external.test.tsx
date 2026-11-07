@@ -45,15 +45,15 @@ vi.mock("~/components/ui/custom-select", () => ({
     value,
     options,
     onChange,
-    ariaLabelledBy,
+    label,
   }: {
     value: string;
     options: Array<{ value: string; label: string }>;
     onChange: (value: string) => void;
-    ariaLabelledBy: string;
+    label: string;
   }) => (
     <select
-      aria-labelledby={ariaLabelledBy}
+      aria-label={label}
       value={value}
       onChange={(event) => onChange(event.target.value)}
     >

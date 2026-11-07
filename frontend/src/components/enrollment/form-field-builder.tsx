@@ -944,17 +944,15 @@ function ConditionEditor({
         ? "Eine allgemeine Frage kann nicht von einer Frage pro Kind abhängen. Legen Sie eine andere allgemeine Ja/Nein- oder Auswahlfrage an. Schreiben Sie auch den Fragetext dazu."
         : "Legen Sie zuerst eine andere Ja/Nein- oder Auswahlfrage mit Fragetext an. Diese Frage kann dann von deren Antwort abhängen.";
     return (
-      <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-2">
-        <EmptyState
-          variant="compact"
-          title="Keine Sichtbarkeitsregel möglich"
-          description={`${description}${
-            field.applies_to_child || childSources.length === 0
-              ? ""
-              : " Oder schalten Sie bei dieser Frage „Pro Kind abfragen“ ein."
-          }`}
-        />
-      </div>
+      <EmptyState
+        variant="dashed"
+        title="Keine Sichtbarkeitsregel möglich"
+        description={`${description}${
+          field.applies_to_child || childSources.length === 0
+            ? ""
+            : " Oder schalten Sie bei dieser Frage „Pro Kind abfragen“ ein."
+        }`}
+      />
     );
   }
 
@@ -1469,11 +1467,12 @@ export function PreviewFieldsSection({
         <StatusBadge tone="gray" compact label={String(fields.length)} />
       </div>
       {fields.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/80 px-4 py-5 text-center">
-          <HelpCircle className="mx-auto h-5 w-5 text-gray-400" />
-          <p className="mt-2 text-sm font-medium text-gray-700">{emptyTitle}</p>
-          <p className="mt-1 text-xs leading-5 text-gray-500">{emptyText}</p>
-        </div>
+        <EmptyState
+          variant="dashed"
+          icon={<HelpCircle className="h-5 w-5" />}
+          title={emptyTitle}
+          description={emptyText}
+        />
       ) : (
         <div className="space-y-3">
           {fields.map((field) => (

@@ -10,6 +10,7 @@
 // option on the apply dialog, so `Zurücksetzen` stays usable for the whole
 // cohort right up until someone decides otherwise.
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { FramedList } from "~/components/ui/framed-list";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -230,9 +231,10 @@ export function GraduatesModal({
             <LoadErrorAlert error={loadError} />
 
             {entries !== null && !loadFailed && entries.length === 0 && (
-              <p className="rounded-lg border border-gray-200 p-4 text-sm text-gray-500">
-                Dieser Schuljahreswechsel hatte keine Abgänge.
-              </p>
+              <EmptyState
+                variant="compact"
+                description="Dieser Schuljahreswechsel hatte keine Abgänge."
+              />
             )}
 
             {entries !== null && entries.length > 0 && (

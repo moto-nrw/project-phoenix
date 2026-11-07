@@ -1,6 +1,7 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Pencil, MousePointer2 } from "lucide-react";
 import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
@@ -9,7 +10,6 @@ import {
   DetailPanel,
   type DetailTab,
 } from "~/components/database/detail-panel";
-import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import {
   GroupedList,
   type GroupDefinition,
@@ -94,9 +94,7 @@ export function DevicesMasterDetail({
       renderItem={renderItem}
       keyFor={keyForDevice}
       emptyState={
-        <div className="text-center text-sm text-gray-500">
-          Keine Geräte gefunden.
-        </div>
+        <EmptyState variant="compact" title="Keine Geräte gefunden." />
       }
     />
   );
@@ -109,9 +107,12 @@ export function DevicesMasterDetail({
       onDeleteClick={onDeleteClick}
     />
   ) : (
-    <EmptyDetailState
+    <EmptyState
+      icon={<MousePointer2 className="h-10 w-10" aria-hidden="true" />}
+      titleAs="h3"
       title="Kein Gerät ausgewählt"
       description="Wähle links ein Gerät, um die Details zu sehen."
+      className="h-full justify-center"
     />
   );
 
