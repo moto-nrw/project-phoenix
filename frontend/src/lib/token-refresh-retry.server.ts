@@ -60,6 +60,7 @@ export async function executeWithTokenRefresh<T, R>(
  * Sends a backend request and repeats it once with the refreshed token when
  * the backend answers 401 and the session now holds a newer token. For
  * handlers that hold the raw Response (files, uploads, verbatim proxies).
+ * A failing session read throws to the caller, like a failing send.
  */
 export async function sendWithTokenRefresh(
   token: string,

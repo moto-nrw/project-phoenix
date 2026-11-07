@@ -1,9 +1,8 @@
 import type { NextRequest } from "next/server";
 import { problemResponse } from "./api-response-error.server";
 import { NextResponse } from "next/server";
-import { auth } from "../server/auth";
-import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
-import { uncachedAuth } from "~/server/auth";
+import { auth, uncachedAuth } from "../server/auth";
+import { sendWithTokenRefresh } from "./token-refresh-retry.server";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
 import { handleApiError } from "./api-helpers.server";
