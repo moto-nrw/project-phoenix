@@ -188,33 +188,19 @@ export function HolidayWeekEditor({
               onChange={(endsOn) => onChange({ ...week, endsOn })}
             />
           </div>
-          <div>
-            <span
-              id={`${prefix}.host_school_id-label`}
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Ausrichtende OGS
-            </span>
-            <CustomSelect
-              name={`${prefix}.host_school_id`}
-              ariaLabelledBy={`${prefix}.host_school_id-label`}
-              ariaDescribedBy={
-                hostError ? `${prefix}.host_school_id-error` : undefined
-              }
-              invalid={Boolean(hostError)}
-              placeholder="Schule wählen"
-              value={week.hostSchoolId}
-              options={schools.map((school) => ({
-                value: school.id,
-                label: school.name,
-              }))}
-              onChange={(hostSchoolId) => onChange({ ...week, hostSchoolId })}
-            />
-            <FieldErrorHint
-              id={`${prefix}.host_school_id-error`}
-              message={hostError}
-            />
-          </div>
+          <CustomSelect
+            id={`${prefix}.host_school_id`}
+            name={`${prefix}.host_school_id`}
+            label="Ausrichtende OGS"
+            error={hostError}
+            placeholder="Schule wählen"
+            value={week.hostSchoolId}
+            options={schools.map((school) => ({
+              value: school.id,
+              label: school.name,
+            }))}
+            onChange={(hostSchoolId) => onChange({ ...week, hostSchoolId })}
+          />
         </div>
 
         <div className="space-y-3">
