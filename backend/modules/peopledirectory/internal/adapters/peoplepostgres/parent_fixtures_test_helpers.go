@@ -7,13 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 // The fixture facets delegate to the same concrete store, including its
 // validation, locks, defaults, clock_timestamp stamps, errors and caller tx.
-func (r nativeStudentGuardianRepository) CreateGuardianLinkFixture(ctx context.Context, value *peopledirectory.GuardianLinkFixture) error {
+func (r nativeStudentGuardianRepository) CreateGuardianLinkFixture(ctx context.Context, value *parentfixture.GuardianLinkFixture) error {
 	row, err := guardianLinkFixtureRow(value)
 	if err != nil {
 		return err
@@ -28,7 +29,7 @@ func (r nativeStudentGuardianRepository) CreateGuardianLinkFixture(ctx context.C
 	}
 	return err
 }
-func guardianLinkFixtureRow(value *peopledirectory.GuardianLinkFixture) (*usersModels.StudentGuardian, error) {
+func guardianLinkFixtureRow(value *parentfixture.GuardianLinkFixture) (*usersModels.StudentGuardian, error) {
 	if value == nil {
 		return nil, nil
 	}
@@ -54,7 +55,7 @@ func guardianLinkFixtureRow(value *peopledirectory.GuardianLinkFixture) (*usersM
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row, nil
 }
-func guardianLinkFixtureValue(row *usersModels.StudentGuardian) (*peopledirectory.GuardianLinkFixture, error) {
+func guardianLinkFixtureValue(row *usersModels.StudentGuardian) (*parentfixture.GuardianLinkFixture, error) {
 	if row == nil {
 		return nil, nil
 	}
@@ -62,7 +63,7 @@ func guardianLinkFixtureValue(row *usersModels.StudentGuardian) (*peopledirector
 	if err != nil {
 		return nil, err
 	}
-	return &peopledirectory.GuardianLinkFixture{
+	return &parentfixture.GuardianLinkFixture{
 		ID:                 row.ID,
 		TenantID:           row.TenantID,
 		CreatedAt:          row.CreatedAt,
@@ -81,7 +82,7 @@ func guardianLinkFixtureValue(row *usersModels.StudentGuardian) (*peopledirector
 	}, nil
 }
 
-func (r nativeGuardianPhoneNumberRepository) CreateGuardianPhoneFixture(ctx context.Context, value *peopledirectory.GuardianPhoneFixture) error {
+func (r nativeGuardianPhoneNumberRepository) CreateGuardianPhoneFixture(ctx context.Context, value *parentfixture.GuardianPhoneFixture) error {
 	row := guardianPhoneFixtureRow(value)
 	err := r.rawGuardianPhoneNumberRepository.Create(ctx, row)
 	if value != nil && row != nil {
@@ -89,7 +90,7 @@ func (r nativeGuardianPhoneNumberRepository) CreateGuardianPhoneFixture(ctx cont
 	}
 	return err
 }
-func guardianPhoneFixtureRow(value *peopledirectory.GuardianPhoneFixture) *usersModels.GuardianPhoneNumber {
+func guardianPhoneFixtureRow(value *parentfixture.GuardianPhoneFixture) *usersModels.GuardianPhoneNumber {
 	if value == nil {
 		return nil
 	}
@@ -104,11 +105,11 @@ func guardianPhoneFixtureRow(value *peopledirectory.GuardianPhoneFixture) *users
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }
-func guardianPhoneFixtureValue(row *usersModels.GuardianPhoneNumber) *peopledirectory.GuardianPhoneFixture {
+func guardianPhoneFixtureValue(row *usersModels.GuardianPhoneNumber) *parentfixture.GuardianPhoneFixture {
 	if row == nil {
 		return nil
 	}
-	return &peopledirectory.GuardianPhoneFixture{
+	return &parentfixture.GuardianPhoneFixture{
 		ID:                row.ID,
 		TenantID:          row.TenantID,
 		CreatedAt:         row.CreatedAt,
@@ -122,7 +123,7 @@ func guardianPhoneFixtureValue(row *usersModels.GuardianPhoneNumber) *peopledire
 	}
 }
 
-func (r *FamilyProtectionEventRepository) CreateFamilyProtectionFixture(ctx context.Context, value *peopledirectory.FamilyProtectionFixture) error {
+func (r *FamilyProtectionEventRepository) CreateFamilyProtectionFixture(ctx context.Context, value *parentfixture.FamilyProtectionFixture) error {
 	row := familyProtectionFixtureRow(value)
 	err := r.Create(ctx, row)
 	if value != nil && row != nil {
@@ -130,7 +131,7 @@ func (r *FamilyProtectionEventRepository) CreateFamilyProtectionFixture(ctx cont
 	}
 	return err
 }
-func familyProtectionFixtureRow(value *peopledirectory.FamilyProtectionFixture) *usersModels.FamilyProtectionEvent {
+func familyProtectionFixtureRow(value *parentfixture.FamilyProtectionFixture) *usersModels.FamilyProtectionEvent {
 	if value == nil {
 		return nil
 	}
@@ -143,11 +144,11 @@ func familyProtectionFixtureRow(value *peopledirectory.FamilyProtectionFixture) 
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }
-func familyProtectionFixtureValue(row *usersModels.FamilyProtectionEvent) *peopledirectory.FamilyProtectionFixture {
+func familyProtectionFixtureValue(row *usersModels.FamilyProtectionEvent) *parentfixture.FamilyProtectionFixture {
 	if row == nil {
 		return nil
 	}
-	return &peopledirectory.FamilyProtectionFixture{
+	return &parentfixture.FamilyProtectionFixture{
 		ID:             row.ID,
 		TenantID:       row.TenantID,
 		CreatedAt:      row.CreatedAt,
@@ -159,12 +160,12 @@ func familyProtectionFixtureValue(row *usersModels.FamilyProtectionEvent) *peopl
 	}
 }
 
-func (r *ParentRequestEventRepository) ListParentRequestEventFixtures(ctx context.Context, kind string, id int64) ([]*peopledirectory.ParentRequestEventFixture, error) {
+func (r *ParentRequestEventRepository) ListParentRequestEventFixtures(ctx context.Context, kind string, id int64) ([]*parentfixture.ParentRequestEventFixture, error) {
 	rows, err := r.ListForRequest(ctx, kind, id)
 	if rows == nil {
 		return nil, err
 	}
-	values := make([]*peopledirectory.ParentRequestEventFixture, len(rows))
+	values := make([]*parentfixture.ParentRequestEventFixture, len(rows))
 	for i, row := range rows {
 		if row == nil {
 			continue
@@ -173,7 +174,7 @@ func (r *ParentRequestEventRepository) ListParentRequestEventFixtures(ctx contex
 		if encodeErr != nil {
 			return nil, encodeErr
 		}
-		values[i] = &peopledirectory.ParentRequestEventFixture{
+		values[i] = &parentfixture.ParentRequestEventFixture{
 			ID:             row.ID,
 			TenantID:       row.TenantID,
 			CreatedAt:      row.CreatedAt,
@@ -190,5 +191,5 @@ func (r *ParentRequestEventRepository) ListParentRequestEventFixtures(ctx contex
 	return values, err
 }
 
-var _ peopledirectory.GuardianLinkFixtureWriter = nativeStudentGuardianRepository{}
-var _ peopledirectory.GuardianPhoneFixtureWriter = nativeGuardianPhoneNumberRepository{}
+var _ parentfixture.GuardianLinkFixtureWriter = nativeStudentGuardianRepository{}
+var _ parentfixture.GuardianPhoneFixtureWriter = nativeGuardianPhoneNumberRepository{}

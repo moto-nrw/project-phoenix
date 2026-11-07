@@ -7698,7 +7698,7 @@ export const staffNoticesTopic = function staffNoticesTopic(): HelpTopic {
       "Wählen Sie bei `Wichtigkeit`, wie dringend der Hinweis ist.",
       "Wählen Sie bei `Woche`, ob der Hinweis sich wiederholt.",
       "Tragen Sie `Gilt ab` und bei Bedarf `Gilt bis (optional)` ein.",
-      "Haken Sie unter `Wochentage` die Tage an, an denen der Hinweis erscheint.",
+      "Wählen Sie unter `Wochentage` die Tage aus, an denen der Hinweis erscheint.",
       "Wählen Sie `Speichern`.",
     ],
     result: "Der Hinweis steht sofort unter `Heute` für die gewählte Gruppe.",

@@ -265,4 +265,36 @@ describe("PlanningDayChip", () => {
       left: 21,
     });
   });
+
+  it("stacks marker, status and today below the date", () => {
+    render(
+      <PlanningDayChip
+        stacked
+        weekdayLabel="Mo"
+        dateLabel="13.07."
+        marker={<span>Geschlossen</span>}
+        statusLabel="Krank"
+        today
+      />,
+    );
+
+    const chip = screen.getByRole("button", { pressed: false });
+    expect(chip).toHaveTextContent("Mo13.07.GeschlossenKrank");
+    expect(chip).toHaveAccessibleName(/heute/);
+  });
+
+  it("does not scroll its row while stacked", () => {
+    const { rerender, container } = render(
+      <PlanningDayChip stacked weekdayLabel="Do" dateLabel="16.07." />,
+    );
+    const scrollTo = vi.fn();
+    Object.defineProperty(container, "scrollTo", { value: scrollTo });
+
+    rerender(
+      <PlanningDayChip stacked weekdayLabel="Do" dateLabel="16.07." selected />,
+    );
+
+    expect(screen.getByRole("button", { pressed: true })).toBeTruthy();
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
 });

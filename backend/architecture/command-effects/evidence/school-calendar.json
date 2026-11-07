@@ -2193,6 +2193,22 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarElternAppBookings.ElternAppBooked",
+      "binding_digest": "62b85ed37425110f9a9b57748cfced12",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.ElternAppBookings.ElternAppBooked",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Bool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarElternAppBookings.ElternAppBooked",
+      "binding_digest": "adbafc34a9cbc4b7fe977f6f5343ff5a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.ElternAppBookings.ElternAppBooked",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarGroupPort.List",
       "binding_digest": "7e1e452a1f90fbbd10e069fa1680fdc7",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Groups.List",

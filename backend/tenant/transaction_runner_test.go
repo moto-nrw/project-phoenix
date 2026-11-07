@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,7 +39,7 @@ func TestTransactionRunnerReusesAmbientAdminTransaction(t *testing.T) {
 func TestContextWithoutTransactionMasksAmbientTransaction(t *testing.T) {
 	t.Parallel()
 
-	ctx := tenant.WithTransactionForTest(context.Background(), struct{}{})
+	ctx := tenanttest.WithTransaction(context.Background(), struct{}{})
 	_, ok := tenant.TransactionFromContext(ctx)
 	require.True(t, ok)
 

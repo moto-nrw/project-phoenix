@@ -1,6 +1,9 @@
 //go:build testhooks
 
-package peopledirectory
+// Package parentfixture holds the persisted parent-side fixture values and
+// their writer ports. It is a leaf so the fixtures do not change how the
+// People Directory public package compiles under testhooks.
+package parentfixture
 
 import (
 	"context"

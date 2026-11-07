@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -130,7 +131,7 @@ func TestUnitOfWorkDropsFailedAttemptHooksBeforeRetry(t *testing.T) {
 	err = tenant.WithinTenantRetry(ctx, id, func(txCtx context.Context) error {
 		attempt := attempts
 		tenant.RegisterAfterCommit(txCtx, func() { hooks = append(hooks, attempt) })
-		tenant.RegisterAfterRollback(txCtx, func() { rollbacks = append(rollbacks, attempt) })
+		tenanttest.RegisterAfterRollback(txCtx, func() { rollbacks = append(rollbacks, attempt) })
 		if attempt == 1 {
 			return retryErr
 		}
@@ -164,7 +165,7 @@ func TestUnitOfWorkRunsRollbackHooksWhenCommitFails(t *testing.T) {
 
 	err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
 		tenant.RegisterAfterCommit(txCtx, func() { commits++ })
-		tenant.RegisterAfterRollback(txCtx, func() { rollbacks++ })
+		tenanttest.RegisterAfterRollback(txCtx, func() { rollbacks++ })
 		return nil
 	})
 

@@ -1,5 +1,5 @@
 // Gemeinsamer Kern der shrink-only Ratchet-Baselines des ui-kit-Plugins
-// (Knöpfe #5531, Pillen #5584): zählt die Funde je Datei und Regel, zieht die
+// (Knöpfe #5531): zählt die Funde je Datei und Regel, zieht die
 // Allowlist ab und schreibt die Baseline neu; sie darf nur sinken. `--check`
 // schreibt nichts und meldet Abweichungen.
 import { spawnSync } from "node:child_process";
