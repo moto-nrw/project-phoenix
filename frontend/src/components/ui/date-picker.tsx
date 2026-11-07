@@ -1,5 +1,6 @@
 "use client";
 
+import { FieldLabel } from "./field-label";
 import { Z_INDEX, Z_LAYER } from "./overlay-styles";
 import {
   Suspense,
@@ -784,14 +785,7 @@ export function ISODatePicker({
 
   return (
     <div>
-      {label && (
-        <label
-          htmlFor={rest.id}
-          className="mb-2 block text-sm font-medium text-gray-700"
-        >
-          {label}
-        </label>
-      )}
+      {label && <FieldLabel htmlFor={rest.id}>{label}</FieldLabel>}
       {picker}
       {error && (
         <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">
@@ -903,12 +897,7 @@ export function ISODateInput({
 
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="mb-2 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <Input

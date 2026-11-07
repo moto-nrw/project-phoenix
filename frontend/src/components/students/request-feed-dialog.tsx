@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, Copy, RefreshCw, Rss } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -210,18 +211,16 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
 
         {url ? (
           <div className="space-y-2">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1">
-                <Input
-                  id="parent-request-feed-url"
-                  label="Ihr RSS-Link"
-                  readOnly
-                  value={url}
-                  controlSize="compact"
-                  onFocus={(event) => event.target.select()}
-                  className="bg-gray-50 text-gray-700"
-                />
-              </div>
+            <FormRow>
+              <Input
+                id="parent-request-feed-url"
+                label="Ihr RSS-Link"
+                readOnly
+                value={url}
+                controlSize="compact"
+                onFocus={(event) => event.target.select()}
+                className="bg-gray-50 text-gray-700"
+              />
               <Button
                 type="button"
                 size="md"
@@ -236,7 +235,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
                 )}
                 {copied ? "Kopiert" : "Kopieren"}
               </Button>
-            </div>
+            </FormRow>
             <p className="text-xs leading-5 text-gray-500">
               Fügen Sie diesen Link in Ihrem RSS-Programm ein. Verwalten Sie den
               Link nur hier in moto.

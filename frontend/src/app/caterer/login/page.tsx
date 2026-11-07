@@ -9,11 +9,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
 import {
   credentialError,
   LOGIN_REFUSALS,
@@ -21,6 +17,7 @@ import {
 } from "~/components/auth/credential-error";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { PasswordResetModal } from "~/components/auth/password-reset-modal";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -302,7 +299,7 @@ function LoginForm() {
                   }
                   revealable
                 />
-                <AuthFieldError id="password-error" message={passwordError} />
+                <FieldErrorHint id="password-error" message={passwordError} />
               </div>
 
               <div className="text-center">

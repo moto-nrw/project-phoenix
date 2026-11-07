@@ -5,10 +5,10 @@ import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
-  AuthFieldError,
   AuthShell,
   type AuthTestimonialPanelCopy,
 } from "~/components/auth/auth-shell";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { formErrorMessage } from "~/components/ui/form-error";
@@ -156,7 +156,7 @@ function PasswordField({
         aria-describedby={error ? `${id}-error` : undefined}
         disabled={disabled}
       />
-      <AuthFieldError id={`${id}-error`} message={error} />
+      <FieldErrorHint id={`${id}-error`} message={error} />
     </div>
   );
 }

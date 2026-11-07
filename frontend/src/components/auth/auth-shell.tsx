@@ -9,22 +9,6 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { IconTile } from "~/components/ui/icon-tile";
 import { StatusBadge } from "~/components/ui/status-badge";
 
-/** The hint under a refused auth field, linked by `aria-describedby`. */
-export function AuthFieldError({
-  id,
-  message,
-}: {
-  readonly id: string;
-  readonly message: string | undefined;
-}) {
-  if (!message) return null;
-  return (
-    <p id={id} className="text-moto-red-strong mt-1 text-xs">
-      {message}
-    </p>
-  );
-}
-
 type AuthShellVariant =
   "tenant" | "parents" | "tenant-select" | "reset" | "operator";
 

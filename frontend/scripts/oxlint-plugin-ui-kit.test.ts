@@ -17,6 +17,7 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import { fieldLabelBaseline } from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import {
   lintSource as lintProbe,
@@ -2323,6 +2324,84 @@ describe.concurrent("ui-kit/no-section-card-bleed (#5581)", () => {
 
     expect(result.output).not.toContain("no-section-card-bleed");
   });
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-field-label (#5589)", () => {
+  const RULE = "ui-kit(no-hand-rolled-field-label)";
+
+  it.each([
+    '<label htmlFor="a" className="block text-sm font-medium text-gray-700">A</label>',
+    '<label htmlFor="a" className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase">A</label>',
+    '<label htmlFor="a" className="text-sm font-medium">A</label>',
+    '<span className="mb-1.5 block text-sm font-medium text-gray-700">A</span>',
+    '<label><span className="block text-sm font-medium">A</span><Input /></label>',
+  ])("reports %s", async (element) => {
+    const { output } = await lintSource(
+      `import { Input } from "~/components/ui/input";
+      export const Probe = () => ${element};
+      void Input;`,
+      "src/components/probe-form.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it.each([
+    '<label className="flex items-center gap-2 text-sm font-medium"><Checkbox /> A</label>',
+    '<label className="sm:flex text-sm font-medium"><Checkbox /> A</label>',
+    '<label className="flex"><span className="block text-sm font-medium">A</span><Checkbox /></label>',
+    '<label htmlFor="a" className="sr-only text-sm font-medium">A</label>',
+    '<label htmlFor="a" className="rounded-lg border px-3 py-2 text-sm font-medium">Datei wählen</label>',
+    '<span className="block text-sm font-medium text-gray-900">Name einer Zeile</span>',
+    '<span className="mb-1 text-sm font-medium">Inline</span>',
+    '<label htmlFor="a" className="block text-sm text-gray-700">Ohne Gewicht</label>',
+  ])("accepts %s", async (element) => {
+    const { output } = await lintSource(
+      `import { Checkbox } from "~/components/ui/checkbox";
+      export const Probe = () => ${element};
+      void Checkbox;`,
+      "src/components/probe-form.tsx",
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  it("allows the label in the kit component itself", async () => {
+    const { output } = await lintSource(
+      'export const Probe = () => <label htmlFor="a" className="block text-sm font-medium">A</label>;',
+      "src/components/ui/field-label.tsx",
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  it("fails one finding more than a file's baseline", async () => {
+    const [file, allowed] = Object.entries(
+      fieldLabelBaseline["no-hand-rolled-field-label"]!,
+    )[0]!;
+    const labels = Array.from(
+      { length: allowed + 1 },
+      (_, index) =>
+        `<label htmlFor="f${index}" className="block text-sm font-medium">A</label>`,
+    ).join("");
+    const result = await lintSource(
+      `export const Probe = () => <>${labels}</>;`,
+      file,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+});
+
+describe("ui-kit/no-hand-rolled-field-label baseline is current (#5589)", () => {
+  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken.
+  it("records exactly the findings each file still has", () => {
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/ui-kit-field-label-baseline-update.mjs"), "--check"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+  }, 120_000);
 });
 
 describe.concurrent("ui-kit/no-important-override baseline (#5581)", () => {

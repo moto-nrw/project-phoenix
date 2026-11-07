@@ -109,6 +109,15 @@ export function StepTermin({
   canManagePlanningTracks = false,
 }: Readonly<StepTerminProps>) {
   const isDuty = form.type === "duty";
+  let dateHint: string | undefined;
+  if (isEditingSeries) {
+    dateHint = seriesStartEdit
+      ? "Den Serienbeginn ändern Sie unten im Feld „Serienbeginn“."
+      : "Der Serienbeginn bleibt unverändert.";
+  } else if (isSeriesFlow) {
+    dateHint =
+      "Die Serie beginnt an diesem Datum. Frühere Termine werden nicht angelegt.";
+  }
   const weekendOpen = useWeekendFollowsFriday();
   return (
     <>
@@ -213,6 +222,7 @@ export function StepTermin({
           <Field
             label="Planungsspur"
             htmlFor="event_planning_track"
+            hint="Optional. Farbe und Reihenfolge gelten im Betreuungsplan."
             action={
               canManagePlanningTracks ? (
                 <CatalogManageLink
@@ -227,10 +237,8 @@ export function StepTermin({
               tracks={planningTracks}
               onChange={(next) => update("planningTrackId", next)}
               disabled={loadingRefs}
+              ariaDescribedBy="event_planning_track_hint"
             />
-            <p className="mt-1 text-[11px] leading-4 text-gray-500">
-              Optional. Farbe und Reihenfolge gelten im Betreuungsplan.
-            </p>
           </Field>
         </>
       )}
@@ -244,10 +252,15 @@ export function StepTermin({
           spontaneous/one-off slots could not be classified nor an occurrence
           override cleared (#1565 review pass 1 P2). */}
       {(!isSeriesFlow || expanded) && !isDuty && (
-        <Field label="Listenart" htmlFor="event_list_kind">
+        <Field
+          label="Listenart"
+          htmlFor="event_list_kind"
+          hint="Ordnet den Termin einer druckbaren Tagesliste zu (Planung → Tageslisten)."
+        >
           <CustomSelect
             id="event_list_kind"
             ariaLabel="Listenart"
+            ariaDescribedBy="event_list_kind_hint"
             value={form.listKind}
             options={[
               { value: "", label: "Keine" },
@@ -261,10 +274,6 @@ export function StepTermin({
               update("listKind", next as EventFormState["listKind"]);
             }}
           />
-          <p className="mt-1 text-[11px] leading-4 text-gray-500">
-            Ordnet den Termin einer druckbaren Tagesliste zu (Planung →
-            Tageslisten).
-          </p>
         </Field>
       )}
 
@@ -315,9 +324,10 @@ export function StepTermin({
       </Field>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Field label="Datum" htmlFor="event_date" required>
+        <Field label="Datum" htmlFor="event_date" required hint={dateHint}>
           <ISODatePicker
             id="event_date"
+            ariaDescribedBy={dateHint ? "event_date_hint" : undefined}
             name="date"
             controlSize="md"
             value={form.date}
@@ -337,19 +347,6 @@ export function StepTermin({
               }
             }}
           />
-          {isSeriesFlow && !isEditingSeries && (
-            <p className="mt-1 text-[11px] leading-4 text-gray-500">
-              Die Serie beginnt an diesem Datum. Frühere Termine werden nicht
-              angelegt.
-            </p>
-          )}
-          {isEditingSeries && (
-            <p className="mt-1 text-[11px] leading-4 text-gray-500">
-              {seriesStartEdit
-                ? "Den Serienbeginn ändern Sie unten im Feld „Serienbeginn“."
-                : "Der Serienbeginn bleibt unverändert."}
-            </p>
-          )}
         </Field>
         <Field label="Start" htmlFor="event_start" required>
           <Input
@@ -380,9 +377,11 @@ export function StepTermin({
           label="Serienbeginn"
           htmlFor="event_series_start"
           error={fieldErrors.seriesStartDate}
+          hint="Zieht den Beginn der noch nicht gestarteten Serie auf ein früheres Datum vor; ein späterer Beginn ist nicht möglich."
         >
           <ISODatePicker
             id="event_series_start"
+            ariaDescribedBy="event_series_start_hint"
             controlSize="md"
             value={form.seriesStartDate}
             min={seriesStartEdit.min}
@@ -392,10 +391,6 @@ export function StepTermin({
             disabledDay={weekendOpen ? undefined : isWeekendDay}
             onChange={(next) => update("seriesStartDate", next)}
           />
-          <p className="mt-1 text-[11px] leading-4 text-gray-500">
-            Zieht den Beginn der noch nicht gestarteten Serie auf ein früheres
-            Datum vor; ein späterer Beginn ist nicht möglich.
-          </p>
         </Field>
       )}
 

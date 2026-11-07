@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { AuthFieldError } from "~/components/auth/auth-shell";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import {
@@ -383,7 +383,7 @@ export function InvitationAcceptForm({
           required
           revealable
         />
-        <AuthFieldError id="password-error" message={fieldError("password")} />
+        <FieldErrorHint id="password-error" message={fieldError("password")} />
       </div>
 
       <div>
@@ -410,7 +410,7 @@ export function InvitationAcceptForm({
           required
           revealable
         />
-        <AuthFieldError
+        <FieldErrorHint
           id="confirmPassword-error"
           message={fieldError("confirm_password")}
         />
