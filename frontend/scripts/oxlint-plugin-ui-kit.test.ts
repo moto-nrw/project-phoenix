@@ -155,6 +155,22 @@ describe.concurrent("ui-kit/no-hand-rolled-empty-state", () => {
     expect(result.output).toContain(RULE);
   });
 
+  it("reports the classes across a template and cn arguments", async () => {
+    const template = `function Probe({ surface }) {
+      return <div className={\`\${surface} border-dashed text-center\`}>Leer</div>;
+    }
+    void Probe;`;
+    const split = `function Probe({ cn }) {
+      return <div className={cn("rounded-xl border-dashed", "text-center")}>Leer</div>;
+    }
+    void Probe;`;
+
+    for (const probe of [template, split]) {
+      const result = await lintSource(probe, "src/components/probe.tsx");
+      expect(result.output).toContain(RULE);
+    }
+  });
+
   it("allows a dashed box that is not centered", async () => {
     const result = await lintSource(
       source.replace(" text-center", ""),

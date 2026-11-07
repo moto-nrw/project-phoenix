@@ -1,8 +1,7 @@
 "use client";
 
-import { MousePointer2 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Pencil } from "lucide-react";
+import { Pencil, MousePointer2 } from "lucide-react";
 import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";

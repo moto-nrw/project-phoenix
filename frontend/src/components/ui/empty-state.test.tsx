@@ -63,13 +63,17 @@ describe("EmptyState", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides the result medallion from assistive technology", () => {
-    const { container } = render(
-      <EmptyState tone="success" icon={<svg />} title="Konto erstellt" />,
+  it("shows the tone's icon on a medallion hidden from assistive technology", () => {
+    render(
+      <EmptyState
+        tone="success"
+        icon={<svg data-testid="medallion-icon" />}
+        title="Konto erstellt"
+      />,
     );
-    expect(container.querySelector("svg")?.closest("[aria-hidden]")).not.toBe(
-      null,
-    );
+    expect(
+      screen.getByTestId("medallion-icon").closest("[aria-hidden]"),
+    ).toHaveAttribute("aria-hidden", "true");
   });
 
   it("renders a result without a title below a page head", () => {

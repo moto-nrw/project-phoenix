@@ -1,8 +1,7 @@
 "use client";
 
-import { MousePointer2 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Pencil } from "lucide-react";
+import { Pencil, MousePointer2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useState } from "react";

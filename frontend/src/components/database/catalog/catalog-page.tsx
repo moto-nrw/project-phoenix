@@ -12,10 +12,9 @@
 // Anlegen als Kopf-Aktion. Eine Route liefert nur noch ihre Daten und ihre
 // Felder.
 
-import { MousePointer2 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, MousePointer2 } from "lucide-react";
 
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";

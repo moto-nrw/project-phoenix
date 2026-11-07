@@ -3886,13 +3886,28 @@ const noHandRolledEmptyState = {
     if (EXEMPT_FILE_RE.test(key) || key.startsWith("src/components/ui/")) {
       return {};
     }
+    const isDashedAndCentered = (text) => {
+      const classes = text.split(/\s+/);
+      return (
+        classes.includes("border-dashed") && classes.includes("text-center")
+      );
+    };
     return {
+      // Über alle Teile des className-Ausdrucks, auch Template und cn()-Argumente.
+      JSXAttribute(node) {
+        if (node.name?.name !== "className") return;
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (isDashedAndCentered(chunks.join(" "))) {
+          context.report({ node, messageId: "handRolled" });
+        }
+      },
+      // Eine Klassenkette in einer Konstante.
       Literal(node) {
-        if (typeof node.value !== "string") return;
-        const classes = node.value.split(/\s+/);
         if (
-          classes.includes("border-dashed") &&
-          classes.includes("text-center")
+          typeof node.value === "string" &&
+          node.parent?.type !== "JSXAttribute" &&
+          isDashedAndCentered(node.value)
         ) {
           context.report({ node, messageId: "handRolled" });
         }

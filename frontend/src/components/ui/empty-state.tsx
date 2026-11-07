@@ -31,8 +31,12 @@ interface EmptyStateBaseProps {
 // `tone` setzt `icon` auf das runde Medaillon (`IconTile`).
 type EmptyStateProps = EmptyStateBaseProps &
   (
-    | { readonly title: string; readonly tone?: EmptyStateTone }
-    | { readonly title?: string; readonly tone: EmptyStateTone }
+    | { readonly title: string; readonly tone?: undefined }
+    | {
+        readonly title?: string;
+        readonly tone: EmptyStateTone;
+        readonly icon: ReactNode;
+      }
   );
 
 // Centered empty-state block: optional muted icon, title, description, and an
@@ -52,6 +56,7 @@ export function EmptyState({
   className = "",
 }: EmptyStateProps) {
   const compact = variant === "compact";
+  const Title = titleAs;
   const visual =
     tone != null && icon != null ? (
       <IconTile
@@ -75,7 +80,9 @@ export function EmptyState({
         ) : null}
         <div className="min-w-0 flex-1">
           {title != null ? (
-            <p className="text-sm font-semibold text-gray-900">{title}</p>
+            <Title className="text-sm font-semibold text-gray-900">
+              {title}
+            </Title>
           ) : null}
           {hasDescription ? (
             <p className="mt-0.5 text-sm leading-6 text-gray-500">
@@ -90,7 +97,6 @@ export function EmptyState({
   }
 
   const dashed = variant === "dashed";
-  const Title = titleAs;
   return (
     // cn statt Aneinanderreihung: sonst gewinnt bei einer Kollision nicht die
     // uebergebene Klasse, sondern die, die in der erzeugten CSS-Datei spaeter
