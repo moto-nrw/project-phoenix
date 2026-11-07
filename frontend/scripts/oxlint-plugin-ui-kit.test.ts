@@ -1263,6 +1263,79 @@ describe.concurrent("ui-kit/no-raw-input", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-control-height-override", () => {
+  it("reports h-8, h-9 and !size-* on kit controls, also behind a variant", async () => {
+    const result = await lintSource(`
+      import { Input } from "~/components/ui/input";
+      import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      const FIELD = "h-9 py-1";
+      export function Probe() {
+        return <form>
+          <Input className={FIELD} />
+          <Input className="sm:h-8" />
+          <OverflowMenu items={[]} triggerClassName="!size-7" />
+        </form>;
+      }
+    `);
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-control-height-override\)/g),
+    ).toHaveLength(3);
+  });
+
+  it("reports the height on selects and the date range trigger", async () => {
+    const result = await lintSource(`
+      import { CustomSelect } from "~/components/ui/custom-select";
+      import { MultiSelect } from "~/components/ui/multi-select";
+      import { DateRangePicker } from "~/components/ui/date-range-picker";
+      export function Probe() {
+        return <form>
+          <CustomSelect value="" options={[]} onChange={() => {}} className="h-9" />
+          <MultiSelect value={[]} options={[]} onChange={() => {}} className="h-8" />
+          <DateRangePicker value={undefined} onChange={() => {}} triggerClassName="h-9" />
+        </form>;
+      }
+    `);
+
+    expect(
+      result.output.match(/ui-kit\(no-control-height-override\)/g),
+    ).toHaveLength(3);
+  });
+
+  it("allows the kit sizes and layout classes", async () => {
+    const result = await lintSource(`
+      import { Input } from "~/components/ui/input";
+      import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe() {
+        return <form>
+          <Input controlSize="compact" className="w-full tabular-nums md:w-28" />
+          <OverflowMenu items={[]} triggerSize="sm" triggerClassName="ml-auto" />
+        </form>;
+      }
+    `);
+
+    expect(result.output).not.toContain("no-control-height-override");
+  });
+
+  it("leaves other components and the kit itself alone", async () => {
+    const other = await lintSource(`
+      import { Spark } from "~/components/ui/spark";
+      export const Probe = () => <Spark className="h-9 !size-7" />;
+    `);
+    const kit = await lintSource(
+      `
+      import { Input } from "~/components/ui/input";
+      export const Probe = () => <Input className="h-9" />;
+    `,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(other.output).not.toContain("no-control-height-override");
+    expect(kit.output).not.toContain("no-control-height-override");
+  });
+});
+
 describe.concurrent("ui-kit/no-select-override", () => {
   it("reports frame, fill, height and radius classes on kit selects", async () => {
     const result = await lintSource(`

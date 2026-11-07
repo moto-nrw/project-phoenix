@@ -31,7 +31,8 @@ export function classListEntriesTopic(): HelpTopic {
         title: "Viele Einträge auf einmal",
         steps: [
           "Öffnen Sie `Klassenliste`.",
-          "Wählen Sie oben `Sammelimport`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Sammelimport`.",
           "Folgen Sie den Schritten auf der Seite.",
         ],
       },

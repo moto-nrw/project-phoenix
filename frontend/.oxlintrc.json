@@ -70,6 +70,7 @@
     "ui-kit/no-shadow-kit-name": "error",
     "ui-kit/no-raw-z-index": "error",
     "ui-kit/no-select-override": "error",
+    "ui-kit/no-control-height-override": "error",
     "ui-kit/no-tenant-kicker": "error",
     "ui-kit/no-hand-rolled-page-card": "error",
     "ui-kit/no-hand-rolled-pill": "error",

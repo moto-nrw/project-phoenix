@@ -73,7 +73,8 @@ export function activeSupervisionTopic(
         // #3823, ADR 0091: externe Kräfte mit einer von drei Zugangsstufen.
         title: "Weitere Betreuer eintragen",
         steps: [
-          "Wählen Sie in der laufenden Aufsicht `Betreuer hinzufügen`.",
+          "Öffnen Sie in der laufenden Aufsicht oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Betreuer hinzufügen`.",
           "Wählen Sie die Person unter `Betreuer auswählen` und dann `Hinzufügen`.",
           "Fehlt die Person, zum Beispiel jemand von der Musikschule? Wählen Sie `Externe Person eintragen`.",
           "Tragen Sie `Vorname` und `Nachname` ein.",

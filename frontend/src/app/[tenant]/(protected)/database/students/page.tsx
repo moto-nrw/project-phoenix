@@ -7,6 +7,7 @@ import {
   ClipboardList,
   GraduationCap,
   ListChecks,
+  Upload,
   UserMinus,
 } from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -42,7 +43,6 @@ import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { hasPermission } from "~/lib/auth-utils";
 import { createClassListEntry } from "~/lib/class-list-entries-api";
-import { Button, ButtonLink } from "~/components/ui/button";
 import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -489,81 +489,88 @@ function StudentsPageContent() {
         actions: (
           <>
             {!isMobile ? (
-              <>
-                <DatabaseGroupingToggle
-                  value={grouping}
-                  options={STUDENTS_GROUPING_OPTIONS}
-                  onChange={handleGroupingChange}
-                />
-                <ButtonLink
-                  href={tenantPath("/database/students/import")}
-                  data-setup-tour="student-import"
-                  variant="outline"
-                  size="md"
-                >
-                  Importieren
-                </ButtonLink>
-              </>
-            ) : null}
-            {canUpdateStudents ? (
-              <Button
-                type="button"
-                // Gedrückt = Auswahl läuft: die gefüllte Kit-Variante zeigt
-                // den Zustand, ohne die Maße des Kit-Knopfs zu ändern.
-                variant={selectionMode ? "primary" : "outline"}
-                size="md"
-                aria-pressed={selectionMode}
-                data-setup-tour="student-select"
-                className="gap-2"
-                onClick={() => {
-                  if (selectionMode) {
-                    finishSelection();
-                    return;
-                  }
-                  setSelectionMode(true);
-                }}
-              >
-                <ListChecks className="h-4 w-4" aria-hidden />
-                Auswählen
-              </Button>
+              <DatabaseGroupingToggle
+                value={grouping}
+                options={STUDENTS_GROUPING_OPTIONS}
+                onChange={handleGroupingChange}
+              />
             ) : null}
             <DatabaseCreateAction
               label="Kinder"
               ariaLabel="Kind erstellen"
               onClick={() => setShowCreateModal(true)}
             />
-            <OverflowMenu
-              ariaLabel="Weitere Aktionen"
-              items={[
-                ...(hasPermission(session, "grade_transitions:read")
-                  ? [
-                      {
-                        label: "Schuljahreswechsel",
-                        icon: <GraduationCap className="h-4 w-4" aria-hidden />,
-                        href: tenantPath("/database/grade-transitions"),
-                        // Navigation only: OverflowMenu verlangt onClick auch bei href.
-                        onClick: () => undefined,
-                      },
-                    ]
-                  : []),
-                {
-                  label: "Klassenliste",
-                  icon: <ClipboardList className="h-4 w-4" aria-hidden />,
-                  href: tenantPath("/database/students/class-list"),
-                  onClick: () => undefined,
-                },
-                ...(canDeleteStudents
-                  ? [
-                      {
-                        label: "Beendete Betreuungen",
-                        icon: <UserMinus className="h-4 w-4" aria-hidden />,
-                        href: tenantPath("/database/students/ended-care"),
-                        onClick: () => undefined,
-                      },
-                    ]
-                  : []),
-              ]}
-            />
+            {/* Die Tour zeigt vom Menü aus den Import; den gibt es nur auf
+                breiten Bildschirmen. `data-icon-only`: das Gerüst lässt das
+                Symbol unter sm in der Zeile der Statuszeile. */}
+            <div
+              data-icon-only=""
+              data-setup-tour={isMobile ? undefined : "student-menu"}
+            >
+              <OverflowMenu
+                ariaLabel="Weitere Aktionen"
+                items={[
+                  ...(!isMobile
+                    ? [
+                        {
+                          label: "Importieren",
+                          icon: <Upload className="h-4 w-4" aria-hidden />,
+                          href: tenantPath("/database/students/import"),
+                          tourTarget: "student-import",
+                          // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                          onClick: () => undefined,
+                        },
+                      ]
+                    : []),
+                  ...(canUpdateStudents
+                    ? [
+                        {
+                          label: selectionMode
+                            ? "Auswahl beenden"
+                            : "Auswählen",
+                          icon: <ListChecks className="h-4 w-4" aria-hidden />,
+                          onClick: () => {
+                            if (selectionMode) {
+                              finishSelection();
+                              return;
+                            }
+                            setSelectionMode(true);
+                          },
+                        },
+                      ]
+                    : []),
+                  ...(hasPermission(session, "grade_transitions:read")
+                    ? [
+                        {
+                          label: "Schuljahreswechsel",
+                          icon: (
+                            <GraduationCap className="h-4 w-4" aria-hidden />
+                          ),
+                          href: tenantPath("/database/grade-transitions"),
+                          // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                          onClick: () => undefined,
+                        },
+                      ]
+                    : []),
+                  {
+                    label: "Klassenliste",
+                    icon: <ClipboardList className="h-4 w-4" aria-hidden />,
+                    href: tenantPath("/database/students/class-list"),
+                    onClick: () => undefined,
+                  },
+                  ...(canDeleteStudents
+                    ? [
+                        {
+                          label: "Beendete Betreuungen",
+                          icon: <UserMinus className="h-4 w-4" aria-hidden />,
+                          href: tenantPath("/database/students/ended-care"),
+                          onClick: () => undefined,
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            </div>
           </>
         ),
       }}

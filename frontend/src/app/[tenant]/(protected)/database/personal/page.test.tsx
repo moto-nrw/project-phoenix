@@ -428,10 +428,10 @@ describe("TeachersPage", () => {
 
     render(<TeachersPage />);
 
-    expect(screen.getByRole("link", { name: "Importieren" })).toHaveAttribute(
-      "href",
-      "/test-tenant/database/personal/import",
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Importieren" }),
+    ).toHaveAttribute("href", "/test-tenant/database/personal/import");
   });
 
   it("hides the staff import link without users:create", () => {
@@ -453,8 +453,9 @@ describe("TeachersPage", () => {
     expect(
       screen.getAllByLabelText("Personal hinzufügen").length,
     ).toBeGreaterThan(0);
+    // Der Import war der einzige Eintrag: Das Menü entfällt ganz.
     expect(
-      screen.queryByRole("link", { name: "Importieren" }),
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).not.toBeInTheDocument();
   });
 
@@ -474,8 +475,9 @@ describe("TeachersPage", () => {
     render(<TeachersPage />);
 
     // Anker: die Importaktion von users:create ist da.
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
     expect(
-      screen.getByRole("link", { name: "Importieren" }),
+      screen.getByRole("menuitem", { name: "Importieren" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByLabelText("Personal hinzufügen"),

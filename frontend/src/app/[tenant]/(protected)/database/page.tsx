@@ -366,10 +366,9 @@ function DatabaseContent() {
               <TileCard
                 key={section.id}
                 href={tenantPath(section.href)}
-                padding="none"
-                className="min-h-[44px] touch-manipulation"
+                className="touch-manipulation"
               >
-                <div className="relative p-4 sm:p-6">
+                <div className="relative">
                   <div className="mb-4 flex items-start justify-between">
                     <div data-testid={`database-section-icon-${section.id}`}>
                       <MotoDuotoneIcon
