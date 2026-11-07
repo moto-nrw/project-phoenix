@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const careContractSchoolReadVersion = "1.15.778"
+const careContractSchoolReadVersion = "1.15.785"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     careContractSchoolReadVersion,
 		Description: "Betreuungsvertrag: die Schule liest die gebuchten Leistungen ihrer versendeten Verträge (#4683)",
 		DependsOn: []string{
-			emailAddressMarksVersion,  // the last migration before this one
-			careContractDraftsVersion, // the tables this policy reads
+			traegerDocumentDownloadsVersion, // the last migration before this one
+			careContractDraftsVersion,       // the tables this policy reads
 		},
 	})
 	Migrations.MustRegister(careContractSchoolReadUp, careContractSchoolReadDown)

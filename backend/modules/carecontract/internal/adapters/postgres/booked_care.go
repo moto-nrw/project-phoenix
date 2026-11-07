@@ -16,7 +16,7 @@ import (
 
 // BookedCare reads the booked services of the contracts at the school whose
 // tenant transaction the caller holds (#4683, ADR 0156). The school policy of
-// migration 1.15.778 admits only the school's contracts past the draft; the
+// migration 1.15.785 admits only the school's contracts past the draft; the
 // statement names the school and the status once more.
 type BookedCare struct{}
 
