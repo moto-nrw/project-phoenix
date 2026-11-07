@@ -535,7 +535,7 @@ func (s *HolidayGuestStore) ListGuestBookings(ctx context.Context, studentIDs []
 	var rows []holidayGuestRow
 	if err := db.NewSelect().TableExpr("enrollment.holiday_guests").
 		ColumnExpr("student_id, starts_on, ends_on, ended_on, time_model_starts_at, time_model_ends_at").
-		Where("tenant_id = ?", school.Int64()).Where("student_id IN (?)", bun.In(studentIDs)).
+		Where("tenant_id = ?", school.Int64()).Where("student_id IN (?)", bun.List(studentIDs)).
 		Where("starts_on <= ?", to).Where("ends_on >= ?", from).
 		OrderExpr("student_id, starts_on").Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: list holiday guest bookings: %w", err)
