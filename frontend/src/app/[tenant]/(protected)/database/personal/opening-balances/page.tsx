@@ -13,6 +13,7 @@ import { redirect } from "next/navigation";
 
 import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
+import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -766,7 +767,7 @@ function OpeningBalanceImportPageContent() {
       )}
 
       {showPreview && previewRows.length > 0 && (
-        <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row">
+        <StickyActionBar>
           <Button
             type="button"
             variant="outline"
@@ -786,7 +787,7 @@ function OpeningBalanceImportPageContent() {
           >
             {importButtonLabel}
           </Button>
-        </div>
+        </StickyActionBar>
       )}
     </TenantPage>
   );

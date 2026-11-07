@@ -78,6 +78,7 @@ import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -943,8 +944,10 @@ export function PhasesEditor() {
               cancelEdit();
             }}
           >
-            <SlideOverContent widthClass="sm:w-[760px]">
-              <SlideOverHeader>
+            <SlideOverContent size="lg">
+              <SlideOverHeader
+                close={<SlideOverCloseButton disabled={saving} />}
+              >
                 <SlideOverTitle>
                   {rolloverSource
                     ? "Anmeldephase übertragen"

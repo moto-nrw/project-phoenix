@@ -332,15 +332,12 @@ export function VacationRequestModal({
         }
       }}
     >
-      <SlideOverContent widthClass="sm:w-[640px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>Urlaub beantragen</SlideOverTitle>
-            <SlideOverDescription>
-              Zeitraum wählen und den Antrag an die OGS-Leitung senden.
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton disabled={submitting} />
+      <SlideOverContent size="md">
+        <SlideOverHeader close={<SlideOverCloseButton disabled={submitting} />}>
+          <SlideOverTitle>Urlaub beantragen</SlideOverTitle>
+          <SlideOverDescription>
+            Zeitraum wählen und den Antrag an die OGS-Leitung senden.
+          </SlideOverDescription>
         </SlideOverHeader>
         <SlideOverBody
           error={overlapMessage ?? balanceMessage ?? formErrors.error}

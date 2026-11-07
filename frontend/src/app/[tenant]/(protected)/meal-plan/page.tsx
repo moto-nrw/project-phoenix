@@ -12,6 +12,7 @@ import { useSession } from "next-auth/react";
 import { Copy, ClipboardPaste, Plus, Trash2, X } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -864,40 +865,32 @@ export default function MealPlanPage() {
         />
       ) : null}
 
-      {/* Sticky save bar — only while there are unsaved changes. */}
+      {/* Save bar — only while there are unsaved changes. */}
       {canEdit && isDirty && !loading && !hasLoadError && (
-        <div className="sticky bottom-4 z-20">
-          <SectionCard className="shadow-lg" bodyClassName="">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-gray-700">
-                {changedDays.length}{" "}
-                {changedDays.length === 1 ? "Tag geändert" : "Tage geändert"}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={discard}
-                  disabled={saving}
-                >
-                  Verwerfen
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  onClick={handleSave}
-                  disabled={saving}
-                  isLoading={saving}
-                  loadingText="Speichern…"
-                >
-                  Speichern
-                </Button>
-              </div>
-            </div>
-          </SectionCard>
-        </div>
+        <StickyActionBar
+          summary={`${changedDays.length} ${changedDays.length === 1 ? "Tag geändert" : "Tage geändert"}`}
+        >
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={discard}
+            disabled={saving}
+          >
+            Verwerfen
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={handleSave}
+            disabled={saving}
+            isLoading={saving}
+            loadingText="Speichern…"
+          >
+            Speichern
+          </Button>
+        </StickyActionBar>
       )}
     </TenantPage>
   );

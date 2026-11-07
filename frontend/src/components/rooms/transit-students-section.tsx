@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/database/database-select";
 import {
@@ -451,26 +452,21 @@ export function TransitStudentsSection({
       {isExpanded ? (
         <>
           {attendanceWebEnabled ? (
-            <div
+            <SelectionBar
               ref={assignBarRef}
-              className={`mt-4 mb-4 rounded-xl border p-3 transition-shadow ${
+              aria-label="Kinder einem Raum zuweisen"
+              placement="bottom"
+              className="mt-4 mb-4 p-3"
+              count={selectedVisibleCount}
+              label={
                 selectedVisibleCount > 0
-                  ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
-                  : "border-transparent bg-gray-50/80 shadow-none"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <p className="min-w-0 text-sm font-semibold text-gray-900">
-                  <span className="block truncate">
-                    {selectedVisibleCount > 0
-                      ? `${selectedVisibleCount} von ${students.length} ausgewählt`
-                      : "Kinder auswählen"}
-                  </span>
-                  <span className="block text-xs font-medium text-gray-500">
-                    Zielraum wählen und gemeinsam zuweisen
-                  </span>
-                </p>
-                {students.length > 0 ? (
+                  ? `${selectedVisibleCount} von ${students.length} ausgewählt`
+                  : "Kinder auswählen"
+              }
+              description="Zielraum wählen und gemeinsam zuweisen"
+              busy={submitting}
+              actions={
+                students.length > 0 ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -480,10 +476,10 @@ export function TransitStudentsSection({
                   >
                     {allSelected ? "Aufheben" : "Alle auswählen"}
                   </Button>
-                ) : null}
-              </div>
-
-              <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                ) : null
+              }
+            >
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <DatabaseSelect
                   id="transit-target-room"
                   name="transit-target-room"
@@ -524,7 +520,7 @@ export function TransitStudentsSection({
                 </Button>
               </div>
               <FormErrorAlert message={assignErrors.error} className="mt-2" />
-            </div>
+            </SelectionBar>
           ) : null}
 
           <div className="mt-4 flex flex-col gap-2">

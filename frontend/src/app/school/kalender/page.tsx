@@ -319,16 +319,13 @@ export default function SchoolCalendarPage() {
               if (!open && !submitting) closeForm();
             }}
           >
-            <SlideOverContent widthClass="sm:w-[640px]">
-              <SlideOverHeader className="flex-row items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <SlideOverTitle>
-                    {creating
-                      ? "Schultermin anlegen"
-                      : "Schultermin bearbeiten"}
-                  </SlideOverTitle>
-                </div>
-                <SlideOverCloseButton disabled={submitting} />
+            <SlideOverContent size="md">
+              <SlideOverHeader
+                close={<SlideOverCloseButton disabled={submitting} />}
+              >
+                <SlideOverTitle>
+                  {creating ? "Schultermin anlegen" : "Schultermin bearbeiten"}
+                </SlideOverTitle>
               </SlideOverHeader>
               <form
                 className="flex min-h-0 flex-1 flex-col"

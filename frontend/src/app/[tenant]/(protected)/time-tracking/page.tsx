@@ -45,7 +45,6 @@ import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -2489,19 +2488,17 @@ function EditSessionModal({
   return (
     <SlideOver
       open={isOpen}
+      isDismissDisabled={saving || absenceSaving || absenceDeleting}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[640px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{modalTitle}</SlideOverTitle>
-            <SlideOverDescription>
-              {dayName}, {formatDateGerman(date)}
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="md">
+        <SlideOverHeader>
+          <SlideOverTitle>{modalTitle}</SlideOverTitle>
+          <SlideOverDescription>
+            {dayName}, {formatDateGerman(date)}
+          </SlideOverDescription>
         </SlideOverHeader>
         <div
           ref={formAreaRef}
@@ -2840,9 +2837,7 @@ function EditSessionModal({
             </div>
           )}
         </div>
-        <SlideOverFooter className="flex-row justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
+        <SlideOverFooter>{footer}</SlideOverFooter>
       </SlideOverContent>
     </SlideOver>
   );

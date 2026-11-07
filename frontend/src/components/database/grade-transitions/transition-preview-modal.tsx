@@ -16,7 +16,6 @@ import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -163,12 +162,9 @@ export function TransitionPreviewModal({
           if (!open) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[760px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>{`Vorschau: Schuljahreswechsel ${transition.academicYear}`}</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton />
+        <SlideOverContent size="lg">
+          <SlideOverHeader>
+            <SlideOverTitle>{`Vorschau: Schuljahreswechsel ${transition.academicYear}`}</SlideOverTitle>
           </SlideOverHeader>
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {!preview && !loadError && (
@@ -251,7 +247,7 @@ export function TransitionPreviewModal({
               </div>
             )}
           </div>
-          <SlideOverFooter className="flex-row justify-end gap-2">
+          <SlideOverFooter>
             {canEdit ? (
               <Button
                 type="button"

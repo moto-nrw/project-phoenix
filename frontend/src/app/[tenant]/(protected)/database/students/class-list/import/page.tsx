@@ -11,6 +11,7 @@ import { redirect } from "next/navigation";
 import { Download, Info, ListChecks } from "lucide-react";
 import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
+import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { SectionCard } from "~/components/ui/section-card";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -475,11 +476,7 @@ export default function ClassListImportPage() {
             </SectionCard>
           )}
 
-          {/* Spacer for sticky action bar */}
-          <div className="h-20" />
-
-          {/* Action Buttons */}
-          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
+          <StickyActionBar reserveSpace>
             <Button
               type="button"
               variant="outline"
@@ -503,7 +500,7 @@ export default function ClassListImportPage() {
                   ? "Erneut versuchen"
                   : `${stats.new} Einträge importieren`}
             </Button>
-          </div>
+          </StickyActionBar>
         </>
       )}
     </TenantPage>

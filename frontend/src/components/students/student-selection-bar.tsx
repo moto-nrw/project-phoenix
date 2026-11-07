@@ -1,8 +1,9 @@
 "use client";
 
-import { CheckSquare, Download, LogIn, LogOut } from "lucide-react";
+import { Download, LogIn, LogOut } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import type { SchoolCheckinAction } from "~/lib/student-api";
 import { SpinnerIcon } from "~/components/ui/icons";
 
@@ -38,33 +39,13 @@ export function StudentSelectionBar({
   const isRunning = checkin?.isRunning ?? false;
 
   return (
-    <div
-      className="moto-content-surface sticky top-2 z-30 mb-3 rounded-xl border px-3 py-2"
-      role="region"
+    <SelectionBar
       aria-label="Ausgewählte Kinder"
-      aria-busy={isRunning}
-    >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <span
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-900 tabular-nums"
-          aria-live="polite"
-        >
-          <CheckSquare
-            className="text-moto-green h-4 w-4 shrink-0"
-            aria-hidden
-          />
-          {selectedCount} ausgewählt
-        </span>
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={onClear}
-            disabled={isRunning}
-          >
-            Aufheben
-          </Button>
+      count={selectedCount}
+      busy={isRunning}
+      onClear={onClear}
+      actions={
+        <>
           <Button
             type="button"
             variant="outline"
@@ -107,8 +88,8 @@ export function StudentSelectionBar({
               </Button>
             </>
           ) : null}
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    />
   );
 }

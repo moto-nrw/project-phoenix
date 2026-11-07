@@ -2780,3 +2780,78 @@ describe.concurrent("ui-kit Eingabe-Bausteine (#5596)", () => {
     expect(result.output).not.toContain(rule);
   });
 });
+
+describe.concurrent("ui-kit sticky bars and slide-over layout (#5602)", () => {
+  async function outputOf(jsx: string, path = "src/probe.tsx") {
+    const result = await lintSource(
+      `function Probe() { return ${jsx}; }\nvoid Probe;`,
+      path,
+    );
+    return result.output;
+  }
+
+  it("reports a hand-built sticky bottom surface", async () => {
+    const output = await outputOf(
+      `<div className="sticky bottom-4 z-10 rounded-2xl border bg-white/95 shadow-lg" />`,
+    );
+    expect(output).toContain("ui-kit(no-hand-rolled-sticky-bar)");
+  });
+
+  it("reports a hand-built sticky top selection surface", async () => {
+    const output = await outputOf(
+      `<div className="moto-content-surface sticky top-2 z-30 rounded-xl border" />`,
+    );
+    expect(output).toContain("ui-kit(no-hand-rolled-sticky-bar)");
+  });
+
+  it("reports a sticky bar split over several class strings", async () => {
+    const output = await outputOf(
+      `<div className={cn("sticky bottom-4", "border-t bg-gray-50")} />`,
+    );
+    expect(output).toContain("ui-kit(no-hand-rolled-sticky-bar)");
+  });
+
+  it("allows a sticky table head and the kit itself", async () => {
+    const head = await outputOf(
+      `<div className="sticky top-0 z-30 border-b bg-white" />`,
+    );
+    expect(head).not.toContain("no-hand-rolled-sticky-bar");
+    const kit = await outputOf(
+      `<div className="sticky bottom-4 rounded-2xl border bg-white/95 shadow-lg" />`,
+      "src/components/ui/probe.tsx",
+    );
+    expect(kit).not.toContain("no-hand-rolled-sticky-bar");
+  });
+
+  it("reports a free slide-over width, as prop and as class", async () => {
+    const prop = await outputOf(
+      `<SlideOverContent widthClass="sm:w-[640px]" />`,
+    );
+    expect(prop).toContain("ui-kit(no-arbitrary-slide-over-width)");
+    const klass = await outputOf(
+      `<SlideOverContent className="sm:w-[640px]" />`,
+    );
+    expect(klass).toContain("ui-kit(no-arbitrary-slide-over-width)");
+  });
+
+  it("allows size and the modal width", async () => {
+    const output = await outputOf(
+      `<><SlideOverContent size="lg" /><Modal widthClass="sm:w-[640px]" /></>`,
+    );
+    expect(output).not.toContain("no-arbitrary-slide-over-width");
+  });
+
+  it("reports flex-row on a slide-over head, allows sm:flex-row on the foot", async () => {
+    const importLine = `import { SlideOverFooter, SlideOverHeader } from "~/components/ui/slide-over";`;
+    const bad = await lintSource(
+      `${importLine}\nfunction Probe() { return <SlideOverHeader className="flex-row gap-3" />; }\nvoid Probe;`,
+      "src/probe.tsx",
+    );
+    expect(bad.output).toContain("ui-kit(no-slide-over-row-override)");
+    const good = await lintSource(
+      `${importLine}\nfunction Probe() { return <SlideOverFooter className="flex-col sm:flex-row" />; }\nvoid Probe;`,
+      "src/probe.tsx",
+    );
+    expect(good.output).not.toContain("no-slide-over-row-override");
+  });
+});

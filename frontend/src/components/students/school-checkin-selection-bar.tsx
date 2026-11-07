@@ -1,8 +1,9 @@
 "use client";
 
-import { CheckSquare, LogIn, LogOut } from "lucide-react";
+import { LogIn, LogOut } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import {
   leftOutLabel,
   type SelectAllControl,
@@ -53,45 +54,50 @@ export function SchoolCheckinSelectionBar({
   const noneSelected = selectedCount === 0;
   const leftOut = selectAll ? leftOutLabel(selectAll.leftOutCount) : null;
 
-  return (
-    <div
-      className="moto-content-surface sticky top-2 z-30 mb-3 hidden rounded-xl border px-3 py-2 md:block"
-      role="region"
-      aria-label="An- und Abmelde-Modus"
-      aria-busy={isRunning || runningAction !== null}
-      data-checkin-selection-bar="true"
+  const segmentedControl = (
+    <SegmentedControl
+      ariaLabel="Tipp-Verhalten"
+      items={[
+        // Locked while a batch is in flight: switching to "Direkt" clears
+        // the selection, which would discard the failed IDs the response
+        // is about to keep marked for a one-tap retry (review #2372).
+        { value: "immediate", label: "Direkt", disabled: isRunning },
+        { value: "select", label: "Mehrere", disabled: isRunning },
+      ]}
+      value={selectionActive ? "select" : "immediate"}
+      onChange={(next) => onSelectionActiveChange(next === "select")}
+    />
+  );
+  const finishButton = (
+    <Button
+      type="button"
+      variant="primary"
+      size="compact"
+      className={selectionActive ? "ml-1" : undefined}
+      onClick={onFinish}
+      disabled={isRunning}
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-900">
-          <CheckSquare
-            className="text-moto-green h-4 w-4 shrink-0"
-            aria-hidden
-          />
-          An- und Abmelde-Modus aktiv
-        </span>
-        <SegmentedControl
-          ariaLabel="Tipp-Verhalten"
-          items={[
-            // Locked while a batch is in flight: switching to "Direkt" clears
-            // the selection, which would discard the failed IDs the response
-            // is about to keep marked for a one-tap retry (review #2372).
-            { value: "immediate", label: "Direkt", disabled: isRunning },
-            { value: "select", label: "Mehrere", disabled: isRunning },
-          ]}
-          value={selectionActive ? "select" : "immediate"}
-          onChange={(next) => onSelectionActiveChange(next === "select")}
-        />
+      Fertig
+    </Button>
+  );
 
-        {selectionActive ? (
+  return (
+    <SelectionBar
+      aria-label="An- und Abmelde-Modus"
+      data-checkin-selection-bar="true"
+      className="hidden md:block"
+      count={selectedCount}
+      busy={isRunning || runningAction !== null}
+      label="An- und Abmelde-Modus aktiv"
+      onClear={selectionActive ? onClearSelection : undefined}
+      extra={
+        selectionActive ? (
           <>
+            {segmentedControl}
             <span
-              className="hidden items-center gap-1.5 text-sm font-semibold text-gray-900 tabular-nums md:inline-flex"
+              className="text-sm font-semibold text-gray-900 tabular-nums"
               aria-live="polite"
             >
-              <CheckSquare
-                className="text-moto-green h-4 w-4 shrink-0"
-                aria-hidden
-              />
               {selectedCount} ausgewählt
             </span>
             {selectAll ? (
@@ -110,74 +116,53 @@ export function SchoolCheckinSelectionBar({
             {leftOut ? (
               <span className="text-xs text-gray-600">{leftOut}</span>
             ) : null}
-            <div className="ml-auto flex items-center gap-1.5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={onClearSelection}
-                disabled={noneSelected || isRunning}
-              >
-                Aufheben
-              </Button>
-              <Button
-                type="button"
-                variant="success"
-                size="compact"
-                onClick={() => onBulkAction("in")}
-                disabled={noneSelected || isRunning}
-              >
-                {runningAction === "in" ? (
-                  <SpinnerIcon className="h-3.5 w-3.5" />
-                ) : (
-                  <LogIn className="h-3.5 w-3.5" aria-hidden />
-                )}
-                Anmelden
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                size="compact"
-                onClick={() => onBulkAction("out")}
-                disabled={noneSelected || isRunning}
-              >
-                {runningAction === "out" ? (
-                  <SpinnerIcon className="h-3.5 w-3.5" />
-                ) : (
-                  <LogOut className="h-3.5 w-3.5" aria-hidden />
-                )}
-                Abmelden
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="compact"
-                className="ml-1"
-                onClick={onFinish}
-                disabled={isRunning}
-              >
-                Fertig
-              </Button>
-            </div>
           </>
         ) : (
           <>
+            {segmentedControl}
             <span className="min-w-0 flex-1 text-xs text-gray-500">
               Jeder Tipp meldet sofort an oder ab.
             </span>
+          </>
+        )
+      }
+      actions={
+        selectionActive ? (
+          <>
             <Button
               type="button"
-              variant="primary"
+              variant="success"
               size="compact"
-              className="ml-auto"
-              onClick={onFinish}
-              disabled={isRunning}
+              onClick={() => onBulkAction("in")}
+              disabled={noneSelected || isRunning}
             >
-              Fertig
+              {runningAction === "in" ? (
+                <SpinnerIcon className="h-3.5 w-3.5" />
+              ) : (
+                <LogIn className="h-3.5 w-3.5" aria-hidden />
+              )}
+              Anmelden
             </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="compact"
+              onClick={() => onBulkAction("out")}
+              disabled={noneSelected || isRunning}
+            >
+              {runningAction === "out" ? (
+                <SpinnerIcon className="h-3.5 w-3.5" />
+              ) : (
+                <LogOut className="h-3.5 w-3.5" aria-hidden />
+              )}
+              Abmelden
+            </Button>
+            {finishButton}
           </>
-        )}
-      </div>
-    </div>
+        ) : (
+          finishButton
+        )
+      }
+    />
   );
 }
