@@ -2754,6 +2754,46 @@ describe.concurrent("ui-kit/no-uppercase-label (#5590)", () => {
     expect(output).not.toContain(RULE);
   });
 
+  it("accepts mutually exclusive conditional classes", async () => {
+    const { output } = await lintProbe(`
+      const condensed = true;
+      export const Probe = () => (
+        <span className={condensed ? "uppercase" : "tracking-wide"}>
+          Gruppe
+        </span>
+      );
+    `);
+    expect(output).not.toContain(RULE);
+  });
+
+  it("keeps conditional cn() arguments on separate class paths", async () => {
+    const { output } = await lintProbe(`
+      import { cn } from "~/lib/utils";
+      const condensed = true;
+      export const Probe = () => (
+        <span className={cn("text-xs", condensed ? "uppercase" : "tracking-wide")}>
+          Gruppe
+        </span>
+      );
+      void cn;
+    `);
+    expect(output).not.toContain(RULE);
+  });
+
+  it("reports a complete class chain within one conditional cn() path", async () => {
+    const { output } = await lintProbe(`
+      import { cn } from "~/lib/utils";
+      const condensed = true;
+      export const Probe = () => (
+        <span className={cn("uppercase", condensed ? "tracking-wide" : "text-sm")}>
+          Gruppe
+        </span>
+      );
+      void cn;
+    `);
+    expect(output).toContain(RULE);
+  });
+
   it("reports a class chain in a constant once", async () => {
     const { output } = await lintProbe(`
       const LABEL = "text-xs tracking-wide uppercase";

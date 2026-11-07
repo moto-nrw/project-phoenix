@@ -2076,6 +2076,94 @@ function classText(node, constants) {
   return chunks.join(" ");
 }
 
+/**
+ * Statische Klassenalternativen eines Ausdrucks. Anders als `classText()`
+ * bleiben die Seiten eines Ternärausdrucks getrennt: `a ? "uppercase" :
+ * "tracking-wide"` ist keine Versalien-Beschriftung, weil beide Klassen nie
+ * gemeinsam gerendert werden. Aufruf- und Array-Argumente gehören dagegen
+ * zur selben möglichen Klassenkette und werden miteinander kombiniert.
+ */
+function classTextAlternatives(node, constants, depth = 0) {
+  if (!node || typeof node !== "object") return [""];
+  if (
+    node.type === "JSXExpressionContainer" ||
+    node.type === "ChainExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSTypeAssertion" ||
+    node.type === "TypeCastExpression"
+  ) {
+    return classTextAlternatives(node.expression, constants, depth);
+  }
+  if (node.type === "Literal") {
+    return typeof node.value === "string" ? [node.value] : [""];
+  }
+  if (node.type === "Identifier") {
+    const init = depth < 2 ? constants.get(node.name) : undefined;
+    return init ? classTextAlternatives(init, constants, depth + 1) : [""];
+  }
+  if (node.type === "ConditionalExpression") {
+    return [
+      ...classTextAlternatives(node.consequent, constants, depth),
+      ...classTextAlternatives(node.alternate, constants, depth),
+    ];
+  }
+  if (node.type === "LogicalExpression") {
+    if (node.operator === "&&") {
+      return ["", ...classTextAlternatives(node.right, constants, depth)];
+    }
+    if (node.operator === "||" || node.operator === "??") {
+      return [
+        ...classTextAlternatives(node.left, constants, depth),
+        ...classTextAlternatives(node.right, constants, depth),
+      ];
+    }
+  }
+  if (node.type === "TemplateLiteral") {
+    let alternatives = [node.quasis[0]?.value.raw ?? ""];
+    for (const [index, expression] of node.expressions.entries()) {
+      alternatives = combineClassTextAlternatives(
+        alternatives,
+        classTextAlternatives(expression, constants, depth),
+      ).map(
+        (alternative) =>
+          `${alternative}${node.quasis[index + 1]?.value.raw ?? ""}`,
+      );
+    }
+    return alternatives;
+  }
+  if (node.type === "CallExpression") {
+    if (
+      node.callee?.type === "Identifier" &&
+      node.callee.name === "buttonClassName"
+    ) {
+      return [""];
+    }
+    return node.arguments.reduce(
+      (alternatives, argument) =>
+        combineClassTextAlternatives(
+          alternatives,
+          classTextAlternatives(argument, constants, depth),
+        ),
+      [""],
+    );
+  }
+  if (node.type === "ArrayExpression") {
+    return node.elements.reduce(
+      (alternatives, element) =>
+        combineClassTextAlternatives(
+          alternatives,
+          classTextAlternatives(element, constants, depth),
+        ),
+      [""],
+    );
+  }
+  return [""];
+}
+
+function combineClassTextAlternatives(left, right) {
+  return [...new Set(left.flatMap((a) => right.map((b) => `${a} ${b}`)))];
+}
+
 function classNameProperty(objectExpression) {
   if (objectExpression?.type !== "ObjectExpression") return null;
   return (
@@ -3991,7 +4079,7 @@ const noUppercaseLabel = makeRatchetRule({
   exemptDir: UI_KIT_DIR,
   exemptFiles: UPPERCASE_LABEL_EXEMPT_FILES,
   onlySrc: true,
-  detect: ({ classText: textOf, constants, found }) => {
+  detect: ({ constants, found }) => {
     const check = (node, text) => {
       if (insideClassNameAttribute(node)) return;
       if (isUppercaseLabelText(text)) found(node);
@@ -4000,7 +4088,9 @@ const noUppercaseLabel = makeRatchetRule({
       JSXAttribute(node) {
         if (!isClassNameAttribute(node) || !node.value) return;
         if (
-          isUppercaseLabelText(textOf(node.value)) &&
+          classTextAlternatives(node.value, constants).some(
+            isUppercaseLabelText,
+          ) &&
           !classNameUsesStaticUppercaseLabelConstant(node.value, constants)
         ) {
           found(node);
