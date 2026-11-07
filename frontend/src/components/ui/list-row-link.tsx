@@ -5,23 +5,32 @@ import type { MouseEventHandler, ReactNode } from "react";
 import NavigationLink from "~/components/ui/navigation-link";
 import { cn } from "~/lib/utils";
 
-interface ListRowLinkProps {
+type ListRowLinkTarget =
+  | {
+      readonly href: string;
+      readonly onClick?: never;
+      readonly disabled?: never;
+    }
+  | {
+      readonly href?: never;
+      readonly onClick?: MouseEventHandler<HTMLButtonElement>;
+      readonly disabled?: boolean;
+    };
+
+type ListRowLinkProps = ListRowLinkTarget & {
   /** Vor dem Text: Symbol-Kachel, Avatar oder eine Zeitspalte. */
   readonly icon?: ReactNode;
   readonly title: ReactNode;
   readonly subtitle?: ReactNode;
   /** Vor dem Pfeil, etwa eine Pille. */
   readonly badge?: ReactNode;
-  readonly href?: string;
-  readonly onClick?: MouseEventHandler<HTMLButtonElement>;
-  readonly disabled?: boolean;
   /** Als einzelne Karte statt als Zeile einer `FramedList`. */
   readonly framed?: boolean;
   /** Führt die Zeile nicht auf eine andere Seite, entfällt der Pfeil. */
   readonly chevron?: boolean;
   readonly className?: string;
   readonly "aria-label"?: string;
-}
+};
 
 /**
  * Eine Zeile, die woanders hinführt: Symbol, Titel, Untertitel, Pille, Pfeil.

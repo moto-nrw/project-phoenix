@@ -7,6 +7,7 @@
 // und nur eine Zahl zu zeigen, macht die Seite leer und die Vorbereitung
 // unmöglich. Rein zum Lesen: gebucht wird erst, wenn die Aufsicht läuft.
 
+import { FramedList } from "~/components/ui/framed-list";
 import { ListRowLink } from "~/components/ui/list-row-link";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Alert } from "~/components/ui/alert";
@@ -96,25 +97,26 @@ function Section({
 }>) {
   if (rows.length === 0) return null;
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border">
-      <div className="border-b border-gray-100 bg-gray-50 px-4 py-2">
-        <h3 className="text-sm font-semibold text-gray-900">
-          {title} ({rows.length})
-        </h3>
-        {hint ? <p className="mt-0.5 text-xs text-gray-500">{hint}</p> : null}
-      </div>
-      <ul className="divide-y divide-gray-100">
-        {rows.map((row) => (
-          <ChildRow
-            key={row.studentId}
-            row={row}
-            pickupTimesLoaded={pickupTimesLoaded}
-            pickupTimesRedacted={pickupTimesRedacted}
-            onOpen={onOpen}
-          />
-        ))}
-      </ul>
-    </section>
+    <FramedList
+      header={
+        <>
+          <h3 className="text-sm font-semibold text-gray-900">
+            {title} ({rows.length})
+          </h3>
+          {hint ? <p className="mt-0.5 text-xs text-gray-500">{hint}</p> : null}
+        </>
+      }
+    >
+      {rows.map((row) => (
+        <ChildRow
+          key={row.studentId}
+          row={row}
+          pickupTimesLoaded={pickupTimesLoaded}
+          pickupTimesRedacted={pickupTimesRedacted}
+          onOpen={onOpen}
+        />
+      ))}
+    </FramedList>
   );
 }
 

@@ -2638,12 +2638,14 @@ describe.concurrent("Listen-Bausteine (#5593)", () => {
   ])("%s fails %s", async (rule, element) => {
     const result = await lintSource(
       `const ChevronRight = () => null;
+      const cn = (...parts: string[]) => parts.join(" ");
+      const on = true;
       export const Probe = () => ${element};
-      void ChevronRight;`,
+      void [ChevronRight, cn, on];`,
       "src/components/probe.tsx",
     );
 
-    expect(result.status).toBe(1);
+    expect(result.status, result.output).toBe(1);
     expect(result.output).toContain(rule);
   });
 

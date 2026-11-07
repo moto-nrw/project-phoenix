@@ -313,7 +313,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-radix-outside-kit` (#5604, hard-zero): `@radix-ui/*` only under `components/ui/`.
 
-`ui-kit/no-arbitrary-shadow`, `no-hand-rolled-list-row`, `no-hand-rolled-framed-list`, `no-hand-rolled-nav-row` (#5593, hard-zero): no `shadow-[…]`, hand-built list row, framed list or arrow row outside `ui/`.
+`ui-kit/no-arbitrary-shadow`, `no-hand-rolled-list-row`, `no-hand-rolled-framed-list` (#5593, hard-zero): no `shadow-[…]`, hand-built list row or framed list outside `ui/`. `ui-kit/no-hand-rolled-nav-row` (#5593, shrink-only): no full-width row with an arrow; use `ListRowLink`.
 
 `ui-kit/no-raw-table` (#5600, hard-zero): no `<table>` outside `ui/`.
 

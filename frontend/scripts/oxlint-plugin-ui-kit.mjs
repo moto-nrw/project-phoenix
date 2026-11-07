@@ -3659,7 +3659,7 @@ const noHandRolledPopover = makeRatchetRule({
 
 // Listen-Bausteine (#5593): drei Muster, die es im Kit genau einmal gibt.
 
-const ARBITRARY_SHADOW_RE = /(?:^|[\s:"'`])shadow-\[/;
+const ARBITRARY_SHADOW_RE = /(?:^|[\s:"'`!])shadow-[[(]/;
 
 /** Fundstelle in jedem Klassen-Literal, auch in Template-Teilen. */
 function classLiteralVisitor(found, matches) {
@@ -3669,6 +3669,19 @@ function classLiteralVisitor(found, matches) {
     },
     TemplateElement(node) {
       if (matches(node.value.raw)) found(node);
+    },
+  };
+}
+
+/**
+ * Prüft den ganzen `className` eines Elements: auch über `cn("…", "…")`,
+ * Template-Teile und Konstanten hinweg.
+ */
+function classNameVisitor({ classText, found }, matches) {
+  return {
+    JSXAttribute(node) {
+      if (node.name?.name !== "className" || !node.value) return;
+      if (matches(classText(node.value).split(/\s+/))) found(node);
     },
   };
 }
@@ -3687,8 +3700,7 @@ const noArbitraryShadow = makeRatchetRule({
     classLiteralVisitor(found, (value) => ARBITRARY_SHADOW_RE.test(value)),
 });
 
-function isHandRolledListRowClass(value) {
-  const tokens = value.split(/\s+/);
+function isHandRolledListRowClass(tokens) {
   return (
     tokens.includes("bg-gray-50/50") &&
     tokens.includes("rounded-xl") &&
@@ -3706,11 +3718,10 @@ const noHandRolledListRow = makeRatchetRule({
   allowlist: [],
   kitFile: "src/components/ui/list-row.tsx",
   exemptDir: UI_KIT_DIR,
-  detect: ({ found }) => classLiteralVisitor(found, isHandRolledListRowClass),
+  detect: (tools) => classNameVisitor(tools, isHandRolledListRowClass),
 });
 
-function isHandRolledFramedListClass(value) {
-  const tokens = value.split(/\s+/);
+function isHandRolledFramedListClass(tokens) {
   return (
     tokens.includes("divide-y") &&
     tokens.includes("border") &&
@@ -3727,52 +3738,71 @@ const noHandRolledFramedList = makeRatchetRule({
   allowlist: [],
   kitFile: "src/components/ui/framed-list.tsx",
   exemptDir: UI_KIT_DIR,
-  detect: ({ found }) =>
-    classLiteralVisitor(found, isHandRolledFramedListClass),
+  detect: (tools) => classNameVisitor(tools, isHandRolledFramedListClass),
 });
 
 const NAV_ROW_ELEMENTS = new Set(["a", "button", "Link", "NavigationLink"]);
-const NAV_ROW_ARROWS = new Set(["ChevronRight", "ChevronRightIcon"]);
+const NAV_ROW_ARROWS = new Set([
+  "CaretRightIcon",
+  "ChevronRight",
+  "ChevronRightIcon",
+]);
+
+/** Kinder einer Zeile, auch hinter `&&`, `?:` und einer lokalen Konstante. */
+function navRowChildren(element, constants) {
+  const direct = [...flatJsxChildren(element)];
+  for (const child of element.children ?? []) {
+    if (
+      child.type === "JSXExpressionContainer" &&
+      child.expression.type === "Identifier"
+    ) {
+      const init = constants.get(child.expression.name);
+      if (init?.type === "JSXElement") direct.push(init);
+    }
+  }
+  return direct;
+}
+
+function isNavRowArrow(element) {
+  if (NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return true;
+  return element.children.some(
+    (inner) => inner.type === "JSXText" && inner.value.trim() === "›",
+  );
+}
 
 const noHandRolledNavRow = makeRatchetRule({
   ruleName: "no-hand-rolled-nav-row",
   description: "Rows that lead elsewhere with an arrow come from ListRowLink.",
   message:
     "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
-  baselines: {},
+  // Shrink-only: Auswahlzustand (DatabaseListItem), eigene Kante (Tagesplan) und
+  // Ungelesen-Zeilen des Elternportals passen noch nicht in `ListRowLink`.
+  baselines: {
+    "no-hand-rolled-nav-row": {
+      "src/components/database/database-list-item.tsx": 2,
+      "src/components/parent/messages/group-threads-section.tsx": 1,
+      "src/components/parent/messages/parent-messages-page.tsx": 1,
+      "src/components/timetable/tagesplan-view.tsx": 1,
+    },
+  },
   allowlist: [],
   kitFile: "src/components/ui/list-row-link.tsx",
   exemptDir: UI_KIT_DIR,
-  detect: ({ found }) => ({
+  detect: ({ classText, constants, found }) => ({
     JSXElement(node) {
-      const name = node.openingElement.name;
-      if (name.type !== "JSXIdentifier" || !NAV_ROW_ELEMENTS.has(name.name)) {
-        return;
-      }
+      if (!NAV_ROW_ELEMENTS.has(jsxName(node.openingElement.name))) return;
       // Eine Zeile füllt die Breite; „Heute öffnen ›“ neben einem Titel nicht.
       const className = node.openingElement.attributes.find(
         (attr) =>
           attr.type === "JSXAttribute" && attr.name.name === "className",
-      )?.value?.value;
-      if (
-        typeof className !== "string" ||
-        !/(?:^|\s)(?:w-full|justify-between)(?:\s|$)/.test(className)
-      ) {
+      );
+      if (!className?.value) return;
+      const tokens = classText(className.value).split(/\s+/);
+      if (!tokens.includes("w-full") && !tokens.includes("justify-between")) {
         return;
       }
-      for (const child of node.children) {
-        if (
-          (child.type === "JSXElement" &&
-            child.openingElement.name.type === "JSXIdentifier" &&
-            NAV_ROW_ARROWS.has(child.openingElement.name.name)) ||
-          (child.type === "JSXElement" &&
-            child.children.some(
-              (inner) => inner.type === "JSXText" && inner.value.trim() === "›",
-            ))
-        ) {
-          found(child);
-        }
-      }
+      const arrow = navRowChildren(node, constants).find(isNavRowArrow);
+      if (arrow) found(node);
     },
   }),
 });

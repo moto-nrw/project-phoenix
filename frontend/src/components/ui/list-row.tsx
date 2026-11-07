@@ -9,23 +9,31 @@ import {
   type ListRowTone,
 } from "./list-row-styles";
 
-interface ListRowProps {
+type ListRowTarget =
+  | {
+      /**
+       * Macht die ganze Zeile zum Link. Braucht die Zeile daneben einen eigenen
+       * Knopf: ohne `href` lassen und den Link in `children` setzen.
+       */
+      readonly href?: string;
+      readonly onClick?: never;
+    }
+  | {
+      readonly href?: never;
+      readonly onClick: MouseEventHandler<HTMLButtonElement>;
+    };
+
+type ListRowProps = ListRowTarget & {
   readonly children: ReactNode;
   /** Rechts in der Zeile, etwa Uhrzeit oder Pille. Liegt in Link oder Knopf. */
   readonly trailing?: ReactNode;
   readonly tone?: ListRowTone;
   readonly density?: ListRowDensity;
-  /**
-   * Macht die ganze Zeile zum Link. Braucht die Zeile daneben einen eigenen
-   * Knopf: ohne `href` lassen und den Link in `children` setzen.
-   */
-  readonly href?: string;
-  readonly onClick?: MouseEventHandler<HTMLButtonElement>;
-  readonly disabled?: boolean;
   readonly className?: string;
   readonly style?: CSSProperties;
+  /** Nur für Link oder Knopf; eine reine Anzeige trägt keinen eigenen Namen. */
   readonly "aria-label"?: string;
-}
+};
 
 /**
  * Eine Zeile als eigene Fläche: die Liste der Startseite, Kinder in einem Block,
@@ -39,7 +47,6 @@ export function ListRow({
   density = "default",
   href,
   onClick,
-  disabled = false,
   className,
   style,
   "aria-label": ariaLabel,
@@ -72,7 +79,6 @@ export function ListRow({
       <button
         type="button"
         onClick={onClick}
-        disabled={disabled}
         aria-label={ariaLabel}
         className={rowClass(true)}
         style={style}
@@ -82,7 +88,7 @@ export function ListRow({
     );
   }
   return (
-    <div aria-label={ariaLabel} className={rowClass(false)} style={style}>
+    <div className={rowClass(false)} style={style}>
       {body}
     </div>
   );

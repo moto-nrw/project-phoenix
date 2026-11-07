@@ -15,7 +15,6 @@ interface FramedListProps {
   /** Grauer Kopfstreifen, etwa „Alle auswählen“. Scrollt nicht mit. */
   readonly header?: ReactNode;
   readonly className?: string;
-  readonly "aria-label"?: string;
 }
 
 /** Umrandete Liste mit Trennlinien, innerhalb einer Karte oder eines Panels. */
@@ -24,7 +23,6 @@ export function FramedList({
   maxHeight,
   header,
   className,
-  "aria-label": ariaLabel,
 }: FramedListProps) {
   return (
     <div
@@ -39,7 +37,6 @@ export function FramedList({
         </div>
       ) : null}
       <ul
-        aria-label={ariaLabel}
         className={cn(
           "divide-y divide-gray-100",
           maxHeight && `${MAX_HEIGHT_CLASSES[maxHeight]} overflow-y-auto`,

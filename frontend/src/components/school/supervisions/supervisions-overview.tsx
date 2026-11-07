@@ -7,6 +7,7 @@
 // nicht. Auch kein Startknopf pro Zeile — man tippt die Aufsicht an und
 // startet sie dort, wo man dann ohnehin arbeitet. Ein Weg, nicht zwei.
 
+import { FramedList } from "~/components/ui/framed-list";
 import { ListRowLink } from "~/components/ui/list-row-link";
 import { useSession } from "next-auth/react";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -153,20 +154,19 @@ export function SupervisionsOverview({
             />
           </div>
 
-          <div className="moto-content-surface overflow-hidden rounded-2xl border">
-            <h2 className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-900">
-              Ihr Tag
-            </h2>
-            <ul className="divide-y divide-gray-100">
-              {instances.map((instance) => (
-                <SupervisionRow
-                  key={instance.id}
-                  instance={instance}
-                  onOpen={() => onOpen(instance.id)}
-                />
-              ))}
-            </ul>
-          </div>
+          <FramedList
+            header={
+              <h2 className="text-sm font-semibold text-gray-900">Ihr Tag</h2>
+            }
+          >
+            {instances.map((instance) => (
+              <SupervisionRow
+                key={instance.id}
+                instance={instance}
+                onOpen={() => onOpen(instance.id)}
+              />
+            ))}
+          </FramedList>
         </div>
       )}
     </SectionCard>

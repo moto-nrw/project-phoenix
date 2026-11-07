@@ -36,19 +36,6 @@ describe("ListRow", () => {
 
     expect(onClick).toHaveBeenCalledOnce();
   });
-
-  it("does not fire when disabled", () => {
-    const onClick = vi.fn();
-    render(
-      <ListRow onClick={onClick} disabled>
-        Mia
-      </ListRow>,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Mia" }));
-
-    expect(onClick).not.toHaveBeenCalled();
-  });
 });
 
 describe("ListRowSkeleton", () => {
@@ -63,26 +50,26 @@ describe("ListRowSkeleton", () => {
 describe("FramedList", () => {
   it("renders its entries as a list", () => {
     render(
-      <FramedList aria-label="Klassen">
+      <FramedList>
         <li>1a</li>
         <li>1b</li>
       </FramedList>,
     );
 
-    const list = screen.getByRole("list", { name: "Klassen" });
+    const list = screen.getByRole("list");
     expect(list).toContainElement(screen.getByText("1a"));
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
 
   it("keeps the header outside the list", () => {
     render(
-      <FramedList aria-label="Kinder" header={<span>Alle auswählen</span>}>
+      <FramedList header={<span>Alle auswählen</span>}>
         <li>Mia</li>
       </FramedList>,
     );
 
     expect(screen.getByText("Alle auswählen")).toBeInTheDocument();
-    expect(screen.getByRole("list", { name: "Kinder" })).not.toContainElement(
+    expect(screen.getByRole("list")).not.toContainElement(
       screen.getByText("Alle auswählen"),
     );
   });
