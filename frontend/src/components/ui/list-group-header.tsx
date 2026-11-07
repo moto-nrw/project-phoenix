@@ -50,14 +50,14 @@ export function ListGroupHeader({
         className,
       )}
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <SectionLabel as={as} className="min-w-0">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <SectionLabel as={as} className="min-w-0 flex-1">
           {collapsible ? (
             <Button
               type="button"
               variant="ghost"
               size="compact"
-              className="-ml-2 min-w-0 justify-start"
+              className="-ml-2 w-full min-w-0 justify-start"
               aria-expanded={collapsible.expanded}
               onClick={collapsible.onToggle}
             >
