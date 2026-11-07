@@ -172,10 +172,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
               href={tenantPath("/anmeldung")}
               label={t("backToPicker")}
             />
-            <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
-              {t("formEyebrow")}
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
+            <h1 className="mt-6 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
               {phase?.name ?? t("formTitleFallback")}
             </h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
@@ -203,10 +200,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
 
         <aside className="hidden space-y-4 lg:sticky lg:top-8 lg:block lg:self-start">
           <section className="moto-content-surface rounded-2xl border p-5">
-            <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
-              {t("sideTitleFallback")}
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-gray-900">
+            <h2 className="text-xl font-semibold text-gray-900">
               {phase?.name ?? t("sideTitleFallback")}
             </h2>
             {phase ? (

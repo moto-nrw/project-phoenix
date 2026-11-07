@@ -1,7 +1,6 @@
 {
   "errorObjectPhases": "die Liste der Anmeldephasen",
   "errorObjectForm": "das Anmeldeformular",
-  "brandEyebrow": "Online-Anmeldung",
   "fallbackSchool": "Ihre {careTerm}",
   "steps": {
     "phase": "Auswahl",
@@ -10,7 +9,6 @@
     "aria": "Fortschritt der Anmeldung"
   },
   "loading": "Anmeldung wird geladen…",
-  "phaseEyebrow": "Anmeldung starten",
   "phaseTitle": "Wofür möchten Sie Ihr Kind anmelden?",
   "phaseDescription": "Wählen Sie den Zeitraum aus, zu dem Ihr Kind betreut werden soll. Im nächsten Schritt erfassen Sie die Kontaktdaten, die Angaben zum Kind und die gewünschten Betreuungsangebote.",
   "disabled": "Die Online-Anmeldung ist aktuell nicht freigeschaltet. Bitte wenden Sie sich an die {careTerm}, wenn Sie eine Anmeldung abgeben möchten.",
@@ -51,7 +49,6 @@
   "reviewTitle": "Prüfung durch die {careTerm}",
   "reviewText": "Die {careTerm} prüft Ihre Angaben nach dem Absenden. Eine Online-Anmeldung ist deshalb noch keine endgültige Platzzusage.",
   "statusAfterSubmitText": "Nach dem Absenden wechseln Sie automatisch zur Statusseite. Dort sehen Sie, ob die Anmeldung eingegangen ist, geprüft wird oder entschieden wurde.",
-  "submittedEyebrow": "Anmeldung eingegangen",
   "submittedTitle": "Danke. Ihre Anmeldung wurde übermittelt.",
   "submittedText": "Eine Bestätigungs-E-Mail mit dem Status-Link ist unterwegs. Über den Link können Sie jederzeit den aktuellen Stand einsehen.",
   "dateRange": "{from} bis {to}"

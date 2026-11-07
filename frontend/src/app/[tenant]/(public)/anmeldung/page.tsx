@@ -115,10 +115,7 @@ export default function EnrollPhasePickerPage() {
         <div className="grid lg:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="p-5 sm:p-8 lg:p-10">
             <div className="max-w-3xl">
-              <p className="text-moto-blue text-sm font-semibold tracking-wide uppercase">
-                {t("phaseEyebrow")}
-              </p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
+              <h1 className="text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
                 {t("phaseTitle")}
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">

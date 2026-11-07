@@ -452,7 +452,7 @@ export function WeeklyCalendarGrid({
                     }`}
                   >
                     <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-                      <span className="text-[10px] font-medium tracking-wide text-gray-500 uppercase sm:text-[11px]">
+                      <span className="text-xs font-medium text-gray-500">
                         {getGermanWeekdayShort(day)}
                       </span>
                       {isToday ? (

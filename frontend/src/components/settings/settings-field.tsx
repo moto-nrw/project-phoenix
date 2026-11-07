@@ -27,6 +27,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   ApiError,
   apiErrorFromResponse,
@@ -1124,7 +1125,7 @@ export function SettingsField({
       id={settingsFieldId(setting.key)}
       className={`flex scroll-mt-24 flex-col gap-3 rounded-xl border px-3 py-4 transition-[background-color,border-color,box-shadow] sm:gap-4 ${fieldLayout} ${fieldAlignment} ${
         showHighlight
-          ? "border-moto-green/35 bg-moto-green/10 shadow-sm duration-500"
+          ? "ring-moto-green/35 bg-moto-green/10 shadow-sm ring-1 duration-500"
           : "border-transparent"
       }`}
     >
@@ -1668,7 +1669,7 @@ function renderAGBSourceEditor({
           )}
         </div>
       ) : (
-        <div className="border-moto-blue/20 bg-moto-blue/5 rounded-xl border p-3">
+        <InsetPanel framed>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900">PDF-Datei</p>
@@ -1750,7 +1751,7 @@ function renderAGBSourceEditor({
               Ein Text ist gespeichert, wird aber aktuell nicht angezeigt.
             </p>
           )}
-        </div>
+        </InsetPanel>
       )}
     </div>
   );

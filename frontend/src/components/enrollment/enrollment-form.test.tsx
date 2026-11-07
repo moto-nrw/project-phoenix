@@ -2456,6 +2456,101 @@ describe("EnrollmentForm", () => {
     expect(payload.consent_flags?.photo).toBe(false);
   });
 
+  // #6044: the staff preview of a phase shows its offerings without the
+  // public phase link, which an inactive or closed phase answers with an
+  // error. The preview must not call the public offering route.
+  it("shows the offerings a staff phase preview hands in", async () => {
+    mockFetchPublicCareOfferings.mockClear();
+
+    renderForm({
+      phaseID: undefined,
+      previewMode: true,
+      previewSchema: null,
+      previewOfferings: {
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        eligibleGradeLevels: [1, 2],
+      },
+    });
+    await waitForLoaded();
+    await chooseOption("Klassenstufe", "1. Klasse");
+
+    expect(await screen.findByText("Flexible Betreuung")).toBeVisible();
+    expect(screen.getByText("Fixe Betreuung")).toBeVisible();
+    expect(mockFetchPublicCareOfferings).not.toHaveBeenCalled();
+  });
+
+  it("uses phase preview capabilities instead of template defaults", async () => {
+    renderForm({
+      phaseID: undefined,
+      previewMode: true,
+      previewSchema: null,
+      previewOfferings: {
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        eligibleGradeLevels: [],
+        schoolClass: { collect: false, available_classes: [], require: false },
+        collectGradeLevel: false,
+        careOfferingsEnabled: false,
+      },
+    });
+    await waitForLoaded();
+
+    expect(
+      screen.getByRole("button", { name: "Vorschau, nicht absenden" }),
+    ).toBeDisabled();
+    expect(screen.queryByText("Klassenstufe")).not.toBeInTheDocument();
+    expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
+  });
+
+  it("uses configured classes and offering weekdays in a phase preview", async () => {
+    const previewSchema = schema();
+    previewSchema.fields = [
+      {
+        key: "pickup",
+        label: "Abholzeit",
+        type: "weekday_schedule",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+    renderForm({
+      phaseID: undefined,
+      previewMode: true,
+      previewSchema,
+      previewOfferings: {
+        offerings: [
+          { ...offerings()[1]!, name: "Block Mo", available_days: ["mon"] },
+        ],
+        careOfferingSelectionMode: "at_least_one",
+        eligibleGradeLevels: [2],
+        schoolClass: {
+          collect: true,
+          available_classes: ["2a"],
+          require: true,
+        },
+        collectGradeLevel: true,
+        careOfferingsEnabled: true,
+      },
+    });
+    await waitForLoaded();
+    await chooseOption("Klassenstufe", "2. Klasse");
+    expect(screen.getByText("Klasse")).toBeVisible();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
+
+    expect(screen.getByLabelText(/Montag/)).toBeVisible();
+    expect(
+      screen.getByText("Bitte für jeden Betreuungstag eine Uhrzeit angeben."),
+    ).toBeVisible();
+    expect(screen.queryByLabelText(/Dienstag/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Freitag/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorschau, nicht absenden" }),
+    ).toBeDisabled();
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
   it("adds and removes children without submitting in preview mode", async () => {
     renderForm({ previewMode: true, previewSchema: schema() });
     await waitForLoaded();

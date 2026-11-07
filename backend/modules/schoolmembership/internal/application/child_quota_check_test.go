@@ -1,8 +1,12 @@
 package application
 
 import (
+	"context"
 	"errors"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
@@ -36,4 +40,23 @@ func TestCheckChildQuota(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCountingWriteAfterClassGateRejectsCancellationBeforeQuota(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	// No store is bound: any quota-lock/read attempt would panic. Cancellation
+	// must win before those operations, while an unbound quota retains priority.
+	service := &Service{quota: &recordingStore{}}
+	var stats domain.OperationStats
+	err := service.countingWriteAfterClassGate(ctx, &stats, func(context.Context) error {
+		t.Fatal("canceled command must not write")
+		return nil
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	require.EqualError(t, err, "context canceled")
+	require.Zero(t, stats.Queries)
+	service.quota = nil
+	require.ErrorIs(t, service.countingWriteAfterClassGate(ctx, &stats, nil), errChildQuotaUnbound)
 }

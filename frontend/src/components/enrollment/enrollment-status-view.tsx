@@ -45,6 +45,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
+import { StatCard } from "~/components/ui/stat-card";
 import { BackLink } from "~/components/ui/back-link";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
@@ -764,10 +765,7 @@ function EnrollmentStatusHero({
               )
             }
           />
-          <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
-            {justSubmitted ? t("submittedEyebrow") : t("statusEyebrow")}
-          </p>
-          <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
+          <h1 className="mt-6 max-w-2xl text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
             {justSubmitted ? t("submittedTitle") : t("statusTitle")}
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
@@ -822,22 +820,29 @@ function EnrollmentStatusSummary({
   const t = useCareTermTranslations("enrollmentStatus");
   return (
     <section className="grid gap-3 sm:grid-cols-3">
-      <StatusSummaryCard
-        icon={<Clock className="h-5 w-5" aria-hidden="true" />}
+      <StatCard
+        variant="inline"
+        icon={<Clock aria-hidden="true" />}
         label={t("receivedLabel")}
         value={submittedDate}
       />
-      <StatusSummaryCard
-        icon={<MotoConceptIcon concept={childrenConcept} size={22} />}
+      <StatCard
+        variant="inline"
+        icon={<MotoConceptIcon concept={childrenConcept} size={18} />}
         label={t("childrenLabel")}
-        value={String(status.children.length)}
+        value={status.children.length}
       />
-      <StatusSummaryCard
+      <StatCard
+        variant="inline"
         icon={
-          <MotoConceptIcon concept={parentConversationsConcept} size={20} />
+          <MotoConceptIcon concept={parentConversationsConcept} size={18} />
         }
         label={t("contactLabel")}
-        value={status.guardian_email}
+        value={
+          <span className="block truncate" title={status.guardian_email}>
+            {status.guardian_email}
+          </span>
+        }
       />
     </section>
   );
@@ -1102,16 +1107,9 @@ function EnrollmentChildrenSection({
   const t = useCareTermTranslations("enrollmentStatus");
   return (
     <section className="moto-content-surface space-y-4 rounded-xl border p-5 sm:p-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("enrollmentsEyebrow")}
-          </p>
-          <h2 className="mt-1 text-xl font-semibold text-gray-900">
-            {t("childrenLabel")}
-          </h2>
-        </div>
-      </div>
+      <h2 className="text-xl font-semibold text-gray-900">
+        {t("childrenLabel")}
+      </h2>
       <ul className="space-y-3">
         {enrollments.map((child) => {
           const canWithdraw =
@@ -1185,14 +1183,9 @@ function GuardianSection({
   return (
     <section className="moto-content-surface space-y-4 rounded-xl border p-5 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("contactLabel")}
-          </p>
-          <h2 className="mt-1 text-xl font-semibold text-gray-900">
-            {t("guardianTitle")}
-          </h2>
-        </div>
+        <h2 className="text-xl font-semibold text-gray-900">
+          {t("guardianTitle")}
+        </h2>
         {allEditable && !editing && status.signature_required ? (
           <ButtonLink
             href={editHref}
@@ -1350,10 +1343,7 @@ function WithdrawAllSection({
         <div className="flex gap-3">
           <IconTile tone="red" icon={<AlertTriangle aria-hidden="true" />} />
           <div>
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("manageEyebrow")}
-            </p>
-            <h2 className="mt-1 text-xl font-semibold text-gray-900">
+            <h2 className="text-xl font-semibold text-gray-900">
               {hasMultipleChildren ? t("withdrawAllTitle") : t("withdrawTitle")}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
@@ -1469,10 +1459,7 @@ function ChangeRequestsPanel({
             <MotoConceptIcon concept={parentConversationsConcept} size={20} />
           </span>
           <div>
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("changeRequestsEyebrow")}
-            </p>
-            <h2 className="mt-1 text-xl font-semibold text-gray-900">
+            <h2 className="text-xl font-semibold text-gray-900">
               {t("changeRequestsTitle")}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
@@ -1646,33 +1633,5 @@ function StepNumber({ children }: { readonly children: React.ReactNode }) {
     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">
       {children}
     </span>
-  );
-}
-
-function StatusSummaryCard({
-  icon,
-  label,
-  value,
-}: {
-  readonly icon: React.ReactNode;
-  readonly label: string;
-  readonly value: string;
-}) {
-  return (
-    <div className="moto-content-surface rounded-xl border p-4">
-      <div className="flex items-center gap-3">
-        <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600">
-          {icon}
-        </span>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {label}
-          </p>
-          <p className="truncate text-sm font-semibold text-gray-900">
-            {value}
-          </p>
-        </div>
-      </div>
-    </div>
   );
 }

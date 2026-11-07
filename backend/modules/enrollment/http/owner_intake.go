@@ -192,6 +192,7 @@ type RequestService interface {
 	LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
 	LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*PublicFormBootstrapData, error)
 	LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
+	phasePreviewForms
 	LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)
 	CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error)
 	PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*capability.FormSchema, error)
@@ -210,10 +211,19 @@ func NewRequestService(owner IntakeOwner) RequestService {
 	if owner == nil {
 		return nil
 	}
-	return intakeService{owner: owner}
+	return intakeService{owner: owner, phasePreviewForms: owner}
 }
 
-type intakeService struct{ owner IntakeOwner }
+// The preview carries public owner values directly. Promote that capability
+// instead of adding a forwarding HTTP adapter.
+type phasePreviewForms interface {
+	LoadPhasePreviewCareOfferings(ctx context.Context, phaseID int64) (*capability.PublicFormBootstrapData, error)
+}
+
+type intakeService struct {
+	owner IntakeOwner
+	phasePreviewForms
+}
 
 func encodeSubmitRequest(in SubmitRequest) (capability.SubmitRequest, error) {
 	out := capability.SubmitRequest{

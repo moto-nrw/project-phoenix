@@ -58,7 +58,7 @@ func TestFeedbackBatchPositiveGrowthQueryBudget(t *testing.T) {
 	}
 }
 
-func TestFeedbackBatchFailureStopsSequenceAtFirstInvalidStudent(t *testing.T) {
+func TestFeedbackBatchFailureRollsBackWithoutReusingIDs(t *testing.T) {
 	t.Parallel()
 	// The sequence is database-global, so this witness owns a private clone.
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -82,6 +82,26 @@ func TestFeedbackBatchFailureStopsSequenceAtFirstInvalidStudent(t *testing.T) {
 	require.Equal(t, []feedback.Entry{before}, retained)
 	after, err := module.Submit(ctx, feedbackBatchInput(student.ID, 4))
 	require.NoError(t, err)
-	// The first and failing second insert consume IDs; the third never runs.
-	require.Equal(t, before.ID+3, after.ID)
+	// E3 (#5789) permits allocating IDs for the whole failed batch.
+	require.Greater(t, after.ID, before.ID+2)
+}
+
+func TestFeedbackBatchLaterChunkFailureRollsBackEarlierChunk(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "ChunkRollback", "1a")
+	module := feedbackBatchModule(t, db)
+	var missingStudent int64
+	require.NoError(t, db.NewRaw(`SELECT nextval(pg_get_serial_sequence('users.student_profiles', 'id'))`).Scan(testpkg.Ctx(t), &missingStudent))
+	inputs := make([]feedback.CreateEntry, 129)
+	for i := range inputs {
+		inputs[i] = feedbackBatchInput(student.ID, i%60)
+	}
+	inputs[128].StudentID = missingStudent
+	entries, err := module.SubmitBatch(testpkg.Ctx(t), inputs)
+	require.ErrorContains(t, err, "foreign key constraint")
+	require.Nil(t, entries)
+	retained, err := module.FindEntries(testpkg.Ctx(t), feedback.Filter{StudentID: &student.ID})
+	require.NoError(t, err)
+	require.Empty(t, retained, "failure in the second chunk must roll back the first chunk too")
 }

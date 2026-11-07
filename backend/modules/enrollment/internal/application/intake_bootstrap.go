@@ -183,3 +183,21 @@ func validateLoadedAvailabilityRules(offerings []*offeringContract.CareOfferingR
 	}
 	return offerings, nil
 }
+
+// LoadPhasePreviewCareOfferings uses the public form projection without its
+// parent-access gates. Only the staff preview route exposes this read.
+func (s *Intake) LoadPhasePreviewCareOfferings(ctx context.Context, phaseID int64) (*enrollmentNative.PublicFormBootstrapData, error) {
+	return s.assemblePublicBootstrap(ctx,
+		func(ctx context.Context) (*enrollmentNative.Phase, error) {
+			phase, err := s.intakePhase(ctx, phaseID)
+			if err != nil {
+				if s.deps.Runtime.NotFound(err) {
+					return nil, enrollmentNative.ErrPhaseNotFound
+				}
+				return nil, err
+			}
+			narrowOfferedClassesToEligibleForForm(phase)
+			return phase, nil
+		},
+		publicBootstrapOptions{})
+}

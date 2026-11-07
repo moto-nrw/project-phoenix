@@ -1,7 +1,6 @@
 {
   "errorObjectPhases": "lista okresów zapisów",
   "errorObjectForm": "formularz zgłoszenia",
-  "brandEyebrow": "Zapis online",
   "fallbackSchool": "Państwa {careTerm}",
   "steps": {
     "phase": "Wybór",
@@ -10,7 +9,6 @@
     "aria": "Postęp zapisu"
   },
   "loading": "Wczytywanie zapisu…",
-  "phaseEyebrow": "Rozpocznij zapis",
   "phaseTitle": "Na co chcą Państwo zapisać dziecko?",
   "phaseDescription": "Proszę wybrać okres, w którym dziecko ma być objęte opieką. W następnym kroku podadzą Państwo dane kontaktowe, dane dziecka i wybrane oferty opieki.",
   "disabled": "Zapis online jest obecnie wyłączony. Jeśli chcą Państwo zapisać dziecko, proszę skontaktować się z {careTerm}.",
@@ -51,7 +49,6 @@
   "reviewTitle": "Sprawdzenie przez {careTerm}",
   "reviewText": "Po wysłaniu {careTerm} sprawdzi Państwa dane. Zapis online nie jest więc jeszcze ostatecznym przyznaniem miejsca.",
   "statusAfterSubmitText": "Po wysłaniu przejdą Państwo automatycznie na stronę statusu. Tam zobaczą Państwo, czy zapis dotarł, jest sprawdzany lub został rozpatrzony.",
-  "submittedEyebrow": "Zapis dotarł",
   "submittedTitle": "Dziękujemy. Państwa zapis został wysłany.",
   "submittedText": "E-mail z potwierdzeniem i linkiem do statusu jest w drodze. Przez ten link mogą Państwo w każdej chwili sprawdzić aktualny stan.",
   "dateRange": "od {from} do {to}"
