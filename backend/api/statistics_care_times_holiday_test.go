@@ -232,7 +232,7 @@ func TestStudentCareTimes_OwnChildsHolidayBookingReplacesTheContract(t *testing.
 
 // A rebooking changes the booking from its day on, never a day that has
 // passed (#5994): the Soll of a holiday day before the rebooking stays the
-// booking the child had then.
+// booking the child had then, also once its time model is archived.
 func TestStudentCareTimes_RebookingKeepsTheSollOfPastHolidayDays(t *testing.T) {
 	t.Parallel()
 	tc := setupStatisticsRoute(t)
@@ -253,6 +253,11 @@ func TestStudentCareTimes_RebookingKeepsTheSollOfPastHolidayDays(t *testing.T) {
 	booking := ownHolidayBooking(t, tc.db, organization, school, "Rudi", "Umgebucht", born, monday, monday.AddDays(4), "08:00", "16:00", "confirmed")
 	// On Wednesday the Träger-Büro rebooks the week to the morning until 13:00.
 	rebookOwnChild(t, tc.db, organization, booking, "08:00", "13:00", "2026-06-10T09:00:00+02:00")
+	// Then it archives both time models of the week: they are no longer
+	// offered, but the days booked on them keep reading them.
+	_, err = tc.db.ExecContext(context.Background(), `UPDATE enrollment.holiday_week_time_models SET archived_at = NOW()
+		WHERE organization_id = ? AND holiday_period_week_id = ?`, organization, booking.week)
+	require.NoError(t, err)
 
 	days := contractCareTimes(t, tc, account.ID, child.ID)
 	byDate := map[string]contractCareTimeDayPayload{}

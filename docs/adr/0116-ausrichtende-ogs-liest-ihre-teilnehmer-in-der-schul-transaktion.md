@@ -293,6 +293,13 @@ Tag der Woche) gilt dafür mit dieser Erweiterung:
   ihr Soll weiter daraus. Das Träger-Büro bekommt dieselbe Antwort wie für
   ein gebuchtes Zeitmodell (409, `enrollment.holiday_week_booked`). Mit dem
   Zeitraum (Löschfrist, Löschung des Trägers) geht es mit.
+- **Archivieren.** Ein Zeitmodell, das Buchungen oder die Spur nennen, kann
+  das Träger-Büro stattdessen archivieren (`archived_at`, Recht
+  „Anmeldung verwalten“, nur im eigenen Träger). Ein archiviertes Zeitmodell
+  steht nicht mehr im Angebot und nimmt keine neue Buchung an; ein Kind, das
+  schon darauf gebucht ist, behält die Buchung auch bei einer Umbuchung.
+  Seine Zeiten bleiben, vergangene Tage lesen ihr Soll weiter daraus. Es
+  wird nicht wiederhergestellt.
 - **Zugriffsprotokoll.** Jede Lesung geschieht innerhalb eines Abrufs, der im
   Zugriffsprotokoll der Schule steht: Soll und Ist je Kind (`view_student`),
   Überschreitungsliste und Export, Statistikbericht mit der Belegung nach

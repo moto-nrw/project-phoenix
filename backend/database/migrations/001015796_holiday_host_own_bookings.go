@@ -12,7 +12,7 @@ const holidayHostOwnBookingsVersion = "1.15.796"
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayHostOwnBookingsVersion,
-		Description: "Ferienbetreuung: die ausrichtende Schule liest die bestätigten Buchungen ihrer eigenen Kinder für Soll und Ist (#5994)",
+		Description: "Ferienbetreuung: die ausrichtende Schule liest die bestätigten Buchungen ihrer eigenen Kinder für Soll und Ist, gebuchte Zeitmodelle lassen sich archivieren (#5994)",
 		DependsOn: []string{
 			careContractSignaturesVersion, // the last migration before this one
 			holidayHealthDataVersion,      // the host functions this one sits beside
@@ -154,11 +154,18 @@ REVOKE ALL ON FUNCTION enrollment.holiday_time_model_keeps_booked_history() FROM
 CREATE TRIGGER holiday_time_model_booked_history
 	BEFORE DELETE ON enrollment.holiday_week_time_models
 	FOR EACH ROW EXECUTE FUNCTION enrollment.holiday_time_model_keeps_booked_history();
+-- A time model that cannot go can be archived instead: archived_at takes it
+-- out of the offer and of every new booking, while the bookings and the
+-- trail that name it keep reading it for their days. There is no way back.
+ALTER TABLE enrollment.holiday_week_time_models ADD COLUMN archived_at TIMESTAMPTZ;
+COMMENT ON COLUMN enrollment.holiday_week_time_models.archived_at IS
+	'When the Träger-Büro archived the time model: no longer offered or bookable, still read by past bookings (#5994).';
 COMMENT ON FUNCTION enrollment.holiday_host_own_bookings(DATE, DATE) IS
 	'Confirmed holiday bookings of the hosting school''s own children in the weeks it hosts, for the Soll of Soll und Ist (#5994).';
 `
 
 const holidayHostOwnBookingsDownSQL = `
+ALTER TABLE enrollment.holiday_week_time_models DROP COLUMN IF EXISTS archived_at;
 DROP TRIGGER IF EXISTS holiday_time_model_booked_history ON enrollment.holiday_week_time_models;
 DROP FUNCTION IF EXISTS enrollment.holiday_time_model_keeps_booked_history();
 DROP FUNCTION IF EXISTS enrollment.holiday_host_own_bookings(DATE, DATE);`

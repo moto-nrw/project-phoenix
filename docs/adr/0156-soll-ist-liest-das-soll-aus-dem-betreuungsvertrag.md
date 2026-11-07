@@ -137,7 +137,7 @@ andere fachliche Entscheidung ändert diesen Abschnitt und die Tests.
    zugeordnet und der Tag ist für sie nicht verglichen. Die Eindeutigkeit
    gilt für die ganze Schule, damit Klassen-, Gruppen- und Einzelansicht
    dasselbe Soll sehen. Ein Zeitmodell aus der Spur einer Umbuchung lässt
-   sich nicht löschen (Nachtrag zu ADR 0116).
+   sich nicht löschen, nur archivieren (Nachtrag zu ADR 0116).
    Storniert das Träger-Büro eine bestätigte Anmeldung, bleiben die Tage vor
    der Stornierung gebucht (wie `ended_on` bei Gästen); eine Umbuchung
    ändert die Buchung erst ab ihrem Tag. Bestätigung, Stornierung und
