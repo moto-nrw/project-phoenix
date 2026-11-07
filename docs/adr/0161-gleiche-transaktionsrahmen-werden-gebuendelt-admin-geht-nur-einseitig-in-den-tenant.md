@@ -1,17 +1,19 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Gleiche Transaktionsrahmen werden gebündelt, Admin geht nur einseitig in den Tenant
 
-Status: Vorgeschlagen. Vorschlag vom 07.11.2026 (Entscheidung E6) zu
+Status: Angenommen. Freigegeben von Yannick Mark Wenger am 07.11.2026.
+
+Vorschlag vom 07.11.2026 (Entscheidung E6) zu
 [#5881](https://github.com/moto-nrw/project-phoenix/issues/5881),
 [#5795](https://github.com/moto-nrw/project-phoenix/issues/5795),
 [#5878](https://github.com/moto-nrw/project-phoenix/issues/5878),
 [#5894](https://github.com/moto-nrw/project-phoenix/issues/5894) und
 [#5862](https://github.com/moto-nrw/project-phoenix/issues/5862).
-Umgesetzt wird erst nach Freigabe. Der Vorschlag ändert keinen Code und
-kein Register. Er legt fest, wann mehrere Transaktionsrahmen eines Ablaufs
+Die Umsetzung folgt in späteren PRs, je Schritt einer. Die Entscheidung
+selbst ändert keinen Code und kein Register. Sie legt fest, wann mehrere Transaktionsrahmen eines Ablaufs
 zu einem werden dürfen und welche Registereinträge dafür entstehen.
 
 ## Kontext
@@ -242,6 +244,11 @@ beim Lesen verlangen sie nur `parent_portal.access`
    Admin-Kontext ist danach nicht mehr erreichbar; ein Beitritt als Admin
    scheitert wie heute. Der Weg zurück (Tenant zu Admin) ist ausgeschlossen.
    Die Demo-Laufzeit lehnt die Operation ab, wie `WithinTraeger`.
+   Freigegeben am 07.11.2026 (#5862) als neue Laufzeitfähigkeit, zunächst nur
+   für Leserouten. Schreibende Eltern-Kind-Routen bleiben beim bisherigen
+   Ablauf: `ResolvePermittedChild` im Admin-Rahmen, danach der eigene
+   Tenant-Rahmen. Eine Ausweitung auf Schreibwege braucht eine eigene
+   Entscheidung.
 3. **Nicht gebündelt** werden: Rahmen, deren Commit vor einer Freigabe liegen
    muss (Audit-Commit vor Datenfreigabe und die Admin-Einheit der Route bei
    #5795), die erneute Prüfung nach dem Lesen
@@ -262,7 +269,10 @@ beim Lesen verlangen sie nur `parent_portal.access`
    Zweig, der heute nach einem Fehler weiterläuft, vor dem nächsten Statement
    enden. Für #5878 ändert sich der Teil-Commit: Scheitert heute die dritte
    Familie, sind die ersten zwei schon gelöscht; gebündelt bleibt keine
-   gelöscht. Das braucht eine Entscheidung (offene Frage 1).
+   gelöscht. Entschieden am 07.11.2026: Für #5878 gilt alles oder nichts. Ein
+   Fehler im Push-Cleanup rollt alle Löschungen dieses Laufs zurück. Folge:
+   Push-Abos abgemeldeter Geräte können bis zum nächsten erfolgreichen Lauf
+   bestehen bleiben.
 6. **Fehlervertrag (E4):** Phase und Reihenfolge jedes 4xx der Tabelle
    „4xx-Ausgänge je Route“ bleiben gleich, ebenso Status, Code und Body. Die
    Phase meint die Lage zwischen den fachlichen Statements; Bündeln entfernt
@@ -366,7 +376,7 @@ der Ratchet nicht aufzählt).
 | 3 | #5894 | Der Workflow trennt Zielgruppe (Admin) und Schalter; Schalter und Dateizeilen laufen in einem Tenant-Rahmen. Erneute Prüfung bleibt. | keine | 3 je Anhang-Aufruf (21 → 18). |
 | 4 | #5862 | `WithinAdminThenTenant` in Laufzeit und Scanner; `WithPermittedChild` in `care`; zuerst die 14 Leserouten. Schreibende Routen bleiben bei `ResolvePermittedChild`. | +3 Admin, +1 Kommando | 2 je Kind-Route (14 Szenarien: 205 → 177). |
 | 5 | #5894 | Zielgruppe und Tenant-Lesung über Muster B. | keine weitere | 2 weitere (18 → 16). |
-| 6 | #5878 | Ein Admin-Rahmen um den ganzen Cleanup; die DELETEs bleiben je Familie und Schule × Portal in heutiger Reihenfolge. Nur nach Freigabe von Punkt 5. | keine | 3 je zusätzlichem Rahmen: Logout 19 → 16, drei Familien 23 → 14, fünf Familien 33 → 18. |
+| 6 | #5878 | Ein Admin-Rahmen um den ganzen Cleanup; die DELETEs bleiben je Familie und Schule × Portal in heutiger Reihenfolge; alles oder nichts nach Punkt 5. | keine | 3 je zusätzlichem Rahmen: Logout 19 → 16, drei Familien 23 → 14, fünf Familien 33 → 18. |
 
 Jeder Schritt ist ein eigener PR. Er senkt die betroffenen Query-Budgets auf
 den neuen gemessenen Wert. Für #5878 gibt es kein Budget; Schritt 6 legt eines
@@ -412,14 +422,8 @@ an (Regel 15). Jeder Schritt prüft:
 - Muster A verschiebt bei #5795 die Guards aus `inbound/operator` in den
   Identity-Owner. Die Middleware wird dünner; der Fehlervertrag der
   Middleware bleibt.
+- Nach einem Fehler im Push-Cleanup (#5878) bleiben die Push-Abos aller
+  Familien dieses Laufs stehen, nicht nur die der gescheiterten. Sie können
+  bis zum nächsten erfolgreichen Lauf bestehen bleiben.
 - Erwartete Werte sind aus Dumps abgeleitet, nicht an einer Umsetzung
   gemessen. Jeder Schritt misst neu, bevor er ein Budget senkt.
-
-## Offene Fragen
-
-1. #5878: Darf ein Fehler im Push-Cleanup die schon gelöschten Familien
-   zurückrollen (alles oder nichts statt Präfix)? Folge: Nach einem Fehler
-   bleiben mehr Push-Abos abgemeldeter Geräte stehen. Ob eine spätere
-   Bereinigung sie entfernt, ist nicht geprüft.
-2. #5862: Wird Muster B als neue Laufzeitfähigkeit freigegeben, zunächst nur
-   für Leserouten?
