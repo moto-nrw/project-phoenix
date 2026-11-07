@@ -142,7 +142,8 @@ type OfferingChangeView struct {
 
 // OfferingChangeDecision is a decided request as the guardian sees it.
 type OfferingChangeDecision struct {
-	ID int64
+	ID             int64
+	RequestChildID int64
 	// SubmittedBy keeps request details private to the submitting guardian.
 	SubmittedBy        int64
 	SubmittedBySelf    bool
@@ -182,6 +183,7 @@ type ManualPlanningConflict struct {
 
 // OfferingChangePreview is the complete, non-writing approval projection.
 type OfferingChangePreview struct {
+	Diff                              []OfferingChangeDiffEntry
 	Selections                        []OfferingChangePreviewSelection
 	ManualPlanningConflicts           []ManualPlanningConflict
 	ArrivalExpectationsFollowBookings bool
@@ -218,6 +220,13 @@ type OfferingChangeDecisionInput struct {
 	// ReasonRequired says the school's reason policy asks for a reason on an
 	// approval; a rejection always needs one (#2267).
 	ReasonRequired bool
+	// StudentID pins the child the caller decides for: a request of another
+	// child is reported as missing, checked under the request lock. The
+	// Träger-Büro decides from the child's contract (#5979). Zero skips the
+	// check.
+	StudentID int64
+	// RequestChildID pins the enrollment under the same request lock; zero skips the check.
+	RequestChildID int64
 }
 
 // OfferingChangeRequests is the offering-change lifecycle of the parents
