@@ -40,9 +40,14 @@ Begleitnotiz.
   löscht den Plan. Jedes Kind läuft in einem eigenen Savepoint: Ein Fehler
   rollt dieses Kind vollständig zurück, der laufende Plan bleibt, der Plan
   bleibt fällig, und der Lauf meldet den Fehler auf Error-Ebene.
+- Der Start übernimmt die Anmeldung wie die Bestätigung einer schon begonnenen
+  Wiederanmeldung: Ein Feld ohne Wert lässt seinen Wert stehen.
 - Eine bestätigte Änderung vor dem Start ändert nur, was der Start übernimmt.
-  Ist der Starttag schon da, der Lauf aber noch nicht, übernimmt die Änderung
-  den Plan selbst.
+  Ersetzt sie die Formulardaten, merkt sich der Plan das
+  (`weekly_plan_replaces`): Der Start übernimmt dann den ganzen Wochenplan, und
+  ein entferntes Feld leert seinen Wert wie bei derselben Änderung sofort. Ist
+  der Starttag schon da, der Lauf aber noch nicht, übernimmt die Änderung den
+  Plan selbst.
 - Ein Kind ohne laufende Betreuung, eine schon begonnene Betreuung und neue
   Kinder bekommen den Wochenplan wie bisher sofort.
 

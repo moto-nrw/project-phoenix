@@ -41,7 +41,8 @@ type requestChildRow struct {
 	// The day an approved future re-enrollment's weekly plan replaces the
 	// running one (#6043). Written and read only through the weekly-plan
 	// methods, never through the RequestChild record.
-	WeeklyPlanOn *enrollment.Date `bun:"weekly_plan_on,type:date"`
+	WeeklyPlanOn       *enrollment.Date `bun:"weekly_plan_on,type:date"`
+	WeeklyPlanReplaces bool             `bun:"weekly_plan_replaces,notnull,default:false"`
 }
 
 func (r requestChildRow) value() *enrollment.RequestChild {

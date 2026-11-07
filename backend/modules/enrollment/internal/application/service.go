@@ -61,9 +61,9 @@ type Store interface {
 	SetChildClassSwitch(context.Context, int64, *enrollment.ClassSwitch) error
 	ChildClassSwitch(context.Context, int64) (*enrollment.ClassSwitch, error)
 	DueClassSwitches(context.Context, enrollment.Date) ([]enrollment.DueClassSwitch, error)
-	SetChildWeeklyPlanOn(context.Context, int64, *enrollment.Date) error
-	ChildWeeklyPlanOn(context.Context, int64) (*enrollment.Date, error)
-	DueWeeklyPlans(context.Context, enrollment.Date) ([]enrollment.DueWeeklyPlan, error)
+	SetChildWeeklyPlan(context.Context, int64, *enrollment.WeeklyPlan) error
+	ChildWeeklyPlan(context.Context, int64) (*enrollment.WeeklyPlan, error)
+	DueWeeklyPlans(context.Context, enrollment.Date) ([]enrollment.WeeklyPlan, error)
 	UpdateMatchedStudent(context.Context, int64, *int64) error
 	RestoreWithdrawnChildren(context.Context, int64, []int64) ([]int64, error)
 	TransitionPhaseChildren(context.Context, int64, string, string) (int, error)

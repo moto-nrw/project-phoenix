@@ -229,6 +229,9 @@ func TestDecisionService_Decide_StartedRenewalAppliesWeeklyPlanAtOnce(t *testing
 	assert.Zero(t, r.applyDue(t, r.start), "an immediate renewal plans nothing")
 }
 
+// A confirmed replacing edit before the start that removes weekly fields
+// clears them at the start, as the same edit clears them at once for a child
+// whose care has started (#6043).
 func TestDecisionService_ApplyDueWeeklyPlans_ClearedConfirmedFields(t *testing.T) {
 	t.Parallel()
 
@@ -252,4 +255,24 @@ func TestDecisionService_ApplyDueWeeklyPlans_ClearedConfirmedFields(t *testing.T
 	assert.Empty(t, r.careDays(t), "an omitted field clears the approved care days")
 	assert.Empty(t, r.student(t).AllowedDepartureModes, "an explicit null clears the approved Heimweg")
 	assert.Zero(t, r.applyDue(t, r.start.AddDays(1)))
+}
+
+// A submission without a weekly field keeps that running target at the
+// start, as the approval of a renewal whose care has started does: only a
+// confirmed replacing edit clears a field (#6043).
+func TestDecisionService_ApplyDueWeeklyPlans_OmittedFieldKeepsRunningTarget(t *testing.T) {
+	t.Parallel()
+
+	r := setupFutureRenewal(t)
+	ctx := testpkg.Ctx(t)
+	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
+	require.NoError(t, err)
+	delete(child.CustomData, "arrival_times")
+	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
+	r.approve(t)
+
+	assert.Equal(t, 1, r.applyDue(t, r.start))
+	assert.Equal(t, map[int]string{timetable.WeekdayMonday: "15:10"}, r.pickups(t))
+	assert.Equal(t, []int{timetable.WeekdayMonday, timetable.WeekdayThursday}, r.careDays(t),
+		"the submission did not ask for care days, so the running ones stay")
 }

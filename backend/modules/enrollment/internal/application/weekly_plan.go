@@ -65,9 +65,19 @@ func (d *Decisions) renewalWeeklyPlanDay(phase *enrollmentNative.Phase, careRunn
 }
 
 // planWeeklyPlan stores the day the request child's weekly plan applies, or
-// clears it when on is nil.
+// clears the plan when on is nil. The approval plans it like the approval of
+// a renewal whose care has started: a field without a value keeps its
+// target.
 func (d *Decisions) planWeeklyPlan(ctx context.Context, requestChildID int64, on *enrollmentNative.Date) error {
-	if err := d.deps.Children.SetChildWeeklyPlanOn(ctx, requestChildID, on); err != nil {
+	var plan *enrollmentNative.WeeklyPlan
+	if on != nil {
+		plan = &enrollmentNative.WeeklyPlan{RequestChildID: requestChildID, On: *on}
+	}
+	return d.storeWeeklyPlan(ctx, requestChildID, plan)
+}
+
+func (d *Decisions) storeWeeklyPlan(ctx context.Context, requestChildID int64, plan *enrollmentNative.WeeklyPlan) error {
+	if err := d.deps.Children.SetChildWeeklyPlan(ctx, requestChildID, plan); err != nil {
 		return fmt.Errorf("decision: plan weekly plan: %w", err)
 	}
 	return nil
@@ -75,20 +85,29 @@ func (d *Decisions) planWeeklyPlan(ctx context.Context, requestChildID int64, on
 
 // approvedChildTargetScope is the scope of a confirmed edit of an approved
 // child. While the weekly plan is still planned for a future day, the edit
-// changes what the start applies, not the running plan. A plan whose day has
-// come but which the tick has not applied yet is applied by the edit itself.
-func (d *Decisions) approvedChildTargetScope(ctx context.Context, requestChildID int64) (targetedFieldScope, error) {
-	planned, err := d.deps.Children.ChildWeeklyPlanOn(ctx, requestChildID)
+// changes what the start applies, not the running plan; a replacing edit
+// makes the start apply the submission as the complete weekly plan, so a
+// field the edit removed clears its target then, as it would at once. A plan
+// whose day has come but which the tick has not applied yet is applied by
+// the edit itself.
+func (d *Decisions) approvedChildTargetScope(ctx context.Context, requestChildID int64, replace bool) (targetedFieldScope, error) {
+	planned, err := d.deps.Children.ChildWeeklyPlan(ctx, requestChildID)
 	if err != nil {
 		return allTargets, fmt.Errorf("decision: read planned weekly plan: %w", err)
 	}
 	if planned == nil {
 		return allTargets, nil
 	}
-	if calendar.Date(*planned).After(d.todayDate()) {
-		return withoutWeeklyPlan, nil
+	if !calendar.Date(planned.On).After(d.todayDate()) {
+		return allTargets, d.storeWeeklyPlan(ctx, requestChildID, nil)
 	}
-	return allTargets, d.planWeeklyPlan(ctx, requestChildID, nil)
+	if replace && !planned.Replace {
+		planned.Replace = true
+		if err := d.storeWeeklyPlan(ctx, requestChildID, planned); err != nil {
+			return allTargets, err
+		}
+	}
+	return withoutWeeklyPlan, nil
 }
 
 // ApplyDueWeeklyPlans replaces the running weekly plan of every approved
@@ -107,7 +126,7 @@ func (d *Decisions) ApplyDueWeeklyPlans(ctx context.Context, asOf calendar.Date)
 		var ok bool
 		apply := func(applyCtx context.Context) error {
 			var applyErr error
-			ok, applyErr = d.applyWeeklyPlan(applyCtx, plan.RequestChildID)
+			ok, applyErr = d.applyWeeklyPlan(applyCtx, plan)
 			return applyErr
 		}
 		if d.deps.Runtime.InTransaction(ctx) {
@@ -133,7 +152,8 @@ func (d *Decisions) ApplyDueWeeklyPlans(ctx context.Context, asOf calendar.Date)
 
 // applyWeeklyPlan applies one due plan and clears it. A plan whose child is
 // no longer approved or no longer cared for is dropped without applying.
-func (d *Decisions) applyWeeklyPlan(ctx context.Context, requestChildID int64) (bool, error) {
+func (d *Decisions) applyWeeklyPlan(ctx context.Context, plan enrollmentNative.WeeklyPlan) (bool, error) {
+	requestChildID := plan.RequestChildID
 	child, err := decodedChildByID(ctx, d.deps.Children, requestChildID)
 	if err != nil {
 		return false, fmt.Errorf("weekly plan: load request child: %w", err)
@@ -150,8 +170,9 @@ func (d *Decisions) applyWeeklyPlan(ctx context.Context, requestChildID int64) (
 		return false, fmt.Errorf("weekly plan: request child %d has no reviewer", requestChildID)
 	}
 	planSynced, err := d.applyTargetedFields(ctx, request, child, student, nil, *child.ReviewedBy, targetedFieldSyncOptions{
-		Replace: true,
-		Scope:   weeklyPlanOnly,
+		Replace:          plan.Replace,
+		ReplaceSchedules: true,
+		Scope:            weeklyPlanOnly,
 	})
 	if err != nil {
 		return false, fmt.Errorf("weekly plan: apply: %w", err)
@@ -186,7 +207,7 @@ func (d *Decisions) finishWeeklyPlan(ctx context.Context, requestChildID int64, 
 	if err != nil {
 		return err
 	}
-	if err := d.deps.Children.SetChildWeeklyPlanOn(ctx, requestChildID, nil); err != nil {
+	if err := d.deps.Children.SetChildWeeklyPlan(ctx, requestChildID, nil); err != nil {
 		return fmt.Errorf("weekly plan: clear request child %d: %w", requestChildID, err)
 	}
 	return nil

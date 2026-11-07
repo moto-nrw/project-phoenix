@@ -106,11 +106,16 @@ type ClassSwitch struct {
 	On             Date
 }
 
-// DueWeeklyPlan is an approved re-enrollment whose weekly plan (pickup
-// times, care days, Heimweg) replaces the running one on On (#6043).
-type DueWeeklyPlan struct {
+// WeeklyPlan is the weekly plan (pickup times, care days, Heimweg) an
+// approved re-enrollment applies on On, the start of its care (#6043).
+type WeeklyPlan struct {
 	RequestChildID int64
 	On             Date
+	// Replace: a confirmed replacing edit came in before the start, so the
+	// start applies the submission as the complete weekly plan and a field
+	// without a value clears its target. Otherwise the start applies it as
+	// the approval of a renewal whose care has started does.
+	Replace bool
 }
 
 // DueClassSwitch is a planned class switch whose day has come, with the
