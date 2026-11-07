@@ -35,6 +35,8 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 	sort.Strings(want)
 	wantTraeger := []string{
 		config.KeyBrandingFooterText, config.KeyBrandingLetterheadText, config.KeyBrandingPrimaryColor,
+		// The notices of the decided end of an extraordinary termination (#4682).
+		config.KeyCareContractEndSetNotice, config.KeyCareContractReasonRejectedNotice,
 		config.KeyCareContractExtraordinaryConfirmation,
 		// The reminder of an unsigned care contract (#4679).
 		config.KeyCareContractSignatureReminderDays,

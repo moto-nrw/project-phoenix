@@ -28,7 +28,10 @@ type Notices struct {
 	notices   NoticeStore
 	templates carecontract.NoticeTemplates
 	post      carecontract.NoticePost
-	clock     Clock
+	// addressees reads who may still receive the notice of a decided end;
+	// nil where only the parents portal declares.
+	addressees carecontract.NoticeAddressees
+	clock      Clock
 	// office reads the letterhead, opens the Träger transaction and writes
 	// the school's access log for the Träger-Büro; nil where only the
 	// parents portal declares.
@@ -41,6 +44,9 @@ var _ carecontract.Notices = (*Notices)(nil)
 type NoticePorts struct {
 	Templates carecontract.NoticeTemplates
 	Post      carecontract.NoticePost
+	// Addressees is required for the office's decided end, unused by the
+	// parents portal.
+	Addressees carecontract.NoticeAddressees
 }
 
 // NewNotices builds the declarations. office, the contracts of the
@@ -49,7 +55,8 @@ func NewNotices(store ContractStore, notices NoticeStore, noticePorts NoticePort
 	if store == nil || notices == nil || noticePorts.Templates == nil || noticePorts.Post == nil {
 		panic("care contract: the store, the notice store, the templates and the post are required")
 	}
-	return &Notices{store: store, notices: notices, templates: noticePorts.Templates, post: noticePorts.Post, clock: clock, office: office}
+	return &Notices{store: store, notices: notices, templates: noticePorts.Templates, post: noticePorts.Post,
+		addressees: noticePorts.Addressees, clock: clock, office: office}
 }
 
 // trail records one operation on the contract under the acting account.
@@ -224,7 +231,9 @@ func (n *Notices) declare(ctx context.Context, d declaration) (carecontract.Noti
 	if notice.Kind == carecontract.NoticeTermination {
 		record.Summary.Status = carecontract.StatusTerminated
 	}
-	return n.options(ctx, d.organizationID, record, n.today(), false)
+	// The office reads what it decides next, such as the end an
+	// extraordinary termination would hold to as an ordinary one.
+	return n.options(ctx, d.organizationID, record, n.today(), d.channel == carecontract.NoticeChannelOffice)
 }
 
 // newNotice checks the declaration against the contract and dates it.
@@ -403,6 +412,10 @@ func (n *Notices) options(ctx context.Context, organizationID int64, record Cont
 		ChildName: fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
 		Modules:   joinGerman(ModuleNames(record.Version.Services)), Terms: NoticeText(record.Version.Terms),
 		EarlyStart: state.EarlyStart, Notice: state.Notice,
+	}
+	if includeExpiredWithdrawal && endIsOpen(record, state.Notice) {
+		end := reinterpretedEnd(record, state)
+		options.ReinterpretedEndsOn = &end
 	}
 	if record.Summary.Status != carecontract.StatusActive || record.Concluded == nil {
 		return options, nil
