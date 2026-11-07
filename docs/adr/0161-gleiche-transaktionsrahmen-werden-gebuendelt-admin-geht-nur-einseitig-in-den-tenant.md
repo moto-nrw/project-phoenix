@@ -148,8 +148,33 @@ Die 14 Szenarien von #5862: `related_accounts` (N3, N8), `master_data`,
    Familie, sind die ersten zwei schon gelöscht; gebündelt bleibt keine
    gelöscht. Das braucht eine Entscheidung (offene Frage 1).
 6. **Fehlervertrag (E4):** 4xx-Antworten bleiben nach Status, Code und Body
-   gleich und entstehen vor jedem Tenant-Statement. Details einer 500 dürfen
-   sich ändern, etwa durch einen Rollback statt eines Commits.
+   gleich, und die Prüfungen laufen in der heutigen Reihenfolge. Jede 4xx
+   entsteht an derselben Stelle des Ablaufs wie heute:
+   - **Vor dem ersten Tenant-Statement** stehen die Ablehnungen aus der
+     Entdeckung: unbekannter oder inaktiver Feed-Token (404, #5881, hier folgt
+     gar kein Tenant-Rahmen), inaktiver Operator oder ungültige
+     Sitzungsfamilie (#5795, ohne Tenant), Kind nicht verknüpft und fehlendes
+     `parent_portal.*`-Recht (#5862) und das Anhang-Gate „Ankündigung nicht
+     live oder Konto nicht in der Zielgruppe“ (404, #5894).
+   - **Im Tenant-Rahmen** bleiben die Ablehnungen, die schon heute dort
+     entstehen: abgeschalteter oder nicht lesbarer Schulschalter und fehlende
+     Anhangzeile (404, #5894) sowie die fachlichen 4xx der Payload einer
+     Kind-Route nach bestandener Rechteprüfung (#5862, etwa Schulschalter).
+   - **Nach dem Tenant-Rahmen** bleibt die erneute Zielgruppenprüfung von
+     #5894 (404, wenn die Ankündigung inzwischen zurückgezogen ist oder die
+     Schule wechselt).
+
+   Bündeln verschiebt keine Ablehnung über eine dieser Grenzen. Details einer
+   500 dürfen sich ändern, etwa durch einen Rollback statt eines Commits.
+7. **Ambiente Einstiege:** Ein gebündelter Rahmen (Muster A) verhält sich in
+   einem schon offenen Rahmen wie die Einzelstellen, die er zusammenfasst.
+   `WithinAdmin` der Laufzeit tritt nur einem Admin-Rahmen bei
+   (`tenant_runtime.go:158–162`); `RunAdmin` von Identity & Access tritt jedem
+   ambienten Rahmen bei, außer unter `standaloneAdminScopeKey`
+   (`command_transactions.go:58–67`). Ein gebündelter Tenant-Rahmen tritt nur
+   einem Tenant-Rahmen derselben Schule bei. `WithinAdminThenTenant` lehnt jede
+   ambiente Transaktion ab, weil es sonst die Rolle eines fremden Rahmens
+   wechseln würde. #5878 behält den ambienten Zweig von `withPushAdminTx`.
 
 ### Invarianten
 
@@ -220,8 +245,17 @@ der Ratchet nicht aufzählt).
 
 Jeder Schritt ist ein eigener PR. Er senkt die betroffenen Query-Budgets auf
 den neuen gemessenen Wert. Für #5878 gibt es kein Budget; Schritt 6 legt eines
-an (Regel 15). Jeder Schritt prüft Erfolgs-, 404/403- und 500-Pfad,
-`TestTransactionBoundaryRatchet` und `scripts/backend-architecture.sh check`.
+an (Regel 15). Jeder Schritt prüft:
+
+- Erfolgs-, 4xx- und 500-Pfad, mit der Reihenfolge und Stelle der 4xx aus
+  Punkt 6;
+- Wiederverwendung der Pool-Verbindung nach Commit und nach Rollback des
+  gebündelten Rahmens: Die nächste Transaktion auf derselben Verbindung sieht
+  weder Rolle noch `app.current_tenant_id` des vorigen Rahmens
+  (`current_user`, `current_setting('app.current_tenant_id', true)`);
+- die ambienten Einstiege aus Punkt 7: Aufruf aus einem schon offenen
+  Admin-Rahmen, aus einem Tenant-Rahmen derselben und einer anderen Schule;
+- `TestTransactionBoundaryRatchet` und `scripts/backend-architecture.sh check`.
 
 ## Erwogene Optionen
 
