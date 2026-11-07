@@ -2734,6 +2734,12 @@ describe.concurrent("ui-kit/no-hand-rolled-notice (#5591)", () => {
     '<p className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-3">A</p>',
     '<ul className="border-moto-red/20 bg-moto-red-soft/50 rounded-2xl border p-4"><li>A</li></ul>',
     '<section className="border-moto-orange/30 bg-moto-orange-soft mt-6 rounded-lg border-2 p-4">A</section>',
+    '<aside className="border-moto-orange/30 bg-moto-orange-soft rounded-lg border pt-3">A</aside>',
+    '<details className="border-moto-blue/30 bg-moto-blue-soft rounded-lg border pb-3">A</details>',
+    '<div className="border-moto-red/30 bg-moto-red-soft rounded-lg border pl-3">A</div>',
+    '<div className="border-moto-green/30 bg-moto-green-soft rounded-lg border pr-3">A</div>',
+    '<div className="border-moto-blue/30 bg-moto-blue-soft rounded-lg border ps-3">A</div>',
+    '<div className="border-moto-orange/30 bg-moto-orange-soft rounded-lg border pe-3">A</div>',
   ])("reports %s", async (element) => {
     const { output } = await lintSource(
       `export const Probe = () => ${element};`,

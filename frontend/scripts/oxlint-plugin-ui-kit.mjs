@@ -3436,7 +3436,7 @@ const NOTICE_TAGS = new Set([
 ]);
 const NOTICE_BORDER_RE = /^border-moto-([a-z]+)\/\d+$/;
 const NOTICE_FILL_RE = /^bg-moto-([a-z]+)(?:-soft(?:\/\d+)?|\/\d+)$/;
-const NOTICE_PADDING_RE = /^p[xy]?-\d/;
+const NOTICE_PADDING_RE = /^p[trblxyse]?-\d/;
 const NOTICE_ROUNDED_RE = /^rounded(?:-(?:sm|md|lg|xl|2xl))?$/;
 
 function isHandRolledNotice(utilities) {
