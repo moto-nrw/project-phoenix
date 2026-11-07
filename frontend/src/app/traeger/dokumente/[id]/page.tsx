@@ -19,7 +19,6 @@ import {
   revokeConsequence,
   schoolNamesOf,
 } from "~/components/traeger/traeger-document-format";
-import { TraegerDocumentDeleteModal } from "~/components/traeger/traeger-document-delete-modal";
 import { TraegerDocumentReleaseModal } from "~/components/traeger/traeger-document-release-modal";
 import {
   useTraegerDocumentAudiences,
@@ -29,6 +28,7 @@ import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { EmptyState } from "~/components/ui/empty-state";
+import { FramedList } from "~/components/ui/framed-list";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
@@ -278,16 +278,77 @@ export default function TraegerDocumentPage() {
               loading={revoking}
               error={revokeErrors.error}
             />
-            <TraegerDocumentDeleteModal
+            <ConfirmDeleteModal
               isOpen={confirmingDelete}
-              document={document}
-              schools={names}
               onClose={() => {
                 if (deleting) return;
                 deleteErrors.clear();
                 setConfirmingDelete(false);
               }}
               onConfirm={() => void remove()}
+              title="Dokument löschen?"
+              description={
+                <div className="space-y-3">
+                  <p>
+                    <span className="font-medium text-gray-900">
+                      „{document.title}“
+                    </span>{" "}
+                    wird gelöscht. Danach ist die Datei weg, auch hier im
+                    Träger-Büro.
+                  </p>
+                  {document.releases.length > 0 ? (
+                    <div className="space-y-2">
+                      <FramedList
+                        maxHeight="sm"
+                        header={
+                          <p className="text-sm font-medium text-gray-900">
+                            Diese Freigaben enden sofort
+                          </p>
+                        }
+                      >
+                        {document.releases.map((release) => (
+                          <li
+                            key={release.id}
+                            className="flex items-center gap-3 px-4 py-2.5"
+                          >
+                            <MotoConceptIcon
+                              concept={
+                                release.audience === "parents"
+                                  ? parentsConcept
+                                  : schoolsConcept
+                              }
+                              size={18}
+                              className="shrink-0"
+                            />
+                            <span className="min-w-0 text-sm text-gray-900">
+                              {releaseAudienceLabel(release, names)}
+                            </span>
+                          </li>
+                        ))}
+                      </FramedList>
+                      <p>
+                        Eltern und Schulen finden das Dokument dann nicht mehr.
+                        Auch ein gespeicherter Link öffnet es nicht mehr.
+                      </p>
+                    </div>
+                  ) : (
+                    <p>Das Dokument ist für niemanden freigegeben.</p>
+                  )}
+                  <p>
+                    Im Nachweis bleibt, wer es wann freigegeben, geöffnet und
+                    gelöscht hat.
+                  </p>
+                </div>
+              }
+              gate={{
+                mode: "textConfirm",
+                expected: "LÖSCHEN",
+                inputId: "confirm-delete-traeger-document",
+                label: "Tippen Sie zur Bestätigung LÖSCHEN ein:",
+                placeholder: "LÖSCHEN",
+              }}
+              confirmLabel="Endgültig löschen"
+              loadingLabel="Wird gelöscht …"
               loading={deleting}
               error={deleteErrors.error}
             />

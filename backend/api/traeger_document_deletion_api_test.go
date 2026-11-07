@@ -324,6 +324,54 @@ func TestATraegerDocumentReleaseNeverSurvivesAConcurrentDeletion(t *testing.T) {
 		assert.ErrorIs(t, err, organizationtenancy.ErrTraegerDocumentNotFound, "the release finds the document deleted")
 		assert.Zero(t, f.trail(t, document.ID).ActiveReleases, "no active release of a deleted document")
 	})
+	t.Run("an opening by a school during a deletion finds nothing", func(t *testing.T) {
+		t.Parallel()
+		f := newTraegerDocumentsFixture(t)
+		school := f.office.schools[0]
+		document := f.uploaded(t, f.office.token, "Hausordnung")
+		f.released(t, f.office.token, document.ID, map[string]any{"audience": "schools", "school_id": school})
+		account := testpkg.CreateTestAccount(t, f.db, fmt.Sprintf("ogs-oeffnen-%d@example.org", testpkg.UniqueTestTenantID(t)))
+		schoolID, err := tenant.NewTenantID(school)
+		require.NoError(t, err)
+		unit := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db))
+		held, commit, deleted := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+		go func() {
+			deleted <- tenant.WithinTraeger(unit, f.office.organization, func(ctx context.Context) error {
+				err := deleteDocument(ctx, f.office.organization, document.ID)
+				close(held)
+				if err != nil {
+					return err
+				}
+				<-commit
+				return nil
+			})
+		}()
+		<-held
+		type opening struct {
+			file organizationtenancy.TraegerDocumentFile
+			err  error
+		}
+		opened := make(chan opening, 1)
+		go func() {
+			var result opening
+			result.err = tenant.WithinTenant(unit, schoolID, func(ctx context.Context) error {
+				var openErr error
+				result.file, openErr = store.OpenSchoolDocument(ctx, school, account.ID, document.ID)
+				return openErr
+			})
+			opened <- result
+		}()
+		early, blocked := waitUntilBlocked(t, f, "open_traeger_school_document", opened)
+		close(commit)
+		require.NoError(t, <-deleted)
+		result := early
+		if blocked {
+			result = <-opened
+		}
+		assert.True(t, blocked, "the opening waits for the deletion")
+		assert.ErrorIs(t, result.err, organizationtenancy.ErrTraegerDocumentNotFound, "after the deletion there is nothing to open")
+		assert.Empty(t, result.file.Data, "never an empty or stale file")
+	})
 	t.Run("a deletion during a release revokes it", func(t *testing.T) {
 		t.Parallel()
 		f := newTraegerDocumentsFixture(t)

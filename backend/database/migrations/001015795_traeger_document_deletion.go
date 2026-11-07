@@ -34,7 +34,8 @@ func init() {
 //     allows exactly that next to the ON DELETE SET NULL of the accounts.
 //   - A deleted document takes no new release; the release trigger refuses
 //     it, and the SECURITY DEFINER functions of the schools never answer for
-//     it. The service revokes the active releases in the same transaction
+//     it. Opening a school's document returns its file only while it is not
+//     deleted, so an opening during a deletion never yields an empty file. The service revokes the active releases in the same transaction
 //     and locks the document row, so a release committing at the same time
 //     either is revoked or is refused.
 const traegerDocumentDeletionUpSQL = `
@@ -145,11 +146,76 @@ CREATE OR REPLACE FUNCTION platform.traeger_school_document_releases()
 	WHERE school.id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
 		AND school.organization_id IS NOT NULL
 	$$;
+
+-- An opening returns the file only of an undeleted document (#5993). The
+-- read it records names the document, so its foreign key waits for a
+-- deletion holding the row; once that deletion commits, the file query
+-- finds nothing and the opening answers no file, never an empty one.
+CREATE OR REPLACE FUNCTION platform.open_traeger_school_document(p_document_id BIGINT, p_account_id BIGINT)
+	RETURNS TABLE (file_name TEXT, content_type VARCHAR, content BYTEA)
+	LANGUAGE plpgsql
+	VOLATILE
+	SECURITY DEFINER
+	SET search_path = pg_catalog, pg_temp
+	AS $$
+	DECLARE
+		v_school_id BIGINT := NULLIF(current_setting('app.current_tenant_id', true), '')::bigint;
+		v_organization_id BIGINT;
+	BEGIN
+		SELECT release.organization_id INTO v_organization_id
+		FROM platform.traeger_school_document_releases() AS release
+		WHERE release.document_id = p_document_id
+		LIMIT 1;
+		IF v_organization_id IS NULL THEN
+			RETURN;
+		END IF;
+		INSERT INTO platform.traeger_document_reads (organization_id, document_id, account_id, reader, school_id)
+		VALUES (v_organization_id, p_document_id, p_account_id, 'school', v_school_id);
+		-- The reads are kept three years; a school's opening prunes them as
+		-- a parent's does, so they expire without any parent download.
+		DELETE FROM platform.traeger_document_reads
+		WHERE organization_id = v_organization_id AND read_at < CURRENT_TIMESTAMP - INTERVAL '3 years';
+		RETURN QUERY
+			SELECT document.file_name, document.content_type, document.content
+			FROM platform.traeger_documents AS document
+			WHERE document.organization_id = v_organization_id AND document.id = p_document_id
+				AND document.deleted_at IS NULL;
+	END;
+	$$;
 `
 
 // traegerDocumentDeletionDownSQL restores 1.15.780. It fails while a deleted
 // document exists, because its file is gone and content becomes NOT NULL.
 const traegerDocumentDeletionDownSQL = `
+
+CREATE OR REPLACE FUNCTION platform.open_traeger_school_document(p_document_id BIGINT, p_account_id BIGINT)
+	RETURNS TABLE (file_name TEXT, content_type VARCHAR, content BYTEA)
+	LANGUAGE plpgsql
+	VOLATILE
+	SECURITY DEFINER
+	SET search_path = pg_catalog, pg_temp
+	AS $$
+	DECLARE
+		v_school_id BIGINT := NULLIF(current_setting('app.current_tenant_id', true), '')::bigint;
+		v_organization_id BIGINT;
+	BEGIN
+		SELECT release.organization_id INTO v_organization_id
+		FROM platform.traeger_school_document_releases() AS release
+		WHERE release.document_id = p_document_id
+		LIMIT 1;
+		IF v_organization_id IS NULL THEN
+			RETURN;
+		END IF;
+		INSERT INTO platform.traeger_document_reads (organization_id, document_id, account_id, reader, school_id)
+		VALUES (v_organization_id, p_document_id, p_account_id, 'school', v_school_id);
+		DELETE FROM platform.traeger_document_reads
+		WHERE organization_id = v_organization_id AND read_at < CURRENT_TIMESTAMP - INTERVAL '3 years';
+		RETURN QUERY
+			SELECT document.file_name, document.content_type, document.content
+			FROM platform.traeger_documents AS document
+			WHERE document.organization_id = v_organization_id AND document.id = p_document_id;
+	END;
+	$$;
 CREATE OR REPLACE FUNCTION platform.traeger_school_document_releases()
 	RETURNS TABLE (
 		document_id BIGINT, organization_id BIGINT, title TEXT, file_name TEXT, content_type VARCHAR,
