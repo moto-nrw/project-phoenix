@@ -202,9 +202,12 @@ export function PersonalizationTab() {
         ) : null}
         {/* Current image preview */}
         {isLoading ? (
-          <div className="flex h-[120px] items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
+          <InsetPanel
+            framed
+            className="flex h-[120px] items-center justify-center"
+          >
             <SpinnerIcon className="h-6 w-6 text-gray-500 motion-reduce:animate-none" />
-          </div>
+          </InsetPanel>
         ) : currentImageUrl ? (
           <InsetPanel
             framed
