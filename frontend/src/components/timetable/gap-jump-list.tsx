@@ -10,15 +10,14 @@
  * kommen als Prop; das Springen ist ein Callback.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
 import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
-import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import type { GapInstance } from "~/lib/timetable-types";
 
 import { formatDate } from "~/lib/date-helpers";
-import { timetablePopoverSurface } from "./timetable-style";
 import { StatusDot } from "~/components/ui/status-dot";
 import { StatusBadge } from "~/components/ui/status-badge";
 
@@ -42,9 +41,6 @@ export function GapJumpList({
   state = "ready",
 }: GapJumpListProps) {
   const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const closeMenu = useCallback(() => setOpen(false), []);
-  useClickOutside(containerRef, closeMenu, open);
 
   const sorted = useMemo(
     () =>
@@ -86,29 +82,34 @@ export function GapJumpList({
   }
 
   return (
-    <div className="relative" ref={containerRef}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="compact"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        title={`${label} — Sprungliste öffnen`}
-      >
-        <StatusDot className="bg-moto-orange" decorative />
-        {label}
-      </Button>
-
-      {open && (
-        <div
-          role="region"
-          aria-label="Offene Lücken"
-          className={`absolute left-0 z-30 mt-2 w-[min(22rem,calc(100vw-2rem))] ${timetablePopoverSurface}`}
+    <AnchoredPopover
+      open={open}
+      onOpenChange={setOpen}
+      ariaLabel="Offene Lücken"
+      preferredWidth={352}
+      focusPanelOnOpen
+      header={
+        <p className="text-sm font-semibold text-gray-900">Offene Lücken</p>
+      }
+      renderTrigger={({ ref, toggle, panelId }) => (
+        <Button
+          ref={ref}
+          type="button"
+          variant="ghost"
+          size="compact"
+          onClick={toggle}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-controls={open ? panelId : undefined}
+          title={`${label} — Sprungliste öffnen`}
         >
-          <p className="border-b border-gray-100 px-3 py-2 text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-            Offene Lücken
-          </p>
-          <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto">
+          <StatusDot className="bg-moto-orange" decorative />
+          {label}
+        </Button>
+      )}
+    >
+      {({ close }) => (
+          <ul className="divide-y divide-gray-100">
             {sorted.map((gap) => {
               const hasCoveragePair =
                 gap.plannedStaffCount !== undefined &&
@@ -119,7 +120,7 @@ export function GapJumpList({
                   <button
                     type="button"
                     onClick={() => {
-                      setOpen(false);
+                      close();
                       onJump(gap);
                     }}
                     className="flex w-full flex-col gap-1 px-3 py-2 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
@@ -152,8 +153,7 @@ export function GapJumpList({
               );
             })}
           </ul>
-        </div>
       )}
-    </div>
+    </AnchoredPopover>
   );
 }

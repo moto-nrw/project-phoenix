@@ -7,7 +7,10 @@ import {
   useRef,
   useCallback,
 } from "react";
-import Link from "~/components/ui/navigation-link";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import { useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import {
@@ -76,7 +79,6 @@ export function BrandTenantSwitcher({
   const [tenants, setTenants] = useState<TenantSummary[]>(
     () => seededTenants ?? [],
   );
-  const [isOpen, setIsOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   // Lehrkraft-Konto: kein Fehler, sondern der Weg zum richtigen Portal.
   const [schoolPortalHint, setSchoolPortalHint] = useState<{
@@ -88,7 +90,6 @@ export function BrandTenantSwitcher({
   const latestSwitchRef = useRef<(target: TenantSummary) => void>(
     () => undefined,
   );
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const currentSlug = useTenantSlugSafe();
   const { status, data: session, update } = useSession();
 
@@ -107,27 +108,10 @@ export function BrandTenantSwitcher({
       });
   }, [status, seededTenants]);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
-
   const handleSwitch = useCallback(
     async (targetTenant: TenantSummary) => {
       if (isSwitching) return;
       setIsSwitching(true);
-      setIsOpen(false);
       setSchoolPortalHint(null);
 
       try {
@@ -247,101 +231,73 @@ export function BrandTenantSwitcher({
     grouped.set(orgName, existing);
   }
 
-  return (
-    <div ref={dropdownRef} className="relative min-w-0">
-      {/* Brand as trigger */}
-      <button
-        type="button"
-        onClick={() => {
-          setSchoolPortalHint(null);
-          setIsOpen(!isOpen);
-        }}
-        disabled={isSwitching}
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        aria-label="Einrichtung wechseln"
-        className="-mx-1.5 flex max-w-[200px] min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-gray-100 disabled:opacity-50 sm:max-w-[260px] lg:max-w-[300px]"
-      >
-        <BrandLogo />
-        <span
-          className={`min-w-0 flex-col text-left ${
-            hideLabelBelow === "md"
-              ? "hidden md:flex"
-              : hideLabelBelow === "lg"
-                ? "hidden lg:flex"
-                : "flex"
-          }`}
-        >
-          <span className={brandLabelClass(true)}>{displayLabel}</span>
-          <BrandTraegerLine traegerName={traegerName} />
-        </span>
-        <svg
-          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
+  const menuItems: OverflowMenuEntry[] = [];
+  if (currentTenant) {
+    menuItems.push({
+      label: currentTenant.name,
+      href,
+      selected: true,
+      onClick: () => undefined,
+    });
+    if (grouped.size === 1) menuItems.push({ kind: "separator" });
+  }
+  for (const [orgName, orgTenants] of grouped) {
+    if (grouped.size > 1) menuItems.push({ kind: "header", label: orgName });
+    for (const t of orgTenants) {
+      menuItems.push({
+        label: t.name,
+        disabled: isSwitching,
+        onClick: () => void handleSwitch(t),
+      });
+    }
+  }
 
-      {/* Dropdown menu */}
-      {isOpen && (
-        <div className="absolute left-0 z-50 mt-1 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-          {currentTenant && (
-            <Link
-              href={href}
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-2 border-b border-gray-100 px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+  return (
+    <div className="relative min-w-0">
+      {/* Brand as trigger */}
+      <OverflowMenu
+        ariaLabel="Einrichtung wechseln"
+        items={menuItems}
+        disabled={isSwitching}
+        onOpen={() => setSchoolPortalHint(null)}
+        wrapperClassName="min-w-0 block"
+        triggerClassName="-mx-1.5 max-w-[200px] min-w-0 gap-2.5 rounded-lg px-1.5 py-1 hover:bg-gray-100 disabled:opacity-50 sm:max-w-[260px] lg:max-w-[300px]"
+        triggerContent={
+          <>
+            <BrandLogo />
+            <span
+              className={`min-w-0 flex-col text-left ${
+                hideLabelBelow === "md"
+                  ? "hidden md:flex"
+                  : hideLabelBelow === "lg"
+                    ? "hidden lg:flex"
+                    : "flex"
+              }`}
             >
-              <span className="truncate">{currentTenant.name}</span>
-              <svg
-                className="text-moto-green ml-auto h-4 w-4 shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </Link>
-          )}
-          {[...grouped.entries()].map(([orgName, orgTenants]) => (
-            <div key={orgName}>
-              {grouped.size > 1 && (
-                <div className="px-3 py-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
-                  {orgName}
-                </div>
-              )}
-              {orgTenants.map((t) => (
-                <button
-                  key={t.tenantId}
-                  type="button"
-                  onClick={() => void handleSwitch(t)}
-                  disabled={isSwitching}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                >
-                  <span className="truncate">{t.name}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
+              <span className={brandLabelClass(true)}>{displayLabel}</span>
+              <BrandTraegerLine traegerName={traegerName} />
+            </span>
+            <svg
+              className="h-4 w-4 shrink-0 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </>
+        }
+      />
 
       {/* Lehrkraft-Konto: Hinweis mit dem Weg zu moto schule. Andere
           Fehler beim Wechsel kommen als Toast (#2517); ein stilles Nichts
           hat #1975 unbemerkt gelassen. */}
-      {schoolPortalHint && !isOpen && (
+      {schoolPortalHint && (
         <div className="absolute left-0 z-50 mt-1 w-72">
           <Alert
             type="info"

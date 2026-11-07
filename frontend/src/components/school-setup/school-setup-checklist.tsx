@@ -209,6 +209,7 @@ export function SetupChecklist<K extends string>({
   return (
     <section
       aria-label="Erste Schritte mit moto"
+      // oxlint-disable-next-line ui-kit/no-hand-rolled-popover -- feste Leiste am Bildschirmrand, an keinem Auslöser verankert
       className={`${PANEL_POSITION} moto-popover-surface flex max-h-[calc(100dvh-7rem)] flex-col overflow-hidden rounded-xl border sm:w-96`}
     >
       <header className="flex flex-col gap-2 border-b border-gray-100 p-4">

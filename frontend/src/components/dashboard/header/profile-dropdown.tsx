@@ -143,13 +143,36 @@ export const ProfileTrigger = forwardRef<
 });
 
 /**
- * Profile dropdown menu
+ * Fixed head of the profile popover: who is signed in.
+ */
+export function ProfileDropdownHeader({
+  displayName,
+  displayAvatar,
+  userEmail,
+}: Readonly<{
+  displayName: string;
+  displayAvatar?: string | null;
+  userEmail: string;
+}>) {
+  return (
+    <div className="flex items-center space-x-3">
+      <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="md" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-semibold text-gray-900">{displayName}</div>
+        {userEmail ? (
+          <div className="truncate text-xs text-gray-500" title={userEmail}>
+            {userEmail}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Entries of the profile popover
  */
 interface ProfileDropdownMenuProps {
-  readonly isOpen: boolean;
-  readonly displayName: string;
-  readonly displayAvatar?: string | null;
-  readonly userEmail: string;
   readonly onClose: () => void;
   readonly onLogout: () => void;
   readonly profileUrl?: string | null;
@@ -162,10 +185,6 @@ interface ProfileDropdownMenuProps {
 }
 
 export function ProfileDropdownMenu({
-  isOpen,
-  displayName,
-  displayAvatar,
-  userEmail,
   onClose,
   onLogout,
   profileUrl,
@@ -183,35 +202,6 @@ export function ProfileDropdownMenu({
   };
 
   return (
-    <div
-      className={`moto-popover-surface w-72 rounded-2xl border transition-[opacity,transform,visibility] duration-150 ease-out ${
-        isOpen
-          ? "visible translate-y-0 opacity-100"
-          : "invisible -translate-y-2 opacity-0"
-      }`}
-    >
-      {/* User info header */}
-      <div className="border-b border-gray-100/50 px-4 py-4">
-        <div className="flex items-center space-x-3">
-          <UserAvatar
-            avatarUrl={displayAvatar}
-            userName={displayName}
-            size="md"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-semibold text-gray-900">
-              {displayName}
-            </div>
-            {userEmail ? (
-              <div className="truncate text-xs text-gray-500" title={userEmail}>
-                {userEmail}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      {/* Menu items */}
       <div className="p-2">
         {profileUrl && (
           <NavLink
@@ -257,6 +247,5 @@ export function ProfileDropdownMenu({
           {t("logout")}
         </button>
       </div>
-    </div>
   );
 }

@@ -3394,6 +3394,71 @@ const noOwnSpinner = makeRatchetRule({
   }),
 });
 
+// Menüs und Popover (#5601): Rolle und schwebende Fläche gibt es nur im Kit,
+// dort hängen Tastaturbedienung, Portal und Lage am Bildschirmrand.
+
+const MENU_ROLE_RE = /^(?:menu|menuitem|menuitemradio|menuitemcheckbox|listbox|option)$/;
+const POPOVER_SURFACE_RE = /(?:^|[\s"'`])moto-popover-surface(?:$|[\s"'`])/;
+
+/** Alle Zeichenketten eines Attributwerts, auch hinter `?:` und `&&`. */
+function roleLiterals(node) {
+  if (!node) return [];
+  switch (node.type) {
+    case "Literal":
+      return typeof node.value === "string" ? [node.value] : [];
+    case "JSXExpressionContainer":
+      return roleLiterals(node.expression);
+    case "ConditionalExpression":
+      return [...roleLiterals(node.consequent), ...roleLiterals(node.alternate)];
+    case "LogicalExpression":
+      return [...roleLiterals(node.left), ...roleLiterals(node.right)];
+    default:
+      return [];
+  }
+}
+
+const noHandRolledMenu = makeRatchetRule({
+  ruleName: "no-hand-rolled-menu",
+  description:
+    "Menus and listboxes come from OverflowMenu, CustomSelect or ListboxDropdown instead of own ARIA roles.",
+  message:
+    "Kein eigenes Menü: Aktionen über `OverflowMenu`, eine Auswahl über `CustomSelect` oder `ListboxDropdown` (#5601, .claude/rules/frontend-ui-kit.md).",
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/page-header/OverflowMenu.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ found }) => ({
+    JSXAttribute(node) {
+      if (node.name?.name !== "role") return;
+      if (roleLiterals(node.value).some((role) => MENU_ROLE_RE.test(role))) {
+        found(node);
+      }
+    },
+  }),
+});
+
+const noHandRolledPopover = makeRatchetRule({
+  ruleName: "no-hand-rolled-popover",
+  description:
+    "Floating panels anchored to a control come from AnchoredPopover or OverflowMenu.",
+  message:
+    "Keine eigene schwebende Fläche: `AnchoredPopover` für einen Rahmen mit Inhalt, `OverflowMenu` für Aktionen (#5601, .claude/rules/frontend-ui-kit.md).",
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/anchored-popover.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ found }) => ({
+    Literal(node) {
+      if (typeof node.value === "string" && POPOVER_SURFACE_RE.test(node.value)) {
+        found(node);
+      }
+    },
+    TemplateElement(node) {
+      if (POPOVER_SURFACE_RE.test(node.value.raw)) found(node);
+    },
+  }),
+});
+
 // Eingabe-Bausteine (#5596): drei Muster, die es im Kit genau einmal gibt.
 
 /** Direkte JSX-Kinder, auch hinter `&&`, `?:`, Fragment und `{…}`. */
@@ -3659,9 +3724,11 @@ export default {
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
+    "no-hand-rolled-menu": noHandRolledMenu,
     "no-hand-rolled-number-stepper": noHandRolledNumberStepper,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
+    "no-hand-rolled-popover": noHandRolledPopover,
     "no-hand-rolled-pill": noHandRolledPill,
     "no-hand-rolled-portal-nav": noHandRolledPortalNav,
     "no-hand-rolled-removable-chip": noHandRolledRemovableChip,

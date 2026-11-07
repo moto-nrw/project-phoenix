@@ -534,7 +534,10 @@ export function SpontaneousActivityStart({
               {activityListboxOpen ? (
                 <ul
                   id="spontaneous-activity-listbox"
+                  // Offen (#5601): Das Kit hat kein Eingabefeld mit Vorschlägen.
+                  // oxlint-disable-next-line ui-kit/no-hand-rolled-menu -- Freitext mit Vorschlägen, kein Kit-Baustein
                   role="listbox"
+                  // oxlint-disable-next-line ui-kit/no-hand-rolled-popover -- Freitext mit Vorschlägen, kein Kit-Baustein
                   className="moto-popover-surface absolute top-full left-0 z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border py-1"
                 >
                   {filteredActivities.map((activity, index) => (
@@ -542,6 +545,7 @@ export function SpontaneousActivityStart({
                       <button
                         id={`spontaneous-activity-option-${activity.id}`}
                         type="button"
+                        // oxlint-disable-next-line ui-kit/no-hand-rolled-menu -- Freitext mit Vorschlägen, kein Kit-Baustein
                         role="option"
                         // Keep options out of the tab order: focus stays on the
                         // combobox input (aria-activedescendant drives the active

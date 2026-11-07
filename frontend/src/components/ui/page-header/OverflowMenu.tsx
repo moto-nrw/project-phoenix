@@ -12,12 +12,16 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { buttonClassName } from "~/components/ui/button";
+import type { ButtonSize, ButtonVariant } from "~/components/ui/button-styles";
 import Link from "~/components/ui/navigation-link";
 import { Check, MoreVertical } from "lucide-react";
 
 export interface OverflowMenuItem {
   /** Visible label. */
   readonly label: string;
+  /** One short line under the label that says what the entry does. */
+  readonly description?: string;
   /** Optional left icon. */
   readonly icon?: ReactNode;
   /** Click handler. The menu closes automatically before this fires. */
@@ -37,7 +41,7 @@ export interface OverflowMenuItem {
   readonly href?: string;
   /** With `href`: open in a new tab via a plain anchor (noopener noreferrer). */
   readonly external?: boolean;
-  /** Marks the current item in a navigational overflow menu. */
+  /** Marks the current item in a navigational overflow menu, with a checkmark. */
   readonly selected?: boolean;
   /** Target of a guided tour (`data-setup-tour`), for an entry a tour points at. */
   readonly tourTarget?: string;
@@ -122,6 +126,16 @@ interface OverflowMenuProps {
   /** Optional visible trigger content; the default is the kebab icon. */
   readonly triggerContent?: ReactNode;
   /**
+   * Draws the trigger as a kit button. `triggerContent` is its label,
+   * `triggerClassName` carries layout only, as on `Button`.
+   */
+  readonly triggerButton?: {
+    readonly variant: ButtonVariant;
+    readonly size: ButtonSize;
+  };
+  /** Layout of the box around the trigger (width, flex); default `inline-block`. */
+  readonly wrapperClassName?: string;
+  /**
    * Optional CSS selector for an ancestor of the trigger. When set, the menu
    * stretches to that ancestor's width and sits inside it (8px inset), instead
    * of the default 220px popover anchored to the trigger. Use this when the
@@ -159,6 +173,8 @@ export function OverflowMenu({
   triggerSize = "default",
   triggerClassName = "",
   triggerContent,
+  triggerButton,
+  wrapperClassName = "inline-block",
   matchContainerSelector,
   portalOwnerId,
   portalZIndex,
@@ -418,7 +434,7 @@ export function OverflowMenu({
 
   return (
     <div
-      className="relative inline-block"
+      className={`relative ${wrapperClassName}`}
       // Das Gerüst der Kopfkarte streckt auf dem Telefon Textknöpfe über die
       // Zeile; ein reines Symbol behält sein Maß.
       data-icon-only={triggerContent == null ? "" : undefined}
@@ -435,7 +451,11 @@ export function OverflowMenu({
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        className={`inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} focus-visible:ring-moto-blue/50 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none ${triggerClassName}`}
+        className={
+          triggerButton
+            ? buttonClassName({ ...triggerButton, className: triggerClassName })
+            : `inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} focus-visible:ring-moto-blue/50 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none ${triggerClassName}`
+        }
       >
         {triggerContent ?? (
           <MoreVertical className={iconSizeClass} aria-hidden />
@@ -556,16 +576,44 @@ export function OverflowMenu({
                 const interactive = item.disabled
                   ? "cursor-not-allowed opacity-50"
                   : "hover:bg-gray-50 active:bg-gray-100";
-                const itemClassName = `flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
+                const itemClassName = `flex w-full ${item.description ? "items-start" : "items-center"} gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
+                const describedProps = item.description
+                  ? {
+                      "aria-labelledby": `${menuId}-${index}-label`,
+                      "aria-describedby": `${menuId}-${index}-description`,
+                    }
+                  : {};
 
                 const inner = (
                   <>
                     {item.icon != null ? (
-                      <span className="flex size-4 flex-shrink-0 items-center justify-center text-gray-500">
+                      <span
+                        className={`flex size-4 flex-shrink-0 items-center justify-center text-gray-500 ${item.description ? "mt-0.5" : ""}`}
+                      >
                         {item.icon}
                       </span>
                     ) : null}
-                    <span className="flex-1 truncate">{item.label}</span>
+                    {item.description ? (
+                      <span className="flex max-w-64 min-w-0 flex-1 flex-col">
+                        <span id={`${menuId}-${index}-label`}>
+                          {item.label}
+                        </span>
+                        <span
+                          id={`${menuId}-${index}-description`}
+                          className="text-xs font-normal text-gray-500"
+                        >
+                          {item.description}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="flex-1 truncate">{item.label}</span>
+                    )}
+                    {item.selected ? (
+                      <Check
+                        className="size-4 flex-shrink-0 text-gray-900"
+                        aria-hidden
+                      />
+                    ) : null}
                     {item.badge != null ? (
                       <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-sm font-semibold text-gray-700 tabular-nums">
                         {item.badge}
@@ -582,7 +630,8 @@ export function OverflowMenu({
                   if (item.external) {
                     return (
                       <a
-                        key={`item-${item.label}`}
+                        key={`item-${index}-${item.label}`}
+                        {...describedProps}
                         role="menuitem"
                         data-setup-tour={item.tourTarget}
                         aria-current={item.selected ? "true" : undefined}
@@ -599,7 +648,8 @@ export function OverflowMenu({
                   }
                   return (
                     <Link
-                      key={`item-${item.label}`}
+                      key={`item-${index}-${item.label}`}
+                      {...describedProps}
                       role="menuitem"
                       data-setup-tour={item.tourTarget}
                       aria-current={item.selected ? "true" : undefined}
@@ -615,7 +665,8 @@ export function OverflowMenu({
 
                 return (
                   <button
-                    key={`item-${item.label}`}
+                    key={`item-${index}-${item.label}`}
+                    {...describedProps}
                     type="button"
                     role="menuitem"
                     data-setup-tour={item.tourTarget}

@@ -100,13 +100,15 @@ vi.mock("next/link", () => ({
     href,
     className,
     onClick,
+    role,
   }: {
     children: React.ReactNode;
     href: string;
     className?: string;
     onClick?: () => void;
+    role?: string;
   }) => (
-    <a href={href} className={className} onClick={onClick}>
+    <a href={href} className={className} onClick={onClick} role={role}>
       {children}
     </a>
   ),
@@ -508,11 +510,12 @@ describe("BrandTenantSwitcher", () => {
     openDropdown();
 
     // Current tenant appears as a link home, never as a switch button
-    const currentEntry = screen.getByRole("link", { name: /School A/ });
+    const currentEntry = screen.getByRole("menuitem", { name: /School A/ });
     expect(currentEntry).toHaveAttribute("href", "/dashboard");
     expect(
       screen.queryByRole("button", { name: "School A" }),
     ).not.toBeInTheDocument();
+    expect(currentEntry.tagName).toBe("A");
 
     // Selecting the current entry must not trigger a switch
     fireEvent.click(currentEntry);
@@ -574,11 +577,11 @@ describe("BrandTenantSwitcher", () => {
     // The current tenant must not appear as a switch-target button.
     openDropdown();
     expect(
-      screen.queryByRole("button", { name: "School A" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("menuitem", { name: "School A" }),
+    ).toHaveAttribute("href");
     expect(
-      screen.getByRole("button", { name: "School B" }),
-    ).toBeInTheDocument();
+      screen.getByRole("menuitem", { name: "School B" }).tagName,
+    ).toBe("BUTTON");
   });
 
   it("reports a failed switch through the shared error path and retries it", async () => {

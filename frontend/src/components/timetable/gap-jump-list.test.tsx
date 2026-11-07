@@ -51,4 +51,17 @@ describe("GapJumpList", () => {
     expect(screen.getByLabelText("Offene Lücke")).toBeInTheDocument();
     expect(screen.queryByText("0/0")).not.toBeInTheDocument();
   });
+
+  it("works with the keyboard: focus in the list, Escape back to the chip", () => {
+    render(<GapJumpList gaps={[gap]} onJump={vi.fn()} />);
+    const trigger = screen.getByRole("button", { name: /1 Lücke/ });
+    fireEvent.click(trigger);
+
+    const panel = screen.getByRole("dialog", { name: "Offene Lücken" });
+    expect(panel).toHaveFocus();
+    fireEvent.keyDown(panel, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
 });

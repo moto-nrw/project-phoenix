@@ -42,6 +42,20 @@ interface AnchoredPopoverProps {
   /** Vorfahre mit Fokusfalle, in dessen Baum der Rahmen portaliert wird. */
   readonly portalScopeSelector?: string;
   readonly className?: string;
+  /** Fester Kopf über dem scrollenden Inhalt, mit Trennlinie und Innenabstand. */
+  readonly header?: ReactNode;
+  /** Fester Fuß unter dem scrollenden Inhalt, mit Trennlinie; Abstand vom Inhalt. */
+  readonly footer?: ReactNode;
+  /**
+   * Nimmt den Fokus beim Öffnen in den Rahmen. Der Rahmen liegt am Ende des
+   * Dokuments; ohne das erreicht die Tab-Taste vom Auslöser aus seinen Inhalt nicht.
+   */
+  readonly focusPanelOnOpen?: boolean;
+  /**
+   * Schließt erst beim Klick und verschluckt ihn. Für einen Rahmen über einer
+   * Fläche, deren Knöpfe nicht versehentlich auslösen dürfen (Stempeluhr).
+   */
+  readonly swallowOutsideClick?: boolean;
   readonly renderTrigger: (props: {
     ref: RefObject<HTMLButtonElement | null>;
     open: boolean;
@@ -65,6 +79,10 @@ export function AnchoredPopover({
   align = "start",
   portalScopeSelector = DEFAULT_PORTAL_SCOPE,
   className,
+  header,
+  footer,
+  focusPanelOnOpen = false,
+  swallowOutsideClick = false,
   renderTrigger,
   children,
 }: AnchoredPopoverProps) {
@@ -156,28 +174,35 @@ export function AnchoredPopover({
           ?.getAttribute("data-overflow-menu-owner") === panelId
       );
     };
+    const isOutside = (target: Node) =>
+      !triggerRef.current?.contains(target) &&
+      !panelRef.current?.contains(target) &&
+      !belongsToPopoverMenu(target);
     const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        triggerRef.current?.contains(target) ||
-        panelRef.current?.contains(target) ||
-        belongsToPopoverMenu(target)
-      ) {
-        return;
-      }
+      if (isOutside(event.target as Node)) close(false);
+    };
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!isOutside(event.target as Node)) return;
+      event.preventDefault();
+      event.stopPropagation();
       close(false);
     };
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (belongsToPopoverMenu(event.target)) return;
       if (event.key === "Escape") close();
     };
-    document.addEventListener("mousedown", handlePointerDown);
+    if (swallowOutsideClick) {
+      document.addEventListener("click", handleOutsideClick, true);
+    } else {
+      document.addEventListener("mousedown", handlePointerDown);
+    }
     document.addEventListener("keydown", handleKeyDown);
     return () => {
+      document.removeEventListener("click", handleOutsideClick, true);
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [close, open, panelId]);
+  }, [close, open, panelId, swallowOutsideClick]);
 
   useEffect(() => {
     if (!open) {
@@ -186,9 +211,19 @@ export function AnchoredPopover({
     }
     if (!panelStyle || hasFocusedOnOpenRef.current) return;
 
-    initialFocusRef?.current?.focus();
+    if (initialFocusRef?.current) initialFocusRef.current.focus();
+    else if (focusPanelOnOpen) panelRef.current?.focus();
     hasFocusedOnOpenRef.current = true;
-  }, [initialFocusRef, open, panelStyle]);
+  }, [focusPanelOnOpen, initialFocusRef, open, panelStyle]);
+
+  const hasSlots = header != null || footer != null;
+  const content =
+    open && portalContainer
+      ? children({
+          close: () => close(),
+          overflowMenuPortal: { ownerId: panelId, zIndex: Z_INDEX.popover },
+        })
+      : null;
 
   const panel =
     open && portalContainer ? (
@@ -197,6 +232,7 @@ export function AnchoredPopover({
         id={panelId}
         role="dialog"
         aria-label={ariaLabel}
+        tabIndex={focusPanelOnOpen ? -1 : undefined}
         data-overflow-menu-scope="true"
         {...panelHandlers}
         onKeyDown={(event) => {
@@ -207,15 +243,31 @@ export function AnchoredPopover({
           close();
         }}
         className={cn(
-          "moto-popover-surface scrollbar-thin overflow-y-auto overscroll-contain rounded-xl border",
+          "moto-popover-surface rounded-xl border focus:outline-none",
+          hasSlots
+            ? "flex flex-col overflow-hidden"
+            : "scrollbar-thin overflow-y-auto overscroll-contain",
           className,
         )}
         style={{ ...panelStyle, visibility: panelStyle ? "visible" : "hidden" }}
       >
-        {children({
-          close: () => close(),
-          overflowMenuPortal: { ownerId: panelId, zIndex: Z_INDEX.popover },
-        })}
+        {hasSlots ? (
+          <>
+            {header != null ? (
+              <div className="shrink-0 border-b border-gray-100 px-4 py-3">
+                {header}
+              </div>
+            ) : null}
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              {content}
+            </div>
+            {footer != null ? (
+              <div className="shrink-0 border-t border-gray-100">{footer}</div>
+            ) : null}
+          </>
+        ) : (
+          content
+        )}
       </div>
     ) : null;
 

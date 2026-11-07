@@ -107,25 +107,23 @@ vi.mock("./header/profile-dropdown", () => ({
       Profile
     </button>
   ),
+  ProfileDropdownHeader: () => null,
   ProfileDropdownMenu: ({
-    isOpen,
     onClose,
     onLogout,
   }: {
-    isOpen: boolean;
     onClose: () => void;
     onLogout: () => void;
-  }) =>
-    isOpen ? (
-      <div data-testid="profile-dropdown">
-        <button type="button" data-testid="close-dropdown" onClick={onClose}>
-          Close
-        </button>
-        <button type="button" data-testid="logout-button" onClick={onLogout}>
-          Logout
-        </button>
-      </div>
-    ) : null,
+  }) => (
+    <div data-testid="profile-dropdown">
+      <button type="button" data-testid="close-dropdown" onClick={onClose}>
+        Close
+      </button>
+      <button type="button" data-testid="logout-button" onClick={onLogout}>
+        Logout
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("./header/breadcrumb-components", () => ({

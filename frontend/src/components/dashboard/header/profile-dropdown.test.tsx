@@ -4,7 +4,11 @@
  */
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { ProfileTrigger, ProfileDropdownMenu } from "./profile-dropdown";
+import {
+  ProfileDropdownHeader,
+  ProfileDropdownMenu,
+  ProfileTrigger,
+} from "./profile-dropdown";
 
 // Mock next/link
 vi.mock("next/link", () => ({
@@ -155,63 +159,18 @@ describe("ProfileTrigger", () => {
 describe("ProfileDropdownMenu", () => {
   it("leaves out the address line when there is no address to show (#3891)", () => {
     const { container } = render(
-      <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Florian Besuch"
-        userEmail=""
-        onClose={vi.fn()}
-        onLogout={vi.fn()}
-      />,
+      <ProfileDropdownHeader displayName="Florian Besuch" userEmail="" />,
     );
 
     expect(screen.getByText("Florian Besuch")).toBeInTheDocument();
     expect(container.querySelector("[title]")).not.toBeInTheDocument();
   });
 
-  it("is hidden when closed", () => {
-    const onClose = vi.fn();
-    const onLogout = vi.fn();
-    const { container } = render(
-      <ProfileDropdownMenu
-        isOpen={false}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
-        onClose={onClose}
-        onLogout={onLogout}
-      />,
-    );
-
-    const menu = container.querySelector(".invisible");
-    expect(menu).toBeInTheDocument();
-  });
-
-  it("is visible when open", () => {
-    const onClose = vi.fn();
-    const onLogout = vi.fn();
-    const { container } = render(
-      <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
-        onClose={onClose}
-        onLogout={onLogout}
-      />,
-    );
-
-    const menu = container.querySelector(".visible");
-    expect(menu).toBeInTheDocument();
-  });
-
   it("displays user info", () => {
-    const onClose = vi.fn();
-    const onLogout = vi.fn();
     render(
-      <ProfileDropdownMenu
-        isOpen={true}
+      <ProfileDropdownHeader
         displayName="Max Mustermann"
         userEmail="max@example.com"
-        onClose={onClose}
-        onLogout={onLogout}
       />,
     );
 
@@ -224,9 +183,6 @@ describe("ProfileDropdownMenu", () => {
     const onLogout = vi.fn();
     render(
       <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
         onClose={onClose}
         onLogout={onLogout}
         profileUrl="/profile"
@@ -242,9 +198,6 @@ describe("ProfileDropdownMenu", () => {
     const onLogout = vi.fn();
     render(
       <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
         onClose={onClose}
         onLogout={onLogout}
         profileUrl="/operator/settings"
@@ -263,9 +216,6 @@ describe("ProfileDropdownMenu", () => {
     const onLogout = vi.fn();
     render(
       <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
         onClose={onClose}
         onLogout={onLogout}
       />,
@@ -285,9 +235,6 @@ describe("ProfileDropdownMenu", () => {
     const onLogout = vi.fn();
     render(
       <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
         onClose={onClose}
         onLogout={onLogout}
       />,
@@ -303,9 +250,6 @@ describe("ProfileDropdownMenu", () => {
     const onLogout = vi.fn();
     render(
       <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
         onClose={onClose}
         onLogout={onLogout}
       />,
@@ -321,9 +265,6 @@ describe("ProfileDropdownMenu", () => {
     const onLogout = vi.fn();
     render(
       <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
         onClose={onClose}
         onLogout={onLogout}
         profileUrl="/profile"
@@ -339,9 +280,6 @@ describe("ProfileDropdownMenu", () => {
     const onLogout = vi.fn();
     render(
       <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
         onClose={onClose}
         onLogout={onLogout}
       />,

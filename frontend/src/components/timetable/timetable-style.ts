@@ -11,9 +11,6 @@ export const timetableNestedSurface = "moto-content-surface rounded-xl border";
 export const timetableMutedSurface =
   "rounded-xl border border-gray-200 bg-gray-50/70";
 
-export const timetablePopoverSurface =
-  "moto-popover-surface overflow-hidden rounded-xl border";
-
 export const timetableDangerPanel =
   "rounded-xl border border-moto-red/20 bg-moto-red/5 p-3";
 

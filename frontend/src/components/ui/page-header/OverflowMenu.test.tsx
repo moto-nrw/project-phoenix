@@ -625,4 +625,62 @@ describe("OverflowMenu", () => {
     expect(toggle).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("menu")).toBeInTheDocument();
   });
+
+  it("names an entry by its label and describes it by its line", () => {
+    render(
+      <OverflowMenu
+        items={[
+          {
+            label: "Einmaliger Termin",
+            description: "Findet nur an diesem Tag statt.",
+            onClick: vi.fn(),
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+
+    const entry = screen.getByRole("menuitem", { name: "Einmaliger Termin" });
+    expect(entry).toHaveAccessibleDescription(
+      "Findet nur an diesem Tag statt.",
+    );
+  });
+
+  it("draws the trigger as a kit button and keeps its menu semantics", () => {
+    render(
+      <OverflowMenu
+        ariaLabel="Neu anlegen"
+        triggerButton={{ variant: "primary", size: "md" }}
+        triggerContent="Neu"
+        items={[{ label: "Termin", onClick: vi.fn() }]}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Neu anlegen" });
+    expect(trigger).toHaveClass("bg-gray-900");
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+  });
+
+  it("marks the selected entry", () => {
+    render(
+      <OverflowMenu
+        items={[
+          { label: "Schule A", selected: true, onClick: vi.fn() },
+          { label: "Schule B", onClick: vi.fn() },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+
+    expect(screen.getByRole("menuitem", { name: "Schule A" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Schule A" }).querySelector("svg"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Schule B" }).querySelector("svg"),
+    ).toBeNull();
+  });
 });

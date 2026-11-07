@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
 
-import { ProfileDropdownMenu, ProfileTrigger } from "./profile-dropdown";
+import {
+  ProfileDropdownHeader,
+  ProfileDropdownMenu,
+  ProfileTrigger,
+} from "./profile-dropdown";
 
 const meta = {
   title: "dashboard/header/ProfileDropdown",
@@ -33,34 +37,10 @@ export const Trigger: Story = {
   },
 };
 
-export const MenuClosed: Story = {
-  render: () => (
-    <div className="relative h-40 w-72">
-      <ProfileDropdownMenu
-        isOpen={false}
-        displayName="Anna Schmidt"
-        displayAvatar={null}
-        userEmail="anna.schmidt@example.com"
-        onClose={() => {
-          // no-op for the closed-state story
-        }}
-        onLogout={() => {
-          // no-op for the closed-state story
-        }}
-        profileUrl="/profile"
-      />
-    </div>
-  ),
-};
-
 export const MenuOpen: Story = {
   render: () => (
     <div className="relative h-64 w-72">
       <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Anna Schmidt"
-        displayAvatar={null}
-        userEmail="anna.schmidt@example.com"
         onClose={() => {
           // no-op for the open-state story
         }}
@@ -88,15 +68,20 @@ export const Composed: Story = {
             isOpen={isOpen}
             onClick={() => setIsOpen((open) => !open)}
           />
-          <ProfileDropdownMenu
-            isOpen={isOpen}
-            displayName="Anna Schmidt"
-            displayAvatar={null}
-            userEmail="anna.schmidt@example.com"
+          {isOpen ? (
+            <>
+              <ProfileDropdownHeader
+                displayName="Anna Schmidt"
+                displayAvatar={null}
+                userEmail="anna.schmidt@example.com"
+              />
+              <ProfileDropdownMenu
             onClose={() => setIsOpen(false)}
             onLogout={() => setIsOpen(false)}
             profileUrl="/profile"
           />
+            </>
+          ) : null}
         </div>
       );
     }
