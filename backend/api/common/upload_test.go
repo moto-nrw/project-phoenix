@@ -3,6 +3,9 @@ package common
 import (
 	"archive/zip"
 	"bytes"
+	"image"
+	"image/jpeg"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common/imagemeta"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/stretchr/testify/assert"
@@ -178,12 +182,14 @@ func createMultipartRequest(t *testing.T, fieldName, filename string, content []
 	return req
 }
 
+// makeJPEGBytes returns a real 1x1 JPEG: image parsing walks the JPEG
+// structure to strip metadata, so magic bytes alone no longer pass.
 func makeJPEGBytes() []byte {
-	b := make([]byte, 512)
-	b[0] = 0xFF
-	b[1] = 0xD8
-	b[2] = 0xFF
-	return b
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, image.NewGray(image.Rect(0, 0, 1, 1)), nil); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
 func makePDFBytes() []byte {
@@ -553,4 +559,31 @@ func TestParseDocumentWithLimits_RejectsMalformedMultipartAsUnreadable(t *testin
 	require.True(t, ok)
 	assert.Equal(t, CodeFilesFileUnreadable, resp.Code)
 	assert.Nil(t, resp.Details)
+}
+
+// ParseImage hands callers the image without Exif, so a direct API upload
+// cannot store GPS coordinates.
+func TestParseImage_ReturnsImageWithoutMetadata(t *testing.T) {
+	t.Parallel()
+	plain := makeJPEGBytes()
+	exifGPS := "\xFF\xE1\x00\x2CExif\x00\x00II\x2A\x00\x08\x00\x00\x00\x01\x00\x25\x88\x04\x00\x01\x00\x00\x00\x1A\x00\x00\x00\x00\x00\x00\x00GPS-51.22N"
+	upload := append(append([]byte{0xFF, 0xD8}, exifGPS...), plain[2:]...)
+	req := createMultipartRequest(t, "image", "photo.jpg", upload)
+
+	uploaded, err := ParseImage(httptest.NewRecorder(), req, "image", 10<<20)
+	require.NoError(t, err)
+	defer func() { _ = uploaded.File.Close() }()
+	stored, err := io.ReadAll(uploaded.File)
+	require.NoError(t, err)
+
+	assert.Equal(t, "image/jpeg", uploaded.ContentType)
+	assert.Equal(t, plain, stored)
+}
+
+func TestParseImage_RejectsUnparseableImage(t *testing.T) {
+	t.Parallel()
+	req := createMultipartRequest(t, "image", "photo.jpg", makeJPEGBytes()[:40])
+
+	_, err := ParseImage(httptest.NewRecorder(), req, "image", 10<<20)
+	require.ErrorIs(t, err, imagemeta.ErrInvalidImage)
 }
