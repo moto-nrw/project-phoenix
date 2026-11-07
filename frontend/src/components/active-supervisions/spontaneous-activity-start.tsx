@@ -30,6 +30,7 @@ import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-en
 import { staffConcept } from "~/lib/concepts/staff";
 import { IconTile } from "~/components/ui/icon-tile";
 import { foldForSearch } from "~/lib/search-fold";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -621,9 +622,10 @@ export function SpontaneousActivityStart({
                       ? externalAccountMark(item.externalAccountStatus)
                       : null;
                     return (
-                      <label
+                      <ChoiceTile
                         key={item.id}
-                        className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm text-gray-800"
+                        selected={additionalStaffIds.includes(item.id)}
+                        className="min-h-10 py-2 font-normal"
                       >
                         <Checkbox
                           checked={additionalStaffIds.includes(item.id)}
@@ -646,7 +648,7 @@ export function SpontaneousActivityStart({
                             </span>
                           ) : null}
                         </span>
-                      </label>
+                      </ChoiceTile>
                     );
                   })}
                 </InsetPanel>

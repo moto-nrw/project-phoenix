@@ -844,9 +844,6 @@ describe("TransitStudentsSection booking into a released room", () => {
     ).toBeInTheDocument();
     expect(refreshRooms).not.toHaveBeenCalled();
     expect(mockToastSuccess).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Mila Sommer auswählen")).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    expect(screen.getByLabelText("Mila Sommer auswählen")).toBeChecked();
   });
 });

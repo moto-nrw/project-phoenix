@@ -21,6 +21,7 @@ import {
   PickupSignatureStatementLoadError,
   usePickupSignatureStatement,
 } from "~/components/parent/pickup-permission-fields";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const DAY_KEYS: Record<number, "mon" | "tue" | "wed" | "thu" | "fri"> = {
   1: "mon",
@@ -202,10 +203,7 @@ function ScheduleDayFields({
   const day = t(`careSchedule.weekdays.${DAY_KEYS[weekday]}`);
   const canChangeDay = capabilities.pickup && capabilities.departure_mode;
   return (
-    <fieldset className="space-y-3 rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-sm font-semibold text-gray-900">
-        {day}
-      </legend>
+    <FormFieldset legend={day} className="space-y-3">
       {canChangeDay && <CareDayToggle draft={draft} onChange={onChange} />}
       {draft.scheduled && (
         <ScheduleValues
@@ -215,7 +213,7 @@ function ScheduleDayFields({
           onChange={onChange}
         />
       )}
-    </fieldset>
+    </FormFieldset>
   );
 }
 
