@@ -159,6 +159,39 @@ export function occupancyCareFormSums(
     );
 }
 
+/**
+ * The places of the care forms that have a limit (#5977). An offer without a
+ * booking counts with all its places free; an offer without a limit stays
+ * out, because its free places are unknown. `full` counts the offers without
+ * a free place, the overbooked ones included.
+ */
+export interface OccupancyPlaces {
+  readonly limited: number;
+  readonly places: number;
+  readonly taken: number;
+  readonly free: number;
+  readonly full: number;
+}
+
+export function occupancyPlaces(
+  schools: readonly TraegerSchoolOccupancy[],
+): OccupancyPlaces {
+  let limited = 0;
+  let places = 0;
+  let taken = 0;
+  let full = 0;
+  for (const school of schools) {
+    for (const form of school.careForms) {
+      if (form.capacity === null) continue;
+      limited++;
+      places += form.capacity;
+      taken += Math.min(form.children, form.capacity);
+      if (form.children >= form.capacity) full++;
+    }
+  }
+  return { limited, places, taken, free: places - taken, full };
+}
+
 /** Unlimited offers have no ratio; bookings against zero places sort highest. */
 export function occupancyRatio(
   children: number,

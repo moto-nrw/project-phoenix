@@ -7,6 +7,7 @@ import {
   occupancyCareFormRows,
   occupancyCareFormSums,
   occupancyGroupRows,
+  occupancyPlaces,
   occupancyTotals,
 } from "./occupancy-model";
 
@@ -93,6 +94,29 @@ describe("occupancy model", () => {
       { name: "OGS bis 16 Uhr", schools: 2, children: 14, capacity: 18 },
       { name: "Frühbetreuung", schools: 1, children: 2, capacity: null },
     ]);
+  });
+
+  it("adds up the places of the offers with a limit, an unbooked offer with all its places free", () => {
+    const unbooked = school("3", {
+      careForms: [
+        { id: "24", name: "Betreuung bis 15 Uhr", children: 0, capacity: 12 },
+        { id: "25", name: "Spätbetreuung", children: 5, capacity: 4 },
+      ],
+    });
+    expect(occupancyPlaces([BACH, LINDE, unbooked])).toEqual({
+      limited: 4,
+      places: 34,
+      taken: 18,
+      free: 16,
+      full: 2,
+    });
+    expect(occupancyPlaces([school("4")])).toEqual({
+      limited: 0,
+      places: 0,
+      taken: 0,
+      free: 0,
+      full: 0,
+    });
   });
 
   it("sorts zero places as finite without dividing zero by zero", () => {
