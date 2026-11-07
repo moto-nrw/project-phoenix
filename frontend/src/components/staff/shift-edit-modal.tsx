@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -1308,14 +1309,17 @@ export function ShiftEditModal({
                                 <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
                                   Vertretung {index + 1}
                                 </span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="compact"
-                                  onClick={() => removeReplacement(index)}
-                                >
-                                  Entfernen
-                                </Button>
+                                <span className="inline-flex rounded-full">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Vertretung ${index + 1} entfernen`}
+                                    onClick={() => removeReplacement(index)}
+                                  >
+                                    <X className="h-4 w-4" aria-hidden="true" />
+                                  </Button>
+                                </span>
                               </div>
                               <CustomSelect
                                 value={row.staffId}

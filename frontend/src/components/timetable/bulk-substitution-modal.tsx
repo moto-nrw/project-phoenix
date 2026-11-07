@@ -528,7 +528,7 @@ export function BulkSubstitutionModal({
                 disabled={staffLoadError}
                 onChange={setSubstituteStaffId}
               />
-              <p className="mt-1 text-[11px] text-gray-400">
+              <p className="mt-1 text-sm text-gray-500">
                 Ohne Ersatzperson werden die Termine nur als abwesend markiert.
               </p>
             </div>
