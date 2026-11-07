@@ -38,19 +38,8 @@ const exifOrientationTag = 0x0112
 // exifOrientation reads the IFD0 orientation tag of a TIFF-structured Exif
 // payload. It returns 0 when the tag is absent or unreadable.
 func exifOrientation(tiff []byte) uint16 {
-	if len(tiff) < 8 {
-		return 0
-	}
-	var order binary.ByteOrder
-	switch string(tiff[:2]) {
-	case "II":
-		order = binary.LittleEndian
-	case "MM":
-		order = binary.BigEndian
-	default:
-		return 0
-	}
-	if order.Uint16(tiff[2:4]) != 42 {
+	order, ok := tiffByteOrder(tiff)
+	if !ok {
 		return 0
 	}
 	ifd := int(order.Uint32(tiff[4:8]))
@@ -63,19 +52,44 @@ func exifOrientation(tiff []byte) uint16 {
 		if entry+12 > len(tiff) {
 			return 0
 		}
-		if order.Uint16(tiff[entry:entry+2]) != exifOrientationTag {
-			continue
+		if order.Uint16(tiff[entry:entry+2]) == exifOrientationTag {
+			return orientationEntryValue(order, tiff[entry:entry+12])
 		}
-		if order.Uint16(tiff[entry+2:entry+4]) != 3 || order.Uint32(tiff[entry+4:entry+8]) != 1 {
-			return 0
-		}
-		value := order.Uint16(tiff[entry+8 : entry+10])
-		if value < 1 || value > 8 {
-			return 0
-		}
-		return value
 	}
 	return 0
+}
+
+// tiffByteOrder validates the TIFF header and returns its byte order.
+func tiffByteOrder(tiff []byte) (binary.ByteOrder, bool) {
+	if len(tiff) < 8 {
+		return nil, false
+	}
+	var order binary.ByteOrder
+	switch string(tiff[:2]) {
+	case "II":
+		order = binary.LittleEndian
+	case "MM":
+		order = binary.BigEndian
+	default:
+		return nil, false
+	}
+	if order.Uint16(tiff[2:4]) != 42 {
+		return nil, false
+	}
+	return order, true
+}
+
+// orientationEntryValue reads a 12-byte orientation IFD entry. It returns 0
+// unless the entry is a single SHORT holding a valid orientation (1-8).
+func orientationEntryValue(order binary.ByteOrder, entry []byte) uint16 {
+	if order.Uint16(entry[2:4]) != 3 || order.Uint32(entry[4:8]) != 1 {
+		return 0
+	}
+	value := order.Uint16(entry[8:10])
+	if value < 1 || value > 8 {
+		return 0
+	}
+	return value
 }
 
 // orientationOnlyTIFF builds a big-endian TIFF block whose IFD0 holds only
@@ -99,55 +113,95 @@ func stripJPEGMetadata(data []byte) ([]byte, error) {
 	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
 		return nil, ErrInvalidImage
 	}
-	out := make([]byte, 0, len(data))
-	out = append(out, 0xFF, 0xD8)
-	orientationWritten := false
-	pos := 2
+	s := jpegStripper{data: data, pos: 2, out: make([]byte, 0, len(data))}
+	s.out = append(s.out, 0xFF, 0xD8)
 	for {
-		marker, next, err := nextJPEGMarker(data, pos)
+		done, err := s.step()
 		if err != nil {
 			return nil, err
 		}
-		pos = next
-		switch {
-		case marker == 0xD9: // EOI: anything after it (e.g. MPF images) is dropped
-			return append(out, 0xFF, 0xD9), nil
-		case marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7):
-			out = append(out, 0xFF, marker)
-			continue
+		if done {
+			return s.out, nil
 		}
-		if pos+2 > len(data) {
-			return nil, ErrInvalidImage
-		}
-		length := int(binary.BigEndian.Uint16(data[pos : pos+2]))
-		if length < 2 || pos+length > len(data) {
-			return nil, ErrInvalidImage
-		}
-		payload := data[pos+2 : pos+length]
-		segment := data[pos-2 : pos+length]
-		pos += length
+	}
+}
 
-		switch {
-		case marker == 0xE1 && bytes.HasPrefix(payload, exifHeader):
-			if orientation := exifOrientation(payload[len(exifHeader):]); orientation > 1 && !orientationWritten {
-				out = appendJPEGSegment(out, 0xE1, append(append([]byte{}, exifHeader...), orientationOnlyTIFF(orientation)...))
-				orientationWritten = true
-			}
-		case marker >= 0xE0 && marker <= 0xEF, marker == 0xFE:
-			if keepJPEGAppSegment(marker, payload) {
-				out = append(out, segment...)
-			}
-		case marker == 0xDA: // SOS: copy the header and the entropy-coded scan
-			out = append(out, segment...)
-			end, err := jpegScanEnd(data, pos)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, data[pos:end]...)
-			pos = end
-		default:
-			out = append(out, segment...)
+// jpegStripper copies a JPEG marker by marker, dropping metadata segments.
+type jpegStripper struct {
+	data               []byte
+	pos                int
+	out                []byte
+	orientationWritten bool
+}
+
+// step processes the next marker and reports whether EOI was reached.
+func (s *jpegStripper) step() (bool, error) {
+	marker, next, err := nextJPEGMarker(s.data, s.pos)
+	if err != nil {
+		return false, err
+	}
+	s.pos = next
+	if marker == 0xD9 { // EOI: anything after it (e.g. MPF images) is dropped
+		s.out = append(s.out, 0xFF, 0xD9)
+		return true, nil
+	}
+	if marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7) {
+		s.out = append(s.out, 0xFF, marker)
+		return false, nil
+	}
+	payload, segment, err := s.readSegment()
+	if err != nil {
+		return false, err
+	}
+	return false, s.handleSegment(marker, payload, segment)
+}
+
+// readSegment reads the length-prefixed segment at pos, whose marker was just
+// consumed, and returns its payload and the full segment including the marker.
+func (s *jpegStripper) readSegment() (payload, segment []byte, err error) {
+	pos := s.pos
+	if pos+2 > len(s.data) {
+		return nil, nil, ErrInvalidImage
+	}
+	length := int(binary.BigEndian.Uint16(s.data[pos : pos+2]))
+	if length < 2 || pos+length > len(s.data) {
+		return nil, nil, ErrInvalidImage
+	}
+	s.pos = pos + length
+	return s.data[pos+2 : pos+length], s.data[pos-2 : pos+length], nil
+}
+
+func (s *jpegStripper) handleSegment(marker byte, payload, segment []byte) error {
+	switch {
+	case marker == 0xE1 && bytes.HasPrefix(payload, exifHeader):
+		s.writeOrientation(payload[len(exifHeader):])
+	case marker >= 0xE0 && marker <= 0xEF, marker == 0xFE:
+		if keepJPEGAppSegment(marker, payload) {
+			s.out = append(s.out, segment...)
 		}
+	case marker == 0xDA: // SOS: copy the header and the entropy-coded scan
+		s.out = append(s.out, segment...)
+		end, err := jpegScanEnd(s.data, s.pos)
+		if err != nil {
+			return err
+		}
+		s.out = append(s.out, s.data[s.pos:end]...)
+		s.pos = end
+	default:
+		s.out = append(s.out, segment...)
+	}
+	return nil
+}
+
+// writeOrientation emits a minimal Exif segment for the first non-default
+// orientation found.
+func (s *jpegStripper) writeOrientation(tiff []byte) {
+	if s.orientationWritten {
+		return
+	}
+	if orientation := exifOrientation(tiff); orientation > 1 {
+		s.out = appendJPEGSegment(s.out, 0xE1, append(append([]byte{}, exifHeader...), orientationOnlyTIFF(orientation)...))
+		s.orientationWritten = true
 	}
 }
 
@@ -280,52 +334,88 @@ func stripWebPMetadata(data []byte) ([]byte, error) {
 	if riffEnd > len(data) {
 		return nil, ErrInvalidImage
 	}
-	out := make([]byte, 12, len(data))
-	copy(out, data[:12])
-	vp8xFlags := -1
-	var orientationChunk []byte
+	s := webpStripper{out: make([]byte, 12, len(data)), vp8xFlags: -1}
+	copy(s.out, data[:12])
 	pos := 12
 	for pos < riffEnd {
-		if pos+8 > riffEnd {
-			return nil, ErrInvalidImage
+		c, err := readWebPChunk(data, pos, riffEnd)
+		if err != nil {
+			return nil, err
 		}
-		fourCC := string(data[pos : pos+4])
-		size := int(binary.LittleEndian.Uint32(data[pos+4 : pos+8]))
-		padded := size + size&1
-		if size < 0 || pos+8+size > riffEnd {
-			return nil, ErrInvalidImage
-		}
-		end := min(pos+8+padded, riffEnd)
-		payload := data[pos+8 : pos+8+size]
-		chunk := data[pos:end]
-		pos = end
-
-		switch {
-		case fourCC == "EXIF":
-			tiff := bytes.TrimPrefix(payload, exifHeader)
-			if orientation := exifOrientation(tiff); orientation > 1 && orientationChunk == nil {
-				orientationChunk = orientationOnlyTIFF(orientation)
-			}
-		case webpKeptChunks[fourCC]:
-			if fourCC == "VP8X" {
-				if size < 1 {
-					return nil, ErrInvalidImage
-				}
-				vp8xFlags = len(out) + 8
-			}
-			out = append(out, chunk...)
+		pos = c.next
+		if err := s.handleChunk(c); err != nil {
+			return nil, err
 		}
 	}
-	if vp8xFlags >= 0 {
-		out[vp8xFlags] &^= webpFlagEXIF | webpFlagXMP
-		if orientationChunk != nil {
-			out[vp8xFlags] |= webpFlagEXIF
+	return s.finish(), nil
+}
+
+// riffChunk is one RIFF chunk; raw includes header and padding.
+type riffChunk struct {
+	fourCC  string
+	payload []byte
+	raw     []byte
+	next    int
+}
+
+func readWebPChunk(data []byte, pos, riffEnd int) (riffChunk, error) {
+	if pos+8 > riffEnd {
+		return riffChunk{}, ErrInvalidImage
+	}
+	size := int(binary.LittleEndian.Uint32(data[pos+4 : pos+8]))
+	padded := size + size&1
+	if size < 0 || pos+8+size > riffEnd {
+		return riffChunk{}, ErrInvalidImage
+	}
+	end := min(pos+8+padded, riffEnd)
+	return riffChunk{
+		fourCC:  string(data[pos : pos+4]),
+		payload: data[pos+8 : pos+8+size],
+		raw:     data[pos:end],
+		next:    end,
+	}, nil
+}
+
+// webpStripper collects the kept chunks and the orientation to re-emit.
+type webpStripper struct {
+	out              []byte
+	vp8xFlags        int // offset of the VP8X flags byte in out, or -1
+	orientationChunk []byte
+}
+
+func (s *webpStripper) handleChunk(c riffChunk) error {
+	switch {
+	case c.fourCC == "EXIF":
+		tiff := bytes.TrimPrefix(c.payload, exifHeader)
+		if orientation := exifOrientation(tiff); orientation > 1 && s.orientationChunk == nil {
+			s.orientationChunk = orientationOnlyTIFF(orientation)
+		}
+	case webpKeptChunks[c.fourCC]:
+		if c.fourCC == "VP8X" {
+			if len(c.payload) < 1 {
+				return ErrInvalidImage
+			}
+			s.vp8xFlags = len(s.out) + 8
+		}
+		s.out = append(s.out, c.raw...)
+	}
+	return nil
+}
+
+// finish fixes the VP8X metadata flags, appends the orientation chunk and
+// rewrites the RIFF size.
+func (s *webpStripper) finish() []byte {
+	out := s.out
+	if s.vp8xFlags >= 0 {
+		out[s.vp8xFlags] &^= webpFlagEXIF | webpFlagXMP
+		if s.orientationChunk != nil {
+			out[s.vp8xFlags] |= webpFlagEXIF
 			// EXIF belongs after the image data, at the end of the file.
 			out = append(out, "EXIF"...)
-			out = binary.LittleEndian.AppendUint32(out, uint32(len(orientationChunk)))
-			out = append(out, orientationChunk...)
+			out = binary.LittleEndian.AppendUint32(out, uint32(len(s.orientationChunk)))
+			out = append(out, s.orientationChunk...)
 		}
 	}
 	binary.LittleEndian.PutUint32(out[4:8], uint32(len(out)-8))
-	return out, nil
+	return out
 }
