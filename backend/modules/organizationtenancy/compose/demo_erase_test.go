@@ -65,6 +65,12 @@ var visitorTraceCounts = map[string]string{
 	"parent_billing.documents": `SELECT count(*) FROM parent_billing.documents AS document
 		WHERE document.recipient_first_name = '` + visitorFirst + `' AND document.recipient_last_name = '` + visitorLast + `'
 			AND document.number = 'F-' || ?0`,
+	// The letter of the invoice went out by mail: its copy on the outbox
+	// names the send only by its ID.
+	"billing letter mail": `SELECT count(*) FROM platform.email_outbox AS outbox
+		JOIN parent_billing.document_mailings AS mailing ON mailing.organization_id = outbox.organization_id AND mailing.delivery_id = outbox.id
+		JOIN parent_billing.documents AS document ON document.organization_id = mailing.organization_id AND document.id = mailing.document_id
+		WHERE document.number = 'F-' || ?0 AND outbox.recipient->>'name' = '` + visitorFull + `'`,
 }
 
 type visitorAccounts struct {
@@ -151,7 +157,7 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 // leaveVisitorHolidayRegistration registers the visitor's child of the
 // school through the public holiday link of its Träger (#6015), with the
 // visitor as guardian and contact, a proof named after the visitor and the
-// invoice of a billing run. A registration names its home school only while
+// invoice of a billing run, whose letter went out by mail. A registration names its home school only while
 // the school is open, so a closed school opens for the insert.
 func leaveVisitorHolidayRegistration(t *testing.T, db *bun.DB, schoolID int64) {
 	t.Helper()
@@ -189,13 +195,29 @@ func leaveVisitorHolidayRegistration(t *testing.T, db *bun.DB, schoolID int64) {
 		run AS (
 			INSERT INTO parent_billing.runs (organization_id, service, holiday_period_id, period_name, service_from, service_until)
 			SELECT organization_id, 'holiday', holiday_period_id, 'Sommerferien', DATE '2026-07-01', DATE '2026-07-31' FROM registration
-			RETURNING organization_id, id, holiday_period_id)
-		INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year, number_sequence, issued_on,
-			holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name, recipient_email,
-			service_from, service_until, total_cents)
-		SELECT run.organization_id, run.id, 'holiday', 'F-' || ?0, 2026, ?0, DATE '2026-06-15', run.holiday_period_id, registration.id,
-			'` + visitorFirst + `', '` + visitorLast + `', 'besuch@example.org', DATE '2026-07-01', DATE '2026-07-31', 12000
-		FROM run JOIN registration ON registration.holiday_period_id = run.holiday_period_id`,
+			RETURNING organization_id, id, holiday_period_id),
+		document AS (
+			INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year, number_sequence, issued_on,
+				holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name, recipient_email,
+				service_from, service_until, total_cents)
+			SELECT run.organization_id, run.id, 'holiday', 'F-' || ?0, 2026, ?0, DATE '2026-06-15', run.holiday_period_id, registration.id,
+				'` + visitorFirst + `', '` + visitorLast + `', 'besuch@example.org', DATE '2026-07-01', DATE '2026-07-31', 12000
+			FROM run JOIN registration ON registration.holiday_period_id = run.holiday_period_id
+			RETURNING organization_id, run_id, id),
+		run_letter AS (
+			INSERT INTO parent_billing.run_letters (organization_id, run_id, payment_due_on)
+			SELECT organization_id, run_id, DATE '2026-07-15' FROM document),
+		letter AS (
+			INSERT INTO parent_billing.document_letters (organization_id, document_id, run_id, filename, pdf)
+			SELECT organization_id, id, run_id, 'brief.pdf', '\x255044'::bytea FROM document),
+		outbox AS (
+			INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status)
+			SELECT organization_id, 'billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', '` + visitorFull + `'),
+				jsonb_build_object('guardian_name', '` + visitorFull + `'), 'pending' FROM document
+			RETURNING organization_id, id)
+		INSERT INTO parent_billing.document_mailings (organization_id, run_id, document_id, delivery_id, recipient_email)
+		SELECT document.organization_id, document.run_id, document.id, outbox.id, 'besuch@example.org'
+		FROM document JOIN outbox ON outbox.organization_id = document.organization_id`,
 		`UPDATE platform.schools SET deleted_at = (SELECT deleted_at FROM closed_school) WHERE id = ?0`,
 	} {
 		_, err := tx.NewRaw(statement, schoolID).Exec(ctx)
