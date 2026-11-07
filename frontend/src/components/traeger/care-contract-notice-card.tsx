@@ -37,6 +37,14 @@ const RecordNoticeModal = dynamic(
   { ssr: false },
 );
 
+const RejectReasonModal = dynamic(
+  () =>
+    import("./care-contract-notice-modal").then(
+      (module) => module.RejectReasonModal,
+    ),
+  { ssr: false },
+);
+
 const SetNoticeEndModal = dynamic(
   () =>
     import("./care-contract-notice-modal").then(
@@ -50,6 +58,12 @@ const TERMINATION_LABELS = {
   ordentlich: "Ordentlich",
   sonderkuendigung: "Sonderkündigung",
   ausserordentlich: "Außerordentlich, aus wichtigem Grund",
+} as const;
+
+/** How the office decided the end of an extraordinary termination. */
+const DECISION_LABELS = {
+  festgelegt: { label: "Grund anerkannt", tone: "green" },
+  umgedeutet: { label: "Grund nicht anerkannt", tone: "orange" },
 } as const;
 
 /** Who declared, as the office reads it. */
@@ -73,6 +87,7 @@ export function CareContractNoticeCard({
   const [options, setOptions] = useState<ContractNoticeOptions | null>(null);
   const [open, setOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
   const { error, show, clear } = useApiLoadError();
 
   const load = useCallback(async () => {
@@ -104,9 +119,11 @@ export function CareContractNoticeCard({
       icon={CalendarX2}
       title="Vertrag beenden"
       description={
-        notice
-          ? "So haben die Eltern den Vertrag beendet."
-          : "Kündigung oder Widerruf der Eltern."
+        endPending
+          ? "Die Eltern haben außerordentlich gekündigt. Prüfen Sie ihren Grund."
+          : notice
+            ? "So haben die Eltern den Vertrag beendet."
+            : "Kündigung oder Widerruf der Eltern."
       }
       loading={options === null && !error}
       loadingRows={3}
@@ -128,20 +145,11 @@ export function CareContractNoticeCard({
             </p>
           </div>
         ) : endPending ? (
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="w-full"
-              onClick={() => setEndOpen(true)}
-            >
-              Vertragsende festlegen
-            </Button>
-            <p className="text-center text-sm text-gray-500">
-              Prüfen Sie zuerst den Grund der Eltern.
-            </p>
-          </div>
+          <EndDecisionActions
+            reinterpretedEndsOn={options?.reinterpretedEndsOn ?? null}
+            onSetEnd={() => setEndOpen(true)}
+            onReject={() => setRejectOpen(true)}
+          />
         ) : null
       }
     >
@@ -175,7 +183,77 @@ export function CareContractNoticeCard({
           }}
         />
       ) : null}
+      {notice && endPending && rejectOpen && options?.reinterpretedEndsOn ? (
+        <RejectReasonModal
+          isOpen={rejectOpen}
+          onClose={() => setRejectOpen(false)}
+          contractId={contractId}
+          reason={notice.reason ?? ""}
+          receivedOn={notice.receivedOn}
+          endsOn={options.reinterpretedEndsOn}
+          onRejected={(next) => {
+            setOptions(next);
+            setRejectOpen(false);
+            onChanged();
+          }}
+        />
+      ) : null}
     </SectionCard>
+  );
+}
+
+/**
+ * The two ways the office decides an extraordinary termination, each with
+ * what follows from it. Both reach the parents in Textform.
+ */
+function EndDecisionActions({
+  reinterpretedEndsOn,
+  onSetEnd,
+  onReject,
+}: Readonly<{
+  reinterpretedEndsOn: string | null;
+  onSetEnd: () => void;
+  onReject: () => void;
+}>) {
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="w-full"
+            onClick={onSetEnd}
+          >
+            Vertragsende festlegen
+          </Button>
+          <p className="text-center text-sm text-gray-500">
+            Wenn Sie den Grund anerkennen. Sie wählen den letzten Tag.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="w-full"
+            onClick={onReject}
+            disabled={!reinterpretedEndsOn}
+          >
+            Grund nicht anerkennen
+          </Button>
+          <p className="text-center text-sm text-gray-500">
+            {reinterpretedEndsOn
+              ? `Dann endet der Vertrag am ${formatDate(reinterpretedEndsOn)}, wie bei einer ordentlichen Kündigung.`
+              : "Dann gilt die Kündigung als ordentliche Kündigung."}
+          </p>
+        </div>
+      </div>
+      <p className="text-center text-sm text-gray-500">
+        Die Eltern bekommen Ihre Entscheidung per E-Mail und in der Eltern-App.
+      </p>
+    </div>
   );
 }
 
@@ -232,6 +310,22 @@ function NoticeFacts({
             {TERMINATION_LABELS[notice.terminationKind]}
           </DataField>
         ) : null}
+        {notice.endDecision ? (
+          <DataField label="Entscheidung des Träger-Büros">
+            <StatusBadge
+              label={DECISION_LABELS[notice.endDecision].label}
+              tone={DECISION_LABELS[notice.endDecision].tone}
+            />
+            <span className="mt-1 block text-sm font-normal text-gray-500">
+              {notice.endDecision === "umgedeutet"
+                ? "Gilt als ordentliche Kündigung zum nächsten möglichen Termin."
+                : "Das Träger-Büro hat den letzten Tag festgelegt."}
+              {notice.endDecidedAt
+                ? ` Entschieden am ${formatBerlinDate(notice.endDecidedAt)}.`
+                : ""}
+            </span>
+          </DataField>
+        ) : null}
         {notice.reason ? (
           <DataField label="Grund der Eltern">
             <span className="wrap-anywhere whitespace-pre-line">
@@ -267,6 +361,19 @@ function NoticeFacts({
           {notice.confirmationText}
         </p>
       </figure>
+      {notice.endNoticeText ? (
+        <figure
+          aria-label="Mitteilung zum Vertragsende, wie sie verschickt wurde"
+          className="moto-content-surface rounded-xl border p-4"
+        >
+          <figcaption className="mb-2 text-sm font-medium text-gray-900">
+            Mitteilung zum Vertragsende, wie sie verschickt wurde
+          </figcaption>
+          <p className="text-sm wrap-anywhere whitespace-pre-line text-gray-700">
+            {notice.endNoticeText}
+          </p>
+        </figure>
+      ) : null}
     </div>
   );
 }

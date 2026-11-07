@@ -91,7 +91,7 @@ export const categoryLabels: Record<string, string> = {
   pin: "Zugang zum Tablet",
   rechtstexte: "Rechtstexte",
   // Bestätigung von Kündigung und Widerruf (#4682); nur im Träger-Portal.
-  "vertrag-bestaetigungen": "Bestätigung an die Eltern",
+  "vertrag-bestaetigungen": "Bestätigungen und Mitteilungen an die Eltern",
   // Wann der Betreuungsvertrag gilt (#4680); Träger-Wert, Schule darf abweichen.
   vertragsabschluss: "Betreuungsvertrag",
   schulstunden: "Schulstunden",

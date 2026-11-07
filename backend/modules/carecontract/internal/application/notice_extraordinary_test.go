@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -41,6 +42,11 @@ func (f noticeFixture) endsWithin(t *testing.T, txCtx context.Context) (notice, 
 		FROM care_contract.contracts AS c JOIN care_contract.contract_notices AS n ON n.contract_id = c.id
 		WHERE c.id = ?`, f.contract).Scan(txCtx, &row))
 	return row.Notice, row.Contract
+}
+
+// setEnd is the store's end the Träger set on day.
+func setEnd(day calendar.Date) ports.NoticeEnd {
+	return ports.NoticeEnd{EndsOn: day, Decision: carecontract.EndDecisionSet, DecidedAt: noticeToday, Text: "Der Vertrag endet."}
 }
 
 var extraordinary = carecontract.NoticeInput{Kind: carecontract.NoticeTermination,
@@ -169,7 +175,7 @@ func TestNoticesOfAnotherTraegerFindNothingBeneathRLS(t *testing.T) {
 	// transaction before its rollback: the declaration's end and the
 	// contract's end of A stay open.
 	err = beneath(func(txCtx context.Context) error {
-		assert.ErrorIs(t, store.SetNoticeEnd(txCtx, other, f.contract, end), carecontract.ErrNoticeEndNotOpen, "B ends no declaration of A")
+		assert.ErrorIs(t, store.SetNoticeEnd(txCtx, other, f.contract, setEnd(end)), carecontract.ErrNoticeEndNotOpen, "B ends no declaration of A")
 		notice, contract := f.endsWithin(t, txCtx)
 		assert.Nil(t, notice, "the declaration's statement keeps to its Träger")
 		assert.Nil(t, contract, "the contract's statement keeps to its Träger")
@@ -185,21 +191,39 @@ func TestNoticesOfAnotherTraegerFindNothingBeneathRLS(t *testing.T) {
 			Scan(txCtx, &notice); err != nil {
 			return err
 		}
+		if err := store.SetEndNoticeOutbox(txCtx, other, notice, 998); err != nil {
+			return err
+		}
 		return store.SetNoticeOutbox(txCtx, other, notice, 999)
 	}))
+	// The refusal of the reason (#4682) shares SetNoticeEnd: B decides no
+	// end of A, neither by setting it nor by refusing the reason.
+	err = beneath(func(txCtx context.Context) error {
+		refused := ports.NoticeEnd{EndsOn: end, Decision: carecontract.EndDecisionReinterpreted, DecidedAt: noticeToday, Text: "abgelehnt"}
+		assert.ErrorIs(t, store.SetNoticeEnd(txCtx, other, f.contract, refused), carecontract.ErrNoticeEndNotOpen, "B refuses no reason of A")
+		notice, contract := f.endsWithin(t, txCtx)
+		assert.Nil(t, notice)
+		assert.Nil(t, contract)
+		return errRollback
+	})
+	require.ErrorIs(t, err, errRollback)
 
 	var row struct {
 		EndsOn   *calendar.Date `bun:"ends_on,type:date"`
 		Informed bool           `bun:"informed"`
 		Outbox   *int64         `bun:"outbox_id"`
+		EndMail  *int64         `bun:"end_notice_outbox_id"`
+		Decision *string        `bun:"end_decision"`
 	}
-	require.NoError(t, f.db.NewRaw(`SELECT c.ends_on, c.withdrawal_informed_at = ? AS informed, n.outbox_id
+	require.NoError(t, f.db.NewRaw(`SELECT c.ends_on, c.withdrawal_informed_at = ? AS informed, n.outbox_id, n.end_notice_outbox_id, n.end_decision
 		FROM care_contract.contracts AS c JOIN care_contract.contract_notices AS n ON n.contract_id = c.id WHERE c.id = ?`,
 		f.conclusion.At, f.contract).Scan(context.Background(), &row))
 	assert.Nil(t, row.EndsOn, "A's open end stays open")
 	assert.True(t, row.Informed, "A's notice provision stays")
 	require.NotNil(t, row.Outbox)
 	assert.NotEqual(t, int64(999), *row.Outbox, "A's confirmation mail stays")
+	assert.Nil(t, row.EndMail, "B links no end notice to A's declaration")
+	assert.Nil(t, row.Decision, "A's end stays undecided")
 }
 
 // The end of an extraordinary termination is set once (#4682). In the
@@ -214,11 +238,11 @@ func TestNoticeEndIsSetOnceInTheStore(t *testing.T) {
 	store := postgres.NewStore()
 	first, second := calendar.NewDate(2026, 12, 31), calendar.NewDate(2027, 1, 31)
 	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(txCtx context.Context) error {
-		return store.SetNoticeEnd(txCtx, f.org, f.contract, first)
+		return store.SetNoticeEnd(txCtx, f.org, f.contract, setEnd(first))
 	}))
 
 	err = testpkg.WithinTraeger(f.ctx, f.org, func(txCtx context.Context) error {
-		assert.ErrorIs(t, store.SetNoticeEnd(txCtx, f.org, f.contract, second), carecontract.ErrNoticeEndNotOpen, "the end is set once")
+		assert.ErrorIs(t, store.SetNoticeEnd(txCtx, f.org, f.contract, setEnd(second)), carecontract.ErrNoticeEndNotOpen, "the end is set once")
 		require.NoError(t, testpkg.WithoutRequestRole(txCtx))
 		notice, contract := f.endsWithin(t, txCtx)
 		assert.Equal(t, &first, notice, "the declaration keeps its first end")

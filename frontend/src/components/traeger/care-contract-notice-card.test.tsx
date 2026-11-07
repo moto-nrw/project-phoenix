@@ -4,6 +4,7 @@ import {
   render as renderPlain,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,12 +20,14 @@ const mocks = vi.hoisted(() => ({
   fetchContractNoticeOptions: vi.fn(),
   recordContractNotice: vi.fn(),
   setContractNoticeEnd: vi.fn(),
+  rejectContractNoticeReason: vi.fn(),
 }));
 
 vi.mock("~/lib/care-contract-notices-api", () => ({
   fetchContractNoticeOptions: mocks.fetchContractNoticeOptions,
   recordContractNotice: mocks.recordContractNotice,
   setContractNoticeEnd: mocks.setContractNoticeEnd,
+  rejectContractNoticeReason: mocks.rejectContractNoticeReason,
 }));
 
 import { parseISODate, toISODate } from "~/lib/date-helpers";
@@ -336,6 +339,78 @@ describe("CareContractNoticeCard (#4682)", () => {
       ),
     );
     expect(await screen.findByText("31.12.2026")).toBeInTheDocument();
+    expect(onChanged).toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Vertragsende festlegen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets the office refuse the reason with the end it was shown, and shows the notice sent", async () => {
+    const pending: ContractNoticeOptions = {
+      ...active,
+      status: "gekuendigt",
+      reinterpretedEndsOn: "2026-12-31",
+      notice: {
+        kind: "kuendigung",
+        terminationKind: "ausserordentlich",
+        reason: "Wir ziehen nach Hamburg.",
+        channel: "eltern_app",
+        declaredAt: "2026-11-07T09:30:00Z",
+        receivedOn: "2026-11-07",
+        endsOn: null,
+        recipient: "birgit.jansen@email.de",
+        confirmationText: "wir bestätigen den Eingang.",
+      },
+    };
+    mocks.fetchContractNoticeOptions.mockResolvedValue(pending);
+    mocks.rejectContractNoticeReason.mockResolvedValue({
+      ...pending,
+      reinterpretedEndsOn: null,
+      notice: {
+        ...pending.notice!,
+        endsOn: "2026-12-31",
+        endDecision: "umgedeutet",
+        endDecidedAt: "2026-11-09T10:00:00Z",
+        endNoticeText: "Ihren Grund erkennen wir nicht an.",
+      },
+    });
+    const onChanged = vi.fn();
+    render(
+      <CareContractNoticeCard
+        contractId="25"
+        status="gekuendigt"
+        concludedAt="2026-11-05T03:42:00Z"
+        onChanged={onChanged}
+      />,
+    );
+    expect(
+      await screen.findByText(
+        "Dann endet der Vertrag am 31.12.2026, wie bei einer ordentlichen Kündigung.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Grund nicht anerkennen" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Neues Vertragsende31.12.2026");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Grund nicht anerkennen" }),
+    );
+    await waitFor(() =>
+      expect(mocks.rejectContractNoticeReason).toHaveBeenCalledWith(
+        "25",
+        "2026-12-31",
+      ),
+    );
+    expect(mocks.rejectContractNoticeReason).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText("Grund nicht anerkannt"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("figure", {
+        name: "Mitteilung zum Vertragsende, wie sie verschickt wurde",
+      }),
+    ).toHaveTextContent("Ihren Grund erkennen wir nicht an.");
     expect(onChanged).toHaveBeenCalled();
     expect(
       screen.queryByRole("button", { name: "Vertragsende festlegen" }),

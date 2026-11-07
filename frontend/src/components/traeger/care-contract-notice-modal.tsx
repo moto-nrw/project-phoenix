@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatePicker } from "~/components/ui/date-picker";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -28,6 +29,7 @@ import type {
 import {
   fetchContractNoticeOptions,
   recordContractNotice,
+  rejectContractNoticeReason,
   setContractNoticeEnd,
 } from "~/lib/care-contract-notices-api";
 import {
@@ -508,7 +510,135 @@ export function SetNoticeEndModal({
         </div>
         <Alert
           type="warning"
-          message="Bis zu diesem Tag gilt die gebuchte Betreuung. Die Eltern sehen das Datum in der Eltern-App. Sie können es danach nicht mehr ändern."
+          message="Bis zu diesem Tag gilt die gebuchte Betreuung. Die Eltern bekommen das Datum per E-Mail und in der Eltern-App. Sie können es danach nicht mehr ändern."
+        />
+      </form>
+    </FormModal>
+  );
+}
+
+/**
+ * The office does not accept the reason of an extraordinary termination
+ * (#4682): it holds as an ordinary termination to the next notice date,
+ * counted from its receipt. The modal shows that day before the office
+ * decides; the backend refuses another one.
+ */
+export function RejectReasonModal({
+  isOpen,
+  onClose,
+  contractId,
+  reason,
+  receivedOn,
+  endsOn,
+  onRejected,
+}: Readonly<{
+  isOpen: boolean;
+  onClose: () => void;
+  contractId: string;
+  reason: string;
+  receivedOn: string;
+  /** The ordinary end the declaration then holds to. */
+  endsOn: string;
+  onRejected: (next: ContractNoticeOptions) => void;
+}>) {
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const form = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(form);
+  const { success } = useToast();
+
+  const submit = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    formErrors.clear();
+    setSaving(true);
+    try {
+      const next = await rejectContractNoticeReason(contractId, endsOn);
+      success(
+        `Die Kündigung gilt jetzt als ordentliche Kündigung zum ${formatDate(endsOn)}.`,
+      );
+      onRejected(next);
+    } catch (err) {
+      logger.error("traeger_care_contract_notice_reason_rejection_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void formErrors.show(err, { object: "die Entscheidung" });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
+
+  return (
+    <FormModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Grund nicht anerkennen"
+      size="sm"
+      closeDisabled={saving}
+      isBackdropDismissDisabled
+      error={formErrors.error}
+      footer={
+        <div className="flex w-full flex-wrap justify-end gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            type="submit"
+            form="care-contract-notice-rejection-form"
+            variant="primary"
+            size="md"
+            disabled={saving}
+            isLoading={saving}
+            loadingText="Wird eingetragen …"
+          >
+            Grund nicht anerkennen
+          </Button>
+        </div>
+      }
+    >
+      <form
+        id="care-contract-notice-rejection-form"
+        ref={form}
+        noValidate
+        className="space-y-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <p className="text-sm text-gray-700">
+          Dann gilt die Kündigung als ordentliche Kündigung. Der Vertrag endet
+          zum nächsten möglichen Termin. Wir zählen ab dem Tag, an dem die
+          Kündigung eingegangen ist.
+        </p>
+        <DataGrid columns={1}>
+          <DataField label="Grund der Eltern">
+            <span className="wrap-anywhere whitespace-pre-line">{reason}</span>
+          </DataField>
+          <DataField label="Eingegangen am">{formatDate(receivedOn)}</DataField>
+          <DataField label="Neues Vertragsende">
+            <span className="text-lg font-semibold text-gray-900">
+              {formatDate(endsOn)}
+            </span>
+            <span className="block text-sm font-normal text-gray-500">
+              Das ist der letzte Betreuungstag.
+            </span>
+          </DataField>
+        </DataGrid>
+        <Alert
+          type="info"
+          message="Die Eltern bekommen eine Mitteilung mit dem neuen Vertragsende per E-Mail und in der Eltern-App. Den Text legen Sie unter Einstellungen › Allgemein › Betreuungsverträge fest."
+        />
+        <Alert
+          type="warning"
+          message="Sie können die Entscheidung danach nicht mehr ändern."
         />
       </form>
     </FormModal>

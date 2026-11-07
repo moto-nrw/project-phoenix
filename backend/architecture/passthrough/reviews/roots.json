@@ -3111,11 +3111,6 @@
       "reason": "Translates Träger-scoped Delivery statuses into positive timestamped provision evidence only; excludes enqueueing, transport acceptance without a receipt, failure and missing timestamps (ADR 0159)."
     },
     {
-      "decision": "0153",
-      "id": "roots/owners/careContractNoticeTemplates.NoticeTemplate",
-      "reason": "Consumer-port adapter (#4682): it picks the Träger setting of the confirmation template by the kind of the declaration and reads it at the Träger level; no environment value."
-    },
-    {
       "decision": "0155",
       "id": "roots/owners/careContractReminderSettings.SignatureReminderDays",
       "reason": "ADR 0155 (#4679): Consumer-port adapter that reads the Träger's reminder days through the Träger settings and answers the one value."
