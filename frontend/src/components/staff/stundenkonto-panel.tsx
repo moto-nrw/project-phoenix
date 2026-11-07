@@ -16,6 +16,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Modal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
@@ -39,7 +40,6 @@ function parseDecimalInput(value: string): number | null {
 }
 
 import { formatSignedDuration } from "./staff-time-views";
-import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "StundenkontoPanel" });
 

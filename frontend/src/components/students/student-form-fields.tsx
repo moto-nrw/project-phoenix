@@ -39,6 +39,7 @@ import type {
 } from "~/lib/student-companion-api";
 import { childrenConcept } from "~/lib/concepts/children";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { InfoSection } from "~/components/ui/detail-modal-components";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface SelectOption {
@@ -78,15 +79,16 @@ export function PersonalInfoSection({
   };
 }>) {
   return (
-    <InsetPanel framed padding="md">
-      <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+    <InfoSection
+      title="Persönliche Daten"
+      icon={
         <MotoDuotoneIcon
           icon={childrenConcept.icon}
           tone={childrenConcept.tone}
-          size={18}
+          size={16}
         />
-        Persönliche Daten
-      </h3>
+      }
+    >
       <ParentVisibilityLegend className="mb-3 md:mb-4" />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
         <TextInput
@@ -150,7 +152,7 @@ export function PersonalInfoSection({
           placeholder="Köln"
         />
       </div>
-    </InsetPanel>
+    </InfoSection>
   );
 }
 
@@ -395,15 +397,16 @@ export function PrivacyConsentSection({
 }>) {
   const retentionError = fieldError("data_retention_days");
   return (
-    <InsetPanel framed padding="md">
-      <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+    <InfoSection
+      title="Datenschutz"
+      icon={
         <MotoDuotoneIcon
           icon={permissionsConcept.icon}
           tone={permissionsConcept.tone}
-          size={18}
+          size={16}
         />
-        Datenschutz
-      </h3>
+      }
+    >
       <div className="space-y-4">
         <label
           htmlFor="privacy-consent-accepted"
@@ -444,7 +447,7 @@ export function PrivacyConsentSection({
           />
         </div>
       </div>
-    </InsetPanel>
+    </InfoSection>
   );
 }
 
