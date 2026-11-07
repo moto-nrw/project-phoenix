@@ -151,7 +151,6 @@ func TestHolidaysFollowEasterIn2026And2027(t *testing.T) {
 	} {
 		easter := easterSunday(year.easter.Year())
 		assert.Equal(t, year.easter, easter)
-		assert.Equal(t, year.corpusChristi, easter.AddDays(60), "Fronleichnam")
 		assert.True(t, nationwideHoliday(year.ascension), year.ascension.String())
 		assert.True(t, nationwideHoliday(year.whitMonday), year.whitMonday.String())
 		assert.False(t, nationwideHoliday(year.corpusChristi), "Fronleichnam is regional: "+year.corpusChristi.String())

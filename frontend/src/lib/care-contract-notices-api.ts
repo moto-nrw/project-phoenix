@@ -13,8 +13,6 @@ import {
 } from "./care-contract-notices";
 import { traegerRequest } from "./traeger-api";
 
-// ── Träger-Büro ────────────────────────────────────────────────────────────
-
 const officePath = (id: string) =>
   `/api/traeger/contract-notices/${encodeURIComponent(id)}`;
 

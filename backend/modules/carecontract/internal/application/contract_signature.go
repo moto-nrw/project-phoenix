@@ -12,7 +12,6 @@ import (
 // carries a new one-time link, and the detail shows the signature with the
 // check of its checksums and the reminders.
 
-// signingLink is the link of one mail.
 type signingLink struct {
 	url       string
 	expiresOn string

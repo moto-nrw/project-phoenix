@@ -39,7 +39,7 @@
   "signedMail": "Do të merrni një konfirmim me kontratën me e-mail.",
   "withdrawalUntil": "Mund të tërhiqeni nga kontrata deri më {date}.",
   "earlyStartChosen": "Kujdesi fillon siç është rënë dakord, edhe gjatë afatit të tërheqjes.",
-  "alreadySigned": "Kjo kontratë është nënshkruar tashmë.",
+  "alreadyInForce": "Kjo kontratë është tashmë në fuqi. Nuk keni nevojë të nënshkruani asgjë.",
   "invalidTitle": "Ky link nuk është më i vlefshëm",
   "invalidText": "Linku është përdorur tashmë ose ka skaduar. A keni nënshkruar tashmë? Atëherë nuk keni nevojë të bëni asgjë. Kontratën e gjeni në aplikacionin për prindër te „Dokumente“. Ose kërkoni një link të ri nga ofruesi.",
   "back": "Kthehu te dokumentet",
