@@ -18,6 +18,7 @@ import type { ChildStatus } from "~/lib/enrollment-admin-api";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
+import { FieldLabel } from "~/components/ui/field-label";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
 import {
@@ -310,25 +311,17 @@ export function RolloverForm({
           onChange={(e) => update("name", e.target.value)}
           error={formErrors.fieldError("name")}
         />
-        <label
-          className="block"
-          htmlFor="rollover-kind"
-          id="rollover-kind-label"
-        >
-          <span className="block text-xs font-semibold text-gray-700">Typ</span>
-          <CustomSelect
-            ariaLabelledBy="rollover-kind-label"
-            id="rollover-kind"
-            value={draft.kind}
-            onChange={(value) => update("kind", value as RolloverInput["kind"])}
-            className="mt-1"
-            options={[
-              { value: "school_year", label: "Schuljahr" },
-              { value: "holiday", label: "Ferienbetreuung" },
-              { value: "custom", label: "Sonstiges" },
-            ]}
-          />
-        </label>
+        <CustomSelect
+          id="rollover-kind"
+          label="Typ"
+          value={draft.kind}
+          onChange={(value) => update("kind", value as RolloverInput["kind"])}
+          options={[
+            { value: "school_year", label: "Schuljahr" },
+            { value: "holiday", label: "Ferienbetreuung" },
+            { value: "custom", label: "Sonstiges" },
+          ]}
+        />
       </div>
 
       <fieldset className="rounded-xl border border-gray-200 p-4">
@@ -336,49 +329,33 @@ export function RolloverForm({
           Betreuungszeitraum
         </legend>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="block">
-            <label
-              htmlFor="rollover-service-start"
-              className="block text-xs font-semibold text-gray-700"
-            >
-              Betreuung von
-            </label>
-            <ISODatePicker
-              id="rollover-service-start"
-              controlSize="md"
-              ariaLabel="Betreuung von"
-              value={draft.service_start_date}
-              onChange={(next) => update("service_start_date", next)}
-              error={formErrors.fieldError("service_start_date")}
-              className="mt-1"
-              calendarLayout="popover"
-              // The required picker prevents deselection in the calendar; the
-              // submit validation remains the safety net for programmatic edits.
-              hideClearButton
-              required
-            />
-          </div>
-          <div className="block">
-            <label
-              htmlFor="rollover-service-end"
-              className="block text-xs font-semibold text-gray-700"
-            >
-              Betreuung bis
-            </label>
-            <ISODatePicker
-              id="rollover-service-end"
-              controlSize="md"
-              ariaLabel="Betreuung bis"
-              min={draft.service_start_date || undefined}
-              value={draft.service_end_date}
-              onChange={(next) => update("service_end_date", next)}
-              error={formErrors.fieldError("service_end_date")}
-              className="mt-1"
-              calendarLayout="popover"
-              hideClearButton
-              required
-            />
-          </div>
+          <ISODatePicker
+            id="rollover-service-start"
+            controlSize="md"
+            label="Betreuung von"
+            ariaLabel="Betreuung von"
+            value={draft.service_start_date}
+            onChange={(next) => update("service_start_date", next)}
+            error={formErrors.fieldError("service_start_date")}
+            calendarLayout="popover"
+            // The required picker prevents deselection in the calendar; the
+            // submit validation remains the safety net for programmatic edits.
+            hideClearButton
+            required
+          />
+          <ISODatePicker
+            id="rollover-service-end"
+            controlSize="md"
+            label="Betreuung bis"
+            ariaLabel="Betreuung bis"
+            min={draft.service_start_date || undefined}
+            value={draft.service_end_date}
+            onChange={(next) => update("service_end_date", next)}
+            error={formErrors.fieldError("service_end_date")}
+            calendarLayout="popover"
+            hideClearButton
+            required
+          />
         </div>
       </fieldset>
 
@@ -387,47 +364,35 @@ export function RolloverForm({
           Elternrückmeldung
         </legend>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block" htmlFor="rollover-mode">
-            <span className="block text-xs font-semibold text-gray-700">
-              Modus
-            </span>
-            <CustomSelect
-              id="rollover-mode"
-              value={draft.rollover_mode}
-              onChange={(value) =>
-                update("rollover_mode", value as RolloverMode)
-              }
-              className="mt-1"
-              ariaLabel="Modus"
-              options={[
-                {
-                  value: "opt_out",
-                  label: "Opt-Out: Eltern müssen abmelden",
-                },
-                {
-                  value: "opt_in",
-                  label: "Opt-In: Eltern müssen aktiv bestätigen",
-                },
-              ]}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              {draft.rollover_mode === "opt_out"
+          <CustomSelect
+            id="rollover-mode"
+            label="Modus"
+            hint={
+              draft.rollover_mode === "opt_out"
                 ? "Anmeldungen werden automatisch übernommen. Ohne aktive Abmeldung bis zur Frist landet die Anmeldung in der Prüfung."
-                : "Eltern müssen aktiv bestätigen. Ohne Bestätigung bis zur Frist wird die Anmeldung zurückgezogen."}
-            </p>
-          </label>
-          <div className="block">
-            <label
-              htmlFor="rollover-deadline"
-              className="block text-xs font-semibold text-gray-700"
-            >
+                : "Eltern müssen aktiv bestätigen. Ohne Bestätigung bis zur Frist wird die Anmeldung zurückgezogen."
+            }
+            value={draft.rollover_mode}
+            onChange={(value) => update("rollover_mode", value as RolloverMode)}
+            options={[
+              {
+                value: "opt_out",
+                label: "Opt-Out: Eltern müssen abmelden",
+              },
+              {
+                value: "opt_in",
+                label: "Opt-In: Eltern müssen aktiv bestätigen",
+              },
+            ]}
+          />
+          <div>
+            <FieldLabel htmlFor="rollover-deadline" required>
               Frist für die Eltern-Antwort
-            </label>
+            </FieldLabel>
             <DateTimePicker
               id="rollover-deadline"
               dateAriaLabel="Frist für die Eltern-Antwort"
               timeAriaLabel="Frist Uhrzeit"
-              className="mt-1"
               value={deadlineLocal}
               onChange={setDeadlineLocal}
               invalid={Boolean(formErrors.fieldError("rollover_deadline"))}

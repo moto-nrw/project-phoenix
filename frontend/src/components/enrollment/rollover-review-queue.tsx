@@ -254,15 +254,10 @@ export function RolloverReviewQueue({ phaseID }: Props) {
                   </div>
                 )}
 
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <label
-                    htmlFor={`grade-${item.child_id}`}
-                    className="text-xs font-semibold text-gray-700"
-                  >
-                    Klassenstufe für nächste Phase (optional):
-                  </label>
+                <div className="mt-4">
                   <Input
                     id={`grade-${item.child_id}`}
+                    label="Klassenstufe für nächste Phase (optional)"
                     name={gradeFieldName(item.child_id)}
                     error={decision.fieldError(gradeFieldName(item.child_id))}
                     type="number"

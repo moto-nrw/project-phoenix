@@ -39,6 +39,7 @@ import { createLogger } from "~/lib/logger";
 import { displayEmail, isDemoBuild } from "~/lib/demo-build";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -587,35 +588,22 @@ export default function GuardiansPanel({
               <p>{t("guardians.access.inviteIntro")}</p>
               <p>{t("guardians.access.inviteDetails")}</p>
             </div>
-            <div className="space-y-2">
-              <label
-                htmlFor="guardian-invite-email"
-                className="block text-sm font-medium text-gray-800"
-              >
-                {t("guardians.access.emailLabel")}
-              </label>
-              <Input
-                id="guardian-invite-email"
-                name="email"
-                error={inviteFieldError("email")}
-                type="email"
-                autoComplete="email"
-                required
-                value={inviteEmail}
-                onChange={(event) => {
-                  setInviteEmail(event.target.value);
-                  clearInviteError();
-                }}
-                placeholder={t("guardians.access.emailPlaceholder")}
-                aria-describedby="guardian-invite-email-hint"
-              />
-              <p
-                id="guardian-invite-email-hint"
-                className="text-xs leading-5 text-gray-500"
-              >
-                {t("guardians.access.emailHint")}
-              </p>
-            </div>
+            <Input
+              id="guardian-invite-email"
+              name="email"
+              label={t("guardians.access.emailLabel")}
+              hint={t("guardians.access.emailHint")}
+              error={inviteFieldError("email")}
+              type="email"
+              autoComplete="email"
+              required
+              value={inviteEmail}
+              onChange={(event) => {
+                setInviteEmail(event.target.value);
+                clearInviteError();
+              }}
+              placeholder={t("guardians.access.emailPlaceholder")}
+            />
           </form>
         </Modal>
       ) : null}
@@ -1230,10 +1218,8 @@ function ContactModal({
               {t("guardians.createContactIntro")}
             </p>
             <div>
-              <p className="mb-1 text-sm font-medium text-gray-700">
-                {t("guardians.relationshipLabel")}
-              </p>
               <CustomSelect
+                label={t("guardians.relationshipLabel")}
                 value={relationshipType}
                 options={RELATIONSHIP_TYPES.map((type) => ({
                   value: type,
@@ -1242,7 +1228,6 @@ function ContactModal({
                 onChange={(value) =>
                   setRelationshipType(value as RelationshipType)
                 }
-                ariaLabel={t("guardians.relationshipLabel")}
               />
             </div>
             {canManagePickup ? (
@@ -1367,9 +1352,7 @@ function ContactModal({
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-gray-700">
-            {t("guardians.phoneNumbers")}
-          </p>
+          <FieldLabel>{t("guardians.phoneNumbers")}</FieldLabel>
           <div className="space-y-2">
             {phones.map((p, i) => (
               <div key={p.id} className="flex items-center gap-2">
