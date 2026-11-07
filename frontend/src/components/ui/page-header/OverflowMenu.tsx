@@ -421,11 +421,12 @@ export function OverflowMenu({
     entries[next]?.focus();
   };
 
-  // Ein Link reagiert von sich aus nur auf Enter; als Menüeintrag auch auf die
-  // Leertaste wie seine Nachbarn.
+  // Als Menüeintrag reagieren Links mit beiden Aktivierungstasten wie ihre
+  // Nachbarn. Der Fokus muss vor dem Entfernen des portalierten Menüs zurück.
   const onLinkKey = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key !== " ") return;
+    if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
+    triggerRef.current?.focus();
     event.currentTarget.click();
   };
 

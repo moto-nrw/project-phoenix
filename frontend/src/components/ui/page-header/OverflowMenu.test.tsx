@@ -687,20 +687,36 @@ describe("OverflowMenu", () => {
     ).toBeNull();
   });
 
-  it("activates a link entry with the space bar", () => {
-    const onClick = vi.fn();
-    render(
-      <OverflowMenu items={[{ label: "Ziel", href: "/ziel", onClick }]} />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  it.each(["Enter", " "])(
+    "returns focus to the trigger after an external link is activated with %s",
+    (key) => {
+      const onClick = vi.fn();
+      render(
+        <OverflowMenu
+          items={[
+            {
+              label: "Ziel",
+              href: "https://example.test/ziel",
+              external: true,
+              onClick,
+            },
+          ]}
+        />,
+      );
+      const trigger = screen.getByRole("button", { name: "Weitere Aktionen" });
+      fireEvent.click(trigger, { detail: 0 });
+      const item = screen.getByRole("menuitem", { name: "Ziel" });
+      expect(item).toHaveFocus();
 
-    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Ziel" }), {
-      key: " ",
-    });
+      fireEvent.keyDown(item, {
+        key,
+      });
 
-    expect(onClick).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-  });
+      expect(onClick).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    },
+  );
 
   it("stays open when a scroll does not move the trigger", () => {
     render(
