@@ -92,6 +92,7 @@ type Config struct {
 	// release for its push, and the accounts a release may reach.
 	ContractInboxNotices ContractInboxNotices
 	ReleaseNotices       ReleaseNotices
+	ReleaseSchools       ReleaseSchools
 	ReleaseRecipients    ReleaseRecipients
 
 	// Owner commands. Care Plan records absences, the guardian leg of a

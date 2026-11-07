@@ -53,19 +53,18 @@ func (n parentReleaseNotices) ReleaseIsNewForParent(ctx context.Context, organiz
 	return n.documents.ReleaseIsNewForParent(ctx, organizationID, releaseID, organizationtenancy.TraegerDocumentParent(reader))
 }
 
-// parentReleaseRecipients names the schools of a Träger and the accounts a
-// release may reach at one of them.
-type parentReleaseRecipients struct {
-	schools  organizationtenancy.SchoolListQuery
-	audience communication.ParentGroupAudienceReads
+// parentReleaseSchools names the schools of a Träger for a release to
+// every school.
+type parentReleaseSchools struct {
+	schools organizationtenancy.SchoolListQuery
 }
 
-// NewParentReleaseRecipients binds the recipients of a release's push.
-func NewParentReleaseRecipients(schools organizationtenancy.SchoolListQuery, audience communication.ParentGroupAudienceReads) parentportal.ReleaseRecipientsPort {
-	return parentReleaseRecipients{schools: schools, audience: audience}
+// NewParentReleaseSchools binds the schools of a release's push.
+func NewParentReleaseSchools(schools organizationtenancy.SchoolListQuery) parentportal.ReleaseSchoolsPort {
+	return parentReleaseSchools{schools: schools}
 }
 
-func (r parentReleaseRecipients) TraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
+func (r parentReleaseSchools) TraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
 	schools, err := r.schools.ListSchoolsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, err
@@ -77,6 +76,17 @@ func (r parentReleaseRecipients) TraegerSchoolIDs(ctx context.Context, organizat
 		}
 	}
 	return ids, nil
+}
+
+// parentReleaseRecipients names the accounts a release may reach at a
+// school, through the parent audience projection.
+type parentReleaseRecipients struct {
+	audience communication.ParentGroupAudienceReads
+}
+
+// NewParentReleaseRecipients binds the recipients of a release's push.
+func NewParentReleaseRecipients(audience communication.ParentGroupAudienceReads) parentportal.ReleaseRecipientsPort {
+	return parentReleaseRecipients{audience: audience}
 }
 
 // GuardianAccounts lists, with the rules of a parent group thread, the

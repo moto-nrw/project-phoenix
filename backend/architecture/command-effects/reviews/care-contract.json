@@ -11,6 +11,17 @@
       "target_owner": "settings-platform"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractDocumentNotices.EnqueueContractDocumentNotice",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.DocumentNotices.EnqueueContractDocumentNotice",
+      "reason": "Platform protocol participation (durable): care-contract reaches modules/delivery/runtime.Capability.EnqueueDeferredPush (delivery-platform) through roots/owners.CareContractDocumentNotices.EnqueueContractDocumentNotice. The push of a Träger that a sent care contract is in the inbox of the parents portal is enqueued in the caller's Träger transaction before the mailing is recorded, keyed by the contract and the address and enqueued for the first stored send to that address only; the worker resolves the account, its relationship to the contract's child and its devices when it sends (ADR 0126, #5941); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueDeferredPush",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
       "classification": "query",
       "effect": "query",

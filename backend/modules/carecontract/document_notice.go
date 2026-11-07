@@ -29,10 +29,10 @@ type ContractDocumentNotice struct {
 }
 
 // DocumentNotices puts the push of a sent contract on Delivery's outbox in
-// the caller's Träger transaction. The key names the contract and the
+// the caller's Träger transaction. Its key names the contract and the
 // address, so a retry of the same send is a duplicate.
 type DocumentNotices interface {
-	EnqueueContractDocumentNotice(ctx context.Context, notice ContractDocumentNotice, idempotencyKey string) error
+	EnqueueContractDocumentNotice(ctx context.Context, notice ContractDocumentNotice) error
 }
 
 // ContractNoticeTarget is the school and the child of a contract whose push

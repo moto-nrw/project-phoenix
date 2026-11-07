@@ -34,7 +34,8 @@ func traegerDocumentNotices(t *testing.T) (parentService.DocumentNotices, *recor
 	deps.StudentRepo = owners.NewParentStudentReads(people.Student)
 	deps.ContractInboxNotices = owners.NewParentContractInboxNotices()
 	deps.ReleaseNotices = owners.NewParentReleaseNotices()
-	deps.ReleaseRecipients = owners.NewParentReleaseRecipients(organizations, owners.NewParentGroupAudience(testpkg.NewDatabase(t, db)))
+	deps.ReleaseSchools = owners.NewParentReleaseSchools(organizations)
+	deps.ReleaseRecipients = owners.NewParentReleaseRecipients(owners.NewParentGroupAudience(testpkg.NewDatabase(t, db)))
 	deps.Logger = slog.Default()
 	return parentportalcompose.NewDocumentNotices(deps), pushes, db
 }

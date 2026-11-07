@@ -9,6 +9,14 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractDocumentNotices.EnqueueContractDocumentNotice",
+      "binding_digest": "e2b8012ce68edd20d953df8e453d2673",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.DocumentNotices.EnqueueContractDocumentNotice",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueDeferredPush",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
       "binding_digest": "3cd0a03036d3f7035a48f3b28dc84759",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",

@@ -47,6 +47,7 @@ type (
 	ContractNoticeTarget            = care.ContractNoticeTarget
 	ReleaseNoticesPort              = care.ReleaseNotices
 	ReleaseNoticeAudience           = care.ReleaseNoticeAudience
+	ReleaseSchoolsPort              = care.ReleaseSchools
 	ReleaseRecipientsPort           = care.ReleaseRecipients
 	BillingDocumentReader           = care.BillingDocumentReader
 	BillingDocumentsPort            = care.BillingDocuments

@@ -285,7 +285,8 @@ func BuildParentDocumentNotices(
 		TraegerRuntime: ParentPortalRuntime{}, StudentRepo: NewParentStudentReads(people.Students),
 		ContractInboxNotices: NewParentContractInboxNotices(),
 		ReleaseNotices:       NewParentReleaseNotices(),
-		ReleaseRecipients:    NewParentReleaseRecipients(organizations, NewParentGroupAudience(db)),
+		ReleaseSchools:       NewParentReleaseSchools(organizations),
+		ReleaseRecipients:    NewParentReleaseRecipients(NewParentGroupAudience(db)),
 		Logger:               env.Logger.With("service", "parent-document-notices"),
 	})
 }

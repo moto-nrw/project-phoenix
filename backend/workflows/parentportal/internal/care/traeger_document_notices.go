@@ -66,13 +66,17 @@ type ReleaseNotices interface {
 	ReleaseIsNewForParent(ctx context.Context, organizationID, releaseID int64, reader SharedDocumentReader) (bool, error)
 }
 
-// ReleaseRecipients finds the accounts a release may reach. TraegerSchoolIDs
-// runs outside any transaction; GuardianAccounts runs in the tenant
-// transaction of schoolID and lists the accounts whose relationship to a
-// child there, in groupID when set, grants parent_portal.access. Each
-// candidate is checked again through its own relationships before a push.
-type ReleaseRecipients interface {
+// ReleaseSchools lists the undeleted schools of a Träger, outside any
+// transaction, for a release to every school.
+type ReleaseSchools interface {
 	TraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
+}
+
+// ReleaseRecipients finds the accounts a release may reach at a school, in
+// the tenant transaction of schoolID: those whose relationship to a child
+// there, in groupID when set, grants parent_portal.access. Each candidate is
+// checked again through its own relationships before a push.
+type ReleaseRecipients interface {
 	GuardianAccounts(ctx context.Context, schoolID int64, groupID *int64) ([]int64, error)
 }
 
@@ -118,7 +122,7 @@ func (s *Service) NotifyContractDocument(ctx context.Context, organizationID, co
 // every account it newly shows the document. A revoked release, a deleted
 // document or a release for schools reaches nobody.
 func (s *Service) NotifyTraegerDocumentRelease(ctx context.Context, organizationID, releaseID int64) error {
-	if s.TraegerRuntime == nil || s.ReleaseNotices == nil || s.ReleaseRecipients == nil || s.DocumentNotifier == nil ||
+	if s.TraegerRuntime == nil || s.ReleaseNotices == nil || s.ReleaseSchools == nil || s.ReleaseRecipients == nil || s.DocumentNotifier == nil ||
 		s.SchoolTraeger == nil || s.StudentRepo == nil {
 		return errors.New("parent: release notice is not configured")
 	}
@@ -165,7 +169,7 @@ func (s *Service) releaseSchools(ctx context.Context, organizationID int64, audi
 	if audience.SchoolID != nil {
 		return []int64{*audience.SchoolID}, nil
 	}
-	schools, err := s.ReleaseRecipients.TraegerSchoolIDs(ctx, organizationID)
+	schools, err := s.ReleaseSchools.TraegerSchoolIDs(ctx, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("parent: list schools of the release: %w", err)
 	}

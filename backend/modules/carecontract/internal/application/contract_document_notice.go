@@ -2,8 +2,6 @@ package application
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -34,16 +32,9 @@ func (c *Contracts) enqueueDocumentNotice(ctx context.Context, organizationID, c
 	}
 	err = c.notices.EnqueueContractDocumentNotice(ctx, carecontract.ContractDocumentNotice{
 		OrganizationID: organizationID, ContractID: contractID, RecipientEmail: recipient,
-	}, contractDocumentNoticeKey(contractID, recipient))
+	})
 	if err != nil {
 		return fmt.Errorf("care contract: enqueue document push: %w", err)
 	}
 	return nil
-}
-
-// contractDocumentNoticeKey names the contract and the address without
-// spelling the address out: the key travels into Delivery's logs.
-func contractDocumentNoticeKey(contractID int64, address string) string {
-	sum := sha256.Sum256([]byte(strings.ToLower(address)))
-	return fmt.Sprintf("care-contract-document:%d:%s", contractID, hex.EncodeToString(sum[:8]))
 }

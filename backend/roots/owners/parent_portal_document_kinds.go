@@ -2,8 +2,11 @@ package owners
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
@@ -90,14 +93,14 @@ type DeferredPushOutbox interface {
 	EnqueueDeferredPush(ctx context.Context, intent deliveryContract.DeferredPushIntent) (deliveryContract.Enqueued, error)
 }
 
-func (n CareContractDocumentNotices) EnqueueContractDocumentNotice(ctx context.Context, notice carecontract.ContractDocumentNotice, idempotencyKey string) error {
+func (n CareContractDocumentNotices) EnqueueContractDocumentNotice(ctx context.Context, notice carecontract.ContractDocumentNotice) error {
 	payload, err := json.Marshal(notice)
 	if err != nil {
 		return fmt.Errorf("contract document notice payload: %w", err)
 	}
 	_, err = n.Delivery.EnqueueDeferredPush(ctx, deliveryContract.DeferredPushIntent{
 		OrganizationID: notice.OrganizationID, Template: carecontract.PushKindContractDocument,
-		IdempotencyKey: idempotencyKey, Payload: payload,
+		IdempotencyKey: contractDocumentNoticeKey(notice.ContractID, notice.RecipientEmail), Payload: payload,
 		Related: deliveryContract.RelatedEntity{Type: carecontract.PushRelatedContractDocument, ID: notice.ContractID},
 	})
 	return err
@@ -122,4 +125,11 @@ func (n TraegerDocumentReleaseNotices) EnqueueReleaseNotice(ctx context.Context,
 		Related: deliveryContract.RelatedEntity{Type: organizationtenancy.PushRelatedTraegerDocumentRelease, ID: notice.ReleaseID},
 	})
 	return err
+}
+
+// contractDocumentNoticeKey names the contract and the address without
+// spelling the address out: the key travels into Delivery's logs.
+func contractDocumentNoticeKey(contractID int64, address string) string {
+	sum := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(address))))
+	return fmt.Sprintf("care-contract-document:%d:%s", contractID, hex.EncodeToString(sum[:8]))
 }
