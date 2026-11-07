@@ -163,7 +163,7 @@ func (s *ChangeRequests) writeApprovedRequest(ctx context.Context, run *approval
 	req, prepared := run.req, run.prepared.request
 	req.GuardianFirstName = textnorm.Name(prepared.GuardianFirstName)
 	req.GuardianLastName = textnorm.Name(prepared.GuardianLastName)
-	req.GuardianEmail = lowerTrim(prepared.GuardianEmail)
+	req.GuardianEmail = guardianEmailKey(prepared.GuardianEmail)
 	req.GuardianPhone = prepared.GuardianPhone
 	req.ConsentFlags = prepared.ConsentFlags
 	req.CustomData = prepared.CustomData
@@ -550,7 +550,7 @@ func childStatusCountsForCapacity(status string) bool {
 // ensureNoActiveDuplicateForApproval applies the duplicate policy to the
 // approved identities under the submission's dedup lock.
 func (s *ChangeRequests) ensureNoActiveDuplicateForApproval(ctx context.Context, req *Request, prepared SubmitRequest) error {
-	emailLC := lowerTrim(req.GuardianEmail)
+	emailLC := guardianEmailKey(req.GuardianEmail)
 	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, req.PhaseID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("change request approve: acquire duplicate lock: %w", err)
 	}
@@ -596,6 +596,6 @@ func matchingPreviousGuardianProfileID(previous []*enrollmentNative.RequestGuard
 
 func guardianProfileCarryKey(firstName, lastName string, email, phone *string) string {
 	return strings.Join([]string{
-		lowerTrim(firstName), lowerTrim(lastName), lowerTrim(optionalString(email)), lowerTrim(optionalString(phone)),
+		lowerTrim(firstName), lowerTrim(lastName), guardianEmailKey(optionalString(email)), lowerTrim(optionalString(phone)),
 	}, "\x00")
 }

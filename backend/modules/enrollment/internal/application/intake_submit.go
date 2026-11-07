@@ -230,7 +230,7 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *submissionPlan, outcome *submitOutcome) error {
 	// Serialize concurrent submits of one (phase, guardian email), so two
 	// parallel requests cannot both pass the duplicate check.
-	emailLC := lowerTrim(req.GuardianEmail)
+	emailLC := guardianEmailKey(req.GuardianEmail)
 	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("submit: acquire dedup lock: %w", err)
 	}
@@ -330,7 +330,7 @@ func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest,
 	request := &Request{
 		SchemaID: schemaID, PhaseID: plan.phase.ID, GuardianAccountID: req.GuardianAccountID,
 		GuardianFirstName: textnorm.Name(req.GuardianFirstName), GuardianLastName: textnorm.Name(req.GuardianLastName),
-		GuardianEmail: lowerTrim(req.GuardianEmail), GuardianPhone: req.GuardianPhone,
+		GuardianEmail: guardianEmailKey(req.GuardianEmail), GuardianPhone: req.GuardianPhone,
 		ConsentFlags: req.ConsentFlags, CustomData: req.CustomData,
 		SubmissionSource: plan.submissionSource, SourceMetadata: plan.sourceMetadata,
 		StatusToken: plan.statusToken, StatusTokenExpires: &statusExpiresAt, SubmittedAt: time.Now(),

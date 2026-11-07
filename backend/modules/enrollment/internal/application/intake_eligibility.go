@@ -202,7 +202,7 @@ type reEnrollmentSubmitter struct {
 func reEnrollmentSubmitterFor(submissionSource string, guardianAccountID *int64, guardianEmail string) reEnrollmentSubmitter {
 	return reEnrollmentSubmitter{
 		GuardianAccountID: guardianAccountID,
-		GuardianEmail:     lowerTrim(guardianEmail),
+		GuardianEmail:     guardianEmailKey(guardianEmail),
 		AdminManaged:      enrollmentNative.NormalizedSubmissionSource(submissionSource) == enrollmentNative.RequestSourceAdminManual,
 	}
 }
