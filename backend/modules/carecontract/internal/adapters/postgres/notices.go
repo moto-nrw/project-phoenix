@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -80,38 +81,46 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 	if row.Party != nil {
 		state.Accounts = append(state.Accounts, *row.Party)
 	}
+	if err := readNotice(ctx, db, organizationID, contractID, &state); err != nil {
+		return ports.NoticeState{}, err
+	}
+	return state, nil
+}
+
+// text is the value of a nullable text column, "" for NULL.
+func text(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+// readNotice adds the contract's newest declaration to state, with the
+// account that declared among the accounts the contract names.
+func readNotice(ctx context.Context, db bun.IDB, organizationID, contractID int64, state *ports.NoticeState) error {
 	var notices []noticeRow
 	if err := db.NewRaw(`SELECT id, account_id, kind, notice_kind, channel, declared_at, received_on, dispatched_on, ends_on, reason, recipient_email, confirmation_text,
 			end_decision, end_decided_at, end_notice_text, end_notice_outbox_id
 		FROM care_contract.contract_notices WHERE organization_id = ? AND contract_id = ? ORDER BY id DESC LIMIT 1`,
 		organizationID, contractID).Scan(ctx, &notices); err != nil {
-		return ports.NoticeState{}, fmt.Errorf("care contract postgres: read notice: %w", err)
+		return fmt.Errorf("care contract postgres: read notice: %w", err)
 	}
-	if len(notices) == 1 {
-		notice := notices[0]
-		state.Notice = &carecontract.Notice{
-			Kind: notice.Kind, Channel: notice.Channel, DeclaredAt: notice.DeclaredAt, ReceivedOn: notice.ReceivedOn,
-			DispatchedOn: notice.DispatchedOn, EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
-			EndDecidedAt: notice.EndDecidedAt, EndNoticeSent: notice.EndNoticeOutbox != nil,
-		}
-		state.NoticeID = notice.ID
-		if notice.AccountID != nil && (len(state.Accounts) == 0 || state.Accounts[0] != *notice.AccountID) {
-			state.Accounts = append(state.Accounts, *notice.AccountID)
-		}
-		if notice.EndDecision != nil {
-			state.Notice.EndDecision = *notice.EndDecision
-		}
-		if notice.EndNoticeText != nil {
-			state.Notice.EndNoticeText = *notice.EndNoticeText
-		}
-		if notice.NoticeKind != nil {
-			state.Notice.TerminationKind = *notice.NoticeKind
-		}
-		if notice.Reason != nil {
-			state.Notice.Reason = *notice.Reason
-		}
+	if len(notices) != 1 {
+		return nil
 	}
-	return state, nil
+	notice := notices[0]
+	state.Notice = &carecontract.Notice{
+		Kind: notice.Kind, Channel: notice.Channel, DeclaredAt: notice.DeclaredAt, ReceivedOn: notice.ReceivedOn,
+		DispatchedOn: notice.DispatchedOn, EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
+		EndDecidedAt: notice.EndDecidedAt, EndNoticeSent: notice.EndNoticeOutbox != nil,
+		TerminationKind: text(notice.NoticeKind), Reason: text(notice.Reason),
+		EndDecision: text(notice.EndDecision), EndNoticeText: text(notice.EndNoticeText),
+	}
+	state.NoticeID = notice.ID
+	if notice.AccountID != nil && !slices.Contains(state.Accounts, *notice.AccountID) {
+		state.Accounts = append(state.Accounts, *notice.AccountID)
+	}
+	return nil
 }
 
 // InsertNotice stores the declaration and moves the contract to its status.

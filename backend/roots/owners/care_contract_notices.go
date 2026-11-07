@@ -65,18 +65,9 @@ type careContractNoticeAddressees struct {
 }
 
 func (a careContractNoticeAddressees) PermittedAddresses(ctx context.Context, studentID int64, accountIDs []int64) ([]string, error) {
-	links, err := a.guardians.ListGuardianLinksByAccounts(ctx, accountIDs)
-	if err != nil {
-		return nil, fmt.Errorf("care contract notice addressees: links: %w", err)
-	}
-	granted := map[int64]bool{}
-	for _, link := range links {
-		if link.StudentID == studentID && link.HasPermission(carecontract.GuardianPermissionEnrollmentSubmit) {
-			granted[link.GuardianProfileID] = true
-		}
-	}
-	if len(granted) == 0 {
-		return nil, nil
+	granted, err := a.grantedProfiles(ctx, studentID, accountIDs)
+	if err != nil || len(granted) == 0 {
+		return nil, err
 	}
 	guardians, err := a.guardians.ListGuardiansByAccount(ctx, accountIDs)
 	if err != nil {
@@ -93,14 +84,37 @@ func (a careContractNoticeAddressees) PermittedAddresses(ctx context.Context, st
 		}
 		permitted = append(permitted, *guardian.AccountID)
 	}
-	if len(permitted) == 0 {
-		return addresses, nil
+	accountAddresses, err := a.accountAddresses(ctx, permitted)
+	return append(addresses, accountAddresses...), err
+}
+
+// grantedProfiles are the guardian profiles of the accounts whose
+// relationship to the child grants the enrollment submission.
+func (a careContractNoticeAddressees) grantedProfiles(ctx context.Context, studentID int64, accountIDs []int64) (map[int64]bool, error) {
+	links, err := a.guardians.ListGuardianLinksByAccounts(ctx, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("care contract notice addressees: links: %w", err)
 	}
-	emails, err := a.accounts.ListAccountEmails(ctx, permitted)
+	granted := map[int64]bool{}
+	for _, link := range links {
+		if link.StudentID == studentID && link.HasPermission(carecontract.GuardianPermissionEnrollmentSubmit) {
+			granted[link.GuardianProfileID] = true
+		}
+	}
+	return granted, nil
+}
+
+// accountAddresses are the addresses of the permitted accounts.
+func (a careContractNoticeAddressees) accountAddresses(ctx context.Context, accountIDs []int64) ([]string, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+	emails, err := a.accounts.ListAccountEmails(ctx, accountIDs)
 	if err != nil {
 		return nil, fmt.Errorf("care contract notice addressees: accounts: %w", err)
 	}
-	for _, account := range permitted {
+	var addresses []string
+	for _, account := range accountIDs {
 		if email := emails[account]; email != "" {
 			addresses = append(addresses, email)
 		}
