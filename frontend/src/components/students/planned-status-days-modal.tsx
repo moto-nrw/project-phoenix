@@ -789,12 +789,11 @@ export function PlannedStatusDaysModal({
           if (!open) handleClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[560px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>{title}</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton aria-label="Fenster schließen" />
+        <SlideOverContent size="md">
+          <SlideOverHeader
+            close={<SlideOverCloseButton aria-label="Fenster schließen" />}
+          >
+            <SlideOverTitle>{title}</SlideOverTitle>
           </SlideOverHeader>
           <SlideOverBody error={submitErrors.error}>
             <div className="space-y-5">
@@ -1236,9 +1235,7 @@ export function PlannedStatusDaysModal({
               )}
             </div>
           </SlideOverBody>
-          <SlideOverFooter className="flex-row justify-end gap-2">
-            {footer}
-          </SlideOverFooter>
+          <SlideOverFooter>{footer}</SlideOverFooter>
         </SlideOverContent>
       </SlideOver>
       <ConfirmDeleteModal

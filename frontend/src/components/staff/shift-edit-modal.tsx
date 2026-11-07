@@ -13,7 +13,6 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -1058,12 +1057,9 @@ export function ShiftEditModal({
           if (!next) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[760px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>{title}</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton />
+        <SlideOverContent size="lg">
+          <SlideOverHeader>
+            <SlideOverTitle>{title}</SlideOverTitle>
           </SlideOverHeader>
           <SlideOverBody error={seriesNotice ? null : formErrors.error}>
             {seriesNotice ? (
@@ -1494,9 +1490,7 @@ export function ShiftEditModal({
               </div>
             )}
           </SlideOverBody>
-          <SlideOverFooter className="flex-row justify-end gap-2">
-            {footer}
-          </SlideOverFooter>
+          <SlideOverFooter>{footer}</SlideOverFooter>
         </SlideOverContent>
       </SlideOver>
       <ConfirmDeleteModal

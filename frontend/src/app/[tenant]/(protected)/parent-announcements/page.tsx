@@ -34,7 +34,6 @@ import { Button } from "~/components/ui/button";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -1486,28 +1485,25 @@ function AnnouncementFormModal({
         if (!open) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[860px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>
-              {isPollForm
+      <SlideOverContent size="xl">
+        <SlideOverHeader>
+          <SlideOverTitle>
+            {isPollForm
+              ? isEdit
+                ? "Umfrage bearbeiten"
+                : "Neue Umfrage"
+              : isLetterForm
                 ? isEdit
-                  ? "Umfrage bearbeiten"
-                  : "Neue Umfrage"
-                : isLetterForm
+                  ? "Elternbrief bearbeiten"
+                  : "Neuer Elternbrief"
+                : isDeclarationForm
                   ? isEdit
-                    ? "Elternbrief bearbeiten"
-                    : "Neuer Elternbrief"
-                  : isDeclarationForm
-                    ? isEdit
-                      ? "Einverständnis bearbeiten"
-                      : "Neues Einverständnis"
-                    : isEdit
-                      ? "Elternmitteilung bearbeiten"
-                      : "Neue Elternmitteilung"}
-            </SlideOverTitle>
-          </div>
-          <SlideOverCloseButton />
+                    ? "Einverständnis bearbeiten"
+                    : "Neues Einverständnis"
+                  : isEdit
+                    ? "Elternmitteilung bearbeiten"
+                    : "Neue Elternmitteilung"}
+          </SlideOverTitle>
         </SlideOverHeader>
         {/* Der Fehler des Formulars steht oben im Rumpf, nicht unten über
             dem Footer (Bauart 2 Regel 5, #3113). */}
@@ -2114,9 +2110,7 @@ function AnnouncementFormModal({
             )}
           </div>
         </SlideOverBody>
-        <SlideOverFooter className="flex-row flex-wrap justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
+        <SlideOverFooter>{footer}</SlideOverFooter>
       </SlideOverContent>
     </SlideOver>
   );

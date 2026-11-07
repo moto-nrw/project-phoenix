@@ -366,12 +366,11 @@ export function CarePlanEditorModal({
           if (!open) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[640px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>{title}</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton aria-label="Fenster schließen" />
+        <SlideOverContent size="md">
+          <SlideOverHeader
+            close={<SlideOverCloseButton aria-label="Fenster schließen" />}
+          >
+            <SlideOverTitle>{title}</SlideOverTitle>
           </SlideOverHeader>
           {/* Speicher- und Hinweisfehler stehen im Fehler-Slot oben im Rumpf
               (Bauart 2 Regel 5), nicht als Toast. */}
@@ -542,9 +541,7 @@ export function CarePlanEditorModal({
               />
             </form>
           </SlideOverBody>
-          <SlideOverFooter className="flex-row justify-end gap-2">
-            {footer}
-          </SlideOverFooter>
+          <SlideOverFooter>{footer}</SlideOverFooter>
         </SlideOverContent>
       </SlideOver>
 

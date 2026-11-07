@@ -65,7 +65,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-message-modal.tsx",
-    lines: [381],
+    lines: [377],
     reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
   },
   {
@@ -119,7 +119,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [855, 888, 988, 1157],
+    lines: [854, 887, 987, 1156],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
@@ -139,7 +139,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1070],
+    lines: [1066],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
@@ -206,7 +206,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [947],
+    lines: [946],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {

@@ -8,7 +8,6 @@ import { Button, buttonClassName } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -717,16 +716,13 @@ export function PersonalCalendar({
           if (!open) setClicked(null);
         }}
       >
-        <SlideOverContent widthClass="sm:w-[520px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>
-                {selectedEvent?.source === "public_holiday"
-                  ? "Feiertag"
-                  : "Termin"}
-              </SlideOverTitle>
-            </div>
-            <SlideOverCloseButton />
+        <SlideOverContent size="md">
+          <SlideOverHeader>
+            <SlideOverTitle>
+              {selectedEvent?.source === "public_holiday"
+                ? "Feiertag"
+                : "Termin"}
+            </SlideOverTitle>
           </SlideOverHeader>
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {selectedEvent ? (

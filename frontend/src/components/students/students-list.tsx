@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckSquare } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import { DatabaseListLayout } from "~/components/database/database-list-layout";
@@ -11,6 +11,7 @@ import {
   type Grouper,
 } from "~/components/database/use-grouped-items";
 import { Button } from "~/components/ui/button";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { hasPlannedCareExit } from "~/lib/care-exit-api";
@@ -319,7 +320,7 @@ export function StudentsList({
     <>
       <DatabaseListLayout>
         {selectionMode ? (
-          <SelectionBar
+          <ListSelectionBar
             count={selectedStudentIds.size}
             onClear={() => onClearSelection?.()}
             onFinish={() => onFinishSelection?.()}
@@ -404,7 +405,7 @@ export function StudentsList({
   );
 }
 
-interface SelectionBarProps {
+interface ListSelectionBarProps {
   count: number;
   onClear: () => void;
   onFinish: () => void;
@@ -418,7 +419,7 @@ interface SelectionBarProps {
   onInviteGuardians?: () => void;
 }
 
-function SelectionBar({
+function ListSelectionBar({
   count,
   onClear,
   onFinish,
@@ -429,50 +430,38 @@ function SelectionBar({
   onSelectAllVisible,
   onEndCare,
   onInviteGuardians,
-}: SelectionBarProps) {
+}: ListSelectionBarProps) {
   const disabled = count === 0;
   return (
-    <div
-      className="moto-content-surface sticky top-0 z-20 shrink-0 border-x-0 border-b px-2 py-2"
-      role="region"
+    <SelectionBar
       aria-label="Auswahl"
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <CheckSquare className="text-moto-green h-4 w-4 shrink-0" aria-hidden />
-        <span className="min-w-0 text-sm font-semibold text-gray-900">
-          {count} ausgewählt
-        </span>
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          {onSelectAllVisible && visibleCount > 0 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              onClick={onSelectAllVisible}
-            >
-              Alle {visibleCount} auswählen
-            </Button>
-          ) : null}
+      count={count}
+      onClear={onClear}
+      className="top-0 z-20 mb-0 shrink-0 rounded-none border-x-0 border-t-0 px-2"
+      extra={
+        onSelectAllVisible && visibleCount > 0 ? (
           <Button
             type="button"
             variant="ghost"
             size="compact"
-            onClick={onClear}
-            disabled={disabled}
+            onClick={onSelectAllVisible}
           >
-            Aufheben
+            Alle {visibleCount} auswählen
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="compact"
-            onClick={onFinish}
-          >
-            Fertig
-          </Button>
-        </div>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        ) : null
+      }
+      actions={
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          onClick={onFinish}
+        >
+          Fertig
+        </Button>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button
           type="button"
           variant="outline"
@@ -524,6 +513,6 @@ function SelectionBar({
           </Button>
         ) : null}
       </div>
-    </div>
+    </SelectionBar>
   );
 }

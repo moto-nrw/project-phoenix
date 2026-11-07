@@ -357,20 +357,21 @@ export function BulkSubstitutionModal({
         if (!open && !saving) resetAndClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[760px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>Sammel-Vertretung</SlideOverTitle>
-            <SlideOverDescription>
-              Trägt eine Abwesenheit und optional eine Ersatzperson für alle
-              Termine einer Person im gewählten Zeitraum in einem Schritt ein.
-              Gespeichert wird alles zusammen oder nichts.
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton
-            aria-label="Sammel-Vertretung schließen"
-            disabled={saving}
-          />
+      <SlideOverContent size="lg">
+        <SlideOverHeader
+          close={
+            <SlideOverCloseButton
+              aria-label="Sammel-Vertretung schließen"
+              disabled={saving}
+            />
+          }
+        >
+          <SlideOverTitle>Sammel-Vertretung</SlideOverTitle>
+          <SlideOverDescription>
+            Trägt eine Abwesenheit und optional eine Ersatzperson für alle
+            Termine einer Person im gewählten Zeitraum in einem Schritt ein.
+            Gespeichert wird alles zusammen oder nichts.
+          </SlideOverDescription>
         </SlideOverHeader>
         <SlideOverBody error={formErrors.error}>
           <div ref={formRef} className="space-y-4">
@@ -551,7 +552,7 @@ export function BulkSubstitutionModal({
             )}
           </div>
         </SlideOverBody>
-        <SlideOverFooter className="flex-row justify-end gap-2">
+        <SlideOverFooter>
           <Button
             type="button"
             variant="outline"

@@ -8,7 +8,6 @@ import {
   SlideOverHeader,
   SlideOverTitle,
   SlideOverFooter,
-  SlideOverCloseButton,
 } from "~/components/ui/slide-over";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -555,12 +554,9 @@ export default function GuardianFormModal({
         if (!open) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[760px]" isBackdropDismissDisabled>
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{modalTitle}</SlideOverTitle>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="lg" isBackdropDismissDisabled>
+        <SlideOverHeader>
+          <SlideOverTitle>{modalTitle}</SlideOverTitle>
         </SlideOverHeader>
         <form
           ref={formRef}
@@ -1096,7 +1092,7 @@ export default function GuardianFormModal({
               </Button>
             )}
           </div>
-          <SlideOverFooter className="flex-row items-center justify-between gap-2 md:gap-3">
+          <SlideOverFooter className="items-center justify-between md:gap-3">
             {/* Delete button (only in edit mode) */}
             {mode === "edit" && onDelete ? (
               <Button

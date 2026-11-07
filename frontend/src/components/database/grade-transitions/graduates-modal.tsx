@@ -16,7 +16,6 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -203,17 +202,14 @@ export function GraduatesModal({
           if (!nextOpen) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[560px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>
-                {`Abgänge: Schuljahreswechsel ${transition.academicYear}`}
-              </SlideOverTitle>
-              <SlideOverDescription>
-                Kinder, die die OGS mit diesem Wechsel verlassen haben.
-              </SlideOverDescription>
-            </div>
-            <SlideOverCloseButton />
+        <SlideOverContent size="md">
+          <SlideOverHeader>
+            <SlideOverTitle>
+              {`Abgänge: Schuljahreswechsel ${transition.academicYear}`}
+            </SlideOverTitle>
+            <SlideOverDescription>
+              Kinder, die die OGS mit diesem Wechsel verlassen haben.
+            </SlideOverDescription>
           </SlideOverHeader>
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <p className="text-sm text-gray-600">
@@ -294,38 +290,36 @@ export function GraduatesModal({
               </div>
             )}
           </div>
-          <SlideOverFooter className="flex-row items-center justify-between gap-3">
-            <div className="flex w-full items-center justify-between gap-3">
-              {/* Ohne geladene Liste kein "0 von 0 noch löschbar" unter dem
+          <SlideOverFooter className="items-center justify-between gap-3">
+            {/* Ohne geladene Liste kein "0 von 0 noch löschbar" unter dem
                   Ladefehler (#2517). */}
-              <span className="text-sm text-gray-500">
-                {selectedIds.length > 0
-                  ? `${selectedIds.length} ausgewählt`
-                  : entries === null || loadFailed
-                    ? null
-                    : `${deletable.length} von ${entries.length} noch löschbar`}
-              </span>
-              <div className="flex gap-2">
+            <span className="text-sm text-gray-500">
+              {selectedIds.length > 0
+                ? `${selectedIds.length} ausgewählt`
+                : entries === null || loadFailed
+                  ? null
+                  : `${deletable.length} von ${entries.length} noch löschbar`}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={onClose}
+              >
+                Schließen
+              </Button>
+              {canDelete && (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="danger"
                   size="md"
-                  onClick={onClose}
+                  disabled={selectedIds.length === 0}
+                  onClick={() => setConfirmOpen(true)}
                 >
-                  Schließen
+                  Endgültig löschen
                 </Button>
-                {canDelete && (
-                  <Button
-                    type="button"
-                    variant="danger"
-                    size="md"
-                    disabled={selectedIds.length === 0}
-                    onClick={() => setConfirmOpen(true)}
-                  >
-                    Endgültig löschen
-                  </Button>
-                )}
-              </div>
+              )}
             </div>
           </SlideOverFooter>
         </SlideOverContent>

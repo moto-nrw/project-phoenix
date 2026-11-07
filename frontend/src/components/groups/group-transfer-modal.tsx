@@ -205,15 +205,12 @@ export function GroupTransferModal({
         if (!nextOpen && !loading) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[560px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{`Gruppe "${group.name}" übergeben`}</SlideOverTitle>
-            <SlideOverDescription>
-              Die Verantwortung für diese Gruppe heute übergeben.
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton disabled={loading} />
+      <SlideOverContent size="md">
+        <SlideOverHeader close={<SlideOverCloseButton disabled={loading} />}>
+          <SlideOverTitle>{`Gruppe "${group.name}" übergeben`}</SlideOverTitle>
+          <SlideOverDescription>
+            Die Verantwortung für diese Gruppe heute übergeben.
+          </SlideOverDescription>
         </SlideOverHeader>
         <div
           ref={formRef}
@@ -306,9 +303,7 @@ export function GroupTransferModal({
             )}
           </div>
         </div>
-        <SlideOverFooter className="flex-row justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
+        <SlideOverFooter>{footer}</SlideOverFooter>
       </SlideOverContent>
     </SlideOver>
   );

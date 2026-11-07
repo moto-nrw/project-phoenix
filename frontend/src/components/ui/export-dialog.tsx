@@ -75,8 +75,6 @@ interface ExportDialogProps<F extends ExportFileFormat> {
    * options themselves say why; Drucken and Herunterladen wait.
    */
   readonly blocked?: boolean;
-  /** Panel width on desktop. */
-  readonly widthClass?: string;
   /** Options of this export (template, period, columns). */
   readonly children?: ReactNode;
 }
@@ -100,7 +98,6 @@ export function ExportDialog<F extends ExportFileFormat>({
   defaultFormat,
   run,
   blocked = false,
-  widthClass = "sm:w-[560px]",
   children,
 }: ExportDialogProps<F>) {
   const initialFormat = defaultFormat ?? formats[0];
@@ -124,18 +121,19 @@ export function ExportDialog<F extends ExportFileFormat>({
         if (!open && busy === null) onClose();
       }}
     >
-      <SlideOverContent widthClass={widthClass}>
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{title}</SlideOverTitle>
-            {description ? (
-              <SlideOverDescription>{description}</SlideOverDescription>
-            ) : null}
-          </div>
-          <SlideOverCloseButton
-            aria-label="Export schließen"
-            disabled={busy !== null}
-          />
+      <SlideOverContent size="md">
+        <SlideOverHeader
+          close={
+            <SlideOverCloseButton
+              aria-label="Export schließen"
+              disabled={busy !== null}
+            />
+          }
+        >
+          <SlideOverTitle>{title}</SlideOverTitle>
+          {description ? (
+            <SlideOverDescription>{description}</SlideOverDescription>
+          ) : null}
         </SlideOverHeader>
         <div
           ref={run.bodyRef}
@@ -182,7 +180,7 @@ export function ExportDialog<F extends ExportFileFormat>({
             </section>
           ) : null}
         </div>
-        <SlideOverFooter className="flex-row justify-end gap-2">
+        <SlideOverFooter>
           <Button
             type="button"
             variant="outline"

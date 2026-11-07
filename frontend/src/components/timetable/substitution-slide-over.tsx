@@ -55,7 +55,6 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -576,33 +575,28 @@ export function SubstitutionSlideOver({
             className="flex min-h-0 flex-1 flex-col"
           >
             <SlideOverHeader className="pb-0">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <SlideOverTitle>{instance.title}</SlideOverTitle>
-                    <StatusBadge
-                      label={getStatusLabel(instance.status)}
-                      tone={instanceStatusTone[instance.status]}
-                      compact
-                    />
-                    {typeBadge && (
-                      <StatusColorBadge
-                        label={typeBadge.label}
-                        color={typeBadge.color}
-                        compact
-                      />
-                    )}
-                  </div>
-                  <SlideOverDescription>
-                    {formatDate(instance.date)} • {instance.startTime} –{" "}
-                    {instance.endTime} • {instanceRoomLabel(instance)}
-                  </SlideOverDescription>
-                </div>
-                <SlideOverCloseButton />
+              <div className="flex flex-wrap items-center gap-2">
+                <SlideOverTitle>{instance.title}</SlideOverTitle>
+                <StatusBadge
+                  label={getStatusLabel(instance.status)}
+                  tone={instanceStatusTone[instance.status]}
+                  compact
+                />
+                {typeBadge && (
+                  <StatusColorBadge
+                    label={typeBadge.label}
+                    color={typeBadge.color}
+                    compact
+                  />
+                )}
               </div>
+              <SlideOverDescription>
+                {formatDate(instance.date)} • {instance.startTime} –{" "}
+                {instance.endTime} • {instanceRoomLabel(instance)}
+              </SlideOverDescription>
               <TabsList
                 variant="line"
-                className="mt-3 w-full justify-start border-b-0"
+                className="mt-2 w-full justify-start border-b-0"
               >
                 <TabsTrigger value="bearbeiten">Bearbeiten</TabsTrigger>
                 <TabsTrigger value="verlauf">Verlauf</TabsTrigger>
@@ -988,41 +982,39 @@ export function SubstitutionSlideOver({
               </form>
 
               {canEdit && (
-                <SlideOverFooter>
-                  <div className="flex items-center justify-end gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      disabled={saving}
-                      onClick={onClose}
-                    >
-                      Abbrechen
-                    </Button>
-                    <Button
-                      type="submit"
-                      form={FORM_ID}
-                      variant="primary"
-                      size="md"
-                      isLoading={saving}
-                      loadingText="Speichere …"
-                      disabled={
-                        saving ||
-                        !hasChanges ||
-                        (!cancel && !peopleValid) ||
-                        (cancel &&
-                          guardianNoticeIncomplete(
-                            noticeDraft,
-                            noticeReach,
-                            Boolean(
-                              instance && instance.date >= berlinTodayISO(),
-                            ),
-                          ))
-                      }
-                    >
-                      Speichern
-                    </Button>
-                  </div>
+                <SlideOverFooter className="gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    disabled={saving}
+                    onClick={onClose}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button
+                    type="submit"
+                    form={FORM_ID}
+                    variant="primary"
+                    size="md"
+                    isLoading={saving}
+                    loadingText="Speichere …"
+                    disabled={
+                      saving ||
+                      !hasChanges ||
+                      (!cancel && !peopleValid) ||
+                      (cancel &&
+                        guardianNoticeIncomplete(
+                          noticeDraft,
+                          noticeReach,
+                          Boolean(
+                            instance && instance.date >= berlinTodayISO(),
+                          ),
+                        ))
+                    }
+                  >
+                    Speichern
+                  </Button>
                 </SlideOverFooter>
               )}
             </TabsContent>

@@ -84,6 +84,9 @@
     "ui-kit/no-status-dot-outside-plans": "error",
     "ui-kit/no-tabs-as-value-switcher": "error",
     "ui-kit/no-tiny-text": "error",
+    "ui-kit/no-hand-rolled-sticky-bar": "error",
+    "ui-kit/no-arbitrary-slide-over-width": "error",
+    "ui-kit/no-slide-over-row-override": "error",
     "no-restricted-imports": [
       "error",
       {

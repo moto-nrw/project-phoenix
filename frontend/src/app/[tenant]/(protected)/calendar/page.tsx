@@ -1058,14 +1058,13 @@ function StaffCalendarPageInner() {
               if (!open && !submitting) resetForm();
             }}
           >
-            <SlideOverContent widthClass="sm:w-[860px]">
-              <SlideOverHeader className="flex-row items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <SlideOverTitle>
-                    {editingId ? "Termin ändern" : "Termin erstellen"}
-                  </SlideOverTitle>
-                </div>
-                <SlideOverCloseButton disabled={submitting} />
+            <SlideOverContent size="xl">
+              <SlideOverHeader
+                close={<SlideOverCloseButton disabled={submitting} />}
+              >
+                <SlideOverTitle>
+                  {editingId ? "Termin ändern" : "Termin erstellen"}
+                </SlideOverTitle>
               </SlideOverHeader>
               <SlideOverBody error={formErrors.error}>
                 <div ref={formRef}>

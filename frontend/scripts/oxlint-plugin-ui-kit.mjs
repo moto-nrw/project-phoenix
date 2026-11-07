@@ -1186,21 +1186,21 @@ src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
-src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
+src/components/students/planned-status-days-modal.tsx|text-[10px]@935 text-[11px]@935
 src/components/students/school-checkin-fab.tsx|text-[10px]@200
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@119 text-[10px]@140 text-[10px]@151
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@374
-src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@529
+src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@371
+src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-[11px]@310
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1360 text-[11px]@1386 text-[11px]@1559 text-[10px]@1668 text-[11px]@1691
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1356 text-[11px]@1382 text-[11px]@1555 text-[10px]@1664 text-[11px]@1687
 src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@199 text-[10px]@215 text-[11px]@224 text-[10px]@266 text-[10px]@290 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
-src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@471
+src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@411 text-[11px]@478
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
-src/components/timetable/substitution-slide-over.tsx|text-[11px]@748 text-[11px]@752
+src/components/timetable/substitution-slide-over.tsx|text-[11px]@742 text-[11px]@746
 src/components/timetable/template-card.tsx|text-[11px]@131 text-[10px]@201
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@456 text-[11px]@456 text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
@@ -3139,6 +3139,129 @@ const noSectionCardBleed = makeKitClassRule({
     tokens.some((token) => NEGATIVE_MARGIN_RE.test(bareUtility(token))),
 });
 
+// ui-kit/no-hand-rolled-sticky-bar — eine klebende Fläche mit Aktionen kommt aus
+// dem Kit (#5602): unten `StickyActionBar` oder `SelectionBar`, oben `SelectionBar`.
+// Die bündige Fußzeile von DatabaseForm bleibt die eine benannte Ausnahme: Sie
+// schwebt nicht, sondern schließt den Rahmen des Formulars ab; einen Baustein
+// dafür sieht #5602 nicht vor.
+const STICKY_BAR_ALLOWED_FILES = new Set([
+  "src/components/database/database-form.tsx",
+]);
+
+function isHandRolledStickyBar(text) {
+  // Breakpoint-Präfixe zählen mit: `lg:bottom-4` ist dieselbe Leiste.
+  const tokens = text.split(/\s+/).map(bareUtility);
+  if (!tokens.includes("sticky")) return false;
+  const surface = tokens.includes("moto-content-surface");
+  if (surface && tokens.some((token) => token.startsWith("top-"))) return true;
+  return (
+    tokens.some((token) => token.startsWith("bottom-")) &&
+    (surface || tokens.some((token) => /^(?:bg-|shadow|border)/.test(token)))
+  );
+}
+
+const noHandRolledStickyBar = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-built sticky action surfaces outside the UI kit; use StickyActionBar or SelectionBar.",
+    },
+    messages: {
+      handRolled:
+        "Keine eigene klebende Leiste: StickyActionBar (~/components/ui/sticky-action-bar) für die Aktionen einer Seite, SelectionBar (~/components/ui/selection-bar) für eine Mehrfachauswahl (#5602).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key.startsWith(UI_KIT_DIR)) return {};
+    if (STICKY_BAR_ALLOWED_FILES.has(key)) return {};
+    const check = (node, text) => {
+      if (isHandRolledStickyBar(text)) {
+        context.report({ node, messageId: "handRolled" });
+      }
+    };
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) check(node, quasi.value.raw);
+      },
+      // `cn("sticky bottom-4", "bg-white")`: die Teile ergeben erst zusammen die
+      // Leiste.
+      JSXAttribute(node) {
+        if (node.name.type !== "JSXIdentifier") return;
+        if (node.name.name !== "className") return;
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some(isHandRolledStickyBar)) return;
+        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+        const rendered = combos.find(isHandRolledStickyBar);
+        if (rendered !== undefined) check(node, rendered);
+      },
+    };
+  },
+};
+
+// ui-kit/no-arbitrary-slide-over-width — ein Slide-over nimmt seine Breite aus
+// `size` (#5602). Freie Breiten waren acht verschiedene Werte für drei Größen.
+const noArbitrarySlideOverWidth = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow free slide-over widths; SlideOverContent takes size md, lg or xl.",
+    },
+    messages: {
+      arbitrary:
+        'Keine freie Breite am Slide-over: SlideOverContent size="md", "lg" oder "xl" (#5602).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key.startsWith(UI_KIT_DIR)) return {};
+    return {
+      JSXOpeningElement(node) {
+        const isPanel = jsxName(node.name) === "SlideOverContent";
+        for (const attribute of node.attributes) {
+          const name = attribute.name?.name;
+          if (name !== "widthClass" && !(isPanel && name === "className")) {
+            continue;
+          }
+          if (!attribute.value) continue;
+          const text = classText(attribute.value, new Map());
+          if (
+            name === "widthClass"
+              ? /\bsm:w-\[/.test(text)
+              : /(?:^|[\s:])w-\[/.test(text)
+          ) {
+            context.report({ node: attribute, messageId: "arbitrary" });
+          }
+        }
+      },
+    };
+  },
+};
+
+// ui-kit/no-slide-over-row-override — Kopf und Fuß des Slide-overs sind von sich
+// aus Zeilen, der Fuß rechtsbündig (#5602). Wer `flex-row` nachträgt, baut die
+// alte Fassung nach.
+const noSlideOverRowOverride = makeKitClassRule({
+  description:
+    "SlideOverHeader and SlideOverFooter already are rows; do not add flex-row.",
+  messageId: "rowOverride",
+  message:
+    "SlideOverHeader und SlideOverFooter sind schon Zeilen, der Fuß rechtsbündig: `flex-row` entfällt. Den Schließen-Knopf setzt der Kopf selbst, eigene Fassung über `close` (#5602).",
+  detect: ({ name, tokens }) =>
+    (name === "SlideOverHeader" || name === "SlideOverFooter") &&
+    tokens.includes("flex-row"),
+});
+
 // ui-kit/no-shadow-kit-name — eine lokale Funktion oder Konstante trägt nicht den
 // Namen eines Kit-Exports (#5583). Wer in einer Datei `StatCard` liest, soll die
 // Kit-Kachel vor sich haben, nicht einen Eigenbau, der nur so heißt. Die Namen
@@ -3621,6 +3744,9 @@ export default {
     "no-hand-rolled-pill": noHandRolledPill,
     "no-hand-rolled-portal-nav": noHandRolledPortalNav,
     "no-hand-rolled-removable-chip": noHandRolledRemovableChip,
+    "no-arbitrary-slide-over-width": noArbitrarySlideOverWidth,
+    "no-hand-rolled-sticky-bar": noHandRolledStickyBar,
+    "no-slide-over-row-override": noSlideOverRowOverride,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-hand-rolled-weekday-toggle": noHandRolledWeekdayToggle,
     "no-hex-alpha-tint": noHexAlphaTint,

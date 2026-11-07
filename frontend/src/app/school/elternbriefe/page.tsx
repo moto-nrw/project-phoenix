@@ -288,12 +288,11 @@ export default function SchoolParentLettersPage() {
           if (!open && !submitting) closeForm();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[640px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>Neuer Elternbrief</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton disabled={submitting} />
+        <SlideOverContent size="md">
+          <SlideOverHeader
+            close={<SlideOverCloseButton disabled={submitting} />}
+          >
+            <SlideOverTitle>Neuer Elternbrief</SlideOverTitle>
           </SlideOverHeader>
           <SlideOverBody error={formErrors.error}>
             <div ref={formRef}>

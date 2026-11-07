@@ -313,33 +313,33 @@ const ROW_ACTION_BASELINE = new Map(
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
-      "Gericht entfernen@797",
+      "Gericht entfernen@798",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1590",
-      "Entfernen@2031",
+      "Antwort entfernen@1586",
+      "Entfernen@2027",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@2004",
+      "Bedingung löschen@2007",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2514",
       "Auswahlzeit entfernen@3438",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
-      "Entfernen@593",
-      "Telefonnummer entfernen@868",
+      "Entfernen@589",
+      "Telefonnummer entfernen@864",
     ],
-    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1314"],
+    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1310"],
     "src/components/staff/stammdaten-section-forms.tsx": [
       "Qualifikation entfernen@485",
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@298"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@796",
+      "Erziehungsberechtigte/n entfernen@795",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
-      "Rückgängig Entfernen@816",
+      "Rückgängig Entfernen@810",
     ],
   }),
 );
@@ -1225,7 +1225,7 @@ const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
     "src/components/students/planned-status-days-modal.tsx": [
-      "Bearbeiten@1179",
+      "Bearbeiten@1178",
     ],
   }),
 );
@@ -1468,8 +1468,8 @@ const FORM_CONTEXT_EXCEPTIONS = new Map(
   Object.entries({
     // Übergabe einer Gruppe: Erklärung und die Gruppe, um die es geht.
     "src/components/groups/group-transfer-modal.tsx": [
-      "InfoSection@225",
-      "DataGrid@239",
+      "InfoSection@222",
+      "DataGrid@236",
     ],
   }),
 );
@@ -1579,7 +1579,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1492",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1490",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
@@ -1593,13 +1593,13 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@602",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
-      "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@269",
+      "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@267",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@992",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@995",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@948",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@951",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@145",
@@ -1611,7 +1611,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Tagesinformation bearbeiten Neue Tagesinformation@187",
     ],
     "src/components/timetable/calendar-period-modal.tsx": [
-      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@403",
+      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@404",
     ],
     // Kontoaktionen mit eigenem Ablauf (Begründung und Rückfrage bei der
     // Zwei-Faktor-Authentifizierung, Auflösen offener Zuordnungen bei der
