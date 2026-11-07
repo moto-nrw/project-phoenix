@@ -24,8 +24,8 @@ func (r *Store) ApprovedBookings(ctx context.Context) ([]enrollment.ApprovedBook
 	 FROM enrollment.request_children AS child
 	 JOIN enrollment.requests AS request ON request.id = child.request_id AND request.tenant_id = child.tenant_id
 	 JOIN enrollment.phases AS phase ON phase.id = request.phase_id AND phase.tenant_id = request.tenant_id
-	 WHERE child.tenant_id = ? AND child.status = 'approved'
-	 ORDER BY child.id`, tenantID).Scan(ctx, &rows)
+	 WHERE child.tenant_id = ? AND child.status = ?
+	 ORDER BY child.id`, tenantID, enrollment.ChildStatusApproved).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("list approved enrollment bookings: %w", err)
 	}

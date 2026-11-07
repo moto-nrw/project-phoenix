@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"encoding/json"
+	"slices"
 	"time"
 )
 
@@ -85,14 +86,41 @@ const (
 // IsApproved reports whether the child's application was approved.
 func (c *RequestChild) IsApproved() bool { return c.Status == ChildStatusApproved }
 
+// ChildStatuses is every status a request child can have. It is the one list
+// filters validate against; display labels are not a status list.
+func ChildStatuses() []string {
+	return []string{
+		ChildStatusSubmitted, ChildStatusUnderReview, ChildStatusApproved,
+		ChildStatusWaitlisted, ChildStatusRejected, ChildStatusWithdrawn,
+		ChildStatusPendingRenewal, ChildStatusAutoRenewed, ChildStatusPendingAdminReview,
+	}
+}
+
+// TerminalChildStatuses are the decided statuses: approved, rejected and
+// withdrawn.
+func TerminalChildStatuses() []string {
+	return []string{ChildStatusApproved, ChildStatusRejected, ChildStatusWithdrawn}
+}
+
+// UnplacedChildStatuses are the decided statuses without a place: rejected
+// and withdrawn.
+func UnplacedChildStatuses() []string {
+	return []string{ChildStatusRejected, ChildStatusWithdrawn}
+}
+
+// AnnouncementPendingChildStatuses are the statuses whose guardians an
+// announcement to pending applicants reaches: every undecided status except
+// waitlisted.
+func AnnouncementPendingChildStatuses() []string {
+	return []string{
+		ChildStatusSubmitted, ChildStatusUnderReview, ChildStatusPendingRenewal,
+		ChildStatusAutoRenewed, ChildStatusPendingAdminReview,
+	}
+}
+
 // IsTerminal reports whether a child has an approved, rejected, or withdrawn status.
 func (c *RequestChild) IsTerminal() bool {
-	switch c.Status {
-	case ChildStatusApproved, ChildStatusRejected, ChildStatusWithdrawn:
-		return true
-	default:
-		return false
-	}
+	return slices.Contains(TerminalChildStatuses(), c.Status)
 }
 
 // ClassSwitch is the class change an approved re-enrollment planned for an

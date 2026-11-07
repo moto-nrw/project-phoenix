@@ -158,10 +158,8 @@ func parsePhaseExportRequest(r *http.Request) (lists.Format, string, error) {
 		childStatus = "" // explicit "all" == no filter
 	}
 	if childStatus != "" {
-		// Validate against the known child statuses (the German-label map
-		// is the authoritative key set) so an unknown value is a 400, not a
-		// silent full export.
-		if _, ok := statusLabelsDE[childStatus]; !ok {
+		// An unknown value is a 400, not a silent full export.
+		if !slices.Contains(capability.ChildStatuses(), childStatus) {
 			return "", "", fmt.Errorf("unsupported child_status %q", childStatus)
 		}
 	}
