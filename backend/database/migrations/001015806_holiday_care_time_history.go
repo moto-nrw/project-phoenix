@@ -32,6 +32,8 @@ ALTER TABLE enrollment.holiday_week_time_models
 -- their stored past baseline at cutover; reconciliation never overwrites it.
 ALTER TABLE enrollment.holiday_guests ADD COLUMN care_time_baseline JSONB
  CHECK (care_time_baseline IS NULL OR jsonb_typeof(care_time_baseline) = 'object');
+ALTER TABLE enrollment.holiday_guests ADD COLUMN retained_care_windows JSONB
+ CHECK (retained_care_windows IS NULL OR jsonb_typeof(retained_care_windows) = 'array');
 UPDATE enrollment.holiday_guests SET care_time_baseline = jsonb_build_object(
  'valid_until', ?::date, 'starts_on', starts_on, 'ends_on', ends_on,
  'starts_at', time_model_starts_at, 'ends_at', time_model_ends_at);
@@ -56,7 +58,7 @@ REVOKE ALL ON FUNCTION enrollment.holiday_time_model_windows(JSONB, TIME, TIME) 
 // guests. Only the hosting school in app.current_tenant_id may read them;
 // wrappers expose either own identities or already granted guest student IDs.
 const holidayHostBookedWindowsSQL = `
-CREATE FUNCTION enrollment.holiday_host_booked_windows(p_from DATE, p_to DATE)
+CREATE FUNCTION enrollment.holiday_host_booked_windows_for_retention(p_from DATE, p_to DATE, p_school BIGINT, p_registration BIGINT)
 	RETURNS TABLE (organization_id BIGINT, child_id BIGINT, week_id BIGINT, home_school_id BIGINT, first_name TEXT, last_name TEXT, birth_date DATE, starts_on DATE, ends_on DATE,
 		starts_at TIME, ends_at TIME)
 	LANGUAGE sql
@@ -65,7 +67,7 @@ CREATE FUNCTION enrollment.holiday_host_booked_windows(p_from DATE, p_to DATE)
 	SET search_path = pg_catalog, pg_temp
 	AS $$
 	WITH host AS (
-		SELECT NULLIF(current_setting('app.current_tenant_id', true), '')::bigint AS school_id
+		SELECT p_school AS school_id
 	),
  guest_access AS (
   SELECT guest.id, guest.organization_id, guest.holiday_registration_child_id,
@@ -99,7 +101,7 @@ CREATE FUNCTION enrollment.holiday_host_booked_windows(p_from DATE, p_to DATE)
 			ORDER BY cancel.occurred_at DESC
 			LIMIT 1
 		) AS cancellation ON true
-		WHERE period.status = 'published'
+		WHERE period.status = 'published' AND (p_registration IS NULL OR registration.id = p_registration)
 			AND (registration.status = 'confirmed'
 				OR registration.status = 'cancelled' AND cancellation.cancelled_on IS NOT NULL)
 	),
@@ -147,7 +149,44 @@ CREATE FUNCTION enrollment.holiday_host_booked_windows(p_from DATE, p_to DATE)
 	FROM booked
 	WHERE first_day <= last_day AND first_day <= p_to AND last_day >= p_from
 	$$;
+REVOKE ALL ON FUNCTION enrollment.holiday_host_booked_windows_for_retention(DATE, DATE, BIGINT, BIGINT) FROM PUBLIC;
+
+-- Only the tenant-bound wrapper is used by school projections. The explicit
+-- school/registration helper is private to the deletion trigger below.
+CREATE FUNCTION enrollment.holiday_host_booked_windows(p_from DATE, p_to DATE)
+ RETURNS TABLE (organization_id BIGINT, child_id BIGINT, week_id BIGINT, home_school_id BIGINT, first_name TEXT, last_name TEXT, birth_date DATE, starts_on DATE, ends_on DATE, starts_at TIME, ends_at TIME)
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp
+ AS $$ SELECT * FROM enrollment.holiday_host_booked_windows_for_retention(p_from, p_to,
+  NULLIF(current_setting('app.current_tenant_id', true), '')::bigint, NULL) $$;
 REVOKE ALL ON FUNCTION enrollment.holiday_host_booked_windows(DATE, DATE) FROM PUBLIC;
+
+-- A school guest follows the school's child retention, not the source
+-- registration's 92 days. Keep only the resolved care intervals, no source
+-- identity, contact, health data or rebooking audit. The copy goes with the
+-- existing guest row/student, without extending either retention period.
+CREATE FUNCTION enrollment.holiday_guest_keeps_care_windows() RETURNS trigger
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp
+ AS $$
+ BEGIN
+  UPDATE enrollment.holiday_guests AS guest SET retained_care_windows = (
+   SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'starts_on', GREATEST(booked.starts_on, guest.starts_on, (guest.care_time_baseline->>'valid_until')::date),
+    'ends_on', LEAST(booked.ends_on, guest.ends_on, guest.ended_on - 1),
+    'starts_at', booked.starts_at, 'ends_at', booked.ends_at)), '[]'::jsonb)
+   FROM enrollment.holiday_host_booked_windows_for_retention(guest.starts_on, guest.ends_on, guest.tenant_id, OLD.id) AS booked
+   WHERE booked.organization_id = guest.organization_id
+    AND booked.child_id = guest.holiday_registration_child_id AND booked.week_id = guest.holiday_period_week_id
+    AND GREATEST(booked.starts_on, guest.starts_on, (guest.care_time_baseline->>'valid_until')::date)
+     <= LEAST(booked.ends_on, guest.ends_on, guest.ended_on - 1))
+  WHERE guest.organization_id = OLD.organization_id AND EXISTS (
+   SELECT 1 FROM enrollment.holiday_registration_children AS child
+   WHERE child.organization_id = OLD.organization_id AND child.holiday_registration_id = OLD.id
+    AND child.id = guest.holiday_registration_child_id);
+  RETURN OLD;
+ END $$;
+REVOKE ALL ON FUNCTION enrollment.holiday_guest_keeps_care_windows() FROM PUBLIC;
+CREATE TRIGGER holiday_guest_keeps_care_windows BEFORE DELETE ON enrollment.holiday_registrations
+ FOR EACH ROW EXECUTE FUNCTION enrollment.holiday_guest_keeps_care_windows();
 
 CREATE OR REPLACE FUNCTION enrollment.holiday_host_own_bookings(p_from DATE, p_to DATE)
  RETURNS TABLE (first_name TEXT, last_name TEXT, birth_date DATE, starts_on DATE, ends_on DATE, starts_at TIME, ends_at TIME)
@@ -182,6 +221,16 @@ CREATE FUNCTION enrollment.holiday_host_guest_bookings(p_from DATE, p_to DATE)
  FROM enrollment.holiday_guests AS guest
  WHERE guest.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
   AND GREATEST(guest.starts_on, (guest.care_time_baseline->>'valid_until')::date) <= p_to AND guest.ends_on >= p_from
+  AND guest.retained_care_windows IS NULL
+  AND NOT EXISTS (SELECT 1 FROM enrollment.holiday_registration_children AS child
+   WHERE child.organization_id = guest.organization_id AND child.id = guest.holiday_registration_child_id)
+ UNION ALL
+ SELECT guest.student_id, saved.starts_on, saved.ends_on, saved.starts_at, saved.ends_at
+ FROM enrollment.holiday_guests AS guest
+ CROSS JOIN LATERAL jsonb_to_recordset(guest.retained_care_windows)
+  AS saved(starts_on DATE, ends_on DATE, starts_at TIME, ends_at TIME)
+ WHERE guest.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
+  AND saved.starts_on <= p_to AND saved.ends_on >= p_from
   AND NOT EXISTS (SELECT 1 FROM enrollment.holiday_registration_children AS child
    WHERE child.organization_id = guest.organization_id AND child.id = guest.holiday_registration_child_id)
  UNION ALL
@@ -298,11 +347,14 @@ CREATE OR REPLACE FUNCTION enrollment.holiday_host_own_bookings(p_from DATE, p_t
 `
 
 const holidayCareTimeHistoryDownSQL = `
+ DROP TRIGGER holiday_guest_keeps_care_windows ON enrollment.holiday_registrations;
+ DROP FUNCTION enrollment.holiday_guest_keeps_care_windows();
  DROP FUNCTION enrollment.holiday_host_guest_bookings(DATE, DATE);
  DROP FUNCTION enrollment.holiday_host_booked_windows(DATE, DATE);
+ DROP FUNCTION enrollment.holiday_host_booked_windows_for_retention(DATE, DATE, BIGINT, BIGINT);
  DROP FUNCTION enrollment.holiday_time_model_windows(JSONB, TIME, TIME);
  ALTER TABLE enrollment.holiday_week_time_models DROP COLUMN care_time_history;
- ALTER TABLE enrollment.holiday_guests DROP COLUMN care_time_baseline;`
+ ALTER TABLE enrollment.holiday_guests DROP COLUMN care_time_baseline, DROP COLUMN retained_care_windows;`
 
 func holidayCareTimeHistoryDown(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, holidayOwnBookingsRestoreSQL+holidayCareTimeHistoryDownSQL); err != nil {
