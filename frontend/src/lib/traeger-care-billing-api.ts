@@ -35,7 +35,7 @@ export interface CareModule {
 }
 
 /** The monthly price of one weekday of a module from a month on. */
-export interface CareTariff {
+interface CareTariff {
   readonly id: string;
   readonly schoolId: string;
   readonly careOfferingId: string;
@@ -46,7 +46,7 @@ export interface CareTariff {
   readonly monthlyCents: number;
 }
 
-export interface CareSchool {
+interface CareSchool {
   readonly id: string;
   readonly name: string;
 }
@@ -85,7 +85,7 @@ export interface CareRunList {
   readonly suggestedMonth: string;
 }
 
-export interface CareWeekdayPrice {
+interface CareWeekdayPrice {
   readonly weekday: CareWeekday;
   readonly monthlyCents: number;
   readonly amountCents: number;

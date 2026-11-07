@@ -200,22 +200,24 @@ func seedCareOfferings(client *Client, auth AuthRef) ([]seedCareModule, error) {
 	return modules, nil
 }
 
-// seedCareRun starts the run of a month, or takes the open one, and
-// releases it when asked and there is something to bill. It returns the
-// number of issued invoices.
+// seedCareRun takes the open run of a month or starts one, and releases it
+// when asked and there is something to bill. It returns the number of
+// issued invoices.
 func seedCareRun(client *Client, auth AuthRef, month calendar.Date, release bool) (int, error) {
-	raw, err := client.PostWithAuth(auth, "/traeger/care-billing-runs/", map[string]any{"billing_month": month.String()})
+	runID, open, err := seedOpenCareRun(client, auth, month)
 	if err != nil {
-		if strings.Contains(err.Error(), "parent_billing.care_run_open") {
-			return 0, nil
+		return 0, err
+	}
+	if !open {
+		raw, err := client.PostWithAuth(auth, "/traeger/care-billing-runs/", map[string]any{"billing_month": month.String()})
+		if err != nil {
+			return 0, fmt.Errorf("start the monthly run of %s: %w", month, err)
 		}
-		return 0, fmt.Errorf("start the monthly run of %s: %w", month, err)
+		if runID, err = decodeSeedEntityID(raw); err != nil {
+			return 0, fmt.Errorf("read the monthly run: %w", err)
+		}
 	}
-	runID, err := decodeSeedEntityID(raw)
-	if err != nil {
-		return 0, fmt.Errorf("read the monthly run: %w", err)
-	}
-	raw, err = client.GetWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d", runID))
+	raw, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d", runID))
 	if err != nil {
 		return 0, fmt.Errorf("check the monthly run: %w", err)
 	}
@@ -235,4 +237,31 @@ func seedCareRun(client *Client, auth AuthRef, month calendar.Date, release bool
 		return 0, fmt.Errorf("release the monthly run: %w", err)
 	}
 	return run.PreviewCount, nil
+}
+
+// seedOpenCareRun finds the run of the month that is still a preview; a
+// month has at most one.
+func seedOpenCareRun(client *Client, auth AuthRef, month calendar.Date) (int64, bool, error) {
+	raw, err := client.GetWithAuth(auth, "/traeger/care-billing-runs/")
+	if err != nil {
+		return 0, false, fmt.Errorf("read the monthly runs: %w", err)
+	}
+	var envelope struct {
+		Data struct {
+			Runs []struct {
+				ID           int64         `json:"id"`
+				BillingMonth calendar.Date `json:"billing_month"`
+				Status       string        `json:"status"`
+			} `json:"runs"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return 0, false, fmt.Errorf("read the monthly runs: %w", err)
+	}
+	for _, run := range envelope.Data.Runs {
+		if run.BillingMonth == month && run.Status == "calculated" {
+			return run.ID, true, nil
+		}
+	}
+	return 0, false, nil
 }
