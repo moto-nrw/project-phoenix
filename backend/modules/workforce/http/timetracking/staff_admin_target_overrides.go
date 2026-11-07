@@ -64,7 +64,7 @@ func (rs *StaffAdminResource) targetOverrideStaff(w http.ResponseWriter, r *http
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return 0, false
 	}
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.StaffByID(r.Context(), staffID, workforce.StaffMembershipOnly); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return 0, false
 	}

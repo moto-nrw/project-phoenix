@@ -85,15 +85,21 @@ func (c staffDirectoryCapability) PersonByAccountID(ctx context.Context, account
 }
 
 func (c staffDirectoryCapability) StaffByPersonID(ctx context.Context, personID int64) (*workforceModule.StaffProfile, error) {
-	staff, err := c.people.StaffRows().FindByPersonID(ctx, personID)
+	staff, err := c.people.StaffRows().FindMembershipByPersonID(ctx, personID)
 	if err != nil {
 		return nil, err
 	}
 	return publicStaffProfile(staff), nil
 }
 
-func (c staffDirectoryCapability) StaffByID(ctx context.Context, staffID int64) (*workforceModule.StaffProfile, error) {
-	staff, err := c.people.StaffRows().FindByID(ctx, staffID)
+func (c staffDirectoryCapability) StaffByID(ctx context.Context, staffID int64, read ...workforceModule.StaffRead) (*workforceModule.StaffProfile, error) {
+	var staff *peopleValues.Staff
+	var err error
+	if len(read) > 0 && read[0] == workforceModule.StaffMembershipOnly {
+		staff, err = c.people.StaffRows().FindMembershipByID(ctx, staffID)
+	} else {
+		staff, err = c.people.StaffRows().FindByID(ctx, staffID)
+	}
 	if err != nil {
 		return nil, err
 	}

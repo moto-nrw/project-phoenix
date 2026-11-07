@@ -268,7 +268,7 @@
     {
       "decision": "0090",
       "id": "api/TimetablePeople.StaffPersonID",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "E1 #5892: read live membership PersonID only. Per-ID best-effort failure handling and later person-name read stay unchanged. No Employment fields, writes or locks; ADR 0075 consumer-port translation."
     },
     {
       "decision": "0090",
@@ -5182,13 +5182,8 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/staffDirectoryCapability.StaffByID",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "roots/owners/staffDirectoryCapability.StaffByPersonID",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "E1 #5892: own-subject resolution consumes membership ID only. Narrow live membership query retains identity/not-found mapping; no writes or locks. ADR 0075 consumer-port translation unchanged."
     },
     {
       "decision": "0090",

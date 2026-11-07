@@ -3980,7 +3980,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
-      "reason": "Read-only already reviewed target: workforce reaches modules/peopledirectory.Staff.SetTenantID (people-directory) through roots/owners.qualificationStaff.ListStaffMembers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5892: HTTP qualification subject reads select membership/person facts without Employment. Worker reminders retain the original ListAllWithPerson path and its failure contract. Both branches preserve live/tenant filters and name/account mapping; no added writes, locks or scope switch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory"
@@ -3990,7 +3990,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
-      "reason": "Read-only already reviewed target: workforce reaches modules/peopledirectory/ports.PersonRepository.FindByIDs (people-directory) through roots/owners.qualificationStaff.ListStaffMembers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5892: HTTP qualification subject reads select membership/person facts without Employment. Worker reminders retain the original ListAllWithPerson path and its failure contract. Both branches preserve live/tenant filters and name/account mapping; no added writes, locks or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
       "target_owner": "people-directory"
@@ -4000,7 +4000,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListAllWithPerson; modules/peopledirectory/ports/repository_contracts.go:240. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "E1 #5892: HTTP qualification subject reads select membership/person facts without Employment. Worker reminders retain the original ListAllWithPerson path and its failure contract. Both branches preserve live/tenant filters and name/account mapping; no added writes, locks or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListAllWithPerson",
       "target_owner": "people-directory"
@@ -4010,7 +4010,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.ListStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "E1 #5892: HTTP qualification subject reads select membership/person facts without Employment. Worker reminders retain the original ListAllWithPerson path and its failure contract. Both branches preserve live/tenant filters and name/account mapping; no added writes, locks or scope switch.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListMembershipWithPerson",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "reason": "E1 #5892: HTTP qualification subject reads select membership/person facts without Employment. Worker reminders retain the original ListAllWithPerson path and its failure contract. Both branches preserve live/tenant filters and name/account mapping; no added writes, locks or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -4020,7 +4030,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
-      "reason": "Read-only newly exposed target: workforce reaches modules/schoolmembership.ExternalCaregiver (school-membership) through roots/owners.qualificationStaff.ListStaffMembers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5892: HTTP qualification subject reads select membership/person facts without Employment. Worker reminders retain the original ListAllWithPerson path and its failure contract. Both branches preserve live/tenant filters and name/account mapping; no added writes, locks or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver",
       "target_owner": "school-membership"
@@ -4030,7 +4040,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "E1 #5892: HTTP qualification subject reads select membership/person facts without Employment. Worker reminders retain the original ListAllWithPerson path and its failure contract. Both branches preserve live/tenant filters and name/account mapping; no added writes, locks or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -5341,7 +5351,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByID",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added.",
+      "reason": "E1 #5892: StaffByID explicitly selects membership-only detail for subject gates; the default keeps the full Employment profile for payload consumers. Both branches preserve live/tenant filters and error mapping. No writes, locks or scope switch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory"
@@ -5351,7 +5361,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByID",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.PersonDirectory.StaffRows; modules/peopledirectory/internal/application/staff_directory.go:55. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "E1 #5892: StaffByID explicitly selects membership-only detail for subject gates; the default keeps the full Employment profile for payload consumers. Both branches preserve live/tenant filters and error mapping. No writes, locks or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.StaffRows",
       "target_owner": "people-directory"
@@ -5361,7 +5371,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByID",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.FindByID; modules/peopledirectory/internal/application/student_records_boundary.go:23. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "E1 #5892: StaffByID explicitly selects membership-only detail for subject gates; the default keeps the full Employment profile for payload consumers. Both branches preserve live/tenant filters and error mapping. No writes, locks or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindByID",
       "target_owner": "people-directory"
@@ -5371,7 +5381,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByID",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.FindStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "E1 #5892: StaffByID explicitly selects membership-only detail for subject gates; the default keeps the full Employment profile for payload consumers. Both branches preserve live/tenant filters and error mapping. No writes, locks or scope switch.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindMembershipByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDirectoryCapability.StaffByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByID",
+      "reason": "E1 #5892: StaffByID explicitly selects membership-only detail for subject gates; the default keeps the full Employment profile for payload consumers. Both branches preserve live/tenant filters and error mapping. No writes, locks or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaff",
       "target_owner": "school-membership"
@@ -5381,9 +5401,29 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByID",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.FindStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "E1 #5892: StaffByID explicitly selects membership-only detail for subject gates; the default keeps the full Employment profile for payload consumers. Both branches preserve live/tenant filters and error mapping. No writes, locks or scope switch.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDirectoryCapability.StaffByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByID",
+      "reason": "E1 #5892: StaffByID explicitly selects membership-only detail for subject gates; the default keeps the full Employment profile for payload consumers. Both branches preserve live/tenant filters and error mapping. No writes, locks or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDirectoryCapability.StaffByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByID",
+      "reason": "E1 #5892: StaffByID explicitly selects membership-only detail for subject gates; the default keeps the full Employment profile for payload consumers. Both branches preserve live/tenant filters and error mapping. No writes, locks or scope switch.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
     },
     {
@@ -5391,7 +5431,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByPersonID",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added.",
+      "reason": "E1 #5892: SetTenantID decorates only the returned membership DTO (peopledirectory/record_metadata.go). It neither writes a row nor changes transaction scope; the narrow subject/name lookup remains read-only.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory"
@@ -5401,7 +5441,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByPersonID",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.PersonDirectory.StaffRows; modules/peopledirectory/internal/application/staff_directory.go:55. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.StaffRows",
       "target_owner": "people-directory"
@@ -5411,9 +5451,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByPersonID",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.FindByPersonID; modules/peopledirectory/ports/repository_contracts.go:237. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
       "source_owner": "workforce",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindByPersonID",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindMembershipByPersonID",
       "target_owner": "people-directory"
     },
     {
@@ -5421,7 +5461,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByPersonID",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.FindStaffByPerson; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffByPerson",
       "target_owner": "school-membership"
@@ -5431,9 +5471,29 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByPersonID",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.FindStaffByPerson; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDirectoryCapability.StaffByPersonID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByPersonID",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffByPerson",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDirectoryCapability.StaffByPersonID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffDirectory.StaffByPersonID",
+      "reason": "E1 #5892: Live subject/name/qualification lookup uses membership-only owner queries and existing person hydration. Invalid single IDs retain the original owner validation path; valid IDs retain live/tenant filters and not-found mapping. No persistent write, row/advisory lock or scope switch.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
     },
     {
