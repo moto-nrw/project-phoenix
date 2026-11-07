@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "~/components/ui/button";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import type { OfferingSuggestion } from "~/lib/offering-suggestion";
 import { offeringNamesFor, offeringSetNames } from "~/lib/roster-deviation";
 
@@ -26,7 +27,7 @@ export function OfferingSuggestionRow({
     : [];
   const combinedChoices = choices.some((choice) => choice.length > 1);
   return (
-    <div className="mt-2 flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3">
+    <InsetPanel framed className="mt-2 flex flex-col gap-2">
       <p className="text-xs text-gray-700">
         {choices.length > 1
           ? combinedChoices
@@ -66,6 +67,6 @@ export function OfferingSuggestionRow({
             : "Angebot übernehmen"}
         </Button>
       )}
-    </div>
+    </InsetPanel>
   );
 }

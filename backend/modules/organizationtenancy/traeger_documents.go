@@ -138,6 +138,13 @@ type TraegerDocuments interface {
 	Release(ctx context.Context, organizationID, accountID, documentID int64, input TraegerDocumentReleaseInput) (TraegerDocumentRelease, error)
 	// Revoke revokes an active release of a document.
 	Revoke(ctx context.Context, organizationID, accountID, documentID, releaseID int64) error
+	// DeleteDocument deletes a document (#5993): every active release ends with it,
+	// the file is removed, and who deleted it when is kept with the row.
+	// Releases, reads and downloads keep their own retention. A deleted
+	// document is listed, released and downloaded by nobody;
+	// ErrTraegerDocumentNotFound for one that is not the Träger's or is
+	// already deleted.
+	DeleteDocument(ctx context.Context, organizationID, accountID, documentID int64) error
 }
 
 // TraegerDocumentPorts are what the Träger-Büro's documents need outside

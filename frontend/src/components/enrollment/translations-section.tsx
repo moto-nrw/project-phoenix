@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -157,12 +158,9 @@ function TranslationRow({
       </div>
       <div className="min-w-0 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <label
-            htmlFor={fieldId}
-            className="text-xs font-medium text-gray-500"
-          >
+          <FieldLabel htmlFor={fieldId} className="mb-0">
             Übersetzung
-          </label>
+          </FieldLabel>
           <StatusBadge label={badge.label} tone={badge.tone} compact />
         </div>
         <Field
