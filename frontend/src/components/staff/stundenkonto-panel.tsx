@@ -16,6 +16,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Modal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
@@ -523,7 +524,10 @@ function ResetModal({
           Kontostand zum Stichtag und bucht die Differenz als Reset.
         </p>
         {balanceMinutes !== null && (
-          <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          <InsetPanel
+            padding="compact"
+            className="space-y-1 text-sm text-gray-700"
+          >
             <p>
               Aktueller Stand:{" "}
               <span className="font-medium tabular-nums">
@@ -538,7 +542,7 @@ function ResetModal({
                 </span>
               </p>
             )}
-          </div>
+          </InsetPanel>
         )}
         <div>
           <ISODatePicker
@@ -673,7 +677,10 @@ function OpeningModal({
           Korrektur die bestehende Buchung löschen und neu anlegen.
         </p>
         {balanceMinutes !== null && (
-          <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          <InsetPanel
+            padding="compact"
+            className="space-y-1 text-sm text-gray-700"
+          >
             <p>
               Aktueller Stand:{" "}
               <span className="font-medium tabular-nums">
@@ -688,7 +695,7 @@ function OpeningModal({
                 </span>
               </p>
             )}
-          </div>
+          </InsetPanel>
         )}
         <div>
           <ISODatePicker
