@@ -346,7 +346,7 @@ export function CareWeeklyPlanGrid({
     <div className="space-y-3">
       <div className="moto-content-surface overflow-hidden rounded-xl border sm:rounded-2xl">
         <div
-          className={`hidden gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase sm:grid ${GRID_COLUMNS}`}
+          className={`hidden gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-medium text-gray-500 sm:grid ${GRID_COLUMNS}`}
         >
           <span>Betreuungstag</span>
           <span>Ankunft</span>

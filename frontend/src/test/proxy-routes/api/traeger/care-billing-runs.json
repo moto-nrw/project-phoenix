@@ -1,0 +1,12 @@
+{
+  "api/traeger/care-billing-runs": [
+    "GET traeger /traeger/care-billing-runs",
+    "POST traeger /traeger/care-billing-runs"
+  ],
+  "api/traeger/care-billing-runs/[id]": [
+    "GET traeger /traeger/care-billing-runs/id%2F1"
+  ],
+  "api/traeger/care-billing-runs/[id]/release": [
+    "POST traeger /traeger/care-billing-runs/id%2F1/release"
+  ]
+}
