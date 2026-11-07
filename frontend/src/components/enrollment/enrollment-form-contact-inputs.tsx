@@ -4,12 +4,11 @@
 
 import { Plus, Trash2 } from "lucide-react";
 
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { RequiredMark } from "~/components/ui/field-label";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
 import {
@@ -23,6 +22,7 @@ import {
   type CustomFieldInputProps,
   type PhoneEntry,
 } from "./enrollment-form-shared";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 function asPhoneArray(v: unknown): PhoneEntry[] {
   if (!Array.isArray(v)) return [];
@@ -84,20 +84,14 @@ export function PhoneListInput({
       ),
     );
   return (
-    <fieldset
-      className={`rounded-2xl border bg-gray-50/70 p-4 ${error ? "border-moto-red" : "border-gray-200"}`}
-      aria-invalid={error ? "true" : undefined}
-      aria-describedby={error ? errorId : undefined}
+    <FormFieldset
+      legend={field.label}
+      required={field.required}
+      hint={field.help_text}
+      error={error}
+      errorId={errorId}
+      className="bg-gray-50/70"
     >
-      <legend className="px-1 text-sm font-semibold text-gray-900">
-        {field.label}
-        {field.required && <RequiredMark />}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
       {phones.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
           {tr("structured.nonePhone")}
@@ -181,8 +175,7 @@ export function PhoneListInput({
         <Plus className="h-4 w-4" aria-hidden="true" />
         {tr("structured.addPhone")}
       </Button>
-      <FieldErrorHint id={errorId} message={error} />
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -226,20 +219,14 @@ export function ContactListInput({
       ),
     );
   return (
-    <fieldset
-      className={`rounded-2xl border p-4 ${error ? "border-moto-red shadow-sm" : "moto-content-surface"}`}
-      aria-invalid={error ? "true" : undefined}
-      aria-describedby={error ? errorId : undefined}
+    <FormFieldset
+      legend={field.label}
+      required={field.required}
+      hint={field.help_text}
+      error={error}
+      errorId={errorId}
+      className={error ? "shadow-sm" : "moto-content-surface"}
     >
-      <legend className="px-1 text-sm font-semibold text-gray-900">
-        {field.label}
-        {field.required && <RequiredMark />}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
       {contacts.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
           {tr("structured.noneContact")}
@@ -247,9 +234,11 @@ export function ContactListInput({
       )}
       <ul className="space-y-3">
         {contacts.map((c, idx) => (
-          <li
+          <InsetPanel
+            as="li"
+            framed
+            padding="md"
             key={getStableObjectKey(c, "contact")}
-            className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4"
           >
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Input
@@ -331,7 +320,7 @@ export function ContactListInput({
                 {tr("structured.removeContact")}
               </Button>
             </div>
-          </li>
+          </InsetPanel>
         ))}
       </ul>
       <Button
@@ -344,8 +333,7 @@ export function ContactListInput({
         <Plus className="h-4 w-4" aria-hidden="true" />
         {tr("structured.addContact")}
       </Button>
-      <FieldErrorHint id={errorId} message={error} />
-    </fieldset>
+    </FormFieldset>
   );
 }
 
