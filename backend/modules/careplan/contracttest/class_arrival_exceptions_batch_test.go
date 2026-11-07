@@ -117,9 +117,11 @@ func TestClassArrivalBatchReportsTheEarliestRefusal(t *testing.T) {
 	assert.False(t, written[foreign.ID])
 }
 
-// Every child is locked student row first, then its care day, in the given
-// order; the children's exceptions are read once, after the last lock.
-func TestClassArrivalBatchLocksEachChildBeforeTheRead(t *testing.T) {
+// Every child is handled completely before the next one is locked, as one
+// command per child: student row, care day, locked recheck, the day's
+// exception read and the write (#5824). Only the single command's second
+// read before the write is gone.
+func TestClassArrivalBatchHandlesEachChildBeforeLockingTheNext(t *testing.T) {
 	t.Parallel()
 	f := newClassArrivalBatchFixture(t)
 	ctx := testpkg.Ctx(t)
@@ -134,33 +136,30 @@ func TestClassArrivalBatchLocksEachChildBeforeTheRead(t *testing.T) {
 		assert.True(t, written[id])
 	}
 
-	var lockOrder []string
-	lastLock, firstRead, reads := -1, -1, 0
-	for index, sql := range counter.Queries() {
+	var steps []string
+	for _, sql := range counter.Queries() {
 		lower := strings.ToLower(sql)
-		kind := ""
 		switch {
 		case strings.Contains(lower, "care-exception-day"):
-			kind = "day"
+			steps = append(steps, "day")
 		case strings.Contains(lower, "class_write_gate"):
-			kind = "recheck"
+			steps = append(steps, "recheck")
 		case strings.HasPrefix(lower, `select "student".id`) && strings.Contains(lower, "for update"):
-			kind = "student"
+			steps = append(steps, "student")
 		case strings.HasPrefix(lower, "select") && strings.Contains(lower, "student_arrival_exception"):
-			if firstRead < 0 {
-				firstRead = index
-			}
-			reads++
-		}
-		if kind != "" {
-			lockOrder = append(lockOrder, kind)
-			lastLock = index
+			steps = append(steps, "read")
+		case strings.HasPrefix(lower, "insert into schedule.student_arrival_exceptions"):
+			steps = append(steps, "insert")
 		}
 	}
-	perChild := []string{"student", "day", "recheck"}
-	assert.Equal(t, append(append(append([]string{}, perChild...), perChild...), perChild...), lockOrder,
-		"each child: student row, then care day, then the locked recheck")
-	assert.Less(t, lastLock, firstRead, "the exceptions are read after the last lock")
-	// One read by the command, one per child by report's own check.
-	assert.Equal(t, 1+len(ids), reads)
+	perChild := []string{"student", "day", "recheck", "read", "insert"}
+	want := []string{}
+	for range ids {
+		want = append(want, perChild...)
+	}
+	// report's own check reads each child's day once more afterwards.
+	for range ids {
+		want = append(want, "read")
+	}
+	assert.Equal(t, want, steps)
 }

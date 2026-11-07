@@ -417,8 +417,8 @@ func (s *arrivalScheduleService) CreateOrReclaimExceptionForClass(
 }
 
 // CreateOrReclaimExceptionsForClass runs the class command for several
-// children in one unit of work (#5824). Only a membership refusal of a later
-// child waits for the earlier children; every other failure ends the report.
+// children in one unit of work (#5824), child by child as single commands
+// would: the first refusal or failure ends the report.
 func (s *arrivalScheduleService) CreateOrReclaimExceptionsForClass(
 	ctx context.Context, schoolClass string, studentIDs []int64, date calendar.Date,
 	arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error),
@@ -429,7 +429,7 @@ func (s *arrivalScheduleService) CreateOrReclaimExceptionsForClass(
 	}
 	_, err = s.createOrReclaimException(ctx, exceptionBatch{
 		studentIDs: studentIDs, date: date, value: arrivalTime, reason: reason, staffID: staffID,
-		resolveStaffID: resolveStaffID, authorize: authorize, isRejection: isClassMembershipRejection,
+		resolveStaffID: resolveStaffID, authorize: authorize,
 	})
 	return err
 }
@@ -451,12 +451,6 @@ func (s *arrivalScheduleService) classStudentCheck(schoolClass string, date cale
 		}
 		return validateLockedArrivalStudent(txCtx, student, filter)
 	}, nil
-}
-
-// isClassMembershipRejection is the refusal of the class recheck; every other
-// error of it is a storage failure.
-func isClassMembershipRejection(err error) bool {
-	return errors.Is(err, careplan.ErrBulkStudentNotFound) || errors.Is(err, careplan.ErrBulkStudentUnauthorized)
 }
 
 func (s *arrivalScheduleService) UpdateException(
