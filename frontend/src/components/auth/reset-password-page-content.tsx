@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
@@ -309,15 +310,13 @@ export function ResetPasswordPageContent({
         brand={brand}
         testimonialPanelCopy={testimonialPanelCopy}
       >
-        <div className="text-center">
-          <div className="bg-moto-green-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-            <CheckIcon className="text-moto-green-strong h-10 w-10" />
-          </div>
-
-          <p className="mb-6 text-sm text-gray-600">{copy.successBody}</p>
-
-          <Loading fullPage={false} />
-        </div>
+        <EmptyState
+          tone="success"
+          icon={<CheckIcon />}
+          description={copy.successBody}
+          progress={<Loading fullPage={false} />}
+          className="py-0"
+        />
       </AuthShell>
     );
   }

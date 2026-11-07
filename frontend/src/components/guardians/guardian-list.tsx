@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type {
@@ -138,12 +139,11 @@ export default function GuardianList({
 }: GuardianListProps) {
   if (guardians.length === 0) {
     return (
-      <div className="py-6 text-center text-gray-500 sm:py-8">
-        <AlertCircle className="mx-auto mb-2 h-10 w-10 text-gray-400 sm:h-12 sm:w-12" />
-        <p className="text-sm sm:text-base">
-          Keine Erziehungsberechtigten zugewiesen
-        </p>
-      </div>
+      <EmptyState
+        icon={<AlertCircle className="h-10 w-10 sm:h-12 sm:w-12" />}
+        title="Keine Erziehungsberechtigten zugewiesen"
+        className="py-6 sm:py-8"
+      />
     );
   }
 

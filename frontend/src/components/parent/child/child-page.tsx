@@ -1,5 +1,7 @@
 "use client";
 
+import { SectionCard } from "~/components/ui/section-card";
+import { EmptyState } from "~/components/ui/empty-state";
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDotsIcon,
@@ -135,9 +137,13 @@ export function ChildPage({
     return (
       <ParentPage>
         <ParentPageHeader title={t("sections.today")} />
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
-          {t("noChildren")}
-        </p>
+        <SectionCard>
+          <EmptyState
+            variant="compact"
+            description={t("noChildren")}
+            className="py-0"
+          />
+        </SectionCard>
       </ParentPage>
     );
   }
@@ -165,9 +171,13 @@ export function ChildPage({
           backHref={parentPath("/parents/children")}
           backLabel={backT(children.length > 1 ? "back" : "backSingle")}
         />
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
-          {t("notFound")}
-        </p>
+        <SectionCard>
+          <EmptyState
+            variant="compact"
+            description={t("notFound")}
+            className="py-0"
+          />
+        </SectionCard>
       </ParentPage>
     );
   }

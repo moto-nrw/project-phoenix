@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -252,14 +253,11 @@ function PhaseRow({
 function EmptyPhases() {
   const t = useTranslations("parentEnroll");
   return (
-    <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-      <ConceptIconTile
-        concept={schoolsConcept}
-        size="page"
-        className="mx-auto"
-      />
-      <p className="mt-3 text-sm leading-6 text-gray-600">{t("empty")}</p>
-    </div>
+    <EmptyState
+      variant="dashed"
+      icon={<ConceptIconTile concept={schoolsConcept} size="page" />}
+      title={t("empty")}
+    />
   );
 }
 
