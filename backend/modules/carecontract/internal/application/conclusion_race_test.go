@@ -57,6 +57,19 @@ func raceFingerprint(data []byte) string {
 	return fmt.Sprintf("%x", sum)
 }
 
+// databaseSHA256 is the root's fingerprint, SHA-256 in hex, computed by the
+// test database: the owner's tests may not import crypto, and the paper
+// contract's stored checksum is PostgreSQL's sha256 of the same bytes.
+func databaseSHA256(db *bun.DB) func([]byte) string {
+	return func(data []byte) string {
+		var digest string
+		if err := db.NewRaw(`SELECT encode(sha256(?::bytea), 'hex')`, data).Scan(context.Background(), &digest); err != nil {
+			panic(fmt.Sprintf("test fingerprint: %v", err))
+		}
+		return digest
+	}
+}
+
 type raceRuntime struct{}
 
 func (raceRuntime) WithinSchool(ctx context.Context, _ int64, fn func(context.Context) error) error {
@@ -148,7 +161,7 @@ func newRaceFixture(t *testing.T, name string) raceFixture {
 		// A send makes the one-time signing link of #4679; the conclusion at
 		// the acceptance makes none.
 		Ledger: struct{ carecontract.SignatureLedger }{},
-		Links:  carecontract.SigningLinks{Tokens: &raceTokens{}, ParentsURL: "http://parents.localhost", Fingerprint: raceFingerprint},
+		Links:  carecontract.SigningLinks{Tokens: &raceTokens{}, ParentsURL: "http://parents.localhost", Fingerprint: databaseSHA256(db)},
 	}, clock, NewVersions(store))
 	var id int64
 	require.NoError(t, testpkg.WithinTraeger(ctx, org, func(txCtx context.Context) error {

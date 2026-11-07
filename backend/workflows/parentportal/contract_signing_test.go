@@ -237,3 +237,34 @@ func TestContractChangedAfterTheSendIsNotSignedInTheInbox(t *testing.T) {
 	assert.Equal(t, "versendet", row.Status)
 	assert.Zero(t, row.Signatures)
 }
+
+// TestContractWithoutASendToCompareOffersNoSigning: a contract with no
+// signing link, such as one sent before the links existed, has nothing to
+// compare a signature with; the inbox offers no signing for it and refuses
+// one, while reading stays.
+func TestContractWithoutASendToCompareOffersNoSigning(t *testing.T) {
+	t.Parallel()
+	portal, _, _, db, _ := documentInboxWithMails(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	sent := inboxContract(t, db, organization, chain.TenantID, chain.StudentID, "Felix", chain.Email)
+	_, err := db.ExecContext(ctx, `DELETE FROM care_contract.contract_signing_links WHERE contract_id = ?`, sent)
+	require.NoError(t, err)
+
+	documents, err := portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxContracts)
+	require.NoError(t, err)
+	var listed bool
+	for _, document := range documents {
+		if document.ID == sent {
+			listed = true
+			assert.False(t, document.CanSign, "no signing offered without a send to compare with")
+		}
+	}
+	require.True(t, listed, "the contract stays readable in the inbox")
+	_, err = portal.SignContract(ctx, chain.AccountID, organization, sent,
+		parentService.ContractSignatureInput{Method: "drawn", ImagePNG: signaturePNG(t), NoticeAcknowledged: true})
+	require.Error(t, err, "and refuses a signature")
+}

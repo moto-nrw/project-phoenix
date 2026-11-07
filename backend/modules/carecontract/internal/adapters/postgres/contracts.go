@@ -295,7 +295,8 @@ func (Store) DeleteDraft(ctx context.Context, organizationID, contractID int64) 
 // to the address, so the list matches the PDF the parents open (#4681).
 const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.school_name,
 	v.effective_from, v.status = '` + carecontract.VersionReplaced + `' AS replaced, m.first_sent AS sent_at, c.status,
-	(c.status = 'versendet' AND ` + inboxChildScopeSQL + `) AS can_sign,
+	(c.status = 'versendet' AND ` + inboxChildScopeSQL + ` AND EXISTS (SELECT 1 FROM care_contract.contract_signing_links AS l
+		WHERE l.organization_id = c.organization_id AND l.contract_id = c.id)) AS can_sign,
 	(SELECT MAX(s.signed_at) FROM care_contract.contract_signatures AS s
 		WHERE s.organization_id = c.organization_id AND s.contract_id = c.id) AS signed_at
 	FROM care_contract.contracts AS c

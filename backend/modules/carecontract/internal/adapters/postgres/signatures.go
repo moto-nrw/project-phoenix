@@ -196,8 +196,9 @@ func (Store) Signature(ctx context.Context, organizationID, contractID, versionI
 			version_sha256, document_sha256, withdrawal_notice_at, early_start_requested, paper_filename, paper_pdf_sha256,
 			COALESCE(paper_pdf_sha256 = encode(sha256(paper_pdf), 'hex'), false) AS paper_intact,
 			signed_on, signed_at
-		FROM care_contract.contract_signatures WHERE organization_id = ? AND contract_id = ? AND contract_version_id = ?`,
-		organizationID, contractID, versionID).Scan(ctx, &rows); err != nil {
+		FROM care_contract.contract_signatures WHERE organization_id = ? AND contract_id = ? AND (? = 0 OR contract_version_id = ?)
+		ORDER BY signed_at DESC, id DESC LIMIT 1`,
+		organizationID, contractID, versionID, versionID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read signature: %w", err)
 	}
 	if len(rows) == 0 {

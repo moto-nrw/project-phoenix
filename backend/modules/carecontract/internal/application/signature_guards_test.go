@@ -155,3 +155,49 @@ func TestPaperSignatureAgainstDiscardLetsOneWin(t *testing.T) {
 	assert.Zero(t, f.signedPapers(t), "no signature of a discarded draft")
 	assert.Zero(t, s.broken)
 }
+
+// TestSignatureStaysVisibleAfterAnApprovedChange pins that an approved
+// change (#4681) never hides the proof of the signature: after a newer
+// version follows the signed one, the detail still shows the signature,
+// checked against the version and PDF it signed. It goes red when the
+// detail looks the signature up by the newest version.
+func TestSignatureStaysVisibleAfterAnApprovedChange(t *testing.T) {
+	t.Parallel()
+	f := newRaceFixture(t, "Träger Unterschrift nach Änderung")
+	store := postgres.NewStore()
+	// The contract began on 01.01.2026, before anything was signed.
+	_, err := f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_versions SET effective_from = '2026-01-01'
+		WHERE contract_id = ?`, f.contract)
+	require.NoError(t, err)
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(txCtx context.Context) error {
+		return f.signatures().RecordPaperSignature(txCtx, f.reviewer, f.contract, paperOf("Erika Muster"))
+	}))
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(txCtx context.Context) error {
+		record, err := store.Contract(txCtx, f.org, f.contract, true)
+		if err != nil {
+			return err
+		}
+		next := record.Version
+		next.Number, next.Status, next.Source = 2, carecontract.VersionEffective, carecontract.SourceBookingChange
+		next.EffectiveFrom = calendar.NewDate(2027, 9, 1)
+		_, err = store.InsertVersion(txCtx, f.org, f.contract,
+			VersionStep{Supersede: record.Version.ID, Status: carecontract.VersionEffective}, next)
+		return err
+	}))
+
+	// The change began on 01.02.2026, so it is the version in force today.
+	// The guard of 1.15.787 refuses a new version that starts in the past,
+	// so the test moves its day as owner of the table; the signed first
+	// version keeps every value it was signed with.
+	_, err = f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_versions SET effective_from = '2026-02-01'
+		WHERE contract_id = ? AND version_number = 2`, f.contract)
+	require.NoError(t, err)
+
+	detail, err := f.contracts.Contract(f.ctx, f.reviewer, f.contract)
+	require.NoError(t, err)
+	require.Len(t, detail.Versions, 2, "the approved change made a second version")
+	assert.Equal(t, 2, detail.Version.Number, "the change is the version in force")
+	require.NotNil(t, detail.Signature, "the signature stays visible after the change")
+	assert.Equal(t, carecontract.SignaturePaper, detail.Signature.Method)
+	assert.True(t, detail.Signature.Intact, "checked against the version and PDF it signed")
+}

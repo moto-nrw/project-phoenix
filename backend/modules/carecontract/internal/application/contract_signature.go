@@ -68,17 +68,22 @@ func createSigningLink(ctx context.Context, store SignatureStore, links carecont
 	}, nil
 }
 
-// addSignature adds the signature of the current version and the reminders
-// to a detail. The signature is intact only when the ledger entry is, and
-// when the PDF and the version still have the checksums it was given on.
+// addSignature adds the signature of the contract and the reminders to a
+// detail. The signature is checked against the version it signed, which an
+// approved change (#4681) may since have followed: it is intact only when
+// the ledger entry is, and when that version and its PDF still have the
+// checksums it was given on.
 func (c *Contracts) addSignature(ctx context.Context, organizationID int64, record ContractRecord, detail *carecontract.ContractDetail) error {
 	reminders, err := c.store.Reminders(ctx, organizationID, record.Summary.ID)
 	if err != nil {
 		return err
 	}
 	detail.Reminders = reminders
-	stored, err := c.store.Signature(ctx, organizationID, record.Summary.ID, record.Version.ID)
+	stored, err := c.store.Signature(ctx, organizationID, record.Summary.ID, 0)
 	if err != nil || stored == nil {
+		return err
+	}
+	if record.Version, err = c.signedVersion(ctx, organizationID, record, stored.VersionID); err != nil {
 		return err
 	}
 	signature, err := c.signatureOf(ctx, organizationID, record, stored)
@@ -87,6 +92,24 @@ func (c *Contracts) addSignature(ctx context.Context, organizationID int64, reco
 	}
 	detail.Signature = &signature
 	return nil
+}
+
+// signedVersion is the version a signature signed: the record's own, or an
+// earlier one of its timeline.
+func (c *Contracts) signedVersion(ctx context.Context, organizationID int64, record ContractRecord, versionID int64) (carecontract.Version, error) {
+	if record.Version.ID == versionID {
+		return record.Version, nil
+	}
+	versions, err := c.store.Versions(ctx, organizationID, record.Summary.ID)
+	if err != nil {
+		return carecontract.Version{}, err
+	}
+	for _, version := range versions {
+		if version.ID == versionID {
+			return version, nil
+		}
+	}
+	return carecontract.Version{}, fmt.Errorf("care contract: the signed version %d is missing", versionID)
 }
 
 func (c *Contracts) signatureOf(ctx context.Context, organizationID int64, record ContractRecord, stored *StoredSignature) (carecontract.ContractSignature, error) {

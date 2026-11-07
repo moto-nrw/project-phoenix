@@ -102,6 +102,8 @@ type SignatureStore interface {
 	LatestSigningLink(ctx context.Context, organizationID, contractID int64) (link SigningLinkRecord, found bool, err error)
 	UseSigningLink(ctx context.Context, organizationID, linkID int64, at time.Time) error
 	InsertSignature(ctx context.Context, organizationID int64, signature NewSignature) error
+	// Signature reads the signature of a version; versionID 0 reads the
+	// newest signature of the contract, whichever version it signed.
 	Signature(ctx context.Context, organizationID, contractID, versionID int64) (*StoredSignature, error)
 	PaperDocument(ctx context.Context, organizationID, contractID int64) (carecontract.File, error)
 	Reminders(ctx context.Context, organizationID, contractID int64) ([]carecontract.Reminder, error)
