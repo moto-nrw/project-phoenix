@@ -52,6 +52,9 @@ Begleitnotiz.
   der Starttag schon da, der Lauf aber noch nicht, übernimmt die Änderung den
   Plan selbst, mit denselben Regeln wie der Lauf, und schreibt danach ihre
   übrigen Felder.
+- Verschiebt die Schule den Start der Phase, folgen offene Pläne ihrer
+  Anmeldungen in derselben Transaktion dem neuen Datum. Bereits übernommene
+  Pläne entstehen dadurch nicht neu.
 - Als Urheber der neuen Wochenzeilen speichert der Plan die Mitarbeiterin, die
   bestätigt hat, oder zuletzt geändert hat (`weekly_plan_author`). Der Start
   hängt damit nicht davon ab, dass dieses Konto Monate später noch besteht.
