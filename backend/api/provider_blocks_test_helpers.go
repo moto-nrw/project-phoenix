@@ -32,7 +32,7 @@ func (providerBlockOutcomes) ProviderEmailBlocks(ctx context.Context, addresses 
 	budget := deliveryContract.ProviderBlockBudgetOf(ctx)
 	for _, address := range addresses {
 		key := deliveryContract.NormalizedEmailAddress(address)
-		if budget.Read(ctx, func(context.Context) error { return nil }) != nil {
+		if budget.Attempt(ctx, func(context.Context) error { return nil }) != nil {
 			blocks[key] = deliveryContract.EmailProviderBlockUnreadable
 			continue
 		}

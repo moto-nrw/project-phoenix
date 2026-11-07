@@ -937,7 +937,7 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendSchoolInvitation",
       "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
       "source_owner": "identity-access",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Read",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
     },
     {
@@ -1010,7 +1010,7 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SchoolInvitationMailStates",
       "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
       "source_owner": "identity-access",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Read",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
     },
     {
@@ -1230,7 +1230,7 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.ResendSchoolInvitation",
       "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
       "source_owner": "identity-access",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Read",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
     },
     {
@@ -1270,7 +1270,7 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.ResendSchoolInvitation",
       "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
       "source_owner": "identity-access",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Read",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
     },
     {
@@ -2172,7 +2172,7 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendSchoolInvitation",
       "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
       "source_owner": "identity-access",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Read",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
     },
     {
@@ -2234,7 +2234,7 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.SchoolInvitationMailStates",
       "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
       "source_owner": "identity-access",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Read",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
     },
     {
@@ -3329,7 +3329,7 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
       "source_owner": "identity-access",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Read",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
     },
     {
@@ -5012,7 +5012,7 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
       "source_owner": "identity-access",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Read",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
     },
     {
@@ -6464,7 +6464,7 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolInvitationDelivery.InvitationMailStates",
       "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
       "source_owner": "identity-access",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Read",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
     },
     {

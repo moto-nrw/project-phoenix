@@ -261,7 +261,7 @@ func (r *EmailReconciliation) ProviderEmailBlocks(ctx context.Context, addresses
 
 func (r *EmailReconciliation) readProviderBlock(ctx context.Context, budget *deliveryContract.ProviderBlockBudget, address string) deliveryContract.EmailProviderBlock {
 	active := false
-	err := budget.Read(ctx, func(readCtx context.Context) error {
+	err := budget.Attempt(ctx, func(readCtx context.Context) error {
 		var err error
 		active, err = r.api.SuppressionActive(readCtx, address)
 		return err

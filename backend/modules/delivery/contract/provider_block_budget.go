@@ -46,9 +46,9 @@ func ProviderBlockBudgetOf(ctx context.Context) *ProviderBlockBudget {
 	return &ProviderBlockBudget{}
 }
 
-// Read runs one read within what is left, or answers ErrProviderBlockBudgetSpent
+// Attempt runs one read within what is left, or answers ErrProviderBlockBudgetSpent
 // without running it. A read that outlasts its time ends the budget.
-func (b *ProviderBlockBudget) Read(ctx context.Context, read func(context.Context) error) error {
+func (b *ProviderBlockBudget) Attempt(ctx context.Context, read func(context.Context) error) error {
 	remaining, ok := b.take()
 	if !ok {
 		return ErrProviderBlockBudgetSpent
