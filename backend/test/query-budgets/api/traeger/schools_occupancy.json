@@ -1,6 +1,6 @@
 {
   "scenario": "api.traeger.schools_occupancy",
-  "max": 9,
+  "max": 8,
   "exact": true,
-  "description": "modules/traegerview — GET /traeger/schools/occupancy (#4676, #5977): the\nTräger row, the school IDs of the Träger, the school rows, the roster of\nthe Stichtagszahl rule, the group of each membership, the group names, the\nrunning enrollment phases, the care offerings booked or running today and\nthe child of each approved enrollment for the whole school set in one\nadministrative transaction. Flat in the number of schools. #5977 adds the\nrunning phases: Enrollment owns the service period, so Care Plan cannot\njoin it."
+  "description": "modules/traegerview — GET /traeger/schools/occupancy (#4676, #5977): the\nTräger row, the school IDs of the Träger, the school rows, the roster of\nthe Stichtagszahl rule, the group of each membership, the group names, the\nchild of each approved enrollment with the running phases and the care\nofferings booked or running today for the whole school set in one\nadministrative transaction. Flat in the number of schools."
 }

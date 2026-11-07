@@ -15,16 +15,14 @@ import (
 
 // traegerOccupancyPorts binds the owners' reads behind the Träger's occupancy
 // (#4676): the group of each membership at School Membership, the group names
-// at School Structure, the running phases and the child of each approved
-// enrollment at Enrollment and the care offerings at Care Plan (#5977).
+// at School Structure, the care offerings at Care Plan and the child of each
+// approved enrollment with the running phases at Enrollment (#5977).
 func traegerOccupancyPorts() traegerview.OccupancyPorts {
-	enrollment := enrollmentCompose.NewBookedChildren()
 	return traegerview.OccupancyPorts{
 		Groups:     schoolMembershipCompose.NewSchoolRosters(),
 		GroupNames: traegerGroupNames{groups: schoolStructureCompose.NewTraegerGroupNames()},
-		Phases:     enrollment,
 		Bookings:   traegerCareBookings{bookings: carePlanCompose.NewTraegerCareBookings()},
-		Children:   enrollment,
+		Children:   enrollmentCompose.NewBookedChildren(),
 	}
 }
 

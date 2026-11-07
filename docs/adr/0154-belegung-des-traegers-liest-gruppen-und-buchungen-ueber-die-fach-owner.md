@@ -23,7 +23,8 @@ Gründe aus ADR 0151 gegen einen `read_projections`-Eintrag gelten unverändert.
 1. **Lesen über die Owner wie in ADR 0151.** School Membership erweitert
    `SchoolRosters` um `MembershipGroupIDsByTenant`. School Structure bietet
    `TraegerGroupNames`, Care Plan `TraegerCareBookings`, Enrollment
-   `BookedChildren` mit `RunningPhaseIDs` (#5977). Jede Abfrage liegt im Postgres-Paket ihres Owners, filtert mit
+   `BookedChildren`; dessen Abfrage nennt seit #5977 auch die laufenden
+   Anmeldephasen. Jede Abfrage liegt im Postgres-Paket ihres Owners, filtert mit
    `tenant_id = ANY(?)` auf die übergebenen Schulen und verweigert ohne die
    Admin-Einheit der Projektion. Die Antworten tragen IDs, Zahlen und die Namen
    von Gruppen und Angeboten, keine Namen von Kindern.
@@ -59,9 +60,9 @@ Gründe aus ADR 0151 gegen einen `read_projections`-Eintrag gelten unverändert.
 
 ## Folgen
 
-- Die laufenden Phasen kosten eine Abfrage mehr; das Budget
-  `api.traeger.schools_occupancy` steigt von 8 auf 9 und bleibt flach in der
-  Zahl der Schulen.
+- Die laufenden Phasen kosten keine eigene Abfrage: Enrollment liest sie im
+  selben Statement wie die gebuchten Kinder. Das Budget
+  `api.traeger.schools_occupancy` bleibt bei 8.
 - Den Filter dieser Abfragen sichert `api/traeger_schools_occupancy_test.go` mit
   einer Schule eines anderen Trägers, nicht der Ratchet von ADR 0084.
 - Eine Schule mit wochenplangeführter Betreuung kann Kinder ohne Buchung zeigen;

@@ -324,10 +324,9 @@ func TestTraegerOccupancyReadsRefuseOutsideTheAdministrativeTransaction(t *testi
 	reads := func(ctx context.Context) []error {
 		_, groups := ports.Groups.MembershipGroupIDsByTenant(ctx, []int64{school})
 		_, names := ports.GroupNames.GroupsByTenant(ctx, []int64{school})
-		_, phases := ports.Phases.RunningPhaseIDs(ctx, []int64{school}, day)
 		_, booked := ports.Bookings.CareOfferingBookingsByTenant(ctx, []int64{school}, day, nil)
-		_, children := ports.Children.ApprovedChildStudentIDsByTenant(ctx, []int64{school})
-		return []error{groups, names, phases, booked, children}
+		_, _, children := ports.Children.BookedChildrenAndRunningPhases(ctx, []int64{school}, day)
+		return []error{groups, names, booked, children}
 	}
 	for index, err := range reads(testpkg.TenantContext(school)) {
 		assert.Error(t, err, "read %d refuses a tenant transaction", index)

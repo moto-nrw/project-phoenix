@@ -11,7 +11,7 @@ import (
 // so a care booking reaches the child it belongs to. The map is keyed by
 // school, then by request child, and carries IDs only.
 //
-// RunningPhaseIDs names the active enrollment phases whose service period
+// The same statement names the active enrollment phases whose service period
 // (service_start_date to service_end_date, both inclusive) holds the day, so
 // the occupancy also lists the offerings of a running phase that nobody has
 // booked yet (#5977). Phase IDs are unique across schools.
@@ -19,6 +19,5 @@ import (
 // The caller must run it in the administrative transaction; it reads only the
 // given schools.
 type BookedChildren interface {
-	ApprovedChildStudentIDsByTenant(ctx context.Context, schools []int64) (map[int64]map[int64]int64, error)
-	RunningPhaseIDs(ctx context.Context, schools []int64, day calendar.Date) ([]int64, error)
+	BookedChildrenAndRunningPhases(ctx context.Context, schools []int64, day calendar.Date) (children map[int64]map[int64]int64, runningPhases []int64, err error)
 }

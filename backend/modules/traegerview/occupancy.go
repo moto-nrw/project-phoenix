@@ -21,7 +21,7 @@ import (
 //   - A care form is a care offering of the school that counts as care
 //     (counts_as_care) and runs today or holds a booking today. It runs today
 //     when it is active and its enrollment phase is active with a service
-//     period that holds today, read at Enrollment (#5977). It counts the
+//     period that holds today, named by Enrollment (#5977). It counts the
 //     children of the roster with a booking of the offering valid today, so an
 //     offering without one shows 0 children and all its places free.
 //     Capacity is the offering's limit, nil without one. WithoutCareForm counts
@@ -102,27 +102,20 @@ type CareBookings interface {
 	CareOfferingBookingsByTenant(ctx context.Context, schools []int64, day calendar.Date, runningPhases []int64) (map[int64][]CareOfferingBookings, error)
 }
 
-// RunningPhases names the active enrollment phases of the schools whose
-// service period holds the day, at Enrollment, the owner of that period. It
-// joins the projection's administrative transaction and reads only the given
-// schools.
-type RunningPhases interface {
-	RunningPhaseIDs(ctx context.Context, schools []int64, day calendar.Date) ([]int64, error)
-}
-
 // BookedChildren ties each approved child of the online enrollment to the
-// child it became, at Enrollment: request child ID to student ID. It joins
-// the projection's administrative transaction and reads only the given
-// schools.
+// child it became, at Enrollment: request child ID to student ID. It also
+// names the running phases: active, with a service period that holds the
+// day (#5977). Enrollment owns that period, so Care Plan takes the phases
+// instead of reading them. It joins the projection's administrative
+// transaction and reads only the given schools.
 type BookedChildren interface {
-	ApprovedChildStudentIDsByTenant(ctx context.Context, schools []int64) (map[int64]map[int64]int64, error)
+	BookedChildrenAndRunningPhases(ctx context.Context, schools []int64, day calendar.Date) (children map[int64]map[int64]int64, runningPhases []int64, err error)
 }
 
 // OccupancyPorts are the owners' reads behind the occupancy (#4676).
 type OccupancyPorts struct {
 	Groups     GroupMembership
 	GroupNames GroupNames
-	Phases     RunningPhases
 	Bookings   CareBookings
 	Children   BookedChildren
 }
