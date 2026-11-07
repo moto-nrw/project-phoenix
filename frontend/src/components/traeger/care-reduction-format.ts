@@ -53,7 +53,7 @@ export function reductionExplanation(reduction: CareReduction): string {
     case "sibling":
       return `${reduction.childRank ?? "?"}. Kind von ${reduction.familyChildren ?? "?"} · ${ruleEffect(reduction)} · zuerst zählt das Kind mit dem höchsten Beitrag`;
     case "cap":
-      return `Höchstbetrag ${formatEuro(reduction.capCents ?? 0)} je Familie und Monat`;
+      return `Höchstbetrag ${formatEuro(reduction.capCents ?? 0)} je Familie und Monat erreicht`;
     case "income_level":
       return `Einkommensstufe · ${ruleEffect(reduction)}`;
     case "single_parent":

@@ -321,7 +321,6 @@ export function CareRuleModal({
             id="care-rule-until"
             name="valid_until"
             label="Gilt bis"
-            hint="Leer lassen, wenn die Regel weiter gilt."
             value={draft.validUntil}
             options={[
               { value: "", label: "Ohne Ende" },

@@ -25,10 +25,7 @@ import {
   invoiceCountLabel,
 } from "./care-billing-format";
 import { formatEuro } from "./contribution-format";
-import {
-  CARE_RULE_KIND_LABELS,
-  reductionExplanation,
-} from "./care-reduction-format";
+import { reductionExplanation } from "./care-reduction-format";
 
 interface SchoolGroup {
   readonly schoolId: string;
@@ -110,9 +107,7 @@ function ReductionLine({ reduction }: Readonly<{ reduction: CareReduction }>) {
   return (
     <li className="flex items-baseline justify-between gap-4 py-1.5">
       <div className="min-w-0">
-        <p className="text-sm text-gray-900">
-          {CARE_RULE_KIND_LABELS[reduction.kind]}: {reduction.name}
-        </p>
+        <p className="text-sm text-gray-900">{reduction.name}</p>
         <p className="mt-0.5 text-xs text-gray-600">
           {reductionExplanation(reduction)}
         </p>

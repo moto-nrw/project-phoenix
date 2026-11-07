@@ -73,18 +73,21 @@ function RuleDetails({
 }: Readonly<{ rule: CareRule; data: CareRuleSet }>) {
   const modules = moduleNames(rule, data);
   const lines = [
-    `${names(rule.schoolIds, data)} · ${validityLabel(rule.validFrom, rule.validUntil, formatMonth)}`,
+    [
+      names(rule.schoolIds, data),
+      validityLabel(rule.validFrom, rule.validUntil, formatMonth),
+      modules ? `nur ${modules}` : "alle Module",
+    ].join(" · "),
   ];
   if (rule.kind === "sibling") {
     lines.push(
-      `Ab dem ${rule.siblingFromChild ?? 2}. Kind · Geschwister zählen an: ${
+      `Ab dem ${rule.siblingFromChild ?? 2}. Kind · ${
         rule.countSchoolIds.length > 0
-          ? names(rule.countSchoolIds, data)
-          : "den Schulen der Regel"
+          ? `Geschwister zählen auch an: ${names(rule.countSchoolIds, data)}`
+          : "Geschwister zählen nur an diesen Schulen"
       }`,
     );
   }
-  lines.push(modules ? `Nur ${modules}` : "Alle Module");
   return (
     <>
       {lines.map((line) => (

@@ -13,11 +13,11 @@ import {
   EVIDENCE_KIND_LABELS,
   type EvidenceTarget,
 } from "~/components/traeger/care-evidence-modal";
+import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
@@ -293,21 +293,25 @@ export default function TraegerNachweisePage() {
           description="Nachweise tragen Sie für Kinder mit Betreuungsvertrag ein."
         />
       ) : null}
+      {data && data.contracts.length > 0 && data.levels.length === 0 ? (
+        <Alert
+          type="info"
+          message="Für Einkommensstufen legen Sie zuerst Stufen unter „Ermäßigungen“ an."
+        />
+      ) : null}
       {data && data.contracts.length > 0 ? (
-        <SectionCard padding="none">
-          {data.levels.length === 0 ? (
-            <p className="border-b border-gray-100 px-5 py-3 text-sm text-gray-600">
-              Für Einkommensstufen legen Sie zuerst Stufen unter „Ermäßigungen“
-              an.
-            </p>
-          ) : null}
-          <DataTable
-            columns={columns}
-            rows={rows}
-            getRowKey={(contract) => contract.contractId}
-            stackedOnMobile
-          />
-        </SectionCard>
+        <DataTable
+          columns={columns}
+          rows={rows}
+          getRowKey={(contract) => contract.contractId}
+          stackedOnMobile
+          emptyState={
+            <EmptyState
+              title="Kein Kind passt zur Suche."
+              description="Ändern Sie die Suche."
+            />
+          }
+        />
       ) : null}
     </TenantPage>
   );
