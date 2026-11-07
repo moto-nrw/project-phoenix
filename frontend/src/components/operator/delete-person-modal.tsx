@@ -6,6 +6,7 @@ import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { createLogger } from "~/lib/logger";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 
 const logger = createLogger({ component: "DeletePersonModal" });
@@ -65,17 +66,25 @@ export function DeletePersonModal({
         ) : null
       }
       warningSlot={
-        <div className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
-          <p className="font-medium">Folgende Aktionen werden ausgeführt:</p>
-          <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-            {person?.hasAccount && (
-              <li>Account wird deaktiviert und Login gesperrt</li>
-            )}
-            <li>Persönliche Daten werden anonymisiert</li>
-            <li>RFID-Karte wird freigegeben</li>
-            <li>Diese Aktion kann nicht rückgängig gemacht werden</li>
-          </ul>
-        </div>
+        <Alert
+          type="warning"
+          announce="off"
+          message={
+            <>
+              <p className="font-medium">
+                Folgende Aktionen werden ausgeführt:
+              </p>
+              <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+                {person?.hasAccount && (
+                  <li>Account wird deaktiviert und Login gesperrt</li>
+                )}
+                <li>Persönliche Daten werden anonymisiert</li>
+                <li>RFID-Karte wird freigegeben</li>
+                <li>Diese Aktion kann nicht rückgängig gemacht werden</li>
+              </ul>
+            </>
+          }
+        />
       }
       gate={
         person

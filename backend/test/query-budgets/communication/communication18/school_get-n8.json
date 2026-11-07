@@ -1,6 +1,6 @@
 {
   "scenario": "communication18.school_get.n8",
-  "max": 7,
+  "max": 6,
   "exact": true,
   "description": "Literal protected school class-letter school_get route. One legal class target and no poll options; N3/N8 audience children exist but do not grow this DTO (class-letter domain constraint). Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum."
 }

@@ -14,6 +14,7 @@
 
 "use client";
 
+import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { me as meKeys } from "~/lib/swr/me";
 import { rooms as roomsKeys } from "~/lib/swr/rooms";
@@ -499,15 +500,19 @@ export function StudentsInRoomSection({
         </p>
 
         {isTruncated && (
-          <div
-            role="status"
-            className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border p-3 text-sm"
-          >
-            Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
-            {hiddenCount} weitere{" "}
-            {hiddenCount === 1 ? "Kind ist" : "Kinder sind"} aktuell nicht in
-            dieser Übersicht. Öffnen Sie „Alle Kinder“, um alle zu sehen.
-          </div>
+          <Alert
+            type="warning"
+            announce="polite"
+            className="mt-3"
+            message={
+              <>
+                Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
+                {hiddenCount} weitere{" "}
+                {hiddenCount === 1 ? "Kind ist" : "Kinder sind"} aktuell nicht
+                in dieser Übersicht. Öffnen Sie „Alle Kinder“, um alle zu sehen.
+              </>
+            }
+          />
         )}
 
         {/* Breathing room between the count + Kindersuche button row and

@@ -32,6 +32,9 @@ func (f fixedPayrollStatus[S]) GetPayrollStatus(ctx context.Context) (S, error) 
 	}
 	return f.status, f.err
 }
+func (f fixedPayrollStatus[S]) GetPayrollConfigurationStatus(ctx context.Context) (S, error) {
+	return f.GetPayrollStatus(ctx)
+}
 
 func newFixedPayrollStatus[S any](status S, err error, received *context.Context) fixedPayrollStatus[S] {
 	return fixedPayrollStatus[S]{status: status, err: err, received: received}

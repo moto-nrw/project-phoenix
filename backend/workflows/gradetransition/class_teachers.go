@@ -148,7 +148,7 @@ func (w *Workflow) liveLedgerStaff(ctx context.Context, ledger []schoolstructure
 	if len(staffIDs) == 0 {
 		return live, nil
 	}
-	rows, err := w.deps.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs})
+	rows, err := w.deps.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, MembershipOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve ledger staff: %w", err)
 	}
