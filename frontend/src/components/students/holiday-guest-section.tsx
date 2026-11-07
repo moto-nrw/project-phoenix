@@ -11,13 +11,14 @@ import {
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import { formatDate } from "~/lib/date-helpers";
 import {
   fetchHolidayGuestSheet,
   formatHolidayHostAnswer,
   holidayGuestLabel,
   type HolidayGuestContact,
 } from "~/lib/holiday-host-api";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 import { studentKeys } from "~/lib/swr/portal-keys";
@@ -67,6 +68,8 @@ export function HolidayGuestSection({
   studentId,
   canRead,
 }: Readonly<{ studentId: string; canRead: boolean }>) {
+  // Ein Tageswechsel bei offener Seite verschiebt den Vergleich mit (#5994).
+  const today = useBerlinToday();
   // Reloads on focus and once a minute: a cancellation, changed contacts or
   // the end of the read-only days reach an open sheet without a reload.
   const sheet = useSWRAuth(
@@ -97,7 +100,6 @@ export function HolidayGuestSection({
   const data = sheet.error ? undefined : sheet.data;
   // Soll und Ist der Ferienwoche (#5994): erst ab ihrem ersten Tag, denn
   // vorher ist das Kind noch nicht in der Schule.
-  const today = berlinTodayISO();
   const careTimes =
     data && data.startsOn <= today
       ? { from: data.startsOn, to: data.endsOn < today ? data.endsOn : today }

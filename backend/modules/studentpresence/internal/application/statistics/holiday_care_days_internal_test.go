@@ -140,3 +140,26 @@ func TestHolidayBookingKeepsACancelledDay(t *testing.T) {
 	assert.Nil(t, day.Pickup, "a day the child does not come carries no times")
 	assert.Equal(t, studentpresence.PlannedCareSourceHoliday, day.Source)
 }
+
+type contractStub map[int64]map[calendar.Date]studentpresence.ContractCareDay
+
+func (c contractStub) ContractCareDays(context.Context, []int64, calendar.Date, calendar.Date) (map[int64]map[calendar.Date]studentpresence.ContractCareDay, error) {
+	return c, nil
+}
+
+// A „Kommt heute nicht“ on a day the contract books no module survives both
+// overlays: the holiday booking does not make the day expected again.
+func TestCancellationSurvivesContractAndHolidayBooking(t *testing.T) {
+	t.Parallel()
+	mon := calendar.NewDate(2026, 7, 20)
+	cancelled := plannedStub{11: {mon: {Cancelled: true, Source: studentpresence.PlannedCareSourceCarePlan}}}
+	contracts := contractStub{11: {mon: {Booked: false}}}
+	holidays := holidayStub{days: map[int64]map[calendar.Date]ports.HolidayCareDay{11: {mon: holidayBooked(8, 16)}}}
+	planned, err := WithHolidayCareDays(WithContractCareDays(cancelled, contracts), holidays).
+		PlannedCareDays(context.Background(), []int64{11}, mon, mon)
+	require.NoError(t, err)
+	day := planned[11][mon]
+	assert.True(t, day.Cancelled, "the cancellation of the day stays")
+	assert.False(t, day.Expected, "the holiday booking does not undo it")
+	assert.Equal(t, studentpresence.PlannedCareSourceHoliday, day.Source)
+}
