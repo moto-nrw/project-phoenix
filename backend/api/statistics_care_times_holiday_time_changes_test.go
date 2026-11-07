@@ -85,6 +85,25 @@ func TestStudentCareTimes_TimeEditsKeepPastHolidaySoll(t *testing.T) {
   WHERE organization_id = ? AND holiday_period_week_id = ?`, org, booking.week)
 	require.NoError(t, err)
 	assertHolidayTimeEdits(t, tc, account.ID, []int64{own.ID, guest.ID}, []string{"08:00/16:00", "08:00/16:00", "09:00/13:00", "10:00/12:00", "08:00/11:00"})
+	// A later host/date move ends A's guest grant but must not erase its
+	// already booked days, including the distinct model windows of Wednesday
+	// and Thursday. The old copy alone still says 08:00–16:00 throughout.
+	nextHost := testpkg.CreateTestSchoolInOrganization(t, tc.db, org, "Neue Ferien-OGS")
+	_, err = tc.db.ExecContext(context.Background(), `UPDATE enrollment.holiday_period_weeks
+  SET host_school_id = ?, starts_on = ?, ends_on = ? WHERE organization_id = ? AND id = ?`,
+		nextHost, monday.AddDays(7), monday.AddDays(11), org, booking.week)
+	require.NoError(t, err)
+	_, err = tc.db.ExecContext(context.Background(), `UPDATE enrollment.holiday_guests SET ended_on = ?
+  WHERE tenant_id = ? AND student_id = ?`, monday.AddDays(4), school, guest.ID)
+	require.NoError(t, err)
+	days := contractCareTimes(t, tc, account.ID, guest.ID)
+	require.Len(t, days, 5)
+	for i, want := range []string{"08:00/16:00", "08:00/16:00", "09:00/13:00", "10:00/12:00"} {
+		require.NotNil(t, days[i].PlannedStart)
+		require.NotNil(t, days[i].PlannedEnd)
+		assert.Equal(t, want, *days[i].PlannedStart+"/"+*days[i].PlannedEnd, days[i].Date)
+		assert.Equal(t, "holiday_booking", days[i].PlannedSource)
+	}
 }
 
 func addGuestToTimeEditBooking(t *testing.T, db *bun.DB, org int64, booking ownBooking, student int64, monday calendar.Date) ownBooking {

@@ -68,6 +68,19 @@ func TestHolidayBookingsOfAnotherSchoolStayOutBeneathRLS(t *testing.T) {
   SET home_school_id = ? WHERE organization_id = ? AND home_school_id = ?`, schoolB, organization, schoolA)
 	require.NoError(t, err)
 	hostOwnChild(t, db, organization, schoolA, monday)
+	// Give the guest a real confirmed source as well: both the authoritative
+	// projection and the legacy-copy fallback must enforce the school below RLS.
+	hostOwnChild(t, db, organization, schoolA, monday)
+	_, err = db.ExecContext(context.Background(), `UPDATE enrollment.holiday_registration_children
+  SET home_school_id = NULL, first_name = 'Gina', last_name = 'Gast'
+  WHERE organization_id = ? AND id = (SELECT max(id) FROM enrollment.holiday_registration_children WHERE organization_id = ?)`, organization, organization)
+	require.NoError(t, err)
+	_, err = db.ExecContext(context.Background(), `UPDATE enrollment.holiday_guests AS guest
+  SET holiday_registration_child_id = child.id, holiday_period_week_id = week.id
+  FROM enrollment.holiday_registration_children AS child
+  JOIN enrollment.holiday_period_weeks AS week ON week.organization_id = child.organization_id AND week.holiday_period_id = child.holiday_period_id
+  WHERE guest.tenant_id = ? AND guest.student_id = ? AND child.organization_id = ? AND child.first_name = 'Gina'`, schoolA, guest.ID, organization)
+	require.NoError(t, err)
 	own := testpkg.CreateTestStudent(t, db, "Ole", "Eigen", "2a")
 	care := enrollmentCompose.NewHolidayGuestBookedCare(ownChildIdentities{
 		own.ID: {FirstName: "Ole", LastName: "Eigen", BirthDate: calendar.NewDate(2018, 3, 4)},

@@ -58,12 +58,21 @@ CREATE FUNCTION enrollment.holiday_host_booked_windows(p_from DATE, p_to DATE)
 	WITH host AS (
 		SELECT NULLIF(current_setting('app.current_tenant_id', true), '')::bigint AS school_id
 	),
+ guest_access AS (
+  SELECT guest.id, guest.organization_id, guest.holiday_registration_child_id,
+   guest.holiday_period_week_id, guest.starts_on, guest.ends_on
+  FROM enrollment.holiday_guests AS guest
+  WHERE guest.tenant_id = (SELECT school_id FROM host)
+ ),
 	own AS (
 		SELECT child.id AS child_id, child.organization_id, child.home_school_id, child.first_name, child.last_name, child.birth_date,
 			registration.id AS registration_id, cancellation.cancelled_on
 		FROM host
 		JOIN platform.schools AS host_school ON host_school.id = host.school_id
-		JOIN enrollment.holiday_registration_children AS child ON child.organization_id = host_school.organization_id
+		JOIN enrollment.holiday_registration_children AS child
+   ON child.organization_id = host_school.organization_id OR EXISTS (
+    SELECT 1 FROM guest_access AS granted
+    WHERE granted.organization_id = child.organization_id AND granted.holiday_registration_child_id = child.id)
 		JOIN enrollment.holiday_registrations AS registration
 			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
 		JOIN enrollment.holiday_periods AS period
@@ -109,8 +118,8 @@ CREATE FUNCTION enrollment.holiday_host_booked_windows(p_from DATE, p_to DATE)
 	),
 	booked AS (
 		SELECT own.organization_id, own.child_id, week.id AS week_id, own.home_school_id, own.first_name, own.last_name, own.birth_date, care_window.starts_at, care_window.ends_at,
-			GREATEST(week.starts_on, segment.valid_from, care_window.valid_from) AS first_day,
-			LEAST(week.ends_on, segment.valid_until, own.cancelled_on - 1, care_window.valid_until - 1) AS last_day
+			GREATEST(COALESCE(granted.starts_on, week.starts_on), segment.valid_from, care_window.valid_from) AS first_day,
+			LEAST(COALESCE(granted.ends_on, week.ends_on), segment.valid_until, own.cancelled_on - 1, care_window.valid_until - 1) AS last_day
 		FROM segment
 		JOIN own ON own.child_id = segment.child_id
 		JOIN enrollment.holiday_period_weeks AS week
@@ -120,8 +129,10 @@ CREATE FUNCTION enrollment.holiday_host_booked_windows(p_from DATE, p_to DATE)
 		JOIN enrollment.holiday_week_time_models AS model
 			ON model.organization_id = week.organization_id AND model.holiday_period_week_id = week.id
 				AND model.id = segment.model_id
+  LEFT JOIN guest_access AS granted ON granted.organization_id = own.organization_id
+   AND granted.holiday_registration_child_id = own.child_id AND granted.holiday_period_week_id = week.id
 		CROSS JOIN LATERAL enrollment.holiday_time_model_windows(model.care_time_history, model.starts_at, model.ends_at) AS care_window
-		WHERE week.host_school_id = (SELECT host.school_id FROM host)
+		WHERE week.host_school_id = (SELECT host.school_id FROM host) OR granted.id IS NOT NULL
 	)
 	SELECT organization_id, child_id, week_id, home_school_id, first_name, last_name, birth_date, first_day, last_day, starts_at, ends_at
 	FROM booked
@@ -135,8 +146,11 @@ CREATE OR REPLACE FUNCTION enrollment.holiday_host_own_bookings(p_from DATE, p_t
  SET search_path = pg_catalog, pg_temp
  AS $$
  SELECT first_name, last_name, birth_date, starts_on, ends_on, starts_at, ends_at
- FROM enrollment.holiday_host_booked_windows(p_from, p_to)
+ FROM enrollment.holiday_host_booked_windows(p_from, p_to) AS booked
  WHERE home_school_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
+  AND EXISTS (SELECT 1 FROM enrollment.holiday_period_weeks AS week
+   WHERE week.organization_id = booked.organization_id AND week.id = booked.week_id
+    AND week.host_school_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
  $$;
 
 CREATE FUNCTION enrollment.holiday_host_guest_bookings(p_from DATE, p_to DATE)
