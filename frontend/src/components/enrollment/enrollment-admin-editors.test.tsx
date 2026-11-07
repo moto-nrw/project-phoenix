@@ -563,6 +563,41 @@ describe("CareOfferingsEditor", () => {
     });
   });
 
+  // #6044: the checkbox read „Für alle Klassenstufen“ while it was NOT
+  // ticked for an unrestricted offering, and ticking it restricted the
+  // offering. A school ticked it to mean „for everyone“. The label must say
+  // what a tick does, in both states.
+  it("names the availability checkbox after what a tick does", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([]);
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Neues Betreuungsangebot",
+      }),
+    );
+
+    const restrict = screen.getByRole("checkbox", {
+      name: /^Nur für bestimmte Klassenstufen anbieten/,
+    });
+    expect(restrict).not.toBeChecked();
+    expect(
+      screen.getByText("Ohne Haken können alle Kinder das Angebot wählen."),
+    ).toBeVisible();
+
+    fireEvent.click(restrict);
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
+      }),
+    ).toBeChecked();
+    expect(
+      screen.getByText("Bedingung 1: Wählen Sie mindestens eine Klassenstufe."),
+    ).toBeVisible();
+  });
+
   it("edits availability rules without JSON and blocks incomplete rules", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listCareOfferings.mockResolvedValue([]);
@@ -579,7 +614,7 @@ describe("CareOfferingsEditor", () => {
 
     expect(
       screen.getByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     ).not.toBeChecked();
     fireEvent.change(await waitForInputByName("name"), {
@@ -589,7 +624,7 @@ describe("CareOfferingsEditor", () => {
     setPickupTime("Mo");
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     );
 
@@ -975,7 +1010,7 @@ describe("CareOfferingsEditor", () => {
     );
     fireEvent.click(
       await screen.findByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     );
   }
@@ -1239,7 +1274,7 @@ describe("CareOfferingsEditor", () => {
     );
     fireEvent.click(
       await screen.findByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     );
     fireEvent.click(
@@ -4769,6 +4804,39 @@ describe("EnrollmentFormEditor", () => {
     expect(
       (screen.getByLabelText("Auswahlzeit 2") as HTMLInputElement).value,
     ).toBe("");
+  });
+
+  // #6044: a school asked for pickup times in its form AND gave each offering
+  // a Gehzeit. The answer replaces the offering time in the care plan, so
+  // the two sources contradicted each other without any hint. The template
+  // preview also listed „Gewünschtes Angebot“ with no word that the offerings
+  // come from the phase.
+  it("says where offerings and their Gehzeit come from", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    expect(
+      screen.getByText(
+        "Die Angebote legen Sie in der Anmeldephase fest. Eltern sehen sie über den Link der Phase.",
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^Abholzeiten\b/,
+      }),
+    );
+
+    expect(
+      screen.getByText(
+        "Haben Ihre Betreuungsangebote eine Gehzeit? Dann brauchen Sie diese Frage nicht. Eine Antwort hier ersetzt die Gehzeit des Angebots.",
+      ),
+    ).toBeVisible();
   });
 });
 

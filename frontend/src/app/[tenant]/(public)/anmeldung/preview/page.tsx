@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Eye, Info } from "lucide-react";
+import { ExternalLink, Info } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
@@ -14,6 +14,8 @@ import {
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
 import { BackLink } from "~/components/ui/back-link";
+import { buttonClassName } from "~/components/ui/button";
+import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { useTenant } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
@@ -50,6 +52,9 @@ function EnrollmentPreviewPageContent() {
   const [schema, setSchema] = useState<FormSchema | null>(null);
   const [assignedPhaseCount, setAssignedPhaseCount] = useState(0);
   const [activeAssignedPhaseCount, setActiveAssignedPhaseCount] = useState(0);
+  // The phases using this template, for the links to their parents' view.
+  // null: the list could not be loaded; the page then names the menu path.
+  const [assignedPhases, setAssignedPhases] = useState<Phase[] | null>([]);
   const [loading, setLoading] = useState(true);
   // Without a template in the address there is nothing to load: a fixed
   // hint, not an API error.
@@ -76,11 +81,20 @@ function EnrollmentPreviewPageContent() {
       setMissingSchema(false);
       clearLoadError();
       try {
-        const result = await fetchEnrollmentPreviewBootstrap({
-          schemaId,
-          base: isBasePreview,
-        });
+        const [result, phases] = await Promise.all([
+          fetchEnrollmentPreviewBootstrap({ schemaId, base: isBasePreview }),
+          // The phase links are a help, not the preview itself: without them
+          // the page still shows the form and names the way to the phase.
+          listPhases().catch(() => null),
+        ]);
         if (cancelled) return;
+        setAssignedPhases(
+          phases?.filter((phase) =>
+            isBasePreview && !schemaId
+              ? !phase.form_schema_id
+              : phase.form_schema_id === schemaId,
+          ) ?? null,
+        );
         setSchema(result.schema);
         setAssignedPhaseCount(result.assigned_phase_count);
         setActiveAssignedPhaseCount(result.active_assigned_phase_count);
@@ -109,13 +123,13 @@ function EnrollmentPreviewPageContent() {
     activeAssignedPhaseCount > 0
       ? {
           label: "Aktiv in Anmeldephase",
-          hint: `Diese Vorlage wird in ${activeAssignedPhaseCount} aktiver Anmeldephase verwendet.`,
+          hint: `Diese Vorlage wird in ${phaseCount(activeAssignedPhaseCount, "aktiven ")} verwendet.`,
           tone: "green" as const,
         }
       : assignedPhaseCount > 0
         ? {
             label: "In Phase verwendet",
-            hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
+            hint: `Diese Vorlage ist in ${phaseCount(assignedPhaseCount)} ausgewählt.`,
             tone: "green" as const,
           }
         : {
@@ -161,9 +175,9 @@ function EnrollmentPreviewPageContent() {
               )}
             </div>
             <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
-              Diese Ansicht zeigt nur das Formular mit Basisfeldern und
-              Zusatzfragen. Zeitraum und Betreuungsangebote gehören zur
-              Elternansicht einer Anmeldephase.
+              Hier sehen Sie nur die Fragen dieses Formulars. Die
+              Betreuungsangebote fehlen hier. Eltern sehen sie über den Link
+              der Anmeldephase.
             </p>
           </div>
 
@@ -212,18 +226,16 @@ function EnrollmentPreviewPageContent() {
           </section>
 
           <PublicInfoCard
-            icon={<Eye className="h-5 w-5" />}
-            title="Direktes Formular"
-          >
-            Du siehst hier das Formular selbst, nicht die öffentliche
-            Auswahlseite für Eltern.
-          </PublicInfoCard>
-          <PublicInfoCard
             icon={<Info className="h-5 w-5" />}
-            title="Ohne Phase"
+            title="Angebote prüfen"
           >
-            Zeitraum und Betreuungsangebote werden erst in der
-            Live-Elternansicht oder in einer Phasenvorschau sichtbar.
+            <PhaseParentViewLinks
+              loading={loading}
+              phases={assignedPhases}
+              hrefFor={(phase) =>
+                tenantPath(`/anmeldung/${encodeURIComponent(phase.id)}`)
+              }
+            />
           </PublicInfoCard>
           <PublicInfoCard
             icon={<MotoConceptIcon concept={permissionsConcept} size={22} />}
@@ -234,5 +246,79 @@ function EnrollmentPreviewPageContent() {
         </aside>
       </div>
     </PublicEnrollmentPageShell>
+  );
+}
+
+/** Dative after „in“: „1 aktiven Anmeldephase“, „3 aktiven Anmeldephasen“. */
+function phaseCount(count: number, adjective = ""): string {
+  return `${count} ${adjective}Anmeldephase${count === 1 ? "" : "n"}`;
+}
+
+// Families of these phases come only through an invitation or their parents'
+// account, so the plain phase link shows them nothing (phases-editor.tsx).
+function hasPublicLink(phase: Phase): boolean {
+  return (
+    phase.audience !== "existing_students" &&
+    phase.audience !== "linked_parents"
+  );
+}
+
+function PhaseParentViewLinks({
+  loading,
+  phases,
+  hrefFor,
+}: Readonly<{
+  loading: boolean;
+  phases: Phase[] | null;
+  hrefFor: (phase: Phase) => string;
+}>) {
+  if (loading) return null;
+  if (phases === null) {
+    return (
+      <>
+        Öffnen Sie unter Anmeldephasen bei der Phase „Formular ansehen“. Dort
+        stehen die Angebote.
+      </>
+    );
+  }
+  if (phases.length === 0) {
+    return (
+      <>
+        Diese Vorlage gehört noch zu keiner Anmeldephase. Wählen Sie sie unter
+        Anmeldephasen bei „Formular zuweisen“ aus.
+      </>
+    );
+  }
+  return (
+    <>
+      So sehen Eltern das Formular mit Ihren Angeboten:
+      <ul className="mt-3 space-y-2">
+        {phases.map((phase) => (
+          <li key={phase.id}>
+            {hasPublicLink(phase) ? (
+              <a
+                href={hrefFor(phase)}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Elternansicht von „${phase.name}“ öffnen`}
+                className={buttonClassName({
+                  variant: "outline",
+                  size: "md",
+                  className: "w-full justify-between gap-2",
+                })}
+              >
+                <span className="truncate">{phase.name}</span>
+                <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
+              </a>
+            ) : (
+              <span className="block text-sm text-gray-600">
+                <span className="font-medium text-gray-900">{phase.name}</span>
+                <span className="block">Nur mit Einladungslink erreichbar.</span>
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

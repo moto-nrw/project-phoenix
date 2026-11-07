@@ -38,8 +38,8 @@ export function enrollmentSetupTopic(): HelpTopic {
         steps: [
           "Öffnen Sie `Betreuungsangebote` und tragen Sie ein, was buchbar sein soll.",
           "Öffnen Sie `Anmeldeformulare`. Dort steht schon ein `Basisformular`. Für die meisten OGS reicht es.",
-          "Sehen Sie es sich mit `Vorschau` an.",
-          "Öffnen Sie `Überblick` und wählen Sie `Formular ansehen`.",
+          "Sehen Sie es sich mit `Vorschau` an. Dort fehlen die Angebote noch.",
+          "Öffnen Sie `Anmeldephasen`, dann bei der Phase das Menü mit den drei Punkten, und wählen Sie `Formular ansehen`. Dort sehen Sie das Formular mit den Angeboten, so wie die Eltern.",
         ],
       },
       {
@@ -60,6 +60,8 @@ export function enrollmentSetupTopic(): HelpTopic {
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
       "Bei `Betreuungsangebote` steht in der Spalte `Belegt`, wie viele Plätze gebucht sind. Bei Angeboten mit Kapazität steht auch, wie viele Plätze frei sind. Ein volles Angebot ist mit `Voll` markiert.",
       "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
+      "Tragen Sie bei jeder Variante unter `Gehzeit je Betreuungstag` ihre Uhrzeit ein. Nach der Zusage steht sie beim Kind. Bucht ein Kind an einem Tag zwei Angebote, gilt die spätere Gehzeit.",
+      "Ein Angebot nur für eine Klassenstufe, zum Beispiel Klasse 1: Setzen Sie den Haken bei `Nur für bestimmte Klassenstufen anbieten` und wählen Sie `Klasse 1`. Ohne Haken können alle Kinder das Angebot wählen.",
     ],
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Die Anmeldungen laufen am Computer.",
