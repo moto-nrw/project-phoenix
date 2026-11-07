@@ -479,6 +479,21 @@ If that role has drifted, ask the server owner to coordinate recovery after all
 users finish, or initialize a separate server. Never repair or recreate a shared
 server while other sessions use it.
 
+### Test server exits during startup
+
+A readiness timeout with `connection refused` can mean PostgreSQL exited,
+not that startup is slow. Inspect the configured Compose project's
+`postgres-test` logs before retrying. `invalid checkpoint record` or
+`could not locate a valid checkpoint record` indicates damaged cluster data;
+a longer readiness timeout does not fix it.
+
+Preserve the affected container and volume. To continue testing without
+repairing shared data, use an existing healthy test server and its owning
+checkout's credentials. Update both `TEST_DB_PORT` and `TEST_DB_DSN` in the
+local env file the test launcher actually reads, including any explicit
+main-checkout fallback. Update or unset stale exported values too: they take
+precedence over files. Confirm recovery with the exact failed test command.
+
 ### Rebuild a disposable test cluster
 
 A database reset alone cannot fix cluster-global role drift. Only the server
