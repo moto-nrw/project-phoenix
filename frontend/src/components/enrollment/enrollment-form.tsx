@@ -17,6 +17,7 @@ import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { DataField, DataGrid } from "~/components/ui/data-field";
 import { SectionCard } from "~/components/ui/section-card";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Input } from "~/components/ui/input";
 import { useTenant } from "~/lib/tenant-context";
 import germanEnrollmentFormMessages from "~/i18n/messages/de/enrollmentForm.json";
@@ -1766,9 +1767,9 @@ export function EnrollmentForm({
                 className="moto-content-surface space-y-5 rounded-xl border p-3 sm:p-4"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                  <SectionLabel>
                     {tr("sections.additionalGuardianLabel", { index: i + 1 })}
-                  </h3>
+                  </SectionLabel>
                   <Button
                     type="button"
                     variant="ghost_danger"
@@ -2101,11 +2102,11 @@ export function EnrollmentForm({
                 className="moto-content-surface space-y-5 rounded-xl border p-3 sm:p-4"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                  <SectionLabel>
                     {restrictToOfferings && child.first_name
                       ? `${child.first_name} ${child.last_name}`.trim()
                       : `${tr("structured.child")} ${i + 1}`}
-                  </h3>
+                  </SectionLabel>
                   {children.length > 1 && !lockChildStructure && (
                     <Button
                       type="button"
