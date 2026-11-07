@@ -1,6 +1,8 @@
 package importpkg
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
@@ -69,10 +71,12 @@ func TestMatchLinkedGuardian(t *testing.T) {
 	anna := ports.Guardian{ID: 1, FirstName: "Anna", LastName: "Muster", Email: &email}
 	ben := ports.Guardian{ID: 2, FirstName: "Ben", LastName: "Muster"}
 	ben2 := ports.Guardian{ID: 3, FirstName: "Ben", LastName: "Muster"}
-	linked := []linkedGuardianProfile{
-		{profile: anna, phones: []string{"+4915112345"}},
-		{profile: ben, phones: []string{"022112345"}},
-	}
+	anna.PhoneNumbers = []ports.GuardianPhone{{PhoneNumber: " +49 151 123-45 "}, {PhoneNumber: "Handy"}}
+	ben.PhoneNumbers = []ports.GuardianPhone{{PhoneNumber: "0221 123-45"}}
+	linked := linkedGuardianProfiles([]ports.GuardianWithLink{{Guardian: anna}, {Guardian: ben}})
+	require.Len(t, linked, 2)
+	assert.Equal(t, []string{"+4915112345"}, linked[0].phones)
+	assert.Equal(t, []string{"022112345"}, linked[1].phones)
 
 	got := matchLinkedGuardian(linked, importModels.GuardianImportData{Email: "ANNA@example.test "})
 	require.NotNil(t, got)
@@ -95,9 +99,31 @@ func TestMatchLinkedGuardian(t *testing.T) {
 
 	assert.Nil(t, matchLinkedGuardian(append(linked, linkedGuardianProfile{profile: ben2}),
 		importModels.GuardianImportData{FirstName: "Ben", LastName: "Muster"}), "ambiguous names never match")
+	sharedPhone := linkedGuardianProfiles([]ports.GuardianWithLink{{Guardian: ben}, {Guardian: ben2}, {Guardian: anna}})
+	sharedPhone[2].phones = append(sharedPhone[2].phones, "022112345")
+	got = matchLinkedGuardian(sharedPhone, importModels.GuardianImportData{
+		PhoneNumbers: []importModels.PhoneImportData{{PhoneNumber: "0221 123-45"}},
+	})
+	require.NotNil(t, got)
+	assert.Equal(t, ben.ID, got.ID, "shared phones retain the first matching relationship, including a profile without phones")
 
 	assert.Equal(t, "+4915112345", normalizeImportPhone(" +49 151 123-45 "))
 	assert.Equal(t, "", normalizeImportPhone("Handy"))
+}
+
+func TestMergeGuardianRelationshipsAbortsOnLinkedProfileReadFailure(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("linked profile read failed")
+	config := StudentImportConfig{Guardians: GuardianDirectoryFuncs{
+		ListStudentGuardiansFunc: func(context.Context, int64) ([]ports.GuardianWithLink, error) {
+			return nil, failure
+		},
+	}}
+	// Every subsequent port function is nil, so continuing after the read
+	// error would panic instead of silently accepting a partial match set.
+	err := config.mergeGuardianRelationships(context.Background(), 0, []importModels.GuardianImportData{{FirstName: "Anna", LastName: "Muster"}})
+	require.ErrorIs(t, err, failure)
+	require.Contains(t, err.Error(), "Erziehungsberechtigte laden")
 }
 
 func newTestTransactions() importModels.Transactions { return dataImportCompose.NewTransactions() }

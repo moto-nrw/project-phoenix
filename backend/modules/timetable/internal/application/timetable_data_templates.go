@@ -144,10 +144,11 @@ func (d *timetableData) templateCapacityOccurrences(ctx context.Context, periodI
 // roster.
 func (d *timetableData) attachTemplateTargets(ctx context.Context, rows []timetable.TemplateListRow) (map[int64][]timetable.GroupTarget, error) {
 	templateIDs := distinctTemplateIDs(rows)
-	targetsByGroup, err := d.deps.Templates.ListGroupTargets(ctx, templateIDs)
+	inputs, err := d.deps.Templates.ListTemplateTargetInputs(ctx, templateIDs)
 	if err != nil {
 		return nil, err
 	}
+	targetsByGroup := inputs.Targets
 	all := make([]*timetable.GroupTarget, 0, len(targetsByGroup))
 	for groupID := range targetsByGroup {
 		for index := range targetsByGroup[groupID] {
@@ -163,12 +164,8 @@ func (d *timetableData) attachTemplateTargets(ctx context.Context, rows []timeta
 	if !hasTemplateTargets(targetsByGroup) {
 		return targetsByGroup, nil
 	}
-	targetStudentsByGroup, err := d.deps.Templates.ListTargetStudentIDs(ctx, templateIDs)
-	if err != nil {
-		return nil, err
-	}
 	for i := range rows {
-		rows[i].EnrollmentCount = unionCount(rows[i].StudentIDs, targetStudentsByGroup[rows[i].TemplateID])
+		rows[i].EnrollmentCount = unionCount(rows[i].StudentIDs, inputs.StudentIDs[rows[i].TemplateID])
 	}
 	return targetsByGroup, nil
 }

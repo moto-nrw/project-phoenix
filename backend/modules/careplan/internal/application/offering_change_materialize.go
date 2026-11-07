@@ -50,6 +50,7 @@ type selectionMaterialization struct {
 	selections              []careplan.OfferingChangeSelection
 	excluded                map[int64]bool
 	allowCompleteWithdrawal bool
+	facts                   *directSelectionFacts
 }
 
 // currentSelections reads the child's bookings in force on the date.
@@ -65,12 +66,7 @@ func (s *OfferingChanges) currentSelections(ctx context.Context, requestChildID 
 // Mitbuchungs-Regel in force. Excluded targets (#2370) keep their manual days
 // but gain no rule-derived ones.
 func (s *OfferingChanges) materializedSelections(ctx context.Context, in selectionMaterialization) ([]careplan.OfferingSelection, error) {
-	active, err := s.activeOfferings(ctx, in.phase.ID)
-	if err != nil {
-		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
-	}
-	allowed := offeringsByID(active)
-	current, err := s.addHeldOfferingsAtDate(ctx, in.requestChildID, in.effectiveFrom, allowed)
+	allowed, current, err := s.selectionOfferings(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +75,7 @@ func (s *OfferingChanges) materializedSelections(ctx context.Context, in selecti
 	if err != nil {
 		return nil, err
 	}
-	if err := s.applyChildGrade(ctx, in.requestChildID, &child); err != nil {
+	if err := s.selectionChildGrade(ctx, in, &child); err != nil {
 		return nil, err
 	}
 	child.ExcludedAutoAddTargetIDs = in.excluded
@@ -95,12 +91,7 @@ func (s *OfferingChanges) materializedSelections(ctx context.Context, in selecti
 // offering order. The dependent offerings the engine adds are not stored:
 // they would turn into manual bookings on approval.
 func (s *OfferingChanges) validateSelections(ctx context.Context, in selectionMaterialization) ([]careplan.OfferingChangeSelection, error) {
-	active, err := s.activeOfferings(ctx, in.phase.ID)
-	if err != nil {
-		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
-	}
-	allowed := offeringsByID(active)
-	current, err := s.addHeldOfferingsAtDate(ctx, in.requestChildID, in.effectiveFrom, allowed)
+	allowed, current, err := s.selectionOfferings(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +100,7 @@ func (s *OfferingChanges) validateSelections(ctx context.Context, in selectionMa
 	if err != nil {
 		return nil, err
 	}
-	if err := s.applyChildGrade(ctx, in.requestChildID, &child); err != nil {
+	if err := s.selectionChildGrade(ctx, in, &child); err != nil {
 		return nil, err
 	}
 	if _, err := materializeForAdjustment(child, allowed, in.phase.CareOfferingSelectionMode, current, allowWithdrawal); err != nil {
@@ -167,6 +158,10 @@ func (s *OfferingChanges) addHeldOfferingsAtDate(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
+	return s.addHeldOfferings(ctx, current, allowed)
+}
+
+func (s *OfferingChanges) addHeldOfferings(ctx context.Context, current []*careplan.BookedOffering, allowed map[int64]*careplan.CareOffering) ([]*careplan.BookedOffering, error) {
 	heldIDs := make([]int64, 0, len(current))
 	for _, link := range current {
 		if link != nil && allowed[link.CareOfferingID] == nil {

@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.target_students.real_binding",
+  "max": 2,
+  "exact": true,
+  "description": "Public ListTargetStudentIDs through the real typed root: one tenant-scoped target-rule SELECT and one bulk People Directory student SELECT, flat with 3 and 8 matching groups/children. Counts business SQL inside an existing tenant transaction, not transaction setup or a full HTTP request. The separate target_students.list exact1 scenario uses an in-memory student directory and remains unchanged."
+}

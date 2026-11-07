@@ -11,6 +11,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +66,7 @@ func TestValidateSessionTokens(t *testing.T) {
 			}
 			accessClaims := sessiontoken.AppClaims{ID: int(accountID), Sub: account.Email, Roles: []string{"user"}, Scope: scope, TenantID: tenantID, FamilyID: family}
 			refreshClaims := sessiontoken.RefreshClaims{ID: int(accountID), Token: handle, Scope: scope, TenantID: tenantID}
-			access, refresh, err := signer.GenTokenPair(accessClaims, refreshClaims)
+			access, refresh, err := tokentest.GenTokenPair(signer, accessClaims, refreshClaims)
 			require.NoError(t, err)
 			verified, err := service.ValidateSessionTokens(ctx, access, refresh, portal)
 			require.NoError(t, err)
@@ -86,12 +87,12 @@ func TestValidateSessionTokens(t *testing.T) {
 			require.Error(t, err)
 			otherSigner, err := sessiontoken.NewTokenAuthWithDurations(testpkg.NewTestSigningSecret(), time.Minute, time.Hour)
 			require.NoError(t, err)
-			forged, _, err := otherSigner.GenTokenPair(accessClaims, refreshClaims)
+			forged, _, err := tokentest.GenTokenPair(otherSigner, accessClaims, refreshClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, forged, refresh, portal)
 			require.Error(t, err)
 			for _, flag := range []string{"mfa_pending", "mfa_enrollment_pending", "missing_expiry"} {
-				raw, err := sessiontoken.ParseStructToMap(accessClaims)
+				raw, err := tokentest.ParseStructToMap(accessClaims)
 				require.NoError(t, err)
 				raw["exp"] = time.Now().Add(time.Minute).Unix()
 				if flag == "missing_expiry" {
@@ -105,26 +106,26 @@ func TestValidateSessionTokens(t *testing.T) {
 				require.Error(t, err, flag)
 			}
 			accessClaims.FamilyID = "another-family"
-			wrongFamily, _, err := signer.GenTokenPair(accessClaims, refreshClaims)
+			wrongFamily, _, err := tokentest.GenTokenPair(signer, accessClaims, refreshClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, wrongFamily, refresh, portal)
 			require.Error(t, err)
 			accessClaims.FamilyID = family
 			accessClaims.ExpiresAt = time.Now().Add(-time.Minute).Unix()
-			rawClaims, err := sessiontoken.ParseStructToMap(accessClaims)
+			rawClaims, err := tokentest.ParseStructToMap(accessClaims)
 			require.NoError(t, err)
 			_, expired, err := signer.JwtAuth.Encode(rawClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, expired, refresh, portal)
 			require.Error(t, err)
 			refreshClaims.ExpiresAt = time.Now().Add(-time.Minute).Unix()
-			expiredRefresh, err := signer.CreateRefreshJWT(refreshClaims)
+			expiredRefresh, err := tokentest.CreateRefreshJWT(signer, refreshClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, access, expiredRefresh, portal)
 			require.Error(t, err)
 			refreshClaims.ExpiresAt = 0
 			refreshClaims.Token = "signed-but-unpersisted"
-			unknownRefresh, err := signer.CreateRefreshJWT(refreshClaims)
+			unknownRefresh, err := tokentest.CreateRefreshJWT(signer, refreshClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, access, unknownRefresh, portal)
 			require.Error(t, err)

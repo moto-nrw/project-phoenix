@@ -12,6 +12,7 @@
  * Ablehnen und Widerrufen gehen ohne Unterschrift.
  */
 
+import { DataField, DataGrid } from "~/components/ui/data-field";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
 import { FileText } from "lucide-react";
@@ -25,7 +26,7 @@ import { Input } from "~/components/ui/input";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SignaturePad } from "~/components/ui/signature-pad";
-import type { SignaturePadLabels } from "~/components/ui/signature-pad";
+import { useSignaturePadLabels } from "~/components/parent/news/signature-pad-labels";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
@@ -160,25 +161,6 @@ function declarationNeedsSignature(
 }
 
 /** The signature field's labels in the guardian's language. */
-function useSignaturePadLabels(): SignaturePadLabels {
-  const t = useTranslations("parentDeclaration.signature");
-  return {
-    label: t("label"),
-    hint: t("hint"),
-    canvas: t("canvas"),
-    clear: t("clear"),
-    typeInstead: t("typeInstead"),
-    drawInstead: t("drawInstead"),
-    typedName: t("typedName"),
-    confirm: t("confirm"),
-    confirmed: t("confirmed"),
-    confirmedTyped: t("confirmedTyped"),
-    change: t("change"),
-    preview: t("preview"),
-    emptyDrawing: t("emptyDrawing"),
-    nameTooShort: t("nameTooShort"),
-  };
-}
 
 const SIGNATURE_FIELD = "declaration-signature";
 
@@ -431,20 +413,19 @@ export function DeclarationSection({
                     action: t(`done.${pending.action}`),
                   })}
             </p>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-xl bg-gray-50 px-4 py-3 text-sm">
-              <dt className="text-gray-500">{t("confirmChild")}</dt>
-              <dd className="font-semibold text-gray-900">
-                {pending.child.first_name} {pending.child.last_name}
-              </dd>
-              <dt className="text-gray-500">{t("confirmAction")}</dt>
-              <dd className="font-semibold text-gray-900">
-                {t(`done.${pending.action}`)}
-              </dd>
-              <dt className="text-gray-500">{t("confirmVersion")}</dt>
-              <dd className="font-semibold text-gray-900">
-                {t("version", { version: declaration.version.version_no })}
-              </dd>
-            </dl>
+            <div className="rounded-xl bg-gray-50 px-4 py-3">
+              <DataGrid columns={1}>
+                <DataField inline label={t("confirmChild")}>
+                  {pending.child.first_name} {pending.child.last_name}
+                </DataField>
+                <DataField inline label={t("confirmAction")}>
+                  {t(`done.${pending.action}`)}
+                </DataField>
+                <DataField inline label={t("confirmVersion")}>
+                  {t("version", { version: declaration.version.version_no })}
+                </DataField>
+              </DataGrid>
+            </div>
             <p className="text-sm text-gray-600">{t("confirmRecorded")}</p>
             {declarationNeedsSignature(declaration, pending.action) && (
               <SignaturePad

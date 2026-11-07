@@ -35,6 +35,9 @@ type fakeParentService struct {
 	documentFile            parentService.BillingDocumentFile
 	sharedDocuments         []parentService.SharedDocument
 	documentsErr            error
+	signingView             parentService.ContractSigningView
+	signingErr              error
+	gotSignature            parentService.ContractSignatureInput
 	gotDocumentsAccount     int64
 	gotDocumentOrganization int64
 	gotDocumentID           int64
@@ -156,6 +159,17 @@ func (f *fakeParentService) BillingDocumentLetter(_ context.Context, accountID, 
 func (f *fakeParentService) ContractDocumentFile(_ context.Context, accountID, organizationID, contractID int64) (parentService.BillingDocumentFile, error) {
 	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, contractID
 	return f.documentFile, f.documentsErr
+}
+
+func (f *fakeParentService) ContractSigningView(_ context.Context, accountID, organizationID, contractID int64) (parentService.ContractSigningView, error) {
+	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, contractID
+	return f.signingView, f.signingErr
+}
+
+func (f *fakeParentService) SignContract(_ context.Context, accountID, organizationID, contractID int64, input parentService.ContractSignatureInput) (parentService.ContractSigningView, error) {
+	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, contractID
+	f.gotSignature = input
+	return f.signingView, f.signingErr
 }
 
 func (f *fakeParentService) ListSharedDocuments(_ context.Context, accountID int64) ([]parentService.SharedDocument, error) {

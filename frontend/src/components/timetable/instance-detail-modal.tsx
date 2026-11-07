@@ -9,6 +9,7 @@
  * assigned staff, children, attendance state, and admin corrections.
  */
 
+import { EmptyState } from "~/components/ui/empty-state";
 import type { ListRowTone } from "~/components/ui/list-row-styles";
 import { ListRow } from "~/components/ui/list-row";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -90,13 +91,7 @@ import {
   getGermanWeekdayLong,
   getStatusLabel,
 } from "~/lib/timetable-helpers";
-import {
-  instanceStatusTone,
-  timetableDangerPanel,
-  timetableMutedSurface,
-  timetableNestedSurface,
-  type TimetableTone,
-} from "./timetable-style";
+import { instanceStatusTone, type TimetableTone } from "./timetable-colors";
 import {
   attendanceStaffTone,
   attendanceStudentTone,
@@ -118,6 +113,7 @@ import { staffConcept } from "~/lib/concepts/staff";
 import { substitutionConcept } from "~/lib/concepts/substitution";
 import { supervisionConcept } from "~/lib/concepts/supervision";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 export type LifecycleAction = "start" | "complete" | "cancel" | "reopen";
 
@@ -1075,7 +1071,7 @@ export function InstanceDetailModal({
               )}
             </div>
             {instance.conflictWarnings.length > 0 && (
-              <div className={timetableDangerPanel}>
+              <InsetPanel tone="danger">
                 <div className="text-moto-red-strong flex items-center gap-2 text-xs font-bold">
                   <TriangleAlert className="h-4 w-4" />
                   {instance.conflictWarnings.length} Konflikt(e)
@@ -1085,7 +1081,7 @@ export function InstanceDetailModal({
                     <li key={warning.message}>• {warning.message}</li>
                   ))}
                 </ul>
-              </div>
+              </InsetPanel>
             )}
 
             <StatsRow instance={instance} />
@@ -1464,23 +1460,9 @@ function StudentGroup({
   );
 }
 
-function EmptyLine({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className={`${timetableMutedSurface} border-dashed px-3 py-2 text-xs text-gray-500`}
-    >
-      {children}
-    </div>
-  );
+function EmptyLine({ children }: { children: string }) {
+  return <EmptyState variant="dashed" title={children} className="px-3 py-2" />;
 }
-
-/**
- * Structural radius/shadow shared by PersonLine and the StudentGroup row —
- * same shape as `timetableNestedSurface`, but callers layer their own
- * tone-conditional border/bg color on top (nested surface tokens are
- * gray/white only).
- */
-const NESTED_SURFACE_BASE = "rounded-xl border shadow-sm";
 
 type IconActionTone = "green" | "red" | "slate";
 
@@ -1540,13 +1522,7 @@ function PersonLine({
 }) {
   const labels = meta.filter(Boolean);
   return (
-    <div
-      className={`${NESTED_SURFACE_BASE} px-3 py-2 ${
-        danger
-          ? "border-moto-red/20 bg-moto-red/10"
-          : "border-gray-200 bg-white"
-      }`}
-    >
+    <InsetPanel tone={danger ? "danger" : "white"} padding="compact">
       <div className="text-sm font-semibold text-gray-900">{name}</div>
       {labels.length > 0 && (
         <div
@@ -1557,7 +1533,7 @@ function PersonLine({
           {labels.join(" • ")}
         </div>
       )}
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -1675,9 +1651,7 @@ interface RowProps {
 
 function Row({ icon, label, children }: RowProps) {
   return (
-    <div
-      className={`${timetableNestedSurface} flex items-start gap-3 p-3 text-sm`}
-    >
+    <InsetPanel tone="white" className="flex items-start gap-3 text-sm">
       <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-gray-400">
         {icon}
       </span>
@@ -1685,7 +1659,7 @@ function Row({ icon, label, children }: RowProps) {
         <span className="text-[11px] font-medium text-gray-500">{label}</span>
         <span className="text-sm text-gray-900">{children}</span>
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 

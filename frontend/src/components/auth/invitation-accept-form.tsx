@@ -1,5 +1,7 @@
 "use client";
 
+import { Check } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
 import { useRouter } from "next/navigation";
@@ -20,7 +22,8 @@ import type { InvitationValidation } from "~/lib/invitation-helpers";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
-import { IconTile } from "~/components/ui/icon-tile";
+import { InvitationSummary } from "~/components/auth/invitation-summary";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "InvitationAccept" });
 
@@ -208,42 +211,20 @@ export function InvitationAcceptForm({
 
   if (isAccepted) {
     return (
-      <div className="flex flex-col items-center py-12">
-        <IconTile
-          size="page"
-          shape="round"
-          tone="inverse"
-          className="mb-6"
-          icon={
-            <svg
-              className="text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          }
-        />
-        <h3 className="mb-1 text-base font-semibold text-gray-900">
-          Konto erstellt
-        </h3>
-        {signOutRetryFailed ? (
-          <p className="mb-4 text-sm text-gray-500">
-            Die vorherige Sitzung konnte nicht beendet werden. Bitte löschen Sie
-            die Websitedaten in Ihren Browsereinstellungen oder versuchen Sie es
-            später erneut.
-          </p>
-        ) : signOutFailed ? (
-          <>
-            <p className="mb-4 text-sm text-gray-500">
-              Die vorherige Sitzung konnte nicht automatisch beendet werden.
-            </p>
+      <EmptyState
+        tone="success"
+        icon={<Check aria-hidden="true" />}
+        titleAs="h3"
+        title="Konto erstellt"
+        description={
+          signOutRetryFailed
+            ? "Die vorherige Sitzung konnte nicht beendet werden. Bitte löschen Sie die Websitedaten in Ihren Browsereinstellungen oder versuchen Sie es später erneut."
+            : signOutFailed
+              ? "Die vorherige Sitzung konnte nicht automatisch beendet werden."
+              : "Bitte melden Sie sich mit Ihren neuen Zugangsdaten an."
+        }
+        action={
+          signOutFailed && !signOutRetryFailed ? (
             <Button
               type="button"
               variant="primary"
@@ -252,29 +233,29 @@ export function InvitationAcceptForm({
             >
               Zur Anmeldung
             </Button>
-          </>
-        ) : (
-          <>
-            <p className="mb-6 text-sm text-gray-500">
-              Bitte melden Sie sich mit Ihren neuen Zugangsdaten an.
-            </p>
-            <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
-              <div
-                className="h-full rounded-full bg-gray-900"
-                style={{
-                  animation: "progressFill 1.5s ease-in-out forwards",
-                }}
-              />
-            </div>
-            <style>{`
-              @keyframes progressFill {
-                from { width: 0%; }
-                to { width: 100%; }
-              }
-            `}</style>
-          </>
-        )}
-      </div>
+          ) : undefined
+        }
+        progress={
+          signOutFailed || signOutRetryFailed ? undefined : (
+            <>
+              <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
+                <div
+                  className="h-full rounded-full bg-gray-900"
+                  style={{
+                    animation: "progressFill 1.5s ease-in-out forwards",
+                  }}
+                />
+              </div>
+              <style>{`
+                @keyframes progressFill {
+                  from { width: 0%; }
+                  to { width: 100%; }
+                }
+              `}</style>
+            </>
+          )
+        }
+      />
     );
   }
 
@@ -287,18 +268,12 @@ export function InvitationAcceptForm({
     >
       <FormErrorAlert message={formErrors.error} />
 
-      <div className="mb-4">
-        <p className="text-sm text-gray-600">
-          Einladung für{" "}
-          <span className="font-medium text-gray-900">{invitation.email}</span>{" "}
-          als{" "}
-          <span className="font-medium text-gray-900">
-            {getRoleDisplayName(invitation.roleName)}
-          </span>
-        </p>
-      </div>
+      <InvitationSummary
+        email={invitation.email}
+        role={getRoleDisplayName(invitation.roleName)}
+      />
 
-      <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <InsetPanel framed className="space-y-2">
         <div>
           <span className="block text-xs font-medium text-gray-600">
             Gültig bis
@@ -324,7 +299,7 @@ export function InvitationAcceptForm({
             </p>
           </div>
         )}
-      </div>
+      </InsetPanel>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>

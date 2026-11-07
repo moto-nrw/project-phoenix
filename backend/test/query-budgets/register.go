@@ -8,6 +8,7 @@ package querybudgets
 import (
 	"embed"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -67,6 +68,7 @@ func AssertQueryBudget(tb testing.TB, scenario string, queries []string) {
 	if !ok {
 		tb.Fatalf("query budget %q is not registered in backend/test/query-budgets/", scenario)
 	}
+	emitQueryFeedback(tb, scenario, queries, budget, os.Getenv)
 	got := len(queries)
 	switch {
 	case got > budget.max:
@@ -74,18 +76,18 @@ func AssertQueryBudget(tb testing.TB, scenario string, queries []string) {
 			"  Likely an N+1: a query inside a loop over rows. Batch-load by ID set instead\n"+
 			"  (reference: modules/timetable/compose/exception_conflicts.go, FindByStudentIDsAndDate).\n"+
 			"  Never raise the register entry.\n%s",
-			scenario, got, budget.max, indentQueries(queries))
+			scenario, got, budget.max, indentQueries(queries, 200))
 	case budget.exact && got < budget.max:
 		tb.Errorf("query budget %q pins exactly %d statement(s) but %d ran.\n"+
 			"  The dedup contract it guards no longer executes; check the scenario before touching the register.\n%s",
-			scenario, budget.max, got, indentQueries(queries))
+			scenario, budget.max, got, indentQueries(queries, 200))
 	case got < budget.max:
 		tb.Logf("query budget %q: %d of %d statements used. Lower the register entry to lock the headroom in.",
 			scenario, got, budget.max)
 	}
 }
 
-func indentQueries(queries []string) string {
+func indentQueries(queries []string, maxBytes int) string {
 	if len(queries) == 0 {
 		return ""
 	}
@@ -93,8 +95,8 @@ func indentQueries(queries []string) string {
 	lines = append(lines, "  Statements:")
 	for i, q := range queries {
 		q = strings.Join(strings.Fields(q), " ")
-		if len(q) > 200 {
-			q = q[:200] + "..."
+		if maxBytes > 0 && len(q) > maxBytes {
+			q = q[:maxBytes] + "..."
 		}
 		lines = append(lines, fmt.Sprintf("  %3d. %s", i+1, q))
 	}

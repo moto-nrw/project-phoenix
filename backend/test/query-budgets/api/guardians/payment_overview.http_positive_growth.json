@@ -1,0 +1,6 @@
+{
+  "scenario": "api.guardians.payment_overview.http_positive_growth",
+  "max": 6,
+  "exact": true,
+  "description": "Registered composed guardian HTTP resource mounted at the production /api/guardians path, JWT verifier/authenticator, real permission and tenant transaction middleware; capture includes every request-scoped SQL statement, excludes fixture setup/signing and outer production server/live-session middleware."
+}

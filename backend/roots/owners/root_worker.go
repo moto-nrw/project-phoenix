@@ -456,7 +456,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) {
 			lifecycle, err = BuildTimetableDay(env, hub, lifecycle, timetableOwner, audit, settings.Service, presence, supervisions,
-				services.Users, membership, active, schedules, timetableSession, withStaff)
+				services.Users, membership, active, schedules, timetableSession, caller.Caller(), withStaff)
 			return
 		},
 		func() error {
@@ -546,7 +546,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 	return NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, audit.Persistence.DataAccessLog, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, schoolNames(tracker), plannedExits, dayLog, env.HealthData, careContracts(organizations, settings, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, audit.Persistence.DataAccessLog))
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, schoolNames(tracker), plannedExits, dayLog, env.HealthData, CareContractRemindersJob(db.UnitOfWork(), organizations, settings.Traeger, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, env.Links.ParentsURL), careContracts(organizations, settings, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, audit.Persistence.DataAccessLog, env.Links.ParentsURL))
 }
 
 func buildWorkerAnalyticsSettings(db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, organizations organizationtenancy.Capability, hub *realtime.Hub, bookings enrollmentPhaseRestrictions, tracker ProductEventTracker, bind func(ProductEventTracker, settingsValues.TenantReader, bool) ProductEventTracker) (SettingsOwner, ProductEventTracker, error) {

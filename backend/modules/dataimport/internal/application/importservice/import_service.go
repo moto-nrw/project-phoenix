@@ -53,6 +53,10 @@ type requestScopedConfig[T any] interface {
 
 type importConfigLocker interface{ ImportLock() *sync.Mutex }
 
+type previewConfig[T any] interface {
+	PreviewConfig(context.Context, []T) ports.ImportConfig[T]
+}
+
 // importModeAuthorizer lets a config veto an import mode for the current
 // importer before any row is validated (#2906). Configs without it accept
 // every mode the route allows.
@@ -194,6 +198,17 @@ func (s *ImportService[T]) validateBatch(ctx context.Context, rows []T) map[int]
 // created is now asked for the fields a create needs. Duplicates inside one
 // file are the batch validator's job (ports.BatchValidator), not the row scan's.
 func (s *ImportService[T]) processAllRows(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], batchErrors map[int][]importModels.ValidationError) bool {
+	if request.DryRun {
+		if preview, ok := s.config.(previewConfig[T]); ok {
+			// The bulk read model belongs only to this preview. Actual imports
+			// must re-resolve rows after preceding writes and under owner locks.
+			s = &ImportService[T]{config: preview.PreviewConfig(ctx, request.Rows)}
+		}
+	}
+	return s.processPreparedRows(ctx, request, result, batchErrors)
+}
+
+func (s *ImportService[T]) processPreparedRows(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], batchErrors map[int][]importModels.ValidationError) bool {
 	accepted := make([]bool, len(request.Rows))
 	for i := range request.Rows {
 		ok, stop := s.validateRow(ctx, request, result, &request.Rows[i], i+2, batchErrors[i])

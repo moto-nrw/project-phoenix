@@ -1,0 +1,6 @@
+{
+  "scenario": "communication18.school_letter_status.n8",
+  "max": 9,
+  "exact": true,
+  "description": "Literal protected school class-letter school_letter_status route. N3/N8 children and real queued tracked email recipient rows. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum."
+}

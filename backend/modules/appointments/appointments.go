@@ -319,6 +319,9 @@ type AppointmentRecipient struct {
 	GuardianProfileID *int64     `json:"guardian_profile_id,omitempty"`
 	Status            string     `json:"status"`
 	RespondedAt       *time.Time `json:"responded_at,omitempty"`
+	// StudentIDs accompanies batch recipient reads for relationship-scoped
+	// visibility. It is not part of the recipient's HTTP representation.
+	StudentIDs []int64 `json:"-"`
 }
 
 func (r *AppointmentRecipient) Validate() error {

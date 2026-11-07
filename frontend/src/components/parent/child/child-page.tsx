@@ -133,12 +133,10 @@ export function ChildPage({
 
   if (children.length === 0) {
     return (
-      <ParentPage>
-        <ParentPageHeader title={t("sections.today")} />
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
-          {t("noChildren")}
-        </p>
-      </ParentPage>
+      <ParentPage
+        header={<ParentPageHeader title={t("sections.today")} />}
+        empty={{ title: t("noChildren") }}
+      />
     );
   }
 
@@ -159,16 +157,18 @@ export function ChildPage({
   // gehört. Der Weg zurück führt zur Übersicht der eigenen Kinder.
   if (!active) {
     return (
-      <ParentPage>
-        <ParentPageHeader
-          title={navT(children.length > 1 ? "childrenMultiple" : "childSingle")}
-          backHref={parentPath("/parents/children")}
-          backLabel={backT(children.length > 1 ? "back" : "backSingle")}
-        />
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
-          {t("notFound")}
-        </p>
-      </ParentPage>
+      <ParentPage
+        header={
+          <ParentPageHeader
+            title={navT(
+              children.length > 1 ? "childrenMultiple" : "childSingle",
+            )}
+            backHref={parentPath("/parents/children")}
+            backLabel={backT(children.length > 1 ? "back" : "backSingle")}
+          />
+        }
+        empty={{ title: t("notFound") }}
+      />
     );
   }
 
@@ -508,7 +508,7 @@ function ChildAreaTabs({
           <TabsList
             aria-label={t("areas.label")}
             data-parent-tour="child-area-tabs"
-            className="flex h-auto w-full gap-1 rounded-xl bg-gray-100 p-1"
+            variant="icon"
           >
             <AreaTab
               value="betreuung"
@@ -625,12 +625,7 @@ function AreaTab({
   tourId?: string;
 }>) {
   return (
-    <TabsTrigger
-      value={value}
-      aria-label={label}
-      data-parent-tour={tourId}
-      className="min-h-16 min-w-0 flex-1 flex-col gap-1 rounded-lg px-1.5 py-2 text-base text-gray-600 shadow-none hover:bg-white/60 hover:text-gray-900 data-[state=active]:bg-white data-[state=active]:font-semibold data-[state=active]:text-gray-900 data-[state=active]:shadow-sm sm:min-h-12 sm:flex-row sm:gap-2 sm:px-4"
-    >
+    <TabsTrigger value={value} aria-label={label} data-parent-tour={tourId}>
       <Icon
         size={20}
         weight="regular"

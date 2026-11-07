@@ -56,9 +56,9 @@ func (c *effectiveTimeCore[S, E, N, D]) operation(action string) string {
 
 func (c *effectiveTimeCore[S, E, N, D]) loadSchedules(
 	ctx context.Context,
-	studentID int64,
+	studentIDs []int64,
 ) ([]S, error) {
-	rows, err := c.schedules.FindByStudentID(ctx, studentID)
+	rows, err := c.schedules.FindByStudentIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, &careplan.ScheduleError{
 			Op:  c.operation("get student %s schedules"),

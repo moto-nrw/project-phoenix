@@ -6,6 +6,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
+import { FieldLabel } from "~/components/ui/field-label";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
@@ -173,28 +174,19 @@ export function FolderModal({
       }
     >
       <div ref={formRef} className="space-y-5">
-        <div className="space-y-1.5">
-          <label
-            htmlFor="ordner-name"
-            className="text-xs font-medium text-gray-600"
-          >
-            Name
-          </label>
-          <Input
-            id="ordner-name"
-            name="name"
-            value={name}
-            error={formErrors.fieldError("name")}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="z. B. Konzeption, Formulare, Notfallpläne"
-            maxLength={120}
-          />
-        </div>
+        <Input
+          id="ordner-name"
+          name="name"
+          label="Name"
+          value={name}
+          error={formErrors.fieldError("name")}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="z. B. Konzeption, Formulare, Notfallpläne"
+          maxLength={120}
+        />
 
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-gray-600">
-            Wer sieht den Ordner?
-          </p>
+          <FieldLabel>Wer sieht den Ordner?</FieldLabel>
           <SegmentedControl
             variant="joined"
             fullWidth
@@ -212,12 +204,12 @@ export function FolderModal({
           <div className="space-y-4 rounded-xl bg-gray-50 p-4">
             <LoadErrorAlert error={audienceLoadError} />
             <div className="space-y-1.5">
-              <label
+              <FieldLabel
                 htmlFor="ordner-rollen"
-                className="text-xs font-medium text-gray-600"
+                invalid={Boolean(audienceHint)}
               >
                 Rollen
-              </label>
+              </FieldLabel>
               <MultiSelect
                 id="ordner-rollen"
                 value={roleIds}
@@ -244,12 +236,7 @@ export function FolderModal({
               ) : null}
             </div>
             <div className="space-y-1.5">
-              <label
-                htmlFor="ordner-personen"
-                className="text-xs font-medium text-gray-600"
-              >
-                Personen
-              </label>
+              <FieldLabel htmlFor="ordner-personen">Personen</FieldLabel>
               <MultiSelect
                 id="ordner-personen"
                 value={accountIds}

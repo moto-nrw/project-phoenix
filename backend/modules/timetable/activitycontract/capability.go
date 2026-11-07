@@ -87,6 +87,9 @@ type EnrollmentOperations interface {
 	UnenrollStudent(ctx context.Context, groupID, studentID int64) error
 	UpdateGroupEnrollments(ctx context.Context, groupID int64, studentIDs []int64) error
 	GetEnrolledStudents(ctx context.Context, groupID int64) ([]*timetable.OperationStudent, error)
+	// GetEnrollmentCounts counts roster occurrences with the same visibility and
+	// reader failures as GetEnrolledStudents, in the supplied group order.
+	GetEnrollmentCounts(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 	GetStudentEnrollments(ctx context.Context, studentID int64) ([]*Group, error)
 	GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]*Group, error)
 	GetAvailableGroups(ctx context.Context, studentID int64) ([]*Group, error)

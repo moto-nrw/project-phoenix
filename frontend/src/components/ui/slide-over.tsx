@@ -195,8 +195,9 @@ const SLIDE_OVER_WIDTH = {
   xl: "sm:w-[860px]",
 } as const;
 
-type SlideOverContentProps = React.ComponentPropsWithoutRef<
-  typeof DrawerPrimitive.Content
+type SlideOverContentProps = Omit<
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>,
+  "size"
 > & {
   /**
    * Panel width on desktop. Ignoriert, solange das Panel als Blatt von unten
@@ -210,6 +211,12 @@ type SlideOverContentProps = React.ComponentPropsWithoutRef<
    */
   isBackdropDismissDisabled?: boolean;
 };
+
+function isSlideOverWidth(
+  size: unknown,
+): size is keyof typeof SLIDE_OVER_WIDTH {
+  return typeof size === "string" && Object.hasOwn(SLIDE_OVER_WIDTH, size);
+}
 
 const SlideOverContent = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Content>,
@@ -245,7 +252,7 @@ const SlideOverContent = React.forwardRef<
                 // kurz mit 420px auf einem schmaleren Display stehen.
                 cn(
                   "top-0 right-0 h-full w-[420px] max-w-full",
-                  size && SLIDE_OVER_WIDTH[size],
+                  isSlideOverWidth(size) ? SLIDE_OVER_WIDTH[size] : undefined,
                 ),
             className,
           )}

@@ -189,21 +189,16 @@ function ProtectionModal(props: ProtectionModalProps) {
             ? "Die Eltern können Anfragen danach wieder miteinander teilen."
             : "Andere Sorgeberechtigte sehen dann keine geteilten Anfragen und Begründungen mehr."}
         </p>
-        <label
-          htmlFor={`family-protection-reason-${studentId}`}
-          className="block space-y-1 text-sm font-medium text-gray-800"
-        >
-          <span>Grund für die Änderung</span>
-          <Textarea
-            id={`family-protection-reason-${studentId}`}
-            name="reason"
-            value={reason}
-            error={fieldError("reason")}
-            onChange={(event) => setReason(event.target.value)}
-            rows={3}
-            placeholder="Zum Beispiel besondere Familiensituation"
-          />
-        </label>
+        <Textarea
+          label="Grund für die Änderung"
+          id={`family-protection-reason-${studentId}`}
+          name="reason"
+          value={reason}
+          error={fieldError("reason")}
+          onChange={(event) => setReason(event.target.value)}
+          rows={3}
+          placeholder="Zum Beispiel besondere Familiensituation"
+        />
       </div>
     </ConfirmationModal>
   );

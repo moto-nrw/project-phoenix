@@ -12,6 +12,7 @@ import (
 
 // DataPickupExceptions reads the dated pickup exceptions of children.
 type DataPickupExceptions interface {
+	ListRows(ctx context.Context, filter CareScheduleFilter) ([]*scheduleModels.StudentPickupException, error)
 	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*scheduleModels.StudentPickupException, error)
 	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to calendar.Date) ([]*scheduleModels.StudentPickupException, error)
 }

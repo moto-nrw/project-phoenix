@@ -53,13 +53,20 @@ func (f *fakeFleet) add(apiKey string, d devicefleet.Device) {
 	f.devices[apiKey] = d
 }
 
-func (f *fakeFleet) FindDeviceByAPIKey(_ context.Context, apiKey string) (devicefleet.Device, error) {
+func (f *fakeFleet) FindDeviceByAPIKey(ctx context.Context, apiKey string, schools ...devicefleet.DeviceCredentialSchoolCheck) (devicefleet.Device, error) {
 	if f.findErr != nil {
 		return devicefleet.Device{}, f.findErr
 	}
 	d, ok := f.devices[apiKey]
 	if !ok {
 		return devicefleet.Device{}, devicefleet.ErrDeviceNotFound
+	}
+	if d.IsActive() && d.TenantID > 0 {
+		for _, school := range schools {
+			if err := school.CheckDeviceSchool(ctx, d.TenantID); err != nil {
+				return d, err
+			}
+		}
 	}
 	return d, nil
 }

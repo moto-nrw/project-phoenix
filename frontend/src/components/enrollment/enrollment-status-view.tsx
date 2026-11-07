@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -343,14 +344,16 @@ export function EnrollmentStatusView({
 
   if (notFound) {
     return (
-      <div className="border-moto-red/30 bg-moto-red/5 rounded-xl border p-5 text-center shadow-sm sm:p-6">
-        <h1 className="text-moto-red-strong text-xl font-semibold">
-          {t("invalidTitle")}
-        </h1>
-        <p className="text-moto-red-strong mt-2 text-sm">
-          {t("invalidDescription")}
-        </p>
-      </div>
+      <SectionCard>
+        <EmptyState
+          tone="error"
+          icon={<AlertTriangle aria-hidden="true" />}
+          titleAs="h1"
+          title={t("invalidTitle")}
+          description={t("invalidDescription")}
+          className="py-4"
+        />
+      </SectionCard>
     );
   }
 

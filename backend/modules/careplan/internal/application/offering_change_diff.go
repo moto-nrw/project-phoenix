@@ -29,16 +29,20 @@ type offeringDecisionDiff struct {
 	requested     []careplan.OfferingChangeSelection
 	effectiveFrom calendar.Date
 	// weekendFollowsFriday reads a weekend occurrence as Friday's (#3921).
-	weekendFollowsFriday bool
+	weekendFollowsFriday    bool
+	selectionFacts          *directSelectionFacts
+	allowCompleteWithdrawal bool
 }
 
 type offeringDecisionMaterialization struct {
-	row       careplan.OfferingChangeRequest
-	child     *ports.OfferingChangeChild
-	base      []careplan.OfferingSelection
-	selected  []careplan.OfferingSelection
-	phase     *ports.BookingPhase
-	requested []careplan.OfferingChangeSelection
+	row                     careplan.OfferingChangeRequest
+	child                   *ports.OfferingChangeChild
+	base                    []careplan.OfferingSelection
+	selected                []careplan.OfferingSelection
+	phase                   *ports.BookingPhase
+	requested               []careplan.OfferingChangeSelection
+	facts                   *directSelectionFacts
+	allowCompleteWithdrawal bool
 }
 
 // decisionDiffInput is everything buildDecisionDiff compares: the current
@@ -51,6 +55,7 @@ type decisionDiffInput struct {
 	selected    []careplan.OfferingSelection
 	course      *careplan.OfferingChangeCatalog
 	requested   []careplan.OfferingChangeSelection
+	offerings   map[int64]*careplan.CareOffering
 }
 
 // diffForRequest renders "current → requested" per offering, including the
@@ -78,17 +83,17 @@ func (s *OfferingChanges) decisionDiff(
 		return nil, err
 	}
 	applied := offeringChangeEffectiveFrom(materialization.row)
-	current, err := s.currentSelections(ctx, materialization.row.RequestChildID, applied)
-	if err != nil {
-		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
-	}
+	current := materialization.facts.current
 	diff, err := s.buildDecisionDiff(ctx, decisionDiffInput{
 		excludedIDs: excludedIDs, current: current, base: materialization.base, selected: materialization.selected,
 		course: courseTargetCatalog(materialization.child), requested: materialization.requested,
+		offerings: materialization.facts.allowed,
 	})
 	if err != nil {
 		return nil, err
 	}
+	diff.selectionFacts = materialization.facts
+	diff.allowCompleteWithdrawal = materialization.allowCompleteWithdrawal
 	diff.phase = materialization.phase
 	diff.requested = materialization.requested
 	diff.effectiveFrom = applied
@@ -118,12 +123,18 @@ func (s *OfferingChanges) materializeDecisionSelections(
 		phase: phase, requestChildID: row.RequestChildID, effectiveFrom: confirmedDate,
 		selections: requested, allowCompleteWithdrawal: allowCompleteWithdrawal,
 	}
+	facts, err := s.decisionSelectionFacts(ctx, in, child)
+	if err != nil {
+		return nil, err
+	}
+	in.facts = facts
 	base, err := s.materializedSelections(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	result := &offeringDecisionMaterialization{
 		row: row, child: child, base: base, selected: base, phase: phase, requested: requested,
+		facts: facts, allowCompleteWithdrawal: allowCompleteWithdrawal,
 	}
 	in.excluded = offeringIDSet(excludedIDs)
 	if len(in.excluded) == 0 {
@@ -174,7 +185,7 @@ func appendMissingOfferingIDs(ids []int64, selections []careplan.OfferingSelecti
 
 func (s *OfferingChanges) buildDecisionDiff(ctx context.Context, in decisionDiffInput) (*offeringDecisionDiff, error) {
 	ids, currentByID, requestedByID := offeringChangeSides(in.current, offeringChangeSelections(in.selected))
-	offerings, err := s.offeringsByIDs(ctx, appendMissingOfferingIDs(ids, in.base))
+	offerings, err := s.decisionDiffOfferings(ctx, appendMissingOfferingIDs(ids, in.base), in.offerings)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list offerings for diff: %w", err)
 	}

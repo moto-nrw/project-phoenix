@@ -1,0 +1,6 @@
+{
+  "scenario": "services.feedback.submit_batch.entries_3",
+  "max": 6,
+  "exact": true,
+  "description": "Public Feedback SubmitBatch with real owner persistence and own tenant transaction, settings already enabled by a pure resolver. Successful ordered input batch with per-entry readback; first-error sequence contract is guarded separately. Not an HTTP budget."
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useState,
   useCallback,
@@ -180,17 +181,14 @@ export function PasswordChangeModal({
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Passwort ändern">
       {success ? (
-        <div className="py-8 text-center">
-          <div className="bg-moto-green-fill mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-            <CheckIcon className="h-8 w-8 text-white" />
-          </div>
-          <h3 className="mb-2 text-lg font-semibold text-gray-900">
-            Passwort erfolgreich geändert!
-          </h3>
-          <p className="text-sm text-gray-600">
-            Sie werden in Kürze weitergeleitet...
-          </p>
-        </div>
+        <EmptyState
+          tone="success"
+          icon={<CheckIcon />}
+          titleAs="h3"
+          title="Passwort erfolgreich geändert!"
+          description="Sie werden in Kürze weitergeleitet..."
+          className="py-8"
+        />
       ) : (
         <form
           ref={formRef}

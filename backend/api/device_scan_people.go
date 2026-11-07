@@ -113,7 +113,7 @@ func (p DeviceScanPeople) GetTeacherByStaffID(ctx context.Context, staffID int64
 // Membership's rule, ADR 0091); a placeholder is supervised by others. Already running supervisions are not
 // read from this list.
 func (p DeviceScanPeople) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*devicescan.ScanTeacher, error) {
-	rows, err := p.Users.TeacherRows().ListAllWithStaffAndPerson(ctx)
+	rows, err := p.Users.TeacherRows().ListRosterWithStaffAndPerson(ctx)
 	if err != nil || rows == nil {
 		return nil, err
 	}

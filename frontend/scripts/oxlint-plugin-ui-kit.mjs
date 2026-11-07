@@ -11,6 +11,7 @@ import {
   fieldLabelBaseline,
 } from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
+import { insetBaseline } from "./ui-kit-inset-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -76,6 +77,9 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //   ui-kit/no-white-on-warm-fill    — no white text on orange (SCHOOLYARD) or
 //                                     amber (WARNING) fills
 //
+// ui-kit/no-hand-rolled-empty-state (#5597, hard-zero): a dashed, centered box
+// outside ui/ is a hand-built placeholder; use EmptyState variant="dashed".
+//
 // Two more keep uploads and copyable values on the kit (#5599), hard-zero:
 //
 //   ui-kit/no-hand-rolled-dropzone  — no onDrop outside ui/dropzone.tsx; use
@@ -126,6 +130,18 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //   ui-kit/no-hand-rolled-pill      — tinted `span`/`div` pills outside StatusBadge
 //   ui-kit/no-pill-dot              — a dot inside a pill (#2476)
 //   ui-kit/no-hex-alpha-tint        — `${color}1A` tints in a pill's style
+//
+// Four keep the kit variants of #5606 in use, hard-zero:
+//
+//   ui-kit/no-tabs-override         — no look classes on TabsList/TabsTrigger;
+//                                     pick a variant, pass layout only
+//   ui-kit/no-section-card-title-size — no text size in SectionCard's
+//                                     titleClassName; use titleSize
+//   ui-kit/no-empty-state-surface   — no card classes on EmptyState; the card
+//                                     comes from SectionCard or the page's
+//                                     `empty`
+//   ui-kit/no-hand-rolled-avatar    — no tinted circle around initials; use
+//                                     Avatar
 //
 // One more keeps select fields on one look (#5580):
 //
@@ -1181,12 +1197,12 @@ src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@231
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/dashboard/header/reminders-bell.tsx|text-[11px]@45
+src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/files/files-page.tsx|text-[11px]@180 text-[11px]@292
+src/components/files/files-page.tsx|text-[11px]@180 text-[11px]@287
 src/components/guardians/guardian-list.tsx|text-[10px]@462
-src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809
+src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@716 text-[11px]@781
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600
@@ -1196,19 +1212,19 @@ src/components/students/planned-status-days-modal.tsx|text-[10px]@935 text-[11px
 src/components/students/school-checkin-fab.tsx|text-[10px]@200
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@371
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-[11px]@310
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[11px]@312
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1355 text-[11px]@1380 text-[11px]@1553 text-[10px]@1662 text-[11px]@1685
-src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
-src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[10px]@246 text-[11px]@255 text-[10px]@297 text-[10px]@321 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
-src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@411 text-[11px]@478
-src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
-src/components/timetable/substitution-slide-over.tsx|text-[11px]@743 text-[11px]@747
-src/components/timetable/template-card.tsx|text-[11px]@131 text-[10px]@201
-src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@456 text-[11px]@456 text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1351 text-[11px]@1376 text-[11px]@1529 text-[10px]@1638 text-[11px]@1659
+src/components/timetable/month-planner-grid.tsx|text-[11px]@64 text-[11px]@140 text-[11px]@149 text-[11px]@170 text-[9px]@201 text-[10px]@235
+src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@178 text-[10px]@245 text-[11px]@254 text-[10px]@296 text-[10px]@320 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
+src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@412 text-[11px]@481
+src/components/timetable/substitution-person-card.tsx|text-[11px]@57 text-[11px]@335 text-[11px]@342 text-[11px]@349 text-[11px]@357 text-[11px]@369
+src/components/timetable/substitution-slide-over.tsx|text-[11px]@740 text-[11px]@744
+src/components/timetable/template-card.tsx|text-[11px]@128 text-[10px]@198
+src/components/timetable/vertretung-day-list.tsx|text-[11px]@352 text-[11px]@392 text-[11px]@399 text-[11px]@420 text-[11px]@426
+src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@455 text-[11px]@455 text-[11px]@460 text-[10px]@483 text-[10px]@518 text-[11px]@518
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[10px]@282
@@ -2146,6 +2162,7 @@ function makeRatchetRule({
   kitFile = BUTTON_KIT_FILE,
   exemptDir = null,
   followStaticClassSources = false,
+  onlySrc = false,
 }) {
   return {
     meta: {
@@ -2163,6 +2180,7 @@ function makeRatchetRule({
         EXEMPT_FILE_RE.test(key) ||
         key.endsWith(kitFile) ||
         (exemptDir !== null && key.startsWith(exemptDir)) ||
+        (onlySrc && !key.startsWith("src/")) ||
         key.includes("src/test/")
       ) {
         return {};
@@ -3803,6 +3821,86 @@ const noHandRolledListRow = makeRatchetRule({
   detect: (tools) => classNameVisitor(tools, isHandRolledListRowClass),
 });
 
+// ui-kit/no-hand-rolled-inset (#5592) — die graue Innenfläche kommt aus
+// `InsetPanel`. Fund: ein Element mit Radius, `bg-gray-50` und Polster, auch über
+// Ternär-Zweige und lokale Konstanten hinweg. Ein Knopf oder Link ist keine Fläche.
+// Zweiter Fund: eine Flächen-Klassenkette in einer Modul-Konstante; dort entstand
+// das nächste Mini-Kit. Start mit shrink-only Baseline, Abbau je Bereich in Sub-Issues.
+const INSET_ACTION_ELEMENTS = new Set([
+  "a",
+  "button",
+  "Link",
+  "NavigationLink",
+]);
+const SURFACE_RADIUS_RE = /(?:^|[\s])rounded-(?:md|lg|xl|2xl)(?=[\s]|$)/;
+const SURFACE_LOOK_RE =
+  /(?:^|[\s])(?:border|moto-content-surface|bg-(?:white|gray-\d+|moto-[\w-]+)(?:\/\d+)?)(?=[\s]|$)/;
+
+function isHandRolledInsetClass(tokens) {
+  return (
+    tokens.some((token) => /^rounded-(?:md|lg|xl|2xl)$/.test(token)) &&
+    tokens.some((token) => /^bg-gray-50(?:\/\d+)?$/.test(token)) &&
+    tokens.some((token) => /^p[xytblrse]?-\d/.test(token))
+  );
+}
+
+function isModuleLevel(declaration) {
+  const holder = declaration.parent;
+  return (
+    holder?.type === "Program" ||
+    (holder?.type === "ExportNamedDeclaration" &&
+      holder.parent?.type === "Program")
+  );
+}
+
+function staticStringValue(node) {
+  if (node?.type === "TSAsExpression")
+    return staticStringValue(node.expression);
+  if (node?.type === "Literal") return node.value;
+  if (node?.type === "TemplateLiteral") {
+    return node.quasis.map((quasi) => quasi.value.raw).join(" ");
+  }
+  return null;
+}
+
+const noHandRolledInset = makeRatchetRule({
+  ruleName: "no-hand-rolled-inset",
+  description:
+    "Inner surfaces come from InsetPanel; surface class chains do not live in module constants.",
+  message:
+    "Keine eigene Innenfläche: `InsetPanel` (`tone`, `framed`, `dashed`, `padding`, `as`) aus ~/components/ui/inset-panel, Flächenklassen nicht in einer Modul-Konstante (#5592, .claude/rules/frontend-ui-kit.md).",
+  baselines: insetBaseline,
+  allowlist: [],
+  countEnv: "UI_KIT_INSET_RATCHET",
+  kitFile: "src/components/ui/inset-panel.tsx",
+  exemptDir: UI_KIT_DIR,
+  // E2E-Dateien halten Selektoren als Konstanten, keine Oberfläche.
+  onlySrc: true,
+  detect: ({ classText, found }) => ({
+    JSXOpeningElement(node) {
+      if (INSET_ACTION_ELEMENTS.has(jsxName(node.name) ?? "")) return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      if (isHandRolledInsetClass(classText(className.value).split(/\s+/))) {
+        found(node);
+      }
+    },
+    VariableDeclaration(node) {
+      if (!isModuleLevel(node)) return;
+      for (const declarator of node.declarations) {
+        const value = staticStringValue(declarator.init);
+        if (
+          typeof value === "string" &&
+          SURFACE_RADIUS_RE.test(value) &&
+          SURFACE_LOOK_RE.test(value)
+        ) {
+          found(declarator);
+        }
+      }
+    },
+  }),
+});
+
 function isHandRolledFramedListClass(tokens) {
   return (
     tokens.includes("divide-y") &&
@@ -4093,6 +4191,382 @@ const noHandRolledDropzone = {
   },
 };
 
+// --- Kit-Varianten aus #5606 ---------------------------------------------------
+
+const TABS_LOOK_RES = [
+  /^bg-/,
+  /^rounded(?:-|$)/,
+  /^shadow(?:-|$)/,
+  /^(?:min-)?h-/,
+  /^text-/,
+  /^font-/,
+  /^flex-col$/,
+];
+
+function classTokens(attribute) {
+  if (!attribute?.value) return [];
+  return classText(attribute.value, new Map()).split(/\s+/).filter(Boolean);
+}
+
+const noTabsOverride = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Keep the look of TabsList and TabsTrigger in the kit; className carries layout only.",
+    },
+    messages: {
+      override:
+        'Keine eigene Optik an den Reitern ({{tokens}}): `variant` an TabsList wählen ("default", "line", "icon"), className nur für Layout (#5606).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    return {
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (name !== "TabsList" && name !== "TabsTrigger") return;
+        const tokens = classTokens(jsxAttribute(node, "className")).filter(
+          (token) => TABS_LOOK_RES.some((re) => re.test(bareToken(token))),
+        );
+        if (tokens.length === 0) return;
+        context.report({
+          node,
+          messageId: "override",
+          data: { tokens: [...new Set(tokens)].join(" ") },
+        });
+      },
+    };
+  },
+};
+
+const TITLE_SIZE_RE = /^text-(?:xs|sm|base|lg|\d?xl|\[)/;
+
+const noSectionCardTitleSize = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "SectionCard title sizes come from the titleSize prop.",
+    },
+    messages: {
+      titleSize:
+        "Keine Titelgröße über titleClassName ({{tokens}}): `titleSize` an SectionCard wählen (#5606).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    return {
+      JSXOpeningElement(node) {
+        if (jsxName(node.name) !== "SectionCard") return;
+        const tokens = classTokens(jsxAttribute(node, "titleClassName")).filter(
+          (token) => TITLE_SIZE_RE.test(bareToken(token)),
+        );
+        if (tokens.length === 0) return;
+        context.report({
+          node,
+          messageId: "titleSize",
+          data: { tokens: tokens.join(" ") },
+        });
+      },
+    };
+  },
+};
+
+const noEmptyStateSurface = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "EmptyState carries no card classes of its own.",
+    },
+    messages: {
+      surface:
+        "Keine eigene Karte am Leerzustand: `empty` am Seitengerüst (TenantPage, ParentPage) oder EmptyState in SectionCard (#5606).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    return {
+      JSXOpeningElement(node) {
+        if (jsxName(node.name) !== "EmptyState") return;
+        const tokens = classTokens(jsxAttribute(node, "className"));
+        if (tokens.includes("moto-content-surface")) {
+          context.report({ node, messageId: "surface" });
+        }
+      },
+    };
+  },
+};
+
+const INITIALS_NAME_RE = /initial/i;
+
+function rendersInitials(element) {
+  return element.children.some((child) => {
+    if (child.type !== "JSXExpressionContainer") return false;
+    const expression = child.expression;
+    const name =
+      expression.type === "CallExpression"
+        ? expression.callee?.name
+        : expression.name;
+    return typeof name === "string" && INITIALS_NAME_RE.test(name);
+  });
+}
+
+const noHandRolledAvatar = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "Initials in a tinted circle come from Avatar.",
+    },
+    messages: {
+      avatar:
+        'Initialen im eigenen Kreis: Avatar aus ~/components/ui/avatar nehmen, grau mit tone="neutral" (#5606).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    return {
+      JSXElement(node) {
+        const opening = node.openingElement;
+        const name = jsxName(opening.name);
+        if (!name || !/^[a-z]/.test(name)) return;
+        const tokens = classTokens(jsxAttribute(opening, "className"));
+        if (!tokens.includes("rounded-full")) return;
+        if (!tokens.some((token) => bareToken(token).startsWith("bg-"))) return;
+        if (rendersInitials(node)) {
+          context.report({ node: opening, messageId: "avatar" });
+        }
+      },
+    };
+  },
+};
+
+// ui-kit/no-hand-rolled-empty-state (#5597). Gestrichelt und zentriert ist der
+// Leer-Platzhalter; der kommt aus EmptyState. Die übrigen gestrichelten Flächen
+// (Vorschau eines Upload-Felds, vorgemerkte Termine) sind nicht zentriert.
+const noHandRolledEmptyState = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-built dashed empty states; use EmptyState variant=dashed.",
+    },
+    messages: {
+      handRolled:
+        'Ein gestrichelter Leerzustand kommt aus dem Kit: EmptyState variant="dashed" aus ~/components/ui/empty-state (#5597).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key.startsWith("src/components/ui/")) {
+      return {};
+    }
+    const sourceCode = context.sourceCode ?? context.getSourceCode?.();
+    const DASHED = 1;
+    const CENTERED = 2;
+    const DASHED_AND_CENTERED = DASHED | CENTERED;
+    const emptyStateClassPath = (text) => {
+      const classes = text.split(/\s+/);
+      return (
+        (classes.includes("border-dashed") ? DASHED : 0) |
+        (classes.includes("text-center") ? CENTERED : 0)
+      );
+    };
+    const isDashedAndCentered = (text) =>
+      emptyStateClassPath(text) === DASHED_AND_CENTERED;
+    const combineClassPaths = (left, right) =>
+      new Set(
+        [...left].flatMap((leftPath) =>
+          [...right].map((rightPath) => leftPath | rightPath),
+        ),
+      );
+    const eitherClassPaths = (left, right) => new Set([...left, ...right]);
+    const collectObjectClassPaths = (node) => {
+      let paths = new Set([0]);
+      const conditions = new Map();
+
+      for (const property of node.properties) {
+        if (property.type !== "Property" || property.computed) continue;
+        const keyPaths = collectClassPaths(property.key);
+        if (
+          property.value.type === "Literal" ||
+          (property.value.type === "Identifier" &&
+            property.value.name === "undefined")
+        ) {
+          if (property.value.value) {
+            paths = combineClassPaths(paths, keyPaths);
+          }
+          continue;
+        }
+
+        const negated =
+          property.value.type === "UnaryExpression" &&
+          property.value.operator === "!";
+        const condition = negated ? property.value.argument : property.value;
+        const conditionText = sourceCode?.getText(condition);
+        if (conditionText == null || conditionText === "") continue;
+        const variants = conditions.get(conditionText) ?? {
+          whenFalse: new Set([0]),
+          whenTrue: new Set([0]),
+        };
+        variants[negated ? "whenFalse" : "whenTrue"] = combineClassPaths(
+          variants[negated ? "whenFalse" : "whenTrue"],
+          keyPaths,
+        );
+        conditions.set(conditionText, variants);
+      }
+
+      for (const { whenFalse, whenTrue } of conditions.values()) {
+        paths = combineClassPaths(paths, eitherClassPaths(whenFalse, whenTrue));
+      }
+      return paths;
+    };
+    const collectClassPaths = (node, seenVariables = new Set()) => {
+      if (node == null || typeof node !== "object") return new Set([0]);
+      if (node.type === "Literal" && typeof node.value === "string") {
+        return new Set([emptyStateClassPath(node.value)]);
+      }
+      if (node.type === "TemplateElement") {
+        return new Set([emptyStateClassPath(node.value.raw)]);
+      }
+      switch (node.type) {
+        case "JSXExpressionContainer":
+        case "ChainExpression":
+        case "TSAsExpression":
+        case "TSTypeAssertion":
+        case "TypeCastExpression":
+          return collectClassPaths(node.expression);
+        case "Identifier": {
+          const variable = findVariable(sourceCode, node);
+          if (!variable || seenVariables.has(variable)) return new Set([0]);
+
+          const nextSeenVariables = new Set(seenVariables);
+          nextSeenVariables.add(variable);
+          let paths = new Set();
+          for (const definition of variable.defs) {
+            if (
+              definition.type !== "Variable" ||
+              definition.node.type !== "VariableDeclarator" ||
+              definition.parent?.kind !== "const" ||
+              !definition.node.init
+            ) {
+              continue;
+            }
+            paths = eitherClassPaths(
+              paths,
+              collectClassPaths(definition.node.init, nextSeenVariables),
+            );
+          }
+          return paths.size > 0 ? paths : new Set([0]);
+        }
+        case "ConditionalExpression":
+          return eitherClassPaths(
+            collectClassPaths(node.consequent),
+            collectClassPaths(node.alternate),
+          );
+        case "LogicalExpression":
+          return node.operator === "&&"
+            ? eitherClassPaths(new Set([0]), collectClassPaths(node.right))
+            : eitherClassPaths(
+                collectClassPaths(node.left),
+                collectClassPaths(node.right),
+              );
+        case "TemplateLiteral":
+          return node.quasis.reduce(
+            (paths, quasi, index) =>
+              combineClassPaths(
+                combineClassPaths(paths, collectClassPaths(quasi)),
+                node.expressions[index] == null
+                  ? new Set([0])
+                  : collectClassPaths(node.expressions[index]),
+              ),
+            new Set([0]),
+          );
+        case "CallExpression":
+          return node.arguments.reduce(
+            (paths, argument) =>
+              combineClassPaths(paths, collectClassPaths(argument)),
+            new Set([0]),
+          );
+        case "ArrayExpression":
+          return node.elements.reduce(
+            (paths, element) =>
+              combineClassPaths(paths, collectClassPaths(element)),
+            new Set([0]),
+          );
+        case "SpreadElement":
+        case "MemberExpression":
+          return collectClassPaths(node.argument ?? node.object);
+        case "TaggedTemplateExpression":
+          return collectClassPaths(node.quasi);
+        case "BinaryExpression":
+          return node.operator === "+"
+            ? combineClassPaths(
+                collectClassPaths(node.left),
+                collectClassPaths(node.right),
+              )
+            : new Set([0]);
+        case "ObjectExpression":
+          return collectObjectClassPaths(node);
+        default:
+          return new Set([0]);
+      }
+    };
+    const belongsToClassNameAttribute = (node) => {
+      let parent = node.parent;
+      while (parent != null) {
+        if (parent.type === "JSXAttribute") {
+          return parent.name?.name === "className";
+        }
+        parent = parent.parent;
+      }
+      return false;
+    };
+    return {
+      // Über alle Teile des className-Ausdrucks, auch Template und cn()-Argumente.
+      JSXAttribute(node) {
+        if (node.name?.name !== "className") return;
+        if (
+          [...collectClassPaths(node.value)].some(
+            (path) => path === DASHED_AND_CENTERED,
+          )
+        ) {
+          context.report({ node, messageId: "handRolled" });
+        }
+      },
+      // Eine Klassenkette in einer Konstante.
+      Literal(node) {
+        if (
+          typeof node.value === "string" &&
+          !belongsToClassNameAttribute(node) &&
+          isDashedAndCentered(node.value)
+        ) {
+          context.report({ node, messageId: "handRolled" });
+        }
+      },
+      TemplateLiteral(node) {
+        if (
+          !belongsToClassNameAttribute(node) &&
+          [...collectClassPaths(node)].some(
+            (path) => path === DASHED_AND_CENTERED,
+          )
+        ) {
+          context.report({ node, messageId: "handRolled" });
+        }
+      },
+    };
+  },
+};
+
 const noHandRolledCopyField = {
   meta: {
     type: "problem",
@@ -4153,7 +4627,13 @@ export default {
     "no-own-spinner": noOwnSpinner,
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
+    "no-empty-state-surface": noEmptyStateSurface,
+    "no-hand-rolled-avatar": noHandRolledAvatar,
+    "no-hand-rolled-empty-state": noHandRolledEmptyState,
+    "no-section-card-title-size": noSectionCardTitleSize,
+    "no-tabs-override": noTabsOverride,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
+    "no-hand-rolled-inset": noHandRolledInset,
     "no-hand-rolled-field-label": noHandRolledFieldLabel,
     "no-hand-rolled-menu": noHandRolledMenu,
     "no-hand-rolled-number-stepper": noHandRolledNumberStepper,

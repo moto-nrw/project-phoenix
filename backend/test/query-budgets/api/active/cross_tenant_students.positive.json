@@ -1,0 +1,6 @@
+{
+  "scenario": "api.active.cross_tenant_students.positive",
+  "max": 13,
+  "exact": false,
+  "description": "GET /active/cross-tenant-students, N3/N8 visitors from distinct home schools plus excluded local child; complete production route middleware capture."
+}

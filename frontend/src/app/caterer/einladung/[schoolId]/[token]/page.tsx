@@ -5,6 +5,7 @@
 // caterer sets its password, a caterer with an account confirms with its
 // password and adds the school. Afterwards the caterer is signed in.
 
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -42,7 +43,7 @@ import { catererPath } from "~/lib/caterer-url";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button, ButtonLink } from "~/components/ui/button";
-import { IconTile } from "~/components/ui/icon-tile";
+import { InvitationSummary } from "~/components/auth/invitation-summary";
 
 const logger = createLogger({ component: "CatererInvitationPage" });
 
@@ -270,26 +271,16 @@ function AcceptForm({
 
   if (accepted) {
     return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="flex flex-col items-center py-12"
-      >
-        <IconTile
-          size="page"
-          shape="round"
-          tone="inverse"
-          className="mb-6"
-          icon={<Check className="text-white" aria-hidden="true" />}
-        />
-        <h3 className="mb-1 text-base font-semibold text-gray-900">
-          {existing ? "Schule hinzugefügt" : "Konto erstellt"}
-        </h3>
+      <div role="status" aria-live="polite">
         {/* „weitergeleitet“, nicht „angemeldet“: scheitert die automatische
             Anmeldung, geht es zur Anmeldeseite. */}
-        <p className="text-sm text-gray-500">
-          Sie werden gleich weitergeleitet.
-        </p>
+        <EmptyState
+          tone="success"
+          icon={<Check aria-hidden="true" />}
+          titleAs="h3"
+          title={existing ? "Schule hinzugefügt" : "Konto erstellt"}
+          description="Sie werden gleich weitergeleitet."
+        />
       </div>
     );
   }
@@ -306,14 +297,7 @@ function AcceptForm({
     >
       <FormErrorAlert message={formErrors.error} />
 
-      <section className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm">
-        <p className="font-medium text-gray-700">
-          Einladung für{" "}
-          <span className="font-semibold text-gray-900">
-            {invitation.email}
-          </span>
-        </p>
-      </section>
+      <InvitationSummary email={invitation.email} />
 
       <div>
         <FieldLabel

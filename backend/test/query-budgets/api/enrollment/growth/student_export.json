@@ -1,0 +1,6 @@
+{
+  "scenario": "api.enrollment.growth.student_export",
+  "max": 10,
+  "exact": true,
+  "description": "Positive mounted POST XLSX export, N3/N8 approved requests; rendered child names asserted, full SQL including tenant transaction and audit write."
+}

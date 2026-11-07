@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -103,14 +104,63 @@ func (d *timetableData) ListScheduledInstanceRows(ctx context.Context, instances
 	for _, row := range participantRows {
 		rows.Participants[row.InstanceID] = append(rows.Participants[row.InstanceID], ScheduledParticipantOf(row))
 	}
-	for date, studentIDs := range studentIDsByDate(instances, rows.Participants) {
-		cutoffs, err := d.partialAbsenceCutoffs(ctx, studentIDs, date)
+	rows.Cutoffs, err = d.instancePickupCutoffs(ctx, studentIDsByDate(instances, rows.Participants))
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// instancePickupCutoffs loads one bounded window through Care Plan's existing
+// consumer port, then keeps only the student/date pairs on the requested blocks.
+func (d *timetableData) instancePickupCutoffs(ctx context.Context, byDate map[calendar.Date][]int64) (map[calendar.Date]map[int64]time.Time, error) {
+	if len(byDate) <= 1 {
+		return d.singleDateInstancePickupCutoffs(ctx, byDate)
+	}
+	cutoffs := make(map[calendar.Date]map[int64]time.Time, len(byDate))
+	dates := slices.Sorted(maps.Keys(byDate))
+	from, to := dates[0], dates[len(dates)-1]
+	students := make(map[int64]bool)
+	selected := make(map[calendar.Date]map[int64]bool, len(byDate))
+	for date, ids := range byDate {
+		cutoffs[date] = make(map[int64]time.Time)
+		selected[date] = make(map[int64]bool, len(ids))
+		for _, id := range ids {
+			students[id], selected[date][id] = true, true
+		}
+	}
+	if len(students) == 0 {
+		return cutoffs, nil
+	}
+	ids := make([]int64, 0, len(students))
+	for id := range students {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	rows, err := d.deps.PickupExceptions.ListRows(ctx, ports.CareScheduleFilter{
+		StudentIDs: ids, From: ports.CareDate(from), To: ports.CareDate(to),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load pickup cutoffs for %s: %w", from, err)
+	}
+	for _, row := range rows {
+		if row != nil && row.ExcusedAuto && row.ExcusedFrom != nil && selected[row.ExceptionDate][row.StudentID] {
+			cutoffs[row.ExceptionDate][row.StudentID] = calendar.NormalizeWallClock(*row.ExcusedFrom)
+		}
+	}
+	return cutoffs, nil
+}
+
+func (d *timetableData) singleDateInstancePickupCutoffs(ctx context.Context, byDate map[calendar.Date][]int64) (map[calendar.Date]map[int64]time.Time, error) {
+	cutoffs := make(map[calendar.Date]map[int64]time.Time, len(byDate))
+	for date, ids := range byDate {
+		values, err := d.partialAbsenceCutoffs(ctx, ids, date)
 		if err != nil {
 			return nil, fmt.Errorf("load pickup cutoffs for %s: %w", date, err)
 		}
-		rows.Cutoffs[date] = cutoffs
+		cutoffs[date] = values
 	}
-	return rows, nil
+	return cutoffs, nil
 }
 
 func studentIDsByDate(instances []timetable.ScheduledInstance, participants map[int64][]timetable.ScheduledParticipant) map[calendar.Date][]int64 {

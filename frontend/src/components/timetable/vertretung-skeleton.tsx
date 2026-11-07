@@ -1,8 +1,8 @@
 "use client";
 
 import { PlanningContextBarSkeleton } from "~/components/timetable/betreuungsplan-skeleton";
-import { timetableSurfacePadded } from "~/components/timetable/timetable-style";
 import { Skeleton } from "~/components/ui/skeleton";
+import { SectionCard } from "~/components/ui/section-card";
 
 /**
  * Ladezustand der Vertretung: der Zweiteiler aus Störungsliste (links) und
@@ -25,16 +25,16 @@ export function VertretungContentSkeleton({
       data-testid="vertretung-content-skeleton"
       className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]"
     >
-      <div className={`${timetableSurfacePadded} space-y-3`}>
+      <SectionCard bodyClassName="space-y-3">
         <Skeleton shape="control" className="h-8 w-44" />
         {[0, 1, 2, 3].map((row) => (
           <Skeleton key={row} shape="inner" className="h-16 w-full" />
         ))}
-      </div>
-      <div className={`${timetableSurfacePadded} space-y-3`}>
+      </SectionCard>
+      <SectionCard bodyClassName="space-y-3">
         <Skeleton shape="control" className="h-8 w-32" />
         <Skeleton shape="inner" className="h-96 w-full" />
-      </div>
+      </SectionCard>
     </div>
   );
 

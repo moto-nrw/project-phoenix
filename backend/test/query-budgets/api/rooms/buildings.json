@@ -1,0 +1,6 @@
+{
+  "scenario": "api.rooms.buildings",
+  "max": 4,
+  "exact": true,
+  "description": "Protected JWT room buildings metadata route with real owner and tenant transaction; 3 and 8 rooms, duplicate/empty values and a foreign tenant excluded, zero writes. Outer session-liveness host checks excluded."
+}

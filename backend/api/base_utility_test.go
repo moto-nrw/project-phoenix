@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
@@ -395,7 +396,7 @@ func mintRateLimitJWT(t *testing.T, tokenAuth *sessiontoken.TokenAuth, claims se
 	if len(claims.Roles) == 0 {
 		claims.Roles = []string{"user"}
 	}
-	token, err := tokenAuth.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(tokenAuth, claims)
 	require.NoError(t, err)
 	return token
 }
@@ -775,7 +776,7 @@ func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	require.NoError(t, err)
 	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
-	resource := newUsersResource(people, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
+	resource := NewUsersResource(people, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
 		_, _, found, err := identity.LookupRFIDCard(ctx, tagID)
 		return found, err
 	})

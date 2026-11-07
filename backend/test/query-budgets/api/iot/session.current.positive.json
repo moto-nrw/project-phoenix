@@ -1,0 +1,6 @@
+{
+  "scenario": "api.iot.session.current.positive",
+  "max": 13,
+  "exact": true,
+  "description": "Positive session polling with a device assigned to the session room and one supervisor, at zero and three open visits. Includes the tenant transaction; excludes device authentication. Heartbeat writes last_seen without the redundant device and room reads (15 to 13). Count and visit revision still share one snapshot."
+}

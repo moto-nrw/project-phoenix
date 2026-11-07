@@ -70,6 +70,7 @@ type rawGuardianProfileRepository interface {
 	directory.GuardianProfileReads
 	Create(ctx context.Context, profile *models.GuardianProfile) error
 	FindByID(ctx context.Context, id int64) (*models.GuardianProfile, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*directory.GuardianProfileSnapshot, error)
 	LockByIDForUpdate(ctx context.Context, id int64) error
 	FindByEmail(ctx context.Context, email string) (*models.GuardianProfile, error)
 	FindByAccountID(ctx context.Context, accountID int64) (*models.GuardianProfile, error)
@@ -97,6 +98,7 @@ type rawStudentGuardianRepository interface {
 	FindByStudentID(ctx context.Context, studentID int64) ([]*models.StudentGuardian, error)
 	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*models.StudentGuardian, error)
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*models.StudentGuardian, error)
+	FindByGuardianProfileIDForDeletePreview(ctx context.Context, guardianProfileID int64) ([]*models.StudentGuardian, error)
 	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
 	FilterAccountsWithStudentAccess(ctx context.Context, guardianAccountIDs, studentIDs []int64, tenantID int64, permission string) ([]int64, error)
 	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
@@ -119,5 +121,6 @@ type rawGuardianPhoneNumberRepository interface {
 	SetPrimary(ctx context.Context, id int64, guardianProfileID int64) error
 	UnsetAllPrimary(ctx context.Context, guardianProfileID int64) error
 	CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error)
+	CountAndNextPriority(ctx context.Context, guardianProfileID int64) (int, int, error)
 	GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error)
 }

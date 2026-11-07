@@ -18,6 +18,7 @@ import {
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
 import { fieldLabelBaseline } from "./ui-kit-field-label-baseline.mjs";
+import { insetBaseline } from "./ui-kit-inset-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import {
   lintSource as lintProbe,
@@ -139,6 +140,144 @@ describe.concurrent("ui-kit/no-hand-rolled-dropzone", () => {
     const result = await lintSource(source, "src/components/ui/dropzone.tsx");
 
     expect(result.output).not.toContain("ui-kit(no-hand-rolled-dropzone)");
+  });
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-empty-state", () => {
+  const RULE = "ui-kit(no-hand-rolled-empty-state)";
+  const source = `function Probe() {
+    return <div className="rounded-xl border border-dashed px-4 py-6 text-center">Leer</div>;
+  }
+  void Probe;`;
+
+  it("reports a dashed, centered box", async () => {
+    const result = await lintSource(source, "src/components/probe.tsx");
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
+  it("reports an expression-wrapped className string once", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className={"border-dashed text-center"}>Leer</div>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.split(RULE)).toHaveLength(2);
+  });
+
+  it("reports a template-literal class constant", async () => {
+    const result = await lintSource(
+      `const classes = \`border-dashed text-center\`;
+      export const Probe = () => <div className={classes}>Leer</div>;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
+  it("reports the classes across a template and cn arguments", async () => {
+    const template = `function Probe({ surface }) {
+      return <div className={\`\${surface} border-dashed text-center\`}>Leer</div>;
+    }
+    void Probe;`;
+    const split = `function Probe({ cn }) {
+      return <div className={cn("rounded-xl border-dashed", "text-center")}>Leer</div>;
+    }
+    void Probe;`;
+
+    for (const probe of [template, split]) {
+      const result = await lintSource(probe, "src/components/probe.tsx");
+      expect(result.output).toContain(RULE);
+    }
+  });
+
+  it("reports classes combined from constants", async () => {
+    const result = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      const dashedClasses = "border-dashed";
+      const centeredClasses = "text-center";
+      export const Probe = () => (
+        <div className={cn(dashedClasses, centeredClasses)}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
+  it("allows mutually exclusive dashed and centered classes", async () => {
+    const result = await lintSource(
+      `declare const loading: boolean;
+      export const Probe = () => (
+        <div className={loading ? "border-dashed" : "text-center"}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
+  });
+
+  it("reports when a conditional branch has both classes", async () => {
+    const result = await lintSource(
+      `declare const loading: boolean;
+      export const Probe = () => (
+        <div className={loading ? "border-dashed text-center" : "p-4"}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain(RULE);
+  });
+
+  it("reports dashed and centered keys in a cn class map", async () => {
+    const result = await lintSource(
+      `declare const empty: boolean;
+      declare function cn(classes: Record<string, boolean>): string;
+      export const Probe = () => (
+        <div className={cn({ "border-dashed": empty, "text-center": empty })}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain(RULE);
+  });
+
+  it("allows mutually exclusive keys in a cn class map", async () => {
+    const result = await lintSource(
+      `declare const empty: boolean;
+      declare function cn(classes: Record<string, boolean>): string;
+      export const Probe = () => (
+        <div className={cn({ "border-dashed": empty, "text-center": !empty })}>Leer</div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
+  });
+
+  it("allows a dashed box that is not centered", async () => {
+    const result = await lintSource(
+      source.replace(" text-center", ""),
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
+  });
+
+  it("allows the kit itself", async () => {
+    const result = await lintSource(
+      source,
+      "src/components/ui/empty-state.tsx",
+    );
+
+    expect(result.output).not.toContain(RULE);
   });
 });
 
@@ -1406,6 +1545,69 @@ describe.concurrent("ui-kit/no-control-height-override", () => {
   });
 });
 
+describe.concurrent("Kit-Varianten aus #5606", () => {
+  it("reports look classes on tabs and allows layout", async () => {
+    const result = await lintSource(`
+      import { TabsList, TabsTrigger } from "~/components/ui/tabs";
+      export function Probe() {
+        return <TabsList className="mt-2 w-full justify-start">
+          <TabsTrigger value="a" className="min-h-16 rounded-lg text-base" />
+          <TabsTrigger value="b" className="flex-1" />
+        </TabsList>;
+      }
+    `);
+
+    expect(result.output.match(/ui-kit\(no-tabs-override\)/g)).toHaveLength(1);
+  });
+
+  it("reports a text size in titleClassName and allows other classes", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      export function Probe() {
+        return <>
+          <SectionCard title="A" titleClassName="text-xl" />
+          <SectionCard title="B" titleClassName="font-medium text-gray-600" />
+        </>;
+      }
+    `);
+
+    expect(
+      result.output.match(/ui-kit\(no-section-card-title-size\)/g),
+    ).toHaveLength(1);
+  });
+
+  it("reports a card on EmptyState and allows spacing", async () => {
+    const result = await lintSource(`
+      import { EmptyState } from "~/components/ui/empty-state";
+      export function Probe() {
+        return <>
+          <EmptyState title="A" className="moto-content-surface rounded-2xl border" />
+          <EmptyState title="B" className="py-0" />
+        </>;
+      }
+    `);
+
+    expect(
+      result.output.match(/ui-kit\(no-empty-state-surface\)/g),
+    ).toHaveLength(1);
+  });
+
+  it("reports initials in a tinted circle and allows other text", async () => {
+    const result = await lintSource(`
+      export function Probe({ first, label }: { first: string; label: string }) {
+        return <>
+          <span className="size-11 rounded-full bg-gray-100">{initials(first)}</span>
+          <span className="rounded-full bg-gray-100 px-2">{label}</span>
+        </>;
+      }
+    `);
+
+    expect(
+      result.output.match(/ui-kit\(no-hand-rolled-avatar\)/g),
+    ).toHaveLength(1);
+  });
+});
+
 describe.concurrent("ui-kit/no-select-override", () => {
   it("reports frame, fill, height and radius classes on kit selects", async () => {
     const result = await lintSource(`
@@ -2403,6 +2605,119 @@ describe("ui-kit/no-hand-rolled-field-label baseline is current (#5589)", () => 
     const result = spawnSync(
       process.execPath,
       [resolve("scripts/ui-kit-field-label-baseline-update.mjs"), "--check"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+  }, 120_000);
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-inset (#5592)", () => {
+  const RULE = "ui-kit(no-hand-rolled-inset)";
+  const lintProbe = (source: string, file = "src/components/probe-panel.tsx") =>
+    lintSource(source, file);
+
+  it.each([
+    '<div className="rounded-xl bg-gray-50 p-3">A</div>',
+    '<div className="rounded-lg border border-gray-200 bg-gray-50/70 px-3 py-2">A</div>',
+    '<p className="rounded-md bg-gray-50/50 py-1 text-sm">A</p>',
+    '<div className="rounded-xl bg-gray-50 pt-2">A</div>',
+    '<section className="space-y-2 rounded-2xl border border-gray-100 bg-gray-50 p-4">A</section>',
+    '<div className={open ? "rounded-xl bg-gray-50 p-3" : "hidden"}>A</div>',
+  ])("reports %s", async (element) => {
+    const { output } = await lintProbe(
+      `const open = true; export const Probe = () => ${element};`,
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it.each([
+    '<div className="rounded-full bg-gray-50 p-3">Pille</div>',
+    '<div className="rounded-xl bg-gray-100 p-3">Anderer Ton</div>',
+    '<div className="rounded-xl hover:bg-gray-50 p-3">Nur beim Darüberfahren</div>',
+    '<div className="rounded-xl bg-gray-50">Ohne Polster</div>',
+    '<div className="bg-gray-50 p-3">Ohne Radius</div>',
+    '<button type="button" className="rounded-xl bg-gray-50 p-3">Knopf</button>',
+    '<a href="/x" className="rounded-xl bg-gray-50 p-3">Link</a>',
+  ])("accepts %s", async (element) => {
+    const { output } = await lintProbe(
+      `export const Probe = () => ${element};`,
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  it("follows a local constant into the className", async () => {
+    const { output } = await lintProbe(`
+      export function Probe() {
+        const surface = "rounded-xl bg-gray-50 p-3";
+        return <div className={surface}>A</div>;
+      }
+    `);
+    expect(output).toContain(RULE);
+  });
+
+  it.each([
+    'const SURFACE = "moto-content-surface rounded-2xl border p-5";',
+    'export const SURFACE = "rounded-xl border border-gray-200";',
+    "const SURFACE = `rounded-lg bg-white p-3`;",
+    'const SURFACE = "rounded-xl bg-moto-red/5 p-3";',
+    'const SURFACE = "rounded-xl border" as const;',
+  ])("reports the module constant %s", async (declaration) => {
+    const { output } = await lintProbe(`${declaration}\nvoid SURFACE;`);
+    expect(output).toContain(RULE);
+  });
+
+  it.each([
+    'const VALUE = "rounded-full border px-2";',
+    'const VALUE = "mt-4 min-h-0 flex-1 overflow-hidden";',
+    'const VALUE = "rounded-xl sind Karten";',
+  ])("accepts the module constant %s", async (declaration) => {
+    const { output } = await lintProbe(`${declaration}\nvoid VALUE;`);
+    expect(output).not.toContain(RULE);
+  });
+
+  it("does not treat a constant inside a function as a module constant", async () => {
+    const { output } = await lintProbe(`
+      export function probe() {
+        const unused = "rounded-xl border border-gray-200";
+        return unused;
+      }
+    `);
+    expect(output).not.toContain(RULE);
+  });
+
+  it("leaves the kit alone", async () => {
+    const { output } = await lintProbe(
+      'export const Probe = () => <div className="rounded-xl bg-gray-50 p-3">A</div>;',
+      "src/components/ui/inset-panel.tsx",
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  it("fails one finding more than a file's baseline", async () => {
+    const [file, allowed] = Object.entries(
+      insetBaseline["no-hand-rolled-inset"]!,
+    )[0]!;
+    const panels = Array.from(
+      { length: allowed + 1 },
+      () => '<div className="rounded-xl bg-gray-50 p-3">A</div>',
+    ).join("");
+    const result = await lintSource(
+      `export const Probe = () => <>${panels}</>;`,
+      file,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+});
+
+describe("ui-kit/no-hand-rolled-inset baseline is current (#5592)", () => {
+  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken.
+  it("records exactly the findings each file still has", () => {
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/ui-kit-inset-baseline-update.mjs"), "--check"],
       { encoding: "utf8" },
     );
 

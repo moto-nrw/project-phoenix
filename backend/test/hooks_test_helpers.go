@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -43,7 +44,7 @@ func MintTestJWT(t testing.TB, claims sessiontoken.AppClaims) string {
 	claims.TenantID = RebaseTenantID(t, claims.TenantID)
 	tokenAuth, err := ConfiguredTokenAuth()
 	require.NoError(t, err, "MintTestJWT: NewTokenAuth")
-	token, err := tokenAuth.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(tokenAuth, claims)
 	require.NoError(t, err, "MintTestJWT: CreateJWT")
 	return token
 }
@@ -78,7 +79,7 @@ func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string 
 		TenantID:    fixtureTenantID(tb),
 	}
 
-	token, err := tokenAuth.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(tokenAuth, claims)
 	require.NoError(tb, err, "Failed to create test JWT")
 
 	return token

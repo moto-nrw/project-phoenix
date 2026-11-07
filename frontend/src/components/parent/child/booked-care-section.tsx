@@ -1,5 +1,6 @@
 "use client";
 
+import { DataField, DataGrid } from "~/components/ui/data-field";
 import {
   useCallback,
   useEffect,
@@ -365,24 +366,16 @@ export function BookedCareSection({
                 </p>
               </div>
               {pending.diff.length > 0 && (
-                <dl className="space-y-1">
+                <DataGrid columns={1}>
                   {pending.diff.map((line) => (
-                    <div
-                      key={line.label}
-                      className="flex flex-wrap items-baseline gap-x-2 text-sm"
-                    >
-                      <dt className="font-medium text-gray-700">
-                        {line.label}
-                      </dt>
-                      <dd className="text-gray-500 line-through">
+                    <DataField key={line.label} label={line.label}>
+                      <span className="font-normal text-gray-500 line-through">
                         {diffValue(line.old_state, line.old_days)}
-                      </dd>
-                      <dd className="text-gray-900">
-                        {diffValue(line.new_state, line.new_days)}
-                      </dd>
-                    </div>
+                      </span>{" "}
+                      {diffValue(line.new_state, line.new_days)}
+                    </DataField>
                   ))}
-                </dl>
+                </DataGrid>
               )}
               {pending.note && (
                 <p className="text-sm text-gray-500">

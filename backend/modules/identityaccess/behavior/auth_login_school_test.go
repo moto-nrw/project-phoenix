@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -261,11 +262,12 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 	require.NoError(t, err)
 	var sessionToken string
 	require.NoError(t, decoded.Get("token", &sessionToken))
-	tenantlessRefresh, err := tokenAuth.CreateRefreshJWT(sessiontoken.RefreshClaims{
+	tenantlessRefresh, err := tokentest.CreateRefreshJWT(tokenAuth, sessiontoken.RefreshClaims{
 		ID:    int(accountID),
 		Token: sessionToken,
 		Scope: schoolScope,
 	})
+
 	require.NoError(t, err)
 
 	_, _, err = service.RefreshTokenWithAudit(context.Background(), tenantlessRefresh, "", "", "")
@@ -696,7 +698,7 @@ func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *t
 	require.Equal(t, identityaccess.LoginStatusMFAEnrollmentRequired, result.Status)
 	require.NotEmpty(t, result.AccessToken)
 
-	claims, err := service.TokenAuth.ParseMFAEnrollmentJWT(result.AccessToken)
+	claims, err := tokentest.ParseMFAEnrollmentJWT(service.TokenAuth, result.AccessToken)
 	require.NoError(t, err)
 	assert.Equal(t, sessiontoken.MFAEnrollmentScopeSchool, claims.Scope,
 		"school login must mint a school-scope enrollment token")
