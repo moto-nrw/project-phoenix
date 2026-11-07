@@ -65,9 +65,9 @@ zusammengelegten Rahmen, alle anderen Statements bleiben in Reihenfolge.
 | #5878 | `role_changed`, drei Familien | Tenant 7, Push Admin 4 × 4 | 23 | 14 |
 | #5878 | `role_changed`, fünf Familien (Sitzungsgrenze) | Tenant 9, Push Admin 4 × 6 | 33 | 18 |
 | #5894 | `communication18.attachments.parent.n3`, `.n5` | Admin 6 (Zielgruppe), Tenant 5 (Schalter), Tenant 4 (Dateizeilen), Admin 6 (erneute Prüfung) | 21 | 18, mit Schritt 5: 16 |
-| #5862 | 14 Szenarien `parent.children.*` | je Admin 7 (Schulen, Beziehung, Kind), dann Tenant 4–14 | 205 | 177 |
+| #5862 | 13 Routen, 14 Szenarien `parent.children.*` | je Admin 7 (Schulen, Beziehung, Kind), dann Tenant 4–14 | 205 | 177 |
 
-Die 14 Szenarien von #5862: `related_accounts` (N3, N8), `master_data`,
+Die 14 Szenarien der 13 Routen von #5862: `related_accounts` (N3, N8), `master_data`,
 `master_data_requests`, `sharing_options`, `sharing`, `events`, `consents`,
 `care_exception`, `excused_requests`, `pickup_requests`, `care_offerings`,
 `offering_catalog`, `meal_participation`. Heute 12, 17, 13, 14, 17, 12, 11,
@@ -173,23 +173,51 @@ ihr Fehler ist ein 5xx.
 **#5894 Anhänge der Eltern** (`modules/filestorage/http/files/attachments.go:241–295`).
 Jede Ablehnung der Prüfung wird zu `ErrAttachmentNotFound` und über
 `roots/owners/parent_announcement_attachments.go:56–62` und
-`attachments.go:135–148` zu 404 ohne Code (`general.input`). Gate: Admin 1
-Zielgruppe, Tenant 1 Schulschalter (entfällt bei Systemankündigungen,
-`parent_announcement_service.go:344–346`), Tenant 2 Dateizeilen, Admin 2
-erneute Prüfung, beim Download Tenant 3 Zeile und Datei.
+`attachments.go:135–148` zu 404 ohne Code (`general.input`). Rahmenfolgen:
+
+- **Liste:** Admin 1 Zielgruppe, Tenant 1 Schulschalter (entfällt bei
+  Systemankündigungen, `parent_announcement_service.go:344–346`), Tenant 2
+  Dateizeilen, Admin 2 erneute Prüfung.
+- **Ankündigungs-Download:** wie die Liste bis Admin 2, danach Tenant 3 Zeile
+  und zuletzt die gespeicherte Datei (`announcement_attachment_entry.go:93–105`).
+- **Nachweis-Download** (`?student_id=`, `entry.go:82–88`): Admin 1 Kind
+  (`child.go:61` über `parent_declaration_feed.go:173`), Admin 2 Nachweis
+  (`parent_declaration_feed.go:178–180`), Tenant 1 Zeile, Admin 3 und Admin 4
+  erneute Prüfung (dasselbe Gate noch einmal, `entry.go:102–104`), Tenant 2
+  Zeile, zuletzt die Datei. Kein Schalter.
+
+Liste und Ankündigungs-Download:
 
 | Status | Code | Ursache | Datei:Zeile | Phase |
 |---|---|---|---|---|
-| 400 | `general.input` | `announcementId` bzw. `attachmentId` ungültig | `attachments.go:242`, `261`, `265` | vor Rahmen |
+| 400 | `general.input` | `announcementId` bzw. `attachmentId` keine Zahl | `attachments.go:242`, `261`, `265`, `api/common/request.go:81–88` | vor Rahmen |
 | 401 | `general.permission` | keine Konto-ID im Token | `attachments.go:232–239` | vor Rahmen |
-| 400 | `general.input` | `student_id` mehrfach oder nicht positiv (Nachweis-Download) | `attachments.go:277–284` | vor Rahmen |
 | 404 | `general.input` | Konto- oder Ankündigungs-ID ≤ 0 | `announcement_attachment_entry.go:109–110` | vor Rahmen |
 | 404 | `general.input` | Ankündigung fehlt, nicht live oder Konto nicht in der Zielgruppe | `parent_announcement_attachments.go:42`, `49`, ausgewertet `59–60`, `entry.go:116–121` | Admin 1, ausgewertet zwischen |
 | 404 | `general.input` | Schulschalter aus oder nicht lesbar (fail closed) | `parent_announcement_service.go:351–361`, `parent_announcement_attachments.go:64–65` | Tenant 1, ausgewertet zwischen |
-| 404 | `general.input` | Anhangzeile fehlt (Download) | `modules/filestorage/internal/application/attachments.go:358–359`, `368–369` | Tenant 2 |
+| 404 | `general.input` | `attachmentId` ≤ 0 (Download) | `modules/filestorage/internal/application/attachments.go:358–359` | zwischen (nach Tenant 1, vor Tenant 2) |
+| 404 | `general.input` | Anhangzeile fehlt (Download) | `filestorage/internal/application/attachments.go:368–369` | Tenant 2 |
 | 404 | `general.input` | Ankündigung inzwischen zurückgezogen oder andere Schule | `announcement_attachment_entry.go:127–134` | Admin 2 (nach den Tenant-Rahmen) |
-| 404 | `general.input` | Zeile oder gespeicherte Datei fehlt beim Öffnen | `filestorage/internal/application/attachments.go:345–346`, `service.go:366–370` | Tenant 3 bzw. nach Rahmen |
-| 404 | `general.input` | Nachweis fehlt, Kind oder Anhang passt nicht (Nachweis-Download, ohne Schalter) | `parent_declaration_feed.go:175`, `193`, `parent_announcement_attachments.go:77–97`, `entry.go:84–85` | vor Rahmen bzw. Admin 1 |
+| 404 | `general.input` | Zeile oder gespeicherte Datei fehlt beim Öffnen (Download) | `filestorage/internal/application/attachments.go:345–346`, `service.go:366–370` | Tenant 3 bzw. nach Rahmen |
+
+Nachweis-Download:
+
+| Status | Code | Ursache | Datei:Zeile | Phase |
+|---|---|---|---|---|
+| 400 | `general.input` | `announcementId` bzw. `attachmentId` keine Zahl | `attachments.go:261`, `265` | vor Rahmen |
+| 401 | `general.permission` | keine Konto-ID im Token | `attachments.go:232–239` | vor Rahmen |
+| 400 | `general.input` | `student_id` mehrfach oder nicht positiv | `attachments.go:277–284` | vor Rahmen |
+| 404 | `general.input` | eine der IDs ≤ 0 | `announcement_attachment_entry.go:84–85` | vor Rahmen |
+| 404 | `general.input` | Kind nicht verknüpft oder ohne `parent_portal.access`; jeder Fehler der Kindprüfung wird zu „nicht gefunden“ | `parent_declaration_feed.go:173–175`, ausgewertet `parent_announcement_attachments.go:79–83`, `entry.go:116–121` | Admin 1, ausgewertet zwischen |
+| 404 | `general.input` | Ankündigung fehlt, ist keine Erklärung oder gehört einer anderen Schule; keine eigene Abgabe | `parent_declaration_feed.go:192–193`, `205–206`, ausgewertet `parent_announcement_attachments.go:79–83` | Admin 2, ausgewertet nach Admin 2 |
+| 404 | `general.input` | Anhang gehört zu keiner Version einer eigenen Abgabe | `parent_announcement_attachments.go:86–97` | nach Admin 2, vor Tenant 1 |
+| 404 | `general.input` | Anhangzeile fehlt | `filestorage/internal/application/attachments.go:368–369` | Tenant 1 |
+| 404 | `general.input` | Nachweis nicht mehr gültig oder andere Schule (alle Zeilen ab Admin 1 noch einmal) | `announcement_attachment_entry.go:102–104`, `127–134` | Admin 3, Admin 4 bzw. danach (nach Tenant 1) |
+| 404 | `general.input` | Zeile oder gespeicherte Datei fehlt beim Öffnen | `filestorage/internal/application/attachments.go:345–346`, `service.go:366–370` | Tenant 2 bzw. nach Rahmen |
+
+Die Schritte 3 und 5 bündeln nur Rahmen von Liste und Ankündigungs-Download.
+Der Nachweis-Download hat keinen Schalter-Rahmen; seine Zeilen gelten bei
+jedem Schritt unverändert mit den Phasen oben.
 
 **#5862 Eltern-Kind-Leserouten** (`routes.go:122–229`; Admin 1 `child.go:61`,
 dann Tenant 1 der Route). Gemeinsame Zeilen aller 13 Routen:
@@ -374,7 +402,7 @@ der Ratchet nicht aufzählt).
 | 1 | #5881 | Methode `CalendarFeedByToken` im Kalender-Portal öffnet einen Admin-Rahmen für beide Token-Lesungen; `PublicFeed` ruft nur sie. Einzelne Eltern-, Personal- und CalDAV-Wege bleiben. | +1 Admin | 3 je Personal-Feed-Abruf (26 → 23), 3 je unbekanntem Token (8 → 5); Eltern-Treffer unverändert. Klasse A, Kalender-Clients fragen regelmäßig ab. |
 | 2 | #5795 | `ValidateActiveOperatorSession` im Identity-Owner mit unveränderten Guards; die Middleware ruft nur sie. | +1 Admin | 3 je Operator-Anfrage (38 gemessene Anfragen: 678 → 564). |
 | 3 | #5894 | Der Workflow trennt Zielgruppe (Admin) und Schalter; Schalter und Dateizeilen laufen in einem Tenant-Rahmen. Erneute Prüfung bleibt. | keine | 3 je Anhang-Aufruf (21 → 18). |
-| 4 | #5862 | `WithinAdminThenTenant` in Laufzeit und Scanner; `WithPermittedChild` in `care`; zuerst die 14 Leserouten. Schreibende Routen bleiben bei `ResolvePermittedChild`. | +3 Admin, +1 Kommando | 2 je Kind-Route (14 Szenarien: 205 → 177). |
+| 4 | #5862 | `WithinAdminThenTenant` in Laufzeit und Scanner; `WithPermittedChild` in `care`; zuerst die 13 Leserouten (14 Szenarien). Schreibende Routen bleiben bei `ResolvePermittedChild`. | +3 Admin, +1 Kommando | 2 je Kind-Route (14 Szenarien: 205 → 177). |
 | 5 | #5894 | Zielgruppe und Tenant-Lesung über Muster B. | keine weitere | 2 weitere (18 → 16). |
 | 6 | #5878 | Ein Admin-Rahmen um den ganzen Cleanup; die DELETEs bleiben je Familie und Schule × Portal in heutiger Reihenfolge; alles oder nichts nach Punkt 5. | keine | 3 je zusätzlichem Rahmen: Logout 19 → 16, drei Familien 23 → 14, fünf Familien 33 → 18. |
 
