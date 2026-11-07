@@ -864,22 +864,13 @@ export function ClassDayClass({
                   Die OGS sieht den Hinweis heute am Kind, in Aufsicht, Gruppe
                   und Kindersuche. Morgen ist er weg.
                 </p>
-                <div>
-                  <label
-                    id="day-hint-target-label"
-                    htmlFor="day-hint-target"
-                    className="mb-2 block text-sm font-medium text-gray-700"
-                  >
-                    Für wen ist der Hinweis?
-                  </label>
-                  <CustomSelect
-                    value={hintTarget}
-                    options={hintOptions}
-                    onChange={chooseHintTarget}
-                    id="day-hint-target"
-                    ariaLabelledBy="day-hint-target-label"
-                  />
-                </div>
+                <CustomSelect
+                  value={hintTarget}
+                  options={hintOptions}
+                  onChange={chooseHintTarget}
+                  id="day-hint-target"
+                  label="Für wen ist der Hinweis?"
+                />
                 <div>
                   <Textarea
                     id="day-hint-body"

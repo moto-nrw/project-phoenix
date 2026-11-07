@@ -371,16 +371,9 @@ function StatusFilter({
 }) {
   return (
     <div className="flex-1">
-      <label
-        id="filter-unregistered-tags-status-label"
-        htmlFor="filter-unregistered-tags-status"
-        className="mb-1 block text-xs font-medium text-gray-500"
-      >
-        Status
-      </label>
       <CustomSelect
         id="filter-unregistered-tags-status"
-        ariaLabelledBy="filter-unregistered-tags-status-label"
+        label="Status"
         value={value}
         options={[
           { value: "unresolved", label: "Offen" },

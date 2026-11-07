@@ -317,42 +317,25 @@ function SchoolParentConferences() {
                 <SlideOverBody error={formErrors.error}>
                   <div ref={formRef}>
                     <div className="space-y-5">
-                      <label
-                        htmlFor="parent-conference-class"
-                        className="block"
-                      >
-                        <span className="mb-2 block text-sm font-medium text-gray-700">
-                          Klasse
-                        </span>
-                        <CustomSelect
-                          id="parent-conference-class"
-                          name="school_class"
-                          ariaLabel="Klasse"
-                          value={draft.schoolClass}
-                          placeholder="Klasse wählen"
-                          onChange={(next) => update({ schoolClass: next })}
-                          disabled={submitting}
-                          invalid={!!classError}
-                          ariaDescribedBy={
-                            classError
-                              ? "parent-conference-class-error"
-                              : undefined
-                          }
-                          options={[
-                            ...new Set([
-                              ...classes,
-                              ...(editing ? [editing.school_class] : []),
-                            ]),
-                          ].map((schoolClass) => ({
-                            value: schoolClass,
-                            label: schoolClassLabel(schoolClass),
-                          }))}
-                        />
-                        <FieldErrorHint
-                          id="parent-conference-class-error"
-                          message={classError}
-                        />
-                      </label>
+                      <CustomSelect
+                        id="parent-conference-class"
+                        name="school_class"
+                        label="Klasse"
+                        value={draft.schoolClass}
+                        placeholder="Klasse wählen"
+                        onChange={(next) => update({ schoolClass: next })}
+                        disabled={submitting}
+                        error={classError}
+                        options={[
+                          ...new Set([
+                            ...classes,
+                            ...(editing ? [editing.school_class] : []),
+                          ]),
+                        ].map((schoolClass) => ({
+                          value: schoolClass,
+                          label: schoolClassLabel(schoolClass),
+                        }))}
+                      />
 
                       <ISODatePicker
                         label="Tag"
@@ -392,25 +375,20 @@ function SchoolParentConferences() {
                         />
                       </div>
 
-                      <label htmlFor="parent-conference-slot" className="block">
-                        <span className="mb-2 block text-sm font-medium text-gray-700">
-                          Dauer je Gespräch
-                        </span>
-                        <CustomSelect
-                          id="parent-conference-slot"
-                          name="slot_minutes"
-                          ariaLabel="Dauer je Gespräch"
-                          value={draft.slotMinutes}
-                          onChange={(next) => update({ slotMinutes: next })}
-                          disabled={submitting}
-                          options={PARENT_CONFERENCE_SLOT_OPTIONS.map(
-                            (minutes) => ({
-                              value: minutes,
-                              label: `${minutes} Minuten`,
-                            }),
-                          )}
-                        />
-                      </label>
+                      <CustomSelect
+                        id="parent-conference-slot"
+                        name="slot_minutes"
+                        label="Dauer je Gespräch"
+                        value={draft.slotMinutes}
+                        onChange={(next) => update({ slotMinutes: next })}
+                        disabled={submitting}
+                        options={PARENT_CONFERENCE_SLOT_OPTIONS.map(
+                          (minutes) => ({
+                            value: minutes,
+                            label: `${minutes} Minuten`,
+                          }),
+                        )}
+                      />
 
                       <fieldset className="space-y-2">
                         <legend className="mb-2 block text-sm font-medium text-gray-700">
