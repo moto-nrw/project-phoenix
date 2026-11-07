@@ -43,14 +43,22 @@ func (r *recordedPushes) all() []parentService.BillingDocumentPush {
 func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentNotices, *recordedPushes, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	deps := documentInboxDependencies(t, db)
+	pushes := deps.DocumentNotifier.(*recordedPushes)
+	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps), pushes, db
+}
+
+// documentInboxDependencies are the parents portal's dependencies of the
+// document inbox over db.
+func documentInboxDependencies(t *testing.T, db *bun.DB) parentportalcompose.Dependencies {
+	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	people := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	pushes := &recordedPushes{}
-	deps := parentportalcompose.Dependencies{
+	return parentportalcompose.Dependencies{
 		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
 		GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{},
 		Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(), Runtime: owners.ParentPortalRuntime{},
@@ -59,9 +67,8 @@ func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentN
 		Logger:              slog.Default(), CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 		BillingDocuments: owners.NewParentBillingDocuments(), ContractDocuments: owners.NewParentContractDocuments(), TraegerRuntime: owners.ParentPortalRuntime{},
 		SchoolTraeger: owners.NewParentSchoolTraeger(organizations), ParentAccounts: owners.NewParentAccounts(identity),
-		DocumentNotifier: pushes,
+		DocumentNotifier: &recordedPushes{},
 	}
-	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps), pushes, db
 }
 
 // inboxTraeger writes the invoices of one Träger as the Elternabrechnung

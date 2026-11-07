@@ -90,7 +90,7 @@ CREATE TABLE care_contract.contract_notices (
 	FOREIGN KEY (organization_id, contract_id) REFERENCES care_contract.contracts (organization_id, id) ON DELETE CASCADE,
 	CONSTRAINT chk_contract_notices_kind CHECK (kind IN ('kuendigung', 'widerruf')),
 	CONSTRAINT chk_contract_notices_notice_kind CHECK (
-		(kind = 'kuendigung' AND notice_kind IN ('ordentlich', 'sonderkuendigung') AND ends_on IS NOT NULL)
+		(kind = 'kuendigung' AND notice_kind IS NOT NULL AND notice_kind IN ('ordentlich', 'sonderkuendigung') AND ends_on IS NOT NULL)
 		OR (kind = 'widerruf' AND notice_kind IS NULL AND ends_on IS NULL)),
 	CONSTRAINT chk_contract_notices_channel CHECK (channel IN ('eltern_app', 'traeger_buero')),
 	CONSTRAINT chk_contract_notices_account CHECK (channel <> 'eltern_app' OR account_id IS NOT NULL),
