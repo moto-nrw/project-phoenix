@@ -51,6 +51,21 @@ describe("ListGroupHeader", () => {
     );
   });
 
+  it("keeps a title addon visible and in the collapsible name", () => {
+    render(
+      <ListGroupHeader
+        title="Aktivitäten"
+        titleAddon={<span>3</span>}
+        collapsible={{ expanded: true, onToggle: vi.fn() }}
+      />,
+    );
+
+    const toggle = screen.getByRole("button", { name: "Aktivitäten 3" });
+    const addon = screen.getByText("3");
+    expect(toggle).toContainElement(addon);
+    expect(addon.closest(".truncate")).toBeNull();
+  });
+
   it("describes a collapsible group with its addon", () => {
     render(
       <ListGroupHeader

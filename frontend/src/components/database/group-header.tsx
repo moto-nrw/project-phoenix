@@ -52,16 +52,13 @@ export function GroupHeader({
     <ListGroupHeader
       // Der Zähler steht im Knopf, damit er zum Namen der Gruppe gehört
       // („Klasse 1a 13“), nicht nur zu ihrer Beschreibung.
-      title={
-        <>
-          {title}{" "}
-          <StatusBadge
-            label={countSuffix ? `${count} ${countSuffix}` : String(count)}
-            tone={BADGE_TONES[variant]}
-            compact
-            className="ml-1"
-          />
-        </>
+      title={title}
+      titleAddon={
+        <StatusBadge
+          label={countSuffix ? `${count} ${countSuffix}` : String(count)}
+          tone={BADGE_TONES[variant]}
+          compact
+        />
       }
       className={cn("border-b border-gray-200", HEADER_BG[variant])}
       collapsible={{ expanded: isOpen, onToggle }}

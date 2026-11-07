@@ -18,6 +18,8 @@ interface ListGroupHeaderCollapsible {
 interface ListGroupHeaderProps {
   /** Name der Gruppe, etwa der Tag einer Agenda. */
   readonly title: ReactNode;
+  /** Kleiner Zusatz im Klapp-Knopf, der nicht mit dem Namen gekürzt wird. */
+  readonly titleAddon?: ReactNode;
   /** Kleiner Zusatz direkt nach dem Namen: ein Hinweis-Chip, ein Zähler. */
   readonly addon?: ReactNode;
   /** Kennzahl oder Steuerung am rechten Rand, etwa „3 Einträge“. */
@@ -37,6 +39,7 @@ interface ListGroupHeaderProps {
  */
 export function ListGroupHeader({
   title,
+  titleAddon,
   addon,
   meta,
   as = "h3",
@@ -70,12 +73,22 @@ export function ListGroupHeader({
                   collapsible.expanded && "rotate-90",
                 )}
               />
-              <span className={cn("truncate", SECTION_LABEL_CLASS)}>
+              <span
+                className={cn("min-w-0 flex-1 truncate", SECTION_LABEL_CLASS)}
+              >
                 {title}
               </span>
+              {titleAddon === undefined ? null : (
+                <span className="shrink-0">{titleAddon}</span>
+              )}
             </Button>
           ) : (
-            title
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="min-w-0 flex-1 truncate">{title}</span>
+              {titleAddon === undefined ? null : (
+                <span className="shrink-0">{titleAddon}</span>
+              )}
+            </span>
           )}
         </SectionLabel>
         {addon === undefined ? null : <span id={addonId}>{addon}</span>}
