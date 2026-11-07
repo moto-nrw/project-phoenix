@@ -14,6 +14,7 @@ import {
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
 import { BackLink } from "~/components/ui/back-link";
+import { SectionCard } from "~/components/ui/section-card";
 import { useTenant } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
@@ -139,7 +140,7 @@ function EnrollmentPreviewPageContent() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
-          <div className="moto-content-surface rounded-2xl border p-5 sm:p-8">
+          <SectionCard>
             <BackLink
               href={tenantPath("/enrollment-form")}
               label="Zurück zu den Anmeldeformularen"
@@ -165,7 +166,7 @@ function EnrollmentPreviewPageContent() {
               Zusatzfragen. Zeitraum und Betreuungsangebote gehören zur
               Elternansicht einer Anmeldephase.
             </p>
-          </div>
+          </SectionCard>
 
           {loading ? (
             <SkeletonRegion label="Vorschau wird geladen">
@@ -194,7 +195,7 @@ function EnrollmentPreviewPageContent() {
         </section>
 
         <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
-          <section className="moto-content-surface rounded-2xl border p-5">
+          <SectionCard>
             <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
               Vorschau
             </p>
@@ -209,7 +210,7 @@ function EnrollmentPreviewPageContent() {
               {loading ? "" : `${previewStatus.hint} `}Diese Seite dient nur zur
               Prüfung des Formulars.
             </p>
-          </section>
+          </SectionCard>
 
           <PublicInfoCard
             icon={<Eye className="h-5 w-5" />}

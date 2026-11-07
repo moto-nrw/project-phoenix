@@ -177,7 +177,11 @@ export function updateRatchetBaseline({
   const next = `${JSON.stringify(sorted, null, 2)}\n`;
   const current = JSON.parse(readFileSync(baselinePath, "utf8"));
   const increases = [];
+  // `--init` misst eine neue Regel zum ersten Mal: nur erlaubt, solange ihre
+  // Baseline noch leer ist. Danach gilt wieder: die Zahl darf nur sinken.
+  const init = process.argv.includes("--init");
   for (const rule of rules) {
+    if (init && Object.keys(current[rule] ?? {}).length === 0) continue;
     for (const [file, now] of Object.entries(sorted[rule])) {
       const was = current[rule]?.[file] ?? 0;
       if (now > was) {
