@@ -122,11 +122,46 @@ CREATE FUNCTION enrollment.holiday_host_own_bookings(p_from DATE, p_to DATE)
 	$$;
 REVOKE ALL ON FUNCTION enrollment.holiday_host_own_bookings(DATE, DATE) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION enrollment.holiday_host_own_bookings(DATE, DATE) TO phoenix_tenant;
+-- A time model the trail of a rebooking names keeps the Soll of the days
+-- booked on it before the rebooking: it cannot be removed while its period
+-- lives, as the foreign keys of the bookings keep a booked one. The error is
+-- a foreign-key violation, so the Träger-Büro gets the same 409 as for a
+-- booked time model. When the period goes (retention after 92 days, the
+-- erasure of a Träger), its trail goes with it and nothing is held.
+CREATE FUNCTION enrollment.holiday_time_model_keeps_booked_history()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	SECURITY DEFINER
+	SET search_path = pg_catalog, pg_temp
+	AS $$
+	BEGIN
+		IF EXISTS (
+			SELECT 1
+			FROM enrollment.holiday_registration_audit AS audit
+			JOIN enrollment.holiday_periods AS period
+				ON period.organization_id = audit.organization_id AND period.id = audit.holiday_period_id
+			WHERE audit.organization_id = OLD.organization_id AND audit.action = 'rebook'
+				AND (audit.details->'before' @> jsonb_build_array(jsonb_build_object('time_model_id', OLD.id))
+					OR audit.details->'after' @> jsonb_build_array(jsonb_build_object('time_model_id', OLD.id))))
+		THEN
+			RAISE EXCEPTION 'holiday time model % is booked in the trail of a registration', OLD.id
+				USING ERRCODE = 'foreign_key_violation', CONSTRAINT = 'holiday_time_model_booked_history';
+		END IF;
+		RETURN OLD;
+	END
+	$$;
+REVOKE ALL ON FUNCTION enrollment.holiday_time_model_keeps_booked_history() FROM PUBLIC;
+CREATE TRIGGER holiday_time_model_booked_history
+	BEFORE DELETE ON enrollment.holiday_week_time_models
+	FOR EACH ROW EXECUTE FUNCTION enrollment.holiday_time_model_keeps_booked_history();
 COMMENT ON FUNCTION enrollment.holiday_host_own_bookings(DATE, DATE) IS
 	'Confirmed holiday bookings of the hosting school''s own children in the weeks it hosts, for the Soll of Soll und Ist (#5994).';
 `
 
-const holidayHostOwnBookingsDownSQL = `DROP FUNCTION IF EXISTS enrollment.holiday_host_own_bookings(DATE, DATE);`
+const holidayHostOwnBookingsDownSQL = `
+DROP TRIGGER IF EXISTS holiday_time_model_booked_history ON enrollment.holiday_week_time_models;
+DROP FUNCTION IF EXISTS enrollment.holiday_time_model_keeps_booked_history();
+DROP FUNCTION IF EXISTS enrollment.holiday_host_own_bookings(DATE, DATE);`
 
 func holidayHostOwnBookingsUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, holidayHostOwnBookingsUpSQL); err != nil {

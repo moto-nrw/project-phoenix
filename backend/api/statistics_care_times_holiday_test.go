@@ -313,3 +313,77 @@ func TestCareTimeOverrunsQueryBudgetWithOwnHolidayBookings(t *testing.T) {
 	assert.Len(t, three, len(one), "the own children of all holiday bookings are read in one batch")
 	querybudgets.AssertQueryBudget(t, "api.statistics.care_time_overruns_own_holiday_bookings", three)
 }
+
+// ownChildForHoliday creates a child of school with a date of birth, a sent
+// contract until 13:00 on Mondays and an attended Monday.
+func ownChildForHoliday(t *testing.T, tc *statisticsHTTPTestContext, organization, school int64, first string, born calendar.Date, until time.Duration) int64 {
+	t.Helper()
+	child := testpkg.CreateTestStudent(t, tc.db, first, "Muster", "2a")
+	_, err := tc.db.ExecContext(context.Background(), `UPDATE users.persons SET birthday = ? WHERE id = ?`, born, child.PersonID)
+	require.NoError(t, err)
+	device := testpkg.CreateTestDevice(t, tc.db, "holiday-own-"+first)
+	insertAttendanceSpan(t, tc.db, school, child.ID, device.ID, calendar.NewDate(2026, 6, 8), 8*time.Hour, until)
+	testpkg.CreateTestCareContract(t, tc.db, organization, school, child.ID, "versendet", calendar.NewDate(2026, 6, 1),
+		testpkg.CareContractService{Weekday: "mon", Module: "OGS", EndsAt: "13:00"})
+	return child.ID
+}
+
+// The membership on the holiday day decides, not today's (#5994): a child
+// who left the school after the holidays keeps the Soll of its holiday
+// booking for those days.
+func TestStudentCareTimes_ChildThatLeftAfterTheHolidaysKeepsItsHolidaySoll(t *testing.T) {
+	t.Parallel()
+	tc := setupStatisticsRoute(t)
+	school := testpkg.Tenant(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, school, "Austritt", "Leitung")
+	organization := testpkg.CreateTestOrganization(t, tc.db, &testpkg.Organization{
+		Name: "Träger Austritt", Slug: fmt.Sprintf("traeger-austritt-%d", testpkg.UniqueTestTenantID(t)), Active: true}).ID
+	testpkg.OwnTraegerCareContracts(t, tc.db, organization)
+	testpkg.OwnTraegerHolidayPeriods(t, tc.db, organization)
+	joinTraeger(t, tc.db, organization, school)
+	born := calendar.NewDate(2018, 7, 8)
+	child := ownChildForHoliday(t, tc, organization, school, "Paula", born, 15*time.Hour+45*time.Minute)
+	monday := calendar.NewDate(2026, 6, 8)
+	ownHolidayBooking(t, tc.db, organization, school, "Paula", "Muster", born, monday, monday.AddDays(4), "08:00", "16:00", "confirmed")
+	// Paula left the school at the end of June, before today.
+	_, err := tc.db.ExecContext(context.Background(), `UPDATE users.student_school_memberships SET enrolled_until = '2026-06-30'
+		WHERE student_profile_id = ?`, child)
+	require.NoError(t, err)
+
+	days := contractCareTimes(t, tc, account.ID, child)
+	require.NotEmpty(t, days)
+	assert.Equal(t, "2026-06-08", days[0].Date)
+	assert.Equal(t, "holiday_booking", days[0].PlannedSource, "she belonged to the school on her holiday day")
+	require.NotNil(t, days[0].PlannedEnd)
+	assert.Equal(t, "16:00", *days[0].PlannedEnd)
+	assert.Equal(t, "within_plan", days[0].Kind)
+}
+
+// Names compare in Unicode NFC on both sides (#5994): a composed and a
+// decomposed "José" with the same date of birth are two children of the
+// same name. The booking books neither; both days are not compared, never
+// an all-clear against the contract.
+func TestStudentCareTimes_HolidayBookingOfTwoNFCEqualChildrenIsNotCompared(t *testing.T) {
+	t.Parallel()
+	tc := setupStatisticsRoute(t)
+	school := testpkg.Tenant(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, school, "Jose", "Leitung")
+	organization := testpkg.CreateTestOrganization(t, tc.db, &testpkg.Organization{
+		Name: "Träger José", Slug: fmt.Sprintf("traeger-jose-%d", testpkg.UniqueTestTenantID(t)), Active: true}).ID
+	testpkg.OwnTraegerCareContracts(t, tc.db, organization)
+	testpkg.OwnTraegerHolidayPeriods(t, tc.db, organization)
+	joinTraeger(t, tc.db, organization, school)
+	born := calendar.NewDate(2018, 9, 10)
+	composed := ownChildForHoliday(t, tc, organization, school, "José", born, 12*time.Hour+30*time.Minute)
+	decomposed := ownChildForHoliday(t, tc, organization, school, "José", born, 12*time.Hour+30*time.Minute)
+	monday := calendar.NewDate(2026, 6, 8)
+	ownHolidayBooking(t, tc.db, organization, school, "José", "Muster", born, monday, monday, "08:00", "16:00", "confirmed")
+
+	for _, child := range []int64{composed, decomposed} {
+		days := contractCareTimes(t, tc, account.ID, child)
+		require.NotEmpty(t, days)
+		assert.Equal(t, "2026-06-08", days[0].Date)
+		assert.Equal(t, "no_plan", days[0].Kind, "child %d: the booking fits two children, the day is not compared", child)
+		assert.Nil(t, days[0].PlannedEnd, "child %d: neither the booking's 16:00 nor the contract's 13:00", child)
+	}
+}

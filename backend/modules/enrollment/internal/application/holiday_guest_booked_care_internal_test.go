@@ -105,8 +105,14 @@ func TestOwnHolidayBookingsFindTheirChildByNamesAndBirthDate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []calendar.Date{mon, mon.AddDays(1), wed}, bookedDates(days[1]), "Eva is found despite case and spaces")
 	assert.Equal(t, "16:00", days[1][mon].EndsAt.Time().Format("15:04"))
-	assert.NotContains(t, days, int64(2), "a booking that fits two children books neither")
-	assert.NotContains(t, days, int64(3))
+	// A booking that fits two children books neither: their days are not
+	// compared (#5994 invariant 3), never booked by the holiday booking.
+	for _, twin := range []int64{2, 3} {
+		require.Contains(t, days, twin)
+		for date, day := range days[twin] {
+			assert.True(t, day.Ambiguous, "twin %d on %s is not booked", twin, date)
+		}
+	}
 	assert.NotContains(t, days, int64(4), "another date of birth is another child")
 }
 
@@ -127,5 +133,67 @@ func TestOwnHolidayBookingIsUniqueInTheWholeSchool(t *testing.T) {
 
 	days, err := care.HolidayGuestBookedDays(context.Background(), []int64{2}, mon, mon)
 	require.NoError(t, err)
-	assert.Empty(t, days, "the view of one twin books neither, as the report of both does")
+	require.Contains(t, days, int64(2))
+	assert.True(t, days[2][mon].Ambiguous, "the view of one twin books it no more than the report of both does")
+}
+
+// membersStub is the whole school with each child's membership interval.
+type membersStub []enrollment.HolidayStudentCandidate
+
+func (s membersStub) HolidayStudentsBornOn(_ context.Context, births []calendar.Date) ([]enrollment.HolidayStudentCandidate, error) {
+	var result []enrollment.HolidayStudentCandidate
+	for _, candidate := range s {
+		for _, birth := range births {
+			if candidate.Identity.BirthDate == birth {
+				result = append(result, candidate)
+			}
+		}
+	}
+	return result, nil
+}
+
+// Names compare in Unicode NFC on both sides: a decomposed "José" and a
+// composed "José" of the same date of birth are two children of the same
+// name, so the booking books neither and marks the day ambiguous (#5994).
+func TestOwnHolidayBookingWithTwoNFCEqualChildrenBooksNone(t *testing.T) {
+	t.Parallel()
+	mon := calendar.NewDate(2026, 7, 6)
+	born := calendar.NewDate(2018, 3, 4)
+	composed, decomposed := "José", "José"
+	care := NewHolidayGuestBookedCare(ownBookingsStub{{
+		Identity: enrollment.HolidayStudentIdentity{FirstName: composed, LastName: "Muster", BirthDate: born},
+		StartsOn: mon, EndsOn: mon, StartsAt: "08:00", EndsAt: "16:00",
+	}}, membersStub{
+		{StudentID: 1, Identity: enrollment.HolidayStudentIdentity{FirstName: composed, LastName: "Muster", BirthDate: born}},
+		{StudentID: 2, Identity: enrollment.HolidayStudentIdentity{FirstName: decomposed, LastName: "MUSTER", BirthDate: born}},
+	})
+
+	days, err := care.HolidayGuestBookedDays(context.Background(), []int64{1, 2}, mon, mon)
+	require.NoError(t, err)
+	assert.True(t, days[1][mon].Ambiguous, "the composed José is not booked")
+	assert.True(t, days[2][mon].Ambiguous, "the decomposed José is not booked")
+}
+
+// The membership on the booked day decides, not today's (#5994): a child
+// who left after the holidays is still found for its past holiday days,
+// and a namesake who had left before them makes no day ambiguous.
+func TestOwnHolidayBookingFindsTheChildThatBelongedToTheSchoolThatDay(t *testing.T) {
+	t.Parallel()
+	mon := calendar.NewDate(2026, 7, 6)
+	born := calendar.NewDate(2018, 3, 4)
+	leftAfter, leftBefore := calendar.NewDate(2026, 7, 31), calendar.NewDate(2026, 6, 30)
+	identity := enrollment.HolidayStudentIdentity{FirstName: "Lena", LastName: "Muster", BirthDate: born}
+	care := NewHolidayGuestBookedCare(ownBookingsStub{{
+		Identity: identity, StartsOn: mon, EndsOn: mon, StartsAt: "08:00", EndsAt: "16:00",
+	}}, membersStub{
+		{StudentID: 1, Identity: identity, EnrolledUntil: &leftAfter},
+		{StudentID: 2, Identity: identity, EnrolledUntil: &leftBefore},
+	})
+
+	days, err := care.HolidayGuestBookedDays(context.Background(), []int64{1, 2}, mon, mon)
+	require.NoError(t, err)
+	require.Contains(t, days, int64(1), "the child that left after the holidays is booked for its holiday day")
+	assert.False(t, days[1][mon].Ambiguous)
+	assert.Equal(t, "16:00", days[1][mon].EndsAt.Time().Format("15:04"))
+	assert.NotContains(t, days, int64(2), "the namesake had left before the holidays")
 }

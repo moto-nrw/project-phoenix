@@ -1098,35 +1098,11 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudents.HolidayStudentsBornOn",
-      "binding_digest": "35dd0c06a3d2d527242dab22e17b14fd",
+      "binding_digest": "807dfbd98531ed94458d1e98bb8e9edc",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentsByBirthDate.HolidayStudentsBornOn",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindBirthdaysOn",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindBornOn",
       "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudents.HolidayStudentsBornOn",
-      "binding_digest": "48c68a8eb6a6a18c6c0a3e0816b195ec",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentsByBirthDate.HolidayStudentsBornOn",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
-      "target_owner": "school-structure"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudents.HolidayStudentsBornOn",
-      "binding_digest": "880f810d7bf4c9ac00ac09464a90401b",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentsByBirthDate.HolidayStudentsBornOn",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
-      "target_owner": "school-structure"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudents.HolidayStudentsBornOn",
-      "binding_digest": "425689f4ff7b517cc0ac5e03360db1a8",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentsByBirthDate.HolidayStudentsBornOn",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
-      "target_owner": "school-structure"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",

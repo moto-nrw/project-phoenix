@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // HolidayGuestBookings lists the confirmed holiday bookings of the school in
@@ -64,14 +65,42 @@ func (c HolidayGuestBookedCare) HolidayGuestBookedDays(ctx context.Context, stud
 	return result, nil
 }
 
-// addOwnBookings finds the children of the school its own bookings name, by
-// the rule of the participant list (#4722): the same names and the same date
-// of birth. The children come in one read for all bookings, from the whole
-// school, so the answer does not depend on which children a report asks
-// for. A booking that fits no child or several of the school is left out;
-// the Soll beneath it stays.
+// addOwnBookings finds the child of each day of an own booking by the rule
+// of the participant list (#4722): the same names (Unicode NFC, without
+// regard to case and surrounding spaces) and the same date of birth, among
+// the children that belonged to the school on that day. The children come
+// in one read for all bookings, from the whole school, so the answer does
+// not depend on which children a report asks for. A day the booking fits no
+// child on keeps the Soll beneath it; a day it fits two or more children on
+// books none of them and is marked ambiguous, so it is not compared.
 func (c HolidayGuestBookedCare) addOwnBookings(ctx context.Context, result map[int64]map[calendar.Date]enrollment.HolidayGuestBookedDay,
 	studentIDs []int64, own []enrollment.HolidayOwnBooking, from, to calendar.Date) error {
+	candidates, err := c.children.HolidayStudentsBornOn(ctx, birthDatesOf(own))
+	if err != nil {
+		return fmt.Errorf("enrollment: read the children of the school: %w", err)
+	}
+	byIdentity := map[holidayIdentityKey][]enrollment.HolidayStudentCandidate{}
+	for _, candidate := range candidates {
+		key := identityKey(candidate.Identity)
+		byIdentity[key] = append(byIdentity[key], candidate)
+	}
+	asked := make(map[int64]bool, len(studentIDs))
+	for _, id := range studentIDs {
+		asked[id] = true
+	}
+	for _, booking := range own {
+		day, err := guestBookedDay(enrollment.HolidayGuest{TimeModelStarts: booking.StartsAt, TimeModelEnds: booking.EndsAt})
+		if err != nil {
+			return err
+		}
+		first, last := guestBookedSpan(enrollment.HolidayGuest{StartsOn: booking.StartsOn, EndsOn: booking.EndsOn}, from, to)
+		bookOwnDays(result, asked, byIdentity[identityKey(booking.Identity)], first, last, day)
+	}
+	return nil
+}
+
+// birthDatesOf lists each date of birth of the bookings once.
+func birthDatesOf(own []enrollment.HolidayOwnBooking) []calendar.Date {
 	births := make([]calendar.Date, 0, len(own))
 	seen := map[calendar.Date]bool{}
 	for _, booking := range own {
@@ -80,32 +109,36 @@ func (c HolidayGuestBookedCare) addOwnBookings(ctx context.Context, result map[i
 			births = append(births, booking.Identity.BirthDate)
 		}
 	}
-	candidates, err := c.children.HolidayStudentsBornOn(ctx, births)
-	if err != nil {
-		return fmt.Errorf("enrollment: read the children of the school: %w", err)
+	return births
+}
+
+// bookOwnDays books each day from first to last for the one child among
+// matches that belonged to the school on it; with two or more members the
+// day is ambiguous for each of them.
+func bookOwnDays(result map[int64]map[calendar.Date]enrollment.HolidayGuestBookedDay, asked map[int64]bool,
+	matches []enrollment.HolidayStudentCandidate, first, last calendar.Date, day enrollment.HolidayGuestBookedDay) {
+	for date := first; first != "" && !date.After(last); date = date.AddDays(1) {
+		members := membersOn(matches, date)
+		booked := day
+		booked.Ambiguous = len(members) > 1
+		for _, studentID := range members {
+			if asked[studentID] {
+				addBookedDays(result, studentID, date, date, booked)
+			}
+		}
 	}
-	byIdentity := map[holidayIdentityKey][]int64{}
+}
+
+// membersOn are the candidates that belonged to the school on day.
+func membersOn(candidates []enrollment.HolidayStudentCandidate, day calendar.Date) []int64 {
+	var members []int64
 	for _, candidate := range candidates {
-		key := identityKey(candidate.Identity)
-		byIdentity[key] = append(byIdentity[key], candidate.StudentID)
-	}
-	asked := make(map[int64]bool, len(studentIDs))
-	for _, id := range studentIDs {
-		asked[id] = true
-	}
-	for _, booking := range own {
-		matches := byIdentity[identityKey(booking.Identity)]
-		if len(matches) != 1 || !asked[matches[0]] {
-			continue
+		if (candidate.EnrolledFrom == nil || !day.Before(*candidate.EnrolledFrom)) &&
+			(candidate.EnrolledUntil == nil || !day.After(*candidate.EnrolledUntil)) {
+			members = append(members, candidate.StudentID)
 		}
-		day, err := guestBookedDay(enrollment.HolidayGuest{StudentID: matches[0], TimeModelStarts: booking.StartsAt, TimeModelEnds: booking.EndsAt})
-		if err != nil {
-			return err
-		}
-		first, last := guestBookedSpan(enrollment.HolidayGuest{StartsOn: booking.StartsOn, EndsOn: booking.EndsOn}, from, to)
-		addBookedDays(result, matches[0], first, last, day)
 	}
-	return nil
+	return members
 }
 
 type holidayIdentityKey struct {
@@ -113,12 +146,13 @@ type holidayIdentityKey struct {
 	birthDate           calendar.Date
 }
 
-// identityKey compares names as the participant list does: case and
-// surrounding spaces do not count (lower(btrim(...)), #4722).
+// identityKey compares names as the participant list does (#4722), on both
+// sides in Unicode NFC (textnorm.Name) and without regard to case and
+// surrounding spaces, so a decomposed "José" is the composed one.
 func identityKey(identity enrollment.HolidayStudentIdentity) holidayIdentityKey {
 	return holidayIdentityKey{
-		firstName: strings.ToLower(strings.TrimSpace(identity.FirstName)),
-		lastName:  strings.ToLower(strings.TrimSpace(identity.LastName)),
+		firstName: strings.ToLower(textnorm.Name(identity.FirstName)),
+		lastName:  strings.ToLower(textnorm.Name(identity.LastName)),
 		birthDate: identity.BirthDate,
 	}
 }

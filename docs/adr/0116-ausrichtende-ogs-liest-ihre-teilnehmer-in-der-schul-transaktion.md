@@ -278,10 +278,21 @@ Tag der Woche) gilt dafür mit dieser Erweiterung:
   von Soll und Ist; sie erscheint in keiner Liste und keinem Export der
   Ferienbetreuung.
 - **Zuordnung.** Wie bei den Gesundheitsangaben eigener Kinder (#4722):
-  Heimatschule, Vor- und Nachname (ohne Groß- und Kleinschreibung und
-  Leerzeichen am Rand) und Geburtsdatum, schulweit eindeutig über das People
-  Directory. Eine Buchung, die zu keinem oder mehreren Kindern passt, bucht
-  niemanden; dann bleibt das bisherige Soll.
+  Heimatschule, Vor- und Nachname und Geburtsdatum. Namen werden auf beiden
+  Seiten nach Unicode NFC und ohne Groß- und Kleinschreibung und Leerzeichen
+  am Rand verglichen. Entscheidend ist die Schulzugehörigkeit am jeweiligen
+  Ferientag, nicht die heutige: Ein Kind, das nach den Ferien ausscheidet,
+  wird für seine Ferientage gefunden. Das People Directory liefert dafür in
+  einer Lesung alle Kinder der Schule mit diesem Geburtsdatum, auch
+  ausgeschiedene, mit ihrem Zugehörigkeitszeitraum. Passt die Buchung an
+  einem Tag zu keinem Kind, bleibt das bisherige Soll. Passt sie zu zwei
+  oder mehr Kindern, wird keins zugeordnet; der Tag gilt für diese Kinder
+  als „nicht verglichen“ und ist nie eine Entwarnung.
+- **Löschschutz.** Ein Zeitmodell, das die Spur einer Umbuchung nennt, lässt
+  sich nicht löschen, solange sein Zeitraum besteht; vergangene Tage lesen
+  ihr Soll weiter daraus. Das Träger-Büro bekommt dieselbe Antwort wie für
+  ein gebuchtes Zeitmodell (409, `enrollment.holiday_week_booked`). Mit dem
+  Zeitraum (Löschfrist, Löschung des Trägers) geht es mit.
 - **Zugriffsprotokoll.** Jede Lesung geschieht innerhalb eines Abrufs, der im
   Zugriffsprotokoll der Schule steht: Soll und Ist je Kind (`view_student`),
   Überschreitungsliste und Export, Statistikbericht mit der Belegung nach

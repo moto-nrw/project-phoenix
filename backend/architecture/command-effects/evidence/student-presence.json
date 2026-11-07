@@ -10618,7 +10618,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayCareDays.HolidayCareDays",
-      "binding_digest": "027bb675a021f2a674c9c86678e0d7c0",
+      "binding_digest": "f80895768bae335d750bda1fdf116aa0",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.HolidayCareDays.HolidayCareDays",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestBookedCare.HolidayGuestBookedDays",

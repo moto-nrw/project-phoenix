@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -121,4 +122,53 @@ func TestHolidayHostOwnBookingsReadsOnlyConfirmedOwnChildren(t *testing.T) {
 		return tx.NewRaw(`SELECT first_name FROM enrollment.holiday_host_own_bookings('2026-11-02', '2026-11-30')`).Scan(ctx, &outside)
 	}))
 	assert.Empty(t, outside, "a window outside the week reads nothing")
+}
+
+// TestTimeModelOfARebookedPastBookingStays pins the guard of migration
+// 1.15.796 (#5994): a time model the trail of a rebooking names cannot be
+// deleted while its period lives, with the foreign-key error the Träger-Büro
+// maps to its 409. Deleting the period, as the retention after 92 days
+// does, takes it along.
+func TestTimeModelOfARebookedPastBookingStays(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+		Name: "Träger Zeitmodell Spur", Slug: fmt.Sprintf("traeger-zeitmodell-spur-%d", testpkg.UniqueTestTenantID(t)), Active: true,
+	}).ID
+	testpkg.OwnTraegerHolidayPeriods(t, db, organization)
+	host := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Zeitmodell Spur")
+	var period, week, old, current, registration int64
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_periods (organization_id, name, registration_opens_on,
+			registration_closes_on, status, published_at) VALUES (?, 'Sommerferien', '2026-01-01', '2026-06-01', 'published', NOW())
+		RETURNING id`, organization).Scan(ctx, &period))
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_period_weeks (organization_id, holiday_period_id, starts_on, ends_on, host_school_id)
+		VALUES (?, ?, '2026-06-08', '2026-06-12', ?) RETURNING id`, organization, period, host).Scan(ctx, &week))
+	for _, model := range []*int64{&old, &current} {
+		require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_week_time_models (organization_id, holiday_period_week_id, name, starts_at, ends_at, price_cents)
+			VALUES (?, ?, 'Ganztag', '08:00', '16:00', 4500) RETURNING id`, organization, week).Scan(ctx, model))
+	}
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_registrations (organization_id, holiday_period_id, guardian_first_name,
+			guardian_last_name, guardian_email, guardian_phone, privacy_consent_at, status)
+		VALUES (?, ?, 'Eva', 'Muster', 'eva@example.org', '0123', NOW(), 'confirmed') RETURNING id`, organization, period).Scan(ctx, &registration))
+	_, err := db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_audit
+			(organization_id, holiday_period_id, holiday_registration_id, action, details)
+		VALUES (?, ?, ?, 'rebook', ?::jsonb)`, organization, period, registration,
+		fmt.Sprintf(`{"child_id": 1, "before": [{"week_id": %d, "time_model_id": %d}], "after": [{"week_id": %d, "time_model_id": %d}]}`,
+			week, old, week, current))
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(ctx, `DELETE FROM enrollment.holiday_week_time_models WHERE id = ?`, old)
+	var postgresError pgdriver.Error
+	require.ErrorAs(t, err, &postgresError, "the time model of past booked days is not deleted")
+	assert.True(t, postgresError.IntegrityViolation())
+	assert.Equal(t, "holiday_time_model_booked_history", postgresError.Field('n'))
+	_, err = db.ExecContext(ctx, `DELETE FROM enrollment.holiday_period_weeks WHERE id = ?`, week)
+	assert.Error(t, err, "nor through its week")
+
+	_, err = db.ExecContext(ctx, `DELETE FROM enrollment.holiday_periods WHERE id = ?`, period)
+	require.NoError(t, err, "the retention deletes the period with its trail and its time models")
+	var left int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM enrollment.holiday_week_time_models WHERE id IN (?, ?)`, old, current).Scan(ctx, &left))
+	assert.Zero(t, left)
 }

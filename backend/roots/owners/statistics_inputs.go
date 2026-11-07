@@ -5,7 +5,6 @@ import (
 	"time"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
@@ -80,9 +79,10 @@ type statisticsStudentRows interface {
 	FindOverlappingWithGroups(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]*peopleValues.StudentRosterEntry, error)
 }
 
-// statisticsBirthdays are the children of the school by date of birth.
+// statisticsBirthdays are the children of the school by date of birth, also
+// those whose care has ended.
 type statisticsBirthdays interface {
-	FindBirthdaysOn(context.Context, []peopleBirthday.BirthdayMonthDay) ([]peopleBirthday.BirthdayEntry, error)
+	FindBornOn(context.Context, []timezone.Date) ([]peopleValues.StudentBorn, error)
 }
 
 type StatisticsReportStudents struct {
@@ -205,41 +205,40 @@ func (a StatisticsHolidayCareDays) HolidayCareDays(ctx context.Context, studentI
 	for studentID, days := range booked {
 		byDate := make(map[timezone.Date]studentpresence.HolidayCareDay, len(days))
 		for date, day := range days {
-			byDate[date] = studentpresence.HolidayCareDay{Arrival: day.StartsAt, Pickup: day.EndsAt}
+			byDate[date] = studentpresence.HolidayCareDay{Arrival: day.StartsAt, Pickup: day.EndsAt, Ambiguous: day.Ambiguous}
 		}
 		result[studentID] = byDate
 	}
 	return result, nil
 }
 
-// StatisticsHolidayStudents reads the children the school cares for that
-// were born on the days of the own holiday bookings, in one read of the
-// People Directory (#5994): Enrollment finds the child of a booking among
-// them. The read is by day of the year; only an equal date counts.
+// StatisticsHolidayStudents reads every child of the school born on the
+// dates of the own holiday bookings, with its membership interval, in one
+// read of the People Directory (#5994): Enrollment finds the child of a
+// booked day among the children that belonged to the school on that day.
 type StatisticsHolidayStudents struct {
 	Students statisticsBirthdays
 }
 
 func (a StatisticsHolidayStudents) HolidayStudentsBornOn(ctx context.Context, birthDates []timezone.Date) ([]enrollment.HolidayStudentCandidate, error) {
-	if len(birthDates) == 0 {
-		return nil, nil
-	}
-	wanted := make(map[timezone.Date]bool, len(birthDates))
-	days := make([]peopleBirthday.BirthdayMonthDay, 0, len(birthDates))
-	for _, date := range birthDates {
-		wanted[date] = true
-		days = append(days, peopleBirthday.BirthdayMonthDay{Month: date.Month(), Day: date.Day()})
-	}
-	entries, err := a.Students.FindBirthdaysOn(ctx, days)
+	born, err := a.Students.FindBornOn(ctx, birthDates)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]enrollment.HolidayStudentCandidate, 0, len(entries))
-	for _, entry := range entries {
-		if wanted[entry.Birthday] {
-			result = append(result, enrollment.HolidayStudentCandidate{StudentID: entry.ID,
-				Identity: enrollment.HolidayStudentIdentity{FirstName: entry.FirstName, LastName: entry.LastName, BirthDate: entry.Birthday}})
+	// Only an equal date counts: a child born on the same day of another
+	// year is another child.
+	wanted := make(map[timezone.Date]bool, len(birthDates))
+	for _, date := range birthDates {
+		wanted[date] = true
+	}
+	result := make([]enrollment.HolidayStudentCandidate, 0, len(born))
+	for _, child := range born {
+		if !wanted[child.Birthday] {
+			continue
 		}
+		result = append(result, enrollment.HolidayStudentCandidate{StudentID: child.StudentID,
+			Identity:     enrollment.HolidayStudentIdentity{FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.Birthday},
+			EnrolledFrom: child.EnrolledFrom, EnrolledUntil: child.EnrolledUntil})
 	}
 	return result, nil
 }

@@ -206,6 +206,9 @@ type HolidayGuestBadgeList interface {
 type HolidayGuestBookedDay struct {
 	StartsAt calendar.WallClock
 	EndsAt   calendar.WallClock
+	// Ambiguous marks a day an own booking fits two or more children of the
+	// school on: no child is booked, and the day is not compared (#5994).
+	Ambiguous bool
 }
 
 // HolidayOwnBooking is a confirmed holiday booking of a child of the school
@@ -218,15 +221,19 @@ type HolidayOwnBooking struct {
 }
 
 // HolidayStudentCandidate is a child of the school with the names and the
-// date of birth a registration finds it by (#5994).
+// date of birth a registration finds it by and the interval it belonged to
+// the school (#5994); a nil end is an open membership.
 type HolidayStudentCandidate struct {
-	StudentID int64
-	Identity  HolidayStudentIdentity
+	StudentID     int64
+	Identity      HolidayStudentIdentity
+	EnrolledFrom  *calendar.Date
+	EnrolledUntil *calendar.Date
 }
 
 // HolidayStudentsByBirthDate reads, in the school's tenant transaction and
-// in one read, the children the school cares for that were born on one of
-// birthDates (#5994): all of them, so a match is unique in the whole school.
+// in one read, every child of the school born on one of birthDates, also
+// one whose care has ended (#5994): a match is unique among the children
+// that belonged to the school on the booked day.
 type HolidayStudentsByBirthDate interface {
 	HolidayStudentsBornOn(ctx context.Context, birthDates []calendar.Date) ([]HolidayStudentCandidate, error)
 }

@@ -26,6 +26,9 @@ import (
 var holidayBookingConstraints = map[string]bool{
 	"fk_holiday_registration_bookings_week":       true,
 	"fk_holiday_registration_bookings_time_model": true,
+	// A time model the trail of a rebooking names keeps the Soll of its past
+	// days (migration 1.15.796, #5994).
+	"holiday_time_model_booked_history": true,
 }
 
 // holidayHostSchoolConstraint is the name the host-school trigger of

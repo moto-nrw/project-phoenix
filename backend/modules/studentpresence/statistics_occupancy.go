@@ -50,6 +50,9 @@ type ContractCareDay struct {
 type HolidayCareDay struct {
 	Arrival calendar.WallClock
 	Pickup  calendar.WallClock
+	// Ambiguous marks a day the booking fits two or more children of the
+	// school on: the Soll is unknown, the day is not compared.
+	Ambiguous bool
 }
 
 // PlannedCareSource names the source of a PlannedCareDay.

@@ -129,11 +129,15 @@ andere fachliche Entscheidung ändert diesen Abschnitt und die Tests.
    diese Zeilen. Das erweitert ADR 0116 nur um diesen Zweck (Nachtrag
    vom 07.11.2026, akzeptiert). Das Kind findet
    Enrollment nach der Regel der Teilnehmerliste (#4722): gleiche Namen
-   (ohne Groß- und Kleinschreibung und Leerzeichen am Rand) und gleiches
-   Geburtsdatum, gelesen gebündelt aus dem People Directory und nur, wenn es
-   eigene Buchungen gibt. Eine Buchung, die zu keinem oder zu mehreren
-   Kindern passt, bucht niemanden; die Eindeutigkeit gilt für die ganze
-   Schule, damit Klassen-, Gruppen- und Einzelansicht dasselbe Soll sehen.
+   (Unicode NFC, ohne Groß- und Kleinschreibung und Leerzeichen am Rand) und
+   gleiches Geburtsdatum, unter den Kindern, die am jeweiligen Ferientag zur
+   Schule gehörten; gelesen in einer Abfrage aus dem People Directory und
+   nur, wenn es eigene Buchungen gibt. Passt die Buchung an einem Tag zu
+   keinem Kind, bleibt das Soll darunter; passt sie zu mehreren, wird keins
+   zugeordnet und der Tag ist für sie nicht verglichen. Die Eindeutigkeit
+   gilt für die ganze Schule, damit Klassen-, Gruppen- und Einzelansicht
+   dasselbe Soll sehen. Ein Zeitmodell aus der Spur einer Umbuchung lässt
+   sich nicht löschen (Nachtrag zu ADR 0116).
    Storniert das Träger-Büro eine bestätigte Anmeldung, bleiben die Tage vor
    der Stornierung gebucht (wie `ended_on` bei Gästen); eine Umbuchung
    ändert die Buchung erst ab ihrem Tag. Bestätigung, Stornierung und

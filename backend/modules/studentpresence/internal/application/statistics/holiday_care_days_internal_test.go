@@ -202,3 +202,24 @@ func TestMissedHolidayBookingInTheSchoolHolidaysIsAbsent(t *testing.T) {
 	}, kinds)
 	assert.Equal(t, 1, child.Summary.AbsentDays)
 }
+
+// A booked day that fits two or more children of the school has no Soll:
+// it is not compared, neither against the booking nor against the
+// contract beneath it, so it is never an all-clear (#5994).
+func TestAmbiguousHolidayBookingDayIsNotCompared(t *testing.T) {
+	t.Parallel()
+	mon := calendar.NewDate(2026, 7, 20)
+	ambiguous := ports.HolidayCareDay{Arrival: *wallClockAt(8, 0), Pickup: *wallClockAt(16, 0), Ambiguous: true}
+	holidays := holidayStub{days: map[int64]map[calendar.Date]ports.HolidayCareDay{11: {mon: ambiguous}}}
+	cfg, from := holidayWeek(holidays, span(11, mon, 8, 0, 12, 30))
+
+	result, err := NewService(cfg).CareTimeOverruns(context.Background(), studentpresence.CareTimeFilters{From: from, To: from}, careTimeActor)
+	require.NoError(t, err)
+	assert.Zero(t, result.ComparedDays, "the contract's 13:00 would have made 12:30 an all-clear")
+	assert.Equal(t, 1, result.UncomparedDays)
+
+	child, err := NewService(cfg).StudentCareTimes(context.Background(), 11, from, from, careTimeActor)
+	require.NoError(t, err)
+	require.Len(t, child.Days, 1)
+	assert.Equal(t, studentpresence.CareTimeDayNoPlan, child.Days[0].Kind)
+}

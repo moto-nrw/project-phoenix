@@ -53,6 +53,12 @@ func holidayCareDay(booked studentpresence.HolidayCareDay, beneath studentpresen
 		day.Cancelled = true
 		return day
 	}
+	if booked.Ambiguous {
+		// The booking fits two or more children: no Soll, so the day is
+		// never compared, neither against the booking nor the contract.
+		day.Expected, day.NoPlan = true, true
+		return day
+	}
 	arrival, pickup := booked.Arrival, booked.Pickup
 	day.Expected, day.Arrival, day.Pickup = true, &arrival, &pickup
 	return day
