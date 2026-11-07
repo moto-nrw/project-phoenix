@@ -225,7 +225,7 @@ func (s *HolidayPeriodStore) InsertHolidayPeriod(ctx context.Context, organizati
 		input.RegistrationClosesOn, input.Binding, input.Notes).Scan(ctx, &periodID); err != nil {
 		return 0, fmt.Errorf("enrollment postgres: insert holiday period: %w", err)
 	}
-	if err := writeHolidayWeeks(ctx, db, organizationID, periodID, input.Weeks); err != nil {
+	if err := writeHolidayWeeks(ctx, db, organizationID, periodID, input.Weeks, calendar.TodayDate()); err != nil {
 		return 0, err
 	}
 	return periodID, nil
@@ -242,7 +242,7 @@ const updateHolidayPeriodQuery = `UPDATE enrollment.holiday_periods
 	WHERE organization_id = ? AND id = ?`
 
 // UpdateHolidayPeriod writes the period and its weeks and time models.
-func (s *HolidayPeriodStore) UpdateHolidayPeriod(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayPeriodInput) error {
+func (s *HolidayPeriodStore) UpdateHolidayPeriod(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayPeriodInput, effectiveOn calendar.Date) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
@@ -254,7 +254,7 @@ func (s *HolidayPeriodStore) UpdateHolidayPeriod(ctx context.Context, organizati
 	if _, err := db.NewRaw(checkHolidayBookingsNowQuery).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: check holiday bookings: %w", err)
 	}
-	return writeHolidayWeeks(ctx, db, organizationID, periodID, input.Weeks)
+	return writeHolidayWeeks(ctx, db, organizationID, periodID, input.Weeks, effectiveOn)
 }
 
 const publishHolidayPeriodQuery = `UPDATE enrollment.holiday_periods
@@ -318,7 +318,10 @@ const (
 			(organization_id, holiday_period_week_id, name, starts_at, ends_at, price_cents)
 		VALUES (?, ?, ?, ?::time, ?::time, ?)`
 	updateHolidayTimeModelQuery = `UPDATE enrollment.holiday_week_time_models
-		SET name = ?, starts_at = ?::time, ends_at = ?::time, price_cents = ?
+		SET care_time_history = CASE WHEN starts_at <> ?::time OR ends_at <> ?::time
+   THEN jsonb_build_object(?::date::text, jsonb_build_object('starts_at', starts_at, 'ends_at', ends_at)) || care_time_history
+   ELSE care_time_history END,
+  name = ?, starts_at = ?::time, ends_at = ?::time, price_cents = ?
 		WHERE organization_id = ? AND holiday_period_week_id = ? AND id = ? AND archived_at IS NULL`
 	archiveHolidayTimeModelQuery = `UPDATE enrollment.holiday_week_time_models
 		SET archived_at = now()
@@ -327,7 +330,7 @@ const (
 
 // writeHolidayWeeks makes the period's weeks those of weeks: the weeks left
 // out go with their time models, the named ones change, the new ones arrive.
-func writeHolidayWeeks(ctx context.Context, db bun.IDB, organizationID, periodID int64, weeks []enrollment.HolidayWeekInput) error {
+func writeHolidayWeeks(ctx context.Context, db bun.IDB, organizationID, periodID int64, weeks []enrollment.HolidayWeekInput, effectiveOn calendar.Date) error {
 	keep := make([]int64, 0, len(weeks))
 	for _, week := range weeks {
 		if week.ID != 0 {
@@ -342,7 +345,7 @@ func writeHolidayWeeks(ctx context.Context, db bun.IDB, organizationID, periodID
 		if err != nil {
 			return markHolidayWeekError(index, err)
 		}
-		if err := writeHolidayTimeModels(ctx, db, organizationID, weekID, week.TimeModels); err != nil {
+		if err := writeHolidayTimeModels(ctx, db, organizationID, weekID, week.TimeModels, effectiveOn); err != nil {
 			return err
 		}
 	}
@@ -368,7 +371,7 @@ func writeHolidayWeek(ctx context.Context, db bun.IDB, organizationID, periodID 
 // writeHolidayTimeModels makes the week's time models those of models: the
 // ones left out go unless archived, an archived one stays as it is, the
 // named ones change or are archived, the new ones arrive.
-func writeHolidayTimeModels(ctx context.Context, db bun.IDB, organizationID, weekID int64, models []enrollment.HolidayTimeModelInput) error {
+func writeHolidayTimeModels(ctx context.Context, db bun.IDB, organizationID, weekID int64, models []enrollment.HolidayTimeModelInput, effectiveOn calendar.Date) error {
 	keep := make([]int64, 0, len(models))
 	for _, model := range models {
 		if model.ID != 0 {
@@ -387,7 +390,7 @@ func writeHolidayTimeModels(ctx context.Context, db bun.IDB, organizationID, wee
 		case model.Archived:
 			_, err = db.NewRaw(archiveHolidayTimeModelQuery, organizationID, weekID, model.ID).Exec(ctx)
 		default:
-			_, err = db.NewRaw(updateHolidayTimeModelQuery, model.Name, model.StartsAt, model.EndsAt, model.PriceCents,
+			_, err = db.NewRaw(updateHolidayTimeModelQuery, model.StartsAt, model.EndsAt, effectiveOn, model.Name, model.StartsAt, model.EndsAt, model.PriceCents,
 				organizationID, weekID, model.ID).Exec(ctx)
 		}
 		if err != nil {
