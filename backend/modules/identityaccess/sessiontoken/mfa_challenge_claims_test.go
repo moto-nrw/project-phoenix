@@ -1,12 +1,15 @@
-package sessiontoken
+package sessiontoken_test
 
 import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 )
 
 func TestMFAChallengeClaims_TenantRoundTrip(t *testing.T) {
@@ -15,13 +18,13 @@ func TestMFAChallengeClaims_TenantRoundTrip(t *testing.T) {
 	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
-	in := MFAChallengeClaims{
+	in := sessiontoken.MFAChallengeClaims{
 		AccountID: 4242,
-		Scope:     MFAChallengeScopeTenant,
+		Scope:     sessiontoken.MFAChallengeScopeTenant,
 		TenantID:  4242,
 	}
 
-	tokenString, err := ta.CreateMFAChallengeJWT(in, 5*time.Minute)
+	tokenString, err := tokentest.CreateMFAChallengeJWT(ta, in, 5*time.Minute)
 	require.NoError(t, err)
 	require.NotEmpty(t, tokenString)
 
@@ -36,10 +39,10 @@ func TestMFAChallengeClaims_TenantRoundTrip(t *testing.T) {
 		}
 	}
 
-	var out MFAChallengeClaims
+	var out sessiontoken.MFAChallengeClaims
 	require.NoError(t, out.ParseClaims(raw))
 	assert.Equal(t, int64(4242), out.AccountID)
-	assert.Equal(t, MFAChallengeScopeTenant, out.Scope)
+	assert.Equal(t, sessiontoken.MFAChallengeScopeTenant, out.Scope)
 	assert.Equal(t, int64(4242), out.TenantID)
 	assert.True(t, out.MFAPending)
 	assert.Greater(t, out.ExpiresAt, time.Now().Unix())
@@ -51,12 +54,12 @@ func TestMFAChallengeClaims_PlatformRoundTrip(t *testing.T) {
 	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
-	in := MFAChallengeClaims{
+	in := sessiontoken.MFAChallengeClaims{
 		AccountID: 99,
-		Scope:     MFAChallengeScopePlatform,
+		Scope:     sessiontoken.MFAChallengeScopePlatform,
 	}
 
-	tokenString, err := ta.CreateMFAChallengeJWT(in, 5*time.Minute)
+	tokenString, err := tokentest.CreateMFAChallengeJWT(ta, in, 5*time.Minute)
 	require.NoError(t, err)
 
 	jwtToken, err := ta.JwtAuth.Decode(tokenString)
@@ -69,19 +72,19 @@ func TestMFAChallengeClaims_PlatformRoundTrip(t *testing.T) {
 		}
 	}
 
-	var out MFAChallengeClaims
+	var out sessiontoken.MFAChallengeClaims
 	require.NoError(t, out.ParseClaims(raw))
-	assert.Equal(t, MFAChallengeScopePlatform, out.Scope)
+	assert.Equal(t, sessiontoken.MFAChallengeScopePlatform, out.Scope)
 	assert.Equal(t, int64(0), out.TenantID, "platform tokens should not carry tenant_id")
 }
 
 func TestMFAChallengeClaims_RejectsMissingAccountID(t *testing.T) {
 	t.Parallel()
 
-	var c MFAChallengeClaims
+	var c sessiontoken.MFAChallengeClaims
 	err := c.ParseClaims(map[string]any{
 		"mfa_pending": true,
-		"scope":       MFAChallengeScopeTenant,
+		"scope":       sessiontoken.MFAChallengeScopeTenant,
 	})
 	assert.Error(t, err)
 }
@@ -89,7 +92,7 @@ func TestMFAChallengeClaims_RejectsMissingAccountID(t *testing.T) {
 func TestMFAChallengeClaims_RejectsBadScope(t *testing.T) {
 	t.Parallel()
 
-	var c MFAChallengeClaims
+	var c sessiontoken.MFAChallengeClaims
 	err := c.ParseClaims(map[string]any{
 		"account_id":  float64(1),
 		"mfa_pending": true,
@@ -101,10 +104,10 @@ func TestMFAChallengeClaims_RejectsBadScope(t *testing.T) {
 func TestMFAChallengeClaims_RejectsNonPendingToken(t *testing.T) {
 	t.Parallel()
 
-	var c MFAChallengeClaims
+	var c sessiontoken.MFAChallengeClaims
 	err := c.ParseClaims(map[string]any{
 		"account_id":  float64(1),
-		"scope":       MFAChallengeScopeTenant,
+		"scope":       sessiontoken.MFAChallengeScopeTenant,
 		"mfa_pending": false,
 	})
 	assert.Error(t, err)
@@ -123,18 +126,19 @@ func TestParseMFAChallengeJWT_TenantRoundTripPopulatesClaims(t *testing.T) {
 	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
-	tokenString, err := ta.CreateMFAChallengeJWT(MFAChallengeClaims{
+	tokenString, err := tokentest.CreateMFAChallengeJWT(ta, sessiontoken.MFAChallengeClaims{
 		AccountID: 4242,
-		Scope:     MFAChallengeScopeTenant,
+		Scope:     sessiontoken.MFAChallengeScopeTenant,
 		TenantID:  70010001,
 	}, 5*time.Minute)
+
 	require.NoError(t, err)
 
-	claims, err := ta.ParseMFAChallengeJWT(tokenString)
+	claims, err := tokentest.ParseMFAChallengeJWT(ta, tokenString)
 	require.NoError(t, err)
 	require.NotNil(t, claims)
 	assert.Equal(t, int64(4242), claims.AccountID)
-	assert.Equal(t, MFAChallengeScopeTenant, claims.Scope)
+	assert.Equal(t, sessiontoken.MFAChallengeScopeTenant, claims.Scope)
 	assert.Equal(t, int64(70010001), claims.TenantID)
 	assert.True(t, claims.MFAPending, "MFAPending must round-trip through the public entry point")
 }
@@ -145,15 +149,16 @@ func TestParseMFAChallengeJWT_PlatformRoundTripOmitsTenant(t *testing.T) {
 	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
-	tokenString, err := ta.CreateMFAChallengeJWT(MFAChallengeClaims{
+	tokenString, err := tokentest.CreateMFAChallengeJWT(ta, sessiontoken.MFAChallengeClaims{
 		AccountID: 99,
-		Scope:     MFAChallengeScopePlatform,
+		Scope:     sessiontoken.MFAChallengeScopePlatform,
 	}, 5*time.Minute)
+
 	require.NoError(t, err)
 
-	claims, err := ta.ParseMFAChallengeJWT(tokenString)
+	claims, err := tokentest.ParseMFAChallengeJWT(ta, tokenString)
 	require.NoError(t, err)
-	assert.Equal(t, MFAChallengeScopePlatform, claims.Scope)
+	assert.Equal(t, sessiontoken.MFAChallengeScopePlatform, claims.Scope)
 	assert.Equal(t, int64(0), claims.TenantID,
 		"platform tokens must not surface a tenant_id even after round-trip")
 }
@@ -164,7 +169,7 @@ func TestParseMFAChallengeJWT_RejectsGarbageToken(t *testing.T) {
 	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
-	claims, err := ta.ParseMFAChallengeJWT("not-a-jwt-at-all")
+	claims, err := tokentest.ParseMFAChallengeJWT(ta, "not-a-jwt-at-all")
 	require.Error(t, err)
 	assert.Nil(t, claims)
 }
@@ -178,14 +183,15 @@ func TestParseMFAChallengeJWT_RejectsTokenSignedWithDifferentSecret(t *testing.T
 	verifier, err := newTestTokenAuth(t, "verifier-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
-	tokenString, err := issuer.CreateMFAChallengeJWT(MFAChallengeClaims{
+	tokenString, err := tokentest.CreateMFAChallengeJWT(issuer, sessiontoken.MFAChallengeClaims{
 		AccountID: 1,
-		Scope:     MFAChallengeScopeTenant,
+		Scope:     sessiontoken.MFAChallengeScopeTenant,
 		TenantID:  tenantID,
 	}, 5*time.Minute)
+
 	require.NoError(t, err)
 
-	claims, err := verifier.ParseMFAChallengeJWT(tokenString)
+	claims, err := tokentest.ParseMFAChallengeJWT(verifier, tokenString)
 	require.Error(t, err, "signature mismatch must surface as a decode error")
 	assert.Nil(t, claims)
 }
@@ -198,14 +204,15 @@ func TestParseMFAChallengeJWT_RejectsExpiredToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// Issue with a TTL that's already in the past so the exp-check branch fires.
-	tokenString, err := ta.CreateMFAChallengeJWT(MFAChallengeClaims{
+	tokenString, err := tokentest.CreateMFAChallengeJWT(ta, sessiontoken.MFAChallengeClaims{
 		AccountID: 1,
-		Scope:     MFAChallengeScopeTenant,
+		Scope:     sessiontoken.MFAChallengeScopeTenant,
 		TenantID:  tenantID,
 	}, -1*time.Second)
+
 	require.NoError(t, err)
 
-	claims, err := ta.ParseMFAChallengeJWT(tokenString)
+	claims, err := tokentest.ParseMFAChallengeJWT(ta, tokenString)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expired",
 		"expired tokens must be rejected with an explicit message")
@@ -225,7 +232,7 @@ func TestParseMFAChallengeJWT_RejectsNonChallengeToken(t *testing.T) {
 	// row, the verify path rejects it before any lookup.
 	_, tokenString, err := ta.JwtAuth.Encode(map[string]any{
 		"account_id": int64(4242),
-		"scope":      MFAChallengeScopeTenant,
+		"scope":      sessiontoken.MFAChallengeScopeTenant,
 		"tenant_id":  int64(70010001),
 		// mfa_pending intentionally omitted
 		"iat": time.Now().Unix(),
@@ -233,7 +240,7 @@ func TestParseMFAChallengeJWT_RejectsNonChallengeToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	claims, err := ta.ParseMFAChallengeJWT(tokenString)
+	claims, err := tokentest.ParseMFAChallengeJWT(ta, tokenString)
 	require.Error(t, err)
 	assert.Nil(t, claims)
 }

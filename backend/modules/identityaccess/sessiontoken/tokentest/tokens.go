@@ -1,20 +1,26 @@
 //go:build testhooks
 
-package sessiontoken
+// Package tokentest mints and reads the legacy session JWTs for tests. It is a
+// leaf so these helpers do not change how sessiontoken, and the packages
+// importing it, compile under testhooks (#5990). Production issues and reads
+// tokens through the Identity & Access codecs.
+package tokentest
 
 import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // GenTokenPair returns both an access token and a refresh token.
-func (a *TokenAuth) GenTokenPair(accessClaims AppClaims, refreshClaims RefreshClaims) (string, string, error) {
-	access, err := a.CreateJWT(accessClaims)
+func GenTokenPair(a *sessiontoken.TokenAuth, accessClaims sessiontoken.AppClaims, refreshClaims sessiontoken.RefreshClaims) (string, string, error) {
+	access, err := CreateJWT(a, accessClaims)
 	if err != nil {
 		return "", "", err
 	}
-	refresh, err := a.CreateRefreshJWT(refreshClaims)
+	refresh, err := CreateRefreshJWT(a, refreshClaims)
 	if err != nil {
 		return "", "", err
 	}
@@ -22,7 +28,7 @@ func (a *TokenAuth) GenTokenPair(accessClaims AppClaims, refreshClaims RefreshCl
 }
 
 // CreateJWT returns an access token for provided account claims.
-func (a *TokenAuth) CreateJWT(c AppClaims) (string, error) {
+func CreateJWT(a *sessiontoken.TokenAuth, c sessiontoken.AppClaims) (string, error) {
 	c.IssuedAt = time.Now().Unix()
 	c.ExpiresAt = time.Now().Add(a.JwtExpiry).Unix()
 
@@ -35,6 +41,7 @@ func (a *TokenAuth) CreateJWT(c AppClaims) (string, error) {
 	return tokenString, err
 }
 
+// ParseStructToMap returns the JWT claim map for claims.
 func ParseStructToMap(c any) (map[string]any, error) {
 	var claims map[string]any
 	inrec, err := json.Marshal(c)
@@ -49,7 +56,7 @@ func ParseStructToMap(c any) (map[string]any, error) {
 
 	// Special handling for embedded structs like CommonClaims
 	// This ensures all fields from embedded structs are properly included
-	if appClaims, ok := c.(AppClaims); ok {
+	if appClaims, ok := c.(sessiontoken.AppClaims); ok {
 		// Make sure roles is explicitly set
 		claims["roles"] = appClaims.Roles
 
@@ -71,7 +78,7 @@ func ParseStructToMap(c any) (map[string]any, error) {
 }
 
 // CreateRefreshJWT returns a refresh token for provided token Claims.
-func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {
+func CreateRefreshJWT(a *sessiontoken.TokenAuth, c sessiontoken.RefreshClaims) (string, error) {
 	c.IssuedAt = time.Now().Unix()
 	if c.ExpiresAt <= 0 {
 		c.ExpiresAt = time.Now().Add(a.JwtRefreshExpiry).Unix()
@@ -87,52 +94,27 @@ func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {
 }
 
 // ParseExpiredAccessJWT is ParseAccessJWT without the expiry check: the
-// signature still has to verify, so the claims are as trustworthy as ever —
-// only their freshness is not. Use it ONLY where an expired token is
-// evidence, never where it grants access. The staff-view preview (#2893)
-// ends this way: an admin who lets the preview run past the 15-minute access
-// expiry and then clicks "Vorschau beenden" must still produce a
-// staff_preview_ended row, otherwise the audit trail loses the pair.
-func (a *TokenAuth) ParseExpiredAccessJWT(tokenString string) (*AppClaims, error) {
-	return a.parseAccessJWT(tokenString, true)
-}
-
-// GetRefreshExpiry returns the refresh token expiration duration
-func (a *TokenAuth) GetRefreshExpiry() time.Duration {
-	return a.JwtRefreshExpiry
-}
-
-// ParseClaims fills MFAChallengeClaims from a decoded JWT claim map.
-//
-// Defense-in-depth (symmetric to MFAEnrollmentClaims): a challenge token
-// MUST NOT also carry mfa_enrollment_pending=true. Rejecting the foreign
-// flag up front means a malformed JWT can't satisfy both /auth/mfa/verify
-// and /auth/mfa/enroll/* middlewares. (#1430 review item #8)
-func (c *MFAChallengeClaims) ParseClaims(claims map[string]any) error {
-	accountID, tenantID, scope, err := parseMFAPendingClaims(claims, mfaPendingClaimsSpec{
-		foreignFlagKey: "mfa_enrollment_pending",
-		foreignFlagErr: "token is a pending-MFA-enrollment token, not a challenge",
-		scopeTenant:    MFAChallengeScopeTenant,
-		scopePlatform:  MFAChallengeScopePlatform,
-		scopeSchool:    MFAChallengeScopeSchool,
-		scopeOrg:       MFAChallengeScopeOrg,
-		pendingFlagKey: "mfa_pending",
-		notPendingErr:  "token is not a pending-MFA challenge",
-	}, &c.CommonClaims)
+// signature still has to verify, so the claims are as trustworthy as ever,
+// only their freshness is not. Tests use it to read the claims of a token
+// that has already expired.
+func ParseExpiredAccessJWT(a *sessiontoken.TokenAuth, tokenString string) (*sessiontoken.AppClaims, error) {
+	raw, err := decode(a, tokenString)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	c.AccountID = accountID
-	c.TenantID = tenantID
-	c.Scope = scope
-	c.ChallengeID = getOptionalInt64(claims, "challenge_id")
-	c.MFAPending = true
-	return nil
+	var claims sessiontoken.AppClaims
+	if err := claims.ParseClaims(raw); err != nil {
+		return nil, err
+	}
+	if exp, ok := raw["exp"].(time.Time); ok {
+		claims.ExpiresAt = exp.Unix()
+	}
+	return &claims, nil
 }
 
 // CreateMFAChallengeJWT mints a new MFA challenge JWT with the given TTL.
 // Callers are responsible for passing a sane TTL (typically 5 minutes).
-func (a *TokenAuth) CreateMFAChallengeJWT(c MFAChallengeClaims, ttl time.Duration) (string, error) {
+func CreateMFAChallengeJWT(a *sessiontoken.TokenAuth, c sessiontoken.MFAChallengeClaims, ttl time.Duration) (string, error) {
 	now := time.Now()
 	c.IssuedAt = now.Unix()
 	c.ExpiresAt = now.Add(ttl).Unix()
@@ -157,24 +139,14 @@ func (a *TokenAuth) CreateMFAChallengeJWT(c MFAChallengeClaims, ttl time.Duratio
 	return tokenString, err
 }
 
-// ParseMFAChallengeJWT decodes an MFA challenge token, extracts its
-// claims into MFAChallengeClaims, and rejects expired tokens. Used by
-// both the tenant- and operator-side MFA verification flows — the
-// service-layer wrappers used to inline this logic, but the loop was
-// identical in both, so it lives here once.
-func (a *TokenAuth) ParseMFAChallengeJWT(tokenString string) (*MFAChallengeClaims, error) {
-	jwtToken, err := a.JwtAuth.Decode(tokenString)
+// ParseMFAChallengeJWT decodes an MFA challenge token, extracts its claims
+// into MFAChallengeClaims, and rejects expired tokens.
+func ParseMFAChallengeJWT(a *sessiontoken.TokenAuth, tokenString string) (*sessiontoken.MFAChallengeClaims, error) {
+	raw, err := decode(a, tokenString)
 	if err != nil {
 		return nil, err
 	}
-	raw := make(map[string]any)
-	for _, k := range jwtToken.Keys() {
-		var v any
-		if jwtToken.Get(k, &v) == nil {
-			raw[k] = v
-		}
-	}
-	var claims MFAChallengeClaims
+	var claims sessiontoken.MFAChallengeClaims
 	if err := claims.ParseClaims(raw); err != nil {
 		return nil, err
 	}
@@ -185,11 +157,7 @@ func (a *TokenAuth) ParseMFAChallengeJWT(tokenString string) (*MFAChallengeClaim
 }
 
 // CreateMFAEnrollmentJWT mints a new MFA enrollment JWT with the given TTL.
-// Callers pick the TTL based on how long the enrollment flow may take.
-// Recommended: same window as a regular access token (15 minutes) — long
-// enough for a real user to retrieve the emailed code, short enough that
-// a forgotten enrollment session expires quickly.
-func (a *TokenAuth) CreateMFAEnrollmentJWT(c MFAEnrollmentClaims, ttl time.Duration) (string, error) {
+func CreateMFAEnrollmentJWT(a *sessiontoken.TokenAuth, c sessiontoken.MFAEnrollmentClaims, ttl time.Duration) (string, error) {
 	now := time.Now()
 	c.IssuedAt = now.Unix()
 	c.ExpiresAt = now.Add(ttl).Unix()
@@ -211,24 +179,14 @@ func (a *TokenAuth) CreateMFAEnrollmentJWT(c MFAEnrollmentClaims, ttl time.Durat
 	return tokenString, err
 }
 
-// ParseMFAEnrollmentJWT decodes an enrollment token, extracts its claims
-// into MFAEnrollmentClaims, and rejects expired tokens. Mirrors
-// ParseMFAChallengeJWT — the verify path on the enrollment authenticator
-// uses this for the same reason: the loop would otherwise duplicate in
-// every consumer.
-func (a *TokenAuth) ParseMFAEnrollmentJWT(tokenString string) (*MFAEnrollmentClaims, error) {
-	jwtToken, err := a.JwtAuth.Decode(tokenString)
+// ParseMFAEnrollmentJWT decodes an enrollment token, extracts its claims into
+// MFAEnrollmentClaims, and rejects expired tokens.
+func ParseMFAEnrollmentJWT(a *sessiontoken.TokenAuth, tokenString string) (*sessiontoken.MFAEnrollmentClaims, error) {
+	raw, err := decode(a, tokenString)
 	if err != nil {
 		return nil, err
 	}
-	raw := make(map[string]any)
-	for _, k := range jwtToken.Keys() {
-		var v any
-		if jwtToken.Get(k, &v) == nil {
-			raw[k] = v
-		}
-	}
-	var claims MFAEnrollmentClaims
+	var claims sessiontoken.MFAEnrollmentClaims
 	if err := claims.ParseClaims(raw); err != nil {
 		return nil, err
 	}
@@ -238,7 +196,23 @@ func (a *TokenAuth) ParseMFAEnrollmentJWT(tokenString string) (*MFAEnrollmentCla
 	return &claims, nil
 }
 
-func addScopedAppClaims(claims map[string]any, appClaims AppClaims) {
+// decode verifies the signature of tokenString and returns its claim map.
+func decode(a *sessiontoken.TokenAuth, tokenString string) (map[string]any, error) {
+	token, err := a.JwtAuth.Decode(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	raw := make(map[string]any)
+	for _, key := range token.Keys() {
+		var value any
+		if token.Get(key, &value) == nil {
+			raw[key] = value
+		}
+	}
+	return raw, nil
+}
+
+func addScopedAppClaims(claims map[string]any, appClaims sessiontoken.AppClaims) {
 	// Multi-tenancy fields (only include when non-zero)
 	if appClaims.TenantID != 0 {
 		claims["tenant_id"] = appClaims.TenantID
@@ -249,7 +223,7 @@ func addScopedAppClaims(claims map[string]any, appClaims AppClaims) {
 	if appClaims.FamilyID != "" {
 		claims["family_id"] = appClaims.FamilyID
 	}
-	// Admin staff-view preview claims (#2893) — explicit like the fields
+	// Admin staff-view preview claims (#2893), explicit like the fields
 	// above so the allowlist stays the single source of truth.
 	if appClaims.ReadOnly {
 		claims["read_only"] = true
@@ -260,5 +234,4 @@ func addScopedAppClaims(claims map[string]any, appClaims AppClaims) {
 	if appClaims.PreviewID != "" {
 		claims["preview_id"] = appClaims.PreviewID
 	}
-
 }

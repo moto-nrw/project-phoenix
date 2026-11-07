@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog/audittest"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -34,19 +34,19 @@ func TestTenantRuntimeHandsTheUnitOfWorkToTheAuditAdapters(t *testing.T) {
 			ctx := tenant.WithUnitOfWork(context.Background(), runtime)
 
 			require.NoError(t, tenant.WithinCurrentTenant(tenant.WithTenantID(ctx, tenantID), func(txCtx context.Context) error {
-				assert.Equal(t, tenantID, auditlog.TenantIDFromContext(txCtx))
-				transaction, ok := auditlog.TransactionFromContext(txCtx)
+				assert.Equal(t, tenantID, audittest.TenantIDFromContext(txCtx))
+				transaction, ok := audittest.TransactionFromContext(txCtx)
 				require.True(t, ok, "the Audit adapters see the tenant transaction")
 				assert.IsType(t, bun.Tx{}, transaction)
 
-				_, ok = auditlog.TransactionFromContext(tenant.ContextWithoutTransaction(txCtx))
+				_, ok = audittest.TransactionFromContext(tenant.ContextWithoutTransaction(txCtx))
 				assert.False(t, ok, "detaching masks the transaction for the Audit adapters")
 				return nil
 			}))
 
 			require.NoError(t, tenant.WithinAdmin(tenant.WithTenantID(ctx, tenantID), func(txCtx context.Context) error {
-				assert.Zero(t, auditlog.TenantIDFromContext(txCtx), "administrative work carries no Audit tenant")
-				_, ok := auditlog.TransactionFromContext(txCtx)
+				assert.Zero(t, audittest.TenantIDFromContext(txCtx), "administrative work carries no Audit tenant")
+				_, ok := audittest.TransactionFromContext(txCtx)
 				assert.True(t, ok, "the Audit adapters see the administrative transaction")
 				return nil
 			}))

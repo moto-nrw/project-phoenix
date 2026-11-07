@@ -15,14 +15,19 @@ import (
 // in one of them gives every dependent package a second compiled form, so
 // tagged test builds and untagged dev builds stop sharing Go build cache
 // entries (#5985). Their test hooks live in leaf packages instead:
-// tenant/tenanttest, modules/peopledirectory/parentfixture, and the already
-// tagged Communication store. Remove an entry only together with the reason
-// it no longer fans out.
+// tenant/tenanttest, modules/peopledirectory/parentfixture, the already
+// tagged Communication store, modules/identityaccess/sessiontoken/tokentest
+// and modules/auditlog/audittest (#5990). Remove an entry only together with
+// the reason it no longer fans out.
 var testhooksFreePackages = []string{
 	"tenant",
 	"modules/peopledirectory",
 	"modules/communication",
 	"modules/securityruntime/internal/application/authorize",
+	"modules/identityaccess/sessiontoken",
+	"modules/auditlog",
+	"modules/auditlog/internal/application",
+	"middleware",
 }
 
 func TestBroadlyImportedPackagesCompileTheSameWithTestHooks(t *testing.T) {

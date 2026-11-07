@@ -1,15 +1,16 @@
 //go:build testhooks
 
-package auditlog
+// Package audittest lets tests observe the Audit handoff. It is a leaf so the
+// readers do not change how modules/auditlog, and the packages importing it,
+// compile under testhooks (#5990). Production reads the handoff in the Audit
+// adapters themselves.
+package audittest
 
 import (
 	"context"
 
 	auditapp "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/application"
 )
-
-// The readers below let tests observe the Audit handoff; production reads it
-// in the Audit adapters themselves.
 
 // TenantIDFromContext returns the tenant the Audit adapters read, or zero.
 func TenantIDFromContext(ctx context.Context) int64 {

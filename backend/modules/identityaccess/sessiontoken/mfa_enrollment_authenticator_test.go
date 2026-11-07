@@ -1,4 +1,4 @@
-package sessiontoken
+package sessiontoken_test
 
 // Tests for the MFAEnrollmentAuthenticator middleware. These are the
 // "Tests: Enrollment-Token darf keine geschützten Routen aufrufen"
@@ -20,6 +20,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 )
 
 // (a) enrollment token reaches the enroll handler and the claims arrive
@@ -30,22 +33,23 @@ func TestMFAEnrollmentAuthenticator_AcceptsEnrollmentToken(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	tokenString, err := auth.CreateMFAEnrollmentJWT(MFAEnrollmentClaims{
+	tokenString, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
 		AccountID: 4242,
-		Scope:     MFAEnrollmentScopeTenant,
+		Scope:     sessiontoken.MFAEnrollmentScopeTenant,
 		TenantID:  70010001,
 	}, 5*time.Minute)
+
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(MFAEnrollmentAuthenticator)
+	r.Use(sessiontoken.MFAEnrollmentAuthenticator)
 	r.Post("/mfa/enroll/start", func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := EnrollmentClaimsFromCtx(r.Context())
+		claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
 		assert.True(t, ok, "enrollment claims must be set on the context for downstream handlers")
 		assert.Equal(t, int64(4242), claims.AccountID)
 		assert.Equal(t, int64(70010001), claims.TenantID)
-		assert.Equal(t, MFAEnrollmentScopeTenant, claims.Scope)
+		assert.Equal(t, sessiontoken.MFAEnrollmentScopeTenant, claims.Scope)
 		assert.True(t, claims.MFAEnrollmentPending)
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -69,15 +73,16 @@ func TestRegularAuthenticator_RejectsEnrollmentToken(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	tokenString, err := auth.CreateMFAEnrollmentJWT(MFAEnrollmentClaims{
+	tokenString, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
 		AccountID: 4242,
-		Scope:     MFAEnrollmentScopeTenant,
+		Scope:     sessiontoken.MFAEnrollmentScopeTenant,
 	}, 5*time.Minute)
+
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(Authenticator)
+	r.Use(sessiontoken.Authenticator)
 	called := false
 	r.Get("/protected", func(w http.ResponseWriter, _ *http.Request) {
 		called = true
@@ -104,16 +109,17 @@ func TestMFAEnrollmentAuthenticator_RejectsRegularAccessToken(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	access, err := auth.CreateJWT(AppClaims{
+	access, err := tokentest.CreateJWT(auth, sessiontoken.AppClaims{
 		ID:    4242,
 		Sub:   "account:4242",
 		Roles: []string{"admin"},
 	})
+
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(MFAEnrollmentAuthenticator)
+	r.Use(sessiontoken.MFAEnrollmentAuthenticator)
 	called := false
 	r.Post("/mfa/enroll/start", func(w http.ResponseWriter, _ *http.Request) {
 		called = true
@@ -138,7 +144,7 @@ func TestMFAEnrollmentAuthenticator_NoToken(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(MFAEnrollmentAuthenticator)
+	r.Use(sessiontoken.MFAEnrollmentAuthenticator)
 	r.Post("/mfa/enroll/start", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -156,16 +162,17 @@ func TestMFAEnrollmentAuthenticator_ExpiredToken(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	tokenString, err := auth.CreateMFAEnrollmentJWT(MFAEnrollmentClaims{
+	tokenString, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
 		AccountID: 4242,
-		Scope:     MFAEnrollmentScopeTenant,
+		Scope:     sessiontoken.MFAEnrollmentScopeTenant,
 	}, time.Millisecond)
+
 	require.NoError(t, err)
 	time.Sleep(10 * time.Millisecond)
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(MFAEnrollmentAuthenticator)
+	r.Use(sessiontoken.MFAEnrollmentAuthenticator)
 	r.Post("/mfa/enroll/start", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
