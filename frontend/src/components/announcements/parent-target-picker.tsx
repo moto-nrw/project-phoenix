@@ -231,10 +231,15 @@ export function ParentTargetPicker({
           <LoadErrorAlert error={lookupLoadError} />
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <FieldLabel htmlFor={`${fieldId}-classes`}>Klassen</FieldLabel>
+              <FieldLabel
+                id={`${fieldId}-classes-label`}
+                htmlFor={`${fieldId}-classes`}
+              >
+                Klassen
+              </FieldLabel>
               <MultiSelect
                 id={`${fieldId}-classes`}
-                ariaLabel="Klassen auswählen"
+                ariaLabelledBy={`${fieldId}-classes-label`}
                 value={selectedClasses}
                 options={schoolClasses.map((c) => ({ value: c, label: c }))}
                 onChange={(values) => setCategory("class", values)}
@@ -247,10 +252,15 @@ export function ParentTargetPicker({
               />
             </div>
             <div>
-              <FieldLabel htmlFor={`${fieldId}-groups`}>Gruppen</FieldLabel>
+              <FieldLabel
+                id={`${fieldId}-groups-label`}
+                htmlFor={`${fieldId}-groups`}
+              >
+                Gruppen
+              </FieldLabel>
               <MultiSelect
                 id={`${fieldId}-groups`}
-                ariaLabel="Gruppen auswählen"
+                ariaLabelledBy={`${fieldId}-groups-label`}
                 value={selectedGroups}
                 options={groups.map((g) => ({ value: g.id, label: g.name }))}
                 onChange={(values) => setCategory("group", values)}
@@ -263,12 +273,15 @@ export function ParentTargetPicker({
               />
             </div>
             <div>
-              <FieldLabel htmlFor={`${fieldId}-activities`}>
+              <FieldLabel
+                id={`${fieldId}-activities-label`}
+                htmlFor={`${fieldId}-activities`}
+              >
                 AGs / Betreuung
               </FieldLabel>
               <MultiSelect
                 id={`${fieldId}-activities`}
-                ariaLabel="AGs auswählen"
+                ariaLabelledBy={`${fieldId}-activities-label`}
                 value={selectedActivities}
                 options={activities.map((a) => ({
                   value: a.id,
