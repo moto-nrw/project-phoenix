@@ -182,7 +182,7 @@ func TestRoomListsQueryBudget(t *testing.T) {
 		faultRequest := testutil.NewRequest(http.MethodGet, "/?page=1&page_size=100", nil)
 		faultRequest = faultRequest.WithContext(counter.Context(faultRequest.Context()))
 		faultResponse := testutil.ExecuteWithAuth(t, router, faultRequest, testutil.AdminTestClaims(int(account.ID)))
-		assertRoomEmploymentReadFailure(t, counter, faultResponse)
+		assertRoomEmploymentReadIndependent(t, counter, faultResponse)
 	})
 	add(3, 8)
 	large := measure(8)
