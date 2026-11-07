@@ -13,7 +13,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// TestCareContractNoticesKeepTheirTraegerAndTheirStates pins 1.15.789
+// TestCareContractNoticesKeepTheirTraegerAndTheirStates pins 1.15.792
 // (#4682) under the request role: a terminated contract has its last day,
 // only a concluded contract ends, the conclusion records the withdrawal
 // notice, and a Träger never sees another Träger's declarations.
