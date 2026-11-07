@@ -201,8 +201,10 @@ type periodRow struct {
 	StudentID  *int64 `bun:"student_id"`
 }
 
-// VersionsInForce reads the effective versions of the active and ended
-// contracts that hold on a day between from and to, by contract and start.
+// VersionsInForce reads the effective versions of the active, terminated
+// and ended contracts that hold on a day between from and to, by contract
+// and start. A terminated contract cuts its versions at its last day
+// (#4682); a withdrawn one holds on no day.
 func (Store) VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date, contractIDs []int64) ([]carecontract.VersionPeriod, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -211,14 +213,16 @@ func (Store) VersionsInForce(ctx context.Context, organizationID int64, from, to
 	var rows []periodRow
 	if err := db.NewRaw(`SELECT * FROM (
 			SELECT c.id AS contract_id, c.school_id, c.student_id, `+versionColumns+`, v.source, `+servicesSQL+` AS services,
-				`+validUntilSQL+` AS valid_until
+				LEAST(`+validUntilSQL+`, c.ends_on) AS valid_until
 			FROM care_contract.contracts AS c
 			JOIN care_contract.contract_versions AS v ON v.organization_id = c.organization_id AND v.contract_id = c.id
-			WHERE c.organization_id = ? AND c.status IN (?, ?) AND v.status IN `+effectiveStatusSQL+`
+			WHERE c.organization_id = ? AND c.status IN (?, ?, ?) AND v.status IN `+effectiveStatusSQL+`
+				AND (c.ends_on IS NULL OR v.effective_from <= c.ends_on)
 				AND v.effective_from <= ? AND (cardinality(?::bigint[]) = 0 OR c.id = ANY(?::bigint[]))) AS t
 		WHERE t.valid_until IS NULL OR t.valid_until >= ?
 		ORDER BY t.contract_id, t.effective_from`,
-		organizationID, carecontract.StatusActive, carecontract.StatusEnded, to, pgdialect.Array(nonNilIDs(contractIDs)),
+		organizationID, carecontract.StatusActive, carecontract.StatusTerminated, carecontract.StatusEnded, to,
+		pgdialect.Array(nonNilIDs(contractIDs)),
 		pgdialect.Array(nonNilIDs(contractIDs)), from).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read versions in force: %w", err)
 	}

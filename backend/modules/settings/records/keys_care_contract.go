@@ -7,3 +7,13 @@ package records
 // parents receive it. The Träger sets it for all its schools; a school may
 // differ (LevelBoth). The values are the constants of the Betreuungsvertrag.
 const KeyCareContractConclusionMode = "care_contract.conclusion_mode"
+
+// KeyCareContractTerminationConfirmation and
+// KeyCareContractWithdrawalConfirmation are the Träger's templates of the
+// confirmation the parents receive in Textform after a termination or a
+// withdrawal (#4682, § 312k BGB). Only the Träger sets them (LevelTraeger);
+// the Betreuungsvertrag fills in the fixed placeholders.
+const (
+	KeyCareContractTerminationConfirmation = "care_contract.termination_confirmation"
+	KeyCareContractWithdrawalConfirmation  = "care_contract.withdrawal_confirmation"
+)

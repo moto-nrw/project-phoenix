@@ -155,11 +155,11 @@ func (Store) InsertContract(ctx context.Context, organizationID, accountID int64
 	}
 	var id int64
 	err = db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id,
-			student_id, created_by_account_id)
-		VALUES (?, ?, ?, ?, ?)
+			student_id, created_by_account_id, early_start_requested)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (school_id, request_child_id) DO NOTHING
 		RETURNING id`, organizationID, contract.Key.SchoolID, contract.Key.RequestChildID,
-		contract.StudentID, accountRef(accountID)).Scan(ctx, &id)
+		contract.StudentID, accountRef(accountID), contract.EarlyStart).Scan(ctx, &id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, carecontract.ErrContractExists
 	}
@@ -214,6 +214,7 @@ const moduleNamesSQL = `ARRAY(SELECT s.module_name FROM care_contract.contract_v
 // summarySQL reads a contract with its current version (currentVersionOrderSQL) and its first
 // party; the filter follows.
 const summarySQL = `SELECT c.id, c.status, c.school_id, c.created_at, c.sent_at, c.concluded_at, c.conclusion_method,
+	c.ends_on, c.early_start_requested,
 	v.school_name, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.effective_from,
 	COALESCE(p.first_name || ' ' || p.last_name, '') AS party_name, COALESCE(p.email, '') AS party_email
 	FROM care_contract.contracts AS c
@@ -250,6 +251,10 @@ type summaryRow struct {
 	EffectiveFrom  calendar.Date `bun:"effective_from,type:date"`
 	PartyName      string        `bun:"party_name"`
 	PartyEmail     string        `bun:"party_email"`
+	// EndsOn is the last day of a terminated contract; EarlyStart the
+	// parents' wish that care begins within the withdrawal period (#4682).
+	EndsOn     *calendar.Date `bun:"ends_on,type:date"`
+	EarlyStart bool           `bun:"early_start_requested"`
 }
 
 func (r summaryRow) summary() carecontract.ContractSummary {
@@ -257,7 +262,7 @@ func (r summaryRow) summary() carecontract.ContractSummary {
 		ID: r.ID, Status: r.Status, SchoolID: r.SchoolID, SchoolName: r.SchoolName,
 		ChildFirstName: r.ChildFirstName, ChildLastName: r.ChildLastName, ModuleNames: nonNil(r.ModuleNames),
 		PartyName: strings.TrimSpace(r.PartyName), PartyEmail: r.PartyEmail, EffectiveFrom: r.EffectiveFrom,
-		CreatedAt: r.CreatedAt, SentAt: r.SentAt, Concluded: r.concluded(),
+		CreatedAt: r.CreatedAt, SentAt: r.SentAt, Concluded: r.concluded(), EndsOn: r.EndsOn,
 	}
 }
 

@@ -88,6 +88,7 @@ var tableRetentions = map[string]tableRetention{
 	"care_contract.contract_documents":                      parent("care_contract.contracts"),
 	"care_contract.contract_events":                         own("the trail of the contracts of a Träger keeps every read and write, also of a discarded draft (ADR 0153); it goes with platform.organizations when the Träger is erased (#4657); account_id SET NULL on account delete; the period follows with #4720"),
 	"care_contract.contract_mailings":                       parent("care_contract.contract_documents"),
+	"care_contract.contract_notices":                        parent("care_contract.contracts"),
 	"care_contract.contract_parties":                        parent("care_contract.contracts"),
 	"care_contract.contract_templates":                      notPersonal("contract terms of one offering of a Träger (#4678): term, notice, special termination, statute and contracting party, no person"),
 	"care_contract.contract_version_services":               parent("care_contract.contract_versions"),

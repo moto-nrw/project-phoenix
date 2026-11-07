@@ -4,21 +4,31 @@ package common
 const CodeCareContractApplicationNotFound = "care_contract.application_not_found"
 const CodeCareContractContractInputInvalid = "care_contract.contract_input_invalid"
 const CodeCareContractContractNotDraft = "care_contract.contract_not_draft"
+const CodeCareContractContractNotEndable = "care_contract.contract_not_endable"
 const CodeCareContractContractNotFound = "care_contract.contract_not_found"
 const CodeCareContractLetterheadTooLong = "care_contract.letterhead_too_long"
+const CodeCareContractNoticeTemplateMissing = "care_contract.notice_template_missing"
 const CodeCareContractOfferingNotFound = "care_contract.offering_not_found"
+const CodeCareContractRecipientMissing = "care_contract.recipient_missing"
 const CodeCareContractSchoolOutsideTraeger = "care_contract.school_outside_traeger"
+const CodeCareContractSpecialTerminationClosed = "care_contract.special_termination_closed"
 const CodeCareContractTemplateInvalid = "care_contract.template_invalid"
+const CodeCareContractWithdrawalClosed = "care_contract.withdrawal_closed"
 
 var errorCodeClassesCareContract = []errorCodeClass{
 	{CodeCareContractApplicationNotFound, "business_rejection"},
 	{CodeCareContractContractInputInvalid, "input"},
 	{CodeCareContractContractNotDraft, "business_rejection"},
+	{CodeCareContractContractNotEndable, "business_rejection"},
 	{CodeCareContractContractNotFound, "business_rejection"},
 	{CodeCareContractLetterheadTooLong, "business_rejection"},
+	{CodeCareContractNoticeTemplateMissing, "business_rejection"},
 	{CodeCareContractOfferingNotFound, "business_rejection"},
+	{CodeCareContractRecipientMissing, "business_rejection"},
 	{CodeCareContractSchoolOutsideTraeger, "permission"},
+	{CodeCareContractSpecialTerminationClosed, "business_rejection"},
 	{CodeCareContractTemplateInvalid, "input"},
+	{CodeCareContractWithdrawalClosed, "business_rejection"},
 }
 
 func init() {

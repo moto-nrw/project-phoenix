@@ -53,3 +53,23 @@ func careContractMailRenderer(render carecontract.ContractMailRenderer, defaultF
 		}, nil
 	})
 }
+
+// careContractNoticeMailRenderer binds the confirmation of a withdrawal or
+// termination (#4682) to Delivery's worker: a mail of the Träger whose body
+// is the confirmation text as stored with the declaration.
+func careContractNoticeMailRenderer(render carecontract.NoticeMailRenderer, defaultFrom email.Email) deliveryCompose.MailRenderer {
+	return deliveryCompose.MailRendererFunc(func(ctx context.Context, intent *deliveryCompose.MailIntent) (*email.Message, error) {
+		mail, err := render(ctx, intent.PayloadJSON)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", intent.Kind, err)
+		}
+		return &email.Message{
+			From:    email.NewEmail(deliveryModule.SchoolSender(mail.SenderName, defaultFrom.Name, defaultFrom.Address)),
+			Subject: mail.Subject, Template: mail.Template,
+			Content: map[string]any{
+				"GuardianName": mail.GuardianName, "SchoolName": mail.TraegerName,
+				"Withdrawal": mail.Withdrawal, "Paragraphs": mail.Paragraphs,
+			},
+		}, nil
+	})
+}

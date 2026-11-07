@@ -2,9 +2,14 @@
   "application_not_found": "Diese Anmeldung gibt es nicht mehr oder sie ist nicht angenommen. Bitte laden Sie die Seite neu.",
   "contract_input_invalid": "Bitte wählen Sie mindestens einen und höchstens 200 Einträge aus.",
   "contract_not_draft": "Der Vertrag ist schon versendet. Er lässt sich nicht mehr verwerfen.",
+  "contract_not_endable": "Dieser Vertrag ist schon gekündigt oder widerrufen oder noch nicht abgeschlossen. Bitte laden Sie die Seite neu.",
   "contract_not_found": "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
   "letterhead_too_long": "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
+  "notice_template_missing": "Der Träger hat noch keinen Text für die Bestätigung. Bitte melden Sie sich beim Träger.",
   "offering_not_found": "Dieses Angebot gibt es an der Schule nicht mehr. Bitte laden Sie die Seite neu.",
+  "recipient_missing": "Für diesen Vertrag fehlt eine E-Mail-Adresse. Ohne Adresse kann keine Bestätigung verschickt werden.",
   "school_outside_traeger": "Diese Schule gehört nicht zu Ihrem Träger.",
-  "template_invalid": "Bitte prüfen Sie die markierten Felder."
+  "special_termination_closed": "Dieser Vertrag sieht keine Sonderkündigung vor. Bitte wählen Sie die normale Kündigung.",
+  "template_invalid": "Bitte prüfen Sie die markierten Felder.",
+  "withdrawal_closed": "Die Widerrufsfrist ist vorbei. Sie können den Vertrag noch kündigen."
 }

@@ -59,6 +59,9 @@ type NewContract struct {
 	StudentID   *int64
 	Version     carecontract.Version
 	Party       NewParty
+	// EarlyStart is the parents' express wish in the application that care
+	// begins within the withdrawal period (§ 356 Abs. 4 BGB, #4682).
+	EarlyStart bool
 }
 
 // NewParty is the party of a new draft.
@@ -84,6 +87,9 @@ type ContractRecord struct {
 	// (#4681). Once a later version holds, the current version has no PDF of
 	// its own; a send again or an address correction delivers this one.
 	SentDocument *SentDocument
+	// EarlyStart tells that the parents asked for care within the
+	// withdrawal period (#4682); the PDF says so.
+	EarlyStart bool
 }
 
 // SentDocument is a stored PDF of a contract and the version it shows.

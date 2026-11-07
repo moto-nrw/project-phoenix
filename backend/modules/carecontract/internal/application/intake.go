@@ -585,13 +585,14 @@ func (in *Intake) templateIndex(ctx context.Context, organizationID int64) (temp
 }
 
 func offeringTemplate(school carecontract.School, offering carecontract.Offering, template *carecontract.Template) carecontract.OfferingTemplate {
-	text := ""
+	text, withdrawal, earlyStart := "", "", ""
 	if template != nil {
 		text = acceptanceText(template.TemplateInput)
+		withdrawal, earlyStart = withdrawalTexts(template.TemplateInput)
 	}
 	return carecontract.OfferingTemplate{
-		AcceptanceText: text,
-		SchoolID:       school.ID, SchoolName: school.Name, OfferingID: offering.ID, OfferingName: offering.Name,
+		AcceptanceText: text, WithdrawalText: withdrawal, EarlyStartText: earlyStart,
+		SchoolID: school.ID, SchoolName: school.Name, OfferingID: offering.ID, OfferingName: offering.Name,
 		PhaseName: offering.PhaseName, PriceCents: offering.PriceCents, Active: offering.Active, Template: template,
 	}
 }

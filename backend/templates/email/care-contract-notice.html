@@ -1,0 +1,19 @@
+{{define "care-contract-notice.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>{{if .Withdrawal}}Bestätigung Ihres Widerrufs{{else}}Bestätigung Ihrer Kündigung{{end}}</h1>
+
+    <p>Guten Tag{{if .GuardianName}} {{.GuardianName}}{{end}},</p>
+
+    {{range .Paragraphs}}
+    <p style="white-space: pre-line;">{{.}}</p>
+    {{end}}
+
+    <p>Haben Sie die moto Eltern-App? Dann finden Sie diese Bestätigung auch dort beim Vertrag unter „Dokumente“.</p>
+
+    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

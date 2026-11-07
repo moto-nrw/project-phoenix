@@ -10,6 +10,49 @@ import (
 // (carecontract.ModeSendLater, carecontract.ModeOnAcceptance).
 func init() {
 	registerDefinitions(careContractDefinitions)
+	registerDefinitions(careContractNoticeDefinitions)
+}
+
+// noticeConfirmationPattern admits the placeholders the Betreuungsvertrag
+// fills in (carecontract application, notice_text.go) and nothing else in
+// curly braces.
+var noticeConfirmationPattern = `^(?:[^{}]|\{(?:Kind|Module|Schule|Vertragsende|Eingang|Träger)\})+$`
+
+// noticeConfirmationMaxLength keeps the confirmation a short letter; the
+// table refuses more than 8000 characters.
+var noticeConfirmationMaxLength = 4000
+
+// The confirmations of a termination and a withdrawal (#4682). The parents
+// get them by mail and see them in the parents portal; the text is kept
+// with the declaration as sent.
+var careContractNoticeDefinitions = []config.Definition{
+	{
+		Key:             config.KeyCareContractTerminationConfirmation,
+		Levels:          config.LevelTraeger,
+		Label:           "Bestätigung einer Kündigung",
+		Description:     "Diesen Text bekommen Eltern per E-Mail, wenn sie einen Betreuungsvertrag kündigen. Er steht auch in der Eltern-App. Erlaubte Platzhalter: {Kind}, {Module}, {Schule}, {Vertragsende}, {Eingang}, {Träger}.",
+		Type:            config.FieldTextarea,
+		Default:         "wir bestätigen Ihre Kündigung des Betreuungsvertrags für {Kind} ({Module}, {Schule}).\n\nIhre Kündigung ist am {Eingang} bei uns eingegangen. Der Vertrag endet mit Ablauf des {Vertragsende}. Bis dahin findet die Betreuung wie gebucht statt.\n\nMit freundlichen Grüßen\n{Träger}",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "vertraege",
+		Category:        "vertrag-bestaetigungen",
+		SortOrder:       10,
+		Validation:      &config.ValidationRules{Required: true, Pattern: &noticeConfirmationPattern, MaxLength: &noticeConfirmationMaxLength},
+	}, {
+		Key:             config.KeyCareContractWithdrawalConfirmation,
+		Levels:          config.LevelTraeger,
+		Label:           "Bestätigung eines Widerrufs",
+		Description:     "Diesen Text bekommen Eltern per E-Mail, wenn sie einen Betreuungsvertrag widerrufen. Er steht auch in der Eltern-App. Erlaubte Platzhalter: {Kind}, {Module}, {Schule}, {Eingang}, {Träger}.",
+		Type:            config.FieldTextarea,
+		Default:         "wir bestätigen Ihren Widerruf des Betreuungsvertrags für {Kind} ({Module}, {Schule}).\n\nIhr Widerruf ist am {Eingang} bei uns eingegangen. Der Vertrag ist damit aufgehoben. Haben Sie schon etwas bezahlt, erstatten wir es Ihnen innerhalb von 14 Tagen.\n\nMit freundlichen Grüßen\n{Träger}",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "vertraege",
+		Category:        "vertrag-bestaetigungen",
+		SortOrder:       20,
+		Validation:      &config.ValidationRules{Required: true, Pattern: &noticeConfirmationPattern, MaxLength: &noticeConfirmationMaxLength},
+	},
 }
 
 var careContractDefinitions = []config.Definition{

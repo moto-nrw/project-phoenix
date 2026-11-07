@@ -24,7 +24,7 @@ import (
 // The states of a contract (ADR 0088 section 2). The Träger-Büro reaches
 // StatusDraft and StatusSent; the conclusion (conclusion.go: at the
 // acceptance, #4680, or with the signature, #4679) reaches StatusActive;
-// termination (#4682) moves it further.
+// a withdrawal or termination (#4682, notice.go) moves it further.
 const (
 	StatusDraft  = "entwurf"
 	StatusSent   = "versendet"
@@ -32,6 +32,8 @@ const (
 	StatusActive = "aktiv"
 	StatusEnded  = "beendet"
 )
+
+// StatusTerminated and StatusWithdrawn (notice.go, #4682) follow aktiv.
 
 // The states of a version (ADR 0088 section 2). A draft's version waits as
 // VersionRequested until a later step makes it effective.
@@ -152,6 +154,11 @@ type OfferingTemplate struct {
 	// AcceptanceText is the complete saved conditions text for the enrollment
 	// form. It is empty without a template or an explicit contract partner.
 	AcceptanceText string `json:"acceptance_text"`
+	// WithdrawalText and EarlyStartText are the withdrawal notice and the
+	// block for an early start the school adds to the enrollment form
+	// (#4682); empty like AcceptanceText.
+	WithdrawalText string `json:"withdrawal_text"`
+	EarlyStartText string `json:"early_start_text"`
 }
 
 // CandidateKey names one accepted application child.
@@ -253,6 +260,9 @@ type ContractSummary struct {
 	SentAt         *time.Time    `json:"sent_at"`
 	// Concluded is how and when the contract was concluded; nil before.
 	Concluded *Concluded `json:"concluded"`
+	// EndsOn is the last day of a terminated contract (#4682); nil
+	// otherwise.
+	EndsOn *calendar.Date `json:"ends_on"`
 }
 
 // ContractList is the filtered list with the count of every status over all

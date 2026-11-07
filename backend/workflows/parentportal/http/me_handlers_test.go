@@ -33,6 +33,8 @@ type fakeParentService struct {
 	gotConferenceBook       []bool
 	documents               []parentService.BillingDocument
 	documentFile            parentService.BillingDocumentFile
+	noticeOptions           parentService.ContractNoticeOptions
+	gotNoticeInput          parentService.ContractNoticeInput
 	sharedDocuments         []parentService.SharedDocument
 	documentsErr            error
 	gotDocumentsAccount     int64

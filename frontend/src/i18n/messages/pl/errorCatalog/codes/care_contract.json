@@ -2,9 +2,14 @@
   "application_not_found": "This application no longer exists or is not accepted. Please reload the page.",
   "contract_input_invalid": "Please select at least one and at most 200 entries.",
   "contract_not_draft": "The contract has already been sent. It can no longer be discarded.",
+  "contract_not_endable": "Ta umowa została już wypowiedziana lub odwołana albo nie została jeszcze zawarta. Proszę odświeżyć stronę.",
   "contract_not_found": "This contract does not exist. Please open it from “Contracts”.",
   "letterhead_too_long": "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+  "notice_template_missing": "Organizator nie ma jeszcze tekstu potwierdzenia. Proszę skontaktować się z organizatorem.",
   "offering_not_found": "This offering no longer exists at the school. Please reload the page.",
+  "recipient_missing": "Ta umowa nie ma adresu e-mail. Bez adresu nie można wysłać potwierdzenia.",
   "school_outside_traeger": "This school does not belong to your provider.",
-  "template_invalid": "Please check the marked fields."
+  "special_termination_closed": "Ta umowa nie przewiduje wypowiedzenia nadzwyczajnego. Proszę wybrać zwykłe wypowiedzenie.",
+  "template_invalid": "Please check the marked fields.",
+  "withdrawal_closed": "Termin na odstąpienie od umowy minął. Nadal można wypowiedzieć umowę."
 }
