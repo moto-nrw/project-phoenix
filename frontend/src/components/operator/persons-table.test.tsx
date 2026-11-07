@@ -116,7 +116,8 @@ describe("PersonsTable", () => {
 
     render(<PersonsTable persons={[person]} onDelete={onDelete} />);
 
-    fireEvent.click(screen.getByText("Löschen"));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für Anna/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
 
     expect(onDelete).toHaveBeenCalledTimes(1);
     expect(onDelete).toHaveBeenCalledWith(person);
@@ -182,21 +183,6 @@ describe("PersonsTable", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /E-Mail/ }));
     expect(screen.getAllByRole("row").length).toBe(4);
-  });
-
-  it("does not bubble the row click when the delete button area is clicked (covers stopPropagation)", () => {
-    const onDelete = vi.fn();
-    const person = makePerson();
-    render(<PersonsTable persons={[person]} onDelete={onDelete} />);
-
-    const buttonContainer = screen.getByText("Löschen").parentElement;
-    expect(buttonContainer).not.toBeNull();
-    if (buttonContainer) {
-      // keydown on the wrapper triggers the role="presentation" handler
-      fireEvent.keyDown(buttonContainer, { key: "Enter" });
-    }
-    // The keydown handler stops propagation but does not call onDelete.
-    expect(onDelete).not.toHaveBeenCalled();
   });
 
   it("sorts persons by last name + first name", () => {

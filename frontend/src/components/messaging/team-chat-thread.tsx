@@ -12,19 +12,21 @@ import {
   useRef,
   useState,
   type ReactNode,
-  type RefObject,
 } from "react";
 import { useSWRAuth, useSWRSeedFrom } from "~/lib/swr";
 import { TEAM_CHAT_SEND_REFUSALS } from "~/lib/message-send-refusals";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open";
 import { MessagesSquare } from "lucide-react";
-import { Skeleton } from "~/components/ui/skeleton";
 import { Alert } from "~/components/ui/alert";
-import { BackLink } from "~/components/ui/back-link";
+import { renderThreadFrame } from "~/components/messaging/team-chat-frames";
+import type {
+  TeamChatThreadBack,
+  TeamChatThreadParts,
+} from "~/components/messaging/team-chat-frame-parts";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
-import { formErrorMessage, type FormError } from "~/components/ui/form-error";
+import { formErrorMessage } from "~/components/ui/form-error";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -57,66 +59,10 @@ const DISABLED_TITLE = "Der Team-Chat ist ausgeschaltet";
 const DISABLED_DESCRIPTION =
   "Ihre Schule hat den Team-Chat ausgeschaltet. Wenden Sie sich an die OGS-Leitung, wenn Sie ihn nutzen möchten.";
 
-/**
- * Rückweg zum Posteingang. Die Hülle setzt ihn über den Titel der
- * Kopfkarte; `href` ist der Pfad so, wie die Hülle ihn erwartet (das
- * OGS-Portal ohne Schulpräfix, das Schul-Portal fertig aufgelöst).
- */
-export interface TeamChatThreadBack {
-  readonly href: string;
-  readonly label: string;
-}
-
-/**
- * Was die Hülle eines Portals vom Chat-Fenster bekommt. Wie beim Posteingang
- * ist die Logik eine; das OGS-Portal setzt `TenantPage` darum, das
- * Schul-Portal seine eigene Fläche.
- */
-export interface TeamChatThreadParts {
-  /** Name des Gegenübers, sobald geladen; davor „Unterhaltung". */
-  readonly title: string;
-  readonly previewTitle?: string;
-  /** Rollenzusatz zum Namen (z. B. „Lehrkraft"); `null` ohne Zusatz. */
-  readonly roleLabel: string | null;
-  /** Statuszeile aus echten Zahlen: Nachrichten und wer sie sieht. */
-  readonly stats: string;
-  /** Eine Zeile unter dem Titel: wer die Nachrichten sieht. */
-  readonly audience: string;
-  /**
-   * Kopfaktion; bei einer Gruppe (#4776) der Wechsel zwischen Verlauf und
-   * Mitgliedern, sonst `null`.
-   */
-  readonly actions: ReactNode | null;
-  readonly statsLoading: boolean;
-  /**
-   * `ready`: Verlauf (oder sein Skelett) steht in `body`.
-   * `disabled`: die Schule hat den Chat aus — `empty` beschreibt es.
-   * `error`: der Verlauf ist nicht ladbar oder es gibt ihn nicht —
-   * `error` sagt, was.
-   */
-  readonly state: "ready" | "disabled" | "error";
-  readonly empty: {
-    readonly icon: ReactNode;
-    readonly title: string;
-    readonly description: string;
-  };
-  /**
-   * Ladefehler über den gemeinsamen Anzeigeweg (#2517), mit Wiederholen und
-   * Vorgangskennung; ein Satz, wenn es die Unterhaltung nicht gibt.
-   */
-  readonly error: FormError | string | null;
-  /** Skelett statt Verlauf. */
-  readonly loading: boolean;
-  /** Rückweg zum Posteingang, unverändert durchgereicht. */
-  readonly back: TeamChatThreadBack;
-  /**
-   * Der Container, der die Viewport-Sperre trägt; die Hülle hängt ihn an das
-   * Element, das Verlauf und Composer umschließt.
-   */
-  readonly containerRef: RefObject<HTMLDivElement | null>;
-  /** Verlauf (oder Skelett), Sendefehler und Composer. */
-  readonly body: ReactNode;
-}
+export type {
+  TeamChatThreadBack,
+  TeamChatThreadParts,
+} from "~/components/messaging/team-chat-frame-parts";
 
 /**
  * One conversation, shared by both portals (#2208). The back target is
@@ -128,17 +74,14 @@ export function TeamChatThread({
   threadID,
   myAccountId,
   back,
-  frame,
+  frame = renderThreadFrame,
 }: {
   readonly portal: TeamChatPortal;
   readonly threadID: string;
   /** The viewer's account id — decides which bubbles are "mine". */
   readonly myAccountId: string;
   readonly back: TeamChatThreadBack;
-  /**
-   * Hülle des Portals. Ohne Angabe die Fläche des Schul-Portals; das
-   * OGS-Portal reicht hier `TenantPage` herein.
-   */
+  /** Das Gerüst um die Teile; nur Tests reichen ein eigenes herein. */
   readonly frame?: (parts: TeamChatThreadParts) => ReactNode;
 }) {
   const { api } = portal;
@@ -410,8 +353,8 @@ export function TeamChatThread({
   const state: TeamChatThreadParts["state"] =
     showSkeleton || thread ? "ready" : chatDisabled ? "disabled" : "error";
 
-  // Statuszeile unter dem Titel: die Zahl der geladenen Nachrichten dieser
-  // Unterhaltung und wer sie sehen kann.
+  // Statuszeile unter dem Titel: die Zahl der geladenen Nachrichten, bei
+  // Gruppen zusätzlich die Mitgliederzahl.
   // Gezählt wird, was angekommen ist, nicht die Blase auf dem Weg (#5011).
   const sentCount = confirmedThread?.messages.length ?? 0;
   const messageCount = `${sentCount} ${
@@ -419,7 +362,7 @@ export function TeamChatThread({
   }`;
   const stats = group
     ? `${messageCount} · ${members.length} ${members.length === 1 ? "Mitglied" : "Mitglieder"}`
-    : `${messageCount} · nur Sie beide sehen sie`;
+    : messageCount;
   const audience = group
     ? "Nur die Mitglieder sehen diese Nachrichten. Wer neu dazukommt, sieht sie ab dem Beitritt."
     : "Nur Sie beide sehen diese Nachrichten.";
@@ -556,78 +499,7 @@ export function TeamChatThread({
     body,
   };
 
-  return frame ? frame(parts) : <DefaultThreadFrame parts={parts} />;
-}
-
-/** Die Hülle des Schul-Portals: eine Fläche, der Rückweg über dem Titel. */
-function DefaultThreadFrame({
-  parts,
-}: {
-  readonly parts: TeamChatThreadParts;
-}) {
-  const {
-    title,
-    roleLabel,
-    previewTitle,
-    state,
-    empty,
-    error,
-    loading,
-    back,
-    containerRef,
-    body,
-    audience,
-    actions,
-  } = parts;
-
-  if (state !== "ready") {
-    return (
-      <div className="-mt-1.5 w-full">
-        <BackLink href={back.href} label={back.label} className="mb-3" />
-        {state === "disabled" ? (
-          <EmptyState
-            icon={empty.icon}
-            title={empty.title}
-            description={empty.description}
-          />
-        ) : (
-          <LoadErrorAlert error={error} />
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      className="-mt-1.5 flex min-h-[20rem] w-full flex-col overflow-hidden"
-    >
-      <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 sm:p-6">
-        <BackLink href={back.href} label={back.label} className="mb-2" />
-        {(!loading || previewTitle) && (
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
-                {title}
-                {roleLabel && (
-                  <span className="ml-2 text-sm font-normal text-gray-500">
-                    {roleLabel}
-                  </span>
-                )}
-              </h1>
-              {loading ? (
-                <Skeleton className="mt-0.5 h-5 w-56" />
-              ) : (
-                <p className="mt-0.5 text-sm text-gray-500">{audience}</p>
-              )}
-            </div>
-            {actions}
-          </div>
-        )}
-        {body}
-      </div>
-    </div>
-  );
+  return frame(parts);
 }
 
 /** The sent message once, also when a refresh already brought it. */

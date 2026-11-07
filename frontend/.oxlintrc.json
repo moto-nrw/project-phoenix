@@ -64,6 +64,7 @@
     "ui-kit/no-raw-table": "error",
     "ui-kit/no-em-dash-empty-value": "error",
     "ui-kit/no-kit-domain-import": "error",
+    "ui-kit/no-radix-outside-kit": "error",
     "ui-kit/no-important-override": "error",
     "ui-kit/no-section-card-bleed": "error",
     "ui-kit/require-checkbox-label": "error",

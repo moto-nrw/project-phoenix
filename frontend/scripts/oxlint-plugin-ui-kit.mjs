@@ -94,6 +94,9 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //   ui-kit/no-raw-table             — no <table> outside components/ui; use
 //                                     DataTable (#5600)
 //   ui-kit/no-em-dash-empty-value   — an empty value is "–", never "—" (#5600)
+//   ui-kit/no-radix-outside-kit     — @radix-ui is an implementation detail of
+//                                     components/ui; everyone else imports the
+//                                     kit component. Hard-zero (#5604).
 //   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
 //                                     outside RAW_INPUT_KIT_PRIMITIVES; use Input,
 //                                     Textarea, Checkbox, Radio, TimeField,
@@ -1227,11 +1230,10 @@ const noTinyText = makeClassStringRule({
 });
 // ui-kit/no-tenant-kicker — die blaue Mini-Überschrift über einer Überschrift
 // ist im Tenant-Portal abgeschafft (sie trug sechs verschiedene Bedeutungen im
-// selben Slot). Kein Baseline-Eintrag: der Bestand ist in derselben PR auf
-// null gebracht. Eltern-, Schul- und Operator-Portal sind nicht Teil dieser
-// Umstellung und bekommen ihren eigenen Durchgang.
-const OTHER_PORTALS_RE =
-  /(^|\/)(components\/parent|app\/parents|components\/school|app\/school|components\/class-day|components\/operator|app\/operator)\//;
+// selben Slot). Kein Baseline-Eintrag: der Bestand ist auf null gebracht. Das
+// Schul- und das Operator-Portal gehören seit #5604 dazu; nur das Elternportal
+// behält seinen Kicker (ADR 0149).
+const OTHER_PORTALS_RE = /(^|\/)(components\/parent|app\/parents)\//;
 
 const noTenantKicker = {
   meta: {
@@ -1263,11 +1265,12 @@ const noTenantKicker = {
 // einer eigenen Klassenkette. Für jede Form gibt es ein Kit-Bauteil:
 // SectionCard (Fläche mit oder ohne Kopf), TileCard (anklickbare Kachel),
 // StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
-// greift nur in Seitendateien des Tenant- und des Träger-Portals (#5146) —
+// greift in Seitendateien des Tenant-, Träger-, Schul- und Operator-Portals
+// (#5146, #5604) —
 // Kit- und Komponentendateien dürfen die Fläche definieren, sie sind die
 // Quelle.
 const TENANT_PAGE_FILE_RE =
-  /app\/(?:\[tenant\]\/\(protected\)|traeger)\/(?:.*\/)?(page|loading)\.tsx$/;
+  /app\/(?:\[tenant\]\/\(protected\)|traeger|school|operator)\/(?:.*\/)?(page|loading)\.tsx$/;
 // Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
 // Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
 // (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.
@@ -1626,6 +1629,47 @@ const requireCheckboxLabel = {
           return;
         }
         context.report({ node, messageId: "missingLabel" });
+      },
+    };
+  },
+};
+
+// --- ui-kit/no-radix-outside-kit ----------------------------------------------
+//
+// Radix is what the kit builds on, not a second kit. A portal page that reaches
+// for a primitive directly bypasses the kit's styling and behaviour next to the
+// kit parts it renders anyway (`TabsPrimitive.Content` beside `Tabs`, #5604).
+
+const noRadixOutsideKit = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "Only files under components/ui import from @radix-ui.",
+    },
+    messages: {
+      radix:
+        "'{{source}}' nur im Kit importieren. Außerhalb von components/ui den Kit-Baustein nehmen (Reiter: Tabs, TabsContent aus ~/components/ui/tabs), siehe .claude/rules/frontend-ui-kit.md.",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
+
+    const checkSource = (node, source) => {
+      if (typeof source !== "string" || !source.startsWith("@radix-ui/")) {
+        return;
+      }
+      context.report({ node, messageId: "radix", data: { source } });
+    };
+    const checkDeclaration = (node) => checkSource(node, node.source?.value);
+
+    return {
+      ImportDeclaration: checkDeclaration,
+      ExportNamedDeclaration: checkDeclaration,
+      ExportAllDeclaration: checkDeclaration,
+      ImportExpression(node) {
+        checkSource(node, node.source?.value);
       },
     };
   },
@@ -3710,6 +3754,7 @@ export default {
     "no-status-dot-outside-plans": noStatusDotOutsidePlans,
     "no-shadcn-tokens": noShadcnTokens,
     "no-shadow-kit-name": noShadowKitName,
+    "no-radix-outside-kit": noRadixOutsideKit,
     "no-tenant-kicker": noTenantKicker,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
     "no-tiny-text": noTinyText,

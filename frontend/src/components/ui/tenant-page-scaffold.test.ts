@@ -5,8 +5,8 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 // Gate für das Seitengerüst (siehe .claude/rules/frontend-ui-kit.md und
-// components/ui/TENANT-PAGE-SPEC.md): jede Tenant-Seite rendert `TenantPage`
-// und baut kein eigenes Layout. Der Test liest Quelltext, nicht das DOM — er
+// components/ui/TENANT-PAGE-SPEC.md): jede Seite des Tenant-, Träger-, Schul-
+// und Operator-Portals rendert `TenantPage` und baut kein eigenes Layout. Der Test liest Quelltext, nicht das DOM — er
 // hält die Konvention auch für Seiten fest, die noch keinen eigenen Test haben.
 
 const SRC_DIR = path.join(
@@ -248,9 +248,54 @@ const traegerPages = collectPageFiles(TRAEGER_DIR)
   }))
   .filter((page) => !TRAEGER_PUBLIC.has(pageId(page)));
 
+/**
+ * Schul- und Operator-Portal rendern seit #5604 dasselbe Gerüst. Ausgenommen
+ * sind auch hier nur die Seiten vor der Anmeldung; sie haben keine Portalhülle.
+ */
+function portalPages(portal: string, publicPages: ReadonlySet<string>) {
+  const directory = path.join(SRC_DIR, "app", portal);
+  return collectPageFiles(directory)
+    .map((file) => ({
+      id: path.relative(directory, file),
+      file,
+      source: readFileSync(file, "utf8"),
+    }))
+    .filter((page) => !publicPages.has(pageId(page)));
+}
+
+const schoolPages = portalPages(
+  "school",
+  new Set(["login/page.tsx", "invite/page.tsx", "reset-password/page.tsx"]),
+);
+const operatorPages = portalPages(
+  "operator",
+  new Set(["login/page.tsx", "invite/page.tsx", "email-confirm/page.tsx"]),
+);
+
+/**
+ * Schulseiten, die nur eine View rendern, tragen das Gerüst in dieser View.
+ * Der Markup-Filter unten sieht sie nicht; deshalb stehen sie hier einzeln.
+ */
+const SCHOOL_VIEWS = [
+  "components/class-day/class-day-overview.tsx",
+  "components/class-day/class-day-class.tsx",
+  "components/school/supervisions/supervisions-view.tsx",
+  "components/messaging/team-chat-frames.tsx",
+];
+
+describe("Views des Schul-Portals", () => {
+  it.each(SCHOOL_VIEWS)("%s rendert TenantPage", (file) => {
+    const source = readFileSync(path.join(SRC_DIR, file), "utf8");
+    expect(source).toMatch(/<TenantPage\b/);
+    expect(source).not.toMatch(/<h1\b/);
+  });
+});
+
 describe.each([
   { portal: "Tenant-Portals", pages, minimum: 51 },
   { portal: "Träger-Portals", pages: traegerPages, minimum: 13 },
+  { portal: "Schul-Portals", pages: schoolPages, minimum: 13 },
+  { portal: "Operator-Portals", pages: operatorPages, minimum: 16 },
 ])("Seitengerüst des $portal", ({ pages, minimum }) => {
   it("findet Seiten zum Prüfen", () => {
     expect(pages.length).toBeGreaterThanOrEqual(minimum);
@@ -638,7 +683,6 @@ const LOADING_ANNOUNCEMENT_NAMES = new Set([
 const LOADING_ANNOUNCEMENT_ELEMENTS = new Map([
   ["Loading", "message"],
   ["SkeletonRegion", "label"],
-  ["ListPageSkeleton", "label"],
 ]);
 
 function isLoadingAnnouncement(owner: ts.Node): boolean {

@@ -8,7 +8,6 @@ import {
   useMemo,
   useState,
 } from "react";
-import { BackLink } from "~/components/ui/back-link";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { createLogger } from "~/lib/logger";
@@ -29,9 +28,9 @@ import {
 } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { Skeleton } from "~/components/ui/skeleton";
 import { useBookingAuthorityImpact } from "./use-booking-authority-impact";
-import { ConceptPageHeader } from "~/components/ui/concept-page-header";
+import { EmptyState } from "~/components/ui/empty-state";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { settingsConcept } from "~/lib/concepts/settings";
@@ -195,151 +194,138 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
     bookingAuthority.state.impact?.blockingChildren ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-4xl min-w-0 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mb-6">
-        <BackLink href={backHref} label={backLabel} className="mb-2" />
-        <ConceptPageHeader
-          title={`Einstellungen${schoolName ? ` · ${schoolName}` : ""}`}
-          concept={settingsConcept}
-          subtitle="Sie bearbeiten diese Einstellungen als Operator stellvertretend für die Schule."
-        />
-      </div>
-
-      <LoadErrorAlert error={schoolNameLoad.error} className="mb-4" />
-      <LoadErrorAlert error={schemaLoad.error} className="mb-4" />
-
-      {loading && (
-        <div className="space-y-6">
-          {Array.from({ length: 2 }).map((_, idx) => (
-            <div
-              key={idx}
-              className="moto-content-surface rounded-2xl border p-6"
-            >
-              <Skeleton className="mb-4 h-5 w-32" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!loading && schema && (schema.tabs?.length ?? 0) === 0 && (
-        <div className="py-8 text-center text-sm text-gray-500">
-          Keine Einstellungen für diese Schule verfügbar.
-        </div>
-      )}
-
-      {!loading &&
-        schema?.tabs?.map((tab) => (
-          <SectionCard
-            key={tab.key}
-            bare
-            className="mb-8"
-            title={TAB_LABELS[tab.key] ?? tab.label}
-            concept={TAB_CONCEPTS[tab.key] ?? settingsConcept}
-          >
-            <div className="space-y-6">
-              {tab.categories.map((category) => (
-                <SettingsCategory
-                  key={category.key}
-                  category={category}
-                  onSave={handleSave}
-                  onReset={handleReset}
-                  onBookingAuthorityEnable={bookingAuthority.request}
-                  audience="operator"
-                  revealFn={handleReveal}
-                />
-              ))}
-            </div>
-          </SectionCard>
-        ))}
-
-      <ConfirmationModal
-        isOpen={bookingAuthority.state.isOpen}
-        onClose={bookingAuthority.close}
-        onConfirm={() => void bookingAuthority.confirm()}
-        title="Buchungsmodus aktivieren?"
-        confirmText="Buchungsmodus aktivieren"
-        cancelText="Abbrechen"
-        isConfirmLoading={bookingAuthority.state.isSaving}
-        isConfirmDisabled={
-          bookingAuthority.state.isLoading ||
-          bookingAuthority.state.impact === null ||
-          bookingAuthorityBlockers.length > 0 ||
-          bookingAuthority.loadError !== null
-        }
-      >
-        <div className="space-y-4 text-sm text-gray-700">
-          <p>
-            Nach dem Aktivieren bestimmen die Buchungen, an welchen Tagen die
-            Kinder betreut werden.
-          </p>
-          {bookingAuthority.state.isLoading ? (
-            <p>Auswirkungen werden geprüft …</p>
-          ) : null}
-          <LoadErrorAlert error={bookingAuthority.loadError} />
-          <FormErrorAlert message={bookingAuthority.saveError} />
-          {bookingAuthority.state.impact &&
-          bookingAuthorityBlockers.length > 0 ? (
-            <div>
-              <p className="font-medium text-gray-900">
-                Aktivieren nicht möglich: Für {bookingAuthorityBlockers.length}
-                {bookingAuthorityBlockers.length === 1
-                  ? " Kind ist aktuell keine Betreuung gebucht."
-                  : " Kinder sind aktuell keine Betreuung gebucht."}
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5">
-                {bookingAuthorityBlockers.map((child) => (
-                  <li key={child.studentId}>
-                    {child.firstName} {child.lastName}
-                    {child.schoolClass ? " · " + child.schoolClass : ""}
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2">
-                Bitte klären Sie diese Buchungen zuerst. Das Aktivieren kann
-                nicht übersprungen werden.
-              </p>
-            </div>
-          ) : null}
-          {bookingAuthority.state.impact &&
-          bookingAuthorityBlockers.length === 0 ? (
-            <p className="font-medium text-gray-900">
-              Alle aktuell betreuten Kinder haben mindestens einen gebuchten
-              Betreuungstag.
+    <TenantPage
+      title={`Einstellungen${schoolName ? ` · ${schoolName}` : ""}`}
+      back
+      backHref={backHref}
+      backLabel={backLabel}
+      info="Sie bearbeiten diese Einstellungen als Operator stellvertretend für die Schule."
+      loading={loading}
+      loadingLabel="Einstellungen werden geladen…"
+      overlays={
+        <ConfirmationModal
+          isOpen={bookingAuthority.state.isOpen}
+          onClose={bookingAuthority.close}
+          onConfirm={() => void bookingAuthority.confirm()}
+          title="Buchungsmodus aktivieren?"
+          confirmText="Buchungsmodus aktivieren"
+          cancelText="Abbrechen"
+          isConfirmLoading={bookingAuthority.state.isSaving}
+          isConfirmDisabled={
+            bookingAuthority.state.isLoading ||
+            bookingAuthority.state.impact === null ||
+            bookingAuthorityBlockers.length > 0 ||
+            bookingAuthority.loadError !== null
+          }
+        >
+          <div className="space-y-4 text-sm text-gray-700">
+            <p>
+              Nach dem Aktivieren bestimmen die Buchungen, an welchen Tagen die
+              Kinder betreut werden.
             </p>
-          ) : null}
-          {bookingAuthority.state.impact ? (
-            <div>
+            {bookingAuthority.state.isLoading ? (
+              <p>Auswirkungen werden geprüft …</p>
+            ) : null}
+            <LoadErrorAlert error={bookingAuthority.loadError} />
+            <FormErrorAlert message={bookingAuthority.saveError} />
+            {bookingAuthority.state.impact &&
+            bookingAuthorityBlockers.length > 0 ? (
+              <div>
+                <p className="font-medium text-gray-900">
+                  Aktivieren nicht möglich: Für{" "}
+                  {bookingAuthorityBlockers.length}
+                  {bookingAuthorityBlockers.length === 1
+                    ? " Kind ist aktuell keine Betreuung gebucht."
+                    : " Kinder sind aktuell keine Betreuung gebucht."}
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {bookingAuthorityBlockers.map((child) => (
+                    <li key={child.studentId}>
+                      {child.firstName} {child.lastName}
+                      {child.schoolClass ? " · " + child.schoolClass : ""}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2">
+                  Bitte klären Sie diese Buchungen zuerst. Das Aktivieren kann
+                  nicht übersprungen werden.
+                </p>
+              </div>
+            ) : null}
+            {bookingAuthority.state.impact &&
+            bookingAuthorityBlockers.length === 0 ? (
               <p className="font-medium text-gray-900">
-                Geplante Abschlüsse:{" "}
-                {bookingAuthority.state.impact.plannedCompletions.length}
+                Alle aktuell betreuten Kinder haben mindestens einen gebuchten
+                Betreuungstag.
               </p>
-              {bookingAuthority.state.impact.plannedCompletions.length === 0 ? (
-                <p className="mt-1">Es werden keine Abschlüsse geplant.</p>
-              ) : (
-                <>
-                  <p className="mt-1">
-                    moto legt diese Abschlüsse sofort an. Die Kinder bleiben bis
-                    zum letzten gebuchten Betreuungstag in den Arbeitslisten.
-                  </p>
-                  <ul className="mt-2 list-disc space-y-1 pl-5">
-                    {bookingAuthority.state.impact.plannedCompletions.map(
-                      (child) => (
-                        <li key={child.studentId}>
-                          {child.firstName} {child.lastName}
-                          {child.firstBookinglessDay
-                            ? " · ab " + formatDate(child.firstBookinglessDay)
-                            : ""}
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                </>
-              )}
-            </div>
-          ) : null}
-        </div>
-      </ConfirmationModal>
-    </div>
+            ) : null}
+            {bookingAuthority.state.impact ? (
+              <div>
+                <p className="font-medium text-gray-900">
+                  Geplante Abschlüsse:{" "}
+                  {bookingAuthority.state.impact.plannedCompletions.length}
+                </p>
+                {bookingAuthority.state.impact.plannedCompletions.length ===
+                0 ? (
+                  <p className="mt-1">Es werden keine Abschlüsse geplant.</p>
+                ) : (
+                  <>
+                    <p className="mt-1">
+                      moto legt diese Abschlüsse sofort an. Die Kinder bleiben
+                      bis zum letzten gebuchten Betreuungstag in den
+                      Arbeitslisten.
+                    </p>
+                    <ul className="mt-2 list-disc space-y-1 pl-5">
+                      {bookingAuthority.state.impact.plannedCompletions.map(
+                        (child) => (
+                          <li key={child.studentId}>
+                            {child.firstName} {child.lastName}
+                            {child.firstBookinglessDay
+                              ? " · ab " + formatDate(child.firstBookinglessDay)
+                              : ""}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  </>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </ConfirmationModal>
+      }
+    >
+      <LoadErrorAlert error={schoolNameLoad.error} />
+      <LoadErrorAlert error={schemaLoad.error} />
+
+      {schema && (schema.tabs?.length ?? 0) === 0 ? (
+        <SectionCard>
+          <EmptyState title="Keine Einstellungen für diese Schule verfügbar." />
+        </SectionCard>
+      ) : null}
+
+      {schema?.tabs?.map((tab) => (
+        <SectionCard
+          key={tab.key}
+          bare
+          title={TAB_LABELS[tab.key] ?? tab.label}
+          concept={TAB_CONCEPTS[tab.key] ?? settingsConcept}
+        >
+          <div className="space-y-6">
+            {tab.categories.map((category) => (
+              <SettingsCategory
+                key={category.key}
+                category={category}
+                onSave={handleSave}
+                onReset={handleReset}
+                onBookingAuthorityEnable={bookingAuthority.request}
+                audience="operator"
+                revealFn={handleReveal}
+              />
+            ))}
+          </div>
+        </SectionCard>
+      ))}
+    </TenantPage>
   );
 }

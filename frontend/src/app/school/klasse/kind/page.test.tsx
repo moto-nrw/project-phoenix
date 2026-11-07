@@ -19,6 +19,7 @@ vi.mock("next-auth/react", () => ({
 }));
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => null,
+  useTenantRoutingModeSafe: () => "path",
 }));
 vi.mock("~/lib/school-url", () => ({ schoolPath: (path: string) => path }));
 vi.mock("~/lib/school-class-day-api", () => ({

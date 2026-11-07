@@ -807,8 +807,6 @@ function SectionCard(_: { kicker?: string; title: string }) {
   it.each([
     "src/components/parent/probe.tsx",
     "src/app/parents/probe/page.tsx",
-    "src/components/school/probe.tsx",
-    "src/app/operator/probe/page.tsx",
     "src/app/[tenant]/(protected)/rooms/page.test.tsx",
   ])("leaves %s alone", async (path) => {
     const result = await lintSource(kickerSource, path);
@@ -816,6 +814,17 @@ function SectionCard(_: { kicker?: string; title: string }) {
 
     expect(result.status, `${path}\n${output}`).toBe(0);
     expect(output).not.toContain("no-tenant-kicker");
+  });
+
+  it.each([
+    "src/components/school/probe.tsx",
+    "src/components/class-day/probe.tsx",
+    "src/app/operator/probe/page.tsx",
+  ])("reports %s since #5604", async (path) => {
+    const result = await lintSource(kickerSource, path);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-tenant-kicker");
   });
 });
 
@@ -1056,7 +1065,8 @@ describe.concurrent("ui-kit/no-tabs-as-value-switcher", () => {
 
   it("accepts dynamic labels with all supported content-panel imports", async () => {
     const result = await lintSource(
-      `import * as TabsPrimitive from "@radix-ui/react-tabs";
+      `// oxlint-disable-next-line ui-kit/no-radix-outside-kit -- Gegenstand dieses Tests ist die Erkennung der Reiter-Inhalte.
+      import * as TabsPrimitive from "@radix-ui/react-tabs";
       import {
         Tabs,
         TabsList,
@@ -2354,6 +2364,60 @@ describe("ui-kit/no-important-override baseline is current (#5581)", () => {
       if (previous === undefined) delete process.env.UI_KIT_IMPORTANT_OVERRIDE;
       else process.env.UI_KIT_IMPORTANT_OVERRIDE = previous;
     }
+  });
+});
+
+describe.concurrent("ui-kit/no-radix-outside-kit", () => {
+  it("reports a Radix import in a portal page", async () => {
+    const result = await lintSource(
+      `import * as TabsPrimitive from "@radix-ui/react-tabs";
+      void TabsPrimitive;
+      void import("@radix-ui/react-dialog");`,
+      "src/app/operator/organizations/probe/page.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-radix-outside-kit\)/g)).toHaveLength(
+      2,
+    );
+  });
+
+  it("allows a Radix import inside the kit", async () => {
+    const result = await lintSource(
+      `import * as TabsPrimitive from "@radix-ui/react-tabs";
+      void TabsPrimitive;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-radix-outside-kit)");
+  });
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-page-card in other portals", () => {
+  it.each(["src/app/school/probe/page.tsx", "src/app/operator/probe/page.tsx"])(
+    "reports a hand-rolled card in %s",
+    async (path) => {
+      const result = await lintSource(
+        `export default function Probe() {
+        return <div className="moto-content-surface rounded-2xl border p-5" />;
+      }`,
+        path,
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.output).toContain("ui-kit(no-hand-rolled-page-card)");
+    },
+  );
+
+  it("leaves the parent portal alone", async () => {
+    const result = await lintSource(
+      `export default function Probe() {
+        return <div className="moto-content-surface rounded-2xl border p-5" />;
+      }`,
+      "src/app/parents/probe/page.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-hand-rolled-page-card)");
   });
 });
 
