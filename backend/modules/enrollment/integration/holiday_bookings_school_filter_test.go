@@ -52,11 +52,20 @@ func TestHolidayBookingsOfAnotherSchoolStayOutBeneathRLS(t *testing.T) {
 
 	monday := calendar.NewDate(2026, 6, 8)
 	guest := testpkg.CreateTestStudent(t, db, "Gina", "Gast", "Feriengast")
+	var guestChildID int64
+	require.NoError(t, db.NewRaw(`SELECT nextval('enrollment.holiday_registration_children_id_seq')`).Scan(context.Background(), &guestChildID))
 	_, err := db.ExecContext(context.Background(), `INSERT INTO enrollment.holiday_guests
 		(tenant_id, organization_id, holiday_period_week_id, holiday_registration_child_id, student_id,
 			starts_on, ends_on, time_model_name, time_model_starts_at, time_model_ends_at)
 		VALUES (?, ?, 1, ?, ?, ?, ?, 'Ganztag', '08:00', '16:00')`,
-		schoolA, organization, guest.ID, guest.ID, monday, monday.AddDays(4))
+		schoolA, organization, guestChildID, guest.ID, monday, monday.AddDays(4))
+	require.NoError(t, err)
+	// B's own child registered for A's hosted week must not become B's own
+	// holiday Soll. This catches a missing host filter even though the wrapper
+	// still checks the home school, with RLS bypassed.
+	hostOwnChild(t, db, organization, schoolA, monday)
+	_, err = db.ExecContext(context.Background(), `UPDATE enrollment.holiday_registration_children
+  SET home_school_id = ? WHERE organization_id = ? AND home_school_id = ?`, schoolB, organization, schoolA)
 	require.NoError(t, err)
 	hostOwnChild(t, db, organization, schoolA, monday)
 	own := testpkg.CreateTestStudent(t, db, "Ole", "Eigen", "2a")
