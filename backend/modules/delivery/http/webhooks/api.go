@@ -51,7 +51,12 @@ func (rs *Resource) Router() chi.Router {
 func (rs *Resource) deliver(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxWebhookBody))
 	if err != nil {
-		rs.failed(w, r, ErrBodyTooLarge)
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			rs.failed(w, r, ErrBodyTooLarge)
+		} else {
+			rs.failed(w, r, err)
+		}
 		return
 	}
 	if err := rs.ingest.IngestEmailWebhook(r.Context(), chi.URLParam(r, "provider"), r.Header.Get, body); err != nil {
