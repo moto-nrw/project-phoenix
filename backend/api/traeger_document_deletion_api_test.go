@@ -413,3 +413,37 @@ func TestADeletedTraegerDocumentReachesNoParentThroughAStaleRelease(t *testing.T
 		return nil
 	}))
 }
+
+// TestDeletingAnotherTraegersDocumentFindsNothingBeneathRLS pins the Träger
+// filter of the deletion in the store, beneath RLS (#5993 review, as in
+// #4679): Träger B deletes a document of Träger A in its own Träger
+// transaction, running as the owner of the tables, and finds nothing; A's
+// document keeps its file, its release and no deletion mark. RLS alone would
+// hide a missing filter, so this goes red when the store locks, revokes or
+// deletes without the organization.
+func TestDeletingAnotherTraegersDocumentFindsNothingBeneathRLS(t *testing.T) {
+	t.Parallel()
+	f := newTraegerDocumentsFixture(t)
+	document := f.uploaded(t, f.office.token, "Elternbrief")
+	f.released(t, f.office.token, document.ID, map[string]any{"audience": "schools"})
+	other := f.newOffice(t, "Träger Fremd unter RLS", identityaccess.TraegerRoleAdministration)
+
+	store := organizationtenancyCompose.NewSharedTraegerDocuments()
+	unit := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db))
+	var deleted bool
+	require.NoError(t, testpkg.WithinTraeger(unit, other.organization, func(txCtx context.Context) error {
+		// As the owner of the tables, beneath RLS: only the store's own
+		// Träger filter keeps A's document out.
+		require.NoError(t, testpkg.WithoutRequestRole(txCtx))
+		var err error
+		deleted, err = store.DeleteDocument(txCtx, other.organization, 0, document.ID)
+		return err
+	}))
+	assert.False(t, deleted, "another Träger's document is not found")
+
+	trail := f.trail(t, document.ID)
+	assert.True(t, trail.HasFile, "A's file stays")
+	assert.Nil(t, trail.DeletedAt, "A's document carries no deletion mark")
+	assert.Equal(t, 1, trail.ActiveReleases, "A's release stays active")
+	assert.Zero(t, trail.RevokedByActor, "no release of A is revoked")
+}
