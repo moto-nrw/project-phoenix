@@ -1,19 +1,21 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Monatsbeitrag entsteht aus der wirksamen Vertragsfassung und den Tarifen des Trägers
 
-Vorschlag vom 07.11.2026 zu [#4684](https://github.com/moto-nrw/project-phoenix/issues/4684),
+**Status: Akzeptiert.** Freigegeben von Yannick Wenger am 07.11.2026.
+
+Entscheidung vom 07.11.2026 zu [#4684](https://github.com/moto-nrw/project-phoenix/issues/4684),
 Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
-User Stories 59 und 63. Er ist ein weiterer Bau-Schnitt des Owners
+User Stories 59 und 63. Sie ist ein weiterer Bau-Schnitt des Owners
 Elternabrechnung aus
 [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
 und überträgt den Lauf aus
 [ADR 0119](0119-abrechnungslauf-stellt-unveraenderliche-rechnungen-aus-einem-nummernkreis-aus.md)
-auf den Monat. Er liest die Vertragsfassungen aus
+auf den Monat. Sie liest die Vertragsfassungen aus
 [ADR 0153](0153-betreuungsvertrag-entsteht-im-traeger-buero-aus-der-angenommenen-anmeldung.md)
-und #4681. Er führt keinen Owner ein und hält fest, was er in den Registern
+und #4681. Sie führt keinen Owner ein und hält fest, was sie in den Registern
 ändert (ADR 0057 Punkt 5, ADR 0070).
 
 ## Entscheidung
