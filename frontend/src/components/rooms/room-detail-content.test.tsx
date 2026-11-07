@@ -681,5 +681,12 @@ describe("RoomDetailSkeleton", () => {
       history?.querySelectorAll(".moto-content-surface.rounded-xl"),
     ).toHaveLength(2);
     expect(history?.querySelectorAll(".border-t")).toHaveLength(2);
+    const students = screen
+      .getByRole("heading", { name: "Kinder im Raum" })
+      .closest("section");
+    expect(students).not.toBeNull();
+    expect(students?.querySelectorAll(".rounded-xl.border")).toHaveLength(3);
+    expect(students?.querySelectorAll(".h-8.w-16")).toHaveLength(3);
+    expect(students?.querySelector(".divide-y")).not.toBeInTheDocument();
   });
 });

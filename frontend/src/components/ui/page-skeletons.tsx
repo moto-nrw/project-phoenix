@@ -11,6 +11,7 @@
 
 import type React from "react";
 
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DataTableSkeleton } from "~/components/ui/data-table";
 import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -231,6 +232,35 @@ export function ListSkeleton({
           </div>
           <Skeleton shape="round" className="h-6 w-16 flex-shrink-0" />
         </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Getrennte Auswahlzeilen mit Kompaktkarte und Aktionsplatz. Für Listen, die
+ * aus `ChoiceTile` und einer Profil- oder Detailaktion bestehen, nicht für
+ * durchgehende Listen mit Trennlinien.
+ */
+export function ChoiceTileListSkeleton({
+  rows = 3,
+  avatar = false,
+}: Readonly<{ rows?: number; avatar?: boolean }>) {
+  return (
+    <div className="flex flex-col gap-2">
+      {Array.from({ length: rows }, (_, index) => (
+        <ChoiceTile key={index} as="div" className="gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {avatar ? (
+              <Skeleton shape="round" className="h-8 w-8 shrink-0" />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <Skeleton className={index % 2 === 0 ? "h-5 w-40" : "h-5 w-32"} />
+              <Skeleton className="mt-0.5 h-4 w-24" />
+            </div>
+          </div>
+          <Skeleton shape="control" className="h-8 w-16 shrink-0" />
+        </ChoiceTile>
       ))}
     </div>
   );

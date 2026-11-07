@@ -15,7 +15,10 @@ import { BuildingsIcon, StackSimpleIcon, TagIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type { FormError, FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { HistorySkeleton, ListSkeleton } from "~/components/ui/page-skeletons";
+import {
+  ChoiceTileListSkeleton,
+  HistorySkeleton,
+} from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
@@ -474,7 +477,7 @@ export function RoomDetailSkeleton() {
           <Skeleton shape="control" className="h-7 w-32" />
         </div>
         <div className="mt-4">
-          <ListSkeleton rows={3} avatar={photosEnabled} />
+          <ChoiceTileListSkeleton rows={3} avatar={photosEnabled} />
         </div>
       </SectionCard>
 

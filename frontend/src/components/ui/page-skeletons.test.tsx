@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { PageHeaderSkeleton } from "./page-header/PageHeaderSkeleton";
 import {
+  ChoiceTileListSkeleton,
   HistorySkeleton,
   SkeletonRegion,
   TenantPageHeaderSkeleton,
@@ -83,5 +84,16 @@ describe("HistorySkeleton", () => {
       container.querySelectorAll(".moto-content-surface.rounded-xl"),
     ).toHaveLength(2);
     expect(container.querySelectorAll(".border-t")).toHaveLength(2);
+  });
+});
+
+describe("ChoiceTileListSkeleton", () => {
+  it("mirrors separate choice rows with an action slot", () => {
+    const { container } = render(<ChoiceTileListSkeleton rows={2} avatar />);
+
+    expect(container.querySelectorAll(".rounded-xl.border")).toHaveLength(2);
+    expect(container.querySelectorAll(".h-8.w-16")).toHaveLength(2);
+    expect(container.querySelectorAll(".h-8.w-8.rounded-full")).toHaveLength(2);
+    expect(container.querySelector(".divide-y")).not.toBeInTheDocument();
   });
 });
