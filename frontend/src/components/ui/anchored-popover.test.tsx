@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -169,5 +169,163 @@ describe("AnchoredPopover", () => {
     fireEvent.resize(window);
 
     expect(link).toHaveFocus();
+  });
+
+  it("keeps header and footer outside the scrolling content", () => {
+    function Slots() {
+      const [open, setOpen] = useState(false);
+      return (
+        <AnchoredPopover
+          open={open}
+          onOpenChange={setOpen}
+          ariaLabel="Mit Kopf"
+          header={<p>Kopf</p>}
+          footer={<a href="#alle">Alle ansehen</a>}
+          renderTrigger={({ ref, toggle }) => (
+            <button ref={ref} type="button" onClick={toggle}>
+              Öffnen
+            </button>
+          )}
+        >
+          {() => <p>Inhalt</p>}
+        </AnchoredPopover>
+      );
+    }
+    render(<Slots />);
+    fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
+
+    const panel = screen.getByRole("dialog", { name: "Mit Kopf" });
+    const body = screen.getByText("Inhalt").parentElement;
+    expect(panel).toContainElement(screen.getByText("Kopf"));
+    expect(body).not.toContainElement(screen.getByText("Kopf"));
+    expect(body).not.toContainElement(screen.getByText("Alle ansehen"));
+    expect(body).toHaveClass("overflow-y-auto");
+  });
+
+  function FocusPopover({
+    swallowOutsideClick = false,
+    onBehindClick,
+  }: Readonly<{
+    swallowOutsideClick?: boolean;
+    onBehindClick?: () => void;
+  }>) {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <AnchoredPopover
+          open={open}
+          onOpenChange={setOpen}
+          ariaLabel="Mit Fokus"
+          focusPanelOnOpen
+          swallowOutsideClick={swallowOutsideClick}
+          renderTrigger={({ ref, toggle }) => (
+            <button ref={ref} type="button" onClick={toggle}>
+              Öffnen
+            </button>
+          )}
+        >
+          {() => <button type="button">Im Rahmen</button>}
+        </AnchoredPopover>
+        <button type="button" onClick={onBehindClick}>
+          Dahinter
+        </button>
+      </>
+    );
+  }
+
+  it("takes the focus into the panel and returns it on Escape", () => {
+    render(<FocusPopover />);
+    const trigger = screen.getByRole("button", { name: "Öffnen" });
+    fireEvent.click(trigger);
+
+    const panel = screen.getByRole("dialog", { name: "Mit Fokus" });
+    expect(panel).toHaveFocus();
+
+    fireEvent.keyDown(panel, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("returns to the trigger when Tab reaches the edge of the content", () => {
+    render(<FocusPopover />);
+    const trigger = screen.getByRole("button", { name: "Öffnen" });
+    fireEvent.click(trigger);
+    const inner = screen.getByRole("button", { name: "Im Rahmen" });
+
+    inner.focus();
+    const event = createEvent.keyDown(inner, { key: "Tab" });
+    fireEvent(inner, event);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("prevents reverse Tab when it returns focus to the trigger", () => {
+    render(<FocusPopover />);
+    const trigger = screen.getByRole("button", { name: "Öffnen" });
+    fireEvent.click(trigger);
+    const inner = screen.getByRole("button", { name: "Im Rahmen" });
+
+    inner.focus();
+    const event = createEvent.keyDown(inner, { key: "Tab", shiftKey: true });
+    fireEvent(inner, event);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("toggles from the trigger while a swallowing popover is open", () => {
+    render(<FocusPopover swallowOutsideClick />);
+    const trigger = screen.getByRole("button", { name: "Öffnen" });
+
+    fireEvent.click(trigger);
+    expect(
+      screen.getByRole("dialog", { name: "Mit Fokus" }),
+    ).toBeInTheDocument();
+    fireEvent.click(trigger);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("consumes the outside click that closes a swallowing popover", () => {
+    const onBehindClick = vi.fn();
+    render(<FocusPopover swallowOutsideClick onBehindClick={onBehindClick} />);
+    fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
+    const behind = screen.getByRole("button", { name: "Dahinter" });
+
+    fireEvent.mouseDown(behind);
+    expect(
+      screen.getByRole("dialog", { name: "Mit Fokus" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(behind);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(onBehindClick).not.toHaveBeenCalled();
+  });
+
+  it("lets the outside click through by default", () => {
+    const onBehindClick = vi.fn();
+    render(<FocusPopover onBehindClick={onBehindClick} />);
+    fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
+    const behind = screen.getByRole("button", { name: "Dahinter" });
+
+    fireEvent.mouseDown(behind);
+    fireEvent.click(behind);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(onBehindClick).toHaveBeenCalledOnce();
+  });
+
+  it("closes on an outside touch by default", () => {
+    render(<FocusPopover />);
+    fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
+    const behind = screen.getByRole("button", { name: "Dahinter" });
+
+    fireEvent.touchStart(behind);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

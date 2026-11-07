@@ -585,7 +585,8 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
       }
       void Probe;
     `,
-      "src/probe.tsx",
+      // moto-popover-surface steht seit #5601 nur noch im Kit.
+      "src/components/ui/probe.tsx",
     );
     const output = result.output;
 
@@ -2535,6 +2536,81 @@ describe.concurrent(
     });
   },
 );
+
+describe.concurrent("ui-kit/no-hand-rolled-menu (#5601)", () => {
+  it.each([
+    ["a menu", `<div role="menu" />`],
+    ["a menu entry", `<button type="button" role="menuitem" />`],
+    ["a listbox", `<ul role="listbox" />`],
+    ["an option", `<li role="option" aria-selected={false} />`],
+    ["a conditional role", `<div role={open ? "menu" : undefined} />`],
+  ])("fails %s", async (_name, element) => {
+    const result = await lintSource(
+      `function Probe({ open }: { open: boolean }) {
+        void open;
+        return ${element};
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-hand-rolled-menu");
+  });
+
+  it("accepts other roles and the kit folder", async () => {
+    const other = await lintSource(
+      `export const Probe = () => <div role="group" />;`,
+      "src/components/probe.tsx",
+    );
+    const kit = await lintSource(
+      `export const Probe = () => <div role="menu" />;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(other.output).not.toContain("no-hand-rolled-menu");
+    expect(kit.output).not.toContain("no-hand-rolled-menu");
+  });
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-popover (#5601)", () => {
+  it.each([
+    [
+      "a class string",
+      `<div className="moto-popover-surface rounded-xl border" />`,
+    ],
+    [
+      "a computed class",
+      `<div className={\`moto-popover-surface \${extra}\`} />`,
+    ],
+  ])("fails %s", async (_name, element) => {
+    const result = await lintSource(
+      `function Probe({ extra }: { extra: string }) {
+        void extra;
+        return ${element};
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-hand-rolled-popover");
+  });
+
+  it("accepts the kit folder and other surfaces", async () => {
+    const kit = await lintSource(
+      `export const Probe = () => <div className="moto-popover-surface rounded-xl border" />;`,
+      "src/components/ui/probe.tsx",
+    );
+    const other = await lintSource(
+      `export const Probe = () => <div className="moto-content-surface rounded-2xl border" />;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(kit.output).not.toContain("no-hand-rolled-popover");
+    expect(other.output).not.toContain("no-hand-rolled-popover");
+  });
+});
 
 describe.concurrent("ui-kit/no-own-spinner (#5588)", () => {
   it.each([

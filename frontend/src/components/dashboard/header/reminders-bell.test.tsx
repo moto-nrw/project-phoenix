@@ -48,9 +48,9 @@ describe("RemindersBell", () => {
     render(<RemindersBell />);
 
     // aria-label has no count when there is nothing due.
-    expect(
-      screen.getByRole("button", { name: "Erinnerungen" }),
-    ).toBeInTheDocument();
+    const bell = screen.getByRole("button", { name: "Erinnerungen" });
+    expect(bell).toBeInTheDocument();
+    fireEvent.click(bell);
     expect(screen.getByText("Keine aktiven Erinnerungen.")).toBeInTheDocument();
   });
 
@@ -78,10 +78,9 @@ describe("RemindersBell", () => {
     });
     render(<RemindersBell />);
 
-    expect(
-      screen.getByRole("button", { name: "Erinnerungen (2)" }),
-    ).toBeInTheDocument();
+    const bell = screen.getByRole("button", { name: "Erinnerungen (2)" });
     expect(screen.getByText("2")).toBeInTheDocument(); // badge
+    fireEvent.click(bell);
     expect(screen.getByText("Hannah Klein")).toBeInTheDocument();
     expect(screen.getByText("Klasse 1b")).toBeInTheDocument();
     expect(screen.getByText("Schach")).toBeInTheDocument();
@@ -103,6 +102,7 @@ describe("RemindersBell", () => {
       ],
     });
     render(<RemindersBell />);
+    fireEvent.click(screen.getByRole("button", { name: "Erinnerungen (2)" }));
 
     expect(screen.getByText("5 Min überfällig").className).toContain(
       "text-moto-red",
@@ -120,6 +120,7 @@ describe("RemindersBell", () => {
     );
     setReminders({ enabled: true, count: 7, reminders: many });
     render(<RemindersBell />);
+    fireEvent.click(screen.getByRole("button", { name: "Erinnerungen (7)" }));
 
     expect(screen.getByText("Kind 0")).toBeInTheDocument();
     expect(screen.getByText("Kind 4")).toBeInTheDocument();
@@ -134,13 +135,13 @@ describe("RemindersBell", () => {
     // Tenant-aware href: in path-based routing mode the link must keep the
     // tenant segment (the global test mock resolves slug "test-tenant" / path
     // mode), otherwise the CTA drops the tenant and 404s on the bare host.
-    const link = screen.getByRole("link", { name: "Alle ansehen" });
-    expect(link).toHaveAttribute("href", "/test-tenant/reminders");
-
     const button = screen.getByRole("button", { name: "Erinnerungen (1)" });
     expect(button).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(button);
     expect(button).toHaveAttribute("aria-expanded", "true");
+
+    const link = screen.getByRole("link", { name: "Alle ansehen" });
+    expect(link).toHaveAttribute("href", "/test-tenant/reminders");
   });
 
   it("closes on Escape", () => {
