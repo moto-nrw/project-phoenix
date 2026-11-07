@@ -4,6 +4,11 @@ export const codes = [
   "traeger.already_member",
   "traeger.bank_account_label_taken",
   "traeger.bank_account_not_found",
+  "traeger.document_already_released",
+  "traeger.document_audience_invalid",
+  "traeger.document_invalid",
+  "traeger.document_not_found",
+  "traeger.document_release_not_found",
   "traeger.document_template_invalid",
   "traeger.document_template_kind_not_found",
   "traeger.document_template_unchanged",
@@ -17,6 +22,7 @@ export const codes = [
   "traeger.no_membership",
   "traeger.school_not_found",
   "traeger.second_factor_required",
+  "traeger.shared_document_not_found",
 ] as const;
 
 export const classes = {
@@ -24,6 +30,11 @@ export const classes = {
   "traeger.already_member": "business_rejection",
   "traeger.bank_account_label_taken": "input",
   "traeger.bank_account_not_found": "input",
+  "traeger.document_already_released": "business_rejection",
+  "traeger.document_audience_invalid": "input",
+  "traeger.document_invalid": "input",
+  "traeger.document_not_found": "input",
+  "traeger.document_release_not_found": "input",
   "traeger.document_template_invalid": "input",
   "traeger.document_template_kind_not_found": "input",
   "traeger.document_template_unchanged": "business_rejection",
@@ -37,6 +48,7 @@ export const classes = {
   "traeger.no_membership": "permission",
   "traeger.school_not_found": "permission",
   "traeger.second_factor_required": "permission",
+  "traeger.shared_document_not_found": "input",
 } as const;
 
 export const parameters = {
@@ -44,6 +56,11 @@ export const parameters = {
   "traeger.already_member": [],
   "traeger.bank_account_label_taken": [],
   "traeger.bank_account_not_found": [],
+  "traeger.document_already_released": [],
+  "traeger.document_audience_invalid": [],
+  "traeger.document_invalid": [],
+  "traeger.document_not_found": [],
+  "traeger.document_release_not_found": [],
   "traeger.document_template_invalid": [],
   "traeger.document_template_kind_not_found": [],
   "traeger.document_template_unchanged": [],
@@ -57,4 +74,5 @@ export const parameters = {
   "traeger.no_membership": [],
   "traeger.school_not_found": [],
   "traeger.second_factor_required": [],
+  "traeger.shared_document_not_found": [],
 } as const;

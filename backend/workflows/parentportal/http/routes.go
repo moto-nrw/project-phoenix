@@ -56,6 +56,9 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	r.Get("/me/documents/{organizationId}/{documentId}/pdf", rs.billingDocumentPDF)
 	// A care contract sent to the account's address (#4678).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/pdf", rs.contractDocumentPDF)
+	// Documents a Träger released for parents (#4692).
+	r.Get("/me/documents/shared", rs.listSharedDocuments)
+	r.Get("/me/documents/{organizationId}/shared/{documentId}/file", rs.sharedDocumentFile)
 }
 
 func (rs *Resource) mountCalendarRoutes(r chi.Router) {

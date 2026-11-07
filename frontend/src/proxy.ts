@@ -607,8 +607,9 @@ if (!TRAEGER_HOSTNAME) {
  * which opens /invite (#4650), the settings area (#4652, #5685), the billing
  * runs (#4668), the care contracts (#4678), the overruns of the booked care
  * at /zeitvergleich (#4683), the view of one school (#5686),
- * the dashboard over all schools at /uebersicht (#4674) and the
- * Stichtagszahlen (#4673). The school list itself lives at the root ("/" →
+ * the dashboard over all schools at /uebersicht (#4674), the
+ * Stichtagszahlen (#4673) and the shared documents (#4692). The school list
+ * itself lives at the root ("/" →
  * /traeger). The client guard sends a visitor without a session to the
  * login. */
 const TRAEGER_PUBLIC_PATHS = [
@@ -624,6 +625,7 @@ const TRAEGER_PUBLIC_PATHS = [
   "/uebersicht",
   "/stichtagszahlen",
   "/belegung",
+  "/dokumente",
 ];
 
 /** Pages that moved into the settings area (#5685). Bookmarks, help links and

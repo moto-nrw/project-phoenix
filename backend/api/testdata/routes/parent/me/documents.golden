@@ -1,4 +1,6 @@
 GET /parent/me/documents
 GET /parent/me/documents/contracts
+GET /parent/me/documents/shared
 GET /parent/me/documents/{organizationId}/contracts/{contractId}/pdf
+GET /parent/me/documents/{organizationId}/shared/{documentId}/file
 GET /parent/me/documents/{organizationId}/{documentId}/pdf

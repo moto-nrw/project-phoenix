@@ -1,6 +1,6 @@
 {
   "title": "Belgeler",
-  "description": "Kurumun size gönderdiği yazıları ve sözleşmeleri burada bulursunuz. Örneğin tatil bakımı onayı.",
+  "description": "Burada kurumunuzdan gelen yazıları, sözleşmeleri ve belgeleri bulursunuz. Örneğin tatil bakımı onayı veya iç yönetmelik.",
   "emptyTitle": "Henüz belge yok",
   "emptyDescription": "Kurum size bir yazı gönderdiğinde onu burada bulursunuz. Ayrıca e-posta ile de alırsınız.",
   "confirmationLetter": "Onay yazısı: {period}",
@@ -19,5 +19,11 @@
   "bookedCare": "Rezerve edilen bakım",
   "startsOn": "Başlangıç",
   "lettersErrorObject": "yazılar",
-  "contractsErrorObject": "bakım sözleşmeleri"
+  "contractsErrorObject": "bakım sözleşmeleri",
+  "sharedSender": "{traeger} tarafından velilerle paylaşıldı",
+  "file": "Dosya",
+  "releasedAt": "Paylaşım tarihi",
+  "downloadFile": "İndir",
+  "sharedErrorObject": "kurumun belgeleri",
+  "image": "Resim"
 }

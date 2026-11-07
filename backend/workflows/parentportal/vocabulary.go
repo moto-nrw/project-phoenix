@@ -46,6 +46,9 @@ type (
 	BillingDocumentReader           = care.BillingDocumentReader
 	BillingDocumentsPort            = care.BillingDocuments
 	ContractDocumentsPort           = care.ContractDocuments
+	SharedDocumentsPort             = care.TraegerSharedDocuments
+	SharedDocument                  = care.SharedDocument
+	SharedDocumentReader            = care.SharedDocumentReader
 	BillingDocumentNotifierPort     = care.BillingDocumentNotifier
 	ParentAccountsPort              = care.ParentAccounts
 	SchoolTraegerPort               = care.SchoolTraeger
@@ -120,6 +123,7 @@ var (
 	ErrChildCareEnded                   = care.ErrChildCareEnded
 	ErrChildNotAnswerable               = messaging.ErrChildNotAnswerable
 	ErrBillingDocumentNotFound          = care.ErrBillingDocumentNotFound
+	ErrSharedDocumentNotFound           = care.ErrSharedDocumentNotFound
 	ErrChildNotLinked                   = care.ErrChildNotLinked
 	ErrEmailRequired                    = care.ErrEmailRequired
 	ErrEmptyNote                        = care.ErrEmptyNote

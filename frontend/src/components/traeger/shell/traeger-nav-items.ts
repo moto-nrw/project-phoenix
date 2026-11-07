@@ -130,6 +130,14 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         concept: careTimesConcept,
         right: REPORTS_RIGHT,
       },
+      {
+        // Vorhandene Dokumente für Eltern und Schulen freigeben (#4692).
+        key: "dokumente",
+        href: "/traeger/dokumente",
+        label: "Dokumente",
+        concept: documentsConcept,
+        right: OVERVIEW_RIGHT,
+      },
     ],
   },
   {

@@ -125,6 +125,13 @@ type HolidayRegistrationRetention interface {
 	DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error)
 }
 
+// TraegerDocumentReadRetention deletes the reads of the shared Träger
+// documents older than three years for every Träger in the hourly cleanup,
+// also where nobody opens a document any more (#4692).
+type TraegerDocumentReadRetention interface {
+	DeleteExpiredTraegerDocumentReads(ctx context.Context) (int, error)
+}
+
 // SignInDataCleaner exposes the fixed retention of the short-lived sign-in
 // data Identity & Access owns (#3954): invitations for parents and caterers, e-mail codes
 // and passkey ceremonies of accounts and operators, and expired operator
