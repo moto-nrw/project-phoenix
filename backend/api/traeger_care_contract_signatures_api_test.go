@@ -386,42 +386,21 @@ func readConcluded(t *testing.T, f careContractFixture, contractID int64) conclu
 	return row
 }
 
-// TestCareContractSignatureConcludesThroughTheConclusionTransition pins that
-// a signature concludes its contract through the one transition of #4680:
-// online and on paper the contract becomes aktiv with concluded_at and the
-// method of ADR 0088 section 3, its version wirksam, the trail records the
-// conclusion once, and chk_contracts_active_concluded holds for every row.
-func TestCareContractSignatureConcludesThroughTheConclusionTransition(t *testing.T) {
-	t.Parallel()
-	f := newCareContractFixture(t, "Träger Vertrag Abschluss Unterschrift")
-	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
-
-	online, link := sentCareContract(t, f, f.child)
-	rec := publicSigning(t, f.traeger, http.MethodPost, link+"/sign",
-		map[string]any{"method": "drawn", "image_png": signatureImage(t), "withdrawal_notice_acknowledged": true})
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-
-	sibling := careContractApplication(t, f.db, f.school, f.phase, f.offering, "Ben", "erika.muster@example.org")
-	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, "/traeger/contracts",
-		map[string]any{"contracts": []any{map[string]any{"school_id": f.school, "request_child_id": sibling}}})
-	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	paper := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes()).Created[0].ID
-	rec = paperUpload(t, f, f.office.token, paper, "vertrag.pdf", []byte("%PDF-1.4 unterschriebener Vertrag"))
-	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
-
-	for name, want := range map[string]struct {
-		id     int64
-		method string
-	}{"online": {online, "einfach_elektronisch"}, "paper from a draft": {paper, "papier"}} {
-		row := readConcluded(t, f, want.id)
-		assert.Equal(t, "aktiv", row.Status, name)
-		require.NotNil(t, row.ConcludedAt, "%s: an active contract is concluded", name)
-		assert.True(t, row.ConcludedAt.Equal(row.SignedAt), "%s: concluded when signed", name)
-		require.NotNil(t, row.Method, name)
-		assert.Equal(t, want.method, *row.Method, name)
-		assert.Equal(t, "wirksam", row.VersionStatus, name)
-		assert.Equal(t, 1, row.Conclusions, "%s: the trail records the conclusion once", name)
-	}
+// assertConcludedBySignature checks a signed contract the way the one
+// conclusion transition of #4680 leaves it: aktiv with concluded_at at the
+// instant of the signature and the method of ADR 0088 section 3, its version
+// wirksam, one conclusion in the trail, and chk_contracts_active_concluded
+// in place and kept by every contract.
+func assertConcludedBySignature(t *testing.T, f careContractFixture, contractID int64, method string) {
+	t.Helper()
+	row := readConcluded(t, f, contractID)
+	assert.Equal(t, "aktiv", row.Status)
+	require.NotNil(t, row.ConcludedAt, "an active contract is concluded")
+	assert.True(t, row.ConcludedAt.Equal(row.SignedAt), "concluded when signed")
+	require.NotNil(t, row.Method)
+	assert.Equal(t, method, *row.Method)
+	assert.Equal(t, "wirksam", row.VersionStatus)
+	assert.Equal(t, 1, row.Conclusions, "the trail records the conclusion once")
 
 	var constraint string
 	require.NoError(t, f.db.NewRaw(`SELECT pg_get_constraintdef(oid) FROM pg_constraint
@@ -431,4 +410,33 @@ func TestCareContractSignatureConcludesThroughTheConclusionTransition(t *testing
 	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM care_contract.contracts
 		WHERE status = 'aktiv' AND (concluded_at IS NULL OR conclusion_method IS NULL)`).Scan(context.Background(), &violations))
 	assert.Zero(t, violations, "no active contract without its conclusion")
+}
+
+// TestCareContractSignedByMailLinkIsConcludedElectronically: a signature
+// over the one-time link concludes the contract through concludeContract
+// with einfach_elektronisch (#4679, #4680).
+func TestCareContractSignedByMailLinkIsConcludedElectronically(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Abschluss Link")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	contract, link := sentCareContract(t, f, f.child)
+	rec := publicSigning(t, f.traeger, http.MethodPost, link+"/sign",
+		map[string]any{"method": "drawn", "image_png": signatureImage(t), "withdrawal_notice_acknowledged": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assertConcludedBySignature(t, f, contract, "einfach_elektronisch")
+}
+
+// TestCareContractSignedOnPaperIsConcludedOnPaper: a paper contract the
+// Träger-Büro records, even from a draft, concludes the contract through
+// concludeContract with papier (#4679, #4680).
+func TestCareContractSignedOnPaperIsConcludedOnPaper(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Abschluss Papier")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key()}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	draft := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes()).Created[0].ID
+	rec = paperUpload(t, f, f.office.token, draft, "vertrag.pdf", []byte("%PDF-1.4 unterschriebener Vertrag"))
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	assertConcludedBySignature(t, f, draft, "papier")
 }

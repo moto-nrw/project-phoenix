@@ -160,3 +160,52 @@ func TestContractSigningInTheInboxNeedsTheOwnAddressAndTheChildsSubmitRight(t *t
 	assert.Equal(t, "wirksam", stored.Version)
 	assert.Equal(t, []string{"signed"}, mails.Purposes(), "the confirmation with the PDF and the withdrawal notice")
 }
+
+// TestContractSignedInTheInboxIsConcludedElectronically: a signature in the
+// parents portal concludes the contract through the one transition of
+// #4680 (concludeContract): aktiv with concluded_at at the instant of the
+// signature and einfach_elektronisch, its version wirksam, the conclusion
+// in the trail under the parent's account, and chk_contracts_active_concluded
+// kept.
+func TestContractSignedInTheInboxIsConcludedElectronically(t *testing.T) {
+	t.Parallel()
+	portal, _, _, db, _ := documentInboxWithMails(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	sent := inboxContract(t, db, organization, chain.TenantID, chain.StudentID, "Felix", chain.Email)
+
+	_, err := portal.SignContract(ctx, chain.AccountID, organization, sent,
+		parentService.ContractSignatureInput{Method: "drawn", ImagePNG: signaturePNG(t), NoticeAcknowledged: true})
+	require.NoError(t, err)
+
+	var row struct {
+		Status        string     `bun:"status"`
+		ConcludedAt   *time.Time `bun:"concluded_at"`
+		Method        *string    `bun:"conclusion_method"`
+		VersionStatus string     `bun:"version_status"`
+		SignedAt      time.Time  `bun:"signed_at"`
+		Conclusions   int        `bun:"conclusions"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT c.status, c.concluded_at, c.conclusion_method, v.status AS version_status, s.signed_at,
+			(SELECT COUNT(*) FROM care_contract.contract_events e
+				WHERE e.contract_id = c.id AND e.action = 'conclude' AND e.account_id = ?) AS conclusions
+		FROM care_contract.contracts c
+		JOIN care_contract.contract_versions v ON v.contract_id = c.id
+		JOIN care_contract.contract_signatures s ON s.contract_version_id = v.id
+		WHERE c.id = ?`, chain.AccountID, sent).Scan(ctx, &row))
+	assert.Equal(t, "aktiv", row.Status)
+	require.NotNil(t, row.ConcludedAt, "an active contract is concluded")
+	assert.True(t, row.ConcludedAt.Equal(row.SignedAt), "concluded when signed")
+	require.NotNil(t, row.Method)
+	assert.Equal(t, "einfach_elektronisch", *row.Method)
+	assert.Equal(t, "wirksam", row.VersionStatus)
+	assert.Equal(t, 1, row.Conclusions, "the trail records the conclusion once, under the parent's account")
+
+	var violations int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM care_contract.contracts
+		WHERE status = 'aktiv' AND (concluded_at IS NULL OR conclusion_method IS NULL)`).Scan(ctx, &violations))
+	assert.Zero(t, violations, "chk_contracts_active_concluded holds for every contract")
+}
