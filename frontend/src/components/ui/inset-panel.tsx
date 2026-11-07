@@ -2,7 +2,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "~/lib/utils";
 
 type InsetPanelTone = "muted" | "white" | "danger" | "warning";
-type InsetPanelPadding = "sm" | "md";
+type InsetPanelPadding = "tight" | "compact" | "sm" | "md";
 
 type InsetPanelElement = "div" | "section" | "p" | "dl" | "ul" | "li";
 
@@ -18,6 +18,8 @@ interface InsetPanelProps extends HTMLAttributes<HTMLElement> {
 }
 
 const PADDING_CLASSES: Record<InsetPanelPadding, string> = {
+  tight: "px-3 py-1",
+  compact: "px-3 py-2",
   sm: "p-3",
   md: "p-4",
 };

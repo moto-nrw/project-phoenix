@@ -671,7 +671,7 @@ export function SubstitutionSlideOver({
                       Personal
                     </h3>
                     {plannedStaff.length === 0 ? (
-                      <InsetPanel framed>
+                      <InsetPanel framed padding="tight">
                         <EmptyState
                           variant="compact"
                           title="Für diesen Block war niemand geplant"

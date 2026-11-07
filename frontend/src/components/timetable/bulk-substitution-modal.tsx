@@ -447,7 +447,12 @@ export function BulkSubstitutionModal({
                     Termine werden geladen…
                   </p>
                 ) : dayGroups.length === 0 ? (
-                  <InsetPanel as="p" framed className="text-sm text-gray-500">
+                  <InsetPanel
+                    as="p"
+                    framed
+                    padding="compact"
+                    className="text-sm text-gray-500"
+                  >
                     Im gewählten Zeitraum gibt es keine planbaren Termine dieser
                     Person.
                   </InsetPanel>

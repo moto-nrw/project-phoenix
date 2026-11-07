@@ -1522,7 +1522,7 @@ function PersonLine({
 }) {
   const labels = meta.filter(Boolean);
   return (
-    <InsetPanel tone={danger ? "danger" : "white"}>
+    <InsetPanel tone={danger ? "danger" : "white"} padding="compact">
       <div className="text-sm font-semibold text-gray-900">{name}</div>
       {labels.length > 0 && (
         <div

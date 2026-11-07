@@ -75,12 +75,20 @@ describe("InsetPanel", () => {
   it("keeps the radius fixed and takes the padding step", () => {
     render(
       <>
+        <InsetPanel data-testid="tight" padding="tight">
+          A
+        </InsetPanel>
+        <InsetPanel data-testid="compact" padding="compact">
+          B
+        </InsetPanel>
         <InsetPanel data-testid="sm">A</InsetPanel>
         <InsetPanel data-testid="md" padding="md">
-          B
+          C
         </InsetPanel>
       </>,
     );
+    expect(screen.getByTestId("tight")).toHaveClass("px-3", "py-1");
+    expect(screen.getByTestId("compact")).toHaveClass("px-3", "py-2");
     expect(screen.getByTestId("sm")).toHaveClass("rounded-xl", "p-3");
     expect(screen.getByTestId("md")).toHaveClass("rounded-xl", "p-4");
   });
