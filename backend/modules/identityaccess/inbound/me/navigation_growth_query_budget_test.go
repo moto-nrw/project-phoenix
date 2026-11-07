@@ -59,6 +59,8 @@ func TestIdentityNavigationPositiveGrowthQueryBudget(t *testing.T) {
 			cat := map[string]any{"id": category.ID, "tenant_id": category.TenantID, "created_at": category.CreatedAt, "updated_at": category.UpdatedAt, "name": category.Name, "color": category.Color, "is_system": false}
 			activityRow := map[string]any{"id": activity.ID, "tenant_id": activity.TenantID, "created_at": activity.CreatedAt, "updated_at": activity.UpdatedAt, "name": activity.Name, "max_participants": activity.MaxParticipants, "is_open": activity.IsOpen, "category_id": activity.CategoryID, "created_by": activity.CreatedBy, "type": "activity", "is_template": false, "is_system": false, "target_group_type": "none", "category": cat}
 			session := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+			// The API renders stored instants in the database session zone.
+			require.NoError(t, db.NewSelect().Model(session).WherePK().Scan(testpkg.Ctx(t)))
 			sessionIDs = append(sessionIDs, session.ID)
 			roomRow := map[string]any{"id": room.ID, "tenant_id": room.TenantID, "created_at": room.CreatedAt, "updated_at": room.UpdatedAt, "name": room.Name, "building": room.Building, "capacity": room.Capacity, "is_system": false, "is_open_room": false}
 			sessionRow := map[string]any{"id": session.ID, "tenant_id": session.TenantID, "created_at": session.CreatedAt, "updated_at": session.UpdatedAt, "start_time": session.StartTime, "last_activity": session.LastActivity, "timeout_minutes": session.TimeoutMinutes, "group_id": activity.ID, "room_id": room.ID, "room": roomRow, "actual_group": activityRow}

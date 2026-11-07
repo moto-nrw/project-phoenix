@@ -134,14 +134,16 @@ func requestKioskData(t *testing.T, db *bun.DB, handler http.Handler, devices De
 	require.Len(t, updates, 1, "fresh successful auth writes last_seen once; domain GET must add no DML")
 	heartbeat := strings.ToLower(strings.Join(strings.Fields(updates[0]), " "))
 	require.Contains(t, heartbeat, "update iot.devices")
-	// UpdateDeviceLastSeen names only last_seen. updated_at is trigger-owned,
-	// not a second explicitly writable column.
+	// UpdateDeviceLastSeen names only last_seen and moves it forward only.
+	// updated_at is trigger-owned, not a second explicitly writable column.
 	_, setAndWhere, hasSet := strings.Cut(heartbeat, " set ")
 	require.True(t, hasSet)
 	setClause, _, hasWhere := strings.Cut(setAndWhere, " where ")
 	require.True(t, hasWhere)
-	require.True(t, strings.HasPrefix(setClause, `"last_seen" = `))
-	require.NotContains(t, setClause, ",", "heartbeat must explicitly assign only last_seen")
+	assignment, isForwardOnly := strings.CutPrefix(setClause, `last_seen = greatest("device".last_seen, `)
+	require.True(t, isForwardOnly, setClause)
+	require.True(t, strings.HasSuffix(assignment, ")"), setClause)
+	require.NotContains(t, assignment, ",", "heartbeat must explicitly assign only last_seen")
 	require.Contains(t, heartbeat, fmt.Sprintf(`"device".id = %d`, device.ID))
 	require.EqualValues(t, 1, counter.WriteRows())
 	// Owner reads are deliberately outside the counter's request context.

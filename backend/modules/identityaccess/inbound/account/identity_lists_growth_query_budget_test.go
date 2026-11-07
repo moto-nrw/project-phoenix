@@ -135,9 +135,9 @@ func TestIdentityAccountTokensGrowthQueryBudget(t *testing.T) {
 	for _, n := range []int{3, 8} {
 		for len(want) < n {
 			fixture := testpkg.CreateTestToken(t, f.db, account.ID, "refresh")
-			var created time.Time
-			require.NoError(t, f.db.NewSelect().TableExpr("auth.tokens").Column("created_at").Where("id = ?", fixture.ID).Scan(context.Background(), &created))
-			want = append(want, map[string]any{"id": float64(fixture.ID), "expiry": fixture.Expiry.Format(time.RFC3339), "mobile": false, "created_at": created.Format(time.RFC3339)})
+			var created, expiry time.Time
+			require.NoError(t, f.db.NewSelect().TableExpr("auth.tokens").Column("created_at", "expiry").Where("id = ?", fixture.ID).Scan(context.Background(), &created, &expiry))
+			want = append(want, map[string]any{"id": float64(fixture.ID), "expiry": expiry.Format(time.RFC3339), "mobile": false, "created_at": created.Format(time.RFC3339)})
 		}
 		rr, queries := f.get(t, fmt.Sprintf("/auth/accounts/%d/tokens/", account.ID), token)
 		rbacBudgetCollection(t, rr, "Active tokens retrieved successfully", want)

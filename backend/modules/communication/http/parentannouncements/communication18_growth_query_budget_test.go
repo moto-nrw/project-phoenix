@@ -76,6 +76,17 @@ func communication18Diff(t *testing.T, path string, want, got any) {
 			communication18Diff(t, fmt.Sprintf("%s[%d]", path, i), w[i], g[i])
 		}
 	default:
+		// The API renders stored instants in the database session zone.
+		if wantText, ok := want.(string); ok {
+			if gotText, ok := got.(string); ok {
+				wantTime, wantErr := time.Parse(time.RFC3339Nano, wantText)
+				gotTime, gotErr := time.Parse(time.RFC3339Nano, gotText)
+				if wantErr == nil && gotErr == nil {
+					require.True(t, wantTime.Equal(gotTime), "%s: %s is not the instant %s", path, gotText, wantText)
+					return
+				}
+			}
+		}
 		require.Equal(t, want, got, path)
 	}
 }
@@ -359,7 +370,7 @@ func TestCommunication18AnnouncementPositiveGrowthQueryBudget(t *testing.T) {
 					}
 					recipients := []any{}
 					for i, c := range chains {
-						recipients = append(recipients, map[string]any{"first_name": fmt.Sprintf("Guardian%02d", i), "last_name": "Growth", "email": c.Email, "email_status": "pending", "reachability": "ok"})
+						recipients = append(recipients, map[string]any{"first_name": fmt.Sprintf("Guardian%02d", i), "last_name": "Growth", "email": c.Email, "email_status": "pending", "mail_outcome": "queued", "mailed_to": c.Email, "reachability": "ok"})
 					}
 					communication18Equal(t, map[string]any{"recipients": recipients, "children": children, "summary": communication.ParentAnnouncementLetterSummary{ChildrenTotal: n, ChildrenConfirmable: n, ChildrenOpen: n, RecipientsTotal: n, EmailsPending: n}}, communication18JSON(t, rec.Body.Bytes()))
 				case "declaration_status", "school_declaration_status":

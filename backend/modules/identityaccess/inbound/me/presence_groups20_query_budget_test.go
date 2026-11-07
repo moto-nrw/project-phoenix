@@ -65,6 +65,8 @@ func TestPresenceGroups20CallerQueryBudget(t *testing.T) {
 			_, err := db.NewInsert().Model(&supervisor).Exec(testpkg.Ctx(t))
 			require.NoError(t, err)
 			session := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+			// The API renders stored instants in the database session zone.
+			require.NoError(t, db.NewSelect().Model(session).WherePK().Scan(testpkg.Ctx(t)))
 			sessionIDs = append(sessionIDs, session.ID)
 			roomRow := map[string]any{"id": room.ID, "tenant_id": room.TenantID, "created_at": room.CreatedAt, "updated_at": room.UpdatedAt, "name": room.Name, "building": room.Building, "capacity": room.Capacity, "is_system": false, "is_open_room": false}
 			sessionRow := map[string]any{"id": session.ID, "tenant_id": session.TenantID, "created_at": session.CreatedAt, "updated_at": session.UpdatedAt, "start_time": session.StartTime, "last_activity": session.LastActivity, "timeout_minutes": session.TimeoutMinutes, "group_id": activity.ID, "room_id": room.ID, "room": roomRow, "actual_group": activityRow}

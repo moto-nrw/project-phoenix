@@ -56,6 +56,8 @@ func TestPresenceGroups20ActiveQueryBudget(t *testing.T) {
 				for len(groups) < n {
 					i := len(groups)
 					group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+					// The API renders stored instants in the database session zone.
+					require.NoError(t, db.NewSelect().Model(group).WherePK().Scan(testpkg.Ctx(t)))
 					groups = append(groups, group)
 					row := presenceAPI.ActiveGroupResponse{ID: group.ID, GroupID: &activity.ID, RoomID: room.ID, StartTime: group.StartTime.UTC(), IsActive: true, CreatedAt: group.CreatedAt.UTC(), UpdatedAt: group.UpdatedAt.UTC(), Room: &presenceAPI.RoomSimple{ID: room.ID, Name: room.Name}}
 					if key == "supervisors_all" {
