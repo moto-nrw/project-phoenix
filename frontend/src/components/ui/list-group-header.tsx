@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -43,6 +43,7 @@ export function ListGroupHeader({
   collapsible,
   className,
 }: ListGroupHeaderProps) {
+  const addonId = useId();
   return (
     <div
       className={cn(
@@ -59,6 +60,7 @@ export function ListGroupHeader({
               size="compact"
               className="-ml-2 w-full min-w-0 justify-start"
               aria-expanded={collapsible.expanded}
+              aria-describedby={addon === undefined ? undefined : addonId}
               onClick={collapsible.onToggle}
             >
               <ChevronRight
@@ -76,7 +78,7 @@ export function ListGroupHeader({
             title
           )}
         </SectionLabel>
-        {addon}
+        {addon === undefined ? null : <span id={addonId}>{addon}</span>}
       </div>
       {meta === undefined ? null : (
         <div className="shrink-0 text-xs text-gray-500 tabular-nums">

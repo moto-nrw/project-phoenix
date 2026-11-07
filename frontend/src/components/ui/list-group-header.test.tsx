@@ -51,6 +51,20 @@ describe("ListGroupHeader", () => {
     );
   });
 
+  it("describes a collapsible group with its addon", () => {
+    render(
+      <ListGroupHeader
+        title="Aktivitäten"
+        addon="2/5"
+        collapsible={{ expanded: true, onToggle: vi.fn() }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Aktivitäten" }),
+    ).toHaveAccessibleDescription("2/5");
+  });
+
   it("renders no toggle without collapsible", () => {
     render(<ListGroupHeader title="Mi 11.11." />);
     expect(screen.getByRole("heading", { name: "Mi 11.11." })).toBeVisible();
