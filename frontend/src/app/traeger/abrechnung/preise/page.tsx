@@ -152,13 +152,17 @@ function PriceListPage() {
                 label: schools.length === 1 ? "Schule" : "Schulen",
               },
               { value: modules, label: modules === 1 ? "Modul" : "Module" },
-              {
-                value: gaps,
-                label:
-                  gaps === 1
-                    ? "Modul ohne vollen Preis"
-                    : "Module ohne vollen Preis",
-              },
+              ...(gaps > 0
+                ? [
+                    {
+                      value: gaps,
+                      label:
+                        gaps === 1
+                          ? "Modul ohne vollen Preis"
+                          : "Module ohne vollen Preis",
+                    },
+                  ]
+                : []),
             ]}
           />
         ) : null

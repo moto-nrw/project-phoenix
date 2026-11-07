@@ -62,7 +62,8 @@ function positionDays(position: CarePosition, month: string): string | null {
 function PositionLine({
   position,
   month,
-}: Readonly<{ position: CarePosition; month: string }>) {
+  showAmount,
+}: Readonly<{ position: CarePosition; month: string; showAmount: boolean }>) {
   const days = positionDays(position, month);
   return (
     <li className="flex items-baseline justify-between gap-4 py-1.5">
@@ -88,9 +89,11 @@ function PositionLine({
           {days ? <span className="text-gray-500">{days}</span> : null}
         </p>
       </div>
-      <span className="shrink-0 text-sm text-gray-900 tabular-nums">
-        {formatEuro(position.amountCents)}
-      </span>
+      {showAmount ? (
+        <span className="shrink-0 text-sm text-gray-700 tabular-nums">
+          {formatEuro(position.amountCents)}
+        </span>
+      ) : null}
     </li>
   );
 }
@@ -102,7 +105,7 @@ function InvoiceRow({
   const recipient =
     `${invoice.recipient.firstName} ${invoice.recipient.lastName}`.trim();
   return (
-    <li className="grid gap-3 py-4 first:pt-0 last:pb-0 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] md:gap-6">
+    <li className="grid gap-3 py-3 first:pt-0 last:pb-0 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] md:gap-6">
       <div className="min-w-0">
         <p className="text-sm font-semibold text-gray-900">
           {invoice.childFirstName} {invoice.childLastName}
@@ -122,6 +125,7 @@ function InvoiceRow({
             key={`${position.careOfferingId}-${position.serviceFrom}`}
             position={position}
             month={month}
+            showAmount={invoice.positions.length > 1}
           />
         ))}
       </ul>

@@ -19,12 +19,13 @@ import {
   saveCarePriceList,
 } from "~/lib/traeger-care-billing-api";
 import {
+  addMonths,
   WEEKDAY_LONG,
   WEEKDAY_SHORT,
   endsAtLabel,
   firstOpenMonth,
   formatMonth,
-  monthRange,
+  monthsFromTo,
   priceRowsAt,
   priceStands,
   shownWeekdays,
@@ -34,7 +35,8 @@ import { centsToEuroInput, euroInputToCents } from "./holiday-period-model";
 
 const logger = createLogger({ component: "CarePriceListModal" });
 
-/** How many months ahead a new price list may start. */
+/** How many months back and ahead a new price list may start. */
+const MONTHS_BACK = 12;
 const MONTHS_AHEAD = 18;
 
 type Draft = Record<string, string>;
@@ -69,12 +71,17 @@ export function CarePriceListModal({
   const { clear: clearErrors } = formErrors;
   const { success } = useToast();
 
-  const firstMonth = school
-    ? firstOpenMonth(data, school.id, currentMonth)
+  // A month no invoice bills yet may still get prices, up to a year back.
+  const earliest = addMonths(currentMonth, -MONTHS_BACK);
+  const openFrom = school
+    ? firstOpenMonth(data, school.id, earliest)
     : currentMonth;
+  const firstMonth = openFrom > earliest ? openFrom : earliest;
+  const defaultMonth = firstMonth > currentMonth ? firstMonth : currentMonth;
+  const lastMonth = addMonths(currentMonth, MONTHS_AHEAD);
   const months = useMemo(
-    () => monthRange(firstMonth, MONTHS_AHEAD + 1),
-    [firstMonth],
+    () => monthsFromTo(firstMonth, lastMonth),
+    [firstMonth, lastMonth],
   );
   const rows = useMemo(
     () => (school && month ? priceRowsAt(data, school.id, month) : []),
@@ -87,10 +94,10 @@ export function CarePriceListModal({
   useEffect(() => {
     if (!school) return;
     const start =
-      initialMonth && initialMonth >= firstMonth ? initialMonth : firstMonth;
+      initialMonth && initialMonth >= firstMonth ? initialMonth : defaultMonth;
     setMonth(start);
     clearErrors();
-  }, [school, initialMonth, firstMonth, clearErrors]);
+  }, [school, initialMonth, firstMonth, defaultMonth, clearErrors]);
 
   // Prefill every field with the price that holds in the chosen month.
   useEffect(() => {
@@ -188,7 +195,7 @@ export function CarePriceListModal({
             name="valid_from"
             label="Gültig ab"
             value={month}
-            options={months.map((value) => ({
+            options={[...months].reverse().map((value) => ({
               value,
               label: `1. ${formatMonth(value)}`,
             }))}

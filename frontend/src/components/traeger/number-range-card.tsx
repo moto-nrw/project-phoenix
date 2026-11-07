@@ -25,7 +25,7 @@ const logger = createLogger({ component: "NumberRangeCard" });
 /** What differs between the number range of the holidays and of the months. */
 const SERVICES = {
   holiday: {
-    title: "Rechnungsnummern",
+    title: "Rechnungsnummern der Ferien",
     description:
       "Bei der Freigabe bekommt jede Rechnung die nächste Nummer. Es entsteht keine Lücke.",
     defaultPattern: "FE-{JJJJ}-{NNNN}",

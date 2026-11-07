@@ -6,6 +6,7 @@ import {
   formatMonth,
   missingPrices,
   monthOf,
+  monthsFromTo,
   priceRowsAt,
   priceStands,
   shownWeekdays,
@@ -78,6 +79,13 @@ describe("care billing months", () => {
     expect(addMonths("2026-12-01", 1)).toBe("2027-01-01");
     expect(addMonths("2027-01-01", -1)).toBe("2026-12-01");
     expect(monthOf("2026-11-07")).toBe("2026-11-01");
+    expect(monthsFromTo("2026-11-01", "2027-02-01")).toEqual([
+      "2026-11-01",
+      "2026-12-01",
+      "2027-01-01",
+      "2027-02-01",
+    ]);
+    expect(monthsFromTo("2027-02-01", "2026-11-01")).toEqual([]);
   });
 });
 

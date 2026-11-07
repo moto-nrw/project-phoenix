@@ -100,6 +100,15 @@ export function monthRange(from: string, count: number): string[] {
   return Array.from({ length: count }, (_, i) => addMonths(from, i));
 }
 
+/** Every month from `from` to `to`, both included; empty when to < from. */
+export function monthsFromTo(from: string, to: string): string[] {
+  const start = monthParts(from);
+  const end = monthParts(to);
+  if (!start || !end) return [];
+  const count = (end.year - start.year) * 12 + end.month - start.month + 1;
+  return count > 0 ? monthRange(from, count) : [];
+}
+
 /** "Mo, Di, Do" for the booked weekdays in their order. */
 export function weekdayList(weekdays: readonly CareWeekday[]): string {
   return CARE_WEEKDAYS.filter((day) => weekdays.includes(day))
@@ -117,9 +126,19 @@ export interface CareSchoolOption {
   readonly name: string;
 }
 
-/** The schools of the price list: those of the Träger, by name. */
+/**
+ * The schools of the price list: those with booked or priced modules first,
+ * then the others, each by name.
+ */
 export function careSchools(data: CareTariffs): CareSchoolOption[] {
-  return data.schools.map((school) => ({ id: school.id, name: school.name }));
+  const withModules = new Set(data.modules.map((module) => module.schoolId));
+  return data.schools
+    .map((school) => ({ id: school.id, name: school.name }))
+    .sort(
+      (a, b) =>
+        Number(withModules.has(b.id)) - Number(withModules.has(a.id)) ||
+        a.name.localeCompare(b.name, "de"),
+    );
 }
 
 /** The months a school has a price list from, oldest first. */
