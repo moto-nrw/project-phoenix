@@ -36,7 +36,7 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 	}
 
 	// Open Excel file
-	f, err := excelize.OpenReader(buf, excelize.Options{
+	f, err := openXLSX(buf, excelize.Options{
 		ShortDatePattern: studentImportShortDatePattern,
 	})
 	if err != nil {

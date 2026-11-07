@@ -114,7 +114,7 @@ func ParseStaffXLSX(reader io.Reader) ([]importModels.StaffImportRow, error) {
 		return nil, fmt.Errorf("read file: %w", err)
 	}
 
-	f, err := excelize.OpenReader(buf)
+	f, err := openXLSX(buf, excelize.Options{})
 	if err != nil {
 		return nil, fmt.Errorf("open excel file: %w", err)
 	}

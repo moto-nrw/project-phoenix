@@ -100,7 +100,7 @@ func ParseClassListXLSX(reader io.Reader) ([]importModels.ClassListEntryImportRo
 		return nil, fmt.Errorf("read file: %w", err)
 	}
 
-	f, err := excelize.OpenReader(buf)
+	f, err := openXLSX(buf, excelize.Options{})
 	if err != nil {
 		return nil, fmt.Errorf("open excel file: %w", err)
 	}
