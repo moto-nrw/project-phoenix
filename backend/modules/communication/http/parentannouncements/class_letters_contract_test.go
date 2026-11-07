@@ -48,7 +48,7 @@ func (s *classLetterContract) ListParentAnnouncements(ctx context.Context, inclu
 	return []communication.ParentAnnouncement{s.letters[11], s.letters[12], s.letters[13]}, nil
 }
 
-func (s *classLetterContract) GetParentAnnouncement(ctx context.Context, id int64) (*communication.ParentAnnouncement, error) {
+func (s *classLetterContract) GetParentAnnouncement(ctx context.Context, id int64, _ ...communication.ParentAnnouncementRead) (*communication.ParentAnnouncement, error) {
 	s.record(ctx, "get")
 	letter, ok := s.letters[id]
 	if !ok {
@@ -215,7 +215,7 @@ func (s ogsListContract) ListParentAnnouncements(context.Context, bool) ([]commu
 	return []communication.ParentAnnouncement{c.letters[11], c.letters[12], c.letters[13]}, nil
 }
 
-func (s ogsListContract) GetParentAnnouncement(_ context.Context, id int64) (*communication.ParentAnnouncement, error) {
+func (s ogsListContract) GetParentAnnouncement(_ context.Context, id int64, _ ...communication.ParentAnnouncementRead) (*communication.ParentAnnouncement, error) {
 	letter, ok := s.letters[id]
 	if !ok {
 		return nil, communication.ErrParentAnnouncementNotFound

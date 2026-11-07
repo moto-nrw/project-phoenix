@@ -298,7 +298,7 @@ func (d ParentPortalSchools) SchoolNames(ctx context.Context, ids []int64) (map[
 type ParentStaffMembers struct{ Membership schoolmembership.Query }
 
 func (d ParentStaffMembers) List(ctx context.Context, tenantIDs []int64) ([]recordports.StaffMember, error) {
-	members, err := d.Membership.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: tenantIDs})
+	members, err := d.Membership.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: tenantIDs, MembershipOnly: true})
 	if err != nil {
 		return nil, err
 	}

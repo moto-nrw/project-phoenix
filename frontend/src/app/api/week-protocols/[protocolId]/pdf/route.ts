@@ -2,6 +2,7 @@ import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
@@ -19,21 +20,10 @@ interface RouteContext {
   params: Promise<{ protocolId: string }>;
 }
 
-async function proxyPdf(
+function pdfResponse(
+  backendResponse: Response,
   request: NextRequest,
-  protocolId: string,
-  token: string,
-): Promise<Response> {
-  const backendResponse = await fetch(
-    `${getServerApiUrl()}/api/week-protocols/${encodeURIComponent(protocolId)}/pdf`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(await incomingAnalyticsSessionHeaders()),
-      },
-      cache: "no-store",
-    },
-  );
+): Response {
   if (!backendResponse.ok) {
     const response = forwardBackendResponse(backendResponse, request);
     response.headers.set("Cache-Control", "no-store");
@@ -67,16 +57,19 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
     if (!/^\d+$/.test(protocolId)) {
       return problemResponse(400, "invalid id", request);
     }
-    const response = await proxyPdf(request, protocolId, session.user.token);
-    if (response.status !== 401) return response;
-    const refreshed = await uncachedAuth();
-    if (
-      !refreshed?.user?.token ||
-      refreshed.user.token === session.user.token
-    ) {
-      return response;
-    }
-    return proxyPdf(request, protocolId, refreshed.user.token);
+    const url = `${getServerApiUrl()}/api/week-protocols/${encodeURIComponent(protocolId)}/pdf`;
+    const forwardHeaders = await incomingAnalyticsSessionHeaders();
+    const send = (bearer: string) =>
+      fetch(url, {
+        headers: { Authorization: `Bearer ${bearer}`, ...forwardHeaders },
+        cache: "no-store",
+      });
+    return pdfResponse(
+      await sendWithTokenRefresh(session.user.token, send, () =>
+        uncachedAuth(),
+      ),
+      request,
+    );
   } catch (error) {
     captureBffException(error, request);
     logger.error("week_protocol_pdf_proxy_failed", {

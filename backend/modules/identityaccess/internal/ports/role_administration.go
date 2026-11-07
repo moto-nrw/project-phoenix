@@ -108,6 +108,9 @@ type PermissionStore interface {
 	DeletePermission(ctx context.Context, id int64) error
 	ListPermissions(ctx context.Context, filter domain.PermissionFilter) ([]domain.ManagedPermission, error)
 	ListRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, error)
+	// ListVisibleRolePermissions reports found=false when the role is not
+	// visible with FindRole's scope, so a foreign custom role reads as missing.
+	ListVisibleRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, bool, error)
 	AssignRolePermission(ctx context.Context, roleID, permissionID int64) error
 	// AssignRolePermissions skips listed permissions the catalog no longer holds.
 	AssignRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error

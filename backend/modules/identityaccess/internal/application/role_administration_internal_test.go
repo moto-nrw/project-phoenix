@@ -249,6 +249,14 @@ func (s *raStore) ListRolePermissions(_ context.Context, roleID int64) ([]domain
 	return result, nil
 }
 
+func (s *raStore) ListVisibleRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, bool, error) {
+	if _, found := s.roles[roleID]; !found {
+		return nil, false, nil
+	}
+	permissions, err := s.ListRolePermissions(ctx, roleID)
+	return permissions, true, err
+}
+
 func (s *raStore) AssignRolePermission(_ context.Context, roleID, permissionID int64) error {
 	s.record("assign role permission")
 	s.rolePerms[roleID] = append(s.rolePerms[roleID], permissionID)

@@ -33,6 +33,7 @@ func checkTraegerScopeMatrix(t *testing.T, apiInstance *goldenRuntime) {
 	// wildcard. The scope alone must keep every foreign door shut.
 	everyRight := append(identityaccess.TraegerRights([]string{
 		identityaccess.TraegerRoleAdministration, identityaccess.TraegerRoleBilling, identityaccess.TraegerRolePersonnel,
+		identityaccess.TraegerRoleDocuments,
 	}), "admin:*")
 	traegerToken := mint(sessiontoken.AppClaims{ID: 42, Sub: "buero@example.test", Roles: []string{identityaccess.TraegerRoleAdministration},
 		Permissions: everyRight, IsAdmin: true, Scope: tenant.ScopeOrg, OrgID: 1})

@@ -221,10 +221,10 @@ func (s *Service) ListAttachments(ctx context.Context, announcementID int64) (fi
 		}
 		editable = true
 		err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
-			return s.checkAttachmentUpload(txCtx, o, announcementID, false)
+			return s.requireEditableAnnouncement(txCtx, announcementID, false)
 		})
 		switch {
-		case err == nil, errors.Is(err, filestorage.ErrAttachmentLimitReached):
+		case err == nil:
 		case errors.Is(err, filestorage.ErrAttachmentPublished), errors.Is(err, filestorage.ErrAttachmentNotFound), errors.Is(err, filestorage.ErrInvalid):
 			editable = false
 		default:

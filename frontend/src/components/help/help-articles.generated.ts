@@ -1243,6 +1243,8 @@ export const careTimeComparisonTopic =
       notes: [
         "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
         "Hat das Kind einen Vertrag vom Träger, gilt der Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Vertrag`. Das Ende ist die Endzeit des letzten Moduls an diesem Wochentag. Die Ankunft kommt weiter aus dem Wochenplan.",
+        "An einem Tag mit bestätigter Ferienbuchung gilt die Ferienbuchung, auch vor dem Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Ferienbuchung`. Ankunft und Ende sind die Zeiten des gebuchten `Zeitmodell`.",
+        "Bei einem Feriengast steht `Soll und Ist` unter `Feriengast`. Der Zeitraum beginnt mit seiner Ferienwoche.",
         "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
         "Zeit im Unterricht wird nicht abgezogen. Unter `Hinweis` steht sie als `Zum Unterricht` mit der Uhrzeit.",
         "Kommt ein Kind nach dem Unterricht nicht zurück, endet `Tatsächlich` mit dieser Abmeldung. Die `Abweichung` ist dann groß und negativ. `Zum Unterricht: ab` mit der Uhrzeit zeigt, dass es nicht nach Hause gegangen ist.",
@@ -1670,6 +1672,7 @@ export const createStudentTopic = function createStudentTopic(): HelpTopic {
       "Der grüne Knopf ist grau? Dann hat die Vorschau noch Fehler. Beheben Sie sie in der Datei und laden Sie erneut hoch.",
       "Über der Vorschau steht rot, der Import würde mehr Kinder hinzufügen, als im Kinderkontingent frei sind? Dann startet der Import gar nicht. Nehmen Sie Kinder aus der Datei heraus oder melden Sie sich beim moto-Team. Kinder, die der Import nur aktualisiert, zählen dabei nicht.",
       "moto erkennt eine Zeile an Vorname, Nachname und Klasse. Bei einem Klassenwechsel an der Spalte `RFID-Karte` oder am Geburtstag.",
+      "moto meldet, das Kind ist angelegt, aber die Angaben unter `Datenschutz` wurden nicht gespeichert? Wählen Sie in der Meldung `Öffnen`. Wählen Sie bei `Persönliche Informationen` `Bearbeiten` und tragen Sie die Angaben unter `Datenschutz` neu ein.",
       "moto meldet, das Kinderkontingent ist voll? Dann ist die Kontingentzahl erreicht. Wie viel belegt ist, steht oben in `Kinderdaten`. Ihre Eingaben bleiben im Fenster. Für weitere Kinder melden Sie sich beim moto-Team.",
     ],
     related: [
@@ -5776,7 +5779,7 @@ export const parentDepartureTopic = function parentDepartureTopic(): HelpTopic {
 /**
  * `/parents/documents` (#4671, #4678, #4679, #4692): Schreiben und Verträge
  * des Trägers, den Betreuungsvertrag unterschreiben, und Dokumente, die der
- * Träger für Eltern freigegeben hat.
+ * Träger für Eltern freigegeben hat; die Kündigung eines Vertrags (#4682).
  */
 export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
   return {
@@ -5818,6 +5821,9 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Steht beim Vertrag `Abgeschlossen` statt `Unterschrieben`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
+      "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin oder innerhalb der angezeigten Frist `Widerrufen`. Wählen Sie dann `Jetzt kündigen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
+      "Haben Sie einen wichtigen Grund, den Vertrag früher zu beenden? Wählen Sie `Außerordentlich kündigen` und schreiben Sie Ihren Grund auf. Der Träger prüft ihn und legt dann das Vertragsende fest. Bis dahin findet die Betreuung wie gebucht statt.",
+      "Bei einem gekündigten Vertrag steht `Gekündigt zum` und das Datum. Bis dahin findet die Betreuung wie gebucht statt. Mit `Bestätigung ansehen` öffnen Sie Ihre Bestätigung.",
       "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
       "Bei einem freigegebenen Dokument steht `Vom Träger für Eltern freigegeben`. Es gilt für alle Eltern, für die der Träger es freigegeben hat, zum Beispiel für eine Gruppe. Diese Dokumente kommen nicht per Mail.",
@@ -5829,6 +5835,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Der Link in der Mail gilt nicht mehr? Er gilt nur einmal und 30 Tage. Unterschreiben Sie in der Eltern-App unter `Dokumente`. Oder fragen Sie beim Träger nach einem neuen Link.",
       "Beim Vertrag fehlt `Lesen und unterschreiben`? Dann darf Ihr Konto für dieses Kind nicht unterschreiben. Bitte fragen Sie die Schule.",
       "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen oder das Dokument gelöscht.",
+      "`Verträge hier kündigen` fehlt? Der Vertrag gilt noch nicht, oder er ist schon beendet. Oder Ihnen fehlt das Recht: Kündigen dürfen nur Eltern, die das Kind auch anmelden dürfen. Dann steht beim Vertrag ein Hinweis. Das Recht vergibt die Schule.",
     ],
     related: [
       HELP_TOPICS.parentCareChange,
@@ -9897,9 +9904,10 @@ export const traegerAccountsTopic = function traegerAccountsTopic(): HelpTopic {
     result:
       "Die eingeladene Person steht unter `Offene Einladungen`, bis sie die Einladung annimmt.",
     notes: [
-      "`Leitung` darf Personen einladen, ihre Rollen ändern und sie entfernen. `Verwaltung` darf Anmeldungen, Verträge, Einstellungen und das Protokoll verwalten. `Schulzugang` darf jede Schule des Trägers öffnen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
+      "`Leitung` darf Personen einladen, ihre Rollen ändern und sie entfernen. `Verwaltung` darf Anmeldungen, Verträge, Einstellungen und das Protokoll verwalten. `Dokumente` darf Dokumente für Eltern und Schulen hochladen, freigeben und löschen. `Schulzugang` darf jede Schule des Trägers öffnen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
       "Nur eine Person mit `Leitung` kann `Leitung` vergeben oder wegnehmen. Ihre eigene `Leitung` geben Sie erst ab, wenn eine andere Person sie hat.",
       "Eine Person kann mehrere Rollen haben. Wählen Sie alle Rollen auf einmal aus.",
+      "Wer bisher `Verwaltung` hatte, hat `Dokumente` dazubekommen. Soll sich eine andere Person um die Dokumente kümmern? Geben Sie ihr `Dokumente` und nehmen Sie die Rolle bei der Verwaltung weg.",
       "Unter `Offene Einladungen` stehen auch Einladungen, die das moto-Team verschickt hat.",
       "Unter `Verlauf` steht, wer wann eingeladen, Rollen geändert oder entfernt hat. Bei Rollen sehen Sie, welche vorher galten und welche jetzt gelten.",
       "Ändern Sie die Rollen einer Person oder entfernen Sie sie, bekommt die Person eine E-Mail. Darin steht, wer es war und wann. Das gilt auch, wenn Sie Ihre eigenen Rollen ändern.",
@@ -10211,7 +10219,8 @@ export const traegerBriefkopfTopic =
  * `/traeger/vertraege` (#4678, #4679, #4680, #4681): festlegen, wann der
  * Vertrag gilt, Vertragsbedingungen je Angebot festlegen, Entwürfe aus
  * angenommenen Anmeldungen erstellen, prüfen und senden; die Unterschrift
- * der Eltern und den Papiervertrag erfassen; Versionen nach einer Änderung.
+ * der Eltern und den Papiervertrag erfassen; Versionen nach einer Änderung;
+ * Kündigung und Widerruf (#4682).
  */
 export const traegerCareContractsTopic =
   function traegerCareContractsTopic(): HelpTopic {
@@ -10249,6 +10258,7 @@ export const traegerCareContractsTopic =
             "Müssen die Eltern eine Satzung anerkennen? Setzen Sie den Haken bei `Satzung`. Tragen Sie den Namen und, wenn vorhanden, den Link ein.",
             "Tragen Sie den Namen des `Vertragspartners` ein, wenn er nicht im Briefkopf steht.",
             "Wählen Sie `Bedingungen speichern`.",
+            "Unter `Widerrufsbelehrung für das Anmeldeformular` und `Häkchen „Betreuung vor Ende der Widerrufsfrist“` stehen zwei weitere Texte. Die Schule kopiert beide als eigene Rechtstexte ins Anmeldeformular. Die Belehrung muss bestätigt werden, das Häkchen nicht.",
             "Für `Bei der Annahme`: Tragen Sie den `Vertragspartner` immer ein. Speichern Sie die Bedingungen. Kopieren Sie den Text aus `Gespeicherter Text für das Anmeldeformular` unverändert. Die Schule wählt im Anmeldeformular `Eigene Zustimmung hinzufügen`. Sie trägt ihn unter `Rechtstext / Erklärung` ein. Sie setzt `Muss bestätigt werden` und behält bestehende Rechtstexte bei. Bei mehreren Modulen müssen deren Bedingungen übereinstimmen.",
           ],
         },
@@ -10313,6 +10323,19 @@ export const traegerCareContractsTopic =
             "Mit `PDF` laden Sie eine Version als PDF.",
           ],
         },
+        {
+          title: "Kündigung oder Widerruf eintragen",
+          steps: [
+            "Eltern kündigen selbst in der Eltern-App. Dann steht die Kündigung von allein beim Vertrag. Sie müssen nichts tun.",
+            "Kam eine Kündigung per Mail oder Brief? Wählen Sie in der Liste das Kind.",
+            "Rechts steht die Karte `Vertrag beenden`. Sie zeigt den Kündigungstermin und die Absendefrist für einen Widerruf.",
+            "Wählen Sie `Kündigung eintragen`.",
+            "Wählen Sie bei `Eingegangen am` den Tag, an dem die Mail oder der Brief ankam.",
+            "Die Auswahl gilt für diesen Eingangstag, auch bei älteren Erklärungen. Wählen Sie `Kündigung` oder `Widerruf`. Bei einer Kündigung wählen Sie den Termin oder `Außerordentlich, aus wichtigem Grund` und tragen den Grund der Eltern ein.",
+            "Bei einem Widerruf: Tragen Sie bei `Abgesendet am` den Absende-Tag ein. Ein rechtzeitig abgesendeter Brief darf später ankommen.",
+            "Wählen Sie `Kündigung eintragen` oder `Widerruf eintragen`.",
+          ],
+        },
       ],
       steps: [],
       result:
@@ -10327,6 +10350,10 @@ export const traegerCareContractsTopic =
         "Wartet ein versendeter Vertrag auf die Unterschrift, bekommen die Eltern Erinnerungen per Mail. Es gibt höchstens drei. Bereits abgeschlossene Verträge bekommen keine Erinnerung. Nach wie vielen Tagen, legen Sie unter `Einstellungen` → `Allgemein` im Bereich `Betreuungsverträge` fest. Bei 0 gibt es keine Erinnerung.",
         "Der Link in der Mail gilt einmal und 30 Tage. Jede Erinnerung bringt einen neuen Link.",
         "Frühere Versionen bleiben unter `Versionen` lesbar. `Gilt jetzt` zeigt die Version von heute. Die Abrechnung nimmt für jeden Tag die Version, die an diesem Tag gilt.",
+        "Bei einer außerordentlichen Kündigung steht in `Vertrag beenden` der Grund der Eltern und `Ende noch offen`. Prüfen Sie den Grund. Wählen Sie dann `Vertragsende festlegen` und den letzten Tag. Bis dahin gilt der Vertrag weiter. Das Datum lässt sich danach nicht mehr ändern.",
+        "Nach einer Kündigung hat der Vertrag den Status `Gekündigt`. Er gilt bis zum Vertragsende und wird bis dahin abgerechnet. Nach einem Widerruf ist er `Widerrufen` und gilt an keinem Tag.",
+        "Die Eltern bekommen sofort eine Bestätigung per Mail und in der Eltern-App. Den Text legen Sie unter `Einstellungen` → `Allgemein` im Reiter `Betreuungsverträge` fest. Die Bestätigung steht danach in der Karte `Vertrag beenden`, so wie sie verschickt wurde.",
+        "Den Kündigungstermin rechnet moto aus den Bedingungen im Vertrag, nicht aus den heutigen Vertragsbedingungen. Die Widerrufsfrist beginnt frühestens mit dem Erhalt der Belehrung. Ohne Nachweis gilt die längere Frist.",
         "Eine neue Version gilt nie rückwirkend. Kommt eine Freigabe zu spät, gilt die Version ab dem Tag, an dem moto sie anlegt.",
         "Beginnt an einem Tag schon eine Version, und die Schule gibt für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
         "Ist schon eine spätere Version geplant, gilt eine frühere Änderung nur bis dahin. Die geplante Version übernimmt sie nicht von selbst.",
@@ -10335,6 +10362,8 @@ export const traegerCareContractsTopic =
         "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
       ],
       troubleshootingDetails: [
+        "`Kündigung eintragen` fehlt? Der Vertrag ist noch nicht abgeschlossen oder schon beendet. Einen Entwurf oder versendeten Vertrag verwerfen Sie oder lassen ihn liegen.",
+        "Ein Brief kam nach der Widerrufsfrist an? Entscheidend ist der Absende-Tag. Tragen Sie ihn bei `Abgesendet am` ein.",
         "Die Schule hat angenommen, aber nach einigen Minuten steht kein aktiver Vertrag da? Dann fehlt etwas. Das Kind steht in `Verträge erstellen` mit dem Grund, zum Beispiel `Vertragsbedingungen fehlen`. Fehlt die E-Mail-Adresse der Eltern, ergänzt die Schule sie in der Anmeldung. moto versucht es danach von selbst noch einmal.",
         "Ein Kind zeigt `Mail-Adresse gesperrt`? Mails an die Adresse der Eltern kamen nicht an. Die Schule prüft die Adresse beim Kind unter `Erziehungsberechtigte` und wählt `Sperre aufheben`. Danach entsteht der Vertrag von selbst.",
         "Ein Kind zeigt `Mails gestoppt`? Die Schule hat die Mails an diese Eltern gestoppt. Der Vertrag kommt erst, wenn die Schule beim Kind unter `Erziehungsberechtigte` `Mails wieder senden` wählt.",
@@ -10390,6 +10419,7 @@ export const traegerCareTimeOverrunsTopic =
         "Rote Zahlen zeigen Überschreitungen. Sprechen Sie mit den Eltern, oder ändern Sie die Buchung.",
       notes: [
         "Das Soll kommt aus dem versendeten Vertrag: je Wochentag die Module und die Endzeit. Ohne Vertrag gilt der Betreuungsplan der Schule.",
+        "An einem Tag mit bestätigter Ferienbuchung gilt die Ferienbuchung, nicht der Vertrag. Jeder Tag zählt nur einmal.",
         "Das Ist reicht vom ersten Einchecken bis zum letzten Auschecken des Tages.",
         "Eine Überschreitung ist mehr als 15 Minuten früher oder später als gebucht. Ein Tag ohne Buchung zählt ganz.",
         "Krank, entschuldigt, abgemeldet, Schließtage und Feiertage zählen nicht.",
@@ -10785,13 +10815,14 @@ export const traegerHolidayPeriodTopic =
       notes: [
         "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
         "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
+        "Ein Zeitmodell mit Anmeldungen lässt sich nicht entfernen. Wählen Sie dann `Archivieren`. Neu buchen kann es danach niemand mehr. Gebuchte Tage behalten es. Zurückholen lässt es sich nicht.",
         "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Abrechnungsvorgaben` fest.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Ferienbetreuung`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
       ],
       troubleshootingDetails: [
-        "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell.",
+        "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell, das nicht archiviert ist.",
         "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
       ],
       related: [
@@ -10994,7 +11025,7 @@ export const traegerHolidayRegistrationTopic =
         "Sie sehen keinen Link? Dann ist der Ferienzeitraum noch ein Entwurf. Veröffentlichen Sie ihn zuerst.",
       ],
       troubleshootingDetails: [
-        "Eine Woche oder ein Zeitmodell lässt sich nicht entfernen? Dafür gibt es schon Anmeldungen.",
+        "Eine Woche oder ein Zeitmodell lässt sich nicht entfernen? Dafür gibt es schon Anmeldungen. Ein gebuchtes Zeitmodell können Sie `Archivieren`.",
         "Eltern sagen, die Anmeldung sei nicht offen? Prüfen Sie `Anmeldebeginn` und `Anmeldeschluss`.",
       ],
       related: [HELP_TOPICS.traegerHolidayPeriod],
@@ -11301,7 +11332,7 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
 /**
  * `/traeger/dokumente` (#4692): vorhandene Dokumente hochladen und für
  * Eltern oder Schulen freigeben; eine Freigabe zurücknehmen; ein Dokument
- * löschen (#5993).
+ * löschen (#5993). Schreiben darf die Rolle Dokumente (#5992).
  */
 export const traegerSharedDocumentsTopic =
   function traegerSharedDocumentsTopic(): HelpTopic {
@@ -11315,7 +11346,7 @@ export const traegerSharedDocumentsTopic =
       audience: "traeger",
       icon: "EnvelopeOpen",
       requirements: [
-        "Sie haben die Rolle `Verwaltung`.",
+        "Sie haben die Rolle `Dokumente`. Wer bisher `Verwaltung` hatte, hat sie dazubekommen.",
         "Die Datei ist ein PDF, ein Word-, Excel- oder PowerPoint-Dokument oder ein Bild. Sie ist höchstens 10 MB groß.",
       ],
       instructionGroups: [
@@ -11370,7 +11401,7 @@ export const traegerSharedDocumentsTopic =
         "Auch nach dem Löschen bleibt im Nachweis, wer das Dokument wann freigegeben, geöffnet und gelöscht hat.",
       ],
       differences: [
-        "Sie sehen `Dokument hochladen`, `Freigeben` und das Menü zum Löschen nicht? Ihnen fehlt die Rolle `Verwaltung`. Sie können die Dokumente nur ansehen.",
+        "Sie sehen `Dokument hochladen`, `Freigeben` und das Menü zum Löschen nicht? Ihnen fehlt die Rolle `Dokumente`. Sie können die Dokumente nur ansehen und herunterladen. Die Rolle gibt Ihnen eine Person mit der Rolle `Leitung` unter `Einstellungen` bei `Mitglieder und Rollen`.",
       ],
       troubleshootingDetails: [
         "moto nimmt die Datei nicht an? Prüfen Sie Art und Größe. Eine umbenannte Datei erkennt moto am Inhalt.",
@@ -11379,6 +11410,7 @@ export const traegerSharedDocumentsTopic =
       ],
       related: [
         HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.traegerAccounts,
         HELP_TOPICS.errorMessages,
       ],
     };

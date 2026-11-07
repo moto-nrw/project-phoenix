@@ -29,6 +29,10 @@ func (r *freezingSnapshotRepo) LatestClosedMonth(context.Context, int64, int, in
 	return nil, nil
 }
 
+func (r *freezingSnapshotRepo) ClosedMonthSnapshotsForStaff(context.Context, []int64) ([]*MonthSnapshot, error) {
+	return nil, nil
+}
+
 func (r *freezingSnapshotRepo) RecordClosedMonth(_ context.Context, value MonthSnapshot) (MonthSnapshot, error) {
 	r.recorded = append(r.recorded, value)
 	return value, nil

@@ -20,7 +20,7 @@ func projectionRelocationRepository(t *testing.T) (string, string, *Policy) {
 	}
 	writeStudentProjectionPolicy(t, repo, p)
 	writeFile(t, filepath.Join(repo, "architecture/legacy.jsonl"), "")
-	writeFile(t, filepath.Join(repo, "test", "query-budgets", "owner", "list.json"), queryBudgetFragment)
+	writeQueryBudgetFixture(t, repo)
 	gitfixture.Init(t, repo)
 	runGit(t, repo, "config", "user.email", "architecture-test@example.test")
 	runGit(t, repo, "config", "user.name", "Architecture Test")

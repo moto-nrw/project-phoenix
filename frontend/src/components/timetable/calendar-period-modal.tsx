@@ -660,9 +660,7 @@ export function CalendarPeriodModal({
             </p>
           }
           warningSlot={
-            <p className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
-              {deleteConflictHint}
-            </p>
+            <Alert type="warning" announce="off" message={deleteConflictHint} />
           }
           gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
           onConfirm={handleDelete}

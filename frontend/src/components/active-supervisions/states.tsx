@@ -1,6 +1,5 @@
 "use client";
 
-import { WarningCircleIcon } from "@phosphor-icons/react";
 import {
   SkeletonRegion,
   CardGridSkeleton,
@@ -15,7 +14,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { Alert } from "~/components/ui/alert";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import { roomsConcept } from "~/lib/concepts/rooms";
 
@@ -152,23 +151,11 @@ export function ReleaseSupervisionModal({
     >
       <div className="space-y-4">
         <FormErrorAlert message={error} />
-        <div className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-3">
-          <div className="flex items-start gap-3">
-            <MotoDuotoneIcon
-              icon={WarningCircleIcon}
-              tone="red"
-              size={20}
-              className="mt-0.5 flex-shrink-0"
-            />
-            <div className="flex-1">
-              <p className="text-sm text-gray-600">
-                Sie werden nicht mehr als Aufsicht angezeigt. Der Schulhof
-                bleibt für alle Betreuungskräfte offen. Dort steht dann, dass
-                niemand die Aufsicht hat.
-              </p>
-            </div>
-          </div>
-        </div>
+        <Alert
+          type="warning"
+          announce="off"
+          message="Sie werden nicht mehr als Aufsicht angezeigt. Der Schulhof bleibt für alle Betreuungskräfte offen. Dort steht dann, dass niemand die Aufsicht hat."
+        />
       </div>
     </ConfirmationModal>
   );

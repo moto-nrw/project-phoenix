@@ -267,7 +267,7 @@ func (s *Service) ListChildGuardians(ctx context.Context, accountID, studentID i
 // every guardian of the child in three queries total, rather than three per
 // guardian.
 func (s *Service) loadChildGuardians(ctx context.Context, tenantID, accountID, studentID int64, canEdit, canManage bool) ([]*ChildGuardian, error) {
-	callerStudents, err := s.callerFamilyStudentSet(ctx, accountID)
+	callerStudents, editableStudents, err := s.callerStudentSets(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +287,7 @@ func (s *Service) loadChildGuardians(ctx context.Context, tenantID, accountID, s
 	if err != nil {
 		return nil, err
 	}
-	escapesByProfile, err := s.profilesEscapingFamily(ctx, profileIDs, callerStudents)
+	escapesByProfile, outsideEditByProfile, err := s.profilesEscapingFamily(ctx, profileIDs, callerStudents, editableStudents)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +308,9 @@ func (s *Service) loadChildGuardians(ctx context.Context, tenantID, accountID, s
 			)
 			return nil, fmt.Errorf("parent: student_guardian %d references missing guardian profile %d", link.ID, link.GuardianProfileID)
 		}
-		out = append(out, projectChildGuardian(profile, link, phonesByProfile[profile.ID], accountID, canEdit, canManage, escapesByProfile[profile.ID], s.GuardianPolicy.IsFullRole))
+		g := projectChildGuardian(profile, link, phonesByProfile[profile.ID], accountID, canEdit, canManage, escapesByProfile[profile.ID], s.GuardianPolicy.IsFullRole)
+		lockContactOutsideEditReach(g, outsideEditByProfile[profile.ID])
+		out = append(out, g)
 	}
 	return out, nil
 }

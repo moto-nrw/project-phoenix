@@ -246,7 +246,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianStudent",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -256,7 +256,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianStudent",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -266,7 +266,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianStudent",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -316,7 +316,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianTenants",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -326,7 +326,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianTenants",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -336,7 +336,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianTenants",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -933,7 +933,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentMessageReadRepositorySource.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -943,7 +943,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentMessageReadRepositorySource.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -953,7 +953,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentMessageReadRepositorySource.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -1964,7 +1964,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.LatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -1974,7 +1974,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.LatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -1984,7 +1984,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.LatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2004,7 +2004,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.LatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -2014,7 +2014,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.LatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -2024,7 +2024,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.LatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2044,7 +2044,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.LatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -2054,7 +2054,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.LatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -2064,7 +2064,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.LatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2154,7 +2154,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -2164,7 +2164,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -2174,7 +2174,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2224,7 +2224,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -2234,7 +2234,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -2244,7 +2244,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2304,7 +2304,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -2314,7 +2314,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -2324,7 +2324,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2344,7 +2344,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -2354,7 +2354,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -2364,7 +2364,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2384,7 +2384,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -2394,7 +2394,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -2404,7 +2404,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadLatestReadCursorByOther. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2514,7 +2514,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -2524,7 +2524,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -2534,7 +2534,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2584,7 +2584,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -2594,7 +2594,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -2604,7 +2604,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
-      "reason": "Read-only already reviewed target: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"

@@ -709,6 +709,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *Service) ContractNoticeOptions(ctx context.Context, accountID, organizationID, contractID int64) (ContractNoticeOptions, error) {\n\treturn s.contractNotice(ctx, accountID, organizationID, contractID, func(txCtx context.Context, reader BillingDocumentReader, _ Traeger) (ContractNoticeOptions, error) {\n\t\treturn s.ContractNotices.ContractNoticeOptions(txCtx, organizationID, contractID, reader)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/parentportal/internal/care/Service.ContractNoticeOptions",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeclareContractNotice(ctx context.Context, accountID, organizationID, contractID int64, input ContractNoticeInput) (ContractNoticeOptions, error) {\n\treturn s.contractNotice(ctx, accountID, organizationID, contractID, func(txCtx context.Context, reader BillingDocumentReader, traeger Traeger) (ContractNoticeOptions, error) {\n\t\treturn s.ContractNotices.DeclareContractNotice(txCtx, organizationID, contractID, reader, traeger.Name, input)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/parentportal/internal/care/Service.DeclareContractNotice",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *Service) RequireCareRunningForUpdate(ctx context.Context, studentID int64) error {\n\tstudent, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif student.CareEndedOn(s.todayDate()) {\n\t\treturn ErrChildCareEnded\n\t}\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "workflows/parentportal/internal/care/Service.RequireCareRunningForUpdate",

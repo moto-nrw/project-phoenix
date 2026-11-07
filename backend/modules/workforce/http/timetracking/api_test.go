@@ -270,7 +270,7 @@ func (s *stubStaffDirectory) StaffByPersonID(ctx context.Context, personID int64
 	return s.staffByPersonIDFn(ctx, personID)
 }
 
-func (s *stubStaffDirectory) StaffByID(ctx context.Context, staffID int64) (*workforce.StaffProfile, error) {
+func (s *stubStaffDirectory) StaffByID(ctx context.Context, staffID int64, _ ...workforce.StaffRead) (*workforce.StaffProfile, error) {
 	if s.staffByIDFn == nil {
 		return &workforce.StaffProfile{ID: staffID}, nil
 	}

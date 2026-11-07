@@ -49,6 +49,30 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticePost.EnqueueNoticeMail",
+      "binding_digest": "ab293cc4296efa7693afee55385e9d5a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticePost.EnqueueNoticeMail",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticePost.NoticeDeliveries",
+      "binding_digest": "6b0c5d8789dd7f035ef90a89a01c4678",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticePost.NoticeDeliveries",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeTemplates.NoticeTemplate",
+      "binding_digest": "9cd188cf1402976df1ca7f3472dbabce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeTemplates.NoticeTemplate",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractPost.ContractMailBlock",
       "binding_digest": "cd347e81e8d90277cac7e64617b1ef40",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.ContractMailBlock",
@@ -162,7 +186,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractApplications.AcceptedApplications",
-      "binding_digest": "48f19e0aeda80f180ab65a39893528f2",
+      "binding_digest": "9abb44e18752b63309b13714804d10f1",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.AcceptedApplications",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.AcceptedContractApplications",

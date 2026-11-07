@@ -46,6 +46,10 @@ type (
 	BillingDocumentReader           = care.BillingDocumentReader
 	BillingDocumentsPort            = care.BillingDocuments
 	ContractDocumentsPort           = care.ContractDocuments
+	ContractNoticesPort             = care.ContractNotices
+	ContractNotice                  = care.ContractNotice
+	ContractNoticeInput             = care.ContractNoticeInput
+	ContractNoticeOptions           = care.ContractNoticeOptions
 	ContractSignatureInput          = care.ContractSignatureInput
 	ContractSigningView             = care.ContractSigningView
 	SharedDocumentsPort             = care.TraegerSharedDocuments
@@ -128,6 +132,11 @@ var (
 	ErrChildCareEnded                   = care.ErrChildCareEnded
 	ErrChildNotAnswerable               = messaging.ErrChildNotAnswerable
 	ErrBillingDocumentNotFound          = care.ErrBillingDocumentNotFound
+	ErrContractNotEndable               = care.ErrContractNotEndable
+	ErrContractWithdrawalClosed         = care.ErrContractWithdrawalClosed
+	ErrContractSpecialTerminationClosed = care.ErrContractSpecialTerminationClosed
+	ErrContractNoticeTemplateMissing    = care.ErrContractNoticeTemplateMissing
+	ErrContractNoticeInvalid            = care.ErrContractNoticeInvalid
 	ErrSharedDocumentNotFound           = care.ErrSharedDocumentNotFound
 	ErrChildNotLinked                   = care.ErrChildNotLinked
 	ErrEmailRequired                    = care.ErrEmailRequired

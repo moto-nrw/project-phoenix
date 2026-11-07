@@ -12,6 +12,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { resumeCare } from "~/lib/care-exit-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "CareResumeModal" });
 
@@ -147,7 +148,7 @@ export function CareResumeModal({
           required
         />
 
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <InsetPanel framed padding="md">
           <p className="text-sm font-medium text-gray-900">
             Bitte danach selbst prüfen
           </p>
@@ -158,7 +159,7 @@ export function CareResumeModal({
               </li>
             ))}
           </ul>
-        </div>
+        </InsetPanel>
 
         <ChoiceTile
           htmlFor="care-resume-checked"
