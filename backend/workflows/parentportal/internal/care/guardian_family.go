@@ -5,37 +5,63 @@ import (
 	"errors"
 )
 
-// callerFamilyStudentSet returns the set of student IDs (in the current tenant)
-// the account is a linked guardian of, regardless of parent-portal permission.
-// It defines "the caller's family" for the cross-family containment guard: the
-// question that guard answers is whether a contact-only profile ALSO serves a
-// child the caller does not guard, so the set must include EVERY child the
-// caller is linked to — not only the parent_portal.access ones
-// ListChildrenForAccount returns. Filtering by portal access would wrongly flag
-// a profile shared with the caller's own no-portal-access child as escaping and
-// over-redact it. There is exactly one guardian_profile per (account, tenant),
-// so the caller's family is precisely the students linked to that profile.
-// MUST run inside the tenant transaction — both reads are RLS-scoped.
-func (s *Service) callerFamilyStudentSet(ctx context.Context, accountID int64) (map[int64]bool, error) {
+// callerStudentSets reads the caller's relationships once and returns two
+// sets of student IDs in the current tenant.
+//
+// family holds every child the account is a linked guardian of, regardless of
+// parent-portal permission. It defines "the caller's family" for the read-side
+// redaction: the question is whether a contact-only profile ALSO serves a child
+// the caller does not guard, so the set must include EVERY linked child, not
+// only the parent_portal.access ones ListChildrenForAccount returns. Filtering
+// by portal access would wrongly flag a profile shared with the caller's own
+// no-portal-access child as escaping and over-redact it. There is exactly one
+// guardian_profile per (account, tenant), so the family is precisely the
+// students linked to that profile.
+//
+// editable holds the children whose relationship grants
+// parent_portal.guardian.edit. A contact edit applies to every child the
+// contact serves, so the write guards measure containment against this set.
+// Otherwise a guardian with edit rights on one child could change a contact of
+// a sibling they hold only pickup or read rights for.
+//
+// MUST run inside the tenant transaction: both reads are RLS-scoped.
+func (s *Service) callerStudentSets(ctx context.Context, accountID int64) (family, editable map[int64]bool, err error) {
 	profile, err := s.GuardianProfileRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
 		// The caller resolved a permitted child in this tenant, so their profile
 		// exists; treat a missing one defensively as an empty family (fail-safe:
 		// every shared profile then reads as escaping rather than editable).
 		if errors.Is(err, ErrGuardianProfileNotFound) {
-			return map[int64]bool{}, nil
+			return map[int64]bool{}, map[int64]bool{}, nil
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	links, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, profile.ID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	set := make(map[int64]bool, len(links))
+	family = make(map[int64]bool, len(links))
+	editable = make(map[int64]bool, len(links))
 	for _, link := range links {
-		set[link.StudentID] = true
+		if link == nil {
+			continue
+		}
+		family[link.StudentID] = true
+		if s.guardianHasPermission(link, GuardianPermissionGuardianEdit) {
+			editable[link.StudentID] = true
+		}
 	}
-	return set, nil
+	return family, editable, nil
+}
+
+// lockContactOutsideEditReach marks an otherwise editable contact as
+// shared-locked when it also serves a child the caller may not edit
+// guardians for, so the listing never offers an edit the write path refuses.
+func lockContactOutsideEditReach(g *ChildGuardian, outsideEditReach bool) {
+	if g.CanEditContact && outsideEditReach {
+		g.CanEditContact = false
+		g.ContactLockedShared = true
+	}
 }
 
 // profileEscapesFamily reports whether the guardian profile is linked to any
@@ -57,24 +83,29 @@ func (s *Service) profileEscapesFamily(ctx context.Context, guardianProfileID in
 
 // profilesEscapingFamily is the batched counterpart of profileEscapesFamily: it
 // reports, per guardian profile id, whether that profile is linked to any
-// student outside callerStudents (i.e. it also serves another family). One
-// query for the whole set. Must run inside the tenant transaction
+// student outside callerStudents (i.e. it also serves another family), and
+// whether it is linked to any student outside editableStudents. One query for
+// the whole set. Must run inside the tenant transaction
 // (ListLinkedChildrenForGuardians is tenant-filtered via RLS).
-func (s *Service) profilesEscapingFamily(ctx context.Context, profileIDs []int64, callerStudents map[int64]bool) (map[int64]bool, error) {
-	escapes := make(map[int64]bool, len(profileIDs))
+func (s *Service) profilesEscapingFamily(ctx context.Context, profileIDs []int64, callerStudents, editableStudents map[int64]bool) (escapes, outsideEdit map[int64]bool, err error) {
+	escapes = make(map[int64]bool, len(profileIDs))
+	outsideEdit = make(map[int64]bool, len(profileIDs))
 	if len(profileIDs) == 0 {
-		return escapes, nil
+		return escapes, outsideEdit, nil
 	}
 	rows, err := s.StudentGuardianRepo.ListLinkedChildrenForGuardians(ctx, profileIDs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, row := range rows {
 		if !callerStudents[row.StudentID] {
 			escapes[row.GuardianProfileID] = true
 		}
+		if !editableStudents[row.StudentID] {
+			outsideEdit[row.GuardianProfileID] = true
+		}
 	}
-	return escapes, nil
+	return escapes, outsideEdit, nil
 }
 
 // contactProtected reports whether the caller may neither read nor edit this
