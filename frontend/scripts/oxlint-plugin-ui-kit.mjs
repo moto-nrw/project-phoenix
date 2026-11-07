@@ -1213,15 +1213,15 @@ src/components/students/school-checkin-fab.tsx|text-[10px]@200
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@371
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[11px]@312
-src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
+src/components/timetable/event-form/step-termin.tsx|text-[10px]@169
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
 src/components/timetable/instance-detail-modal.tsx|text-[11px]@1351 text-[11px]@1376 text-[11px]@1529 text-[10px]@1638 text-[11px]@1659
 src/components/timetable/month-planner-grid.tsx|text-[11px]@64 text-[11px]@140 text-[11px]@149 text-[11px]@170 text-[9px]@201 text-[10px]@235
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@178 text-[10px]@245 text-[11px]@254 text-[10px]@296 text-[10px]@320 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@412 text-[11px]@481
-src/components/timetable/substitution-person-card.tsx|text-[11px]@57 text-[11px]@335 text-[11px]@342 text-[11px]@349 text-[11px]@357 text-[11px]@369
-src/components/timetable/substitution-slide-over.tsx|text-[11px]@740 text-[11px]@744
+src/components/timetable/substitution-person-card.tsx|text-[11px]@58 text-[11px]@337 text-[11px]@344 text-[11px]@351 text-[11px]@359 text-[11px]@371
+src/components/timetable/substitution-slide-over.tsx|text-[11px]@743 text-[11px]@747
 src/components/timetable/template-card.tsx|text-[11px]@128 text-[10px]@198
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@352 text-[11px]@392 text-[11px]@399 text-[11px]@420 text-[11px]@426
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@455 text-[11px]@455 text-[11px]@460 text-[10px]@483 text-[10px]@518 text-[11px]@518
@@ -3987,6 +3987,122 @@ const noHandRolledNavRow = makeRatchetRule({
   }),
 });
 
+// Auswahl-Bausteine (#5595): Schalter, Kästchen, Feldgruppe und Auswahlzeile
+// gibt es im Kit genau einmal. Hart null, ohne Baseline.
+
+const TOGGLE_ROLES = new Set(["switch", "checkbox"]);
+const PAINTED_BOX_SIZE_RE = /^(?:h-[45]|size-[45])$/;
+const PAINTED_BOX_RADIUS_RE = /^rounded(?:-(?:sm|md))?$/;
+const CHECK_ICONS = new Set(["Check", "CheckIcon"]);
+
+function isPaintedCheckbox(element, classText) {
+  const name = jsxName(element.openingElement.name);
+  if (name !== "span" && name !== "div") return false;
+  const className = jsxAttribute(element.openingElement, "className");
+  if (!className?.value) return false;
+  const tokens = classText(className.value).split(/\s+/);
+  if (!tokens.some((token) => PAINTED_BOX_SIZE_RE.test(token))) return false;
+  if (!tokens.some((token) => PAINTED_BOX_RADIUS_RE.test(token))) return false;
+  if (!tokens.includes("border")) return false;
+  return flatJsxChildren(element).some((child) =>
+    CHECK_ICONS.has(jsxName(child.openingElement.name)),
+  );
+}
+
+const noHandRolledToggleControl = makeRatchetRule({
+  ruleName: "no-hand-rolled-toggle-control",
+  description:
+    "Switches and checkboxes come from Switch and Checkbox, not from role or a painted box.",
+  message:
+    "Kein eigener Schalter und kein gemaltes Kästchen: `Switch`/`SwitchRow` aus ~/components/ui/switch, `Checkbox` oder `CheckboxIndicator` aus ~/components/ui/checkbox (#5595, .claude/rules/frontend-ui-kit.md).",
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/switch.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ classText, found }) => ({
+    JSXElement(node) {
+      // Auch `role={on ? "switch" : undefined}`: jeder Text im Ausdruck zählt.
+      const roleAttribute = jsxAttribute(node.openingElement, "role");
+      const roles = roleAttribute?.value
+        ? classText(roleAttribute.value).split(/\s+/)
+        : [];
+      if (roles.some((role) => TOGGLE_ROLES.has(role))) {
+        found(node.openingElement);
+        return;
+      }
+      if (isPaintedCheckbox(node, classText)) found(node.openingElement);
+    },
+  }),
+});
+
+const FIELD_GROUP_RADIUS_RE = /^rounded(?:-(?:sm|md|lg|xl))?$/;
+
+const noHandRolledFieldset = makeRatchetRule({
+  ruleName: "no-hand-rolled-fieldset",
+  description: "Framed field groups come from FormFieldset.",
+  message:
+    "Keine eigene umrandete Feldgruppe: `FormFieldset` (`legend`, `required`, `hint`, `error`) aus ~/components/ui/form-fieldset (#5595, .claude/rules/frontend-ui-kit.md).",
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/form-fieldset.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ classText, found }) => ({
+    JSXOpeningElement(node) {
+      if (jsxName(node.name) !== "fieldset") return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      const tokens = classText(className.value).split(/\s+/);
+      if (
+        tokens.includes("border") &&
+        tokens.some((token) => FIELD_GROUP_RADIUS_RE.test(token))
+      ) {
+        found(node);
+      }
+    },
+  }),
+});
+
+const CHOICE_CONTROLS = new Set(["Checkbox", "Radio"]);
+
+function holdsChoiceControl(element) {
+  return flatJsxChildren(element).some((child) => {
+    const opening = child.openingElement;
+    const name = jsxName(opening.name);
+    if (CHOICE_CONTROLS.has(name)) return true;
+    if (name === "input") {
+      const type = staticAttributeValue(jsxAttribute(opening, "type"));
+      if (type === "checkbox" || type === "radio") return true;
+    }
+    return holdsChoiceControl(child);
+  });
+}
+
+const noHandRolledChoiceTile = makeRatchetRule({
+  ruleName: "no-hand-rolled-choice-tile",
+  description:
+    "A framed row around a Checkbox or Radio comes from ChoiceTile or CheckboxCard.",
+  message:
+    "Keine eigene Auswahlzeile mit Rahmen: `ChoiceTile` (`selected`, `disabled`, `tone`) mit `Checkbox`/`Radio`, oder `CheckboxCard` (#5595, .claude/rules/frontend-ui-kit.md).",
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/choice-tile.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ classText, found }) => ({
+    JSXElement(node) {
+      if (jsxName(node.openingElement.name) !== "label") return;
+      const className = jsxAttribute(node.openingElement, "className");
+      if (!className?.value) return;
+      const tokens = classText(className.value).split(/\s+/);
+      const framed =
+        tokens.some((token) => FIELD_GROUP_RADIUS_RE.test(token)) &&
+        (tokens.includes("border") ||
+          tokens.includes("moto-content-surface") ||
+          tokens.includes("bg-white"));
+      if (framed && holdsChoiceControl(node)) found(node.openingElement);
+    },
+  }),
+});
+
 // Eingabe-Bausteine (#5596): drei Muster, die es im Kit genau einmal gibt.
 
 /** Direkte JSX-Kinder, auch hinter `&&`, `?:`, Fragment und `{…}`. */
@@ -4635,6 +4751,9 @@ export default {
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-inset": noHandRolledInset,
     "no-hand-rolled-field-label": noHandRolledFieldLabel,
+    "no-hand-rolled-fieldset": noHandRolledFieldset,
+    "no-hand-rolled-choice-tile": noHandRolledChoiceTile,
+    "no-hand-rolled-toggle-control": noHandRolledToggleControl,
     "no-hand-rolled-menu": noHandRolledMenu,
     "no-hand-rolled-number-stepper": noHandRolledNumberStepper,
     "no-hand-rolled-overlay": noHandRolledOverlay,

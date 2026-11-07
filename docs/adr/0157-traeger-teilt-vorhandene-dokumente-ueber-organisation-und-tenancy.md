@@ -1,8 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Träger teilt vorhandene Dokumente über Organisation & Tenancy
+
+Freigegeben von Yannick Wenger am 07.11.2026
 
 Vorschlag vom 06.11.2026 zu [#4692](https://github.com/moto-nrw/project-phoenix/issues/4692),
 Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),

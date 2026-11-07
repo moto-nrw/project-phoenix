@@ -1,9 +1,9 @@
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
-
-// A session shape carrying the short-lived backend JWT. Kept minimal so both the
-// staff (`uncachedAuth`) and parent (`uncachedParentAuth`) refreshers fit.
-type TokenSession = { user?: { token?: string | null } | null } | null;
+import {
+  sendWithTokenRefresh,
+  type FreshSessionReader,
+} from "~/lib/token-refresh-retry.server";
 
 /**
  * Streams a text/calendar (.ics) download from the backend, refreshing the
@@ -14,7 +14,7 @@ type TokenSession = { user?: { token?: string | null } | null } | null;
 export async function streamIcsDownload(
   path: string,
   token: string,
-  refresh: () => Promise<TokenSession>,
+  refresh: FreshSessionReader,
 ): Promise<Response> {
   const url = `${getServerApiUrl()}${path}`;
   const forwardHeaders = await incomingClientForwardHeaders();
@@ -23,15 +23,7 @@ export async function streamIcsDownload(
       headers: { Authorization: `Bearer ${bearer}`, ...forwardHeaders },
     });
 
-  let upstream = await request(token);
-  if (upstream.status === 401) {
-    const refreshed = await refresh();
-    const newToken = refreshed?.user?.token;
-    // Only retry when the token actually changed, matching the JSON wrappers.
-    if (newToken && newToken !== token) {
-      upstream = await request(newToken);
-    }
-  }
+  const upstream = await sendWithTokenRefresh(token, request, refresh);
 
   if (!upstream.ok) {
     return new Response("Kalendereintrag nicht verfügbar", {

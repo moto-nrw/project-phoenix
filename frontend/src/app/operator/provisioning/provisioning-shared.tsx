@@ -11,6 +11,7 @@ import {
 } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { SwitchRow } from "~/components/ui/switch";
 
 /**
  * Label, control and its field error (#2519) for a control without a `label`
@@ -204,34 +205,17 @@ export function VisibilityToggle({
       <p className="mb-3 text-xs font-medium text-gray-500 uppercase">
         Sichtbarkeit
       </p>
-      <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gray-900">
-            {hidden ? "Verborgen" : "Sichtbar"}
-          </p>
-          <p className="text-xs text-gray-500">
-            {hidden
-              ? "Schule wird nicht auf der Startseite angezeigt, ist aber über den Direktlink erreichbar."
-              : "Schule wird auf der Startseite im Schulwähler angezeigt."}
-          </p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={!hidden}
-          aria-label="Sichtbarkeit umschalten"
-          onClick={onToggle}
-          className={`focus:ring-moto-blue relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-offset-2 focus:outline-none ${
-            hidden ? "bg-gray-300" : "bg-moto-blue"
-          }`}
-        >
-          <span
-            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-              hidden ? "translate-x-0" : "translate-x-5"
-            }`}
-          />
-        </button>
-      </div>
+      <SwitchRow
+        label={hidden ? "Verborgen" : "Sichtbar"}
+        description={
+          hidden
+            ? "Schule wird nicht auf der Startseite angezeigt, ist aber über den Direktlink erreichbar."
+            : "Schule wird auf der Startseite im Schulwähler angezeigt."
+        }
+        checked={!hidden}
+        onCheckedChange={onToggle}
+        ariaLabel="Sichtbarkeit umschalten"
+      />
     </div>
   );
 }

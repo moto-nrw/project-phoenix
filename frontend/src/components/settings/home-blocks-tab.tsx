@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { SwitchRow } from "~/components/ui/switch";
 import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
@@ -359,18 +359,15 @@ function BirthdaySwitches({
   return (
     <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
       {rows.map((item) => (
-        <div key={item.key} className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-gray-900">{item.label}</p>
-            <p className="text-xs text-gray-500">{item.description}</p>
-          </div>
-          <BooleanField
-            value={values[item.key] === true}
-            onChange={(next) => onChange(item.key, next)}
-            disabled={disabled || !item.writable}
-            ariaLabel={item.label}
-          />
-        </div>
+        <SwitchRow
+          key={item.key}
+          framed={false}
+          label={item.label}
+          description={item.description}
+          checked={values[item.key] === true}
+          onCheckedChange={(next) => onChange(item.key, next)}
+          disabled={disabled || !item.writable}
+        />
       ))}
     </div>
   );

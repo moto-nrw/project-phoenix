@@ -1,19 +1,16 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { schoolAuth } from "~/server/auth/school";
+import { schoolAuth, uncachedSchoolAuth } from "~/server/auth/school";
 import { withSchoolAuth } from "~/server/auth/school-route";
 import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
-import {
-  backendResponseError,
-  isApiResponseError,
-} from "../api-response-error.server";
+import { backendResponseError } from "../api-response-error.server";
 import { makeProxyFactories } from "../route-proxy-factory.server";
+import { executeWithTokenRefresh } from "../token-refresh-retry.server";
 import {
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
-  createTokenExpiredResponse,
   createUnauthorizedResponse,
 } from "../route-wrapper-utils.server";
 
@@ -24,24 +21,6 @@ import {
  * tenant or parent session. Defense-in-depth against accidentally hitting
  * tenant endpoints from a school-scoped request.
  */
-
-async function tryRetryWithRefreshedToken<T>(
-  originalToken: string,
-  retryFn: (token: string) => Promise<T>,
-): Promise<T | null> {
-  const { uncachedSchoolAuth: uncachedAuth } =
-    await import("~/server/auth/school");
-  const updatedSession = await uncachedAuth();
-
-  if (
-    !updatedSession?.user?.token ||
-    updatedSession.user.token === originalToken
-  ) {
-    return null;
-  }
-
-  return retryFn(updatedSession.user.token);
-}
 
 async function schoolServerFetch<T>(
   endpoint: string,
@@ -136,33 +115,6 @@ type WithBodyHandler<T, B> = (
   params: Record<string, unknown>,
 ) => Promise<T>;
 
-async function executeWithRetry<T>(
-  request: NextRequest,
-  token: string,
-  executeHandler: (token: string) => Promise<T>,
-  formatResponse: (data: T) => NextResponse,
-): Promise<NextResponse> {
-  try {
-    const data = await executeHandler(token);
-    return formatResponse(data);
-  } catch (handlerError) {
-    if (!isApiResponseError(handlerError, 401)) {
-      throw handlerError;
-    }
-
-    try {
-      const retryData = await tryRetryWithRefreshedToken(token, executeHandler);
-      if (retryData !== null) {
-        return formatResponse(retryData);
-      }
-    } catch {
-      // Retry failed, fall through to token expired
-    }
-
-    return createTokenExpiredResponse(request);
-  }
-}
-
 function createSchoolNoBodyHandler<T>(
   handler: NoBodyHandler<T>,
   formatResponse: (data: T) => NextResponse,
@@ -173,11 +125,12 @@ function createSchoolNoBodyHandler<T>(
       if (!session?.user?.token) return createUnauthorizedResponse(request);
       const params = await extractParams(request, context);
 
-      return await executeWithRetry(
+      return await executeWithTokenRefresh(
         request,
         session.user.token,
         (token) => handler(request, token, params),
         formatResponse,
+        uncachedSchoolAuth,
       );
     } catch (error) {
       return handleApiError(error, request);
@@ -193,11 +146,12 @@ function createSchoolWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
 
-      return await executeWithRetry(
+      return await executeWithTokenRefresh(
         request,
         session.user.token,
         (token) => handler(request, body, token, params),
         (data) => NextResponse.json(wrapInApiResponse(data)),
+        uncachedSchoolAuth,
       );
     } catch (error) {
       return handleApiError(error, request);
