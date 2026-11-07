@@ -535,7 +535,9 @@ export default function OperatorAnnouncementsPage() {
           Neue Ankündigung
         </Button>
       }
-      loading={isLoading && !announcementsError}
+      loading={
+        isLoading && !announcementsError && !organizationsError && !schoolsError
+      }
       loadingLabel="Ankündigungen werden geladen"
       empty={emptyState}
       overlays={

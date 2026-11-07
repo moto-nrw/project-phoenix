@@ -822,6 +822,38 @@ describe("OperatorAnnouncementsPage", () => {
     expect(mockMutate).toHaveBeenCalled();
   });
 
+  it("shows a failed organization load while announcements are loading", async () => {
+    const reloadOrganizations = vi.fn();
+    mockUseSWR.mockImplementation((key: string) => {
+      if (key === "operator-announcements") {
+        return { data: undefined, isLoading: true, mutate: mockMutate };
+      }
+      if (key === "operator-organizations") {
+        return {
+          data: undefined,
+          error: new ApiError("down", 503),
+          isLoading: false,
+          mutate: reloadOrganizations,
+        };
+      }
+      return { data: undefined, isLoading: false, mutate: mockMutate };
+    });
+
+    render(<OperatorAnnouncementsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Träger"),
+      ),
+    ).toBeInTheDocument();
+    // Anker: der Ladefehler mit Wiederholen-Aktion ist sichtbar.
+    expect(
+      screen.queryByLabelText("Ankündigungen werden geladen"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(reloadOrganizations).toHaveBeenCalled();
+  });
+
   describe("org/tenant targeting", () => {
     const mockOrganizations = [
       { id: "1", name: "Org Alpha", slug: "org-alpha" },
