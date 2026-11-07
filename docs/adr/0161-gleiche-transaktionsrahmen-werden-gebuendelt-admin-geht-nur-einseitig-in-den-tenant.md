@@ -107,6 +107,117 @@ Die 14 Szenarien von #5862: `related_accounts` (N3, N8), `master_data`,
   im Admin-Rahmen (`workflows/parentportal/internal/care/child.go:52–84`); die
   Route öffnet danach ihren Tenant-Rahmen. 39 Aufrufer. Der Befund gilt.
 
+### 4xx-Ausgänge je Route
+
+Stand `development` @ `ec35058c7f`, je Zeile am Code gelesen. Pfade ohne
+Verzeichnis liegen im Paket der Route: `workflows/parentportal/http/` für die
+Eltern-Handler, `workflows/parentportal/internal/care/` für `child.go`,
+`meal_plan.go` und `parent_care_offerings_service.go`,
+`workflows/parentportal/internal/messaging/` für die Anhang- und
+Freigabe-Dienste. Ein Fehler ohne eigenen Code bekommt den Klassencode aus
+`api/common/problem.go:27–43`: 401 und 403 `general.permission`, 409
+`general.business_rejection`, 400 und 404 `general.input`.
+
+Phasen: **vor Rahmen** (vor dem ersten BEGIN), **Admin n** und **Tenant n**
+(im n-ten Admin- bzw. Tenant-Rahmen), **zwischen** (nach dem COMMIT eines
+Rahmens, vor dem BEGIN des nächsten), **nach Rahmen** (nach dem letzten
+COMMIT). 5xx sind nicht aufgeführt.
+
+**Gemeinsame Eltern-Kette** (#5862, #5894; `api/session_route_assembly.go:40–42`),
+vor den Rahmen der Route und von der Bündelung nicht berührt: 401
+`general.permission` bei fehlendem, ungültigem oder abgelaufenem Token
+(`modules/identityaccess/sessiontoken/authenticator.go:85–100`, `216–228`) und
+bei fehlendem Eltern-Scope (`sessiontoken/parent_middleware.go:21`, `30`);
+403 `module.not_booked`, wenn keine Schule des Kontos die Eltern-App gebucht
+hat (`api/module_booking_gate.go:188–189`). Diese Buchungsprüfung liest selbst
+und ist kein Teil der hier gebündelten Rahmen.
+
+**#5881 `GET /public/calendar/{token}`** (Admin 1 Eltern-Token, Admin 2
+Personal-Token, Tenant 1 Projektion). Alle 404 rendert
+`modules/schoolcalendar/http/public_feed.go:38–40` ohne Code (`general.input`).
+
+| Status | Code | Ursache | Datei:Zeile | Phase |
+|---|---|---|---|---|
+| 404 | `general.input` | Feed nicht verdrahtet | `public_feed.go:28–30` | vor Rahmen |
+| 404 | `general.input` | leerer Token (Eltern- und Personalzweig) | `portal/internal/application/feed.go:523–525`, `caldav.go:144–146` | vor Rahmen |
+| – | – | Eltern-Token unbekannt oder Konto inaktiv: kein Ausgang, weiter zum Personalzweig | `feed.go:531–539`, `public_feed.go:34–36` | Admin 1, ausgewertet zwischen |
+| 404 | `general.input` | Personal-Token unbekannt | `caldav.go:165–167` | Admin 2 |
+| 404 | `general.input` | Konto fehlt oder inaktiv | `caldav.go:172–174` | Admin 2 |
+| 404 | `general.input` | Person, Personal oder Kalenderzugang fehlt | `feed.go:263–264`, `268–269`, `273–274`, `289–290`, `296–297`, weitergereicht `221–222` | Tenant 1 |
+
+**#5795 Operator-Kette** (`modules/identityaccess/inbound/operator/sessions.go:57–66`;
+Admin 1 Operator, Admin 2 Sitzungsfamilie, danach die Rahmen der Route). Pfade
+relativ zu `modules/identityaccess/`.
+
+| Status | Code | Ursache | Datei:Zeile | Phase |
+|---|---|---|---|---|
+| 401 | `general.permission` | Token fehlt, ungültig, widerrufen | `sessiontoken/authenticator.go:85–100`, `216–228` | vor Rahmen |
+| 403 | `identity.read_only_preview` | Schreibanfrage in der Lesevorschau | `api/common/readonly_preview.go:72` | vor Rahmen |
+| 403 | `general.permission` | kein Operator-Scope | `inbound/operator/middleware.go:28–33` | vor Rahmen |
+| 401 | `general.permission` | keine Konto-ID im Token | `middleware.go:46–48` | vor Rahmen |
+| 401 | `identity.invalid_credentials` | Operator fehlt oder ID ≤ 0 | `internal/application/operator.go:48–49`, `56–57`; gerendert `middleware.go:91–93`, `inbound/operator/errors.go:82–83` | Admin 1 |
+| 403 | `identity.account_inactive` | Operator inaktiv oder keine Familie im Token | `middleware.go:74–76`, `errors.go:80–81`, `100–102` | zwischen |
+| 403 | `identity.account_inactive` | keine Sitzung der Familie | `operator.go:308–309`, umgesetzt `middleware.go:78–80` | Admin 2 |
+| 403 | `identity.account_inactive` | Sitzung gehört einem anderen Operator oder ist abgelaufen | `middleware.go:84–86` | nach Rahmen |
+| 4xx | je Route | Fehler der Route selbst | Handler der Route | nach Rahmen (eigene Rahmen der Route) |
+
+**#5878 Push-Cleanup:** kein 4xx. Der Cleanup läuft nach dem Commit der
+auslösenden Anfrage; sein Fehler wird nur protokolliert
+(`modules/identityaccess/internal/application/session_revocation.go:172–189`).
+Die kontoweiten Wege, die den Fehler zurückgeben (`214`, `233`, `239`, `535`),
+löschen in einem Rahmen (`392–402`) und sind von der Bündelung nicht berührt;
+ihr Fehler ist ein 5xx.
+
+**#5894 Anhänge der Eltern** (`modules/filestorage/http/files/attachments.go:241–295`).
+Jede Ablehnung der Prüfung wird zu `ErrAttachmentNotFound` und über
+`roots/owners/parent_announcement_attachments.go:56–62` und
+`attachments.go:135–148` zu 404 ohne Code (`general.input`). Gate: Admin 1
+Zielgruppe, Tenant 1 Schulschalter (entfällt bei Systemankündigungen,
+`parent_announcement_service.go:344–346`), Tenant 2 Dateizeilen, Admin 2
+erneute Prüfung, beim Download Tenant 3 Zeile und Datei.
+
+| Status | Code | Ursache | Datei:Zeile | Phase |
+|---|---|---|---|---|
+| 400 | `general.input` | `announcementId` bzw. `attachmentId` ungültig | `attachments.go:242`, `261`, `265` | vor Rahmen |
+| 401 | `general.permission` | keine Konto-ID im Token | `attachments.go:232–239` | vor Rahmen |
+| 400 | `general.input` | `student_id` mehrfach oder nicht positiv (Nachweis-Download) | `attachments.go:277–284` | vor Rahmen |
+| 404 | `general.input` | Konto- oder Ankündigungs-ID ≤ 0 | `announcement_attachment_entry.go:109–110` | vor Rahmen |
+| 404 | `general.input` | Ankündigung fehlt, nicht live oder Konto nicht in der Zielgruppe | `parent_announcement_attachments.go:42`, `49`, ausgewertet `59–60`, `entry.go:116–121` | Admin 1, ausgewertet zwischen |
+| 404 | `general.input` | Schulschalter aus oder nicht lesbar (fail closed) | `parent_announcement_service.go:351–361`, `parent_announcement_attachments.go:64–65` | Tenant 1, ausgewertet zwischen |
+| 404 | `general.input` | Anhangzeile fehlt (Download) | `modules/filestorage/internal/application/attachments.go:358–359`, `368–369` | Tenant 2 |
+| 404 | `general.input` | Ankündigung inzwischen zurückgezogen oder andere Schule | `announcement_attachment_entry.go:127–134` | Admin 2 (nach den Tenant-Rahmen) |
+| 404 | `general.input` | Zeile oder gespeicherte Datei fehlt beim Öffnen | `filestorage/internal/application/attachments.go:345–346`, `service.go:366–370` | Tenant 3 bzw. nach Rahmen |
+| 404 | `general.input` | Nachweis fehlt, Kind oder Anhang passt nicht (Nachweis-Download, ohne Schalter) | `parent_declaration_feed.go:175`, `193`, `parent_announcement_attachments.go:77–97`, `entry.go:84–85` | vor Rahmen bzw. Admin 1 |
+
+**#5862 Eltern-Kind-Leserouten** (`routes.go:119–226`; Admin 1 `child.go:61`,
+dann Tenant 1 der Route). Gemeinsame Zeilen aller 13 Routen:
+
+| ID | Status | Code | Ursache | Datei:Zeile | Phase |
+|---|---|---|---|---|---|
+| G1 | 401 | `general.permission` | keine Konto-ID im Token | `child_write_handlers.go:565–572` | vor Rahmen |
+| G2 | 400 | `general.input` | `studentId` ungültig | `child_write_handlers.go:574`, `api/common/request.go:93–100` | vor Rahmen |
+| G3 | 403 | `care.child_not_linked` | keine Verknüpfung mit `parent_portal.access`, Schule ohne Eltern-App, Kind entlassen oder gelöscht | `child.go:66–67`, gemappt `child_write_errors.go:14–17`; Filter `modules/careplan/internal/adapters/parentpostgres/child_repository.go:114–130`, `roots/owners/parent_portal_module_booking.go:43–58` | Admin 1 |
+| G4 | 403 | `care.guardian_permission_denied` | Recht fehlt; nur erreichbar, wenn die Route ein anderes Recht als `parent_portal.access` verlangt | `child.go:69–70`, gemappt `child_write_errors.go:18–19` | Admin 1 |
+
+Fehler, die kein Renderer kennt, werden 500 (`child_write_handlers.go:602–621`,
+`request_sharing_handlers.go:138–152`).
+
+| Route (`/me/children/{studentId}/…`) | Zusätzliche 4xx: Status, Code, Ursache, Datei:Zeile, Phase |
+|---|---|
+| `consents` | nur G1–G3 (`consent_handlers.go:42`, `46`) |
+| `meal-participation` | 400 `general.input`, `from`/`to` fehlt oder kein Datum, `child_write_handlers.go:433–437`, vor Rahmen. 400 `meals.participation_out_of_range`, Zeitraum außerhalb dieser Woche bis Montag + 25 Tage, `meal_plan.go:88–90`, gemappt `child_write_errors.go:41–42`, **zwischen**. 403 `meals.registration_disabled`, Speiseplan oder Anmeldung aus, `modules/mealplan/internal/application/service.go:447–448`, `461–462`, `meal_plan.go:215–216`, Tenant 1. 400 `meals.invalid_participation`, ungültige Bestellregeln, `meal_plan.go:219–220`, Tenant 1 |
+| `excused-requests` | nur G1–G3 |
+| `requests/{requestType}/{requestId}/events` | 400 `general.input`, `requestId` ungültig, `request_edit_handlers.go:322`, vor Rahmen. G3 wird hier 404 `care.request_not_found` (`request_sharing_handlers.go:148–150`), Admin 1. 400 `care.request_sharing_invalid`, unbekannter Typ, `parent_request_sharing_service.go:445`, Tenant 1. 404 `care.request_not_found`, Anfrage fehlt, falsche Art oder nicht vom Konto, `parent_request_sharing_service.go:429`, `467`, Tenant 1 |
+| `request-sharing/{requestType}/{requestId}` | wie `events`: 400 `general.input` (`request_sharing_handlers.go:106`), G3 als 404 `care.request_not_found`, dann 400 `care.request_sharing_invalid` und 404 `care.request_not_found` in Tenant 1 (`parent_request_sharing_service.go:429`, `445`, `467`) |
+| `request-sharing-options` | G1, G2; G3 als 404 `care.request_not_found` (`request_sharing_handlers.go:148–150`), Admin 1 |
+| `care-exception` | 400 `general.input`, `from`/`to` ungültig oder `to` vor `from`, `child_write_handlers.go:237–249`, gerendert `care_exception_handlers.go:290–292`, vor Rahmen |
+| `pickup-change-requests` | nur G1–G3 |
+| `care-offerings` | nur G1–G3; Schalter enden ohne Fehler (`parent_care_offerings_service.go:527–579`) |
+| `care-offerings/catalog` | 400 `care.offering_change_invalid`, `effective_from` kein Datum, `care_offerings_handlers.go:329–333`, vor Rahmen. G4 erreichbar (`parent_portal.request.submit`), Admin 1. 403 `care.child_care_ended`, `child.go:115–116` über `parent_care_offerings_service.go:225`, **zwischen**. 403 `care.offering_changes_disabled`, Änderungen aus oder Schalter nicht lesbar, `modules/careplan/internal/application/offering_changes.go:110`, `113`, Tenant 1. 403 `students.care_offerings_disabled`, `offering_changes.go:120`, `123`, Tenant 1. 400 `care.offering_change_invalid`, Datum vor der Frist, `offering_change_catalog.go:41`, Tenant 1. 403 `students.offering_changes_no_enrollment`, `offering_changes.go:178`, `200`, Tenant 1 |
+| `master-data` | nur G1–G3 |
+| `master-data/requests` | nur G1–G3 |
+| `related-accounts` | nur G1–G3 |
+
 ## Entscheidung
 
 1. **Muster A, gleicher Scope:** Folgen in einem Ablauf zwei oder mehr Rahmen
@@ -119,7 +230,9 @@ Die 14 Szenarien von #5862: `related_accounts` (N3, N8), `master_data`,
    Transaktion erst als Admin entdecken und dann als Tenant lesen. Die
    Laufzeit bietet dafür eine Operation `WithinAdminThenTenant(ctx, discover,
    fn)`: `discover` läuft im Admin-Kontext und gibt nur die Schul-ID und die
-   entdeckten Werte zurück. Danach setzt die Laufzeit in derselben Transaktion
+   entdeckten Werte zurück. Prüfungen, die heute zwischen Admin- und
+   Tenant-Rahmen laufen, stehen am Ende von `discover` (Punkt 6); ein Fehler
+   dort beendet die Transaktion ohne Rollenwechsel. Danach setzt die Laufzeit in derselben Transaktion
    `set_config('role', 'phoenix_tenant', true)` und
    `set_config('app.current_tenant_id', …, true)` und ruft `fn` mit einem
    Tenant-Kontext, der aus dem ursprünglichen Kontext gebaut ist. Der
@@ -147,25 +260,34 @@ Die 14 Szenarien von #5862: `related_accounts` (N3, N8), `master_data`,
    enden. Für #5878 ändert sich der Teil-Commit: Scheitert heute die dritte
    Familie, sind die ersten zwei schon gelöscht; gebündelt bleibt keine
    gelöscht. Das braucht eine Entscheidung (offene Frage 1).
-6. **Fehlervertrag (E4):** 4xx-Antworten bleiben nach Status, Code und Body
-   gleich, und die Prüfungen laufen in der heutigen Reihenfolge. Jede 4xx
-   entsteht an derselben Stelle des Ablaufs wie heute:
-   - **Vor dem ersten Tenant-Statement** stehen die Ablehnungen aus der
-     Entdeckung: unbekannter oder inaktiver Feed-Token (404, #5881, hier folgt
-     gar kein Tenant-Rahmen), inaktiver Operator oder ungültige
-     Sitzungsfamilie (#5795, ohne Tenant), Kind nicht verknüpft und fehlendes
-     `parent_portal.*`-Recht (#5862) und das Anhang-Gate „Ankündigung nicht
-     live oder Konto nicht in der Zielgruppe“ (404, #5894).
-   - **Im Tenant-Rahmen** bleiben die Ablehnungen, die schon heute dort
-     entstehen: abgeschalteter oder nicht lesbarer Schulschalter und fehlende
-     Anhangzeile (404, #5894) sowie die fachlichen 4xx der Payload einer
-     Kind-Route nach bestandener Rechteprüfung (#5862, etwa Schulschalter).
-   - **Nach dem Tenant-Rahmen** bleibt die erneute Zielgruppenprüfung von
-     #5894 (404, wenn die Ankündigung inzwischen zurückgezogen ist oder die
-     Schule wechselt).
+6. **Fehlervertrag (E4):** Phase und Reihenfolge jedes 4xx der Tabelle
+   „4xx-Ausgänge je Route“ bleiben gleich, ebenso Status, Code und Body. Die
+   Phase meint die Lage zwischen den fachlichen Statements; Bündeln entfernt
+   nur BEGIN, Rollenwechsel und COMMIT zwischen zwei Teilen. Daraus folgt je
+   Phase:
+   - **vor Rahmen** und **nach Rahmen:** unverändert, auch die gemeinsamen
+     Ketten und die Zeilen G1, G2 und die Parse-Fehler der Routen.
+   - **Admin n, Tenant n:** Die Ablehnung bleibt im selben Teil nach
+     denselben Statements. Werden Admin 1 und Admin 2 ein Rahmen (#5881,
+     #5795), folgt sie weiter denselben SELECTs, etwa der unbekannte
+     Personal-Token nach der Eltern-Token-Lesung.
+   - **zwischen:** Die Prüfung bleibt zwischen denselben Statements. In
+     Muster A läuft sie im gebündelten Rahmen an dieser Stelle: inaktiver
+     Operator zwischen den zwei SELECTs (#5795), Schulschalter vor der
+     Dateilesung (#5894 Schritt 3). In Muster B läuft sie am Ende von
+     `discover`, nach den Admin-Lesungen und vor dem Rollenwechsel:
+     `meals.participation_out_of_range` (`meal_plan.go:88–90`) und
+     `care.child_care_ended` auf dem Katalog (`parent_care_offerings_service.go:225`),
+     bei #5894 Schritt 5 die ausgewertete Zielgruppe. Sie wandert weder vor
+     die Rechteprüfung (dann würde ein nicht verknüpftes Kind 400 statt 403
+     bekommen) noch in den Tenant-Teil.
+   - Eine Ablehnung, der heute ein COMMIT vorausgeht, beendet den gebündelten
+     Rahmen mit ROLLBACK. Die Teile davor lesen nur; beobachtbar ist das
+     nicht.
 
-   Bündeln verschiebt keine Ablehnung über eine dieser Grenzen. Details einer
-   500 dürfen sich ändern, etwa durch einen Rollback statt eines Commits.
+   Kein Bündeln vertauscht zwei Prüfungen oder schiebt eine über eine
+   fachliche Lesung. 5xx-Status bleiben (etwa 503 bei gescheiterter
+   Operator-Prüfung, `middleware.go:96–101`); ihre Details dürfen sich ändern.
 7. **Ambiente Einstiege:** Ein gebündelter Rahmen (Muster A) verhält sich in
    einem schon offenen Rahmen wie die Einzelstellen, die er zusammenfasst.
    `WithinAdmin` der Laufzeit tritt nur einem Admin-Rahmen bei
@@ -247,8 +369,9 @@ Jeder Schritt ist ein eigener PR. Er senkt die betroffenen Query-Budgets auf
 den neuen gemessenen Wert. Für #5878 gibt es kein Budget; Schritt 6 legt eines
 an (Regel 15). Jeder Schritt prüft:
 
-- Erfolgs-, 4xx- und 500-Pfad, mit der Reihenfolge und Stelle der 4xx aus
-  Punkt 6;
+- Erfolgs- und 500-Pfad sowie jede Zeile der Tabelle „4xx-Ausgänge je Route“
+  für die geänderten Routen, mit Status, Code, Phase und Reihenfolge nach
+  Punkt 6; eine neue oder verschobene Zeile ist ein Fehler der Umsetzung;
 - Wiederverwendung der Pool-Verbindung nach Commit und nach Rollback des
   gebündelten Rahmens: Die nächste Transaktion auf derselben Verbindung sieht
   weder Rolle noch `app.current_tenant_id` des vorigen Rahmens
