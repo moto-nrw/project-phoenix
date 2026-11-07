@@ -84,6 +84,7 @@ func contractLetter(record ContractRecord, head carecontract.Letterhead) Letter 
 		}
 		blocks = append(blocks, LetterBlock{Heading: "Satzung", Text: text})
 	}
+	blocks = append(blocks, withdrawalBlocks(record, contractPartner(version.Terms, head))...)
 	recipientLines := []string{}
 	for _, party := range record.Parties {
 		recipientLines = append(recipientLines, fullName(party.FirstName, party.LastName))
@@ -157,10 +158,7 @@ func letterValues(record ContractRecord, head carecontract.Letterhead) map[strin
 
 func termFacts(version carecontract.Version, head carecontract.Letterhead) []LetterFact {
 	terms := version.Terms
-	partner := strings.TrimSpace(terms.ContractPartner)
-	if partner == "" {
-		partner = firstLine(textLines(head.SenderText))
-	}
+	partner := contractPartner(terms, head)
 	facts := []LetterFact{
 		{Label: "Kind", Value: fullName(version.ChildFirstName, version.ChildLastName)},
 	}
@@ -191,6 +189,15 @@ func termFacts(version carecontract.Version, head carecontract.Letterhead) []Let
 		}
 	}
 	return kept
+}
+
+// contractPartner is the party the parents contract with: the template's
+// partner, else the Träger of the letterhead.
+func contractPartner(terms carecontract.TemplateInput, head carecontract.Letterhead) string {
+	if partner := strings.TrimSpace(terms.ContractPartner); partner != "" {
+		return partner
+	}
+	return firstLine(textLines(head.SenderText))
 }
 
 // ServiceFacts is one row per weekday Monday to Friday, and Saturday or

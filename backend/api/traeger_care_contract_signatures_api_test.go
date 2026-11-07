@@ -36,6 +36,9 @@ type careContractSignatureBody struct {
 	DocumentSHA256 string `json:"document_sha256"`
 	Intact         bool   `json:"intact"`
 	PaperFilename  string `json:"paper_filename"`
+	// WithdrawalEndsOn is the last day of the withdrawal period the
+	// signature names (#4682 compares it with the notice page).
+	WithdrawalEndsOn *string `json:"withdrawal_ends_on"`
 }
 
 type careContractSignedDetailBody struct {

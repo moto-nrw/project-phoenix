@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // concludeStore records the writes of the transition; every other method of
@@ -88,7 +89,7 @@ func TestAcceptanceIssueNeedsTickedConditionsShownBeforeTheAcceptance(t *testing
 	accepted := submitted.Add(24 * time.Hour)
 	terms := carecontract.TemplateInput{TermKind: carecontract.TermOpenEnded, NoticeMonths: 1,
 		NoticeTo: carecontract.NoticeMonthEnd, ContractPartner: "Träger"}
-	proof := carecontract.AcceptedText{Key: "terms", Text: acceptanceText(terms), SHA256: "abc", SubmittedAt: submitted}
+	proof := carecontract.AcceptedText{Key: "terms", Text: acceptanceText(terms), SHA256: "abc", SubmittedAt: submitted, Required: true}
 	draft := func(at *time.Time, proofs ...carecontract.AcceptedText) NewContract {
 		return NewContract{AcceptedAt: at, Acceptances: proofs, Version: carecontract.Version{Terms: terms}}
 	}
@@ -100,6 +101,10 @@ func TestAcceptanceIssueNeedsTickedConditionsShownBeforeTheAcceptance(t *testing
 	unsigned := proof
 	unsigned.SHA256 = ""
 	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(&accepted, unsigned), before), "no checksum of the shown text")
+	optional := proof
+	optional.Required = false
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(&accepted, optional), before),
+		"an optional block the parents ticked is no proof of the conditions (#4682)")
 	late := proof
 	late.SubmittedAt = accepted.Add(time.Minute)
 	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(&accepted, late), before), "a submission after the acceptance")
@@ -151,4 +156,22 @@ func TestAcceptanceTextBindsEveryTemplateCondition(t *testing.T) {
 	}
 	terms.ContractPartner = ""
 	assert.Empty(t, acceptanceText(terms), "the letterhead fallback is not part of the accepted conditions")
+}
+
+func TestManualDraftKeepsEarlyStartConsent(t *testing.T) {
+	t.Parallel()
+	accepted := time.Date(2026, 11, 6, 9, 0, 0, 0, time.UTC)
+	read := schoolRead{school: carecontract.School{ID: 7},
+		offerings: map[int64]carecontract.Offering{3: {ID: 3, Name: "Ganztag"}},
+		applications: []carecontract.Application{{RequestChildID: 9, AcceptedAt: &accepted,
+			Bookings:    []carecontract.Booking{{CareOfferingID: 3, Days: []string{"mon"}}},
+			Acceptances: []carecontract.AcceptedText{{Text: EarlyStartText, SHA256: "proof", SubmittedAt: accepted.Add(-time.Hour)}},
+		}},
+	}
+	draft, reason := (&Intake{}).draft(carecontract.CandidateKey{SchoolID: 7, RequestChildID: 9}, []schoolRead{read},
+		templateIndex{{7, 3}: {TermKind: carecontract.TermOpenEnded, NoticeTo: carecontract.NoticeMonthEnd}},
+		map[ContractKey]bool{}, calendar.NewDate(2026, 11, 6))
+	require.Empty(t, reason)
+	assert.True(t, draft.EarlyStart, "manual drafts retain the parents' voluntary consent")
+	assert.Contains(t, withdrawalBlocks(ContractRecord{EarlyStart: draft.EarlyStart}, "Träger")[1].Text, "ausdrücklich verlangt")
 }

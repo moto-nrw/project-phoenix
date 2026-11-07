@@ -572,7 +572,7 @@ func checkReviewer(reviewer carecontract.Reviewer) error {
 func knownStatus(status string) bool {
 	return slices.Contains([]string{
 		carecontract.StatusDraft, carecontract.StatusSent, carecontract.StatusSigned,
-		carecontract.StatusActive, carecontract.StatusEnded,
+		carecontract.StatusActive, carecontract.StatusTerminated, carecontract.StatusWithdrawn, carecontract.StatusEnded,
 	}, status)
 }
 

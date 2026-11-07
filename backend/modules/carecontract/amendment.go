@@ -96,10 +96,12 @@ type VersionPeriod struct {
 // ContractVersions reads the versions in force for the parents' billing
 // (#4684). It runs in the Träger transaction the caller holds.
 type ContractVersions interface {
-	// VersionsInForce answers, for every active or ended contract of the
-	// Träger (or only contractIDs), each version in force on a day between
-	// from and to (both inclusive), ordered by contract and day. A contract
-	// appears once per version, never twice for one day.
+	// VersionsInForce answers, for every active, terminated or ended
+	// contract of the Träger (or only contractIDs), each version in force on
+	// a day between from and to (both inclusive), ordered by contract and
+	// day. A contract appears once per version, never twice for one day. A
+	// terminated contract holds until its last day; a withdrawn contract on
+	// no day (#4682).
 	VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date, contractIDs ...int64) ([]VersionPeriod, error)
 }
 

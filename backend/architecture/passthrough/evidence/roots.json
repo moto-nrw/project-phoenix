@@ -4349,6 +4349,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (p careContractNoticePost) NoticeDeliveries(ctx context.Context, organizationID, contractID int64) ([]carecontract.NoticeDelivery, error) {\n\tstatuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID, deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvar deliveries []carecontract.NoticeDelivery\n\tfor _, status := range statuses {\n\t\tif status.DeliveryState == deliveryContract.DeliveryDelivered \u0026\u0026 status.DeliveryStateAt != nil {\n\t\t\tdeliveries = append(deliveries, carecontract.NoticeDelivery{OutboxID: status.ID, ProvidedAt: *status.DeliveryStateAt})\n\t\t}\n\t}\n\treturn deliveries, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/careContractNoticePost.NoticeDeliveries",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t careContractNoticeTemplates) NoticeTemplate(ctx context.Context, organizationID int64, kind string) (string, error) {\n\tkey := configModels.KeyCareContractTerminationConfirmation\n\tswitch kind {\n\tcase carecontract.NoticeWithdrawal:\n\t\tkey = configModels.KeyCareContractWithdrawalConfirmation\n\tcase carecontract.TerminationExtraordinary:\n\t\tkey = configModels.KeyCareContractExtraordinaryConfirmation\n\t}\n\ttexts, err := t.settings.TraegerTexts(ctx, organizationID, []string{key})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[key], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/careContractNoticeTemplates.NoticeTemplate",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (s careContractReminderSettings) SignatureReminderDays(ctx context.Context, organizationID int64) (int, error) {\n\tvalues, err := s.settings.TraegerInts(ctx, organizationID, []string{configModels.KeyCareContractSignatureReminderDays})\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn values[configModels.KeyCareContractSignatureReminderDays], nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/careContractReminderSettings.SignatureReminderDays",
@@ -6295,7 +6309,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (d parentContractDocuments) ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.inbox.InboxContractDocument(ctx, organizationID, contractID, carecontract.InboxReader(reader))\n\tif errors.Is(err, carecontract.ErrInboxDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile(file), nil\n}",
+      "evidence": "func (d parentContractDocuments) ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.inbox.InboxContractDocument(ctx, organizationID, contractID, carecontract.InboxReader(reader))\n\tif errors.Is(err, carecontract.ErrInboxDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile{Filename: file.Filename, ContentType: file.ContentType, Data: file.Data}, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentContractDocuments.ContractDocumentFile",
       "owner": "roots"
@@ -6312,6 +6326,20 @@
       "evidence": "func (d parentContractDocuments) SignContract(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader, input parentportal.ContractSignatureInput) (parentportal.ContractSigningView, error) {\n\tview, err := d.signing.SignInInbox(ctx, organizationID, contractID, carecontract.InboxReader(reader), carecontract.SignatureInput(input))\n\treturn parentSigningView(view, err)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentContractDocuments.SignContract",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (n parentContractNotices) ContractNoticeOptions(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.ContractNoticeOptions, error) {\n\toptions, err := n.notices.ParentNoticeOptions(ctx, organizationID, contractID, carecontract.InboxReader(reader))\n\treturn parentNoticeOptions(options), parentNoticeError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentContractNotices.ContractNoticeOptions",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (n parentContractNotices) DeclareContractNotice(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader, traeger string, input parentportal.ContractNoticeInput) (parentportal.ContractNoticeOptions, error) {\n\toptions, err := n.notices.ParentDeclareNotice(ctx, organizationID, contractID, carecontract.InboxReader(reader), traeger, carecontract.NoticeInput{Kind: input.Kind, TerminationKind: input.TerminationKind, Reason: input.Reason, ExpectedEndsOn: input.ExpectedEndsOn})\n\treturn parentNoticeOptions(options), parentNoticeError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentContractNotices.DeclareContractNotice",
       "owner": "roots"
     },
     {

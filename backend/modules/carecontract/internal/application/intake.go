@@ -293,14 +293,16 @@ func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templ
 		SchoolName: read.school.Name, PhaseName: firstText(booked.phaseName, application.PhaseName),
 		Services: boundServices(booked.services, ends), PriceCents: booked.price, Terms: terms,
 	}
-	return NewContract{
+	draft := NewContract{
 		AcceptedAt: application.AcceptedAt, Acceptances: application.Acceptances,
 		Key: contractKey, StudentID: application.StudentID, Version: version,
 		Party: NewParty{
 			FirstName: application.GuardianFirstName, LastName: application.GuardianLastName,
 			Email: strings.TrimSpace(application.GuardianEmail), AccountID: application.GuardianAccountID,
 		},
-	}, ""
+	}
+	draft.EarlyStart = earlyStartRequested(draft)
+	return draft, ""
 }
 
 func draftOfferings(draft NewContract) []int64 {
@@ -585,13 +587,14 @@ func (in *Intake) templateIndex(ctx context.Context, organizationID int64) (temp
 }
 
 func offeringTemplate(school carecontract.School, offering carecontract.Offering, template *carecontract.Template) carecontract.OfferingTemplate {
-	text := ""
+	text, withdrawal, earlyStart := "", "", ""
 	if template != nil {
 		text = acceptanceText(template.TemplateInput)
+		withdrawal, earlyStart = withdrawalTexts(template.TemplateInput)
 	}
 	return carecontract.OfferingTemplate{
-		AcceptanceText: text,
-		SchoolID:       school.ID, SchoolName: school.Name, OfferingID: offering.ID, OfferingName: offering.Name,
+		AcceptanceText: text, WithdrawalText: withdrawal, EarlyStartText: earlyStart,
+		SchoolID: school.ID, SchoolName: school.Name, OfferingID: offering.ID, OfferingName: offering.Name,
 		PhaseName: offering.PhaseName, PriceCents: offering.PriceCents, Active: offering.Active, Template: template,
 	}
 }

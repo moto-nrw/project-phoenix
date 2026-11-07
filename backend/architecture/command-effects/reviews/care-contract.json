@@ -62,6 +62,37 @@
       "target_owner": "delivery-platform"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticePost.EnqueueNoticeMail",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticePost.EnqueueNoticeMail",
+      "reason": "Platform protocol participation (durable): care-contract reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.careContractNoticePost.EnqueueNoticeMail. The confirmation of a withdrawal or termination is enqueued in the caller's Träger transaction with the declaration (#4682, ADR 0098, ADR 0123). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticePost.NoticeDeliveries",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticePost.NoticeDeliveries",
+      "reason": "Reads the existing Träger-scoped delivery statuses and exposes only positive delivery receipts with their timestamps. Care Contract, not Delivery, decides and persists withdrawal-notice provision (ADR 0159). No cross-owner write or locking read occurs in this binding.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeTemplates.NoticeTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeTemplates.NoticeTemplate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: reads the Träger's confirmation template of a withdrawal or termination (#4682).",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractPost.ContractMailBlock",
       "classification": "query",
       "effect": "query",
@@ -213,7 +244,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.AcceptedApplications",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children, original acceptance instant and checksummed consent text in the school transaction. The root only maps values; no mutation or scope switch (#4678, #4680, ADR 0153).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children, original acceptance instant and checksummed consent text in the school transaction, with whether the form required each ticked block (#4682: an optional block records the early start wish, never the conditions). The root only maps values; no mutation or scope switch (#4678, #4680, #4682, ADR 0153).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.AcceptedContractApplications",
       "target_owner": "enrollment"

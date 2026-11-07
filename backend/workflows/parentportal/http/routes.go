@@ -56,6 +56,9 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	r.Get("/me/documents/{organizationId}/{documentId}/pdf", rs.billingDocumentPDF)
 	// A care contract sent to the account's address (#4678).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/pdf", rs.contractDocumentPDF)
+	// Withdrawal and termination of that contract (#4682, § 312k BGB).
+	r.Get("/me/documents/{organizationId}/contracts/{contractId}/notice", rs.contractNoticeOptions)
+	r.Post("/me/documents/{organizationId}/contracts/{contractId}/notice", rs.declareContractNotice)
 	// Reading and signing a care contract (#4679).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/signing", rs.contractSigning)
 	r.Post("/me/documents/{organizationId}/contracts/{contractId}/sign", rs.signContract)
