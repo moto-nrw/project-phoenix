@@ -8,7 +8,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { StatCard } from "~/components/ui/stat-card";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -18,10 +18,7 @@ import type { OrganizationSummary } from "~/lib/operator/provisioning-helpers";
 import { Button } from "~/components/ui/button";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
-import {
-  ProvisioningEmptyState,
-  PlusIcon,
-} from "../provisioning/provisioning-shared";
+import { ProvisioningEmptyState } from "../provisioning/provisioning-shared";
 import { CreateOrganizationModal } from "../provisioning/create-organization-modal";
 import { CreateTestTraegerModal } from "../provisioning/create-test-traeger-modal";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -34,7 +31,6 @@ import {
   OrgRestoreModal,
   OrgSoftDeleteModal,
 } from "../provisioning/operator-entity-modals";
-import { organizationsConcept } from "~/lib/concepts/organizations";
 
 export default function OperatorOrganizationsPage() {
   const { status } = useSession();
@@ -115,20 +111,7 @@ export default function OperatorOrganizationsPage() {
     return target.schulenCount > 0;
   }, [orgDelete.deleteTarget]);
 
-  const tabs = useMemo(
-    () => ({
-      items: [
-        {
-          id: "organizations",
-          label: "Träger",
-          count: organizations?.length,
-        },
-      ],
-      activeTab: "organizations",
-      onTabChange: () => undefined,
-    }),
-    [organizations?.length],
-  );
+  const count = organizations?.length;
 
   const actionButton = (
     <div className="flex items-center gap-2">
@@ -147,28 +130,6 @@ export default function OperatorOrganizationsPage() {
         onClick={() => setCreateOrgOpen(true)}
       >
         Neuer Träger
-      </Button>
-    </div>
-  );
-
-  const mobileActionButton = (
-    <div className="flex items-center gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="compact"
-        onClick={() => setCreateTestOpen(true)}
-      >
-        Test-Träger
-      </Button>
-      <Button
-        type="button"
-        variant="primary"
-        size="icon"
-        onClick={() => setCreateOrgOpen(true)}
-        aria-label="Neuer Träger"
-      >
-        <PlusIcon />
       </Button>
     </div>
   );
@@ -237,16 +198,57 @@ export default function OperatorOrganizationsPage() {
   );
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Träger"
-        concept={organizationsConcept}
-        tabs={tabs}
-        actionButton={actionButton}
-        mobileActionButton={mobileActionButton}
-      />
+    <TenantPage
+      title="Träger"
+      stats={
+        count === undefined ? undefined : (
+          <TenantPageStats items={[{ value: count, label: "Träger" }]} />
+        )
+      }
+      actions={actionButton}
+      overlays={
+        <>
+          {orgDelete.deleteTarget && (
+            <OrgSoftDeleteModal
+              target={orgDelete.deleteTarget}
+              errorMessage={orgDelete.softDeleteError}
+              isProcessing={orgDelete.isProcessing}
+              onCancel={() => orgDelete.setDeleteTarget(null)}
+              onConfirm={() => void orgDelete.handleSoftDelete()}
+              confirmDisabled={orgDeleteTargetHasSchools}
+              confirmDisabledReason="Dieser Träger hat noch nicht gelöschte Schulen. Bitte zuerst alle Schulen löschen."
+            />
+          )}
 
-      <LoadErrorAlert error={statsLoadError} className="mt-4" />
+          <OrgRestoreModal
+            target={orgDelete.restoreTarget}
+            setTarget={orgDelete.setRestoreTarget}
+            extraMessage="Gelöschte Schulen dieses Trägers müssen separat wiederhergestellt werden."
+            onConfirm={() => void orgDelete.handleRestore()}
+            isProcessing={orgDelete.isProcessing}
+            errorMessage={orgDelete.softDeleteError}
+          />
+
+          <CreateTestTraegerModal
+            isOpen={createTestOpen}
+            onClose={() => setCreateTestOpen(false)}
+            onCreated={async (slug) => {
+              await refreshAll();
+              router.push(
+                `/operator/organizations/${encodeURIComponent(slug)}`,
+              );
+            }}
+          />
+
+          <CreateOrganizationModal
+            isOpen={createOrgOpen}
+            onClose={() => setCreateOrgOpen(false)}
+            onCreated={() => refreshAll().then(() => undefined)}
+          />
+        </>
+      }
+    >
+      <LoadErrorAlert error={statsLoadError} />
       {stats ? (
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatCard
@@ -272,8 +274,8 @@ export default function OperatorOrganizationsPage() {
         </div>
       ) : null}
 
-      <div className="mt-6">
-        <LoadErrorAlert error={orgsLoadError} className="mb-4" />
+      <div>
+        <LoadErrorAlert error={orgsLoadError} />
         {deletedOrganizations.length > 0 && (
           <div className="mb-4 flex justify-end">
             <TrashToggleButton
@@ -318,42 +320,6 @@ export default function OperatorOrganizationsPage() {
           />
         )}
       </div>
-
-      {orgDelete.deleteTarget && (
-        <OrgSoftDeleteModal
-          target={orgDelete.deleteTarget}
-          errorMessage={orgDelete.softDeleteError}
-          isProcessing={orgDelete.isProcessing}
-          onCancel={() => orgDelete.setDeleteTarget(null)}
-          onConfirm={() => void orgDelete.handleSoftDelete()}
-          confirmDisabled={orgDeleteTargetHasSchools}
-          confirmDisabledReason="Dieser Träger hat noch nicht gelöschte Schulen. Bitte zuerst alle Schulen löschen."
-        />
-      )}
-
-      <OrgRestoreModal
-        target={orgDelete.restoreTarget}
-        setTarget={orgDelete.setRestoreTarget}
-        extraMessage="Gelöschte Schulen dieses Trägers müssen separat wiederhergestellt werden."
-        onConfirm={() => void orgDelete.handleRestore()}
-        isProcessing={orgDelete.isProcessing}
-        errorMessage={orgDelete.softDeleteError}
-      />
-
-      <CreateTestTraegerModal
-        isOpen={createTestOpen}
-        onClose={() => setCreateTestOpen(false)}
-        onCreated={async (slug) => {
-          await refreshAll();
-          router.push(`/operator/organizations/${encodeURIComponent(slug)}`);
-        }}
-      />
-
-      <CreateOrganizationModal
-        isOpen={createOrgOpen}
-        onClose={() => setCreateOrgOpen(false)}
-        onCreated={() => refreshAll().then(() => undefined)}
-      />
-    </div>
+    </TenantPage>
   );
 }

@@ -17,6 +17,11 @@ import { useSession } from "next-auth/react";
 import { ChevronRight, Download } from "lucide-react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import {
+  DataTable,
+  type DataTableColumn,
+  type DataTableExtraRow,
+} from "~/components/ui/data-table";
 import { SectionCard } from "~/components/ui/section-card";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -25,7 +30,9 @@ import {
   studentHistoryBack,
 } from "../student-referrer";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import { ApiError } from "~/lib/api-error";
+import { fetchStudent, fetchStudentAttendanceHistory } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -33,12 +40,10 @@ import { createLogger } from "~/lib/logger";
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
-  type BackendAttendanceHistoryResponse,
   formatDate,
   formatAttendanceSlotStatus,
   formatDuration,
   formatTime,
-  mapAttendanceHistoryResponse,
 } from "~/lib/attendance-history-helpers";
 import {
   attendanceActorLabel,
@@ -59,18 +64,6 @@ const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface Student {
-  id: string;
-  first_name: string;
-  second_name: string;
-  name?: string;
-  school_class: string;
-  group_id?: string;
-  group_name?: string;
-  /** Per-school switch `gdpr.attendance_log_enabled`; off answers 403. */
-  attendance_log_enabled?: boolean;
-}
-
 const ROOM_HISTORY_DESCRIPTION =
   "Wo dieses Kind an einem Tag war und wer es ein- und ausgecheckt hat.";
 
@@ -81,7 +74,8 @@ const LazyHistoryCharts = dynamic(() => import("./history-charts"), {
   ssr: false,
   loading: () => (
     <Skeleton
-      className="h-[404px] w-full rounded-2xl md:h-[200px]"
+      shape="card"
+      className="h-[404px] w-full md:h-[200px]"
       aria-hidden
     />
   ),
@@ -360,6 +354,286 @@ function DayCard({
 
 // ─── HistoryTable (desktop) ──────────────────────────────────────────────────
 
+const HISTORY_COLUMNS: DataTableColumn<AttendanceHistoryDay>[] = [
+  {
+    key: "day",
+    header: "Tag",
+    render: (day) => {
+      const statusLabel = day.statusEntries
+        .map((entry) => entry.label)
+        .join(", ");
+      return (
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-gray-900">
+            {formatDate(day.date)}
+          </span>
+          {statusLabel && (
+            <StatusColorBadge
+              label={statusLabel}
+              color={LOCATION_COLORS.WARNING}
+              compact
+              wrap
+            />
+          )}
+        </div>
+      );
+    },
+  },
+  {
+    key: "arrival",
+    header: "Ankunft",
+    className: "tabular-nums",
+    render: (day) => (
+      <span className="text-gray-600">
+        {day.attendance ? formatTime(day.attendance.checkInTime) : "–"}
+        {day.attendance?.checkedInActor && (
+          <span className="mt-0.5 block text-xs text-gray-500">
+            Angemeldet: {attendanceActorLabel(day.attendance.checkedInActor)}
+          </span>
+        )}
+      </span>
+    ),
+  },
+  {
+    key: "departure",
+    header: "Abmeldung",
+    className: "tabular-nums",
+    render: (day) => (
+      <span className="text-gray-600">
+        {day.attendance
+          ? day.attendance.checkOutTime
+            ? formatTime(day.attendance.checkOutTime)
+            : "Noch anwesend"
+          : "–"}
+        {day.attendance?.checkOutTime && day.attendance.checkedOutActor && (
+          <span className="mt-0.5 block text-xs text-gray-500">
+            Abgemeldet: {attendanceActorLabel(day.attendance.checkedOutActor)}
+          </span>
+        )}
+        {day.attendance?.leftForClassAt.map((at) => (
+          <span
+            key={at.getTime()}
+            className="mt-0.5 block text-xs text-gray-500"
+          >
+            Zum Unterricht gegangen: {formatTime(at)} Uhr
+          </span>
+        ))}
+        {day.attendance?.checkOutNote && (
+          <span className="mt-0.5 block text-xs text-gray-500">
+            Grund für das frühe Gehen: {day.attendance.checkOutNote}
+          </span>
+        )}
+      </span>
+    ),
+  },
+  {
+    key: "duration",
+    header: "Dauer",
+    render: (day) =>
+      day.attendance ? (
+        <StatusBadge
+          label={formatDuration(day.attendance.durationMinutes)}
+          tone="green"
+          compact
+        />
+      ) : (
+        <span className="text-gray-400">–</span>
+      ),
+  },
+  {
+    key: "rooms",
+    header: "Angebote / Räume",
+    render: (day) => (
+      <span className="text-gray-500">
+        {`${day.slots.length} Angebot${day.slots.length !== 1 ? "e" : ""}`}
+        {day.roomDetailAvailable &&
+          ` · ${day.visits.length} Raum${day.visits.length !== 1 ? "wechsel" : ""}`}
+      </span>
+    ),
+  },
+];
+
+// Die Betreuungsangebote eines aufgeklappten Tages.
+function daySlotRows(
+  day: AttendanceHistoryDay,
+  canCorrect: boolean,
+  onCorrect: (slot: CorrectableSlot) => void,
+): DataTableExtraRow[] {
+  return day.slots.map((slot) => ({
+    key: `${day.date}-slot-${slot.instanceId}`,
+    cells: [
+      {
+        columnKey: "day",
+        content: (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-gray-700">{slot.title}</span>
+              <span className="text-gray-400 tabular-nums">
+                {slot.startTime}
+                {slot.endTime && <>–{slot.endTime}</>}
+              </span>
+              {slot.isUnplanned && (
+                <span className="text-moto-orange">ungeplant</span>
+              )}
+            </div>
+            {/* Die Bemerkung aus der Betreuung (#2898): ruhige Information
+                unter ihrem Block, nicht klickbar. Korrigieren ist nur mit
+                Recht und nach Abschluss des Termins sichtbar. */}
+            {slot.note && (
+              <p className="mt-1 text-gray-500 italic">
+                Bemerkung: {slot.note}
+              </p>
+            )}
+            {canCorrect && slot.instanceStatus === "completed" && (
+              <Button
+                type="button"
+                variant="link"
+                size="md"
+                onClick={() =>
+                  onCorrect({
+                    instanceId: slot.instanceId,
+                    title: slot.title,
+                    date: formatDateShort(day.date),
+                    startTime: slot.startTime,
+                    endTime: slot.endTime,
+                    status: slot.status,
+                    substatus: slot.substatus,
+                    note: slot.note,
+                  })
+                }
+                className="mt-1"
+              >
+                Korrigieren
+              </Button>
+            )}
+          </>
+        ),
+      },
+      {
+        columnKey: "arrival",
+        content: (
+          <span className="tabular-nums">
+            {slot.checkedInAt ? formatTime(slot.checkedInAt) : "–"}
+          </span>
+        ),
+      },
+      {
+        columnKey: "departure",
+        content: (
+          <span className="tabular-nums">
+            {slot.checkedOutAt ? formatTime(slot.checkedOutAt) : "–"}
+          </span>
+        ),
+      },
+      {
+        columnKey: "duration",
+        content: (
+          <span className="text-gray-600">
+            {formatAttendanceSlotStatus(slot.status, slot.substatus)}
+          </span>
+        ),
+      },
+    ],
+  }));
+}
+
+// Die Statusmeldungen und Raumwechsel eines aufgeklappten Tages.
+function dayRoomRows(day: AttendanceHistoryDay): DataTableExtraRow[] {
+  if (!day.roomDetailAvailable) {
+    return [
+      {
+        key: `${day.date}-rooms-expired`,
+        content: (
+          <span className="italic">
+            Raumdetails nicht mehr verfügbar (Aufbewahrungsfrist überschritten).
+          </span>
+        ),
+      },
+    ];
+  }
+  const statusRows: DataTableExtraRow[] = day.statusEntries.map((entry) => ({
+    key: `${day.date}-${entry.status}`,
+    cells: [
+      {
+        columnKey: "day",
+        content: (
+          <span className="text-moto-amber-strong font-medium">
+            {entry.label}
+          </span>
+        ),
+      },
+      {
+        columnKey: "arrival",
+        content: (
+          <span className="tabular-nums">{formatTime(entry.reportedAt)}</span>
+        ),
+      },
+      {
+        columnKey: "departure",
+        content: (
+          <span className="tabular-nums">
+            {entry.clearedAt ? formatTime(entry.clearedAt) : "–"}
+          </span>
+        ),
+      },
+      {
+        columnKey: "duration",
+        content: <span className="text-gray-400">–</span>,
+      },
+    ],
+  }));
+  if (day.visits.length === 0) {
+    return [
+      ...statusRows,
+      {
+        key: `${day.date}-no-room-change`,
+        content: "Keine Raumwechsel an diesem Tag.",
+      },
+    ];
+  }
+  return [
+    ...statusRows,
+    ...day.visits.map((v, i) => ({
+      key: `${day.date}-${i}-${v.entryTime.toISOString()}`,
+      cells: [
+        {
+          columnKey: "day",
+          content: (
+            <span className="font-medium text-gray-700">
+              {v.roomName || "Unbekannt"}
+            </span>
+          ),
+        },
+        {
+          columnKey: "arrival",
+          content: (
+            <span className="tabular-nums">{formatTime(v.entryTime)}</span>
+          ),
+        },
+        {
+          columnKey: "departure",
+          content: (
+            <span className="tabular-nums">
+              {v.exitTime ? formatTime(v.exitTime) : "–"}
+            </span>
+          ),
+        },
+        {
+          columnKey: "duration",
+          content:
+            v.durationMinutes != null ? (
+              <span className="rounded bg-gray-200/60 px-1.5 py-0.5 text-gray-600 tabular-nums">
+                {formatDuration(v.durationMinutes)}
+              </span>
+            ) : (
+              <span className="text-gray-400">–</span>
+            ),
+        },
+      ],
+    })),
+  ];
+}
+
 function HistoryTable({
   days,
   caps,
@@ -371,7 +645,6 @@ function HistoryTable({
   readonly studentId: string;
   readonly onCorrected: () => void;
 }) {
-  const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const todayKey = useBerlinToday();
   // Korrigieren darf nur, wer den Plan verwaltet (#2898) — dieselbe
   // Berechtigung, die das Backend auf der Korrektur-Route verlangt.
@@ -381,314 +654,37 @@ function HistoryTable({
 
   return (
     <>
-      {/* flush: die Tabelle bringt ihre eigene Zellpolsterung mit und läuft
-          bis zur Kartenkante. */}
       <SectionCard
         title="Anwesenheitsprotokoll"
         description={`${ROOM_HISTORY_DESCRIPTION} Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
         concept={changeHistoryConcept}
-        flush
       >
         {days.length === 0 ? null : (
           <>
             {/* Desktop table */}
             <div className="hidden md:block">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500">
-                    <th className="px-6 py-3">Tag</th>
-                    <th className="px-6 py-3">Ankunft</th>
-                    <th className="px-6 py-3">Abmeldung</th>
-                    <th className="px-6 py-3">Dauer</th>
-                    <th className="px-6 py-3">Angebote / Räume</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {days.map((day) => {
-                    const isExpanded = expandedDate === day.date;
-                    const isToday = day.date === todayKey;
-                    const statusLabel = day.statusEntries
-                      .map((entry) => entry.label)
-                      .join(", ");
-                    return (
-                      <React.Fragment key={day.date}>
-                        <tr
-                          onClick={() =>
-                            setExpandedDate(isExpanded ? null : day.date)
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key !== "Enter" && event.key !== " ")
-                              return;
-                            event.preventDefault();
-                            setExpandedDate(isExpanded ? null : day.date);
-                          }}
-                          tabIndex={0}
-                          aria-expanded={isExpanded}
-                          aria-label={`${formatDate(day.date)}: Details ${isExpanded ? "schließen" : "öffnen"}`}
-                          className={`cursor-pointer text-sm transition-colors hover:bg-gray-50 ${isToday ? "bg-moto-blue-soft/60" : ""}`}
-                        >
-                          <td className="px-6 py-3">
-                            <div className="flex items-center gap-2">
-                              <ChevronRight
-                                className={`h-3.5 w-3.5 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                              />
-                              <span className="font-medium text-gray-900">
-                                {formatDate(day.date)}
-                              </span>
-                              {statusLabel && (
-                                <StatusColorBadge
-                                  label={statusLabel}
-                                  color={LOCATION_COLORS.WARNING}
-                                  compact
-                                  wrap
-                                />
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-3 text-gray-600 tabular-nums">
-                            {day.attendance
-                              ? formatTime(day.attendance.checkInTime)
-                              : "–"}
-                            {day.attendance?.checkedInActor && (
-                              <span className="mt-0.5 block text-xs text-gray-500">
-                                Angemeldet:{" "}
-                                {attendanceActorLabel(
-                                  day.attendance.checkedInActor,
-                                )}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-3 text-gray-600 tabular-nums">
-                            {day.attendance
-                              ? day.attendance.checkOutTime
-                                ? formatTime(day.attendance.checkOutTime)
-                                : "Noch anwesend"
-                              : "–"}
-                            {day.attendance?.checkOutTime &&
-                              day.attendance.checkedOutActor && (
-                                <span className="mt-0.5 block text-xs text-gray-500">
-                                  Abgemeldet:{" "}
-                                  {attendanceActorLabel(
-                                    day.attendance.checkedOutActor,
-                                  )}
-                                </span>
-                              )}
-                            {day.attendance?.leftForClassAt.map((at) => (
-                              <span
-                                key={at.getTime()}
-                                className="mt-0.5 block text-xs text-gray-500"
-                              >
-                                Zum Unterricht gegangen: {formatTime(at)} Uhr
-                              </span>
-                            ))}
-                            {day.attendance?.checkOutNote && (
-                              <span className="mt-0.5 block text-xs text-gray-500">
-                                Grund für das frühe Gehen:{" "}
-                                {day.attendance.checkOutNote}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-3">
-                            {day.attendance ? (
-                              <StatusBadge
-                                label={formatDuration(
-                                  day.attendance.durationMinutes,
-                                )}
-                                tone="green"
-                                compact
-                              />
-                            ) : (
-                              <span className="text-gray-400">–</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-3 text-gray-500">
-                            {`${day.slots.length} Angebot${day.slots.length !== 1 ? "e" : ""}`}
-                            {day.roomDetailAvailable &&
-                              ` · ${day.visits.length} Raum${day.visits.length !== 1 ? "wechsel" : ""}`}
-                          </td>
-                        </tr>
-
-                        {/* Expanded care-offering slots */}
-                        {isExpanded &&
-                          day.slots.map((slot) => (
-                            <tr
-                              key={`${day.date}-slot-${slot.instanceId}`}
-                              className="bg-gray-50/70 text-xs"
-                            >
-                              <td className="py-2 pr-6 pl-12">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-gray-700">
-                                    {slot.title}
-                                  </span>
-                                  <span className="text-gray-400 tabular-nums">
-                                    {slot.startTime}
-                                    {slot.endTime && <>–{slot.endTime}</>}
-                                  </span>
-                                  {slot.isUnplanned && (
-                                    <span className="text-moto-orange">
-                                      ungeplant
-                                    </span>
-                                  )}
-                                </div>
-                                {/* Die Bemerkung aus der Betreuung (#2898):
-                                  ruhige Information unter ihrem Block, nicht
-                                  klickbar. Korrigieren ist nur mit Recht und
-                                  nach Abschluss des Termins sichtbar. */}
-                                {slot.note && (
-                                  <p className="mt-1 pl-4 text-gray-500 italic">
-                                    Bemerkung: {slot.note}
-                                  </p>
-                                )}
-                                {canCorrect &&
-                                  slot.instanceStatus === "completed" && (
-                                    <Button
-                                      type="button"
-                                      variant="link"
-                                      size="md"
-                                      onClick={() =>
-                                        setCorrecting({
-                                          instanceId: slot.instanceId,
-                                          title: slot.title,
-                                          date: formatDateShort(day.date),
-                                          startTime: slot.startTime,
-                                          endTime: slot.endTime,
-                                          status: slot.status,
-                                          substatus: slot.substatus,
-                                          note: slot.note,
-                                        })
-                                      }
-                                      className="mt-1 ml-4"
-                                    >
-                                      Korrigieren
-                                    </Button>
-                                  )}
-                              </td>
-                              <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                {slot.checkedInAt
-                                  ? formatTime(slot.checkedInAt)
-                                  : "–"}
-                              </td>
-                              <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                {slot.checkedOutAt
-                                  ? formatTime(slot.checkedOutAt)
-                                  : "–"}
-                              </td>
-                              <td className="px-6 py-2 text-gray-600">
-                                {formatAttendanceSlotStatus(
-                                  slot.status,
-                                  slot.substatus,
-                                )}
-                              </td>
-                              <td className="px-6 py-2" />
-                            </tr>
-                          ))}
-
-                        {/* Expanded room visits */}
-                        {isExpanded &&
-                          (!day.roomDetailAvailable ? (
-                            <tr>
-                              <td
-                                colSpan={5}
-                                className="bg-gray-50/70 px-6 py-3 text-xs text-gray-500 italic"
-                              >
-                                Raumdetails nicht mehr verfügbar
-                                (Aufbewahrungsfrist überschritten).
-                              </td>
-                            </tr>
-                          ) : day.visits.length === 0 ? (
-                            <>
-                              {day.statusEntries.map((entry) => (
-                                <tr
-                                  key={`${day.date}-${entry.status}`}
-                                  className="bg-gray-50/70 text-xs"
-                                >
-                                  <td className="text-moto-amber-strong py-2 pr-6 pl-12 font-medium">
-                                    {entry.label}
-                                  </td>
-                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                    {formatTime(entry.reportedAt)}
-                                  </td>
-                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                    {entry.clearedAt
-                                      ? formatTime(entry.clearedAt)
-                                      : "–"}
-                                  </td>
-                                  <td className="px-6 py-2 text-gray-400">–</td>
-                                  <td className="px-6 py-2" />
-                                </tr>
-                              ))}
-                              <tr>
-                                <td
-                                  colSpan={5}
-                                  className="bg-gray-50/70 px-6 py-3 text-xs text-gray-500"
-                                >
-                                  Keine Raumwechsel an diesem Tag.
-                                </td>
-                              </tr>
-                            </>
-                          ) : (
-                            <>
-                              {day.statusEntries.map((entry) => (
-                                <tr
-                                  key={`${day.date}-${entry.status}`}
-                                  className="bg-gray-50/70 text-xs"
-                                >
-                                  <td className="text-moto-amber-strong py-2 pr-6 pl-12 font-medium">
-                                    {entry.label}
-                                  </td>
-                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                    {formatTime(entry.reportedAt)}
-                                  </td>
-                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                    {entry.clearedAt
-                                      ? formatTime(entry.clearedAt)
-                                      : "–"}
-                                  </td>
-                                  <td className="px-6 py-2 text-gray-400">–</td>
-                                  <td className="px-6 py-2" />
-                                </tr>
-                              ))}
-                              {day.visits.map((v, i) => (
-                                <tr
-                                  key={`${day.date}-${i}-${v.entryTime.toISOString()}`}
-                                  className="border-b border-gray-50 bg-gray-50/70 text-xs"
-                                >
-                                  <td className="py-2 pr-6 pl-12">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-medium text-gray-700">
-                                        {v.roomName || "Unbekannt"}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                    {formatTime(v.entryTime)}
-                                  </td>
-                                  <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                    {v.exitTime ? formatTime(v.exitTime) : "–"}
-                                  </td>
-                                  <td className="px-6 py-2">
-                                    {v.durationMinutes != null ? (
-                                      <span className="rounded bg-gray-200/60 px-1.5 py-0.5 text-gray-600 tabular-nums">
-                                        {formatDuration(v.durationMinutes)}
-                                      </span>
-                                    ) : (
-                                      <span className="text-gray-400">–</span>
-                                    )}
-                                  </td>
-                                  <td className="px-6 py-2" />
-                                </tr>
-                              ))}
-                            </>
-                          ))}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <DataTable
+                columns={HISTORY_COLUMNS}
+                rows={days}
+                getRowKey={(day) => day.date}
+                expandable={{
+                  rowLabel: (day, expanded) =>
+                    `${formatDate(day.date)}: Details ${expanded ? "schließen" : "öffnen"}`,
+                }}
+                renderSubRows={(day, expanded) =>
+                  expanded
+                    ? [
+                        ...daySlotRows(day, canCorrect, setCorrecting),
+                        ...dayRoomRows(day),
+                      ]
+                    : []
+                }
+                rowTone={(day) => (day.date === todayKey ? "today" : null)}
+              />
             </div>
 
             {/* Mobile card layout */}
-            <div className="md:hidden">
+            <div className="moto-content-surface overflow-hidden rounded-xl border md:hidden">
               {days.map((day) => (
                 <DayCard
                   key={day.date}
@@ -750,16 +746,12 @@ function StudentRoomHistoryPageContent() {
   // Start at the top instead of inheriting the previous page's scroll position
   useScrollToTop(studentId);
 
-  const fetchStudent = useCallback(async (): Promise<Student | null> => {
+  const loadStudent = useCallback(async (): Promise<Student | null> => {
     try {
-      const res = await transportFetch(`/api/students/${studentId}`);
+      return await fetchStudent(studentId);
+    } catch (err) {
       // The name only decorates the header; without it the page still shows
       // the protocol under its generic title.
-      if (!res.ok) return null;
-      const body = (await res.json()) as { data?: Student };
-      return body.data ?? null;
-    } catch (err) {
-      // Same as above: the header falls back to the generic title.
       logger.error("student_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
@@ -770,25 +762,16 @@ function StudentRoomHistoryPageContent() {
 
   const fetchHistory = useCallback(async (): Promise<void> => {
     try {
-      const res = await transportFetch(
-        `/api/students/${studentId}/attendance-history`,
-      );
-      if (res.status === 404) {
+      setHistory(await fetchStudentAttendanceHistory(studentId));
+      setNotFound(false);
+      clearHistoryError();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
         setNotFound(true);
         setHistory(null);
         clearHistoryError();
         return;
       }
-      if (!res.ok) {
-        throw await apiErrorFromResponse(res, "attendance history failed");
-      }
-      const body = (await res.json()) as {
-        data: BackendAttendanceHistoryResponse;
-      };
-      setHistory(mapAttendanceHistoryResponse(body.data));
-      setNotFound(false);
-      clearHistoryError();
-    } catch (err) {
       logger.error("attendance_history_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
@@ -806,7 +789,7 @@ function StudentRoomHistoryPageContent() {
     setLoading(true);
 
     void (async () => {
-      const [s] = await Promise.all([fetchStudent(), fetchHistory()]);
+      const [s] = await Promise.all([loadStudent(), fetchHistory()]);
       if (cancelled) return;
       setStudent(s);
       setLoading(false);
@@ -815,7 +798,7 @@ function StudentRoomHistoryPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [fetchStudent, fetchHistory, attempt]);
+  }, [loadStudent, fetchHistory, attempt]);
 
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)

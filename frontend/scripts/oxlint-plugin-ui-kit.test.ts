@@ -17,7 +17,7 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
+import { fieldLabelBaseline } from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import {
   lintSource as lintProbe,
@@ -43,6 +43,82 @@ describe.concurrent("ui-kit/no-hand-rolled-overlay", () => {
 
     expect(result.status).toBe(1);
     expect(output).toContain("ui-kit(no-hand-rolled-overlay)");
+  });
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-portal-nav", () => {
+  const RULE = "ui-kit(no-hand-rolled-portal-nav)";
+
+  it.each([
+    "rounded-full bg-white/95 shadow-[0_-2px_20px_rgba(0,0,0,0.08)]",
+    "absolute top-0 h-full rounded-full bg-gray-100",
+    "relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full",
+    "w-64 border-r border-gray-200/70 bg-white/95",
+    "top-[73px] h-[calc(100vh-73px)]",
+    "top-[121px] h-[calc(100vh-121px)]",
+    "top-[153px] h-[calc(100vh-153px)]",
+  ])("rejects the shell classes %s outside the kit", async (classes) => {
+    const { output } = await lintSource(
+      `export const Probe = () => <div className="${classes}" />;`,
+      "src/components/parent/shell/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("finds the classes in a template string too", async () => {
+    const { output } = await lintSource(
+      "const width = 'w-64 border-r';\nexport const aside = `${width} border-gray-200/70 bg-white/95`;",
+      "src/components/dashboard/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("finds shell classes when conditional combinations overflow", async () => {
+    const { output } = await lintSource(
+      [
+        "declare const a: boolean;",
+        "declare const b: boolean;",
+        "declare const c: boolean;",
+        "declare const d: boolean;",
+        "declare const e: boolean;",
+        "declare const f: boolean;",
+        "declare const g: boolean;",
+        'export const aside = `${a ? "border-r" : "border-l"} ${b ? "border-gray-200/70" : "border-gray-100"} ${c ? "bg-white/95" : "bg-gray-50"} ${d ? "p-1" : "p-2"} ${e ? "m-1" : "m-2"} ${f ? "gap-1" : "gap-2"} ${g ? "h-8" : "h-9"}`;',
+      ].join("\n"),
+      "src/components/dashboard/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("finds shell classes combined by cn", async () => {
+    const { output } = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      export const Probe = () => <aside className={cn("border-r border-gray-200/70", "bg-white/95")} />;`,
+      "src/components/dashboard/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("rejects the kit's sidebar row classes outside the kit", async () => {
+    const { output } = await lintSource(
+      `import { portalSidebarRowClasses } from "~/components/ui/sidebar-geometry";
+      void portalSidebarRowClasses;`,
+      "src/components/parent/shell/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("allows the kit itself and unrelated sticky headers", async () => {
+    const shell = await lintSource(
+      `const aside = "border-r border-gray-200/70 bg-white/95"; void aside;`,
+      "src/components/ui/probe-nav.tsx",
+    );
+    expect(shell.output).not.toContain(RULE);
+    const other = await lintSource(
+      `const head = "sticky top-0 border-r bg-white/95"; void head;`,
+      "src/components/dashboard/probe-nav.tsx",
+    );
+    expect(other.output).not.toContain(RULE);
   });
 });
 
@@ -510,7 +586,8 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
       }
       void Probe;
     `,
-      "src/probe.tsx",
+      // moto-popover-surface steht seit #5601 nur noch im Kit.
+      "src/components/ui/probe.tsx",
     );
     const output = result.output;
 
@@ -732,8 +809,6 @@ function SectionCard(_: { kicker?: string; title: string }) {
   it.each([
     "src/components/parent/probe.tsx",
     "src/app/parents/probe/page.tsx",
-    "src/components/school/probe.tsx",
-    "src/app/operator/probe/page.tsx",
     "src/app/[tenant]/(protected)/rooms/page.test.tsx",
   ])("leaves %s alone", async (path) => {
     const result = await lintSource(kickerSource, path);
@@ -741,6 +816,17 @@ function SectionCard(_: { kicker?: string; title: string }) {
 
     expect(result.status, `${path}\n${output}`).toBe(0);
     expect(output).not.toContain("no-tenant-kicker");
+  });
+
+  it.each([
+    "src/components/school/probe.tsx",
+    "src/components/class-day/probe.tsx",
+    "src/app/operator/probe/page.tsx",
+  ])("reports %s since #5604", async (path) => {
+    const result = await lintSource(kickerSource, path);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-tenant-kicker");
   });
 });
 
@@ -981,7 +1067,8 @@ describe.concurrent("ui-kit/no-tabs-as-value-switcher", () => {
 
   it("accepts dynamic labels with all supported content-panel imports", async () => {
     const result = await lintSource(
-      `import * as TabsPrimitive from "@radix-ui/react-tabs";
+      `// oxlint-disable-next-line ui-kit/no-radix-outside-kit -- Gegenstand dieses Tests ist die Erkennung der Reiter-Inhalte.
+      import * as TabsPrimitive from "@radix-ui/react-tabs";
       import {
         Tabs,
         TabsList,
@@ -1185,6 +1272,137 @@ describe.concurrent("ui-kit/no-raw-input", () => {
     const output = result.output;
 
     expect(output).not.toContain("no-raw-input");
+  });
+});
+
+describe.concurrent("ui-kit/no-raw-table", () => {
+  it("reports a table outside the kit", async () => {
+    const result = await lintSource(`
+      export function Probe() {
+        return <table><tbody><tr><td>Mia</td></tr></tbody></table>;
+      }
+    `);
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-raw-table\)/g)).toHaveLength(1);
+  });
+
+  it("accepts DataTable and the kit's own table", async () => {
+    const outside = await lintSource(`
+      import { DataTable } from "~/components/ui/data-table";
+      export function Probe() {
+        return <DataTable columns={[]} rows={[]} getRowKey={() => 1} />;
+      }
+    `);
+    const kit = await lintSource(
+      `
+      export function Grid() {
+        return <table><tbody /></table>;
+      }
+    `,
+      "src/components/ui/planning/grid.tsx",
+    );
+
+    expect(outside.output).not.toContain("no-raw-table");
+    expect(kit.output).not.toContain("no-raw-table");
+  });
+});
+
+describe.concurrent("ui-kit/no-em-dash-empty-value", () => {
+  it("reports an em dash as JSX text and as a fallback value", async () => {
+    const result = await lintSource(`
+      export function Probe({ name }: { name?: string }) {
+        return <div><span>—</span><span>{name ?? "—"}</span><span>Abholzeit: —</span><span>{\`Gehzeit: —\`}</span></div>;
+      }
+    `);
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-em-dash-empty-value\)/g),
+    ).toHaveLength(4);
+  });
+
+  it("accepts the en dash and an em dash inside a sentence", async () => {
+    const result = await lintSource(`
+      export function Probe({ name }: { name?: string }) {
+        return <p title="Mia — Klasse 3">{name ?? "–"} — läuft ab</p>;
+      }
+    `);
+
+    expect(result.output).not.toContain("no-em-dash-empty-value");
+  });
+});
+
+describe.concurrent("ui-kit/no-control-height-override", () => {
+  it("reports h-8, h-9 and !size-* on kit controls, also behind a variant", async () => {
+    const result = await lintSource(`
+      import { Input } from "~/components/ui/input";
+      import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      const FIELD = "h-9 py-1";
+      export function Probe() {
+        return <form>
+          <Input className={FIELD} />
+          <Input className="sm:h-8" />
+          <OverflowMenu items={[]} triggerClassName="!size-7" />
+        </form>;
+      }
+    `);
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-control-height-override\)/g),
+    ).toHaveLength(3);
+  });
+
+  it("reports the height on selects and the date range trigger", async () => {
+    const result = await lintSource(`
+      import { CustomSelect } from "~/components/ui/custom-select";
+      import { MultiSelect } from "~/components/ui/multi-select";
+      import { DateRangePicker } from "~/components/ui/date-range-picker";
+      export function Probe() {
+        return <form>
+          <CustomSelect value="" options={[]} onChange={() => {}} className="h-9" />
+          <MultiSelect value={[]} options={[]} onChange={() => {}} className="h-8" />
+          <DateRangePicker value={undefined} onChange={() => {}} triggerClassName="h-9" />
+        </form>;
+      }
+    `);
+
+    expect(
+      result.output.match(/ui-kit\(no-control-height-override\)/g),
+    ).toHaveLength(3);
+  });
+
+  it("allows the kit sizes and layout classes", async () => {
+    const result = await lintSource(`
+      import { Input } from "~/components/ui/input";
+      import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe() {
+        return <form>
+          <Input controlSize="compact" className="w-full tabular-nums md:w-28" />
+          <OverflowMenu items={[]} triggerSize="sm" triggerClassName="ml-auto" />
+        </form>;
+      }
+    `);
+
+    expect(result.output).not.toContain("no-control-height-override");
+  });
+
+  it("leaves other components and the kit itself alone", async () => {
+    const other = await lintSource(`
+      import { Spark } from "~/components/ui/spark";
+      export const Probe = () => <Spark className="h-9 !size-7" />;
+    `);
+    const kit = await lintSource(
+      `
+      import { Input } from "~/components/ui/input";
+      export const Probe = () => <Input className="h-9" />;
+    `,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(other.output).not.toContain("no-control-height-override");
+    expect(kit.output).not.toContain("no-control-height-override");
   });
 });
 
@@ -1674,8 +1892,7 @@ describe("button ratchet baseline", () => {
   });
 });
 
-// #5584: Pillen-Ratchet. Ein Fund je Element; die Baseline hält den Ist-Stand
-// je Datei fest und darf nur sinken.
+// #5584: hard-zero. Ein Fund je Element, ohne Ausnahme für den alten Bestand.
 describe.concurrent("ui-kit/no-hand-rolled-pill", () => {
   const handRolled = (count: number) =>
     `function Probe() {
@@ -1729,25 +1946,141 @@ describe.concurrent("ui-kit/no-hand-rolled-pill", () => {
     expect(result.output).not.toContain("no-hand-rolled-pill");
   });
 
-  it("keeps the shrink-only baseline: equal and fewer pass, more fails", async () => {
-    const [file, count] = Object.entries(
-      pillRatchetBaseline["no-hand-rolled-pill"] ?? {},
-    ).find(([candidate]) => candidate.endsWith(".tsx"))!;
-    const [equal, more, fewer] = await Promise.all([
-      lintSource(handRolled(count), file),
-      lintSource(handRolled(count + 1), file),
-      lintSource(handRolled(count - 1), file),
-    ]);
-    expect(equal.output).not.toContain("no-hand-rolled-pill");
+  it("is hard-zero: a file from the former baseline fails too", async () => {
+    const result = await lintSource(
+      handRolled(1),
+      "src/components/ui/page-header/ActiveFilterChips.tsx",
+    );
 
-    expect(more.status).toBe(1);
-    expect(more.output).toContain("ui-kit(no-hand-rolled-pill)");
-
-    expect(fewer.output).not.toContain("no-hand-rolled-pill");
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-pill)");
   });
 });
 
+// #5584 Abschlussrunde: auch `div` und Klassen aus erkennbar statischen Quellen.
+describe.concurrent(
+  "ui-kit/no-hand-rolled-pill, div und statische Quellen",
+  () => {
+    const RULE = "ui-kit(no-hand-rolled-pill)";
+
+    it("fails a div pill", async () => {
+      const result = await lintSource(
+        `export const Probe = () => (
+        <div className="bg-moto-orange-soft flex items-center gap-1.5 rounded-full px-3 py-1 text-xs">Achtung</div>
+      );`,
+        "src/components/probe.tsx",
+      );
+
+      expect(result.output).toContain(RULE);
+    });
+
+    it("accepts a hint box, a brand surface and a tooltip on a div", async () => {
+      const result = await lintSource(
+        `export const Probe = () => (
+        <>
+          <div className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">Hinweis in ganzer Breite</div>
+          <div className="w-fit rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">Kurzer Hinweis</div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/85 px-3 py-1.5 text-xs shadow-sm backdrop-blur-sm">Für Schulen</div>
+          <div role="tooltip" className="inline-block rounded-md bg-gray-900 px-2 py-1 text-xs text-white">Hilfe</div>
+        </>
+      );`,
+        "src/components/probe.tsx",
+      );
+
+      expect(result.output).not.toContain(RULE);
+    });
+
+    it("finds a surface in a helper or table declared below the element", async () => {
+      const result = await lintSource(
+        `export const Probe = ({ status }: { status: string }) => (
+        <>
+          <span className={\`rounded-full px-2 py-1 text-xs \${statusClass(status)}\`}>Status</span>
+          <span className={\`rounded-full px-2 py-1 text-xs \${TONES[status]}\`}>Status</span>
+        </>
+      );
+      function statusClass(status: string) {
+        return status === "aktiv" ? "bg-moto-green-soft" : "bg-gray-100";
+      }
+      const TONES: Record<string, string> = { aktiv: "bg-moto-green-soft" };`,
+        "src/components/probe.tsx",
+      );
+
+      expect(
+        result.output.match(/ui-kit\(no-hand-rolled-pill\)/g),
+      ).toHaveLength(2);
+    });
+
+    it("finds a surface in an exported helper of another module", () => {
+      const root = mkdtempSync(join(tmpdir(), "pill-import-"));
+      temporaryDirectories.push(root);
+      mkdirSync(join(root, "src/lib"), { recursive: true });
+      mkdirSync(join(root, "src/components"), { recursive: true });
+      writeFileSync(
+        join(root, "src/lib/tones.ts"),
+        `export function statusClass(status: string) {
+  return \`font-medium \${status === "aktiv" ? "bg-moto-green-soft" : "bg-gray-100"}\`;
+}
+export function statusName(status: string) {
+  return status === "aktiv" ? "Aktiv" : "Inaktiv";
+}
+async function other() {
+  return "bg-moto-red-soft";
+}
+void other;`,
+      );
+      const lintProbeFile = (name: string, helper: string) => {
+        const path = join(root, "src/components", name);
+        writeFileSync(
+          path,
+          `import { ${helper} } from "~/lib/tones";
+        export const Probe = ({ status }: { status: string }) => (
+          <span className={\`rounded-full px-2 py-1 text-xs \${${helper}(status)}\`}>Status</span>
+        );`,
+        );
+        return spawnSync(
+          resolve("node_modules/.bin/oxlint"),
+          ["-c", resolve(".oxlintrc.json"), path],
+          { encoding: "utf8" },
+        ).stdout;
+      };
+
+      expect(lintProbeFile("surface.tsx", "statusClass")).toContain(
+        "no-hand-rolled-pill",
+      );
+      // Der andere Export desselben Moduls trägt keine Fläche bei.
+      expect(lintProbeFile("name.tsx", "statusName")).not.toContain(
+        "no-hand-rolled-pill",
+      );
+    });
+
+    it("stays silent on classes it cannot resolve statically (known limit)", async () => {
+      const result = await lintSource(
+        `export const Probe = ({ toneClass }: { toneClass: string }) => (
+        <span className={\`rounded-full px-2 py-1 text-xs \${toneClass}\`}>Status</span>
+      );`,
+        "src/components/probe.tsx",
+      );
+
+      expect(result.output).not.toContain(RULE);
+    });
+  },
+);
+
 describe.concurrent("ui-kit/no-pill-dot", () => {
+  it("fails a dot inside a div pill", async () => {
+    const result = await lintSource(
+      `export const Probe = () => (
+        <div className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs">
+          <span className="h-1.5 w-1.5 rounded-full bg-gray-400" aria-hidden />
+          Keine Lücken
+        </div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-pill-dot)");
+  });
+
   it("fails a dot inside a pill (#2476)", async () => {
     const result = await lintSource(
       `function Probe() {
@@ -1925,27 +2258,6 @@ describe.concurrent("ui-kit/no-hex-alpha-tint", () => {
   });
 });
 
-describe("pill ratchet baseline", () => {
-  it("matches the current findings exactly", () => {
-    const result = spawnSync(
-      process.execPath,
-      [resolve("scripts/ui-kit-pill-baseline-update.mjs"), "--check"],
-      { encoding: "utf8" },
-    );
-
-    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
-  }, 120_000);
-
-  it("names only files that exist and positive counts", () => {
-    for (const [rule, files] of Object.entries(pillRatchetBaseline)) {
-      for (const [file, count] of Object.entries(files)) {
-        expect(existsSync(resolve(file)), `${rule}: ${file}`).toBe(true);
-        expect(count).toBeGreaterThan(0);
-      }
-    }
-  });
-});
-
 describe.concurrent("ui-kit/no-important-override (#5581)", () => {
   it("reports an important utility on a kit component", async () => {
     const result = await lintSource(`
@@ -2014,6 +2326,90 @@ describe.concurrent("ui-kit/no-section-card-bleed (#5581)", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-hand-rolled-field-label (#5589)", () => {
+  const RULE = "ui-kit(no-hand-rolled-field-label)";
+
+  it.each([
+    '<label htmlFor="a" className="block text-sm font-medium text-gray-700">A</label>',
+    '<label htmlFor="a" className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase">A</label>',
+    '<label htmlFor="a" className="text-sm font-medium">A</label>',
+    '<span className="mb-1.5 block text-sm font-medium text-gray-700">A</span>',
+    '<label><span className="block text-sm font-medium">A</span><Input /></label>',
+    '<label><span className="text-xs font-medium text-gray-700">A</span><Input /></label>',
+    '<label className="flex flex-col gap-1 text-sm font-medium">A<Input /></label>',
+  ])("reports %s", async (element) => {
+    const { output } = await lintSource(
+      `import { Input } from "~/components/ui/input";
+      export const Probe = () => ${element};
+      void Input;`,
+      "src/components/probe-form.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it.each([
+    '<label className="flex items-center gap-2 text-sm font-medium"><Checkbox /> A</label>',
+    '<label className="sm:flex text-sm font-medium"><Checkbox /> A</label>',
+    '<label className="flex"><span className="block text-sm font-medium">A</span><Checkbox /></label>',
+    '<label htmlFor="a" className="sr-only text-sm font-medium">A</label>',
+    '<label htmlFor="a" className="rounded-lg border px-3 py-2 text-sm font-medium">Datei wählen</label>',
+    '<span className="block text-sm font-medium text-gray-900">Name einer Zeile</span>',
+    '<span className="mb-1 text-sm font-medium">Inline</span>',
+    '<label><Input /><span className="text-xs font-medium">Nach dem Feld</span></label>',
+    '<label className="flex"><span className="text-sm font-medium">A</span><Checkbox /></label>',
+    '<label htmlFor="a" className="block text-sm text-gray-700">Ohne Gewicht</label>',
+  ])("accepts %s", async (element) => {
+    const { output } = await lintSource(
+      `import { Checkbox } from "~/components/ui/checkbox";
+      import { Input } from "~/components/ui/input";
+      export const Probe = () => ${element};
+      void Checkbox;
+      void Input;`,
+      "src/components/probe-form.tsx",
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  it("allows the label in the kit component itself", async () => {
+    const { output } = await lintSource(
+      'export const Probe = () => <label htmlFor="a" className="block text-sm font-medium">A</label>;',
+      "src/components/ui/field-label.tsx",
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  it("fails one finding more than a file's baseline", async () => {
+    const [file, allowed] = Object.entries(
+      fieldLabelBaseline["no-hand-rolled-field-label"]!,
+    )[0]!;
+    const labels = Array.from(
+      { length: allowed + 1 },
+      (_, index) =>
+        `<label htmlFor="f${index}" className="block text-sm font-medium">A</label>`,
+    ).join("");
+    const result = await lintSource(
+      `export const Probe = () => <>${labels}</>;`,
+      file,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+});
+
+describe("ui-kit/no-hand-rolled-field-label baseline is current (#5589)", () => {
+  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken.
+  it("records exactly the findings each file still has", () => {
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/ui-kit-field-label-baseline-update.mjs"), "--check"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+  }, 120_000);
+});
+
 describe.concurrent("ui-kit/no-important-override baseline (#5581)", () => {
   it("fails a second override in a baselined file", async () => {
     const result = await lintSource(
@@ -2054,6 +2450,60 @@ describe("ui-kit/no-important-override baseline is current (#5581)", () => {
       if (previous === undefined) delete process.env.UI_KIT_IMPORTANT_OVERRIDE;
       else process.env.UI_KIT_IMPORTANT_OVERRIDE = previous;
     }
+  });
+});
+
+describe.concurrent("ui-kit/no-radix-outside-kit", () => {
+  it("reports a Radix import in a portal page", async () => {
+    const result = await lintSource(
+      `import * as TabsPrimitive from "@radix-ui/react-tabs";
+      void TabsPrimitive;
+      void import("@radix-ui/react-dialog");`,
+      "src/app/operator/organizations/probe/page.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-radix-outside-kit\)/g)).toHaveLength(
+      2,
+    );
+  });
+
+  it("allows a Radix import inside the kit", async () => {
+    const result = await lintSource(
+      `import * as TabsPrimitive from "@radix-ui/react-tabs";
+      void TabsPrimitive;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-radix-outside-kit)");
+  });
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-page-card in other portals", () => {
+  it.each(["src/app/school/probe/page.tsx", "src/app/operator/probe/page.tsx"])(
+    "reports a hand-rolled card in %s",
+    async (path) => {
+      const result = await lintSource(
+        `export default function Probe() {
+        return <div className="moto-content-surface rounded-2xl border p-5" />;
+      }`,
+        path,
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.output).toContain("ui-kit(no-hand-rolled-page-card)");
+    },
+  );
+
+  it("leaves the parent portal alone", async () => {
+    const result = await lintSource(
+      `export default function Probe() {
+        return <div className="moto-content-surface rounded-2xl border p-5" />;
+      }`,
+      "src/app/parents/probe/page.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-hand-rolled-page-card)");
   });
 });
 
@@ -2171,3 +2621,394 @@ describe.concurrent(
     });
   },
 );
+
+describe.concurrent("ui-kit/no-hand-rolled-menu (#5601)", () => {
+  it.each([
+    ["a menu", `<div role="menu" />`],
+    ["a menu entry", `<button type="button" role="menuitem" />`],
+    ["a listbox", `<ul role="listbox" />`],
+    ["an option", `<li role="option" aria-selected={false} />`],
+    ["a conditional role", `<div role={open ? "menu" : undefined} />`],
+  ])("fails %s", async (_name, element) => {
+    const result = await lintSource(
+      `function Probe({ open }: { open: boolean }) {
+        void open;
+        return ${element};
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-hand-rolled-menu");
+  });
+
+  it("accepts other roles and the kit folder", async () => {
+    const other = await lintSource(
+      `export const Probe = () => <div role="group" />;`,
+      "src/components/probe.tsx",
+    );
+    const kit = await lintSource(
+      `export const Probe = () => <div role="menu" />;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(other.output).not.toContain("no-hand-rolled-menu");
+    expect(kit.output).not.toContain("no-hand-rolled-menu");
+  });
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-popover (#5601)", () => {
+  it.each([
+    [
+      "a class string",
+      `<div className="moto-popover-surface rounded-xl border" />`,
+    ],
+    [
+      "a computed class",
+      `<div className={\`moto-popover-surface \${extra}\`} />`,
+    ],
+  ])("fails %s", async (_name, element) => {
+    const result = await lintSource(
+      `function Probe({ extra }: { extra: string }) {
+        void extra;
+        return ${element};
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-hand-rolled-popover");
+  });
+
+  it("accepts the kit folder and other surfaces", async () => {
+    const kit = await lintSource(
+      `export const Probe = () => <div className="moto-popover-surface rounded-xl border" />;`,
+      "src/components/ui/probe.tsx",
+    );
+    const other = await lintSource(
+      `export const Probe = () => <div className="moto-content-surface rounded-2xl border" />;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(kit.output).not.toContain("no-hand-rolled-popover");
+    expect(other.output).not.toContain("no-hand-rolled-popover");
+  });
+});
+
+describe.concurrent("Listen-Bausteine (#5593)", () => {
+  it.each([
+    [
+      "no-arbitrary-shadow",
+      `<div className="shadow-[0_1px_0_rgba(17,24,39,0.04)]" />`,
+    ],
+    ["no-arbitrary-shadow", `<div className="hover:shadow-[0_0_4px_red]" />`],
+    [
+      "no-hand-rolled-list-row",
+      `<div className="flex rounded-xl bg-gray-50/50 px-3 py-2" />`,
+    ],
+    [
+      "no-hand-rolled-framed-list",
+      `<ul className="divide-y divide-gray-100 rounded-lg border border-gray-200" />`,
+    ],
+    [
+      "no-hand-rolled-nav-row",
+      `<button type="button" className="flex w-full">Anna<ChevronRight /></button>`,
+    ],
+    [
+      "no-hand-rolled-nav-row",
+      `<button type="button" className="flex justify-between">Anna<span aria-hidden="true">›</span></button>`,
+    ],
+  ])("%s fails %s", async (rule, element) => {
+    const result = await lintSource(
+      `const ChevronRight = () => null;
+      const cn = (...parts: string[]) => parts.join(" ");
+      const on = true;
+      export const Probe = () => ${element};
+      void [ChevronRight, cn, on];`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status, result.output).toBe(1);
+    expect(result.output).toContain(rule);
+  });
+
+  it.each([
+    ["no-arbitrary-shadow", `<div className="shadow-sm ring-4" />`],
+    [
+      "no-hand-rolled-list-row",
+      `<div className="rounded-xl border bg-gray-50/50 p-3" />`,
+    ],
+    [
+      "no-hand-rolled-framed-list",
+      `<ul className="divide-y divide-gray-100" />`,
+    ],
+    ["no-hand-rolled-nav-row", `<a href="/x" className="flex w-full">Anna</a>`],
+    [
+      "no-hand-rolled-nav-row",
+      `<a href="/x" className="flex gap-1">Heute öffnen<ChevronRight /></a>`,
+    ],
+  ])("%s accepts %s", async (rule, element) => {
+    const result = await lintSource(
+      `export const Probe = () => ${element};`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(rule);
+  });
+
+  it("leaves the kit folder alone", async () => {
+    const result = await lintSource(
+      `export const Probe = () => <div className="shadow-[0_0_4px_red] rounded-xl bg-gray-50/50 px-3" />;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-arbitrary-shadow");
+    expect(result.output).not.toContain("no-hand-rolled-list-row");
+  });
+});
+
+describe.concurrent("ui-kit/no-own-spinner (#5588)", () => {
+  it.each([
+    [
+      "a border spinner",
+      `<div className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />`,
+    ],
+    [
+      "animate-spin on an icon",
+      `<svg className="h-4 w-4 animate-spin text-white" />`,
+    ],
+    [
+      "a computed class",
+      `<span className={\`h-3 w-3 animate-spin \${tone}\`} />`,
+    ],
+  ])("fails %s", async (_name, element) => {
+    const result = await lintSource(
+      `function Probe({ tone }: { tone: string }) {
+        void tone;
+        return ${element};
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-own-spinner");
+  });
+
+  it.each([
+    ["lucide-react", "Loader2"],
+    ["lucide-react", "LoaderCircle"],
+    ["@phosphor-icons/react/ssr", "CircleNotchIcon"],
+  ])("fails the %s icon %s", async (source, name) => {
+    const result = await lintSource(
+      `import { ${name} } from "${source}";
+      void ${name};`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-own-spinner");
+  });
+
+  it("accepts the kit pieces, other icons and the kit folder", async () => {
+    const accepted = await lintSource(
+      `import { Check } from "lucide-react";
+      import { SpinnerIcon } from "~/components/ui/icons";
+      import { Loading } from "~/components/ui/loading";
+      function Probe() {
+        return (
+          <>
+            <SpinnerIcon className="h-4 w-4" />
+            <Loading fullPage={false} message="Wird geladen" />
+            <Check className="h-4 w-4" />
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const kit = await lintSource(
+      `function Probe() {
+        return <svg className="h-4 w-4 animate-spin" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(accepted.output).not.toContain("no-own-spinner");
+    expect(kit.output).not.toContain("no-own-spinner");
+  });
+});
+
+describe.concurrent("ui-kit Eingabe-Bausteine (#5596)", () => {
+  it.each([
+    [
+      "no-hand-rolled-removable-chip",
+      `<span className="inline-flex items-center rounded-full bg-gray-50">
+        {label}
+        <button type="button" onClick={remove} aria-label="Weg"><X /></button>
+      </span>`,
+    ],
+    [
+      "no-hand-rolled-removable-chip",
+      `<span className="inline-flex rounded-full bg-gray-50">
+        {label}
+        <button type="button" onClick={remove} aria-label="Weg">×</button>
+      </span>`,
+    ],
+    [
+      "no-hand-rolled-number-stepper",
+      `<div className="flex">
+        <Button onClick={remove} aria-label="Weniger"><Minus /></Button>
+        <span>{label}</span>
+        <Button onClick={remove} aria-label="Mehr"><Plus /></Button>
+      </div>`,
+    ],
+    [
+      "no-hand-rolled-weekday-toggle",
+      `<div>{weekdays.map((day) => (
+        <label key={day}><Checkbox checked onChange={remove} />{day}</label>
+      ))}</div>`,
+    ],
+    [
+      "no-hand-rolled-weekday-toggle",
+      `<div>{WEEKDAYS.map((day) => (
+        <Button key={day} aria-pressed onClick={remove}>{day}</Button>
+      ))}</div>`,
+    ],
+  ])("%s fails the hand-built form", async (rule, element) => {
+    const result = await lintSource(
+      `import { Minus, Plus, X } from "lucide-react";
+      import { Button } from "~/components/ui/button";
+      import { Checkbox } from "~/components/ui/checkbox";
+      const weekdays = ["Mo"];
+      const WEEKDAYS = ["Mo"];
+      function Probe({ label, remove }: { label: string; remove: () => void }) {
+        return ${element};
+      }
+      void Probe; void Minus; void Plus; void X; void Button; void Checkbox;
+      void weekdays; void WEEKDAYS;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain(rule);
+  });
+
+  it.each([
+    [
+      "no-hand-rolled-removable-chip",
+      `<RemovableChip label={label} onRemove={remove} removeLabel="Weg" />`,
+    ],
+    [
+      "no-hand-rolled-removable-chip",
+      // Eine Zeile mit Schließen-Kreuz ist kein Chip.
+      `<div className="flex rounded-xl border">
+        {label}
+        <button type="button" onClick={remove} aria-label="Weg"><X /></button>
+      </div>`,
+    ],
+    [
+      "no-hand-rolled-number-stepper",
+      `<Button onClick={remove} aria-label="Mehr"><Plus /></Button>`,
+    ],
+    [
+      "no-hand-rolled-weekday-toggle",
+      `<div>{weekdays.map((day) => (
+        <ToggleChip key={day} pressed onPressedChange={remove}>{day}</ToggleChip>
+      ))}</div>`,
+    ],
+  ])("%s accepts the kit form", async (rule, element) => {
+    const result = await lintSource(
+      `import { Plus, X } from "lucide-react";
+      import { Button } from "~/components/ui/button";
+      import { RemovableChip } from "~/components/ui/removable-chip";
+      import { ToggleChip } from "~/components/ui/toggle-chip";
+      const weekdays = ["Mo"];
+      function Probe({ label, remove }: { label: string; remove: () => void }) {
+        return ${element};
+      }
+      void Probe; void Plus; void X; void Button; void RemovableChip;
+      void ToggleChip; void weekdays;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(rule);
+  });
+});
+
+describe.concurrent("ui-kit sticky bars and slide-over layout (#5602)", () => {
+  async function outputOf(jsx: string, path = "src/probe.tsx") {
+    const result = await lintSource(
+      `function Probe() { return ${jsx}; }\nvoid Probe;`,
+      path,
+    );
+    return result.output;
+  }
+
+  it("reports a hand-built sticky bottom surface", async () => {
+    const output = await outputOf(
+      `<div className="sticky bottom-4 z-10 rounded-2xl border bg-white/95 shadow-lg" />`,
+    );
+    expect(output).toContain("ui-kit(no-hand-rolled-sticky-bar)");
+  });
+
+  it("reports a hand-built sticky top selection surface", async () => {
+    const output = await outputOf(
+      `<div className="moto-content-surface sticky top-2 z-30 rounded-xl border" />`,
+    );
+    expect(output).toContain("ui-kit(no-hand-rolled-sticky-bar)");
+  });
+
+  it("reports a sticky bar split over several class strings", async () => {
+    const output = await outputOf(
+      `<div className={cn("sticky bottom-4", "border-t bg-gray-50")} />`,
+    );
+    expect(output).toContain("ui-kit(no-hand-rolled-sticky-bar)");
+  });
+
+  it("allows a sticky table head and the kit itself", async () => {
+    const head = await outputOf(
+      `<div className="sticky top-0 z-30 border-b bg-white" />`,
+    );
+    expect(head).not.toContain("no-hand-rolled-sticky-bar");
+    const kit = await outputOf(
+      `<div className="sticky bottom-4 rounded-2xl border bg-white/95 shadow-lg" />`,
+      "src/components/ui/probe.tsx",
+    );
+    expect(kit).not.toContain("no-hand-rolled-sticky-bar");
+  });
+
+  it("reports a free slide-over width, as prop and as class", async () => {
+    const prop = await outputOf(
+      `<SlideOverContent widthClass="sm:w-[640px]" />`,
+    );
+    expect(prop).toContain("ui-kit(no-arbitrary-slide-over-width)");
+    const klass = await outputOf(
+      `<SlideOverContent className="sm:w-[640px]" />`,
+    );
+    expect(klass).toContain("ui-kit(no-arbitrary-slide-over-width)");
+  });
+
+  it("allows size and the modal width", async () => {
+    const output = await outputOf(
+      `<><SlideOverContent size="lg" /><Modal widthClass="sm:w-[640px]" /></>`,
+    );
+    expect(output).not.toContain("no-arbitrary-slide-over-width");
+  });
+
+  it("reports flex-row on a slide-over head, allows sm:flex-row on the foot", async () => {
+    const importLine = `import { SlideOverFooter, SlideOverHeader } from "~/components/ui/slide-over";`;
+    const bad = await lintSource(
+      `${importLine}\nfunction Probe() { return <SlideOverHeader className="flex-row gap-3" />; }\nvoid Probe;`,
+      "src/probe.tsx",
+    );
+    expect(bad.output).toContain("ui-kit(no-slide-over-row-override)");
+    const good = await lintSource(
+      `${importLine}\nfunction Probe() { return <SlideOverFooter className="flex-col sm:flex-row" />; }\nvoid Probe;`,
+      "src/probe.tsx",
+    );
+    expect(good.output).not.toContain("no-slide-over-row-override");
+  });
+});

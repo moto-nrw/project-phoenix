@@ -1,5 +1,6 @@
 "use client";
 
+import { ListRowLink } from "~/components/ui/list-row-link";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -83,6 +84,8 @@ const GROUP_ORDER_BY_ROLE: Readonly<
   traeger: [
     "einstieg",
     "anmeldeverwaltung",
+    // Dokumente für Eltern und Schulen freigeben (#4692).
+    "elternarbeit",
     "auswertung",
     "konfiguration",
     "probleme",
@@ -469,24 +472,13 @@ function RelatedTopics({
       </h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {related.map((item) => (
-          <Link
+          <ListRowLink
             key={item.id}
+            framed
             href={hrefFor(item.id)}
-            className="moto-content-surface group flex items-center justify-between rounded-2xl border p-4 focus-visible:outline-2 focus-visible:outline-gray-400"
-          >
-            <span>
-              <span className="block text-sm font-semibold text-gray-900">
-                {item.title}
-              </span>
-              <span className="mt-1 block text-xs text-gray-500">
-                {item.question}
-              </span>
-            </span>
-            <ChevronRight
-              className="h-4 w-4 shrink-0 text-gray-400 group-hover:text-gray-700"
-              aria-hidden="true"
-            />
-          </Link>
+            title={item.title}
+            subtitle={item.question}
+          />
         ))}
       </div>
     </section>
@@ -760,18 +752,12 @@ function DocumentationArticle({
                 </ul>
               )}
             {troubleshootingTopic && (
-              <Link
+              <ListRowLink
+                framed
+                className="mt-5"
                 href={hrefFor(troubleshootingTopic.id)}
-                className="moto-content-surface group mt-5 flex items-center justify-between rounded-2xl border p-4 focus-visible:outline-2 focus-visible:outline-gray-400"
-              >
-                <span className="font-semibold text-gray-900">
-                  {troubleshootingTopic.title}
-                </span>
-                <ChevronRight
-                  className="h-4 w-4 shrink-0 text-gray-400 group-hover:text-gray-700"
-                  aria-hidden="true"
-                />
-              </Link>
+                title={troubleshootingTopic.title}
+              />
             )}
           </section>
         )}

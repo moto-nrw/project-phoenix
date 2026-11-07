@@ -29,7 +29,8 @@
     "reasonRequiredError": "Bitte geben Sie einen kurzen Hinweis für die OGS ein.",
     "requestSentTitle": "Anfrage gesendet",
     "requestSentBody": "Die OGS muss die Abwesenheit noch bestätigen. Bis dahin gilt Ihr Kind als erwartet.",
-    "errorObject": "die Abwesenheitsmeldung"
+    "errorObject": "die Abwesenheitsmeldung",
+    "submitting": "Wird gemeldet …"
   },
   "summary": {
     "none": "Keine Abmeldung",
@@ -93,7 +94,9 @@
     "modeStaffSet": "Die OGS hat die Abholart für diesen Tag schon festgelegt: {mode}.",
     "pendingMode": "Neue Abholart: {to}",
     "statusApprovedChange": "Bestätigt, die Änderung wurde übernommen.",
-    "errorStaffConflictGeneric": "Für diesen Tag hat die OGS schon eine Änderung eingetragen. Bitte wenden Sie sich an das Team."
+    "errorStaffConflictGeneric": "Für diesen Tag hat die OGS schon eine Änderung eingetragen. Bitte wenden Sie sich an das Team.",
+    "submitting": "Wird gesendet …",
+    "savingEdit": "Wird gespeichert …"
   },
   "actions": {
     "sick": {

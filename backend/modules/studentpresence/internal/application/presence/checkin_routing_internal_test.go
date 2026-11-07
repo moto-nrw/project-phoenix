@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -107,7 +108,7 @@ func TestCreateVisitRoutingUsesOnlyKnownGuardGroup(t *testing.T) {
 			if tc.known {
 				svc.StudentRepo = checkinRoutingStudents{student: student}
 			}
-			ctx, commit := tenant.WithAfterCommitHooksForTest(tenant.WithTenantID(context.Background(), 84))
+			ctx, commit := tenanttest.WithAfterCommitHooks(tenant.WithTenantID(context.Background(), 84))
 			require.NoError(t, svc.createVisit(ctx, &studentpresence.Visit{StudentID: 42, ActiveGroupID: 93, EntryTime: time.Now()}))
 			if tc.known {
 				assert.Zero(t, lookups)
@@ -143,7 +144,7 @@ func TestCreateVisitWithoutBroadcasterStillWakesGuardians(t *testing.T) {
 			if withWaker {
 				svc.guardianWaker = waker
 			}
-			ctx, commit := tenant.WithAfterCommitHooksForTest(tenant.WithTenantID(context.Background(), 84))
+			ctx, commit := tenanttest.WithAfterCommitHooks(tenant.WithTenantID(context.Background(), 84))
 			// Neither known routing nor fallback may touch an unwired group reader.
 			svc.broadcastVisitCreated(ctx, &studentpresence.Visit{StudentID: 42}, nil)
 			svc.broadcastVisitCreated(ctx, &studentpresence.Visit{StudentID: 43}, nil, nil)

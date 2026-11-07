@@ -1,28 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useStudentData } from "./use-student-data";
-import type { ExtendedStudent } from "./use-student-data";
+import type { Student } from "~/lib/student-helpers";
 
 // Mock dependencies
 vi.mock("next-auth/react");
 vi.mock("~/lib/swr");
-vi.mock("~/lib/api");
+vi.mock("~/lib/student-api");
 vi.mock("~/lib/usercontext-api");
 
 // Import mocked modules
 import { useSession } from "next-auth/react";
 import { useSWRAuth } from "~/lib/swr";
-import { studentService } from "~/lib/api";
+import { fetchStudent } from "~/lib/student-api";
 import { userContextService } from "~/lib/usercontext-api";
 
 // Type the mocked functions
 const mockUseSession = vi.mocked(useSession);
 const mockUseSWRAuth = vi.mocked(useSWRAuth);
-const mockStudentService = vi.mocked(studentService);
+const mockFetchStudent = vi.mocked(fetchStudent);
 const mockUserContextService = vi.mocked(userContextService);
 
 describe("useStudentData", () => {
-  const mockStudent: ExtendedStudent = {
+  const mockStudent: Student = {
     id: "1",
     first_name: "John",
     second_name: "Doe",
@@ -33,7 +33,6 @@ describe("useStudentData", () => {
     current_location: "Room 101",
     location_since: "2024-01-15T10:00:00Z",
     bus: false,
-    buskind: false,
     birthday: "2010-05-15",
     extra_info: "Extra info",
     health_info: "Health info",
@@ -256,7 +255,7 @@ describe("useStudentData", () => {
       });
 
       // Mock the service responses
-      mockStudentService.getStudent.mockResolvedValue({
+      mockFetchStudent.mockResolvedValue({
         id: "1",
         first_name: "John",
         second_name: "Doe",
@@ -302,7 +301,7 @@ describe("useStudentData", () => {
       }
 
       // Verify all services were called
-      expect(mockStudentService.getStudent).toHaveBeenCalledWith("1");
+      expect(mockFetchStudent).toHaveBeenCalledWith("1");
       expect(mockUserContextService.getMyEducationalGroups).toHaveBeenCalled();
       expect(mockUserContextService.getMySupervisedGroups).toHaveBeenCalled();
     });
@@ -314,7 +313,7 @@ describe("useStudentData", () => {
         update: vi.fn(),
       });
 
-      mockStudentService.getStudent.mockResolvedValue({
+      mockFetchStudent.mockResolvedValue({
         id: "1",
         first_name: "John",
         second_name: "Doe",
@@ -499,20 +498,16 @@ describe("useStudentData", () => {
         status: "authenticated",
         update: vi.fn(),
       });
-      mockStudentService.getStudent.mockResolvedValue({
-        data: {
-          ...mockStudent,
-          sick: true,
-          sick_since: "2026-08-11T08:00:00Z",
-          extra_info: "Sensitive info",
-          has_full_access: false,
-          has_write_access: false,
-          has_absence_write_access: true,
-          has_sick_excused_write_access: false,
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof mockStudentService.getStudent>
-      >);
+      mockFetchStudent.mockResolvedValue({
+        ...mockStudent,
+        sick: true,
+        sick_since: "2026-08-11T08:00:00Z",
+        extra_info: "Sensitive info",
+        has_full_access: false,
+        has_write_access: false,
+        has_absence_write_access: true,
+        has_sick_excused_write_access: false,
+      });
       mockUserContextService.getMyEducationalGroups.mockResolvedValue([]);
       mockUserContextService.getMySupervisedGroups.mockResolvedValue([]);
 
@@ -530,7 +525,7 @@ describe("useStudentData", () => {
 
       renderHook(() => useStudentData("1"));
       const fetched = (await fetcher!()) as {
-        student: ExtendedStudent;
+        student: Student;
         hasAbsenceWriteAccess: boolean;
         hasSickExcusedWriteAccess: boolean;
       };

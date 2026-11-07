@@ -103,16 +103,31 @@ func (s *Store) get(ctx context.Context, id int64, forUpdate bool) (communicatio
 	return toPublic(row), stats, nil
 }
 
+// announcementEditColumns are the columns an operator edit owns. Publication
+// (published_at) has its own commands and created_by follows the author's
+// account lifecycle; the edit's value may be a copy read before either
+// changed, so writing them back would revert the newer state.
+var announcementEditColumns = []string{
+	"title", "content", "type", "severity", "version", "active", "expires_at",
+	"target_roles", "target_org_ids", "target_tenant_ids",
+}
+
+// Update writes the edited columns and returns the stored row.
 func (s *Store) Update(ctx context.Context, value communication.Announcement) (communication.Announcement, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return communication.Announcement{}, domain.OperationStats{}, err
 	}
 	row := fromPublic(value)
+	// The stored row is scanned into a fresh value: the edit's copy may carry
+	// a publication state that no longer holds, and a NULL column scanned
+	// into its non-nil pointer would come back as a zero time.
+	var stored announcementRow
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewUpdate().Model(&row).ModelTableExpr(announcementTable).
-		WherePK().Returning("*").Scan(ctx)
+		Column(announcementEditColumns...).
+		WherePK().Returning("*").Scan(ctx, &stored)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
 		return communication.Announcement{}, stats, &communication.AnnouncementNotFoundError{AnnouncementID: value.ID}
@@ -121,7 +136,7 @@ func (s *Store) Update(ctx context.Context, value communication.Announcement) (c
 		return communication.Announcement{}, stats, fmt.Errorf("communication postgres: update announcement: %w", err)
 	}
 	stats.Rows = 1
-	return toPublic(row), stats, nil
+	return toPublic(stored), stats, nil
 }
 
 func (s *Store) Delete(ctx context.Context, id int64) (domain.OperationStats, error) {

@@ -22,4 +22,7 @@ type GuardianInvitationDelivery interface {
 	// EnqueueWelcomeEmail queues the welcome that follows the first mail of
 	// a new access (#3534), at most once per guardian and school.
 	EnqueueWelcomeEmail(ctx context.Context, profile GuardianProfile, tenantID int64, schoolName string, precedingOutboxID int64)
+	// GuardianMailBlocks reports the addresses a new invitation would not reach,
+	// keyed by the address in lower case.
+	GuardianMailBlocks(ctx context.Context, tenantID int64, addresses []string) (map[string]string, error)
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1874,7 +1875,7 @@ func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
 	absenceID := int64(1000)
 	actorAccountID := int64(2000)
 	decidedByStaffID := int64(3000)
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 

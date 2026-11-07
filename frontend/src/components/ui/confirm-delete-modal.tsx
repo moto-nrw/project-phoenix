@@ -9,6 +9,7 @@ import {
 } from "react";
 import { Button } from "./button";
 import { ChoiceTile } from "./choice-tile";
+import { FieldLabel } from "./field-label";
 import type { FormErrorInput } from "./form-error";
 import { FormErrorAlert } from "./form-error-alert";
 import { Input } from "./input";
@@ -297,12 +298,9 @@ export function ConfirmDeleteModal({
 
       {gate.mode === "textConfirm" && (
         <div className="mt-4">
-          <label
-            htmlFor={gate.inputId}
-            className="block text-sm font-medium text-gray-700"
-          >
+          <FieldLabel htmlFor={gate.inputId} className="mb-0">
             {gate.label}
-          </label>
+          </FieldLabel>
           {gate.preview && (
             <div className="mb-1 text-sm font-medium text-gray-900">
               {gate.preview}

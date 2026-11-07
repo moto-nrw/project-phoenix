@@ -16,6 +16,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SettingsCategory } from "./settings-category";
 import {
@@ -237,19 +238,19 @@ function SettingsSkeleton() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Skeleton className="h-10 w-full rounded-lg sm:max-w-sm" />
-        <Skeleton className="h-8 w-32 rounded-md" />
+        <Skeleton shape="control" className="h-10 w-full sm:max-w-sm" />
+        <Skeleton className="h-8 w-32" />
       </div>
       {Array.from({ length: 5 }).map((_, idx) => (
-        <div key={idx} className="moto-content-surface rounded-2xl border p-5">
+        <SectionCard key={idx}>
           <div className="flex items-start gap-3">
             <div className="flex-1 space-y-2">
-              <Skeleton className="h-5 w-40 rounded" />
-              <Skeleton className="h-4 w-full max-w-md rounded" />
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-full max-w-md" />
             </div>
-            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-8 w-8" />
           </div>
-        </div>
+        </SectionCard>
       ))}
     </div>
   );

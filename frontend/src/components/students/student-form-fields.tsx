@@ -7,7 +7,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { useId } from "react";
 import { Bus } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import type { Student } from "@/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -22,12 +22,14 @@ import {
   type DepartureMode,
   formatAllowedDepartureDays,
   normalizeAllowedDepartureModes,
-} from "~/lib/student-helpers";
+  DEPARTURE_MODE_SHORT_LABELS,
+} from "~/lib/departure-plan";
 import {
   ParentVisibleBadge,
   ParentVisibilityLegend,
 } from "~/components/ui/parent-visible-badge";
 import { Textarea } from "~/components/ui/textarea";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { CompanionPicker } from "./companion-picker";
 import type {
@@ -461,7 +463,6 @@ export function PrivacyConsentSection({
                 onChange("data_retention_days", Number.isNaN(v) ? null : v);
               }
             }}
-            placeholder="30"
           />
           {retentionError && (
             <p
@@ -488,12 +489,10 @@ export function PrivacyConsentSection({
 const DEPARTURE_OPTIONS: ReadonlyArray<{
   value: DepartureMode;
   short: string;
-}> = [
-  { value: "alone", short: "Zu Fuß" },
-  { value: "bus", short: "Bus" },
-  { value: "pickup", short: "Abgeholt" },
-  { value: "accompanied", short: "Anderes Kind" },
-];
+}> = (["alone", "bus", "pickup", "accompanied"] as const).map((value) => ({
+  value,
+  short: DEPARTURE_MODE_SHORT_LABELS[value],
+}));
 
 // Stable empty default so the prop keeps referential equality across renders.
 const EMPTY_COMPANIONS: StudentCompanion[] = [];
@@ -584,13 +583,11 @@ export function DepartureSection({
                   const active =
                     normalized[day.key]?.includes(opt.value) ?? false;
                   return (
-                    <label
+                    <ChoiceTile
                       key={opt.value}
-                      className={`flex h-8 cursor-pointer items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold transition-colors ${
-                        active
-                          ? "border-gray-900 bg-white text-gray-900"
-                          : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                      }`}
+                      tone="gray"
+                      selected={active}
+                      className="h-8 gap-2 rounded-lg px-2.5 text-xs font-semibold"
                     >
                       <Checkbox
                         checked={active}
@@ -637,7 +634,7 @@ export function DepartureSection({
                         }}
                       />
                       {opt.short}
-                    </label>
+                    </ChoiceTile>
                   );
                 })}
               </div>

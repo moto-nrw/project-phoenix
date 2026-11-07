@@ -4,15 +4,15 @@ import { MasterDetailLayout } from "./master-detail-layout";
 import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 import { Skeleton } from "~/components/ui/skeleton";
 
-function ListRowSkeleton() {
+function DatabaseRowSkeleton() {
   // Mirrors DatabaseListItem: title + subtitle lines, chevron slot.
   return (
     <div className="flex w-full items-center gap-3 border-b border-gray-100 px-4 py-2.5">
       <div className="min-w-0 flex-1 space-y-1.5">
-        <Skeleton className="h-4 w-2/3 rounded" />
-        <Skeleton className="h-3 w-1/2 rounded" />
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-3 w-1/2" />
       </div>
-      <Skeleton className="h-4 w-4 shrink-0 rounded" />
+      <Skeleton className="h-4 w-4 shrink-0" />
     </div>
   );
 }
@@ -45,7 +45,10 @@ export function MasterDetailSkeleton({
     >
       {intro ? <TenantPageHeaderSkeleton /> : null}
       <div className="mb-4">
-        <Skeleton className="h-10 w-full max-w-sm rounded-lg sm:max-w-md" />
+        <Skeleton
+          shape="control"
+          className="h-10 w-full max-w-sm sm:max-w-md"
+        />
       </div>
       <div className="min-h-0 flex-1 pb-4">
         <MasterDetailLayout
@@ -55,7 +58,7 @@ export function MasterDetailSkeleton({
           list={
             <div>
               {Array.from({ length: rowCount }, (_, i) => (
-                <ListRowSkeleton key={i} />
+                <DatabaseRowSkeleton key={i} />
               ))}
             </div>
           }

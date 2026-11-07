@@ -27,15 +27,24 @@ type Runtime struct {
 	// EmailWebhooks takes in what mail providers report.
 	EmailWebhooks *EmailWebhooks
 	// EmailReconciliation compares open mails with the provider's record and
-	// lifts a block. On plain SMTP it compares nothing and lifts only the school's
-	// list.
+	// changes a school's list. On plain SMTP it compares nothing, and lifting a
+	// block only touches the school's list.
 	EmailReconciliation *EmailReconciliation
+	// EmailOutcomes reads what became of a school's mails.
+	EmailOutcomes delivery.EmailOutcomes
+}
+
+// emailOutcomeRead answers from the store and, for a block at the provider, from
+// the provider.
+type emailOutcomeRead struct {
+	*WorkerCommands
+	*EmailReconciliation
 }
 
 // NewRuntime composes the module for this deployment's mail provider.
 func NewRuntime(module delivery.Capability, store *WorkerCommands, observe func(domain.Observation), wakeups func(context.Context) <-chan struct{}, provider mail.ProviderConfig) *Runtime {
 	webhooks, reconciliation := NewEmailEvents(provider, store, observe)
-	return &Runtime{Module: module, Store: store, Observe: observe, EmailWakeups: wakeups, EmailWebhooks: webhooks, EmailReconciliation: reconciliation}
+	return &Runtime{Module: module, Store: store, Observe: observe, EmailWakeups: wakeups, EmailWebhooks: webhooks, EmailReconciliation: reconciliation, EmailOutcomes: emailOutcomeRead{WorkerCommands: store, EmailReconciliation: reconciliation}}
 }
 
 // NewWorker composes the outbox worker over the store of runtime, sending

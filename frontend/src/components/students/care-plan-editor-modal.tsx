@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Clock, Loader2 } from "lucide-react";
+import { Clock } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   SlideOver,
@@ -27,7 +27,7 @@ import {
   type AllowedDepartureModes,
   type DepartureMode,
   DEPARTURE_MODE_LABELS,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
 import {
   formatPickupTime,
   pickupScheduleSourceLabel,
@@ -53,13 +53,13 @@ type ArrivalMode = "regular" | "time" | "absent";
 type PickupMode = "regular" | "time" | "none";
 
 /** One leg (arrival or pickup) of a day exception. */
-export type CareLegSubmit =
+type CareLegSubmit =
   | { kind: "regular" }
   | { kind: "time"; time: string; reason: string | null }
   | { kind: "none"; reason: string | null };
 
 /** Die Abholart des Tages (#3945): wie im Wochenplan oder eine eigene. */
-export type DepartureLegSubmit =
+type DepartureLegSubmit =
   | { kind: "regular" }
   | { kind: "mode"; mode: DepartureMode; reason: string | null };
 
@@ -113,10 +113,10 @@ interface CarePlanEditorModalProps {
   ) => Promise<void>;
   readonly onUpdateArrivalNote?: (
     date: string,
-    noteId: number,
+    noteId: string,
     content: string,
   ) => Promise<void>;
-  readonly onDeleteArrivalNote?: (noteId: number) => Promise<void>;
+  readonly onDeleteArrivalNote?: (noteId: string) => Promise<void>;
   readonly onCreatePickupNote?: (
     date: string,
     content: string,
@@ -350,12 +350,9 @@ export function CarePlanEditorModal({
         type="submit"
         size="md"
         form="care-plan-editor-form"
-        className="gap-2"
-        disabled={isSubmitting}
+        isLoading={isSubmitting}
+        loadingText="Wird gespeichert …"
       >
-        {isSubmitting ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : null}
         Speichern
       </Button>
     </>
@@ -369,12 +366,11 @@ export function CarePlanEditorModal({
           if (!open) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[640px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>{title}</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton aria-label="Fenster schließen" />
+        <SlideOverContent size="md">
+          <SlideOverHeader
+            close={<SlideOverCloseButton aria-label="Fenster schließen" />}
+          >
+            <SlideOverTitle>{title}</SlideOverTitle>
           </SlideOverHeader>
           {/* Speicher- und Hinweisfehler stehen im Fehler-Slot oben im Rumpf
               (Bauart 2 Regel 5), nicht als Toast. */}
@@ -545,9 +541,7 @@ export function CarePlanEditorModal({
               />
             </form>
           </SlideOverBody>
-          <SlideOverFooter className="flex-row justify-end gap-2">
-            {footer}
-          </SlideOverFooter>
+          <SlideOverFooter>{footer}</SlideOverFooter>
         </SlideOverContent>
       </SlideOver>
 
@@ -701,15 +695,15 @@ function DayNotesEditor({
   onRequestDelete,
 }: {
   readonly date: string;
-  readonly arrivalNotes: readonly { id: number; content: string }[];
+  readonly arrivalNotes: readonly { id: string; content: string }[];
   readonly pickupNotes: readonly { id: string; content: string }[];
   readonly onCreateArrival: (date: string, content: string) => Promise<void>;
   readonly onUpdateArrival: (
     date: string,
-    id: number,
+    id: string,
     content: string,
   ) => Promise<void>;
-  readonly onDeleteArrival: (id: number) => Promise<void>;
+  readonly onDeleteArrival: (id: string) => Promise<void>;
   readonly onCreatePickup: (date: string, content: string) => Promise<void>;
   readonly onUpdatePickup: (
     date: string,
@@ -737,8 +731,8 @@ function DayNotesEditor({
         onCreate={() =>
           onCreateArrival(date, noteDrafts[`${date}:new:Ankunft`] ?? "")
         }
-        onUpdate={(id, content) => onUpdateArrival(date, Number(id), content)}
-        onDelete={(id) => onDeleteArrival(Number(id))}
+        onUpdate={(id, content) => onUpdateArrival(date, id, content)}
+        onDelete={onDeleteArrival}
         onError={onError}
         noteDrafts={noteDrafts}
         onNoteDraftChange={onNoteDraftChange}
@@ -779,7 +773,7 @@ function NoteList({
   onRequestDelete,
 }: {
   readonly label: string;
-  readonly notes: readonly { id: string | number; content: string }[];
+  readonly notes: readonly { id: string; content: string }[];
   readonly draft: string;
   readonly setDraft: (value: string) => void;
   readonly onCreate: () => Promise<void>;
@@ -867,7 +861,7 @@ function NoteEditor({
   onRequestDelete,
 }: {
   readonly label: string;
-  readonly note: { id: string | number; content: string };
+  readonly note: { id: string; content: string };
   readonly content: string;
   readonly onContentChange: (content: string) => void;
   readonly onUpdate: (id: string, content: string) => Promise<void>;
@@ -902,7 +896,7 @@ function NoteEditor({
         disabled={!trimmedContent || !hasChanges || isMutationPending}
         onClick={() =>
           void runMutation(
-            () => onUpdate(String(note.id), trimmedContent),
+            () => onUpdate(note.id, trimmedContent),
             () => onContentChange(trimmedContent),
           )
         }
@@ -917,7 +911,7 @@ function NoteEditor({
         onClick={() =>
           onRequestDelete({
             content: note.content,
-            deleteNote: () => onDelete(String(note.id)),
+            deleteNote: () => onDelete(note.id),
           })
         }
       >
@@ -969,8 +963,8 @@ function arrivalInitialState(day: ArrivalDayData | null): {
 } {
   if (day?.exception) {
     return {
-      mode: day.exception.expected_arrival ? "time" : "absent",
-      time: day.exception.expected_arrival?.slice(0, 5) ?? "",
+      mode: day.exception.expectedArrival ? "time" : "absent",
+      time: day.exception.expectedArrival?.slice(0, 5) ?? "",
       reason: day.exception.reason ?? "",
     };
   }
@@ -1035,8 +1029,8 @@ function formatRegularDeparture(
 }
 
 function formatRegularArrival(day: ArrivalDayData | null): string {
-  return day?.baseSchedule?.expected_arrival
-    ? day.baseSchedule.expected_arrival.slice(0, 5)
+  return day?.baseSchedule?.expectedArrival
+    ? day.baseSchedule.expectedArrival.slice(0, 5)
     : "nicht geplant";
 }
 

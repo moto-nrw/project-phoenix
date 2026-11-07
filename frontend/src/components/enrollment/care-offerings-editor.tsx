@@ -59,6 +59,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -987,8 +988,10 @@ export function CareOfferingsEditor({
               if (!open) cancelFocusMode();
             }}
           >
-            <SlideOverContent widthClass="sm:w-[760px]">
-              <SlideOverHeader>
+            <SlideOverContent size="lg">
+              <SlideOverHeader
+                close={<SlideOverCloseButton disabled={saving} />}
+              >
                 <SlideOverTitle>
                   {cloneSource
                     ? "Betreuungsangebot duplizieren"

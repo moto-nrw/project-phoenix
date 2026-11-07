@@ -54,12 +54,15 @@ type Config struct {
 
 	Appointments appointmentcap.Capability
 	// ParentConferences stores the Elternsprechtag days and bookings (#4801).
-	ParentConferences    schoolcalendar.ParentConferences
-	StaffRepo            ports.StaffDirectory
-	StudentRepo          ports.StudentDirectory
-	GuardianProfileRepo  ports.GuardianDirectory
-	StudentGuardianRepo  ports.GuardianRelationships
-	ChildRepo            ports.Children
+	ParentConferences   schoolcalendar.ParentConferences
+	StaffRepo           ports.StaffDirectory
+	StudentRepo         ports.StudentDirectory
+	GuardianProfileRepo ports.GuardianDirectory
+	StudentGuardianRepo ports.GuardianRelationships
+	ChildRepo           ports.Children
+	// ElternAppBookings keeps the children of schools without the parents'
+	// app out of the parent calendar and its feed; required with ChildRepo.
+	ElternAppBookings    ports.ElternAppBookings
 	GroupRepo            ports.Groups
 	InstanceStaffRepo    ports.Assignments
 	ActivityInstanceRepo ports.Instances
@@ -131,6 +134,9 @@ type service struct {
 }
 
 func NewService(cfg Config) *service {
+	if cfg.ChildRepo != nil && cfg.ElternAppBookings == nil {
+		panic("calendar portal: the parent children need the Eltern-App bookings")
+	}
 	return &service{cfg: cfg}
 }
 
@@ -185,19 +191,46 @@ func formatClock(t time.Time) string {
 	return normalizeWallClock(t).Format("15:04")
 }
 
+// parentChildren lists the guardian's children of the schools that booked
+// the parents' app; the parent calendar and its subscribed feed show no
+// other school (#4895). The bookings are one read inside the same
+// administrative lookup, since the feed is read without a login. A failed
+// or missing read is an error, never a booking decision.
 func (s *service) parentChildren(ctx context.Context, accountID int64) ([]*ports.ChildSummary, error) {
 	var children []*ports.ChildSummary
 	if err := s.cfg.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		rows, err := s.cfg.ChildRepo.ListByAccount(adminCtx, accountID)
-		if err != nil {
+		if err != nil || len(rows) == 0 {
 			return err
 		}
-		children = rows
-		return nil
+		children, err = s.elternAppChildren(adminCtx, rows)
+		return err
 	}); err != nil {
 		return nil, err
 	}
 	return children, nil
+}
+
+func (s *service) elternAppChildren(ctx context.Context, children []*ports.ChildSummary) ([]*ports.ChildSummary, error) {
+	schools := make([]int64, 0, len(children))
+	for tenantID := range groupChildrenByTenant(children) {
+		schools = append(schools, tenantID)
+	}
+	booked, err := s.cfg.ElternAppBookings.ElternAppBooked(ctx, schools)
+	if err != nil {
+		return nil, err
+	}
+	kept := make([]*ports.ChildSummary, 0, len(children))
+	for _, child := range children {
+		schoolBooked, read := booked[child.TenantID]
+		if !read {
+			return nil, fmt.Errorf("parent calendar: Eltern-App booking of school %d missing", child.TenantID)
+		}
+		if schoolBooked {
+			kept = append(kept, child)
+		}
+	}
+	return kept, nil
 }
 
 func (s *service) ListMyParentEvents(ctx context.Context, accountID int64, from, to appointmentcap.Date) ([]Event, error) {

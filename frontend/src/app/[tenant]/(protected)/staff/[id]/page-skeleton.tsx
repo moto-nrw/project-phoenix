@@ -47,7 +47,7 @@ export function StaffDetailSkeleton({
 
       <div className="mb-6 flex gap-6 border-b border-gray-200 pb-px">
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-5 w-24 rounded" />
+          <Skeleton key={i} className="h-5 w-24" />
         ))}
       </div>
 

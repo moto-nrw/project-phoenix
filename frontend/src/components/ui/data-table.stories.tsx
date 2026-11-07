@@ -94,3 +94,37 @@ export const Paginated: Story = {
     pageSize: 2,
   },
 };
+
+export const ExpandableWithSubRowsAndSummary: Story = {
+  args: {
+    columns: demoColumns,
+    rows: demoRows,
+    getRowKey: (row) => row.id,
+    expandable: {
+      canExpand: (row) => row.active,
+      rowLabel: (row, expanded) =>
+        `${row.name}: Details ${expanded ? "schließen" : "öffnen"}`,
+    },
+    renderSubRows: (row, expanded) =>
+      expanded
+        ? [
+            {
+              key: `${row.id}-role`,
+              cells: [
+                { columnKey: "name", content: "Vertretung" },
+                { columnKey: "role", content: "Springkraft" },
+              ],
+            },
+            { key: `${row.id}-note`, content: "Keine weiteren Angaben." },
+          ]
+        : [],
+    summaryRow: (row) =>
+      row.id === "3"
+        ? {
+            key: "sum",
+            cells: [{ columnKey: "name", colSpan: 2, content: "3 Personen" }],
+          }
+        : null,
+    rowTone: (row) => (row.id === "2" ? "today" : null),
+  },
+};

@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
 	"github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
@@ -28,7 +29,7 @@ func TestRelatedAccountsQueryBudget(t *testing.T) {
 	for _, n := range []int{1, 3, 12} {
 		for linked < n {
 			profile := testpkg.CreateTestGuardianProfile(t, db, fmt.Sprintf("related-budget-%d", linked))
-			link := &peopledirectory.GuardianLinkFixture{
+			link := &parentfixture.GuardianLinkFixture{
 				StudentID: chain.StudentID, GuardianProfileID: profile.ID,
 				RelationshipType: "relative", GuardianRole: "pickup_only", EmergencyPriority: linked,
 			}

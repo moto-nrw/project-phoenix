@@ -43,10 +43,12 @@ func (rs *Resource) ContractRouter(protectedTraegerRoutes func(chi.Router, func(
 	protectedTraegerRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		open := r.With(rs.requireContract)
 		open.Get("/candidates", rs.candidates)
+		open.Get("/conclusion-modes", rs.conclusionModes)
 		open.Post("/", rs.create)
 		open.Get("/", rs.list)
 		open.Get("/{id}", rs.detail)
 		open.Get("/{id}/document", rs.document)
+		open.Get("/{id}/versions/{number}/document", rs.versionDocument)
 		inTx := r.With(rs.requireContract, withTx)
 		inTx.Post("/send", rs.send)
 		inTx.Delete("/{id}", rs.discard)
@@ -152,6 +154,21 @@ func (rs *Resource) candidates(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, candidates, "Contract candidates retrieved successfully")
 }
 
+// conclusionModes tells for every school how its contracts come about
+// (#4680): at the acceptance or sent later by the Träger-Büro.
+func (rs *Resource) conclusionModes(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	modes, err := rs.intake.ConclusionModes(r.Context(), reviewer)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, modes, "Contract conclusion modes retrieved successfully")
+}
+
 // CreateRequest names the application children and offerings to create a
 // draft for.
 type CreateRequest struct {
@@ -243,6 +260,26 @@ func (rs *Resource) document(w http.ResponseWriter, r *http.Request) {
 	WriteFile(w, file, "inline")
 }
 
+// versionDocument answers the PDF of one version of the contract (#4681).
+func (rs *Resource) versionDocument(w http.ResponseWriter, r *http.Request) {
+	reviewer, id, ok := contractKey(w, r)
+	if !ok {
+		return
+	}
+	number, err := strconv.Atoi(chi.URLParam(r, "number"))
+	if err != nil || number <= 0 || number > 32767 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid version number")))
+		return
+	}
+	file, err := rs.contracts.VersionDocument(r.Context(), reviewer, id, number)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderError(w, r, err)
+		return
+	}
+	WriteFile(w, file, "inline")
+}
+
 func (rs *Resource) discard(w http.ResponseWriter, r *http.Request) {
 	reviewer, id, ok := contractKey(w, r)
 	if !ok {
@@ -320,6 +357,9 @@ var errorRules = []struct {
 	render func(error) render.Renderer
 }{
 	{carecontract.ErrContractNotFound, func(err error) render.Renderer {
+		return common.ErrorNotFoundWithCode(err, common.CodeCareContractContractNotFound)
+	}},
+	{carecontract.ErrVersionNotFound, func(err error) render.Renderer {
 		return common.ErrorNotFoundWithCode(err, common.CodeCareContractContractNotFound)
 	}},
 	{carecontract.ErrApplicationNotFound, func(err error) render.Renderer {

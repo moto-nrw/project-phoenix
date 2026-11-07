@@ -1,20 +1,17 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useState } from "react";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorCaterer } from "~/lib/operator/provisioning-helpers";
-import { SimpleEmptyState } from "../provisioning/provisioning-shared";
 
 /**
  * Die Caterer-Konten (#4497). Ein Caterer schaltet die Zwei-Faktor-Anmeldung
@@ -86,61 +83,58 @@ function OperatorCaterersPageContent() {
     () => void mutate(),
   );
 
-  const tabs = useMemo(
-    () => ({
-      items: [{ id: "caterers", label: "Caterer", count: data?.length }],
-      activeTab: "caterers",
-      onTabChange: () => undefined,
-    }),
-    [data?.length],
-  );
+  const count = data?.length;
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Caterer"
-        concept={mealPlanConcept}
-        tabs={tabs}
+    <TenantPage
+      title="Caterer"
+      stats={
+        count === undefined ? undefined : (
+          <TenantPageStats items={[{ value: count, label: "Caterer" }]} />
+        )
+      }
+      error={loadError}
+      empty={
+        !isLoading && !error && data?.length === 0
+          ? {
+              title: "Noch keine Caterer",
+              description:
+                "Noch kein Caterer hat eine Einladung einer Schule angenommen.",
+            }
+          : null
+      }
+      overlays={
+        <>
+          {resetTarget ? (
+            <MFAAdminOverrideModal
+              isOpen={true}
+              onClose={() => {
+                setResetTarget(null);
+                void mutate();
+              }}
+              scope="caterer"
+              catererId={resetTarget.id}
+              accountId={resetTarget.accountId}
+              accountLabel={`${resetTarget.name} (${resetTarget.email})`}
+            />
+          ) : null}
+        </>
+      }
+    >
+      <DataTable
+        columns={catererColumns(setResetTarget)}
+        rows={data ?? []}
+        getRowKey={(caterer) => caterer.accountId}
+        defaultSortKey="name"
+        isLoading={isLoading}
       />
-
-      <LoadErrorAlert error={loadError} className="mb-4" />
-
-      {(data === undefined && !isLoading) || error ? null : !isLoading &&
-        data?.length === 0 ? (
-        <SimpleEmptyState
-          title="Noch keine Caterer"
-          description="Noch kein Caterer hat eine Einladung einer Schule angenommen."
-        />
-      ) : (
-        <DataTable
-          columns={catererColumns(setResetTarget)}
-          rows={data ?? []}
-          getRowKey={(caterer) => caterer.accountId}
-          defaultSortKey="name"
-          isLoading={isLoading}
-        />
-      )}
-
-      {resetTarget ? (
-        <MFAAdminOverrideModal
-          isOpen={true}
-          onClose={() => {
-            setResetTarget(null);
-            void mutate();
-          }}
-          scope="caterer"
-          catererId={resetTarget.id}
-          accountId={resetTarget.accountId}
-          accountLabel={`${resetTarget.name} (${resetTarget.email})`}
-        />
-      ) : null}
-    </div>
+    </TenantPage>
   );
 }
 
 export default function OperatorCaterersPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<TenantPage title="Caterer" loading />}>
       <OperatorCaterersPageContent />
     </Suspense>
   );

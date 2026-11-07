@@ -13,7 +13,7 @@ import (
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -2308,7 +2308,7 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 			holdTx, err := db.BeginTx(ctx, nil)
 			require.NoError(t, err)
 			defer func() { _ = holdTx.Rollback() }()
-			holdCtx := tenant.WithTransactionForTest(ctx, &holdTx)
+			holdCtx := tenanttest.WithTransaction(ctx, &holdTx)
 			require.NoError(t, repoFactory.GuardianProfile.LockByIDForUpdate(holdCtx, profile.ID))
 
 			// The staff writer, on a separate tx with a short lock_timeout, must
@@ -2318,7 +2318,7 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 			defer func() { _ = staffTx.Rollback() }()
 			_, err = staffTx.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "250ms")
 			require.NoError(t, err)
-			staffCtx := tenant.WithTransactionForTest(ctx, &staffTx)
+			staffCtx := tenanttest.WithTransaction(ctx, &staffTx)
 
 			runErr := w.run(staffCtx)
 			require.Errorf(t, runErr, "%s must block on the held profile FOR UPDATE lock", w.name)

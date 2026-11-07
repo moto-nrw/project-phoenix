@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +37,7 @@ func TestStaffManualStatusAbsenceNotificationCallback(t *testing.T) {
 		}})
 		baseCtx := tenant.WithTenantID(context.Background(), tenantID)
 		baseCtx = context.WithValue(baseCtx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: actorID})
-		ctx, commit := tenant.WithAfterCommitHooksForTest(baseCtx)
+		ctx, commit := tenanttest.WithAfterCommitHooks(baseCtx)
 		excused := true
 
 		require.NoError(t, resource.scheduleStudentUpdateWakes(

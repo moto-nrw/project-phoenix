@@ -77,7 +77,7 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		return nil, err
 	}
 	sessionRepos := owners.SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
-	guardianMail, enrollmentClaims, err := owners.GuardianInvitationDependencies(guardianInvitationTestHours(expiry/time.Hour), organizations, outbox, claims, "http://localhost:3000", logger)
+	guardianMail, enrollmentClaims, err := owners.GuardianInvitationDependencies(guardianInvitationTestHours(expiry/time.Hour), organizations, outbox, owners.NoEmailOutcomes{}, claims, "http://localhost:3000", logger)
 	if err != nil {
 		return nil, err
 	}

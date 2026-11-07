@@ -9,6 +9,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +28,7 @@ func TestGuardianDirectory_CreatedStudentNeedsAmbientTransaction(t *testing.T) {
 			createdGuardian := &peopledirectory.Guardian{ID: guardian.ID, TenantID: created.TenantID}
 			ctx := tenant.WithTenantID(context.Background(), created.TenantID)
 			if ambient {
-				ctx = tenant.WithTransactionForTest(ctx, struct{}{})
+				ctx = tenanttest.WithTransaction(ctx, struct{}{})
 			}
 			stop := errors.New("stop before link mutation")
 			service := guardianFactService{link: func(txCtx context.Context, req peoplePorts.StudentGuardianCreateRequest) (*peopledirectory.GuardianRelationshipSnapshot, error) {
@@ -88,7 +89,7 @@ func TestGuardianDirectory_FirstPhoneNeedsAmbientTransaction(t *testing.T) {
 			created := &peopledirectory.Guardian{ID: guardian.ID, TenantID: testpkg.Tenant(t)}
 			ctx := tenant.WithTenantID(context.Background(), created.TenantID)
 			if ambient {
-				ctx = tenant.WithTransactionForTest(ctx, struct{}{})
+				ctx = tenanttest.WithTransaction(ctx, struct{}{})
 			}
 			stop := errors.New("stop before phone mutation")
 			service := guardianFactService{phone: func(txCtx context.Context, id int64, req peoplePorts.PhoneNumberCreateRequest) (*peopledirectory.GuardianProfilePhoneSnapshot, error) {
@@ -122,5 +123,5 @@ func TestGuardianDirectory_FirstPhoneNeedsAmbientTransaction(t *testing.T) {
 type guardianFactRuntime struct{}
 
 func (guardianFactRuntime) InTenantTx(ctx context.Context, fn func(context.Context) error) error {
-	return fn(tenant.WithTransactionForTest(ctx, struct{}{}))
+	return fn(tenanttest.WithTransaction(ctx, struct{}{}))
 }

@@ -22,6 +22,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { StatCard } from "~/components/ui/stat-card";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -44,7 +45,6 @@ import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -153,12 +153,15 @@ import { formatWeekLabel } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
 import { errorStatus } from "~/lib/expected-failure";
 import { IconTile } from "~/components/ui/icon-tile";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
 const WeekChart = dynamic(() => import("./week-chart"), {
   ssr: false,
-  loading: () => <Skeleton className="min-h-[280px] rounded-2xl" aria-hidden />,
+  loading: () => (
+    <Skeleton shape="card" className="min-h-[280px]" aria-hidden />
+  ),
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -224,9 +227,7 @@ function PlannedShiftsInfo({
             {shift.startTime}–{shift.endTime}
           </span>
           {shift.originShiftId && (
-            <span className="bg-moto-blue/10 text-moto-blue rounded-full px-2 py-0.5 text-xs font-medium">
-              Vertretung
-            </span>
+            <StatusBadge label="Vertretung" tone="blue" compact />
           )}
           {shift.breakMinutes > 0 && (
             <span className="text-gray-400">
@@ -243,9 +244,7 @@ function PlannedShiftsInfo({
           <span className="tabular-nums line-through">
             {shift.startTime}–{shift.endTime}
           </span>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-            Entfällt
-          </span>
+          <StatusBadge label="Entfällt" tone="gray" compact />
           {shift.changeReason && (
             <span className="italic">{shift.changeReason}</span>
           )}
@@ -608,9 +607,6 @@ function ClockInCard({
   // Mutex to prevent race condition in auto-end break effect
   const autoEndInFlightRef = useRef(false);
   const autoEndAttemptedBreakIdRef = useRef<string | null>(null);
-  // Anchor for the desktop break-duration popover; dismissal is handled by
-  // document listeners scoped to this subtree (see effect below).
-  const breakMenuRef = useRef<HTMLDivElement>(null);
 
   const isCheckedIn =
     currentSession !== null && currentSession.checkOutTime === null;
@@ -736,31 +732,6 @@ function ClockInCard({
       setPlannedBreakMinutes(null);
     }
   }, [isOnBreak]);
-
-  // Dismiss the desktop break-duration popover on outside click or Escape.
-  // Capture the outside click before its target can act, so closing the picker
-  // cannot also trigger a button behind it. The mobile picker is portaled by
-  // Drawer, so it manages dismissal through its own open state instead.
-  useEffect(() => {
-    if (!breakMenuOpen || isMobileViewport) return;
-    const onOutsideClick = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (target === null) return;
-      if (breakMenuRef.current?.contains(target)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      setBreakMenuOpen(false);
-    };
-    const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setBreakMenuOpen(false);
-    };
-    document.addEventListener("click", onOutsideClick, true);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("click", onOutsideClick, true);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [breakMenuOpen, isMobileViewport]);
 
   useEffect(() => {
     const updateViewport = () => {
@@ -1018,7 +989,7 @@ function ClockInCard({
                 aria-label="Einstempeln"
               >
                 {actionLoading ? (
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  <SpinnerIcon className="h-5 w-5" />
                 ) : (
                   <svg
                     className="ml-0.5 h-7 w-7"
@@ -1047,7 +1018,7 @@ function ClockInCard({
             {/* Control row: pause | timer | stop */}
             <div className="mb-5 flex items-center justify-between">
               {/* Pause button (opens menu) or End Break button */}
-              <div className="relative" ref={breakMenuRef}>
+              <div>
                 {isOnBreak ? (
                   <Button
                     type="button"
@@ -1066,33 +1037,45 @@ function ClockInCard({
                     </svg>
                   </Button>
                 ) : (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setBreakMenuOpen(!breakMenuOpen)}
-                    disabled={stampingDisabled || actionLoading}
-                    className={getBreakButtonClassName(false, breakMins)}
-                    aria-label="Pause starten"
-                    aria-expanded={breakMenuOpen}
-                    aria-haspopup="dialog"
+                  // The outside click is consumed so that dismissing this
+                  // picker cannot also trigger an action behind it.
+                  <AnchoredPopover
+                    open={showBreakDurationPicker && !isMobileViewport}
+                    onOpenChange={setBreakMenuOpen}
+                    ariaLabel="Pause stempeln"
+                    preferredWidth={288}
+                    focusPanelOnOpen
+                    swallowOutsideClick
+                    className="p-3"
+                    renderTrigger={({ ref, panelId }) => (
+                      <Button
+                        ref={ref}
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setBreakMenuOpen(!breakMenuOpen)}
+                        disabled={stampingDisabled || actionLoading}
+                        className={getBreakButtonClassName(false, breakMins)}
+                        aria-label="Pause starten"
+                        aria-expanded={breakMenuOpen}
+                        aria-haspopup="dialog"
+                        aria-controls={
+                          showBreakDurationPicker && !isMobileViewport
+                            ? panelId
+                            : undefined
+                        }
+                      >
+                        <svg
+                          className="h-5 w-5"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                        </svg>
+                      </Button>
+                    )}
                   >
-                    <svg
-                      className="h-5 w-5"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                    </svg>
-                  </Button>
-                )}
-
-                {/* The capture-phase listener above consumes the first desktop
-                    outside click, so dismissing this picker cannot also
-                    trigger an action behind it. */}
-                {showBreakDurationPicker && !isMobileViewport && (
-                  <div className="moto-popover-surface absolute top-full left-0 z-20 mt-2 w-[calc(100vw-2rem)] max-w-72 rounded-xl border p-3 sm:w-72">
-                    {breakDurationControls}
-                  </div>
+                    {() => breakDurationControls}
+                  </AnchoredPopover>
                 )}
               </div>
 
@@ -1164,7 +1147,7 @@ function ClockInCard({
                 aria-label="Ausstempeln"
               >
                 {actionLoading ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  <SpinnerIcon className="h-4 w-4" />
                 ) : (
                   <svg
                     className="h-4 w-4"
@@ -2505,19 +2488,17 @@ function EditSessionModal({
   return (
     <SlideOver
       open={isOpen}
+      isDismissDisabled={saving || absenceSaving || absenceDeleting}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[640px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{modalTitle}</SlideOverTitle>
-            <SlideOverDescription>
-              {dayName}, {formatDateGerman(date)}
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="md">
+        <SlideOverHeader>
+          <SlideOverTitle>{modalTitle}</SlideOverTitle>
+          <SlideOverDescription>
+            {dayName}, {formatDateGerman(date)}
+          </SlideOverDescription>
         </SlideOverHeader>
         <div
           ref={formAreaRef}
@@ -2856,9 +2837,7 @@ function EditSessionModal({
             </div>
           )}
         </div>
-        <SlideOverFooter className="flex-row justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
+        <SlideOverFooter>{footer}</SlideOverFooter>
       </SlideOverContent>
     </SlideOver>
   );

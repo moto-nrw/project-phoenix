@@ -487,6 +487,29 @@ func (r *guardianProfileRepository) SearchByText(ctx context.Context, searchText
 	return profiles, nil
 }
 
+// SetEmailsStopped implements the school's stop of a person's mail (#5934). The row
+// is the school's by row-level security.
+func (r *guardianProfileRepository) SetEmailsStopped(ctx context.Context, id int64, stopped bool) error {
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return err
+	}
+	result, err := db.ExecContext(ctx, `UPDATE users.guardian_profiles
+		SET emails_stopped_at = CASE WHEN ?0 THEN COALESCE(emails_stopped_at, NOW()) ELSE NULL END, updated_at = NOW()
+		WHERE id = ?1`, stopped, id)
+	if err != nil {
+		return fmt.Errorf("failed to change the guardian's mail stop: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf(errRowsAffected, err)
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // Update updates an existing guardian profile
 func (r *guardianProfileRepository) Update(ctx context.Context, profile *users.GuardianProfile) error {
 	if err := profile.Validate(); err != nil {
@@ -500,6 +523,7 @@ func (r *guardianProfileRepository) Update(ctx context.Context, profile *users.G
 	result, err := ambientDB12.NewUpdate().
 		Model(profile).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		ExcludeColumn("emails_stopped_at"). // only SetEmailsStopped writes the school's stop
 		Where(`"guardian_profile".id = ?`, profile.ID).
 		Exec(ctx)
 

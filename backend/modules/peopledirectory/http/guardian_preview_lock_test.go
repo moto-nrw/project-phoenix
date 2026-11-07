@@ -44,7 +44,8 @@ func previewLockRouter(t *testing.T, db *bun.DB) chi.Router {
 		&peopleCompose.GuardianDirectoryProvider{Guardians: guardians, Runtime: runtime, PermissionGranted: securityruntime.GuardianPermissionGranted}, nil)
 	require.NoError(t, err)
 	resource := appAPI.NewGuardiansResource(people, appAPI.NewGuardianDirectoryRuntime(guardians, lists.NewRendererService(),
-		previewUnusedInvitations{}, func(context.Context) (bool, error) { return false, nil }, runtime), "", slog.Default())
+		previewUnusedInvitations{}, func(context.Context) (bool, error) { return false, nil }, runtime,
+		appAPI.GuardianEmailDelivery{}, nil, slog.Default()), "", slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/api/guardians", resource.Router())

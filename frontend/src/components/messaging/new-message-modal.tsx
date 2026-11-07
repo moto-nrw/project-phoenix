@@ -14,7 +14,6 @@ import { LEADERSHIP_AUDIENCE_LABEL } from "~/lib/messaging-status";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -39,6 +38,7 @@ import {
 } from "~/lib/parent-messages-api";
 import { createLogger } from "~/lib/logger";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "NewMessageModal" });
 
@@ -268,17 +268,14 @@ export function NewMessageModal({
         if (!nextOpen) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[560px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>Neue Nachricht</SlideOverTitle>
-            <SlideOverDescription>
-              {student
-                ? "Wählen Sie die Eltern, die die Nachricht erhalten."
-                : "Wählen Sie zuerst das Kind, um das es geht."}
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="md">
+        <SlideOverHeader>
+          <SlideOverTitle>Neue Nachricht</SlideOverTitle>
+          <SlideOverDescription>
+            {student
+              ? "Wählen Sie die Eltern, die die Nachricht erhalten."
+              : "Wählen Sie zuerst das Kind, um das es geht."}
+          </SlideOverDescription>
         </SlideOverHeader>
         {/* STEP 1 — pick a child (skipped when a preset child is given) */}
         {!student && (
@@ -309,7 +306,7 @@ export function NewMessageModal({
                 </p>
               ) : null}
             </SlideOverBody>
-            <SlideOverFooter className="flex-row justify-end">
+            <SlideOverFooter>
               <Button
                 type="submit"
                 variant="success"
@@ -367,9 +364,7 @@ export function NewMessageModal({
               <p className="text-sm font-medium text-gray-700">Eltern wählen</p>
               <FormErrorAlert message={openError.error} />
               {guardiansLoading || guardiansErrorPending ? (
-                <p className="py-3 text-center text-sm text-gray-500">
-                  Lädt...
-                </p>
+                <Loading fullPage={false} message="Eltern werden geladen …" />
               ) : guardiansFailed ? (
                 <LoadErrorAlert error={guardiansError.error} />
               ) : guardians.length === 0 ? (

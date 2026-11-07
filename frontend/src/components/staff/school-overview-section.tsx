@@ -145,7 +145,7 @@ export function SchoolOverviewSection() {
       )}
 
       {!summary && error ? null : isLoading && !summary ? (
-        <Skeleton className="h-44 rounded-2xl sm:h-36" />
+        <Skeleton shape="card" className="h-44 sm:h-36" />
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">

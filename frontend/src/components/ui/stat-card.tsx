@@ -35,6 +35,8 @@
 // green by a factor of two). Both come from LOCATION_COLORS, so this component
 // holds no palette values of its own and cannot go stale when the palette moves.
 
+import { cn } from "~/lib/utils";
+import { listRowClasses } from "./list-row-styles";
 import type { ReactNode } from "react";
 import Link from "~/components/ui/navigation-link";
 import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
@@ -194,13 +196,18 @@ export function StatCard(
 
   const card =
     props.variant === "row" ? (
-      <div className="flex items-center gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors group-hover:bg-gray-100/50">
+      <div
+        className={cn(
+          listRowClasses(),
+          "transition-colors group-hover:bg-gray-100/50",
+        )}
+      >
         {icon}
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
           {label}
         </span>
         {loading ? (
-          <Skeleton className="h-4 w-8 rounded" />
+          <Skeleton className="h-4 w-8" />
         ) : (
           <span
             className="text-sm font-semibold text-gray-900 tabular-nums"

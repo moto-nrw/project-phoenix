@@ -299,17 +299,14 @@ export function CareExitModal({
         if (!nextOpen && !saving) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[640px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{title}</SlideOverTitle>
-            <SlideOverDescription>
-              {step === 1
-                ? "Schritt 1 von 2: Tag und Grund festlegen."
-                : "Schritt 2 von 2: Vorschau prüfen und bestätigen."}
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton disabled={saving} />
+      <SlideOverContent size="md">
+        <SlideOverHeader close={<SlideOverCloseButton disabled={saving} />}>
+          <SlideOverTitle>{title}</SlideOverTitle>
+          <SlideOverDescription>
+            {step === 1
+              ? "Schritt 1 von 2: Tag und Grund festlegen."
+              : "Schritt 2 von 2: Vorschau prüfen und bestätigen."}
+          </SlideOverDescription>
         </SlideOverHeader>
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <WizardStepper steps={STEPS} current={step - 1} />
@@ -380,9 +377,7 @@ export function CareExitModal({
             <CareExitPreviewList preview={preview} />
           ) : null}
         </div>
-        <SlideOverFooter className="flex-row justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
+        <SlideOverFooter>{footer}</SlideOverFooter>
       </SlideOverContent>
     </SlideOver>
   );

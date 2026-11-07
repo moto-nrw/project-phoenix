@@ -30,13 +30,37 @@ Ausfalls wirklich ungültige Adresse steht deshalb erst auf der Liste, wenn der
 Webhook das Ereignis nachliefert; bis dahin hält Lettermint sie über seine eigene
 Sperre zurück.
 
+### Bewusste Lücke: Beschwerde nach `delivered`
+
+Der Abgleich prüft nur Mails ohne Ergebnis, zugestellte also nicht mehr. Kommt eine
+Beschwerde nach `delivered`, während der Webhook ausgefallen ist, geht sie für moto
+verloren: Die Adresse fehlt auf der Sperrliste der Schule, die Mail bleibt
+„zugestellt“, und kein Alarm nennt diesen Fall. Der Alarm zum abgeschalteten Webhook
+sagt nur, dass Ereignisse fehlen können. Lettermint hält die Adresse über seine
+eigene Sperre weiter zurück.
+
+Das ist eine bewusste Entscheidung (#5957). Zugestellte Mails weiter zu prüfen, würde
+die Team-API (300 Anfragen pro Minute) bis zu 28 Tage lang mit jeder zugestellten
+Mail belasten. Die Lücke wird nach dem Staging-Test (#5935) neu bewertet.
+
+Nach einem Webhook-Ausfall deshalb die Beschwerden der Ausfallzeit im Dashboard von
+Lettermint ansehen.
+
+## Warnung `email webhook body could not be read`
+
+Die Verbindung von Lettermint ist beim Lesen des Webhook-Bodys abgebrochen oder in
+ein Timeout gelaufen. moto antwortet mit 503, Lettermint sendet das Ereignis erneut.
+Einzelne Zeilen: nichts tun. Nur ein Body über 1 MiB bekommt 413, und nur dann geht
+das Ereignis verloren.
+
 ## Warnung `email accepted without a provider id`
 
 Lettermint hat eine Mail angenommen, aber die Antwort 250 enthält kein
 `id=<uuid>`. Der Abgleich kann diese Mail nicht prüfen, sie hängt allein am
 Webhook. Die Zeile nennt `message_id` und `template`, nie die Adresse. Tritt sie
 bei jeder Mail auf, hat sich das Antwortformat geändert: Der Abgleich läuft dann
-leer, ohne dass der Alarm anschlägt.
+leer, ohne dass der Alarm anschlägt. Der Notweg hängt nicht an dieser ID: Eine
+Sicherheitsmail mit offener Notweg-Anforderung läuft auch ohne sie darüber.
 
 ## Alarm „Security mail over fallback“
 
@@ -66,6 +90,20 @@ Als Blocklisten-Bounce zählt, in dieser Reihenfolge:
    (zum Beispiel `5.7.606 banned sending IP`, `low reputation`): Die Adresse
    bleibt frei, die Sicherheitsmail nimmt den Notweg.
 3. Sonst gilt das Ereignis selbst.
+
+## Alarm „Security mail fallback request ended“
+
+Eine Sicherheitsmail wartete auf den Notweg, aber in dieser Umgebung fehlt
+`EMAIL_FALLBACK_*`. Das passiert, wenn der Notweg entfernt wird, solange eine
+Anforderung offen ist. moto sendet die Mail nicht noch einmal über Lettermint,
+denn Lettermint hat sie schon aufgegeben. Sie endet als `dead_letter`, und die
+Anforderung gilt als beendet. Die Logzeile nennt `template` und `reason`, nie die
+Adresse.
+
+1. Prüfen, ob `EMAIL_FALLBACK_*` absichtlich fehlt. Wird der Notweg noch gebraucht,
+   die Werte per `sops edit` wieder eintragen und deployen.
+2. Die Mail wird nicht wiederholt. Die betroffene Person startet den Vorgang neu,
+   zum Beispiel die Anmeldung.
 
 ## Webhook-Secret wechseln
 
@@ -97,3 +135,25 @@ könnte eine Schule die teamweite Sperre einer fremden Adresse löschen. Hat die
 Adresse bei Lettermint eine `manual`- oder `unsubscribe`-Sperre, löscht moto
 nichts und meldet das. Ohne `EMAIL_PROVIDER=lettermint` leert das Aufheben nur die
 Liste der Schule.
+
+### Grenze: Anbieter-Abfrage in Transaktionen
+
+Den aktuellen Stand der Sperre fragt moto bei Lettermint innerhalb offener
+Datenbank-Transaktionen ab (`ProviderEmailBlocks`, #5957). Das ist eine begründete
+Ausnahme: Die Abfrage gehört zur Prüfung direkt vor dem Schreiben, und die Routen
+laufen in einer Transaktion je Anfrage.
+
+Es gelten diese Grenzen:
+
+- Gefragt wird nur nach Adressen, bei denen eine Mail eine Sperre hinterlassen hat
+  (Sperre, Abmeldung, Beschwerde). Ohne solche Adresse gibt es keine Abfrage.
+- Ein Aufruf wartet höchstens 3 Sekunden und stellt höchstens 10 Anfragen. Was er
+  nicht lesen kann, gilt als `unreadable`, und moto sendet nichts.
+- Der Sammelversand von Verträgen teilt diese Grenze über die ganze Anfrage, nicht
+  je Vertrag. Verträge darüber hinaus überspringt er mit `mail_block_unreadable`.
+  Sie lassen sich in einem neuen Versand erneut senden.
+
+Solange die Abfrage läuft, belegt die Anfrage eine Datenbankverbindung und hält ihre
+Zeilensperren (zum Beispiel auf den Eltern-Profilen beim Einladen). Antwortet
+Lettermint langsam und häufen sich dann Wartezeiten bei diesen Abläufen: Status von
+Lettermint prüfen und die Warnung `the provider's block could not be read` ansehen.

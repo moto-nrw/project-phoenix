@@ -15,7 +15,7 @@ import (
 // again while mails wait.
 const traegerEmailStatusesSQL = `SELECT id, tenant_id, organization_id, kind, idempotency_key, related_entity_type,
 		related_entity_id, status, attempts, next_retry_at, provider_result, last_error, sent_at, dead_letter_at,
-		cancelled_at, delivery_state, created_at, updated_at
+		cancelled_at, created_at, updated_at, delivery_state, delivery_state_at
 	FROM platform.email_outbox
 	WHERE tenant_id IS NULL AND organization_id = ? AND related_entity_type = ? AND related_entity_id = ?
 	ORDER BY created_at, id`

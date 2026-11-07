@@ -30,17 +30,27 @@ type EmailDelivery struct {
 func (d EmailDelivery) Queued() bool { return d.OutboxID != nil }
 
 type EmailDeliveryStatus struct {
-	DeliveryID        int64      `json:"delivery_id"`
-	GuardianProfileID *int64     `json:"guardian_profile_id,omitempty"`
-	AccountID         *int64     `json:"account_id,omitempty"`
-	FirstName         string     `json:"first_name"`
-	LastName          string     `json:"last_name"`
-	RecipientEmail    *string    `json:"recipient_email,omitempty"`
-	Reachability      string     `json:"reachability"`
-	EmailStatus       string     `json:"email_status"`
-	LastError         *string    `json:"last_error,omitempty"`
-	SentAt            *time.Time `json:"sent_at,omitempty"`
-	Attempts          int        `json:"attempts"`
+	DeliveryID        int64   `json:"delivery_id"`
+	GuardianProfileID *int64  `json:"guardian_profile_id,omitempty"`
+	AccountID         *int64  `json:"account_id,omitempty"`
+	FirstName         string  `json:"first_name"`
+	LastName          string  `json:"last_name"`
+	RecipientEmail    *string `json:"recipient_email,omitempty"`
+	Reachability      string  `json:"reachability"`
+	EmailStatus       string  `json:"email_status"`
+	MailOutcome       string  `json:"mail_outcome,omitempty"`
+	AddressMark       string  `json:"address_mark,omitempty"`
+	Stopped           bool    `json:"stopped,omitempty"`
+	StopShared        bool    `json:"stop_shared,omitempty"`
+	// MailedTo is where this mail went; MailOutcome belongs to it. RecipientEmail is
+	// the current address, where another mail goes.
+	MailedTo *string `json:"mailed_to,omitempty"`
+	// ProviderBlock is the provider's block of RecipientEmail now; only a mail it
+	// withheld asks.
+	ProviderBlock string     `json:"provider_block,omitempty"`
+	LastError     *string    `json:"last_error,omitempty"`
+	SentAt        *time.Time `json:"sent_at,omitempty"`
+	Attempts      int        `json:"attempts"`
 }
 
 // needsDeliveryTracking reports whether publishing this announcement must go
@@ -318,6 +328,14 @@ type LetterSummary struct {
 	ChildrenWithoutPortal int `json:"children_without_portal"`
 	RecipientsTotal       int `json:"recipients_total"`
 	EmailsSent            int `json:"emails_sent"`
+	EmailsDelivered       int `json:"emails_delivered"`
+	EmailsDelayed         int `json:"emails_delayed"`
+	EmailsAddressCheck    int `json:"emails_address_check"`
+	EmailsStopped         int `json:"emails_stopped"`
+	// EmailsProviderBlocked counts addresses the provider withholds mail to now, or
+	// whose state could not be read: another mail would change nothing.
+	EmailsProviderBlocked int `json:"emails_provider_blocked"`
+	EmailsResendable      int `json:"emails_resendable"`
 	EmailsPending         int `json:"emails_pending"`
 	EmailsFailed          int `json:"emails_failed"`
 	WithoutEmail          int `json:"without_email"`
@@ -375,6 +393,7 @@ func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, er
 		case "failed":
 			out.Summary.EmailsFailed++
 		}
+		addLetterMailOutcome(&out.Summary, r)
 		switch r.Reachability {
 		case reachabilityNoEmail:
 			out.Summary.WithoutEmail++
@@ -385,7 +404,41 @@ func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, er
 	return out, nil
 }
 
+// addLetterMailOutcome counts what the provider reported and what a resend could
+// still change. A marked address, a stopped person and a current block at the
+// provider are never resendable: the mail would stay back again (#5934). A row
+// without an address is not either. A mail that came back without any of these is,
+// and so is one to an address someone has corrected since.
+func addLetterMailOutcome(summary *LetterSummary, r EmailDeliveryStatus) {
+	switch {
+	case r.Stopped:
+		summary.EmailsStopped++
+	case r.AddressMark != "":
+		summary.EmailsAddressCheck++
+	case r.ProviderBlock == letterProviderBlockActive, r.ProviderBlock == letterProviderBlockUnreadable:
+		summary.EmailsProviderBlocked++
+	case r.MailOutcome == mailOutcomeDelivered:
+		summary.EmailsDelivered++
+	case r.MailOutcome == mailOutcomeDelayed:
+		summary.EmailsDelayed++
+	case r.EmailStatus == "failed" && r.RecipientEmail != nil && *r.RecipientEmail != "":
+		summary.EmailsResendable++
+	}
+}
+
 // --- Erinnern und Nachversenden (#2384) --------------------------------------
+
+// The outcomes of a mail the letter status counts, as Delivery names them.
+const (
+	mailOutcomeDelivered = "delivered"
+	mailOutcomeDelayed   = "delayed"
+)
+
+// The provider's block of an address as Delivery names it.
+const (
+	letterProviderBlockActive     = "active"
+	letterProviderBlockUnreadable = "unreadable"
+)
 
 const letterReminderKicker = "Elternbrief — Bestätigung fehlt"
 

@@ -53,6 +53,7 @@ import { schoolClassName } from "~/lib/school-class-label";
 import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { fetchSchoolClasses } from "~/lib/student-api";
 
 const logger = createLogger({ component: "ClassListEntriesPage" });
 
@@ -77,17 +78,7 @@ function errorMessage(err: unknown): string {
 // Bewusst still: die Klassen sind nur Vorschläge im Eingabefeld. Ohne sie
 // tippt man die Klasse selbst; Speichern und Liste hängen nicht daran.
 async function fetchClassSuggestions(): Promise<string[]> {
-  try {
-    const response = await fetch("/api/students/school-classes", {
-      credentials: "include",
-      cache: "no-store",
-    });
-    if (!response.ok) return [];
-    const payload = (await response.json()) as { data?: string[] };
-    return payload.data ?? [];
-  } catch {
-    return [];
-  }
+  return fetchSchoolClasses().catch(() => []);
 }
 
 // Minimal projection of a regular student for the roster view: this page
@@ -582,22 +573,25 @@ export default function ClassListEntriesPage() {
       filters={filterConfigs}
       actions={
         canCreate ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <ButtonLink
-              href={tenantPath("/database/students/class-list/import")}
-              variant="outline"
-              size="md"
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" aria-hidden="true" />
-              Sammelimport
-            </ButtonLink>
+          <>
             <DatabaseCreateAction
               label="Eintrag"
               ariaLabel="Klassenlisteneintrag anlegen"
               onClick={openCreate}
             />
-          </div>
+            <OverflowMenu
+              ariaLabel="Weitere Aktionen"
+              items={[
+                {
+                  label: "Sammelimport",
+                  icon: <Upload className="h-4 w-4" aria-hidden />,
+                  href: tenantPath("/database/students/class-list/import"),
+                  // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                  onClick: () => undefined,
+                },
+              ]}
+            />
+          </>
         ) : undefined
       }
       back

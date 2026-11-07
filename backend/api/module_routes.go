@@ -111,6 +111,8 @@ var moduleRouteRules = []moduleRouteRule{
 	// Staff and parent surveys (#4781); see docs/reference/modulschalter.md.
 	{"/api/surveys", moduleRouteBasis},
 	{"/api/timetable", moduleRouteBasis},
+	// Documents the Träger shared (#4692); see docs/reference/modulschalter.md.
+	{"/api/traeger-documents", moduleRouteBasis},
 	{"/api/users", moduleRouteBasis},
 
 	// NFC-Anwesenheit: armbands and cards of a child.

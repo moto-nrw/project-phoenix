@@ -9,14 +9,19 @@
 // unten stand und deshalb unsichtbar blieb.
 //
 // Design follows the Anmeldungen/Planung surface language: one calm content
-// section with an uppercase kicker, gray-50 stat blocks, no colored
-// dashboards.
+// surface inside `TenantPage`, gray-50 stat blocks, no colored dashboards.
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useCallback, useLayoutEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import {
+  Suspense,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import {
@@ -28,7 +33,9 @@ import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { StatCard } from "~/components/ui/stat-card";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -372,6 +379,8 @@ function absenceReportMenu(
 }
 
 export interface ClassDayOverviewProps {
+  /** Fläche direkt unter der Kopfkarte, über den Klassen. */
+  readonly notices?: ReactNode;
   /** Klassenliste und Wochenendplan der angemeldeten Lehrkraft. */
   readonly fetchClasses: () => Promise<ClassDayClasses>;
   /** Tagesreport einer Klasse — portal-eigene Session. */
@@ -399,16 +408,116 @@ export interface ClassDayOverviewProps {
   ) => Promise<void>;
 }
 
-export function ClassDayOverview({
+function ClassDayOverviewInfo() {
+  const dateISO = classDayDateParam(useSearchParams().get("tag"));
+
+  return (
+    <p>
+      Ihre Übergabe nach Unterricht am {formatDate(dateISO)}. Öffnen Sie eine
+      Klasse, um zu sehen, wer in Randstunde oder Ganztag bleibt und wer nach
+      Hause geht.
+    </p>
+  );
+}
+
+function ClassDayOverviewActions() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const dateISO = classDayDateParam(searchParams.get("tag"));
+  const openList = schoolDayListParam(searchParams.get("liste"));
+  const selectedDate = parseISODate(dateISO);
+
+  const goToDate = (next: string) => {
+    router.replace(schoolPath(schoolDayListPath(next, openList)), {
+      scroll: false,
+    });
+  };
+  const shiftDay = (delta: number) => {
+    const next = new Date(selectedDate);
+    next.setDate(next.getDate() + delta);
+    goToDate(toISODate(next));
+  };
+
+  return (
+    <div className="flex w-full items-center gap-1 lg:w-auto">
+      <Button
+        type="button"
+        variant="surface"
+        size="icon"
+        aria-label="Vorheriger Tag"
+        onClick={() => shiftDay(-1)}
+        className="shrink-0"
+      >
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+      </Button>
+      <DatePicker
+        value={selectedDate}
+        onChange={(date) => {
+          if (date) goToDate(toISODate(date));
+        }}
+        calendarLayout="popover"
+        hideClearButton
+        className="min-w-0 flex-1 sm:w-44 sm:flex-none"
+      />
+      <Button
+        type="button"
+        variant="surface"
+        size="icon"
+        aria-label="Nächster Tag"
+        onClick={() => shiftDay(1)}
+        className="shrink-0"
+      >
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    </div>
+  );
+}
+
+function ClassDayOverviewLoading() {
+  return (
+    <SectionCard>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    </SectionCard>
+  );
+}
+
+export function ClassDayOverview({ notices, ...props }: ClassDayOverviewProps) {
+  const greeting = useTimeBasedGreeting();
+  const { data: session } = useSession();
+
+  return (
+    <TenantPage
+      title={`${greeting}, ${getUserDisplayName(session)}`}
+      prominent
+      info={
+        <Suspense fallback={null}>
+          <ClassDayOverviewInfo />
+        </Suspense>
+      }
+      actions={
+        <Suspense fallback={null}>
+          <ClassDayOverviewActions />
+        </Suspense>
+      }
+    >
+      {notices}
+      <Suspense fallback={<ClassDayOverviewLoading />}>
+        <ClassDayOverviewContent {...props} />
+      </Suspense>
+    </TenantPage>
+  );
+}
+
+function ClassDayOverviewContent({
   fetchClasses,
   fetchClassDay,
   fetchSchoolDay,
   reportAbsence,
   withdrawAbsenceReport,
-}: ClassDayOverviewProps) {
-  const greeting = useTimeBasedGreeting();
-  const { data: session } = useSession();
-  const router = useRouter();
+}: Omit<ClassDayOverviewProps, "notices">) {
   const searchParams = useSearchParams();
   // Der Tag steht in der Adresse, nicht nur im Zustand: nur so führt der
   // Zurück-Weg aus einer Klasse auf denselben Tag zurück.
@@ -508,20 +617,6 @@ export function ClassDayOverview({
   const loadError = classesLoadError ?? schoolDayLoadError;
   const hasLoadFailure = Boolean(loadError);
 
-  const selectedDate = parseISODate(dateISO);
-  // Eine geöffnete Liste bleibt beim Tageswechsel offen: dieselbe Frage
-  // für den nächsten Tag.
-  const goToDate = (next: string) => {
-    router.replace(schoolPath(schoolDayListPath(next, openList)), {
-      scroll: false,
-    });
-  };
-  const shiftDay = (delta: number) => {
-    const next = new Date(selectedDate);
-    next.setDate(next.getDate() + delta);
-    goToDate(toISODate(next));
-  };
-
   const noClasses = classes !== undefined && classes.length === 0;
 
   // Die Zahlen der ganzen Schule für die Schulverwaltung (#4802). Jede Zahl
@@ -535,279 +630,237 @@ export function ClassDayOverview({
     schoolDay && open ? schoolDayChildrenByClass(schoolDay, open) : [];
 
   return (
-    <div
-      className="w-full"
-      style={
-        {
-          "--class-day-blue": MOTO_COLOR_PALETTE.blue.base,
-          "--class-day-danger": MOTO_COLOR_PALETTE.red.base,
-        } as CSSProperties
-      }
-    >
-      <section className="moto-content-surface rounded-2xl border p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-[var(--class-day-blue)] uppercase">
-              Klassenansicht
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              {greeting}, {getUserDisplayName(session)}
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Ihre Übergabe nach Unterricht am {formatDate(dateISO)}. Öffnen Sie
-              eine Klasse, um zu sehen, wer in Randstunde oder Ganztag bleibt
-              und wer nach Hause geht.
-            </p>
-          </div>
-          <div className="flex w-full items-center gap-1 lg:w-auto">
-            <Button
-              type="button"
-              variant="surface"
-              size="icon"
-              aria-label="Vorheriger Tag"
-              onClick={() => shiftDay(-1)}
-              className="shrink-0"
-            >
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            </Button>
-            <DatePicker
-              value={selectedDate}
-              onChange={(date) => {
-                if (date) goToDate(toISODate(date));
-              }}
-              calendarLayout="popover"
-              hideClearButton
-              className="min-w-0 flex-1 sm:w-44 sm:flex-none"
+    <>
+      <SectionCard>
+        <div
+          className="contents"
+          style={
+            {
+              "--class-day-blue": MOTO_COLOR_PALETTE.blue.base,
+              "--class-day-danger": MOTO_COLOR_PALETTE.red.base,
+            } as CSSProperties
+          }
+        >
+          {noClasses && (
+            <EmptyState
+              className="mt-4"
+              title="Keine Klassen zugewiesen"
+              description="Ihrem Konto ist noch keine Klasse zugeordnet. Die OGS-Verwaltung kann Ihnen Klassen unter Mitarbeitende zuweisen."
             />
-            <Button
-              type="button"
-              variant="surface"
-              size="icon"
-              aria-label="Nächster Tag"
-              onClick={() => shiftDay(1)}
-              className="shrink-0"
-            >
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </div>
-        </div>
+          )}
 
-        {noClasses && (
-          <EmptyState
-            className="mt-4"
-            title="Keine Klassen zugewiesen"
-            description="Ihrem Konto ist noch keine Klasse zugeordnet. Die OGS-Verwaltung kann Ihnen Klassen unter Mitarbeitende zuweisen."
-          />
-        )}
+          {!noClasses && loading && (
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          )}
 
-        {!noClasses && loading && (
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-        )}
-
-        {/* Voller Fehlerzustand nur, wenn GAR NICHTS geladen werden konnte;
+          {/* Voller Fehlerzustand nur, wenn GAR NICHTS geladen werden konnte;
             bei Teilausfall bleiben die gesunden Klassen stehen. */}
-        {!noClasses &&
-          !loading &&
-          hasLoadFailure &&
-          Object.keys(reports).length === 0 &&
-          !weekend && <LoadErrorAlert error={loadError} className="mt-4" />}
+          {!noClasses &&
+            !loading &&
+            hasLoadFailure &&
+            Object.keys(reports).length === 0 &&
+            !weekend && <LoadErrorAlert error={loadError} className="mt-4" />}
 
-        {!noClasses &&
-          !loading &&
-          (weekend || !schoolMode || Object.keys(reports).length > 0) && (
-            <>
-              {hasLoadFailure && Object.keys(reports).length > 0 && (
-                <LoadErrorAlert error={loadError} className="mt-4" />
-              )}
+          {!noClasses &&
+            !loading &&
+            (weekend || !schoolMode || Object.keys(reports).length > 0) && (
+              <>
+                {hasLoadFailure && Object.keys(reports).length > 0 && (
+                  <LoadErrorAlert error={loadError} className="mt-4" />
+                )}
 
-              {weekend ? (
-                <EmptyState
-                  className="mt-4"
-                  title="Kein Schultag"
-                  description="Für Samstag und Sonntag gibt es keine Übergabe. Bitte einen Wochentag wählen."
-                />
-              ) : (
-                <>
-                  {schoolMode && schoolDay && (
-                    <>
-                      <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                        Ganze Schule
-                      </h3>
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                        {schoolLists.map((list) => (
-                          <StatCard
-                            key={list.key}
-                            variant="row"
-                            label={list.label}
-                            value={list.count(schoolDay.totals)}
-                            href={schoolPath(
-                              schoolDayListPath(dateISO, list.key),
-                            )}
-                          />
-                        ))}
-                      </div>
-                      {open && (
-                        <div className="mt-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <h3 className="text-sm font-semibold text-gray-900">
-                              {open.label}: {open.count(schoolDay.totals)}
-                            </h3>
-                            <ButtonLink
+                {weekend ? (
+                  <EmptyState
+                    className="mt-4"
+                    title="Kein Schultag"
+                    description="Für Samstag und Sonntag gibt es keine Übergabe. Bitte einen Wochentag wählen."
+                  />
+                ) : (
+                  <>
+                    {schoolMode && schoolDay && (
+                      <>
+                        <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                          Ganze Schule
+                        </h3>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          {schoolLists.map((list) => (
+                            <StatCard
+                              key={list.key}
+                              variant="row"
+                              label={list.label}
+                              value={list.count(schoolDay.totals)}
                               href={schoolPath(
-                                schoolDayListPath(dateISO, null),
+                                schoolDayListPath(dateISO, list.key),
                               )}
-                              variant="ghost"
-                              size="compact"
-                            >
-                              Liste schließen
-                            </ButtonLink>
-                          </div>
-                          {/* Bei offener Rückfrage steht der Fehler dort. */}
-                          <FormErrorAlert
-                            message={
-                              absenceReports.withdrawTarget
-                                ? null
-                                : absenceReports.error
-                            }
-                            className="mt-2"
-                          />
-                          {open.key === "ohne-meldung" && (
-                            <p className="mt-1 text-sm text-gray-600">
-                              Die Lehrkraft hat diese Kinder als fehlend
-                              eingetragen. Es gibt keine Krankmeldung.
-                              {canReportAbsences
-                                ? " Rufen die Eltern an, tragen Sie die Meldung hier ein."
-                                : ""}
-                            </p>
-                          )}
-                          {groups.length === 0 ? (
-                            <p className="mt-2 text-sm text-gray-500">
-                              An diesem Tag stehen keine Kinder in dieser Liste.
-                            </p>
-                          ) : (
-                            <div className="mt-2 grid gap-3 lg:grid-cols-2">
-                              {groups.map((group) => (
-                                <div
-                                  key={group.schoolClass}
-                                  className="rounded-xl bg-gray-50 px-3 py-2"
-                                >
-                                  <NavigationLink
-                                    href={schoolPath(
-                                      schoolDayClassPath(
-                                        group.schoolClass,
-                                        dateISO,
-                                        open.key,
-                                      ),
-                                    )}
-                                    className="text-sm font-semibold text-gray-900 underline-offset-2 hover:underline"
-                                  >
-                                    {schoolClassLabel(group.schoolClass)} ·{" "}
-                                    {group.children.length}
-                                  </NavigationLink>
-                                  <ul className="mt-1 space-y-0.5 text-sm text-gray-700">
-                                    {group.children.map((child) => {
-                                      const note = childNote(child, open.key);
-                                      const target = {
-                                        schoolClass: group.schoolClass,
-                                        child,
-                                      };
-                                      const menu = absenceReportMenu(
-                                        child,
-                                        canReportAbsences,
-                                        (status) =>
-                                          void absenceReports.enter(
-                                            target,
-                                            status,
-                                          ),
-                                        () =>
-                                          absenceReports.askWithdraw(target),
-                                      );
-                                      return (
-                                        <li
-                                          key={
-                                            child.list_entry
-                                              ? `entry-${child.list_entry_id}`
-                                              : `student-${child.student_id}`
-                                          }
-                                          className="flex min-w-0 items-center justify-between gap-2"
-                                        >
-                                          <span className="min-w-0">
-                                            {child.last_name},{" "}
-                                            {child.first_name}
-                                            {note && (
-                                              <span className="text-gray-500">
-                                                {" "}
-                                                · {note}
-                                              </span>
-                                            )}
-                                          </span>
-                                          {menu.length > 0 && (
-                                            <OverflowMenu
-                                              items={menu}
-                                              ariaLabel={
-                                                child.unreported
-                                                  ? `Meldung für ${child.first_name} ${child.last_name} eintragen`
-                                                  : `Meldung für ${child.first_name} ${child.last_name} zurücknehmen`
-                                              }
-                                              triggerSize="sm"
-                                              triggerContent={
-                                                absenceReports.isPending(target)
-                                                  ? "Wird gespeichert …"
-                                                  : child.unreported
-                                                    ? "Meldung eintragen"
-                                                    : "Zurücknehmen"
-                                              }
-                                            />
-                                          )}
-                                        </li>
-                                      );
-                                    })}
-                                  </ul>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {classes !== undefined && (
-                    <>
-                      <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                        {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
-                      </h3>
-                      {schoolMode ? (
-                        <div className="mt-2 grid gap-3 lg:grid-cols-2">
-                          {classes.map((klass) => (
-                            <ClassLink
-                              key={klass}
-                              klass={klass}
-                              report={reports[klass] ?? null}
-                              failed={false}
-                              weekend={weekend}
-                              dateISO={dateISO}
-                              openList={openList}
                             />
                           ))}
                         </div>
-                      ) : (
-                        <ClassReports
-                          key={JSON.stringify([dateISO, classes])}
-                          classes={classes}
-                          dateISO={dateISO}
-                          fetchClassDay={fetchClassDay}
-                        />
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </>
-          )}
-      </section>
+                        {open && (
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <h3 className="text-sm font-semibold text-gray-900">
+                                {open.label}: {open.count(schoolDay.totals)}
+                              </h3>
+                              <ButtonLink
+                                href={schoolPath(
+                                  schoolDayListPath(dateISO, null),
+                                )}
+                                variant="ghost"
+                                size="compact"
+                              >
+                                Liste schließen
+                              </ButtonLink>
+                            </div>
+                            {/* Bei offener Rückfrage steht der Fehler dort. */}
+                            <FormErrorAlert
+                              message={
+                                absenceReports.withdrawTarget
+                                  ? null
+                                  : absenceReports.error
+                              }
+                              className="mt-2"
+                            />
+                            {open.key === "ohne-meldung" && (
+                              <p className="mt-1 text-sm text-gray-600">
+                                Die Lehrkraft hat diese Kinder als fehlend
+                                eingetragen. Es gibt keine Krankmeldung.
+                                {canReportAbsences
+                                  ? " Rufen die Eltern an, tragen Sie die Meldung hier ein."
+                                  : ""}
+                              </p>
+                            )}
+                            {groups.length === 0 ? (
+                              <p className="mt-2 text-sm text-gray-500">
+                                An diesem Tag stehen keine Kinder in dieser
+                                Liste.
+                              </p>
+                            ) : (
+                              <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                                {groups.map((group) => (
+                                  <div
+                                    key={group.schoolClass}
+                                    className="rounded-xl bg-gray-50 px-3 py-2"
+                                  >
+                                    <NavigationLink
+                                      href={schoolPath(
+                                        schoolDayClassPath(
+                                          group.schoolClass,
+                                          dateISO,
+                                          open.key,
+                                        ),
+                                      )}
+                                      className="text-sm font-semibold text-gray-900 underline-offset-2 hover:underline"
+                                    >
+                                      {schoolClassLabel(group.schoolClass)} ·{" "}
+                                      {group.children.length}
+                                    </NavigationLink>
+                                    <ul className="mt-1 space-y-0.5 text-sm text-gray-700">
+                                      {group.children.map((child) => {
+                                        const note = childNote(child, open.key);
+                                        const target = {
+                                          schoolClass: group.schoolClass,
+                                          child,
+                                        };
+                                        const menu = absenceReportMenu(
+                                          child,
+                                          canReportAbsences,
+                                          (status) =>
+                                            void absenceReports.enter(
+                                              target,
+                                              status,
+                                            ),
+                                          () =>
+                                            absenceReports.askWithdraw(target),
+                                        );
+                                        return (
+                                          <li
+                                            key={
+                                              child.list_entry
+                                                ? `entry-${child.list_entry_id}`
+                                                : `student-${child.student_id}`
+                                            }
+                                            className="flex min-w-0 items-center justify-between gap-2"
+                                          >
+                                            <span className="min-w-0">
+                                              {child.last_name},{" "}
+                                              {child.first_name}
+                                              {note && (
+                                                <span className="text-gray-500">
+                                                  {" "}
+                                                  · {note}
+                                                </span>
+                                              )}
+                                            </span>
+                                            {menu.length > 0 && (
+                                              <OverflowMenu
+                                                items={menu}
+                                                ariaLabel={
+                                                  child.unreported
+                                                    ? `Meldung für ${child.first_name} ${child.last_name} eintragen`
+                                                    : `Meldung für ${child.first_name} ${child.last_name} zurücknehmen`
+                                                }
+                                                triggerSize="sm"
+                                                triggerContent={
+                                                  absenceReports.isPending(
+                                                    target,
+                                                  )
+                                                    ? "Wird gespeichert …"
+                                                    : child.unreported
+                                                      ? "Meldung eintragen"
+                                                      : "Zurücknehmen"
+                                                }
+                                              />
+                                            )}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {classes !== undefined && (
+                      <>
+                        <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                          {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
+                        </h3>
+                        {schoolMode ? (
+                          <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                            {classes.map((klass) => (
+                              <ClassLink
+                                key={klass}
+                                klass={klass}
+                                report={reports[klass] ?? null}
+                                failed={false}
+                                weekend={weekend}
+                                dateISO={dateISO}
+                                openList={openList}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <ClassReports
+                            key={JSON.stringify([dateISO, classes])}
+                            classes={classes}
+                            dateISO={dateISO}
+                            fetchClassDay={fetchClassDay}
+                          />
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+        </div>
+      </SectionCard>
       <ConfirmationModal
         isOpen={canReportAbsences && absenceReports.withdrawTarget !== null}
         onClose={absenceReports.closeWithdraw}
@@ -823,6 +876,6 @@ export function ClassDayOverview({
             : null}
         </p>
       </ConfirmationModal>
-    </div>
+    </>
   );
 }

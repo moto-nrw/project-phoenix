@@ -82,13 +82,15 @@ const pushStartDeliverySQL = `UPDATE platform.push_outbox
 	RETURNING lease_token`
 
 // A provider's acceptance can come after its event that it cannot deliver the
-// mail. Then the mail goes back in the queue for the fallback transport, which
-// reports no provider ID and has attempts of its own.
+// mail. Then the mail goes back in the queue for the fallback transport, which has
+// attempts of its own. The open request and the way this send took decide; a
+// provider's answer may name no ID, and a send over the fallback ends it, so the
+// fallback runs once.
 const emailFinalizeSentSQL = `UPDATE platform.email_outbox
-	SET status = CASE WHEN fallback_requested_at IS NOT NULL AND ?0::jsonb->>'provider_message_id' IS NOT NULL
+	SET status = CASE WHEN fallback_requested_at IS NOT NULL
 			AND NOT COALESCE((?0::jsonb->>'used_fallback')::boolean, false)
 			THEN 'pending' ELSE 'sent' END,
-		attempts = CASE WHEN fallback_requested_at IS NOT NULL AND ?0::jsonb->>'provider_message_id' IS NOT NULL
+		attempts = CASE WHEN fallback_requested_at IS NOT NULL
 			AND NOT COALESCE((?0::jsonb->>'used_fallback')::boolean, false)
 			THEN 0 ELSE attempts END,
 		provider_result = ?0,
@@ -209,18 +211,6 @@ type emailDeliveryRow struct {
 	Reachability      string    `bun:"reachability"`
 	CreatedAt         time.Time `bun:"created_at"`
 	UpdatedAt         time.Time `bun:"updated_at"`
-}
-
-type emailDeliveryStatusRow struct {
-	DeliveryID        int64      `bun:"delivery_id"`
-	GuardianProfileID *int64     `bun:"guardian_profile_id"`
-	AccountID         *int64     `bun:"account_id"`
-	RecipientEmail    *string    `bun:"recipient_email"`
-	Reachability      string     `bun:"reachability"`
-	EmailStatus       string     `bun:"email_status"`
-	LastError         *string    `bun:"last_error"`
-	SentAt            *time.Time `bun:"sent_at"`
-	Attempts          int        `bun:"attempts"`
 }
 
 func New(tenantDB TenantDatabase, adminDB AdminDatabase) *Store {
@@ -665,64 +655,6 @@ func (s *Store) AttachEmailOutbox(ctx context.Context, tenantID, deliveryID, out
 	return nil
 }
 
-func (s *Store) ClaimFailedEmailDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error) {
-	db, err := s.tenantDB(ctx, tenantID)
-	if err != nil {
-		return false, err
-	}
-	result, err := db.NewRaw(`
-		UPDATE platform.delivery_email_deliveries AS delivery
-		SET outbox_id = NULL, updated_at = NOW()
-		FROM platform.email_outbox AS outbox
-		WHERE delivery.tenant_id = ? AND delivery.id = ?
-			AND delivery.outbox_id = outbox.id
-			AND outbox.tenant_id = delivery.tenant_id
-			AND outbox.status = 'dead_letter'`, tenantID, deliveryID).Exec(ctx)
-	if err != nil {
-		return false, fmt.Errorf("delivery postgres: claim failed email delivery: %w", err)
-	}
-	count, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("delivery postgres: count failed email delivery claim: %w", err)
-	}
-	return count == 1, nil
-}
-
-func (s *Store) EmailDeliveryStatuses(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]deliveryContract.EmailDeliveryStatus, error) {
-	db, err := s.tenantDB(ctx, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	var rows []emailDeliveryStatusRow
-	if err := db.NewRaw(`
-		SELECT delivery.id AS delivery_id, delivery.guardian_profile_id, delivery.account_id,
-			delivery.recipient_email, delivery.reachability,
-			CASE
-				WHEN delivery.outbox_id IS NULL THEN 'not_sent'
-				WHEN outbox.status = 'sent' THEN 'sent'
-				WHEN outbox.status IN ('dead_letter', 'cancelled') THEN 'failed'
-				ELSE 'pending'
-			END AS email_status,
-			outbox.last_error, outbox.sent_at, COALESCE(outbox.attempts, 0) AS attempts
-		FROM platform.delivery_email_deliveries AS delivery
-		LEFT JOIN platform.email_outbox AS outbox ON outbox.id = delivery.outbox_id
-		WHERE delivery.tenant_id = ? AND delivery.related_entity_type = ?
-			AND delivery.related_entity_id = ?
-		ORDER BY delivery.id`, tenantID, relatedType, relatedID).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("delivery postgres: list email delivery statuses: %w", err)
-	}
-	statuses := make([]deliveryContract.EmailDeliveryStatus, 0, len(rows))
-	for _, row := range rows {
-		statuses = append(statuses, deliveryContract.EmailDeliveryStatus{
-			DeliveryID: row.DeliveryID, GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID,
-			RecipientEmail: row.RecipientEmail,
-			Reachability:   row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
-			SentAt: row.SentAt, Attempts: row.Attempts,
-		})
-	}
-	return statuses, nil
-}
-
 func unknownTransport(transport domain.Transport) error {
 	return fmt.Errorf("delivery postgres: unknown transport %q", transport)
 }
@@ -740,8 +672,8 @@ func toDomainRows(transport domain.Transport, rows []intentRow) []domain.Intent 
 		}
 		result = append(result, domain.Intent{
 			ID: row.ID, TenantID: row.TenantID, OrganizationID: organizationID, Transport: transport, Template: row.Kind,
-			DeliveryState: deliveryState,
-			Security:      row.Security, UseFallback: row.FallbackRequested != nil, DeliveryToken: row.DeliveryToken,
+			DeliveryState: deliveryState, DeliveryStateAt: row.DeliveryStateAt,
+			Security: row.Security, UseFallback: row.FallbackRequested != nil, DeliveryToken: row.DeliveryToken,
 			IdempotencyKey: row.IdempotencyKey, RelatedEntityType: row.RelatedEntityType,
 			RelatedEntityID: row.RelatedEntityID, Recipient: row.Recipient, Payload: row.Payload,
 			Status: row.Status, Attempts: row.Attempts, NextRetryAt: row.NextRetryAt,

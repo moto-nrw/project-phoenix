@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -13,7 +14,6 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -1054,16 +1054,14 @@ export function ShiftEditModal({
           this modal's body. */}
       <SlideOver
         open={isOpen && !confirmDeleteOpen && !scopeOverlayOpen}
+        isDismissDisabled={isSaving || isDeleting}
         onOpenChange={(next) => {
           if (!next) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[760px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>{title}</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton />
+        <SlideOverContent size="lg">
+          <SlideOverHeader>
+            <SlideOverTitle>{title}</SlideOverTitle>
           </SlideOverHeader>
           <SlideOverBody error={seriesNotice ? null : formErrors.error}>
             {seriesNotice ? (
@@ -1202,14 +1200,12 @@ export function ShiftEditModal({
                     </p>
                     <FieldGroup label="Wochentage">
                       <WeekdayPicker
-                        idPrefix="shift-series-edit"
                         weekdays={seriesWeekdays}
                         onToggle={toggleSeriesWeekday}
                       />
                     </FieldGroup>
                     <FieldGroup label="Wochenrhythmus">
                       <RhythmPicker
-                        idPrefix="shift-series-edit"
                         biweekly={seriesBiweekly}
                         onBiweeklyChange={setSeriesBiweekly}
                         abPattern={seriesAbPattern}
@@ -1313,14 +1309,17 @@ export function ShiftEditModal({
                                 <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
                                   Vertretung {index + 1}
                                 </span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="compact"
-                                  onClick={() => removeReplacement(index)}
-                                >
-                                  Entfernen
-                                </Button>
+                                <span className="inline-flex rounded-full">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Vertretung ${index + 1} entfernen`}
+                                    onClick={() => removeReplacement(index)}
+                                  >
+                                    <X className="h-4 w-4" aria-hidden="true" />
+                                  </Button>
+                                </span>
                               </div>
                               <CustomSelect
                                 value={row.staffId}
@@ -1401,7 +1400,6 @@ export function ShiftEditModal({
                       <div className="space-y-3">
                         <FieldGroup label="Wochentage">
                           <WeekdayPicker
-                            idPrefix="shift-series"
                             weekdays={weekdays}
                             onToggle={toggleWeekday}
                           />
@@ -1435,7 +1433,6 @@ export function ShiftEditModal({
                         </Field>
                         <FieldGroup label="Wochenrhythmus">
                           <RhythmPicker
-                            idPrefix="shift-series"
                             biweekly={biweekly}
                             onBiweeklyChange={setBiweekly}
                             abPattern={abPattern}
@@ -1498,9 +1495,7 @@ export function ShiftEditModal({
               </div>
             )}
           </SlideOverBody>
-          <SlideOverFooter className="flex-row justify-end gap-2">
-            {footer}
-          </SlideOverFooter>
+          <SlideOverFooter>{footer}</SlideOverFooter>
         </SlideOverContent>
       </SlideOver>
       <ConfirmDeleteModal

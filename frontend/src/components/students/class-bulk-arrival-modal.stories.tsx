@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { fn } from "storybook/test";
 import { ToastProvider } from "~/contexts/ToastContext";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { FilteredBulkArrivalModal } from "./class-bulk-arrival-modal";
 
 const students: Student[] = [

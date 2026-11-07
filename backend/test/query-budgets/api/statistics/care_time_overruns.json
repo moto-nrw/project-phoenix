@@ -1,6 +1,6 @@
 {
   "scenario": "api.statistics.care_time_overruns",
-  "max": 16,
+  "max": 18,
   "exact": false,
-  "description": "GET /statistics/care-time-overruns: fixed tenant and comparison batches plus the access-log lookup, without per-child SQL. TestCareTimesQueryBudgets compares one with four children."
+  "description": "GET /statistics/care-time-overruns: fixed tenant and comparison batches plus the access-log lookup, without per-child SQL. TestCareTimesQueryBudgets compares one with four children. Since #4683 the settings of Soll und Ist (retention windows, federal state, booking-led care) come in one prefetch; the child view also checks and writes its data-access log entry."
 }

@@ -35,6 +35,7 @@ const CodeCareFamilyProtection = "care.family_protection"
 const CodeCareGuardianContactInvalid = "care.guardian_contact_invalid"
 const CodeCareGuardianEmailConflict = "care.guardian_email_conflict"
 const CodeCareGuardianHasOwnAccount = "care.guardian_has_own_account"
+const CodeCareGuardianInviteUnavailable = "care.guardian_invite_unavailable"
 const CodeCareGuardianManagementDisabled = "care.guardian_management_disabled"
 const CodeCareGuardianNoChange = "care.guardian_no_change"
 const CodeCareGuardianNotLinked = "care.guardian_not_linked"
@@ -115,6 +116,7 @@ var errorCodeClassesCare = []errorCodeClass{
 	{CodeCareGuardianContactInvalid, "input"},
 	{CodeCareGuardianEmailConflict, "business_rejection"},
 	{CodeCareGuardianHasOwnAccount, "permission"},
+	{CodeCareGuardianInviteUnavailable, "business_rejection"},
 	{CodeCareGuardianManagementDisabled, "permission"},
 	{CodeCareGuardianNoChange, "input"},
 	{CodeCareGuardianNotLinked, "permission"},

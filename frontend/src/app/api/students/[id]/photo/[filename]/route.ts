@@ -1,13 +1,12 @@
-// Authenticated proxy streaming student photo bytes. On 401 we refresh
-// the access token via uncachedAuth() and retry once.
-
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth, uncachedAuth } from "~/server/auth";
+import { auth } from "~/server/auth";
+import { sendWithTokenRefresh } from "~/lib/tenant-token-retry.server";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "StudentPhotoServeRoute" });
@@ -32,7 +31,10 @@ async function GETHandler(
   // conditional headers so http.ServeContent can answer 304 instead of
   // re-sending the full body.
   const buildHeaders = (bearer: string): HeadersInit => {
-    const h: Record<string, string> = { Authorization: `Bearer ${bearer}` };
+    const h: Record<string, string> = {
+      Authorization: `Bearer ${bearer}`,
+      ...clientIdentityHeaders(request.headers),
+    };
     const ifNoneMatch = request.headers.get("if-none-match");
     if (ifNoneMatch) h["if-none-match"] = ifNoneMatch;
     const ifModifiedSince = request.headers.get("if-modified-since");
@@ -46,17 +48,9 @@ async function GETHandler(
       headers: buildHeaders(bearer),
     });
 
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
-    }
-  }
+  const upstream = await sendWithTokenRefresh(token, makeRequest);
 
-  // 304 Not Modified is the success-with-no-body path — preserve it
-  // verbatim so the browser keeps using its cached copy. ETag /
-  // Last-Modified are passed through (when present) for the same reason.
+  // 304 keeps the browser on its cached copy.
   if (upstream.status === 304) {
     const headers = new Headers();
     const cacheControl = upstream.headers.get("cache-control");
@@ -77,10 +71,7 @@ async function GETHandler(
     return forwardBackendResponse(upstream, request);
   }
 
-  // 200 path — stream the body through unchanged. Preserve Content-Type,
-  // the backend's Cache-Control (private browser cache, no revalidation
-  // while fresh), and the validators (ETag / Last-Modified) so a later
-  // conditional GET can short-circuit to 304 above.
+  // The validators let a later conditional GET end in the 304 above.
   const headers = new Headers();
   const contentType = upstream.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);

@@ -10,15 +10,15 @@ import {
 describe("arrival schedule getDayData", () => {
   const schedules: ArrivalSchedule[] = [
     {
-      id: 1,
-      student_id: 100,
+      id: "1",
+      studentId: "100",
       weekday: 1,
-      weekday_name: "Montag",
-      expected_arrival: "08:30",
+      weekdayName: "Montag",
+      expectedArrival: "08:30",
       notes: "Regulär",
-      created_by: 5,
-      created_at: "2026-05-01T10:00:00Z",
-      updated_at: "2026-05-01T10:00:00Z",
+      createdBy: "5",
+      createdAt: "2026-05-01T10:00:00Z",
+      updatedAt: "2026-05-01T10:00:00Z",
     },
   ];
 
@@ -45,7 +45,7 @@ describe("arrival schedule getDayData", () => {
     const friday = {
       ...schedules[0]!,
       weekday: 5,
-      expected_arrival: "08:00",
+      expectedArrival: "08:00",
     };
     const saturday = new Date("2026-09-12T12:00:00+02:00");
 
@@ -88,7 +88,7 @@ describe("arrival schedule getDayData", () => {
     expect(
       arrivalScheduleSourceLabel({
         source: "class_schedule",
-        source_class: "Klasse 3b",
+        sourceClass: "Klasse 3b",
       }),
     ).toBe("aus Klasse 3b");
     expect(arrivalScheduleSourceLabel({ source: "staff" })).toBe("eigene Zeit");

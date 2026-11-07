@@ -30,6 +30,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverHeader,
@@ -150,8 +151,14 @@ export function StaffPoolSlideOver({
           if (!next) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[460px]">
-          <SlideOverHeader>
+        <SlideOverContent>
+          <SlideOverHeader
+            close={
+              <SlideOverCloseButton
+                disabled={canManage && pendingMove !== null}
+              />
+            }
+          >
             <SlideOverTitle>Personalpool</SlideOverTitle>
             <SlideOverDescription>
               {instance

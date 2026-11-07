@@ -1,0 +1,6 @@
+{
+  "scenario": "api.guardians.email_status",
+  "max": 11,
+  "exact": false,
+  "description": "api/guardians/students/{id}/email-status (#5934): the transaction setup, the child and its guardians, then one read of the address marks and one of the newest invitation mails for all of them. A further guardian must not add a statement."
+}

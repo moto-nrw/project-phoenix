@@ -9,6 +9,8 @@
  * assigned staff, children, attendance state, and admin corrections.
  */
 
+import type { ListRowTone } from "~/components/ui/list-row-styles";
+import { ListRow } from "~/components/ui/list-row";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import {
@@ -37,7 +39,6 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -50,11 +51,9 @@ import {
   type GuardianNoticeDraft,
 } from "./guardian-notice-fields";
 import { OriginChip } from "~/components/ui/planning/origin-chip";
-import {
-  GROUP_ROOM_SHADES,
-  LOCATION_COLORS,
-  MOTO_COLOR_PALETTE,
-} from "~/lib/location-helper";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
@@ -92,6 +91,7 @@ import {
   getStatusLabel,
 } from "~/lib/timetable-helpers";
 import {
+  instanceStatusTone,
   timetableDangerPanel,
   timetableMutedSurface,
   timetableNestedSurface,
@@ -117,6 +117,7 @@ import { roomsConcept } from "~/lib/concepts/rooms";
 import { staffConcept } from "~/lib/concepts/staff";
 import { substitutionConcept } from "~/lib/concepts/substitution";
 import { supervisionConcept } from "~/lib/concepts/supervision";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 export type LifecycleAction = "start" | "complete" | "cancel" | "reopen";
 
@@ -297,36 +298,13 @@ interface InstanceStatusBadgeProps {
   status: InstanceStatus;
 }
 
-/** Schrift auf den beiden gefüllten Statusflächen (grün, rot). */
-const STATUS_BADGE_ON_CLASS = "text-white";
-
 function InstanceStatusBadge({ status }: InstanceStatusBadgeProps) {
-  // Flächen aus LOCATION_COLORS bzw. der neutralen Palette, die Schrift als
-  // Tailwind-Klasse (gray-700 = neutral.strong, gray-500 = neutral.base) —
-  // kein Hex-Literal neben einem Token in derselben Tabelle.
-  const palette: Record<InstanceStatus, { bg: string; text: string }> = {
-    planned: {
-      bg: MOTO_COLOR_PALETTE.neutral.soft,
-      text: "text-gray-700",
-    },
-    // Füllton statt GROUP_ROOM: Weiß auf #83CD2D erreicht nur 1,96:1 (#5141).
-    active: { bg: GROUP_ROOM_SHADES.fill, text: STATUS_BADGE_ON_CLASS },
-    // Abgeschlossen steht auf derselben neutralen Fläche wie "Geplant", trägt
-    // aber die hellere Schrift: erledigt, nicht offen.
-    completed: {
-      bg: MOTO_COLOR_PALETTE.neutral.soft,
-      text: "text-gray-500",
-    },
-    cancelled: { bg: LOCATION_COLORS.DANGER, text: STATUS_BADGE_ON_CLASS },
-  };
-  const { bg, text } = palette[status];
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${text}`}
-      style={{ backgroundColor: bg }}
-    >
-      {getStatusLabel(status)}
-    </span>
+    <StatusBadge
+      label={getStatusLabel(status)}
+      tone={instanceStatusTone[status]}
+      compact
+    />
   );
 }
 
@@ -370,17 +348,14 @@ function careDayLabel(status: InstanceStudentSummary["careDayStatus"]): string {
   return status === "cancelled" ? "Heute abgemeldet" : "Heute nicht eingeplant";
 }
 
-/** Neutral surface for rows grouped as "heute nicht eingeplant". */
-const NOT_SCHEDULED_TONE = "border-gray-200 bg-gray-50 text-gray-600";
-
-function attendanceTone(status: InstanceStudentSummary["status"]): string {
+function attendanceTone(status: InstanceStudentSummary["status"]): ListRowTone {
   switch (status) {
     case "present":
-      return "border-moto-green/20 bg-moto-green/10 text-moto-green-strong";
+      return "success";
     case "absent":
-      return "border-moto-red/20 bg-moto-red/10 text-moto-red-strong";
+      return "danger";
     case "expected":
-      return "border-gray-200 bg-gray-50 text-gray-600";
+      return "muted";
   }
 }
 
@@ -437,14 +412,7 @@ function ActivityTypeBadge({
 }: Readonly<{ activityType: EnrichedInstance["activityType"] }>) {
   const badge = getActivityTypeBadge(activityType);
   if (!badge) return null;
-  return (
-    <span
-      className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase"
-      style={{ backgroundColor: badge.bg }}
-    >
-      {badge.label}
-    </span>
-  );
+  return <StatusColorBadge label={badge.label} color={badge.color} compact />;
 }
 
 function AssignedStaffSection({
@@ -1060,24 +1028,21 @@ export function InstanceDetailModal({
           if (!open) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[760px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>{instance.title}</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton />
+        <SlideOverContent size="lg">
+          <SlideOverHeader>
+            <SlideOverTitle>{instance.title}</SlideOverTitle>
           </SlideOverHeader>
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <InstanceStatusBadge status={instance.status} />
                 {instance.isSpontaneous && (
-                  <span
-                    className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
+                  <StatusBadge
+                    label="Spontan gestartet"
                     title="Dieser Termin wurde spontan gestartet und war nicht geplant."
-                  >
-                    Spontan gestartet
-                  </span>
+                    tone="gray"
+                    compact
+                  />
                 )}
                 <ActivityTypeBadge activityType={instance.activityType} />
               </div>
@@ -1400,14 +1365,13 @@ function StudentGroup({
           studentNames.get(student.studentId) ?? `Kind #${student.studentId}`;
 
         return (
-          <div
+          <ListRow
             key={student.studentId}
-            className={`flex flex-wrap items-center justify-between gap-2 ${NESTED_SURFACE_BASE} px-3 py-2 ${
-              // A non-booking is not an attendance outcome: a row that landed
-              // here carrying a status-day 'absent' must not be tinted like a
-              // real absence (#1747).
-              careDayGroup ? NOT_SCHEDULED_TONE : attendanceTone(student.status)
-            }`}
+            // A non-booking is not an attendance outcome: a row that landed
+            // here carrying a status-day 'absent' must not be tinted like a
+            // real absence (#1747).
+            tone={careDayGroup ? "muted" : attendanceTone(student.status)}
+            className="flex-wrap gap-2"
           >
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-gray-900">
@@ -1493,7 +1457,7 @@ function StudentGroup({
                 )}
               </div>
             )}
-          </div>
+          </ListRow>
         );
       })}
     </div>
@@ -1555,10 +1519,7 @@ function IconActionButton({
       aria-label={label}
     >
       {isLoading ? (
-        <span
-          className={`h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent ${ICON_ACTION_TONE[tone]}`}
-          aria-hidden
-        />
+        <SpinnerIcon className={`h-3 w-3 ${ICON_ACTION_TONE[tone]}`} />
       ) : (
         <span className={ICON_ACTION_TONE[tone]} aria-hidden>
           {icon}

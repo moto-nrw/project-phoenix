@@ -40,6 +40,7 @@ import { formatChatDateTime } from "~/lib/date-helpers";
 import { changedEnrollmentChangeRequestLabels } from "~/lib/enrollment-change-request-diff";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
 
 const logger = createLogger({ component: "AdminEnrollmentChangeRequests" });
 
@@ -147,7 +148,7 @@ export function AdminEnrollmentChangeRequestDetail({
           ? "Die Änderung wurde freigegeben."
           : "Die Änderung wurde abgelehnt.",
       );
-      window.dispatchEvent(new Event("change-requests-refresh"));
+      announceChangeRequestsChanged();
     } catch (err) {
       logger.error("change_request_review_failed", {
         error: err instanceof Error ? err.message : "unknown",

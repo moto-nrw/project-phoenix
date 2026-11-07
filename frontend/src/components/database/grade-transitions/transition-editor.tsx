@@ -1,4 +1,5 @@
 "use client";
+import { FramedList } from "~/components/ui/framed-list";
 import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 
 // Editor for a Jahrgangswechsel draft: one row per class with the target
@@ -11,7 +12,6 @@ import { Input } from "~/components/ui/input";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -263,19 +263,16 @@ export function TransitionEditor({
         if (!nextOpen) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[760px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>
-              {existingDraft
-                ? "Schuljahreswechsel bearbeiten"
-                : "Neuer Schuljahreswechsel"}
-            </SlideOverTitle>
-            <SlideOverDescription>
-              Festlegen, wohin die Kinder jeder Klasse versetzt werden.
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="lg">
+        <SlideOverHeader>
+          <SlideOverTitle>
+            {existingDraft
+              ? "Schuljahreswechsel bearbeiten"
+              : "Neuer Schuljahreswechsel"}
+          </SlideOverTitle>
+          <SlideOverDescription>
+            Festlegen, wohin die Kinder jeder Klasse versetzt werden.
+          </SlideOverDescription>
         </SlideOverHeader>
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -324,7 +321,7 @@ export function TransitionEditor({
           )}
 
           {rows !== null && (
-            <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
+            <FramedList>
               {rows.length === 0 && (
                 <li className="p-4 text-sm text-gray-500">
                   Keine Klassen mit Kindern gefunden.
@@ -389,7 +386,7 @@ export function TransitionEditor({
                   </div>
                 </li>
               ))}
-            </ul>
+            </FramedList>
           )}
 
           {rows !== null && addableClasses.length > 0 && (
@@ -420,7 +417,7 @@ export function TransitionEditor({
           )}
           <FormErrorAlert message={saveError} />
         </div>
-        <SlideOverFooter className="flex-row justify-end gap-2">
+        <SlideOverFooter>
           <Button type="button" variant="outline" size="md" onClick={onClose}>
             Abbrechen
           </Button>

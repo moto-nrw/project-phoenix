@@ -103,6 +103,118 @@ describe("BillingMailCard", () => {
     expect(api.fetchLetterMailings).toHaveBeenCalledWith("9");
   });
 
+  it("reads only a report as delivered and offers no second mail while delayed", async () => {
+    api.fetchLetterMailings.mockResolvedValue([
+      mailing({ status: "sent", mailOutcome: "accepted", sends: 1 }),
+      mailing({
+        documentId: "52",
+        status: "sent",
+        mailOutcome: "delivered",
+        sends: 1,
+      }),
+      mailing({
+        documentId: "53",
+        status: "sent",
+        mailOutcome: "delayed",
+        sends: 1,
+      }),
+      mailing({
+        documentId: "54",
+        status: "sent",
+        mailOutcome: "undeliverable",
+        sends: 1,
+      }),
+    ]);
+    renderCard();
+
+    expect(await screen.findByText("Gesendet")).toBeInTheDocument();
+    expect(screen.getByText("Zugestellt")).toBeInTheDocument();
+    expect(screen.getByText("Verzögert")).toBeInTheDocument();
+    expect(screen.getByText("Nicht zustellbar")).toBeInTheDocument();
+    expect(screen.getByText(/nicht noch einmal/)).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Erneut senden" }),
+    ).toHaveLength(3);
+  });
+
+  it.each([
+    ["provider_blocked", "Nicht gesendet"],
+    ["unsubscribed", "Abgemeldet"],
+    ["complained", "Nicht zustellbar"],
+  ] as const)(
+    "points to the print and offers no useless resend while the provider holds %s",
+    async (mailOutcome, label) => {
+      api.fetchLetterMailings.mockResolvedValue([
+        mailing({
+          documentId: "60",
+          status: "sent",
+          mailOutcome,
+          providerBlock: "active",
+          sends: 1,
+        }),
+      ]);
+      renderCard();
+
+      expect(await screen.findByText(label)).toBeInTheDocument();
+      expect(screen.queryByText("Gesendet")).toBeNull();
+      expect(screen.getByText(/drucken Sie das Schreiben/)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Erneut senden" }),
+      ).toBeNull();
+    },
+  );
+
+  it("offers the resend again once the provider's block is gone", async () => {
+    api.fetchLetterMailings.mockResolvedValue([
+      mailing({
+        documentId: "62",
+        status: "sent",
+        mailOutcome: "provider_blocked",
+        providerBlock: "none",
+        sends: 1,
+      }),
+    ]);
+    renderCard();
+
+    expect(await screen.findByText(/besteht nicht mehr/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erneut senden" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers nothing while the block cannot be read", async () => {
+    api.fetchLetterMailings.mockResolvedValue([
+      mailing({
+        documentId: "63",
+        status: "sent",
+        mailOutcome: "provider_blocked",
+        providerBlock: "unreadable",
+        sends: 1,
+      }),
+    ]);
+    renderCard();
+
+    expect(await screen.findByText(/später noch einmal/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Erneut senden" })).toBeNull();
+  });
+
+  it("offers the resend again after a delay ran past its limit", async () => {
+    api.fetchLetterMailings.mockResolvedValue([
+      mailing({
+        documentId: "61",
+        status: "sent",
+        mailOutcome: "overdue",
+        sends: 1,
+      }),
+    ]);
+    renderCard();
+
+    expect(await screen.findByText("Überfällig")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erneut senden" }),
+    ).toBeInTheDocument();
+  });
+
   it("offers no send while a mail waits and none without an address", async () => {
     api.fetchLetterMailings.mockResolvedValue([
       mailing({ status: "queued", sends: 1 }),
@@ -158,12 +270,14 @@ describe("BillingMailCard", () => {
       await screen.findByRole("button", { name: "An alle Familien senden" }),
     );
 
+    await waitFor(() =>
+      expect(api.mailBillingLetters).toHaveBeenCalledWith("9"),
+    );
     expect(
       await screen.findByText(
         "1 Mail(s) werden jetzt gesendet. 1 Familie(n) ohne Mail-Adresse: Bitte drucken Sie deren Schreiben.",
       ),
     ).toBeInTheDocument();
-    expect(api.mailBillingLetters).toHaveBeenCalledWith("9");
     await waitFor(() =>
       expect(api.fetchLetterMailings).toHaveBeenCalledTimes(2),
     );

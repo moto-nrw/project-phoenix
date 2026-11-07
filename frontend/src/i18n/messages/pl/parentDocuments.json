@@ -1,6 +1,6 @@
 {
   "title": "Dokumenty",
-  "description": "Tutaj znajdą Państwo pisma i umowy, które przesłał Państwu organizator. Na przykład potwierdzenie opieki w ferie.",
+  "description": "Tutaj znajdą Państwo pisma, umowy i dokumenty od organizatora. Na przykład potwierdzenie opieki w ferie lub regulamin.",
   "emptyTitle": "Brak dokumentów",
   "emptyDescription": "Gdy organizator wyśle Państwu pismo, znajdą je Państwo tutaj. Otrzymają je Państwo również e-mailem.",
   "confirmationLetter": "Potwierdzenie: {period}",
@@ -19,5 +19,13 @@
   "bookedCare": "Zarezerwowana opieka",
   "startsOn": "Początek",
   "lettersErrorObject": "pisma",
-  "contractsErrorObject": "umowy opieki"
+  "contractsErrorObject": "umowy opieki",
+  "replaced": "Zastąpiona",
+  "replacedNote": "Ta wersja już nie obowiązuje. Od {date} obowiązuje nowa wersja. Zawiera ona Państwa potwierdzone zmiany. Nową wersję otrzymają Państwo od organizatora.",
+  "sharedSender": "Udostępnione rodzicom przez: {traeger}",
+  "file": "Plik",
+  "releasedAt": "Udostępniono",
+  "downloadFile": "Pobierz",
+  "sharedErrorObject": "dokumenty organizatora",
+  "image": "Obraz"
 }

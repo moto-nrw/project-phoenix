@@ -47,6 +47,7 @@ import type { EnrichedInstance } from "~/lib/timetable-types";
 import { InstanceBlock } from "./instance-block";
 import { timetableSurface } from "./timetable-style";
 import { StatusDot } from "~/components/ui/status-dot";
+import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
 
 // Grid template columns: narrow time gutter + day columns. Mobile shows a
 // single day column via the day strip; ab sm bekommt JEDER übergebene Tag
@@ -386,45 +387,23 @@ export function WeeklyCalendarGrid({
           const closingReason = closingDays?.get(iso);
           const planningDisabled = planningDisabledDateISOs?.has(iso) ?? false;
           return (
-            <button
+            <PlanningDayChip
               key={iso}
-              type="button"
+              stacked
+              weekdayLabel={getGermanWeekdayShort(day)}
+              dateLabel={String(day.getDate()).padStart(2, "0")}
+              selected={isSelected}
               onClick={() => setSelectedDayIndex(index)}
-              aria-pressed={isSelected}
-              className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                isSelected
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              <span
-                className={`text-[10px] font-medium tracking-wide uppercase ${
-                  isSelected ? "text-white/80" : "text-gray-500"
-                }`}
-              >
-                {getGermanWeekdayShort(day)}
-              </span>
-              <span className="text-sm font-semibold tabular-nums">
-                {String(day.getDate()).padStart(2, "0")}
-              </span>
-              {closingReason !== undefined && (
-                // Im Tagesstreifen ist kein Platz für Text: nur das Symbol,
-                // Beschriftung und Grund bleiben im Tooltip.
-                <ClosingDayChip reason={closingReason} text="" />
-              )}
-              {planningDisabled && (
-                <span
-                  className={`text-[9px] leading-none font-medium ${
-                    isSelected ? "text-white/80" : "text-gray-500"
-                  }`}
-                >
-                  Nicht planbar
-                </span>
-              )}
-              {isToday && !isSelected && (
-                <StatusDot className="bg-moto-red" size="xs" label="heute" />
-              )}
-            </button>
+              today={isToday}
+              statusLabel={planningDisabled ? "Nicht planbar" : undefined}
+              marker={
+                closingReason === undefined ? undefined : (
+                  // Im Tagesstreifen ist kein Platz für Text: nur das Symbol,
+                  // Beschriftung und Grund bleiben im Tooltip.
+                  <ClosingDayChip reason={closingReason} text="" />
+                )
+              }
+            />
           );
         })}
       </div>

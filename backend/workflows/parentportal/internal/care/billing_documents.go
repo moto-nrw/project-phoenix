@@ -54,6 +54,9 @@ type BillingDocument struct {
 	TotalCents     int64
 	ChildNames     []string
 	SentAt         time.Time
+	// Replaced marks a sent contract version that a change on its own first
+	// day replaced (#4681); it holds on no day.
+	Replaced bool
 }
 
 // BillingDocumentFile is the PDF of one document.
@@ -152,7 +155,7 @@ func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64, inb
 type inboxRead func(txCtx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
 
 func (s *Service) listInbox(ctx context.Context, accountID int64, read inboxRead) ([]BillingDocument, error) {
-	traeger, reader, err := s.billingDocumentAccess(ctx, accountID)
+	traeger, reader, err := s.billingInboxAccess(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +186,7 @@ func (s *Service) listInbox(ctx context.Context, accountID int64, read inboxRead
 // account. The document must belong to a Träger the account's relationships
 // open and be addressed to the account.
 func (s *Service) BillingDocumentLetter(ctx context.Context, accountID, organizationID, documentID int64) (BillingDocumentFile, error) {
-	traeger, reader, err := s.billingDocumentAccess(ctx, accountID)
+	traeger, reader, err := s.billingInboxAccess(ctx, accountID)
 	if err != nil {
 		return BillingDocumentFile{}, err
 	}
@@ -205,7 +208,7 @@ func (s *Service) BillingDocumentLetter(ctx context.Context, accountID, organiza
 // ContractDocumentFile reads the PDF of one care contract in the inbox of
 // the account, addressed to it and covered by the matching child permission.
 func (s *Service) ContractDocumentFile(ctx context.Context, accountID, organizationID, contractID int64) (BillingDocumentFile, error) {
-	traeger, reader, err := s.billingDocumentAccess(ctx, accountID)
+	traeger, reader, err := s.billingInboxAccess(ctx, accountID)
 	if err != nil {
 		return BillingDocumentFile{}, err
 	}
@@ -224,19 +227,16 @@ func (s *Service) ContractDocumentFile(ctx context.Context, accountID, organizat
 	return file, nil
 }
 
-// billingDocumentAccess resolves the Träger the account's relationships open
+// billingInboxAccess resolves the Träger the account's relationships open
 // and the account's current address, in one administrative transaction.
-func (s *Service) billingDocumentAccess(ctx context.Context, accountID int64) ([]Traeger, BillingDocumentReader, error) {
+func (s *Service) billingInboxAccess(ctx context.Context, accountID int64) ([]Traeger, BillingDocumentReader, error) {
 	if s.BillingDocuments == nil || s.ContractDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
 		return nil, BillingDocumentReader{}, errors.New("parent: document inbox is not configured")
 	}
 	var access documentAccess
 	var email string
-	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		children, err := s.ListChildrenForAccount(adminCtx, accountID)
-		if err != nil {
-			return err
-		}
+	err := s.billingDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
+		var err error
 		if access, err = s.documentAccess(adminCtx, children); err != nil || len(access.traeger) == 0 {
 			return err
 		}
@@ -250,6 +250,20 @@ func (s *Service) billingDocumentAccess(ctx context.Context, accountID int64) ([
 		return nil, BillingDocumentReader{}, ErrGuardianPermissionDenied
 	}
 	return access.traeger, BillingDocumentReader{AccountID: accountID, Email: strings.TrimSpace(email), Children: access.permittedChildren()}, nil
+}
+
+// billingDocumentAccess runs visit with the account's children in one
+// administrative transaction: the one boundary every part of the document
+// inbox resolves its relationships in (letters, contracts and the documents
+// a Träger released for parents, #4692).
+func (s *Service) billingDocumentAccess(ctx context.Context, accountID int64, visit func(context.Context, []*ChildSummary) error) error {
+	return s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
+		children, err := s.ListChildrenForAccount(adminCtx, accountID)
+		if err != nil {
+			return err
+		}
+		return visit(adminCtx, children)
+	})
 }
 
 // documentAccess is what an account's relationships open for the inbox:

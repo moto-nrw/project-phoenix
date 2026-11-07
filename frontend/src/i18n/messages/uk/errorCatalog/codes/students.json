@@ -87,5 +87,8 @@
   "staff_profile_required": "Цей час встановили батьки. Змінити його може лише працівник із профілем персоналу.",
   "staff_value_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "staff_value_unsupported": "Не вдалося зберегти: {object}. Перевірте введені дані.",
-  "status_day_conflict": "На деякі дні вже є запис. Ці дні не змінено."
+  "status_day_conflict": "На деякі дні вже є запис. Ці дні не змінено.",
+  "guardian_email_block_needs_review": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "guardian_email_block_lift_failed": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "guardian_email_block_stays": "Не вдалося зберегти: {object}. Перевірте введені дані."
 }

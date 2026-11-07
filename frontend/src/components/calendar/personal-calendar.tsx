@@ -1,4 +1,5 @@
 "use client";
+import { FramedList } from "~/components/ui/framed-list";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -8,7 +9,6 @@ import { Button, buttonClassName } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -44,6 +44,11 @@ import { peopleConcept } from "~/lib/concepts/people";
 import { roomsConcept } from "~/lib/concepts/rooms";
 import { StatusDot } from "~/components/ui/status-dot";
 import { ColorBar } from "~/components/ui/color-bar";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 export type CalendarViewMode = "day" | "week" | "month";
 
@@ -234,11 +239,11 @@ const responseLabel: Record<string, string> = {
   info: "Info",
 };
 
-const responseTone: Record<CalendarResponseStatus, string> = {
-  pending: "bg-gray-100 text-gray-700",
-  accepted: "bg-moto-green-soft text-gray-800",
-  declined: "bg-moto-red/10 text-moto-red-strong",
-  info: "bg-moto-blue-soft text-gray-800",
+const responseTone: Record<CalendarResponseStatus, StatusBadgeTone> = {
+  pending: "gray",
+  accepted: "green",
+  declined: "red",
+  info: "blue",
 };
 
 function eventTime(event: CalendarEvent): string {
@@ -639,8 +644,8 @@ export function PersonalCalendar({
             aria-label="Kalender wird geladen"
             className="absolute inset-0 z-10 space-y-2 bg-white/80 p-4"
           >
-            <Skeleton className="h-10 w-full rounded-lg" />
-            <Skeleton className="h-full min-h-40 w-full rounded-lg" />
+            <Skeleton shape="control" className="h-10 w-full" />
+            <Skeleton shape="control" className="h-full min-h-40 w-full" />
           </div>
         ) : null}
         {viewMode === "day" ? (
@@ -712,16 +717,13 @@ export function PersonalCalendar({
           if (!open) setClicked(null);
         }}
       >
-        <SlideOverContent widthClass="sm:w-[520px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>
-                {selectedEvent?.source === "public_holiday"
-                  ? "Feiertag"
-                  : "Termin"}
-              </SlideOverTitle>
-            </div>
-            <SlideOverCloseButton />
+        <SlideOverContent size="md">
+          <SlideOverHeader>
+            <SlideOverTitle>
+              {selectedEvent?.source === "public_holiday"
+                ? "Feiertag"
+                : "Termin"}
+            </SlideOverTitle>
           </SlideOverHeader>
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {selectedEvent ? (
@@ -1120,11 +1122,11 @@ function AgendaRow({
   // Positionierung, nicht die Darstellung).
   const allDay = event.all_day;
   const badge = cancelled
-    ? { label: "Abgesagt", cls: "bg-moto-red/10 text-moto-red-strong" }
+    ? { label: "Abgesagt", tone: "red" as const }
     : event.response_status
       ? {
           label: responseLabel[event.response_status] ?? event.response_status,
-          cls: responseTone[event.response_status],
+          tone: responseTone[event.response_status],
         }
       : null;
   const subtitle = [
@@ -1168,11 +1170,7 @@ function AgendaRow({
             {event.title}
           </span>
           {badge ? (
-            <span
-              className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${badge.cls}`}
-            >
-              {badge.label}
-            </span>
+            <StatusBadge label={badge.label} tone={badge.tone} size="xs" />
           ) : null}
         </div>
         {subtitle ? (
@@ -1298,32 +1296,24 @@ function CalendarEventDetail({
     .filter(Boolean)
     .join(" · ");
   const hasActions = showOverview || showRespond || showIcs || canManage;
+  const schoolEventType = schoolEventTypeLabel(event);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span
-          className="rounded-md px-2 py-0.5 text-xs font-semibold text-gray-700"
-          style={{ backgroundColor: tone.bg }}
-        >
-          {tone.label}
-        </span>
-        {schoolEventTypeLabel(event) ? (
-          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-            {schoolEventTypeLabel(event)}
-          </span>
+        <StatusColorBadge label={tone.label} color={tone.bar} compact />
+        {schoolEventType ? (
+          <StatusBadge label={schoolEventType} tone="gray" compact />
         ) : null}
         {cancelled ? (
-          <span className="bg-moto-red/10 text-moto-red-strong rounded-md px-2 py-0.5 text-xs font-semibold">
-            Abgesagt
-          </span>
+          <StatusBadge label="Abgesagt" tone="red" compact />
         ) : event.response_status ? (
-          <span
-            className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
-              responseTone[event.response_status]
-            }`}
-          >
-            {responseLabel[event.response_status] ?? event.response_status}
-          </span>
+          <StatusBadge
+            label={
+              responseLabel[event.response_status] ?? event.response_status
+            }
+            tone={responseTone[event.response_status]}
+            compact
+          />
         ) : null}
       </div>
 
@@ -1527,9 +1517,9 @@ export function CalendarOverviewList({
           <StatCard label="Offen" value={pending} tone="neutral" />
         </div>
       ) : null}
-      <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+      <FramedList>
         {overview.attendees.map((attendee) => (
-          <div
+          <li
             key={attendee.recipient_id}
             className="flex items-center justify-between gap-3 px-3 py-2"
           >
@@ -1543,16 +1533,13 @@ export function CalendarOverviewList({
                   : "Eltern"}
               </div>
             </div>
-            <span
-              className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${
-                responseTone[attendee.status]
-              }`}
-            >
-              {responseLabel[attendee.status] ?? attendee.status}
-            </span>
-          </div>
+            <StatusBadge
+              label={responseLabel[attendee.status] ?? attendee.status}
+              tone={responseTone[attendee.status]}
+            />
+          </li>
         ))}
-      </div>
+      </FramedList>
     </div>
   );
 }

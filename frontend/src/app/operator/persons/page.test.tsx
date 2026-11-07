@@ -90,30 +90,6 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
   };
 });
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
-    <div data-testid="page-header">
-      <h1>{title}</h1>
-      {tabs && (
-        <div data-testid="tabs">
-          {tabs.items.map((tab: any) => (
-            <button
-              type="button"
-              key={tab.id}
-              data-testid={`tab-${tab.id}`}
-              className={tabs.activeTab === tab.id ? "active" : ""}
-            >
-              {tab.label}
-              {tab.count !== undefined && ` (${tab.count})`}
-            </button>
-          ))}
-        </div>
-      )}
-      {actionButton}
-    </div>
-  ),
-}));
-
 vi.mock("~/components/ui/skeleton", () => ({
   Skeleton: ({ className }: any) => (
     <div data-testid="skeleton" className={className} />
@@ -121,6 +97,14 @@ vi.mock("~/components/ui/skeleton", () => ({
 }));
 
 import OperatorPersonsPage from "./page";
+
+/** Löschen liegt im Kebab der Karte (#5604). */
+function openPersonDelete(index = 0) {
+  fireEvent.click(
+    screen.getAllByRole("button", { name: /^Aktionen für/ })[index]!,
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "Person löschen" }));
+}
 import {
   mockSchool,
   setupSWR,
@@ -345,7 +329,7 @@ describe("OperatorPersonsPage", () => {
 
     render(<OperatorPersonsPage />);
 
-    fireEvent.click(screen.getByTitle("Person löschen"));
+    openPersonDelete();
 
     await waitFor(() => {
       expect(screen.getByText("Person löschen")).toBeInTheDocument();
@@ -360,7 +344,7 @@ describe("OperatorPersonsPage", () => {
 
     render(<OperatorPersonsPage />);
 
-    fireEvent.click(screen.getByTitle("Person löschen"));
+    openPersonDelete();
 
     await waitFor(() => {
       expect(screen.getByText("Person löschen")).toBeInTheDocument();
@@ -378,7 +362,7 @@ describe("OperatorPersonsPage", () => {
 
     render(<OperatorPersonsPage />);
 
-    fireEvent.click(screen.getByTitle("Person löschen"));
+    openPersonDelete();
 
     await waitFor(() => {
       expect(
@@ -404,7 +388,7 @@ describe("OperatorPersonsPage", () => {
 
     render(<OperatorPersonsPage />);
 
-    fireEvent.click(screen.getByTitle("Person löschen"));
+    openPersonDelete();
 
     await waitFor(() => {
       expect(screen.getByText("Person löschen")).toBeInTheDocument();
@@ -428,7 +412,7 @@ describe("OperatorPersonsPage", () => {
 
     render(<OperatorPersonsPage />);
 
-    fireEvent.click(screen.getByTitle("Person löschen"));
+    openPersonDelete();
 
     await waitFor(() => {
       expect(screen.getByText("Person löschen")).toBeInTheDocument();
@@ -450,7 +434,7 @@ describe("OperatorPersonsPage", () => {
 
     render(<OperatorPersonsPage />);
 
-    fireEvent.click(screen.getByTitle("Person löschen"));
+    openPersonDelete();
 
     await waitFor(() => {
       expect(screen.getByText("Person löschen")).toBeInTheDocument();
@@ -483,7 +467,7 @@ describe("OperatorPersonsPage", () => {
 
     render(<OperatorPersonsPage />);
 
-    fireEvent.click(screen.getByTitle("Person löschen"));
+    openPersonDelete();
 
     await waitFor(() => {
       expect(screen.getByText("Person löschen")).toBeInTheDocument();
@@ -520,7 +504,7 @@ describe("OperatorPersonsPage", () => {
 
     render(<OperatorPersonsPage />);
 
-    fireEvent.click(screen.getByTitle("Person löschen"));
+    openPersonDelete();
 
     await waitFor(() => {
       expect(screen.getByText("Person löschen")).toBeInTheDocument();
@@ -542,7 +526,7 @@ describe("OperatorPersonsPage", () => {
 
     render(<OperatorPersonsPage />);
 
-    fireEvent.click(screen.getByTitle("Person löschen"));
+    openPersonDelete();
 
     await waitFor(() => {
       expect(screen.getByText("Person löschen")).toBeInTheDocument();
@@ -574,8 +558,7 @@ describe("OperatorPersonsPage", () => {
 
     render(<OperatorPersonsPage />);
 
-    const deleteButtons = screen.getAllByTitle("Person löschen");
-    fireEvent.click(deleteButtons[0]!);
+    openPersonDelete(0);
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Max Mustermann")).toBeInTheDocument();
@@ -591,7 +574,7 @@ describe("OperatorPersonsPage", () => {
       expect(screen.queryByText("Endgültig löschen")).not.toBeInTheDocument();
     });
 
-    fireEvent.click(deleteButtons[1]!);
+    openPersonDelete(1);
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Anna Schmidt")).toBeInTheDocument();

@@ -8,7 +8,7 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
-import { Eye, Loader2, Plus, Search } from "lucide-react";
+import { Eye, Plus, Search } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import GuardianList from "./guardian-list";
 import GuardianFormModal from "./guardian-form-modal";
@@ -44,8 +44,15 @@ import {
   setGuardianPrimaryPhone,
   inviteGuardianToStudent,
   fetchGuardianDeletePreview,
+  fetchStudentGuardianEmailStates,
+  liftGuardianEmailBlock,
+  resumeGuardianEmails,
+  stopGuardianEmails,
 } from "@/lib/guardian-api";
-import type { InviteGuardianResult } from "@/lib/guardian-api";
+import type {
+  GuardianEmailState,
+  InviteGuardianResult,
+} from "@/lib/guardian-api";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -53,7 +60,10 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { formErrorMessage } from "~/components/ui/form-error";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { createLogger } from "~/lib/logger";
 import { displayEmail } from "~/lib/demo-build";
 import { useSession } from "next-auth/react";
@@ -61,6 +71,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StudentPaymentCard } from "./student-payment-card";
 import { hasPermission } from "~/lib/auth-utils";
 import { parentsConcept } from "~/lib/concepts/parents";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "StudentGuardianManager" });
 
@@ -71,21 +82,64 @@ function inviteSuccessMessage(
   name: string,
   email: string,
   confirmRoleUpgrade: boolean,
+  mailHeld = false,
 ): string {
   switch (outcome) {
     case "invited":
-      return `Die Einladung an ${email} ist gesendet.`;
+      return `Die Einladung an ${email} wird gesendet. Den Stand sehen Sie bei der Person.`;
     case "pending_approval":
       return `Die Anfrage für ${name} wartet auf Freigabe.`;
     case "already_linked":
     case "linked_existing_account":
+      if (mailHeld) {
+        return `${name} ist verknüpft. An ${email} geht kein Hinweis raus. Den Grund sehen Sie bei der Person.`;
+      }
       return confirmRoleUpgrade
         ? `${name} hat jetzt vollen Zugriff.`
-        : `${name} hat schon ein Konto. Ein Hinweis zum Elternportal ist an ${email} gesendet.`;
+        : `${name} hat schon ein Konto. Ein Hinweis zum Elternportal wird an ${email} gesendet.`;
     default:
       return `${name} ist gespeichert.`;
   }
 }
+
+type GuardianEmailChange = "stop" | "resume" | "lift";
+
+const EMAIL_CHANGE_COPY: Record<
+  GuardianEmailChange,
+  {
+    readonly title: string;
+    readonly confirm: string;
+    readonly text: string;
+    readonly object: string;
+    readonly run: (guardianId: string) => Promise<void>;
+    readonly done: (name: string) => string;
+  }
+> = {
+  stop: {
+    title: "Mails stoppen?",
+    confirm: "Stoppen",
+    text: "Diese Person bekommt dann keine Mails der Schule mehr: keine Einladung, keine Elternbriefe, keine Termine. Das gilt auch nach einer neuen Adresse. Anmeldecodes und Mails zum Passwort kommen weiter an. Abrechnungsbriefe des Trägers auch. Nutzt noch jemand diese Adresse, gehen Mails an die Adresse weiter raus.",
+    object: "der Stopp der Mails",
+    run: stopGuardianEmails,
+    done: (name) => `Die Mails an ${name} sind gestoppt.`,
+  },
+  resume: {
+    title: "Mails wieder senden?",
+    confirm: "Wieder senden",
+    text: "Diese Person bekommt dann wieder Mails der Schule.",
+    object: "der Stopp der Mails",
+    run: resumeGuardianEmails,
+    done: (name) => `${name} bekommt wieder Mails.`,
+  },
+  lift: {
+    title: "Sperre aufheben?",
+    confirm: "Aufheben",
+    text: "moto sendet dann wieder Mails an diese Adresse. Kommt erneut eine Mail zurück, wird die Adresse wieder gesperrt.",
+    object: "die Sperre",
+    run: liftGuardianEmailBlock,
+    done: (name) => `Die Sperre für ${name} ist aufgehoben.`,
+  },
+};
 
 interface StudentGuardianManagerProps {
   readonly studentId: string;
@@ -106,6 +160,22 @@ export default function StudentGuardianManager({
   const showLoadError = loadError.show;
   const clearLoadError = loadError.clear;
   const latestLoadRef = useRef<() => void>(() => undefined);
+  const [emailStates, setEmailStates] = useState<
+    Record<string, GuardianEmailState> | undefined
+  >(undefined);
+  const emailStatesLoad = useApiLoadError();
+  const showEmailStatesError = emailStatesLoad.show;
+  const clearEmailStatesError = emailStatesLoad.clear;
+  // Stopping and freeing an address change what reaches a family: ask once.
+  const [emailBlockChange, setEmailBlockChange] = useState<{
+    guardian: GuardianWithRelationship;
+    action: GuardianEmailChange;
+  } | null>(null);
+  const emailChangeCopy = emailBlockChange
+    ? EMAIL_CHANGE_COPY[emailBlockChange.action]
+    : null;
+  const emailBlockErrors = useApiFormError();
+  const [isChangingEmailBlock, setIsChangingEmailBlock] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [editingGuardian, setEditingGuardian] = useState<
@@ -168,6 +238,24 @@ export default function StudentGuardianManager({
     };
   }, []);
 
+  // The mail state comes on its own: without it the list still shows who to
+  // call, and the failure stands above the list with its own retry.
+  const loadEmailStates = useCallback(async () => {
+    try {
+      setEmailStates(await fetchStudentGuardianEmailStates(studentId));
+      clearEmailStatesError();
+    } catch (err) {
+      logger.error("guardian_email_status_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
+      void showEmailStatesError(err, {
+        object: "der Stand der E-Mails",
+        retry: () => void loadEmailStates(),
+      });
+    }
+  }, [studentId, showEmailStatesError, clearEmailStatesError]);
+
   // Load guardians
   // Never rejects: a failed load shows its error where the list belongs.
   const loadGuardians = useCallback(async () => {
@@ -177,6 +265,7 @@ export default function StudentGuardianManager({
       setGuardians(data);
       setLoadFailed(false);
       clearLoadError();
+      void loadEmailStates();
     } catch (err) {
       logger.error("guardians_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -190,7 +279,7 @@ export default function StudentGuardianManager({
     } finally {
       setIsLoading(false);
     }
-  }, [studentId, showLoadError, clearLoadError]);
+  }, [studentId, showLoadError, clearLoadError, loadEmailStates]);
   useLayoutEffect(() => {
     latestLoadRef.current = () => void loadGuardians();
   });
@@ -452,8 +541,10 @@ export default function StudentGuardianManager({
           getGuardianFullName(guardian),
           email,
           confirmRoleUpgrade,
+          result.mail_held,
         ),
       );
+      await loadEmailStates();
     } catch (err) {
       logger.error("guardian_invite_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -465,6 +556,38 @@ export default function StudentGuardianManager({
       });
     } finally {
       setInvitingGuardianId(null);
+    }
+  };
+
+  const closeEmailBlockChange = () => {
+    emailBlockErrors.clear();
+    setEmailBlockChange(null);
+  };
+
+  const confirmEmailBlockChange = async () => {
+    if (!emailBlockChange) return;
+    const { guardian, action } = emailBlockChange;
+    emailBlockErrors.clear();
+    setIsChangingEmailBlock(true);
+    try {
+      await EMAIL_CHANGE_COPY[action].run(guardian.id);
+      toastSuccess(
+        EMAIL_CHANGE_COPY[action].done(getGuardianFullName(guardian)),
+      );
+      setEmailBlockChange(null);
+      await loadEmailStates();
+    } catch (err) {
+      logger.error("guardian_email_block_change_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+        action,
+      });
+      await emailBlockErrors.show(err, {
+        object: EMAIL_CHANGE_COPY[action].object,
+        retry: () => void confirmEmailBlockChange(),
+      });
+    } finally {
+      setIsChangingEmailBlock(false);
     }
   };
 
@@ -654,9 +777,7 @@ export default function StudentGuardianManager({
     (failedWithoutData && formErrorMessage(loadError.error) === null)
   ) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
-      </div>
+      <Loading fullPage={false} message="Bezugspersonen werden geladen …" />
     );
   }
 
@@ -747,11 +868,29 @@ export default function StudentGuardianManager({
 
       {/* Guardian List */}
       <div className="space-y-3">
+        <LoadErrorAlert error={emailStatesLoad.error} className="mb-3" />
         <GuardianList
           guardians={guardians}
           onEdit={readOnly ? undefined : handleOpenEditModal}
           onInvite={readOnly ? undefined : (g) => void handleInviteGuardian(g)}
           invitingGuardianId={invitingGuardianId}
+          emailStates={emailStates}
+          onStopEmails={
+            readOnly
+              ? undefined
+              : (guardian) => setEmailBlockChange({ guardian, action: "stop" })
+          }
+          onLiftEmailBlock={
+            readOnly
+              ? undefined
+              : (guardian) => setEmailBlockChange({ guardian, action: "lift" })
+          }
+          onResumeEmails={
+            readOnly
+              ? undefined
+              : (guardian) =>
+                  setEmailBlockChange({ guardian, action: "resume" })
+          }
           readOnly={readOnly}
           showRelationship={true}
         />
@@ -786,6 +925,19 @@ export default function StudentGuardianManager({
       />
 
       {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={emailBlockChange !== null}
+        onClose={closeEmailBlockChange}
+        onConfirm={() => void confirmEmailBlockChange()}
+        title={emailChangeCopy?.title ?? ""}
+        confirmText={emailChangeCopy?.confirm ?? ""}
+        cancelText="Abbrechen"
+        isConfirmLoading={isChangingEmailBlock}
+      >
+        <p className="text-sm text-gray-600">{emailChangeCopy?.text}</p>
+        <FormErrorAlert message={emailBlockErrors.error} className="mt-3" />
+      </ConfirmationModal>
+
       <GuardianDeleteModal
         isOpen={showDeleteModal}
         onClose={handleCancelDelete}

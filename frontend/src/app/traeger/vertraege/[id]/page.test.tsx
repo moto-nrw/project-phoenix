@@ -10,6 +10,7 @@ const { api, mockPush } = vi.hoisted(() => ({
     sendCareContracts: vi.fn(),
     resendCareContract: vi.fn(),
     discardCareContract: vi.fn(),
+    downloadCareContractVersion: vi.fn(),
   },
   mockPush: vi.fn(),
 }));
@@ -46,6 +47,7 @@ const DRAFT: CareContractDetail = {
   effectiveFrom: "2027-08-01",
   createdAt: "2026-09-01T08:00:00Z",
   sentAt: null,
+  concluded: null,
   version: {
     number: 1,
     effectiveFrom: "2027-08-01",
@@ -101,6 +103,7 @@ const DRAFT: CareContractDetail = {
   ],
   mailings: [],
   documentFrozen: false,
+  versions: [],
 };
 
 function renderPage() {
@@ -239,6 +242,86 @@ describe("TraegerVertragPage", () => {
     ).toBeInTheDocument();
   });
 
+  it.each([
+    ["stopped", /Die Schule hat die Mails an diese Person gestoppt/],
+    ["address", /bei einer Ihrer Schulen gesperrt/],
+    ["provider", /moto-Support/],
+    ["provider_unknown", /später noch einmal/],
+    ["delayed", /nicht noch einmal/],
+  ] as const)(
+    "names the reason of a %s block and offers no second mail",
+    async (sendBlock, text) => {
+      api.fetchCareContract.mockResolvedValue({
+        ...DRAFT,
+        status: "versendet",
+        documentFrozen: true,
+        mailings: [
+          {
+            recipient: "erika@example.org",
+            sentAt: "2026-09-02T08:00:00Z",
+            state: sendBlock === "delayed" ? "sent" : "failed",
+            outcome: sendBlock === "delayed" ? "delayed" : "provider_blocked",
+            sendBlock,
+          },
+        ],
+      });
+      renderPage();
+
+      expect(await screen.findByText(text)).toBeInTheDocument();
+      expect(screen.queryByText(/Prüfen Sie die Adresse/)).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Erneut senden" }),
+      ).toBeDisabled();
+    },
+  );
+
+  it.each([
+    ["unsubscribed", "Abgemeldet", /abgemeldet/],
+    ["complained", "Nicht zustellbar", /unerwünscht/],
+  ] as const)(
+    "does not read a %s mail as sent",
+    async (outcome, label, text) => {
+      api.fetchCareContract.mockResolvedValue({
+        ...DRAFT,
+        status: "versendet",
+        documentFrozen: true,
+        mailings: [
+          {
+            recipient: "erika@example.org",
+            sentAt: "2026-09-02T08:00:00Z",
+            state: "failed",
+            outcome,
+          },
+        ],
+      });
+      renderPage();
+
+      expect(await screen.findByText(label)).toBeInTheDocument();
+      expect(screen.getByText(text)).toBeInTheDocument();
+      expect(screen.queryByText("Gesendet")).toBeNull();
+    },
+  );
+
+  it("offers a new mail once the block is gone", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "versendet",
+      documentFrozen: true,
+      mailings: [
+        {
+          recipient: "erika@example.org",
+          sentAt: "2026-09-02T08:00:00Z",
+          state: "failed",
+          outcome: "provider_blocked",
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByText(/besteht nicht mehr/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Erneut senden" })).toBeEnabled();
+  });
+
   it("refreshes a queued delivery and enables retry when it fails", async () => {
     const pending: CareContractDetail = {
       ...DRAFT,
@@ -275,38 +358,43 @@ describe("TraegerVertragPage", () => {
     expect(screen.getByText(/kam nicht an/)).toBeInTheDocument();
   });
 
-  it("retries a failed delivery at the entered address without changing the contract", async () => {
-    api.fetchCareContract.mockResolvedValue({
-      ...DRAFT,
-      status: "versendet",
-      documentFrozen: true,
-      mailings: [
-        {
-          recipient: "alt@example.org",
-          sentAt: "2026-09-02T08:00:00Z",
-          state: "failed",
-        },
-      ],
-    });
-    api.resendCareContract.mockResolvedValue({ sent: ["7"], skipped: [] });
-    renderPage();
-    fireEvent.change(await screen.findByLabelText("Neue Versandadresse"), {
-      target: { value: "neu@example.org" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "An diese Adresse senden" }),
-    );
-    await waitFor(() =>
-      expect(api.resendCareContract).toHaveBeenCalledWith(
-        "7",
-        "neu@example.org",
-      ),
-    );
-    expect(
-      await screen.findByText("Der Vertrag ist an die neue Adresse unterwegs."),
-    ).toBeInTheDocument();
-    expect(api.sendCareContracts).not.toHaveBeenCalled();
-  });
+  it.each(["versendet", "aktiv"] as const)(
+    "retries a failed %s contract at the entered address without changing it",
+    async (status) => {
+      api.fetchCareContract.mockResolvedValue({
+        ...DRAFT,
+        status,
+        documentFrozen: true,
+        mailings: [
+          {
+            recipient: "alt@example.org",
+            sentAt: "2026-09-02T08:00:00Z",
+            state: "failed",
+          },
+        ],
+      });
+      api.resendCareContract.mockResolvedValue({ sent: ["7"], skipped: [] });
+      renderPage();
+      fireEvent.change(await screen.findByLabelText("Neue Versandadresse"), {
+        target: { value: "neu@example.org" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "An diese Adresse senden" }),
+      );
+      await waitFor(() =>
+        expect(api.resendCareContract).toHaveBeenCalledWith(
+          "7",
+          "neu@example.org",
+        ),
+      );
+      expect(
+        await screen.findByText(
+          "Der Vertrag ist an die neue Adresse unterwegs.",
+        ),
+      ).toBeInTheDocument();
+      expect(api.sendCareContracts).not.toHaveBeenCalled();
+    },
+  );
 
   it("shows an unknown delivery result without claiming success", async () => {
     api.fetchCareContract.mockResolvedValue({
@@ -358,5 +446,217 @@ describe("TraegerVertragPage", () => {
     expect(
       screen.queryByRole("button", { name: /Vertrag senden/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps a concluded contract unchanged and allows resending", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "aktiv",
+      sentAt: "2026-09-03T08:00:00Z",
+      concluded: { method: "mit_anmeldung", at: "2026-09-03T08:00:00Z" },
+      mailings: [
+        {
+          recipient: "erika@example.org",
+          sentAt: "2026-09-03T08:00:00Z",
+          state: "sent",
+        },
+      ],
+      documentFrozen: true,
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        /Der Vertrag gilt seit der Annahme der Anmeldung am 03\.09\.2026/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Am 03.09.2026 um 10:00 Uhr, bei der Annahme der Anmeldung",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("So steht es im abgeschlossenen Vertrag."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Aktiv")[0]).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /PDF herunterladen/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erneut senden" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Entwurf verwerfen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the versions of an active contract and from when a change applies", async () => {
+    const first = DRAFT.version.services;
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "aktiv",
+      sentAt: "2026-07-20T08:00:00Z",
+      concluded: { method: "mit_anmeldung", at: "2026-07-20T08:00:00Z" },
+      documentFrozen: true,
+      version: { ...DRAFT.version, effectiveFrom: "2026-08-01" },
+      versions: [
+        {
+          number: 1,
+          status: "abgeloest",
+          source: "abschluss",
+          effectiveFrom: "2026-08-01",
+          endsOn: "2027-02-28",
+          validUntil: "2027-02-28",
+          services: first,
+          createdAt: "2026-07-20T08:00:00Z",
+        },
+        {
+          number: 2,
+          status: "wirksam",
+          source: "buchungsaenderung",
+          effectiveFrom: "2027-03-01",
+          endsOn: null,
+          validUntil: null,
+          services: [
+            ...first.slice(0, 2),
+            {
+              weekday: "wed",
+              careOfferingId: "5",
+              moduleName: "Offene Ganztagsschule",
+              endsAt: "16:30",
+              lastDay: null,
+            },
+          ],
+          createdAt: "2026-09-01T08:00:00Z",
+        },
+      ],
+    } satisfies CareContractDetail);
+    api.downloadCareContractVersion.mockResolvedValue({
+      blob: new Blob(["%PDF"], { type: "application/pdf" }),
+      filename: "betreuungsvertrag-7-version-2.pdf",
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "Ab 01.03.2027 gilt Version 2. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Gilt jetzt")).toBeInTheDocument();
+    expect(screen.getByText("Gilt ab 01.03.2027")).toBeInTheDocument();
+    expect(
+      screen.getByText("01.08.2026 bis 28.02.2027 · Vertragsabschluss"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "ab 01.03.2027 · Änderung der Betreuung · 2 Tage geändert",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Geändert")).toHaveLength(2);
+    // The first version ends the day before the switch; the contract runs on.
+    expect(
+      screen.getByText("Bis zum Ende des Schuljahres"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/endet am 28\.02\.2027/)).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "PDF von Version 2 herunterladen" }),
+    );
+    await waitFor(() =>
+      expect(api.downloadCareContractVersion).toHaveBeenCalledWith("7", 2),
+    );
+  });
+
+  it("announces no change for a contract that only starts later", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "aktiv",
+      sentAt: "2026-07-20T08:00:00Z",
+      concluded: { method: "mit_anmeldung", at: "2026-07-20T08:00:00Z" },
+      documentFrozen: true,
+      versions: [
+        {
+          number: 1,
+          status: "wirksam",
+          source: "abschluss",
+          effectiveFrom: "2027-08-01",
+          endsOn: null,
+          validUntil: null,
+          services: DRAFT.version.services,
+          createdAt: "2026-07-20T08:00:00Z",
+        },
+      ],
+    } satisfies CareContractDetail);
+    renderPage();
+
+    expect(await screen.findByText("Gilt ab 01.08.2027")).toBeInTheDocument();
+    expect(screen.queryByText(/gilt Version 1/)).not.toBeInTheDocument();
+  });
+
+  it("lists a change that goes in front of a planned version by its date", async () => {
+    const monday = DRAFT.version.services.slice(0, 2);
+    const late = { ...monday[1]!, endsAt: "16:30" };
+    const version = (
+      number: number,
+      status: "wirksam" | "abgeloest",
+      effectiveFrom: string,
+      validUntil: string | null,
+      services: CareContractDetail["version"]["services"],
+    ) => ({
+      number,
+      status,
+      source:
+        number === 1 ? ("abschluss" as const) : ("buchungsaenderung" as const),
+      effectiveFrom,
+      endsOn: null,
+      validUntil,
+      services,
+      createdAt: "2026-09-01T08:00:00Z",
+    });
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "aktiv",
+      sentAt: "2026-07-20T08:00:00Z",
+      concluded: { method: "mit_anmeldung", at: "2026-07-20T08:00:00Z" },
+      documentFrozen: true,
+      versions: [
+        version(1, "abgeloest", "2026-08-01", "2027-01-31", monday),
+        version(2, "wirksam", "2027-03-01", null, [
+          ...monday,
+          { ...monday[1]!, weekday: "wed" },
+        ]),
+        {
+          ...version(3, "abgeloest", "2027-02-01", "2027-02-28", [
+            monday[0]!,
+            late,
+          ]),
+          endsOn: "2027-07-31",
+        },
+      ],
+    } satisfies CareContractDetail);
+    renderPage();
+
+    const headings = await screen.findAllByRole("heading", { level: 3 });
+    expect(headings.map((heading) => heading.textContent)).toEqual([
+      "Version 2",
+      "Version 3",
+      "Version 1",
+    ]);
+    expect(
+      screen.getByText(
+        "Ab 01.02.2027 gilt Version 3. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "01.02.2027 bis 28.02.2027 · Änderung der Betreuung · 1 Tag geändert",
+      ),
+    ).toBeInTheDocument();
+    // The contract ends as the planned version from March says (open),
+    // not as version 3, which has the highest number.
+    expect(
+      screen.getByText("Bis zum Ende des Schuljahres"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/endet am 31\.07\.2027/)).not.toBeInTheDocument();
   });
 });

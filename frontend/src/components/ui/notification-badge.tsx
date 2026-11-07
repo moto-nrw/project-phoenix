@@ -1,4 +1,5 @@
-export type NotificationBadgeTone = "staff" | "parents" | "feedback";
+export type NotificationBadgeTone =
+  "staff" | "parents" | "feedback" | "danger" | "blue";
 export type NotificationBadgeSize = "sm" | "md";
 
 // The count is small bold text, so WCAG AA wants 4.5:1 against the pill.
@@ -9,6 +10,8 @@ const TONE_CLASSES: Record<NotificationBadgeTone, string> = {
   staff: "bg-moto-orange-strong text-white",
   parents: "bg-moto-blue-strong text-white",
   feedback: "bg-moto-coral-strong text-white",
+  danger: "bg-moto-red text-white",
+  blue: "bg-moto-blue-strong text-white",
 };
 
 const SIZE_CLASSES: Record<NotificationBadgeSize, string> = {

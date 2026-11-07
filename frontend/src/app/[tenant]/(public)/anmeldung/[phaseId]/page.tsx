@@ -32,6 +32,7 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; phaseId: string }>;
@@ -181,9 +182,9 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
           </div>
 
           {loading ? (
-            <div className="moto-content-surface rounded-2xl border p-6 text-sm font-medium text-gray-600">
-              {t("detailsLoading")}
-            </div>
+            <SkeletonRegion label={t("detailsLoading")}>
+              <FormSkeleton />
+            </SkeletonRegion>
           ) : loadError || gradeLevelMax === null ? (
             <LoadErrorAlert error={loadError ?? t("detailsLoadFailed")} />
           ) : (

@@ -34,6 +34,7 @@ var (
 	ErrEmailWebhookDisabled = errors.New("email webhook is disabled at the provider")
 	ErrEmailEventsMissed    = errors.New("the provider reported events the webhook never delivered")
 	ErrEmailEventsSilent    = errors.New("accepted mails stayed without any provider event")
+	ErrEmailDelayOverdue    = errors.New("delayed mails passed the delay limit without a final event")
 )
 
 // EmailReconciliation compares open mails with the provider's own record.
@@ -84,8 +85,8 @@ var (
 
 // reconcileRun counts what one run found.
 type reconcileRun struct {
-	checked, missed, silent int
-	failures                []error
+	checked, missed, silent, overdue int
+	failures                         []error
 }
 
 // ReconcileEmailDelivery brings the open mails up to the provider's record and returns the alarms.
@@ -152,6 +153,9 @@ func (r *EmailReconciliation) reconcileMail(ctx context.Context, mail domain.Pro
 	if state == "" && turnedSilent(mail, now) {
 		r.reportSilence(mail, unknown, run)
 	}
+	if state == domain.EmailDeliveryDelayed && turnedOverdue(mail, now) {
+		run.overdue++
+	}
 	return ctx.Err() == nil
 }
 
@@ -193,6 +197,15 @@ func turnedSilent(mail domain.ProviderMail, now time.Time) bool {
 	return mail.CheckedAt == nil || mail.CheckedAt.Sub(mail.SentAt) <= emailEventSilence
 }
 
+// turnedOverdue reports whether the mail's delay passed the limit since it was
+// last asked about, so one delay raises one alarm.
+func turnedOverdue(mail domain.ProviderMail, now time.Time) bool {
+	if mail.StateAt == nil || now.Sub(*mail.StateAt) <= deliveryContract.EmailDelayLimit {
+		return false
+	}
+	return mail.CheckedAt == nil || mail.CheckedAt.Sub(*mail.StateAt) <= deliveryContract.EmailDelayLimit
+}
+
 func (r *EmailReconciliation) alarms(run *reconcileRun) error {
 	failures := run.failures
 	if run.missed > 0 {
@@ -201,58 +214,105 @@ func (r *EmailReconciliation) alarms(run *reconcileRun) error {
 	if run.silent > 0 {
 		failures = append(failures, fmt.Errorf("%w: %d", ErrEmailEventsSilent, run.silent))
 	}
+	if run.overdue > 0 {
+		failures = append(failures, fmt.Errorf("%w: %d", ErrEmailDelayOverdue, run.overdue))
+	}
 	if err := errors.Join(failures...); err != nil {
 		r.logger.Error("email delivery alarm",
 			slog.Int("checked", run.checked),
 			slog.Int("missed", run.missed),
 			slog.Int("silent", run.silent),
+			slog.Int("overdue", run.overdue),
 			slog.String("error", err.Error()))
 		return err
 	}
 	return nil
 }
 
-// LiftEmailSuppression frees a corrected address: first at the provider, whose
-// hard bounce block applies to the whole team and never expires, then on the
-// school's list. Any error means the address stays blocked.
+// ProviderEmailBlocks reads the provider's current block of the addresses. Without
+// a provider no such block exists. It answers for every address and has no error:
+// an address it could not read is EmailProviderBlockUnreadable. The caller only asks
+// about addresses its own mail ran into, so this says nothing about anyone else's.
 //
-// A block at the provider is only the school's to lift if the address is on its
-// list or the school has a mail to exactly this address. Plain SMTP has no
-// provider and fills the school's list through rejections, so there only the
-// list counts. A complaint's block needs a review by the provider's support, and
-// a manual or unsubscribe block is someone's decision: both stay, and nothing
-// else changes either.
+// Callers read this inside their transaction, because the routes run in one and the
+// answer belongs to the check next to the write. That is a named exception to
+// keeping provider calls out of transactions (#5957): it happens only for an address
+// whose mail left a block, and deliveryContract.ProviderBlockBudget bounds each call,
+// or a whole request that shares one. The provider is asked about one address at a
+// time, once per distinct address of a call; whatever the budget leaves out counts as
+// unreadable and is not offered. The runbook (monitoring/runbooks/email-delivery.md)
+// states the limit.
+func (r *EmailReconciliation) ProviderEmailBlocks(ctx context.Context, addresses []string) map[string]deliveryContract.EmailProviderBlock {
+	blocks := make(map[string]deliveryContract.EmailProviderBlock, len(addresses))
+	budget := deliveryContract.ProviderBlockBudgetOf(ctx)
+	for _, address := range addresses {
+		key := deliveryContract.NormalizedEmailAddress(address)
+		if _, known := blocks[key]; known || key == "" {
+			continue
+		}
+		if r.api == nil {
+			blocks[key] = deliveryContract.EmailProviderBlockNone
+			continue
+		}
+		blocks[key] = r.readProviderBlock(ctx, budget, key)
+	}
+	return blocks
+}
+
+func (r *EmailReconciliation) readProviderBlock(ctx context.Context, budget *deliveryContract.ProviderBlockBudget, address string) deliveryContract.EmailProviderBlock {
+	active := false
+	err := budget.Attempt(ctx, func(readCtx context.Context) error {
+		var err error
+		active, err = r.api.SuppressionActive(readCtx, address)
+		return err
+	})
+	switch {
+	case errors.Is(err, deliveryContract.ErrProviderBlockBudgetSpent):
+		return deliveryContract.EmailProviderBlockUnreadable
+	case errors.Is(err, domain.ErrProviderNotFound):
+		return deliveryContract.EmailProviderBlockNone
+	case err != nil:
+		if errors.Is(err, domain.ErrProviderRateLimited) {
+			budget.Stop()
+		}
+		r.logger.Warn("the provider's block could not be read", slog.String("error", err.Error()))
+		return deliveryContract.EmailProviderBlockUnreadable
+	case active:
+		return deliveryContract.EmailProviderBlockActive
+	}
+	return deliveryContract.EmailProviderBlockNone
+}
+
+// LiftEmailSuppression frees an address someone at the school checked: first at
+// the provider, whose hard bounce block applies to the whole team and never
+// expires, then on the school's list. Any error means the address stays blocked.
+//
+// Only an entry on the school's own list opens this path. The list holds the
+// school's own bounces and complaints, so a school cannot lift, or even learn of, a
+// block another school caused, whatever mail it sent itself. An answer of the
+// provider that names a complaint stays generic: that complaint may be another
+// school's.
 func (r *EmailReconciliation) LiftEmailSuppression(ctx context.Context, tenantID int64, address string) error {
 	address = strings.ToLower(strings.TrimSpace(address))
 	reason, listed, err := r.store.EmailSuppressionReason(ctx, tenantID, address)
 	if err != nil {
 		return err
 	}
-	if listed && reason == domain.EmailDeliveryComplained {
-		return deliveryContract.ErrEmailSuppressionNeedsReview
-	}
 	if !listed {
-		mailed, err := r.schoolMailed(ctx, tenantID, address)
-		if err != nil {
-			return err
-		}
-		if !mailed {
-			return deliveryContract.ErrEmailSuppressionNotFound
-		}
+		return deliveryContract.ErrEmailSuppressionNotFound
+	}
+	if reason == domain.EmailSuppressionComplained {
+		return deliveryContract.ErrEmailSuppressionNeedsReview
 	}
 	if r.api != nil {
 		if err := r.api.LiftSuppression(ctx, address); err != nil {
+			if errors.Is(err, domain.ErrSuppressionNeedsReview) {
+				return deliveryContract.ErrEmailSuppressionStaysAtProvider
+			}
 			return liftFailure(err)
 		}
 	}
 	return liftFailure(r.store.DeleteEmailSuppression(ctx, tenantID, address))
-}
-
-func (r *EmailReconciliation) schoolMailed(ctx context.Context, tenantID int64, address string) (bool, error) {
-	if r.api == nil {
-		return false, nil
-	}
-	return r.store.SchoolMailedAddress(ctx, tenantID, address)
 }
 
 func liftFailure(err error) error {

@@ -95,7 +95,7 @@ describe("AddUnplannedStudentModal", () => {
     expect(mocks.fetchStudents).toHaveBeenCalledTimes(2);
     expect(mocks.fetchStudents).toHaveBeenLastCalledWith({
       page: 2,
-      page_size: 100,
+      pageSize: 100,
     });
   });
 

@@ -17,6 +17,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,7 +61,7 @@ func (r failingPhoneCreate) Create(context.Context, *peopleValues.GuardianProfil
 }
 
 func guardianAmbientTxContext() context.Context {
-	return tenant.WithTransactionForTest(context.Background(), struct{}{})
+	return tenanttest.WithTransaction(context.Background(), struct{}{})
 }
 
 // A fresh create fact replaces only the guardian existence read. Missing,
@@ -154,6 +155,7 @@ func (f *fakeProfileRepo) FindByIDForUpdate(ctx context.Context, id int64) (*peo
 func (f *fakeProfileRepo) Update(ctx context.Context, p *peopleValues.GuardianProfileSnapshot) error {
 	return f.updateFn(ctx, p)
 }
+func (f *fakeProfileRepo) SetEmailsStopped(context.Context, int64, bool) error { return nil }
 func (f *fakeProfileRepo) LockByIDForUpdate(ctx context.Context, id int64) error {
 	return f.lockFn(ctx, id)
 }

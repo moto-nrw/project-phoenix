@@ -41,6 +41,12 @@ const (
 	// "Anzeigen"-toggle (#1423). StudentID stays NULL; metadata carries
 	// staff_id.
 	ResourceTypeStaffFinancialReveal = "staff_financial_reveal"
+	// ResourceTypeGuardianEmailStop and ResourceTypeGuardianEmailLift record a
+	// person of the school stopping a guardian's mail, taking the stop back, or
+	// lifting the block on the address (#5934). StudentID stays NULL; metadata
+	// carries guardian_profile_id and action, never the address.
+	ResourceTypeGuardianEmailStop = "guardian_email_stop"
+	ResourceTypeGuardianEmailLift = "guardian_email_lift"
 	// ResourceTypeGuardianFinancialView records serving the MASKED bank
 	// details of one guardian (#2608). StudentID stays NULL; metadata carries
 	// guardian_profile_id.
@@ -168,6 +174,18 @@ const (
 	// services and fee. StudentID is NULL; metadata carries the view, the
 	// row count and the contract IDs. One row per school and read.
 	ResourceTypeCareContracts = "care_contracts"
+	// ResourceTypeCareTimeOverruns records the Träger-Büro reading the
+	// children of a school with overruns of their booked care time by name
+	// (#4683, ADR 0156). StudentID is NULL; RangeStart and RangeEnd span the
+	// window; metadata carries the view, the row count and the student IDs.
+	// One row per school and read.
+	ResourceTypeCareTimeOverruns = "care_time_overruns"
+	// ResourceTypeTraegerDocumentDownload records the Träger-Büro
+	// downloading one of its shared documents (#4692, ADR 0084 section 7):
+	// written at each school the document reaches through an active release,
+	// at every school of the Träger while it reaches none. StudentID is NULL;
+	// metadata carries the channel, organization_id and document_id.
+	ResourceTypeTraegerDocumentDownload = "traeger_document_download"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

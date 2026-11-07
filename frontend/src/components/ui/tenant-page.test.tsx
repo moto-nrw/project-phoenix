@@ -158,6 +158,12 @@ describe("TenantPage", () => {
     );
   });
 
+  it("blendet die Kopfkarte auf einer druckbaren Inhaltsansicht aus", () => {
+    render(<TenantPage title="Elternsprechtag" printHideHeader />);
+
+    expect(screen.getByRole("banner")).toHaveClass("print:hidden");
+  });
+
   it("zeigt beim Laden ein Skelett statt der Statuszeile", () => {
     const { container } = render(
       <TenantPage title="Kinder" stats="116 Kinder" statsLoading>

@@ -11,7 +11,7 @@ import {
   PrivacyConsentSection,
   DepartureSection,
 } from "./student-form-fields";
-import type { Student } from "@/lib/api";
+import type { Student } from "~/lib/student-helpers";
 
 describe("PersonalInfoSection", () => {
   const mockFormData: Partial<Student> = {

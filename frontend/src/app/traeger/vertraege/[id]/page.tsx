@@ -3,7 +3,8 @@
 // Ein Betreuungsvertrag (#4678, ADR 0153): was der Vertrag festhält, an wen
 // er geht, wann er versendet wurde, und das PDF, das die Eltern bekommen.
 // Ein Entwurf lässt sich senden oder verwerfen; ein versendeter Vertrag
-// behält sein PDF und lässt sich erneut senden.
+// behält sein PDF und lässt sich erneut senden. Ein abgeschlossener Vertrag
+// (#4680) zeigt, wann und wie er zustande kam; erneut senden lässt er sich mit demselben PDF.
 
 import { Download, RotateCw, Send, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -15,12 +16,17 @@ import {
   MAIL_STATE_TONES,
   SEND_SKIP_LABELS,
   childName,
+  formatConclusion,
   formatModules,
   formatNotice,
   formatService,
   formatTerm,
   serviceDays,
 } from "~/components/traeger/care-contract-format";
+import {
+  CareContractVersions,
+  plannedVersion,
+} from "~/components/traeger/care-contract-versions";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -30,7 +36,10 @@ import { Input } from "~/components/ui/input";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { PdfPreview } from "~/components/ui/pdf-preview";
 import { SectionCard } from "~/components/ui/section-card";
-import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
@@ -45,10 +54,13 @@ import {
   formatBerlinTime,
   formatDate,
 } from "~/lib/date-helpers";
+import { mailStatusCopy } from "~/lib/email-delivery-status";
 import { downloadBlob } from "~/lib/file-download";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   type CareContractDetail,
+  type ContractVersion,
   discardCareContract,
   downloadCareContract,
   fetchCareContract,
@@ -79,6 +91,7 @@ export default function TraegerVertragPage() {
   const recipientErrors = useApiFormError(recipientForm);
   const [recipientEmail, setRecipientEmail] = useState("");
   const { success, warning } = useToast();
+  const today = useBerlinToday();
 
   const load = useCallback(async () => {
     try {
@@ -95,13 +108,16 @@ export default function TraegerVertragPage() {
     }
   }, [id, clearLoadError, showLoadError]);
 
+  // A new Berlin day can put another version in force: read the contract
+  // again, so booked care, contribution and PDF follow it (#4681).
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, today]);
 
   // The preview follows the stored PDF once the contract is sent.
   const frozen = contract?.documentFrozen;
   const loaded = contract !== null;
+  const versionInForce = contract?.version.number;
   useEffect(() => {
     if (!loaded) return;
     let url: string | null = null;
@@ -123,9 +139,9 @@ export default function TraegerVertragPage() {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-    // `frozen` is no input of the effect: a new PDF exists only after the
-    // first send, so the preview reloads then.
-  }, [id, frozen, loaded]);
+    // `frozen` and the version in force are no inputs of the effect: a new
+    // PDF exists only after the first send or when another version holds.
+  }, [id, frozen, loaded, versionInForce]);
 
   const refreshDelivery = async () => {
     setRefreshing(true);
@@ -210,9 +226,20 @@ export default function TraegerVertragPage() {
   };
 
   const isDraft = contract?.status === "entwurf";
-  const canSend = isDraft || contract?.status === "versendet";
+  const canSend =
+    isDraft || contract?.status === "versendet" || contract?.status === "aktiv";
   const lastMail = contract?.mailings[0];
   const party = contract?.parties[0];
+  const planned = contract
+    ? plannedVersion(contract.versions, today)
+    : undefined;
+  // An active or ended contract shows its versions, so the office sees where
+  // an approved change will appear; a draft has only its first version.
+  const showVersions =
+    contract !== null &&
+    (contract.versions.length > 1 ||
+      contract.status === "aktiv" ||
+      contract.status === "beendet");
 
   return (
     <TenantPage
@@ -275,7 +302,12 @@ export default function TraegerVertragPage() {
                 type="button"
                 variant={isDraft ? "success" : "outline"}
                 size="md"
-                disabled={sending || refreshing || lastMail?.state === "queued"}
+                disabled={
+                  sending ||
+                  refreshing ||
+                  lastMail?.state === "queued" ||
+                  (!isDraft && !!lastMail?.sendBlock)
+                }
                 onClick={() => void send()}
               >
                 {isDraft ? (
@@ -316,18 +348,31 @@ export default function TraegerVertragPage() {
       {contract ? (
         <>
           <StatusNotice contract={contract} />
+          {planned ? (
+            <Alert
+              type="info"
+              message={`Ab ${formatDate(planned.effectiveFrom)} gilt Version ${planned.number}. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.`}
+            />
+          ) : null}
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="flex flex-col gap-6 lg:col-span-2">
               <SectionCard
                 concept={careContractsConcept}
                 title="Vertragsangaben"
                 description={
-                  contract.documentFrozen
-                    ? "So steht es im versendeten Vertrag."
-                    : "So steht es im Vertrag, wenn Sie ihn senden."
+                  contract.concluded
+                    ? "So steht es im abgeschlossenen Vertrag."
+                    : contract.documentFrozen
+                      ? "So steht es im versendeten Vertrag."
+                      : "So steht es im Vertrag, wenn Sie ihn senden."
                 }
               >
                 <DataGrid>
+                  {contract.concluded ? (
+                    <DataField label="Abgeschlossen">
+                      {formatConclusion(contract.concluded)}
+                    </DataField>
+                  ) : null}
                   <DataField label="Kind">{childName(contract)}</DataField>
                   <DataField label="Geboren am">
                     {contract.version.childBirthDate
@@ -346,10 +391,7 @@ export default function TraegerVertragPage() {
                     {formatDate(contract.version.effectiveFrom)}
                   </DataField>
                   <DataField label="Laufzeit">
-                    {formatTerm(
-                      contract.version.terms,
-                      contract.version.endsOn,
-                    )}
+                    {formatTerm(contract.version.terms, contractEnd(contract))}
                   </DataField>
                   <DataField label="Beitrag im Monat">
                     {contract.version.priceCents !== null
@@ -366,7 +408,11 @@ export default function TraegerVertragPage() {
               </SectionCard>
               <SectionCard
                 title="Gebuchte Betreuung"
-                description="Je Wochentag das Modul und bis wann das Kind betreut wird."
+                description={
+                  contract.versions.length > 1
+                    ? `Je Wochentag das Modul und bis wann das Kind betreut wird. So gilt es in Version ${contract.version.number}.`
+                    : "Je Wochentag das Modul und bis wann das Kind betreut wird."
+                }
               >
                 <DataGrid>
                   {serviceDays(contract.version.services).map((day) => (
@@ -459,15 +505,17 @@ export default function TraegerVertragPage() {
                           </span>
                         </span>
                         <StatusBadge
-                          label={MAIL_STATE_LABELS[mailing.state]}
-                          tone={MAIL_STATE_TONES[mailing.state]}
+                          label={contractMailBadge(mailing).label}
+                          tone={contractMailBadge(mailing).tone}
                         />
                       </li>
                     ))}
                   </ol>
                 ) : null}
-                {contract.status === "versendet" &&
-                lastMail?.state === "failed" ? (
+                {!isDraft &&
+                canSend &&
+                lastMail?.state === "failed" &&
+                lastMail.sendBlock !== "stopped" ? (
                   <form
                     ref={recipientForm}
                     noValidate
@@ -508,6 +556,12 @@ export default function TraegerVertragPage() {
               </SectionCard>
             </div>
           </div>
+          {showVersions ? (
+            <CareContractVersions
+              contractId={contract.id}
+              versions={contract.versions}
+            />
+          ) : null}
           <SectionCard
             title={contract.documentFrozen ? "PDF für die Eltern" : "Vorschau"}
             description={
@@ -527,6 +581,85 @@ export default function TraegerVertragPage() {
   );
 }
 
+/**
+ * The last day of the contract: the end of its newest effective version.
+ * A version ends the day before a module switch, which is no end of the
+ * contract (#4681).
+ */
+function contractEnd(contract: CareContractDetail): string | null {
+  // The latest effective date, not the highest number: a change may go in
+  // front of a planned version.
+  const newest = contract.versions
+    .filter(
+      (version) =>
+        version.status === "wirksam" || version.status === "abgeloest",
+    )
+    .reduce<ContractVersion | null>(
+      (latest, version) =>
+        latest === null || version.effectiveFrom > latest.effectiveFrom
+          ? version
+          : latest,
+      null,
+    );
+  return newest ? newest.endsOn : contract.version.endsOn;
+}
+
+type ContractMailing = CareContractDetail["mailings"][number];
+
+// The same words as the Abrechnung's letters: only a delivery report reads as
+// delivered, and an outcome outranks the plain state of the mail.
+function contractMailBadge(mailing: ContractMailing): {
+  readonly label: string;
+  readonly tone: StatusBadgeTone;
+} {
+  const copy =
+    mailing.sendBlock === "provider"
+      ? mailStatusCopy("provider_blocked", "", false, "active")
+      : mailing.sendBlock === "provider_unknown"
+        ? mailStatusCopy(mailing.outcome, "", false, "unreadable")
+        : mailing.state === "queued" || mailing.outcome === "accepted"
+          ? null
+          : mailStatusCopy(mailing.outcome);
+  return (
+    copy ?? {
+      label: MAIL_STATE_LABELS[mailing.state],
+      tone: MAIL_STATE_TONES[mailing.state],
+    }
+  );
+}
+
+// The reason and the next step as they are now. "Prüfen Sie die Adresse" only
+// fits a mail that came back; a stop or a block has another way out.
+function contractHoldNotice(mailing: ContractMailing): string | null {
+  const other = "Unter „Versand“ können Sie eine andere Adresse verwenden.";
+  switch (mailing.sendBlock) {
+    case "stopped":
+      return "Die Schule hat die Mails an diese Person gestoppt. Klären Sie das mit der Schule, oder geben Sie den Vertrag anders weiter.";
+    case "address":
+      return `Die Adresse ${mailing.recipient} ist bei einer Ihrer Schulen gesperrt. Die Schule kann sie prüfen. ${other}`;
+    case "provider":
+      return `Die Adresse ${mailing.recipient} ist gesperrt. Der moto-Support muss das klären. ${other}`;
+    case "provider_unknown":
+      return "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.";
+    case "delayed":
+      return "Die Mail kommt später an, es wird weiter versucht. Bitte senden Sie sie nicht noch einmal, sonst kommt sie doppelt an.";
+  }
+  switch (mailing.outcome) {
+    case "unsubscribed":
+      return `${mailing.recipient} hat sich von den Mails abgemeldet. Sprechen Sie die Person direkt an. ${other}`;
+    case "complained":
+      return `${mailing.recipient} hat eine Mail als unerwünscht gemeldet. Sprechen Sie die Person direkt an. ${other}`;
+    case "held_by_stop":
+    case "blocked":
+    case "provider_blocked":
+      return "Die Mail ging damals nicht raus. Die Sperre besteht nicht mehr. Sie können neu senden.";
+    case "overdue":
+      return "Die Mail ist seit Tagen verzögert. Sie können sie noch einmal senden.";
+    default:
+      return null;
+  }
+}
+
 function StatusNotice({
   contract,
 }: Readonly<{ contract: CareContractDetail }>) {
@@ -539,11 +672,23 @@ function StatusNotice({
       />
     );
   }
+  const held = last ? contractHoldNotice(last) : null;
+  if (held) {
+    return <Alert type="warning" message={held} />;
+  }
   if (last?.state === "failed") {
     return (
       <Alert
         type="warning"
         message={`Die Mail an ${last.recipient} kam nicht an. Prüfen Sie die Adresse. Unter „Versand“ können Sie eine andere Adresse verwenden.`}
+      />
+    );
+  }
+  if (contract.concluded?.method === "mit_anmeldung") {
+    return (
+      <Alert
+        type="success"
+        message={`Der Vertrag gilt seit der Annahme der Anmeldung am ${formatBerlinDate(contract.concluded.at)}. Die Eltern bekommen ihn per E-Mail und in der Eltern-App. Sie müssen nichts unterschreiben.`}
       />
     );
   }

@@ -104,14 +104,14 @@ func newNilDeviceDirectory() nilDeviceDirectory {
 }
 
 type stubSchoolLookup struct {
-	deleted bool
-	err     error
-	calls   int
+	closed bool
+	err    error
+	calls  int
 }
 
-func (s *stubSchoolLookup) IsSchoolDeleted(_ context.Context, _ int64) (bool, error) {
+func (s *stubSchoolLookup) IsSchoolClosed(_ context.Context, _ int64) (bool, error) {
 	s.calls++
-	return s.deleted, s.err
+	return s.closed, s.err
 }
 
 type tenantKey struct{}
@@ -564,7 +564,7 @@ func TestDevice_PINResolverWrongPIN(t *testing.T) {
 // School guard
 // =============================================================================
 
-func TestRejectDeletedSchool(t *testing.T) {
+func TestRejectClosedSchool(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -573,7 +573,7 @@ func TestRejectDeletedSchool(t *testing.T) {
 		wantReject bool
 	}{
 		{"active school", &stubSchoolLookup{}, false},
-		{"soft-deleted school", &stubSchoolLookup{deleted: true}, true},
+		{"inactive or soft-deleted school", &stubSchoolLookup{closed: true}, true},
 		{"nil lookup fails open", nil, false},
 		{"school not found", &stubSchoolLookup{err: ErrSchoolNotFound}, true},
 		{"wrapped not found", &stubSchoolLookup{err: fmt.Errorf("find: %w", ErrSchoolNotFound)}, true},
@@ -588,7 +588,7 @@ func TestRejectDeletedSchool(t *testing.T) {
 			device := &AuthenticatedDevice{DeviceID: "device-001", TenantID: 100}
 			authenticator := newTestAuthenticator(newMockDeviceDirectory(), withSchools(tc.schools))
 
-			result := authenticator.rejectDeletedSchool(context.Background(), device)
+			result := authenticator.rejectClosedSchool(context.Background(), device)
 			if !tc.wantReject {
 				assert.Nil(t, result)
 				return
@@ -600,13 +600,13 @@ func TestRejectDeletedSchool(t *testing.T) {
 	}
 }
 
-func TestRejectDeletedSchool_SkipsLookupWithoutTenant(t *testing.T) {
+func TestRejectClosedSchool_SkipsLookupWithoutTenant(t *testing.T) {
 	t.Parallel()
 
-	schools := &stubSchoolLookup{deleted: true}
+	schools := &stubSchoolLookup{closed: true}
 	authenticator := newTestAuthenticator(newMockDeviceDirectory(), withSchools(schools))
 
-	assert.Nil(t, authenticator.rejectDeletedSchool(context.Background(), &AuthenticatedDevice{DeviceID: "device-001"}))
+	assert.Nil(t, authenticator.rejectClosedSchool(context.Background(), &AuthenticatedDevice{DeviceID: "device-001"}))
 	assert.Zero(t, schools.calls)
 }
 
@@ -617,7 +617,7 @@ func TestDeviceOnly_DeletedSchool_Forbidden(t *testing.T) {
 	device := activeDevice("device-deleted-school")
 	device.TenantID = 100
 	directory.addDevice("valid-api-key-deleted", device)
-	authenticator := newTestAuthenticator(directory, withSchools(&stubSchoolLookup{deleted: true}))
+	authenticator := newTestAuthenticator(directory, withSchools(&stubSchoolLookup{closed: true}))
 
 	_, errResp := authenticator.authenticateDeviceOnly(context.Background(), bearer("valid-api-key-deleted"))
 	require.NotNil(t, errResp, "devices belonging to deleted schools must be rejected")

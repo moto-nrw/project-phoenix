@@ -1,5 +1,6 @@
 "use client";
 
+import { ListRow } from "~/components/ui/list-row";
 import {
   HANDOVER_ABSENT_WORDING,
   handoverDetail,
@@ -39,6 +40,8 @@ import { roomsConcept } from "~/lib/concepts/rooms";
 import { substitutionConcept } from "~/lib/concepts/substitution";
 import { responsibilityConcept } from "~/lib/concepts/responsibility";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 interface PlannedNowSectionProps {
   readonly plannedNow: PlannedTimetableInstance[];
@@ -391,23 +394,17 @@ function SlotStatusBadge({
 }: Readonly<{ instance: PlannedTimetableInstance }>) {
   if (instance.isOverdue) {
     return (
-      <span className="bg-moto-amber/20 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
-        Überfällig
-      </span>
+      <StatusColorBadge
+        label="Überfällig"
+        color={LOCATION_COLORS.WARNING}
+        compact
+      />
     );
   }
   if (instance.minutesUntilStart <= SOON_THRESHOLD_MINUTES) {
-    return (
-      <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-xs font-medium">
-        Startet gleich
-      </span>
-    );
+    return <StatusBadge label="Startet gleich" tone="green" compact />;
   }
-  return (
-    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-      Heute
-    </span>
-  );
+  return <StatusBadge label="Heute" tone="gray" compact />;
 }
 
 /**
@@ -421,15 +418,19 @@ function ResponsibilityBadge({
   if (!instance.isAssigned) return null;
   if (!instance.isPrimary && !instance.isSubstitute) return null;
   return (
-    <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-      <MotoConceptIcon
-        concept={
-          instance.isPrimary ? responsibilityConcept : substitutionConcept
-        }
-        size={16}
-      />
-      {instance.isPrimary ? "Zuständig" : "Vertretung"}
-    </span>
+    <StatusBadge
+      label={instance.isPrimary ? "Zuständig" : "Vertretung"}
+      tone="blue"
+      compact
+      icon={
+        <MotoConceptIcon
+          concept={
+            instance.isPrimary ? responsibilityConcept : substitutionConcept
+          }
+          size={16}
+        />
+      }
+    />
   );
 }
 
@@ -491,10 +492,9 @@ function RosterPreviewRow({
   // away from a check-in (#1747).
   const notScheduled = isNotScheduled(row);
   return (
-    <div
-      className={`rounded-lg px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)] ${
-        notScheduled ? "bg-gray-50" : "bg-white"
-      }`}
+    <ListRow
+      tone={notScheduled ? "muted" : "surface"}
+      className="block text-sm"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -525,14 +525,10 @@ function RosterPreviewRow({
               <CircleAlert className="h-4 w-4" aria-hidden="true" />
             </span>
           ) : null}
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600">
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: rosterDotColor(row) }}
-              aria-hidden="true"
-            />
-            {rosterStatusLabel(row)}
-          </span>
+          <StatusColorBadge
+            label={rosterStatusLabel(row)}
+            color={rosterStatusColor(row)}
+          />
         </div>
       </div>
       {classException ? (
@@ -558,19 +554,19 @@ function RosterPreviewRow({
           {warnings[0]?.message}
         </p>
       ) : null}
-    </div>
+    </ListRow>
   );
 }
 
 /**
- * The "Erwartet" dot is the one roster state with no standing in the location
+ * The "Erwartet" pill is the one roster state with no standing in the location
  * palette — it says "nothing has happened yet", so it takes the light neutral
  * from the shared palette rather than borrowing a status hue. Never a raw hex:
  * status and planning colours come from the tokens only.
  */
-const EXPECTED_DOT_COLOR = MOTO_COLOR_PALETTE.neutral.light;
+const EXPECTED_STATUS_COLOR = MOTO_COLOR_PALETTE.neutral.light;
 
-function rosterDotColor(row: TimetableRosterRow) {
+function rosterStatusColor(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") {
     return LOCATION_COLORS.GROUP_ROOM;
   }
@@ -587,7 +583,7 @@ function rosterDotColor(row: TimetableRosterRow) {
   // isNotScheduled branch above already owns. Sharing the hex would make a
   // child that is merely expected indistinguishable from one the care plan
   // leaves out today.
-  return EXPECTED_DOT_COLOR;
+  return EXPECTED_STATUS_COLOR;
 }
 
 function rosterStatusLabel(row: TimetableRosterRow) {

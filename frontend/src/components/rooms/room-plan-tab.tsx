@@ -8,6 +8,7 @@
 
 "use client";
 
+import { FramedList } from "~/components/ui/framed-list";
 import { useMemo } from "react";
 
 import { ButtonLink } from "~/components/ui/button";
@@ -220,7 +221,7 @@ function RoomPlanDay({
       {rows.length === 0 ? (
         <EmptyState variant="compact" title="Keine Planungszeit" />
       ) : (
-        <ul className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-xl border">
+        <FramedList>
           {rows.map((row) =>
             row.kind === "free" ? (
               <li
@@ -236,7 +237,7 @@ function RoomPlanDay({
               <RoomPlanBlockRow key={row.instance.id} instance={row.instance} />
             ),
           )}
-        </ul>
+        </FramedList>
       )}
     </section>
   );

@@ -11,7 +11,7 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { compressAvatar } from "~/lib/image-utils";
 import { createLogger } from "~/lib/logger";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 
 const logger = createLogger({ component: "StudentPhotoSection" });
 

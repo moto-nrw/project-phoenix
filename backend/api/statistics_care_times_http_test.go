@@ -179,8 +179,10 @@ func TestCareTimesQueryBudgets(t *testing.T) {
 	require.NoError(t, json.Unmarshal(overrunsOne.body, &overrunPayload))
 	require.Len(t, overrunPayload.Data.Students, 1)
 	require.NotEmpty(t, exportOne.body)
-	// The first list and export record their access. Measure the steady-state
+	// The first child view, list and export record their access (#4683 adds
+	// the child view). Measure the steady-state
 	// read separately so that audit insertion does not mask a batch regression.
+	studentBaseline := run(studentPath)
 	overrunsBaseline := run("/care-time-overruns?" + budgetWindow)
 	exportBaseline := run("/care-time-overruns/export?" + budgetWindow + "&format=xlsx")
 
@@ -201,7 +203,7 @@ func TestCareTimesQueryBudgets(t *testing.T) {
 	require.Len(t, overrunPayload.Data.Students, 4)
 	require.NotEmpty(t, exportMany.body)
 
-	assert.Len(t, studentMany.statements, len(studentOne.statements), "the child view must batch its day inputs")
+	assert.Len(t, studentMany.statements, len(studentBaseline.statements), "the child view must batch its day inputs")
 	assert.Len(t, overrunsMany.statements, len(overrunsBaseline.statements), "the overrun list must batch its children")
 	assert.Len(t, exportMany.statements, len(exportBaseline.statements), "the export must reuse the batched overrun list")
 	querybudgets.AssertQueryBudget(t, "api.statistics.student_care_times", studentMany.statements)

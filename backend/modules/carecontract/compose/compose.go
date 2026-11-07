@@ -1,5 +1,4 @@
-// Package compose builds the Betreuungsvertrag (care-contract, ADR 0088,
-// ADR 0153) over the ports the root binds.
+// Package compose builds the Betreuungsvertrag (ADR 0088, ADR 0153) over the ports the root binds.
 package compose
 
 import (
@@ -12,42 +11,57 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewContracts builds the contracts of the Träger-Büro. The writes run in
-// the Träger transaction of the portal route; the reads open their own units
-// for the access log of each school.
+// ContractPorts and IntakePorts are the ports the root binds.
+type (
+	ContractPorts = application.ContractPorts
+	IntakePorts   = application.IntakePorts
+)
+
+// NewContracts builds the contracts of the Träger-Büro; the reads open own units for each school's access log.
 func NewContracts(ports ContractPorts) carecontract.Contracts {
-	return application.NewContracts(postgres.NewStore(), rendering.NewRenderer(), application.ContractPorts(ports), application.Clock{Now: time.Now})
+	return application.NewContracts(postgres.NewStore(), rendering.NewRenderer(), ports, application.Clock{Now: time.Now}, NewContractVersions())
 }
 
-// ContractPorts are the ports the root binds for the contracts.
-type ContractPorts struct {
-	Letterheads carecontract.Letterheads
-	Post        carecontract.Post
-	Runtime     carecontract.Runtime
-	Access      carecontract.SchoolAccessLog
+// NewContractVersions reads the versions in force for the billing (#4681, #4684) in the caller's Träger unit.
+func NewContractVersions() carecontract.ContractVersions {
+	return application.NewVersions(postgres.NewStore())
 }
 
-// NewIntake builds the creation of contracts from the accepted applications
-// and the templates of the offerings; it opens its own units.
+// NewIntake builds the creation of contracts from the accepted applications and the offerings' templates.
 func NewIntake(ports IntakePorts) carecontract.Intake {
-	return application.NewIntake(postgres.NewStore(), application.IntakePorts(ports), calendar.TodayDate)
+	return application.NewIntake(postgres.NewStore(), ports, calendar.TodayDate)
 }
 
-// IntakePorts are the ports the root binds for the intake.
-type IntakePorts struct {
-	Schools      carecontract.TraegerSchools
-	Applications carecontract.SchoolApplications
-	Bookings     carecontract.SchoolBookings
-	Access       carecontract.SchoolAccessLog
-	Runtime      carecontract.Runtime
+// NewConclusion builds the conclusion at the acceptance (Weg b, #4680); it opens its own units.
+func NewConclusion(contracts ContractPorts, intake IntakePorts) carecontract.Conclusion {
+	clock := application.Clock{Now: time.Now}
+	return application.NewConclusions(application.NewIntake(postgres.NewStore(), intake, calendar.TodayDate),
+		application.NewContracts(postgres.NewStore(), rendering.NewRenderer(), contracts, clock, NewContractVersions()), clock)
 }
 
-// NewInbox builds the contracts of the parents' inbox, in the Träger
-// transaction the parents portal opens.
+// NewInbox builds the parents' inbox in the parents portal's Träger unit.
 func NewInbox() carecontract.Inbox { return application.NewInbox(postgres.NewStore()) }
 
-// NewContractMailRenderer renders the mail of a contract for Delivery's
-// worker.
+// NewContractMailRenderer renders a contract mail for Delivery's worker.
 func NewContractMailRenderer() carecontract.ContractMailRenderer {
 	return application.RenderContractMail
+}
+
+// NewBookedCare builds the school's read of the booked care of its
+// contracts, the Soll of Soll und Ist (#4683, ADR 0156). It reads in the
+// tenant transaction of the school the caller holds.
+func NewBookedCare() carecontract.BookedCare { return postgres.NewBookedCare() }
+
+// NewOverrunEvaluations builds the evaluation of overruns over the schools
+// of the Träger (#4683, ADR 0156); it opens its own units.
+func NewOverrunEvaluations(ports OverrunPorts) carecontract.OverrunEvaluations {
+	return application.NewOverruns(application.OverrunPorts(ports), calendar.TodayDate)
+}
+
+// OverrunPorts are the ports the root binds for the evaluation.
+type OverrunPorts struct {
+	Schools   carecontract.TraegerSchools
+	CareTimes carecontract.SchoolCareTimes
+	Access    carecontract.SchoolAccessLog
+	Runtime   carecontract.Runtime
 }

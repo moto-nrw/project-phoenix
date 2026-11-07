@@ -1505,6 +1505,7 @@ export function EnrollmentForm({
             ? additionalGuardiansPayload
             : undefined,
         consent_flags: consentFlags,
+        form_schema_id: schema?.id ? Number(schema.id) : undefined,
         custom_data: restrictToOfferings
           ? { ...customData }
           : visibleAnswerData(

@@ -120,6 +120,32 @@ describe("proxyGet", () => {
     );
   });
 
+  it("forwards only the allowlisted query parameters", async () => {
+    mockApiGet.mockResolvedValueOnce({ data: [] });
+
+    const handler = proxyGet("/api/items", {
+      forwardQuery: ["view", "cursor"],
+    });
+    await handler(
+      createMockRequest("/api/items?cursor=abc&evil=1&view=history&limit="),
+      createMockContext(),
+    );
+
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/items?view=history&cursor=abc",
+      "test-token",
+    );
+  });
+
+  it("sends no query string when no allowlisted parameter is set", async () => {
+    mockApiGet.mockResolvedValueOnce({ data: [] });
+
+    const handler = proxyGet("/api/items", { forwardQuery: ["view"] });
+    await handler(createMockRequest("/api/items?evil=1"), createMockContext());
+
+    expect(mockApiGet).toHaveBeenCalledWith("/api/items", "test-token");
+  });
+
   it("forwards the whole response when raw is set", async () => {
     const whole = { data: [{ id: 1 }], pagination: { total: 1 } };
     mockApiGet.mockResolvedValueOnce(whole);
@@ -177,6 +203,35 @@ describe("proxyPost", () => {
     expect(mockApiPost).toHaveBeenCalledWith("/api/items", "test-token", body);
     const json = await parseJson<ApiResponse<{ id: number }>>(response);
     expect(json.data).toEqual({ id: 9 });
+  });
+
+  it("rejects a body over maxBodyBytes before calling the backend", async () => {
+    const handler = proxyPost("/api/items", { maxBodyBytes: 16 });
+    const response = await handler(
+      createMockRequest("/api/items", {
+        method: "POST",
+        body: { name: "far more than sixteen bytes" },
+      }),
+      createMockContext(),
+    );
+
+    expect(response.status).toBe(413);
+    expect(mockApiPost).not.toHaveBeenCalled();
+  });
+
+  it("forwards a body within maxBodyBytes", async () => {
+    mockApiPost.mockResolvedValueOnce({ data: { ok: true } });
+
+    const handler = proxyPost("/api/items", { maxBodyBytes: 1024 });
+    const response = await handler(
+      createMockRequest("/api/items", { method: "POST", body: { a: 1 } }),
+      createMockContext(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockApiPost).toHaveBeenCalledWith("/api/items", "test-token", {
+      a: 1,
+    });
   });
 
   it("forwards an idempotency key to the backend request", async () => {
@@ -272,6 +327,28 @@ describe("proxyDelete", () => {
     );
 
     expect(mockApiDelete).toHaveBeenCalledWith("/api/items/7", "test-token");
+    expect(response.status).toBe(204);
+  });
+});
+
+describe("proxyDelete with a body", () => {
+  it("forwards the confirmation body and returns 204", async () => {
+    mockApiDelete.mockResolvedValueOnce(undefined);
+    const body = { expected_fingerprint: "f", acknowledged: true };
+
+    const handler = proxyDelete((p) => `/api/items/${String(p.id)}`, {
+      withBody: true,
+    });
+    const response = await handler(
+      createMockRequest("/api/items/7", { method: "DELETE", body }),
+      createMockContext({ id: "7" }),
+    );
+
+    expect(mockApiDelete).toHaveBeenCalledWith(
+      "/api/items/7",
+      "test-token",
+      body,
+    );
     expect(response.status).toBe(204);
   });
 });

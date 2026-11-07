@@ -39,6 +39,7 @@ import {
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -349,6 +350,7 @@ export function BulkSubstitutionModal({
   return (
     <SlideOver
       open={isOpen}
+      isDismissDisabled={saving}
       onOpenChange={(open) => {
         // Der Save ist EIN atomarer Request: ein während des Speicherns
         // geschlossenes Panel sähe abgebrochen aus, während der Server noch
@@ -356,20 +358,21 @@ export function BulkSubstitutionModal({
         if (!open && !saving) resetAndClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[760px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>Sammel-Vertretung</SlideOverTitle>
-            <SlideOverDescription>
-              Trägt eine Abwesenheit und optional eine Ersatzperson für alle
-              Termine einer Person im gewählten Zeitraum in einem Schritt ein.
-              Gespeichert wird alles zusammen oder nichts.
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton
-            aria-label="Sammel-Vertretung schließen"
-            disabled={saving}
-          />
+      <SlideOverContent size="lg">
+        <SlideOverHeader
+          close={
+            <SlideOverCloseButton
+              aria-label="Sammel-Vertretung schließen"
+              disabled={saving}
+            />
+          }
+        >
+          <SlideOverTitle>Sammel-Vertretung</SlideOverTitle>
+          <SlideOverDescription>
+            Trägt eine Abwesenheit und optional eine Ersatzperson für alle
+            Termine einer Person im gewählten Zeitraum in einem Schritt ein.
+            Gespeichert wird alles zusammen oder nichts.
+          </SlideOverDescription>
         </SlideOverHeader>
         <SlideOverBody error={formErrors.error}>
           <div ref={formRef} className="space-y-4">
@@ -478,9 +481,12 @@ export function BulkSubstitutionModal({
                                 {", "}
                                 {formatDate(group.date)}
                                 {group.fullyAbsent && (
-                                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
-                                    bereits abwesend gemeldet
-                                  </span>
+                                  <StatusBadge
+                                    label="bereits abwesend gemeldet"
+                                    tone="gray"
+                                    size="xs"
+                                    wrap
+                                  />
                                 )}
                               </span>
                               <span className="mt-0.5 block text-xs text-gray-500">
@@ -522,7 +528,7 @@ export function BulkSubstitutionModal({
                 disabled={staffLoadError}
                 onChange={setSubstituteStaffId}
               />
-              <p className="mt-1 text-[11px] text-gray-400">
+              <p className="mt-1 text-sm text-gray-500">
                 Ohne Ersatzperson werden die Termine nur als abwesend markiert.
               </p>
             </div>
@@ -547,7 +553,7 @@ export function BulkSubstitutionModal({
             )}
           </div>
         </SlideOverBody>
-        <SlideOverFooter className="flex-row justify-end gap-2">
+        <SlideOverFooter>
           <Button
             type="button"
             variant="outline"

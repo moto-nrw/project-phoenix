@@ -1,5 +1,6 @@
 "use client";
 
+import { FramedList } from "~/components/ui/framed-list";
 import { groups as groupsKeys } from "~/lib/swr/groups";
 import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
@@ -12,9 +13,10 @@ import { Input } from "~/components/ui/input";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
-import { studentService } from "~/lib/api";
+import { fetchSchoolClasses, fetchStudents } from "~/lib/student-api";
 import { fetchActivities } from "~/lib/activity-api";
-import type { Group, Student } from "~/lib/api";
+import type { Group } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import type { Activity } from "~/lib/activity-helpers";
 import type { AnnouncementTarget } from "~/lib/parent-announcements-api";
 
@@ -178,7 +180,7 @@ export function ParentTargetPicker({
       ? `parent-announcements-student-search-${debouncedSearch}`
       : null,
     async () => {
-      const result = await studentService.getStudents({
+      const result = await fetchStudents({
         search: debouncedSearch,
         pageSize: 20,
       });
@@ -309,35 +311,38 @@ export function ParentTargetPicker({
               placeholder="Kind suchen (mind. 2 Zeichen)…"
             />
             {debouncedSearch.length >= 2 && (
-              <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200">
+              <FramedList maxHeight="sm" className="mt-2">
                 {studentsLoadError ? (
-                  <LoadErrorAlert error={studentsLoadError} />
+                  <li>
+                    <LoadErrorAlert error={studentsLoadError} />
+                  </li>
                 ) : studentsLoading || (studentsError && !studentResults) ? (
-                  <p className="px-3 py-2 text-sm text-gray-500">
+                  <li className="px-3 py-2 text-sm text-gray-500">
                     Wird gesucht…
-                  </p>
+                  </li>
                 ) : (studentResults?.length ?? 0) === 0 ? (
-                  <p className="px-3 py-2 text-sm text-gray-500">
+                  <li className="px-3 py-2 text-sm text-gray-500">
                     Keine Kinder gefunden.
-                  </p>
+                  </li>
                 ) : (
                   studentResults?.map((student) => (
-                    <button
-                      key={student.id}
-                      type="button"
-                      onClick={() => addStudent(student)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
-                    >
-                      <span className="truncate">{student.name}</span>
-                      {student.school_class && (
-                        <span className="ml-2 shrink-0 text-xs text-gray-400">
-                          {student.school_class}
-                        </span>
-                      )}
-                    </button>
+                    <li key={student.id}>
+                      <button
+                        type="button"
+                        onClick={() => addStudent(student)}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                      >
+                        <span className="truncate">{student.name}</span>
+                        {student.school_class && (
+                          <span className="ml-2 shrink-0 text-xs text-gray-400">
+                            {student.school_class}
+                          </span>
+                        )}
+                      </button>
+                    </li>
                   ))
                 )}
-              </div>
+              </FramedList>
             )}
           </div>
         </>
@@ -387,7 +392,7 @@ export function useParentTargetLookups(enabled: boolean): {
     mutate: reloadClasses,
   } = useSWRAuth<string[]>(
     enabled ? "parent-announcements-classes" : null,
-    () => studentService.getSchoolClasses(),
+    () => fetchSchoolClasses(),
     { revalidateOnFocus: false },
   );
   const groupsLoadError = useSwrLoadError(

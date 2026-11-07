@@ -35,6 +35,10 @@ import {
   type ParentRequestKind,
 } from "~/lib/change-request-list-api";
 import {
+  announceChangeRequestsChanged,
+  CHANGE_REQUESTS_REFRESH_EVENT,
+} from "~/lib/change-requests-refresh";
+import {
   bucketCases,
   groupOpenCases,
   hasReviewMetadata,
@@ -140,9 +144,15 @@ export function AggregatedRequestList({
   const [bulkSaving, setBulkSaving] = useState(false);
   const wide = useViewportAtLeast(SPLIT_VIEW_MIN_WIDTH);
   const returnFocus = useReturnFocus();
-  // Set while THIS list dispatches change-requests-refresh so its own listener
-  // doesn't refetch — it already removed the decided row optimistically.
+  // Set while THIS list announces a change, so its own listener doesn't
+  // refetch: it already removed the decided row optimistically. The window
+  // event dispatches synchronously.
   const suppressSelfReloadRef = useRef(false);
+  const announceOwnChange = useCallback(() => {
+    suppressSelfReloadRef.current = true;
+    announceChangeRequestsChanged();
+    suppressSelfReloadRef.current = false;
+  }, []);
 
   // Ereignisse anderer Flächen gleichen die offene Liste im Hintergrund ab;
   // Fokus und Sichtbarkeit übernimmt SWR (#4988).
@@ -154,10 +164,10 @@ export function AggregatedRequestList({
       void reloadFeed();
       void loadWithdrawals();
     };
-    window.addEventListener("change-requests-refresh", handler);
+    window.addEventListener(CHANGE_REQUESTS_REFRESH_EVENT, handler);
     window.addEventListener("messages-unread-refresh", handler);
     return () => {
-      window.removeEventListener("change-requests-refresh", handler);
+      window.removeEventListener(CHANGE_REQUESTS_REFRESH_EVENT, handler);
       window.removeEventListener("messages-unread-refresh", handler);
     };
   }, [view, reloadFeed, loadWithdrawals]);
@@ -237,12 +247,10 @@ export function AggregatedRequestList({
         next.delete(key);
         return next;
       });
-      suppressSelfReloadRef.current = true;
-      window.dispatchEvent(new Event("change-requests-refresh"));
-      suppressSelfReloadRef.current = false;
+      announceOwnChange();
       showSuccess(decidedNotice);
     },
-    [setItems, showSuccess],
+    [setItems, showSuccess, announceOwnChange],
   );
 
   // Eine Anfrage wurde zwischenzeitlich geändert: die Zeile bleibt stehen und
@@ -365,9 +373,7 @@ export function AggregatedRequestList({
           ? "1 Anfrage wurde freigegeben."
           : `${count} Anfragen wurden freigegeben.`,
       );
-      suppressSelfReloadRef.current = true;
-      window.dispatchEvent(new Event("change-requests-refresh"));
-      suppressSelfReloadRef.current = false;
+      announceOwnChange();
     } catch (err: unknown) {
       logger.warn("parent_request_bulk_approval_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -381,6 +387,7 @@ export function AggregatedRequestList({
       setBulkSaving(false);
     }
   }, [
+    announceOwnChange,
     showActionError,
     bulkReason,
     feed,
@@ -396,7 +403,9 @@ export function AggregatedRequestList({
       showSuccess(
         deleted ? "Das Kind wurde gelöscht." : "Die Betreuung wurde beendet.",
       );
-      window.dispatchEvent(new Event("change-requests-refresh"));
+      // This list reloads too: the end of care also settles the child's other
+      // open requests.
+      announceChangeRequestsChanged();
     },
     [setWithdrawals, showSuccess],
   );
@@ -549,11 +558,10 @@ export function AggregatedRequestList({
               if (hasMore) void feed.loadMore();
               if (withdrawalsHaveMore) void loadMoreWithdrawals();
             }}
-            disabled={loadingMore || withdrawalsLoadingMore}
+            isLoading={loadingMore || withdrawalsLoadingMore}
+            loadingText="Wird geladen…"
           >
-            {loadingMore || withdrawalsLoadingMore
-              ? "Wird geladen…"
-              : "Weitere Einträge laden"}
+            Weitere Einträge laden
           </Button>
         </div>
       )}

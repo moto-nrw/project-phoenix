@@ -33,7 +33,7 @@ function fixture(t, { tools = ['go', 'air', 'node'], env = {}, occupiedPort = ''
     PATH: bin, FIXTURE_ROOT: root, FIXTURE_CALLS: calls, FIXTURE_OCCUPIED_PORT: occupiedPort, FIXTURE_NODE: process.execPath, ...env,
   };
   const tool = (name, body) => writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
-  const log = name => `printf '${name}|%s|GOFLAGS=%s|GOMAXPROCS=%s|PORT=%s|API_URL=%s|DB_DSN=%s\\n' "$*" "\${GOFLAGS-<unset>}" "\${GOMAXPROCS-<unset>}" "\${PORT-}" "\${API_URL-}" "\${DB_DSN-}" >> "$FIXTURE_CALLS"`;
+  const log = name => `printf '${name}|%s|GOFLAGS=%s|GOMAXPROCS=%s|PORT=%s|API_URL=%s|DB_DSN=%s|CGO_ENABLED=%s|GOTOOLCHAIN=%s\\n' "$*" "\${GOFLAGS-<unset>}" "\${GOMAXPROCS-<unset>}" "\${PORT-}" "\${API_URL-}" "\${DB_DSN-}" "\${CGO_ENABLED-<unset>}" "\${GOTOOLCHAIN-<unset>}" >> "$FIXTURE_CALLS"`;
   tool('git', 'printf "%s\\n" "$FIXTURE_ROOT"');
   tool('docker', log('docker'));
   tool('lsof', `${log('lsof')}\n[[ "$*" == *"-iTCP:$FIXTURE_OCCUPIED_PORT "* ]] && [ -n "$FIXTURE_OCCUPIED_PORT" ]`);
@@ -206,8 +206,10 @@ test('default up starts both services, bounds Go children and cleans up on termi
   assert.ok(calls.some(line => line.startsWith('docker|compose up -d --wait postgres mailpit|')));
   assert.ok(calls.some(line => line.startsWith('go|build ') && line.includes('|GOFLAGS=-p=4 -trimpath|GOMAXPROCS=4|PORT=18080|API_URL=http://localhost:18080|DB_DSN=postgres://fixture@localhost:15432/fixture')));
   assert.ok(calls.some(line => line.startsWith('air|') && line.includes('|GOFLAGS=-p=4 -trimpath|GOMAXPROCS=4|')));
+  for (const line of calls.filter(line => /^(go|air)\|/.test(line))) assert.match(line, /\|CGO_ENABLED=0\|GOTOOLCHAIN=local$/);
   assert.ok(calls.some(line => line.startsWith('migrate|migrate')));
   assert.ok(calls.some(line => line.startsWith('node|') && line.includes('|GOFLAGS=<unset>|GOMAXPROCS=<unset>|PORT=13000|')));
+  assert.ok(calls.some(line => line.startsWith('node|') && line.endsWith('|CGO_ENABLED=<unset>|GOTOOLCHAIN=<unset>')));
   const result = await stop(runner);
   assert.match(result.output, /stopped backend/);
   assert.match(result.output, /stopped frontend/);
@@ -237,7 +239,7 @@ test('frontend-only needs no Go or Air, skips migrations and ignores the backend
 });
 
 test('backend CLI and startup preserve explicit Go overrides, including empty GOFLAGS', { timeout: 10000 }, async t => {
-  const f = fixture(t, { tools: ['go', 'air'], env: { GOFLAGS: '', GOMAXPROCS: '0' } });
+  const f = fixture(t, { tools: ['go', 'air'], env: { GOFLAGS: '', GOMAXPROCS: '0', CGO_ENABLED: '1', GOTOOLCHAIN: 'auto' } });
   const cli = f.run('backend', 'go', 'env');
   assert.equal(cli.status, 0, cli.stderr);
   const runner = f.start(['up', 'backend'], ['air']);
@@ -245,6 +247,7 @@ test('backend CLI and startup preserve explicit Go overrides, including empty GO
   const goCalls = f.lines().filter(line => /^(go|air)\|/.test(line));
   assert.equal(goCalls.length, 3);
   for (const line of goCalls) assert.match(line, /\|GOFLAGS=\|GOMAXPROCS=0\|/);
+  for (const line of goCalls) assert.match(line, /\|CGO_ENABLED=1\|GOTOOLCHAIN=auto$/);
   await stop(runner);
 });
 

@@ -6,6 +6,7 @@
  * whole cent; calendar dates stay "YYYY-MM-DD".
  */
 
+import type { MailOutcome } from "~/lib/email-delivery-status";
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
 import { traegerRequest } from "./traeger-api";
@@ -13,7 +14,10 @@ import { traegerRequest } from "./traeger-api";
 const CONTRACTS_PATH = "/api/traeger/contracts";
 const TEMPLATES_PATH = "/api/traeger/contract-templates";
 
-/** Every state of ADR 0088; this version reaches draft and sent. */
+/**
+ * Every state of ADR 0088. The office reaches draft and sent; the conclusion
+ * at the acceptance (#4680) or the signature (#4679) reaches active.
+ */
 export type CareContractStatus =
   "entwurf" | "versendet" | "unterschrieben" | "aktiv" | "beendet";
 
@@ -42,6 +46,7 @@ interface ContractTemplate extends ContractTerms {
 
 /** One offering of a school with its template, or none yet. */
 export interface OfferingTemplate {
+  readonly acceptanceText?: string;
   readonly schoolId: string;
   readonly schoolName: string;
   readonly offeringId: string;
@@ -76,10 +81,25 @@ export interface ContractService {
 }
 
 /** Why no draft can be made for a candidate yet. */
-export type TemplateIssue = "template_missing" | "templates_differ";
+export type TemplateIssue =
+  | "template_missing"
+  | "templates_differ"
+  | "conclusion_automatic"
+  | "acceptance_missing"
+  | "acceptance_changed"
+  | "recipient_missing"
+  | "mail_blocked"
+  | "mail_stopped";
+
+/**
+ * Why the application gives no proof of the parents' agreement for a
+ * conclusion at the acceptance (#4680); null when it does.
+ */
+type AcceptanceIssue = "acceptance_missing" | "acceptance_changed";
 
 /** An accepted application child with booked care and no contract. */
 export interface ContractCandidate extends CandidateKey {
+  readonly acceptanceIssue: AcceptanceIssue | null;
   readonly schoolName: string;
   readonly childFirstName: string;
   readonly childLastName: string;
@@ -89,6 +109,36 @@ export interface ContractCandidate extends CandidateKey {
   readonly services: readonly ContractService[];
   readonly effectiveFrom: string;
   readonly templateIssue: TemplateIssue | null;
+  /**
+   * Why a mail to the parents' address would stay back now, for a child the
+   * conclusion at the acceptance could conclude (#4680); null otherwise.
+   */
+  readonly mailBlock: "stopped" | "address" | null;
+}
+
+/**
+ * How a contract was concluded (ADR 0088 section 3): at the acceptance of
+ * the application, or with the parents' signature.
+ */
+export type ConclusionMethod =
+  "mit_anmeldung" | "einfach_elektronisch" | "papier";
+
+export interface ContractConclusion {
+  readonly method: ConclusionMethod;
+  /** The instant of the conclusion. */
+  readonly at: string;
+}
+
+/**
+ * How the contracts of a school come about (#4680): sent later by the
+ * office (Weg a) or concluded at the acceptance (Weg b).
+ */
+export type ConclusionMode = "nachtraeglich" | "bei_annahme";
+
+export interface SchoolConclusionMode {
+  readonly schoolId: string;
+  readonly schoolName: string;
+  readonly mode: ConclusionMode;
 }
 
 export interface CareContractSummary {
@@ -104,6 +154,8 @@ export interface CareContractSummary {
   readonly effectiveFrom: string;
   readonly createdAt: string;
   readonly sentAt: string | null;
+  /** Null until the contract is concluded. */
+  readonly concluded: ContractConclusion | null;
 }
 
 export interface CareContractList {
@@ -113,6 +165,26 @@ export interface CareContractList {
 }
 
 export type ContractMailState = "queued" | "sent" | "failed" | "unknown";
+
+/** The state of a contract version (ADR 0088 section 2, #4681). */
+type ContractVersionStatus =
+  "beantragt" | "wirksam" | "abgeloest" | "abgelehnt" | "ersetzt";
+
+/** Where a version came from: the conclusion or an approved change. */
+type ContractVersionSource = "abschluss" | "buchungsaenderung";
+
+/** One version of a contract with the days it holds (#4681). */
+export interface ContractVersion {
+  readonly number: number;
+  readonly status: ContractVersionStatus;
+  readonly source: ContractVersionSource;
+  readonly effectiveFrom: string;
+  readonly endsOn: string | null;
+  /** The last day it holds; null while it holds open ended. */
+  readonly validUntil: string | null;
+  readonly services: readonly ContractService[];
+  readonly createdAt: string;
+}
 
 export interface CareContractDetail extends CareContractSummary {
   readonly version: {
@@ -137,8 +209,13 @@ export interface CareContractDetail extends CareContractSummary {
     readonly recipient: string;
     readonly sentAt: string;
     readonly state: ContractMailState;
+    readonly outcome?: MailOutcome;
+    /** Why another mail to this address would stay back now. */
+    readonly sendBlock?: ContractSendBlock;
   }[];
   readonly documentFrozen: boolean;
+  /** Every version, oldest first. */
+  readonly versions: readonly ContractVersion[];
 }
 
 type CreateSkipReason =
@@ -152,7 +229,16 @@ export interface CreateResult {
 }
 
 export type SendSkipReason =
-  "recipient_missing" | "partner_missing" | "mail_pending" | "not_sendable";
+  | "recipient_missing"
+  | "partner_missing"
+  | "mail_pending"
+  | "mail_delayed"
+  | "mail_blocked"
+  | "mail_block_unreadable"
+  | "not_sendable";
+
+type ContractSendBlock =
+  "delayed" | "stopped" | "address" | "provider" | "provider_unknown";
 
 export interface SendResult {
   readonly sent: readonly string[];
@@ -186,6 +272,7 @@ interface BackendTemplate extends BackendTerms {
 }
 
 interface BackendOfferingTemplate {
+  acceptance_text?: string;
   school_id: number;
   school_name: string;
   offering_id: number;
@@ -205,6 +292,8 @@ interface BackendService {
 }
 
 interface BackendCandidate {
+  acceptance_issue?: AcceptanceIssue | "";
+  mail_block?: "stopped" | "address" | "";
   school_id: number;
   request_child_id: number;
   school_name: string;
@@ -231,6 +320,7 @@ interface BackendSummary {
   effective_from: string;
   created_at: string;
   sent_at: string | null;
+  concluded?: { method: ConclusionMethod; at: string } | null;
 }
 
 interface BackendDetail extends BackendSummary {
@@ -255,8 +345,27 @@ interface BackendDetail extends BackendSummary {
       }[]
     | null;
   mailings:
-    { recipient: string; sent_at: string; state: ContractMailState }[] | null;
+    | {
+        recipient: string;
+        sent_at: string;
+        state: ContractMailState;
+        outcome?: MailOutcome;
+        send_block?: ContractSendBlock;
+      }[]
+    | null;
   document_frozen: boolean;
+  versions?: BackendVersion[] | null;
+}
+
+interface BackendVersion {
+  number: number;
+  status: ContractVersionStatus;
+  source: ContractVersionSource;
+  effective_from: string;
+  ends_on: string | null;
+  valid_until: string | null;
+  services: BackendService[] | null;
+  created_at: string;
 }
 
 function termsFromBackend(terms: BackendTerms): ContractTerms {
@@ -291,6 +400,7 @@ function termsToBackend(terms: ContractTerms): BackendTerms {
 
 function offeringFromBackend(row: BackendOfferingTemplate): OfferingTemplate {
   return {
+    acceptanceText: row.acceptance_text ?? "",
     schoolId: String(row.school_id),
     schoolName: row.school_name,
     offeringId: String(row.offering_id),
@@ -331,6 +441,8 @@ function candidateFromBackend(row: BackendCandidate): ContractCandidate {
     services: servicesFromBackend(row.services),
     effectiveFrom: row.effective_from,
     templateIssue: row.template_issue === "" ? null : row.template_issue,
+    acceptanceIssue: row.acceptance_issue ? row.acceptance_issue : null,
+    mailBlock: row.mail_block ? row.mail_block : null,
   };
 }
 
@@ -348,6 +460,9 @@ function summaryFromBackend(row: BackendSummary): CareContractSummary {
     effectiveFrom: row.effective_from,
     createdAt: row.created_at,
     sentAt: row.sent_at,
+    concluded: row.concluded
+      ? { method: row.concluded.method, at: row.concluded.at }
+      : null,
   };
 }
 
@@ -375,9 +490,21 @@ function detailFromBackend(row: BackendDetail): CareContractDetail {
     mailings: (row.mailings ?? []).map((mailing) => ({
       recipient: mailing.recipient,
       sentAt: mailing.sent_at,
+      outcome: mailing.outcome,
+      sendBlock: mailing.send_block,
       state: mailing.state,
     })),
     documentFrozen: row.document_frozen,
+    versions: (row.versions ?? []).map((version) => ({
+      number: version.number,
+      status: version.status,
+      source: version.source,
+      effectiveFrom: version.effective_from,
+      endsOn: version.ends_on,
+      validUntil: version.valid_until,
+      services: servicesFromBackend(version.services),
+      createdAt: version.created_at,
+    })),
   };
 }
 
@@ -416,6 +543,18 @@ export async function fetchCareContracts(
     counts: body?.counts ?? {},
     hasMore: body?.has_more ?? false,
   };
+}
+
+/** How the contracts of every school of the Träger come about (#4680). */
+export async function fetchConclusionModes(): Promise<SchoolConclusionMode[]> {
+  const rows = await traegerRequest<
+    { school_id: number; school_name: string; mode: ConclusionMode }[] | null
+  >(`${CONTRACTS_PATH}/conclusion-modes`);
+  return (rows ?? []).map((row) => ({
+    schoolId: String(row.school_id),
+    schoolName: row.school_name,
+    mode: row.mode,
+  }));
 }
 
 export async function fetchContractCandidates(): Promise<ContractCandidate[]> {
@@ -530,7 +669,24 @@ export async function discardCareContract(id: string): Promise<void> {
 
 /** The PDF: a preview of a draft, the stored document once sent. */
 export async function downloadCareContract(id: string): Promise<ContractFile> {
-  const response = await transportFetch(`${contractPath(id)}/document`, {
+  return downloadContractFile(`${contractPath(id)}/document`);
+}
+
+/**
+ * The PDF of one version (#4681): the stored one when it was sent, else a
+ * rendering with the current letterhead.
+ */
+export async function downloadCareContractVersion(
+  id: string,
+  number: number,
+): Promise<ContractFile> {
+  return downloadContractFile(
+    `${contractPath(id)}/versions/${encodeURIComponent(String(number))}/document`,
+  );
+}
+
+async function downloadContractFile(path: string): Promise<ContractFile> {
+  const response = await transportFetch(path, {
     credentials: "include",
     cache: "no-store",
   });

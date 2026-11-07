@@ -8,6 +8,7 @@
 // Datenquelle (`api`) und Rückmeldung (`notify`) mit, damit kein Portal die
 // Routen des anderen kennt.
 
+import { FramedList } from "~/components/ui/framed-list";
 import {
   useCallback,
   useEffect,
@@ -150,7 +151,7 @@ const ogsApi: ClassArrivalExceptionApi = {
   earliestBlockStart,
 };
 
-export interface ClassArrivalExceptionPanelProps {
+interface ClassArrivalExceptionPanelProps {
   readonly schoolClass: string;
   /** "Klasse 4a", steht in der Bestätigung. */
   readonly classLabel: string;
@@ -553,7 +554,7 @@ function ClassArrivalExceptionPanelBody({
               description="Die Klasse kommt an jedem Tag zur Klassenzeit."
             />
           ) : (
-            <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+            <FramedList>
               {exceptions.map((exception) => {
                 const origin = originLabel(exception);
                 return (
@@ -593,7 +594,7 @@ function ClassArrivalExceptionPanelBody({
                   </li>
                 );
               })}
-            </ul>
+            </FramedList>
           )}
         </div>
       ) : null}

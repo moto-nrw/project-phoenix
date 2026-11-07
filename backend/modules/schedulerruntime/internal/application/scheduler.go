@@ -50,6 +50,7 @@ type Scheduler struct {
 	bookingConsistency          ports.BookingConsistencyAudit
 	holidayGuests               ports.HolidayGuestReconciliation
 	plannedStaffExits           ports.PlannedStaffExits
+	careContractConclusion      ports.CareContractConclusion
 	staffQualificationReminders ports.StaffQualificationReminders
 	weekProtocols               ports.WeekProtocolEvenings
 	payrollDispatch             ports.PayrollDispatch
@@ -218,7 +219,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		autoCheckouter:     deps.AutoCheckouter,
 		materializer:       deps.Materializer,
 		bookingConsistency: deps.BookingConsistency,
-		holidayGuests:      deps.HolidayGuests, plannedStaffExits: deps.PlannedStaffExits, staffQualificationReminders: deps.StaffQualificationReminders, weekProtocols: deps.WeekProtocols, payrollDispatch: deps.PayrollDispatch, schoolVacations: deps.SchoolVacations,
+		holidayGuests:      deps.HolidayGuests, plannedStaffExits: deps.PlannedStaffExits, careContractConclusion: deps.CareContractConclusion, staffQualificationReminders: deps.StaffQualificationReminders, weekProtocols: deps.WeekProtocols, payrollDispatch: deps.PayrollDispatch, schoolVacations: deps.SchoolVacations,
 		mealOrders:            deps.MealOrders,
 		autoStart:             deps.AutoStart,
 		autoEnd:               deps.AutoEnd,
@@ -251,6 +252,9 @@ func schedulerCleanupJobs(deps ports.WorkerDependencies) []CleanupJob {
 	jobs = append(jobs, accountRetentionJobs(deps.AccountRetention)...)
 	if !isNilDependency(deps.HolidayRegistrationRetention) {
 		jobs = append(jobs, CleanupJob{Description: "Holiday registration retention", Run: deps.HolidayRegistrationRetention.DeleteExpiredHolidayRegistrations})
+	}
+	if !isNilDependency(deps.TraegerDocumentReadRetention) {
+		jobs = append(jobs, CleanupJob{Description: "Träger document read retention", Run: deps.TraegerDocumentReadRetention.DeleteExpiredTraegerDocumentReads})
 	}
 	return jobs
 }

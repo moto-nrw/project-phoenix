@@ -358,11 +358,7 @@ function DatabaseContent() {
             const entryLabel = count === 1 ? "Eintrag" : "Einträge";
             const countText =
               section.badge ??
-              (countsLoading
-                ? "Lädt…"
-                : countsMissing
-                  ? "Nicht geladen"
-                  : `${count} ${entryLabel}`);
+              (countsMissing ? "Nicht geladen" : `${count} ${entryLabel}`);
             const badgeLoading = section.badge === undefined && countsLoading;
             const concept = section.concept;
 
@@ -370,10 +366,9 @@ function DatabaseContent() {
               <TileCard
                 key={section.id}
                 href={tenantPath(section.href)}
-                padding="none"
-                className="min-h-[44px] touch-manipulation"
+                className="touch-manipulation"
               >
-                <div className="relative p-4 sm:p-6">
+                <div className="relative">
                   <div className="mb-4 flex items-start justify-between">
                     <div data-testid={`database-section-icon-${section.id}`}>
                       <MotoDuotoneIcon
@@ -391,8 +386,8 @@ function DatabaseContent() {
                     ) : badgeLoading ? (
                       // Platzhalter in der Höhe der fertigen Zahl (Text +
                       // py-1), damit die Kachel beim Laden nicht springt.
-                      <Skeleton className="h-6 w-20 rounded-full">
-                        <span className="sr-only">{countText}</span>
+                      <Skeleton shape="round" className="h-6 w-20">
+                        <span className="sr-only">Anzahl wird geladen</span>
                       </Skeleton>
                     ) : (
                       <StatusBadge label={countText} tone="gray" />

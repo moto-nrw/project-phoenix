@@ -97,30 +97,6 @@ vi.mock("~/lib/format-utils", () => ({
   formatCount: (value: number) => new Intl.NumberFormat("de-DE").format(value),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
-    <div data-testid="page-header">
-      <h1>{title}</h1>
-      {tabs && (
-        <div data-testid="tabs">
-          {tabs.items.map((tab: any) => (
-            <button
-              type="button"
-              key={tab.id}
-              data-testid={`tab-${tab.id}`}
-              className={tabs.activeTab === tab.id ? "active" : ""}
-            >
-              {tab.label}
-              {tab.count !== undefined && ` (${tab.count})`}
-            </button>
-          ))}
-        </div>
-      )}
-      {actionButton}
-    </div>
-  ),
-}));
-
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({ isOpen, children, title, footer }: any) =>
     isOpen ? (

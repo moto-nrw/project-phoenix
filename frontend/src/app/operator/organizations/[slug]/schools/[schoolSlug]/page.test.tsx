@@ -4,7 +4,8 @@ import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
  *
  * Ported from the legacy schools/page test — covers school edit/toggle/
  * soft-delete with tenant cache revalidation, redirect to org on delete,
- * Konten tab actions (Konto erstellen, Admin einladen), and Geräte tab.
+ * the overview tab as default view, Konten tab actions (Konto erstellen,
+ * Admin einladen), and Geräte tab.
  */
 import {
   act,
@@ -20,6 +21,12 @@ import { ToastProvider } from "~/contexts/ToastContext";
 function render(ui: React.ReactElement) {
   return renderPlain(ui, { wrapper: ToastProvider });
 }
+
+// Das Operator-Portal hat keinen Tenant-Kontext: der Rückweg bekommt kein Präfix.
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantRoutingModeSafe: () => "path",
+}));
 
 vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,
@@ -329,6 +336,83 @@ describe("OperatorSchoolDetailPage", () => {
     expect(screen.getAllByText("Personen").length).toBeGreaterThan(0);
   });
 
+  it("renders the page tabs in the TenantPage header", async () => {
+    setupSWR();
+
+    await renderPage();
+
+    const tabs = await screen.findByRole("tablist", {
+      name: "Bereiche der Schule",
+    });
+    expect(tabs.closest("header")).not.toBeNull();
+  });
+
+  it("opens on the overview tab with the figures below the tabs", async () => {
+    setupSWR();
+
+    await renderPage();
+
+    const overviewTab = await screen.findByRole("tab", { name: "Übersicht" });
+    expect(overviewTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      overviewTab.compareDocumentPosition(screen.getByText("Kontingentzahl")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Konto erstellen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("falls back to the overview tab for an unknown ?tab= value", async () => {
+    currentSearchParams = new URLSearchParams("tab=gibt-es-nicht");
+    setupSWR();
+
+    await renderPage();
+
+    expect(
+      await screen.findByRole("tab", { name: "Übersicht" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Kontingentzahl")).toBeInTheDocument();
+  });
+
+  it("warns about an exceeded Kinderkontingent on the default view", async () => {
+    setupSWR({
+      schools: [{ ...mockSchool, childQuotaBundles: 2, childQuotaCount: 120 }],
+    });
+
+    await renderPage();
+
+    // Nothing selected: the warning needs no tab click (#3568).
+    expect((await screen.findByText("120")).style.color).not.toBe("");
+  });
+
+  it("leaves the Kontingentzahl neutral within the Kinderkontingent", async () => {
+    setupSWR({
+      schools: [{ ...mockSchool, childQuotaBundles: 2, childQuotaCount: 80 }],
+    });
+
+    await renderPage();
+
+    expect((await screen.findByText("80")).style.color).toBe("");
+  });
+
+  it("keeps the figures off a table tab and does not load the app usage there", async () => {
+    currentSearchParams = new URLSearchParams("tab=konten");
+    setupSWR();
+
+    await renderPage();
+
+    expect(
+      await screen.findByRole("button", { name: "Konto erstellen" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Kontingentzahl")).not.toBeInTheDocument();
+    expect(mockUseSWR).not.toHaveBeenCalledWith(
+      operatorProvisioningKeys.schoolPwaUsage(mockSchool.id),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
   it("shows 'Schule nicht gefunden' when slug does not match", async () => {
     setupSWR({ schools: [{ ...mockSchool, slug: "other-school" }] });
 
@@ -357,7 +441,7 @@ describe("OperatorSchoolDetailPage", () => {
 
     expect(
       await screen.findByRole("link", { name: "Zurück zum Träger" }),
-    ).toHaveAttribute("href", "/operator/organizations/test-org");
+    ).toHaveAttribute("href", "/operator/organizations/test-org?tab=schulen");
     unmount();
 
     setupSWR({ schools: [{ ...mockSchool, slug: "other-school" }] });
@@ -366,7 +450,7 @@ describe("OperatorSchoolDetailPage", () => {
     await screen.findByText("Schule nicht gefunden.");
     expect(
       screen.getByRole("link", { name: "Zurück zum Träger" }),
-    ).toHaveAttribute("href", "/operator/organizations/test-org");
+    ).toHaveAttribute("href", "/operator/organizations/test-org?tab=schulen");
     notFound.unmount();
 
     setupSWR({ orgs: [{ ...mockOrg, slug: "other-org" }] });
@@ -513,17 +597,23 @@ describe("OperatorSchoolDetailPage", () => {
 
   // --- Konten tab actions ---
 
-  it("renders 'Konto erstellen' and 'Admin einladen' on the Konten tab", async () => {
+  it("renders the Konten actions in the header", async () => {
+    currentSearchParams = new URLSearchParams("tab=konten");
     setupSWR();
 
     await renderPage();
 
-    // Default tab is konten — actions should be visible.
-    expect(await screen.findByText("Konto erstellen")).toBeInTheDocument();
-    expect(screen.getByText("Admin einladen")).toBeInTheDocument();
+    const createAccount = await screen.findByRole("button", {
+      name: "Konto erstellen",
+    });
+    expect(createAccount.closest("header")).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Admin einladen" }).closest("header"),
+    ).not.toBeNull();
   });
 
   it("opens 'Admin einladen' modal", async () => {
+    currentSearchParams = new URLSearchParams("tab=konten");
     setupSWR();
 
     await renderPage();
@@ -540,6 +630,7 @@ describe("OperatorSchoolDetailPage", () => {
   });
 
   it("opens 'Konto erstellen' modal", async () => {
+    currentSearchParams = new URLSearchParams("tab=konten");
     setupSWR();
 
     await renderPage();
@@ -561,6 +652,19 @@ describe("OperatorSchoolDetailPage", () => {
     const settings = await screen.findByText("Einstellungen");
     const expected = `/operator/schools/10/settings?back=${encodeURIComponent(
       "/operator/organizations/test-org/schools/test-school",
+    )}`;
+    expect(settings.closest("a")?.getAttribute("href")).toBe(expected);
+  });
+
+  it("returns from the school settings to the tab they were opened on", async () => {
+    currentSearchParams = new URLSearchParams("tab=konten");
+    setupSWR();
+
+    await renderPage();
+
+    const settings = await screen.findByText("Einstellungen");
+    const expected = `/operator/schools/10/settings?back=${encodeURIComponent(
+      "/operator/organizations/test-org/schools/test-school?tab=konten",
     )}`;
     expect(settings.closest("a")?.getAttribute("href")).toBe(expected);
   });
@@ -789,9 +893,11 @@ describe("OperatorSchoolDetailPage", () => {
 
       await renderPage();
 
-      // The persons-table renders a "Löschen" button with title="Person löschen".
-      const rowDelete = await screen.findByTitle("Person löschen");
-      fireEvent.click(rowDelete);
+      // The persons-table keeps "Löschen" in the row's kebab (#5604).
+      fireEvent.click(
+        await screen.findByRole("button", { name: /^Aktionen für/ }),
+      );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
 
       await waitFor(() => {
         expect(
@@ -860,13 +966,31 @@ describe("OperatorSchoolDetailPage", () => {
     });
   });
 
-  it("clears ?tab=… when navigating back to the default Konten tab", async () => {
-    currentSearchParams = new URLSearchParams("tab=personen");
+  it("pushes ?tab=konten when the Konten tab is clicked", async () => {
     setupSWR();
 
     await renderPage();
 
     const tab = await screen.findByRole("tab", { name: "Konten" });
+    fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(tab, { button: 0 });
+    fireEvent.click(tab);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/operator/organizations/test-org/schools/test-school?tab=konten",
+        { scroll: false },
+      );
+    });
+  });
+
+  it("clears ?tab=… when navigating back to the default Übersicht tab", async () => {
+    currentSearchParams = new URLSearchParams("tab=personen");
+    setupSWR();
+
+    await renderPage();
+
+    const tab = await screen.findByRole("tab", { name: "Übersicht" });
     fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
     fireEvent.mouseDown(tab, { button: 0 });
     fireEvent.click(tab);
@@ -928,6 +1052,7 @@ describe("OperatorSchoolDetailPage", () => {
   // modal flips the open state without throwing.
 
   it("opens the Create Account modal from the Konten tab", async () => {
+    currentSearchParams = new URLSearchParams("tab=konten");
     setupSWR();
 
     await renderPage();
@@ -940,6 +1065,7 @@ describe("OperatorSchoolDetailPage", () => {
   });
 
   it("opens the Invite Admin modal from the Konten tab", async () => {
+    currentSearchParams = new URLSearchParams("tab=konten");
     setupSWR();
 
     await renderPage();

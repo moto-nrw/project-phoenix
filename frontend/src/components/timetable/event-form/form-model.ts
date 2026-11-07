@@ -863,7 +863,7 @@ export function initialPrimaryStaffID(
 export async function fetchAllStudentOptions(): Promise<PersonOption[]> {
   const firstPage = await fetchStudents({
     page: 1,
-    page_size: STUDENT_PAGE_SIZE,
+    pageSize: STUDENT_PAGE_SIZE,
   });
   const totalPages = Math.max(1, firstPage.pagination?.total_pages ?? 1);
   const remainingPages =
@@ -872,7 +872,7 @@ export async function fetchAllStudentOptions(): Promise<PersonOption[]> {
           Array.from({ length: totalPages - 1 }, (_, index) =>
             fetchStudents({
               page: index + 2,
-              page_size: STUDENT_PAGE_SIZE,
+              pageSize: STUDENT_PAGE_SIZE,
             }),
           ),
         )

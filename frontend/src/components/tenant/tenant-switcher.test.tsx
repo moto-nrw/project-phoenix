@@ -100,13 +100,15 @@ vi.mock("next/link", () => ({
     href,
     className,
     onClick,
+    role,
   }: {
     children: React.ReactNode;
     href: string;
     className?: string;
     onClick?: () => void;
+    role?: string;
   }) => (
-    <a href={href} className={className} onClick={onClick}>
+    <a href={href} className={className} onClick={onClick} role={role}>
       {children}
     </a>
   ),
@@ -508,11 +510,8 @@ describe("BrandTenantSwitcher", () => {
     openDropdown();
 
     // Current tenant appears as a link home, never as a switch button
-    const currentEntry = screen.getByRole("link", { name: /School A/ });
+    const currentEntry = screen.getByRole("menuitem", { name: /School A/ });
     expect(currentEntry).toHaveAttribute("href", "/dashboard");
-    expect(
-      screen.queryByRole("button", { name: "School A" }),
-    ).not.toBeInTheDocument();
 
     // Selecting the current entry must not trigger a switch
     fireEvent.click(currentEntry);
@@ -573,12 +572,12 @@ describe("BrandTenantSwitcher", () => {
 
     // The current tenant must not appear as a switch-target button.
     openDropdown();
+    // School B is on offer, selecting the current entry must not switch.
     expect(
-      screen.queryByRole("button", { name: "School A" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "School B" }),
+      screen.getByRole("menuitem", { name: "School B" }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "School A" }));
+    expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
   });
 
   it("reports a failed switch through the shared error path and retries it", async () => {
@@ -679,5 +678,29 @@ describe("BrandTenantSwitcher — server-preloaded tenants (#2973)", () => {
       await screen.findByRole("button", { name: TRIGGER_LABEL }),
     ).toBeInTheDocument();
     expect(mockListAvailableTenants).not.toHaveBeenCalled();
+  });
+
+  it("switches with the keyboard", async () => {
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+    render(<BrandTenantSwitcher href="/dashboard" />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: TRIGGER_LABEL }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: TRIGGER_LABEL }), {
+      detail: 0,
+    });
+    const current = screen.getByRole("menuitem", { name: "School A" });
+    const other = screen.getByRole("menuitem", { name: "School B" });
+    expect(current).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
+    expect(other).toHaveFocus();
+    fireEvent.keyDown(other, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(mockPerformTenantSwitch).toHaveBeenCalled();
+    });
   });
 });

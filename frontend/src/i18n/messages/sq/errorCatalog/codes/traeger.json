@@ -3,6 +3,11 @@
   "already_member": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "bank_account_label_taken": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "bank_account_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "document_already_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "document_audience_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "document_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "document_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "document_release_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "document_template_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "document_template_kind_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "document_template_unchanged": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -15,5 +20,6 @@
   "member_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "no_membership": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
   "school_not_found": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-  "second_factor_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+  "second_factor_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+  "shared_document_not_found": "Ofruesi nuk e ndan më këtë dokument. Ju lutemi rifreskoni faqen."
 }

@@ -102,6 +102,8 @@ type Guardian struct {
 	PhoneNumbers           []GuardianPhone
 	// ReusedExisting reports that an opt-in create returned an unchanged e-mail match.
 	ReusedExisting bool `json:"-"`
+	// EmailsStopped says the school decided this person gets no school mail.
+	EmailsStopped bool
 }
 
 // FullName joins the two name parts, skipping an empty one.

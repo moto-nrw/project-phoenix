@@ -483,6 +483,10 @@ type GuardianProfileRepository interface {
 	// row for the current transaction, before phone-list validation or writes.
 	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.GuardianProfileSnapshot, error)
 
+	// SetEmailsStopped records or clears the school's decision that this person
+	// gets no school mail. The first stop keeps its time.
+	SetEmailsStopped(ctx context.Context, id int64, stopped bool) error
+
 	// LockByIDForUpdate locks a guardian profile row for the current
 	// transaction. Used by full-delete flows to block concurrent link inserts.
 	LockByIDForUpdate(ctx context.Context, id int64) error

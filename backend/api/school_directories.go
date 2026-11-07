@@ -33,7 +33,7 @@ func (d deviceSchoolDirectory) FindSchool(ctx context.Context, id int64) (*devic
 	if err != nil || school == nil {
 		return nil, err
 	}
-	return &deviceauth.School{Deleted: school.IsDeleted()}, nil
+	return &deviceauth.School{Active: school.Active, Deleted: school.IsDeleted()}, nil
 }
 
 // schoolName reads the display name of one school.

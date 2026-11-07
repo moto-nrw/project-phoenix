@@ -28,8 +28,11 @@ type Fleet interface {
 	UpdateDeviceLastSeen(context.Context, int64, time.Time) error
 }
 
-// School is the part of a school device authentication reads.
+// School is the part of a school device authentication reads. A school
+// admits devices only while it is switched active and not deleted, the gate
+// staff login and refresh apply as well.
 type School struct {
+	Active  bool
 	Deleted bool
 }
 
@@ -65,8 +68,8 @@ type Dependencies struct {
 	Logger *slog.Logger
 	// Devices resolves API keys and records device activity. Required.
 	Devices Fleet
-	// Schools blocks devices of deleted schools. Optional: a nil directory
-	// skips the check, which only test graphs use.
+	// Schools blocks devices of inactive and deleted schools. Optional: a
+	// nil directory skips the check, which only test graphs use.
 	Schools      SchoolDirectory
 	SchoolErrors SchoolErrors
 	// Settings resolves the tenant device PIN. Required.
@@ -157,10 +160,10 @@ type credentialSchoolCheck struct {
 }
 
 func (c credentialSchoolCheck) CheckDeviceSchool(ctx context.Context, schoolID int64) error {
-	var deleted bool
+	var closed bool
 	read := func(ctx context.Context) error {
 		var err error
-		deleted, err = c.schools.IsSchoolDeleted(ctx, schoolID)
+		closed, err = c.schools.IsSchoolClosed(ctx, schoolID)
 		return err
 	}
 	var err error
@@ -175,8 +178,8 @@ func (c credentialSchoolCheck) CheckDeviceSchool(ctx context.Context, schoolID i
 	} else {
 		err = read(ctx)
 	}
-	if err != nil || deleted {
-		return &device.SchoolCheckResult{Deleted: deleted, Err: err}
+	if err != nil || closed {
+		return &device.SchoolCheckResult{Closed: closed, Err: err}
 	}
 	return nil
 }
@@ -215,7 +218,7 @@ type schoolLookup struct {
 	errors  SchoolErrors
 }
 
-func (l schoolLookup) IsSchoolDeleted(ctx context.Context, schoolID int64) (bool, error) {
+func (l schoolLookup) IsSchoolClosed(ctx context.Context, schoolID int64) (bool, error) {
 	school, err := l.schools.FindSchool(ctx, schoolID)
 	if err != nil {
 		if l.errors.Missing(err) {
@@ -229,7 +232,7 @@ func (l schoolLookup) IsSchoolDeleted(ctx context.Context, schoolID int64) (bool
 	if school == nil {
 		return false, device.ErrSchoolNotFound
 	}
-	return school.Deleted, nil
+	return !school.Active || school.Deleted, nil
 }
 
 // bindTenant makes the device's school the ambient tenant. Device routes do

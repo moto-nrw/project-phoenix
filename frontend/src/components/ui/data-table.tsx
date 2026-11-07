@@ -1,13 +1,17 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useId,
   useMemo,
   useState,
+  type KeyboardEvent,
   type ReactNode,
 } from "react";
+
+import { ChevronRight } from "lucide-react";
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
@@ -27,6 +31,10 @@ export interface DataTableColumn<T> {
   align?: "left" | "right" | "center";
   className?: string;
   headerClassName?: string;
+  // Tooltip of the column head, when its one word needs an explanation.
+  headerTitle?: string;
+  // The head stays for assistive tech only (a column of row menus).
+  headerSrOnly?: boolean;
   // null is a missing value and sorts after all present values, independent
   // of direction.
   sortValue?: (row: T) => string | number | null;
@@ -70,6 +78,41 @@ export interface DataTableHeading {
   readonly title: string;
   readonly count?: number;
 }
+
+/**
+ * Rows that open on a click or with Enter/Space, one at a time. The table owns
+ * which row is open and draws the chevron in the first column. Rows without
+ * `canExpand` stay plain: nothing to reveal, no pointer, no hover. On a row
+ * that can open, a click opens it; `onRowClick` applies only to the others.
+ */
+interface DataTableExpandable<T> {
+  readonly canExpand?: (row: T) => boolean;
+  /** Accessible name of the row, e.g. "05.11.: Details öffnen". */
+  readonly rowLabel: (row: T, expanded: boolean) => string;
+}
+
+/** One cell of a sub or summary row; it sits under the column `columnKey`. */
+interface DataTableExtraCell {
+  readonly columnKey: string;
+  readonly colSpan?: number;
+  readonly content: ReactNode;
+}
+
+/**
+ * A row under a table row. `cells` line up with the table's columns, so a
+ * column without a cell stays empty instead of shifting the rest; `content`
+ * spans the whole width (an explanation, a nested history).
+ */
+export type DataTableExtraRow = {
+  readonly key: string;
+} & (
+  | { readonly cells: readonly DataTableExtraCell[] }
+  | { readonly content: ReactNode }
+);
+
+// Tint of a whole row. It lives here and not in `rowClassName` because the
+// pinned action column has to carry the same tint opaquely.
+type DataTableRowTone = "today" | "muted";
 
 interface DataTableProps<T> {
   columns: DataTableColumn<T>[];
@@ -126,6 +169,16 @@ interface DataTableProps<T> {
   // The row whose detail stands beside the table (list left, detail right,
   // #5692). It carries aria-current and the selected tint in both layouts.
   activeRowKey?: string | number | null;
+  expandable?: DataTableExpandable<T>;
+  // Rows under a table row: always there (blocks of a day) or only while it is
+  // open (`expanded`). Table layout only, the stacked phone rows leave them out.
+  renderSubRows?: (row: T, expanded: boolean) => readonly DataTableExtraRow[];
+  // A summary after a row and its sub rows, e.g. the sum closing a week. Table
+  // layout only.
+  summaryRow?: (row: T) => DataTableExtraRow | null;
+  rowTone?: (row: T) => DataTableRowTone | null;
+  // Narrower cells for a table with many columns.
+  dense?: boolean;
 }
 
 const alignClass: Record<
@@ -152,6 +205,7 @@ const headRowClass =
 // neighbours, whose button carries the weight (#3834).
 const headCellClass =
   "px-5 py-3 font-medium max-sm:px-3 compact:px-4 compact:py-2";
+const denseHeadCellClass = "px-2.5 py-3 font-medium compact:py-2";
 const bodyRowClass = "border-b border-gray-50 last:border-0";
 
 // The row-action column stays at the right edge of the surface while wider
@@ -166,14 +220,38 @@ const ACTIVE_ROW_CLASS =
   "bg-gray-50 shadow-[inset_3px_0_0_0_var(--color-gray-900)]";
 const pinnedCellClass = "sticky right-0";
 
-function pinnedBodyCellClass(selected: boolean, clickable: boolean): string {
+const ROW_TONE_CLASS: Record<DataTableRowTone, string> = {
+  today: "bg-moto-blue-soft/60",
+  muted: "bg-gray-50/60",
+};
+
+// A gradient in the row's translucent colour over white gives the same colour
+// as the row, but opaque, so wider columns do not shine through while they
+// scroll beneath the pinned cell.
+const PINNED_TONE_CLASS: Record<DataTableRowTone, string> = {
+  today:
+    "bg-linear-to-r from-moto-blue-soft/60 to-moto-blue-soft/60 group-hover:bg-none",
+  muted: "bg-linear-to-r from-gray-50/60 to-gray-50/60 group-hover:bg-none",
+};
+
+function pinnedBodyCellClass(
+  selected: boolean,
+  clickable: boolean,
+  tone: DataTableRowTone | null,
+): string {
   if (selected) return `${pinnedCellClass} bg-gray-50`;
+  const tint = tone ? PINNED_TONE_CLASS[tone] : "";
   return clickable
-    ? `${pinnedCellClass} bg-white transition-colors group-hover:bg-gray-50`
-    : `${pinnedCellClass} bg-white`;
+    ? `${pinnedCellClass} bg-white ${tint} transition-colors group-hover:bg-gray-50`
+    : `${pinnedCellClass} bg-white ${tint}`;
 }
 const bodyCellClass =
   "px-5 py-3 align-middle max-sm:px-3 compact:px-4 compact:py-2";
+const denseBodyCellClass = "px-2.5 py-3 align-middle compact:py-2";
+const extraCellClass = "px-5 py-2 max-sm:px-3 compact:px-4";
+const denseExtraCellClass = "px-2.5 py-2";
+const subRowClass = `${bodyRowClass} bg-gray-50 text-xs text-gray-500`;
+const summaryRowClass = `${bodyRowClass} bg-gray-50 text-xs font-medium text-gray-600`;
 
 // Deterministic width cycle: varied line lengths read as real data without
 // Math.random() (SSR-hydration-safe). First column widest, like a name.
@@ -194,12 +272,75 @@ function SkeletonBodyRows({
         <tr key={r} className={bodyRowClass} aria-hidden="true">
           {Array.from({ length: columnCount }, (_, c) => (
             <td key={c} className={bodyCellClass}>
-              <Skeleton className={`h-4 rounded ${skeletonWidth(r, c)}`} />
+              <Skeleton className={`h-4 ${skeletonWidth(r, c)}`} />
             </td>
           ))}
         </tr>
       ))}
     </>
+  );
+}
+
+/**
+ * A sub or summary row. Walks the shown columns so that every row has as many
+ * cells as the head, whatever the caller left out; the sticky column keeps its
+ * opaque cell.
+ */
+function ExtraRow<T>({
+  row,
+  columns,
+  cellCount,
+  rowClass,
+  cellClass,
+  leadingEmptyCell,
+  indentFirstCell,
+}: Readonly<{
+  row: DataTableExtraRow;
+  columns: readonly DataTableColumn<T>[];
+  cellCount: number;
+  rowClass: string;
+  cellClass: string;
+  leadingEmptyCell: boolean;
+  indentFirstCell: boolean;
+}>) {
+  if ("content" in row) {
+    return (
+      <tr className={rowClass}>
+        <td colSpan={cellCount} className={cellClass}>
+          {row.content}
+        </td>
+      </tr>
+    );
+  }
+  const cellsByColumn = new Map(row.cells.map((c) => [c.columnKey, c]));
+  const cells: ReactNode[] = [];
+  for (let index = 0; index < columns.length; index += 1) {
+    const col = columns[index];
+    if (!col) continue;
+    const cell = cellsByColumn.get(col.key);
+    const pinned =
+      col.key === PINNED_COLUMN_KEY ? `${pinnedCellClass} bg-gray-50` : "";
+    cells.push(
+      <td
+        key={col.key}
+        colSpan={cell?.colSpan}
+        className={`${cellClass} ${alignClass[col.align ?? "left"]} ${pinned}`}
+      >
+        {/* Under the text of the row above, past its chevron. */}
+        {indentFirstCell && index === 0 ? (
+          <div className="pl-5.5">{cell?.content}</div>
+        ) : (
+          cell?.content
+        )}
+      </td>,
+    );
+    index += Math.max(cell?.colSpan ?? 1, 1) - 1;
+  }
+  return (
+    <tr className={rowClass}>
+      {leadingEmptyCell ? <td className={cellClass} /> : null}
+      {cells}
+    </tr>
   );
 }
 
@@ -436,9 +577,9 @@ function StackedRows<T>({
         <ul className="divide-y divide-gray-100">
           {Array.from({ length: loadingRowCount }, (_, i) => (
             <li key={i} className="space-y-2 p-4">
-              <Skeleton className="h-4 w-40 rounded" />
-              <Skeleton className="h-3 w-full rounded" />
-              <Skeleton className="h-3 w-2/3 rounded" />
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-2/3" />
             </li>
           ))}
         </ul>
@@ -587,7 +728,7 @@ export function DataTableSkeleton({
 }: Readonly<{ rows?: number; columns?: number; caption?: boolean }>) {
   return (
     <div className="w-full" aria-hidden="true">
-      {caption && <Skeleton className="mb-3 h-4 w-56 rounded" />}
+      {caption && <Skeleton className="mb-3 h-4 w-56" />}
       <div className={surfaceClass}>
         <div className="overflow-x-auto">
           <table className={tableClass}>
@@ -595,9 +736,7 @@ export function DataTableSkeleton({
               <tr className={headRowClass}>
                 {Array.from({ length: columns }, (_, c) => (
                   <th key={c} scope="col" className={headCellClass}>
-                    <Skeleton
-                      className={`h-3 rounded ${c === 0 ? "w-24" : "w-16"}`}
-                    />
+                    <Skeleton className={`h-3 ${c === 0 ? "w-24" : "w-16"}`} />
                   </th>
                 ))}
               </tr>
@@ -636,8 +775,17 @@ export function DataTable<T>({
   selection,
   heading,
   activeRowKey,
+  expandable,
+  renderSubRows,
+  summaryRow,
+  rowTone,
+  dense = false,
 }: Readonly<DataTableProps<T>>) {
   const clickable = Boolean(onRowClick);
+  const headCell = dense ? denseHeadCellClass : headCellClass;
+  const bodyCell = dense ? denseBodyCellClass : bodyCellClass;
+  const extraCell = dense ? denseExtraCellClass : extraCellClass;
+  const [expandedKey, setExpandedKey] = useState<string | number | null>(null);
   const shownColumns = useMemo(
     () =>
       hiddenColumns && hiddenColumns.size > 0
@@ -793,7 +941,7 @@ export function DataTable<T>({
             <thead>
               <tr className={headRowClass}>
                 {selection ? (
-                  <th scope="col" className={`${headCellClass} w-12 pr-0!`}>
+                  <th scope="col" className={`${headCell} w-12 pr-0!`}>
                     <label
                       htmlFor={selectAllId}
                       className="flex cursor-pointer items-center"
@@ -826,9 +974,14 @@ export function DataTable<T>({
                       <th
                         key={col.key}
                         scope="col"
-                        className={`${headCellClass} ${align} ${pinned} ${col.headerClassName ?? ""}`}
+                        title={col.headerTitle}
+                        className={`${headCell} ${align} ${pinned} ${col.headerClassName ?? ""}`}
                       >
-                        {col.header}
+                        {col.headerSrOnly ? (
+                          <span className="sr-only">{col.header}</span>
+                        ) : (
+                          col.header
+                        )}
                       </th>
                     );
                   }
@@ -860,7 +1013,8 @@ export function DataTable<T>({
                       key={col.key}
                       scope="col"
                       aria-sort={ariaSort}
-                      className={`${headCellClass} ${align} ${pinned} ${col.headerClassName ?? ""}`}
+                      title={col.headerTitle}
+                      className={`${headCell} ${align} ${pinned} ${col.headerClassName ?? ""}`}
                     >
                       <button
                         type="button"
@@ -903,75 +1057,144 @@ export function DataTable<T>({
                     activeRowKey != null && rowKey === activeRowKey;
                   const selected =
                     selection?.selectedKeys.has(String(rowKey)) ?? false;
-                  const tinted = selected || active;
+                  const canExpand =
+                    expandable !== undefined &&
+                    (expandable.canExpand?.(row) ?? true);
+                  const expanded = canExpand && expandedKey === rowKey;
+                  const toggle = () =>
+                    setExpandedKey((prev) => (prev === rowKey ? null : rowKey));
+                  const tinted = selected || active || expanded;
+                  const interactive = clickable || canExpand;
+                  const tone = tinted ? null : (rowTone?.(row) ?? null);
                   const rowClasses = [
                     `${bodyRowClass} transition-colors`,
-                    clickable ? "group cursor-pointer hover:bg-gray-50" : "",
+                    interactive ? "group cursor-pointer hover:bg-gray-50" : "",
                     tinted ? "bg-gray-50" : "",
+                    tone ? ROW_TONE_CLASS[tone] : "",
                     active ? ACTIVE_ROW_CLASS : "",
                     rowClassName ? rowClassName(row) : "",
                   ]
                     .filter(Boolean)
                     .join(" ");
+                  const handleRowKey =
+                    canExpand || keyboardClickable
+                      ? (event: KeyboardEvent<HTMLTableRowElement>) => {
+                          if (event.target !== event.currentTarget) return;
+                          if (event.key !== "Enter" && event.key !== " ") {
+                            return;
+                          }
+                          event.preventDefault();
+                          if (canExpand) toggle();
+                          else onRowClick?.(row);
+                        }
+                      : undefined;
+                  const summary = summaryRow?.(row);
                   return (
-                    <tr
-                      key={rowKey}
-                      aria-current={active ? "true" : undefined}
-                      className={rowClasses}
-                      onClick={onRowClick ? () => onRowClick(row) : undefined}
-                      onKeyDown={
-                        keyboardClickable
-                          ? (event) => {
-                              if (event.target !== event.currentTarget) {
-                                return;
-                              }
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                onRowClick?.(row);
-                              }
-                            }
-                          : undefined
-                      }
-                      tabIndex={keyboardClickable ? 0 : undefined}
-                      role={keyboardClickable ? "button" : undefined}
-                    >
-                      {selection ? (
-                        <td
-                          className={`${bodyCellClass} w-12 pr-0!`}
-                          // The checkbox toggles the mark; it must not also
-                          // open the row.
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <label className="flex cursor-pointer items-center">
-                            <Checkbox
-                              checked={selected}
-                              disabled={selection.disabled}
-                              onChange={() =>
-                                selection.onChange([String(rowKey)], !selected)
-                              }
-                            />
-                            <span className="sr-only">
-                              {`${selection.rowLabel(row)} auswählen`}
-                            </span>
-                          </label>
-                        </td>
-                      ) : null}
-                      {shownColumns.map((col) => {
-                        const align = alignClass[col.align ?? "left"];
-                        const pinned =
-                          col.key === PINNED_COLUMN_KEY
-                            ? pinnedBodyCellClass(tinted, clickable)
-                            : "";
-                        return (
+                    <Fragment key={rowKey}>
+                      <tr
+                        aria-current={active ? "true" : undefined}
+                        aria-expanded={canExpand ? expanded : undefined}
+                        aria-label={
+                          canExpand
+                            ? expandable.rowLabel(row, expanded)
+                            : undefined
+                        }
+                        className={rowClasses}
+                        onClick={
+                          canExpand
+                            ? toggle
+                            : onRowClick
+                              ? () => onRowClick(row)
+                              : undefined
+                        }
+                        onKeyDown={handleRowKey}
+                        tabIndex={
+                          canExpand || keyboardClickable ? 0 : undefined
+                        }
+                        role={
+                          !canExpand && keyboardClickable ? "button" : undefined
+                        }
+                      >
+                        {selection ? (
                           <td
-                            key={col.key}
-                            className={`${bodyCellClass} text-gray-900 ${align} ${pinned} ${col.className ?? ""}`}
+                            className={`${bodyCell} w-12 pr-0!`}
+                            // The checkbox toggles the mark; it must not also
+                            // open the row.
+                            onClick={(event) => event.stopPropagation()}
                           >
-                            {col.render(row)}
+                            <label className="flex cursor-pointer items-center">
+                              <Checkbox
+                                checked={selected}
+                                disabled={selection.disabled}
+                                onChange={() =>
+                                  selection.onChange(
+                                    [String(rowKey)],
+                                    !selected,
+                                  )
+                                }
+                              />
+                              <span className="sr-only">
+                                {`${selection.rowLabel(row)} auswählen`}
+                              </span>
+                            </label>
                           </td>
-                        );
-                      })}
-                    </tr>
+                        ) : null}
+                        {shownColumns.map((col, colIndex) => {
+                          const align = alignClass[col.align ?? "left"];
+                          const pinned =
+                            col.key === PINNED_COLUMN_KEY
+                              ? pinnedBodyCellClass(tinted, interactive, tone)
+                              : "";
+                          return (
+                            <td
+                              key={col.key}
+                              className={`${bodyCell} text-gray-900 ${align} ${pinned} ${col.className ?? ""}`}
+                            >
+                              {expandable && colIndex === 0 ? (
+                                <div className="flex items-center gap-2">
+                                  {canExpand ? (
+                                    <ChevronRight
+                                      aria-hidden="true"
+                                      className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${expanded ? "rotate-90" : ""}`}
+                                    />
+                                  ) : (
+                                    <span className="h-3.5 w-3.5 shrink-0" />
+                                  )}
+                                  <div className="min-w-0">
+                                    {col.render(row)}
+                                  </div>
+                                </div>
+                              ) : (
+                                col.render(row)
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      {renderSubRows?.(row, expanded).map((subRow) => (
+                        <ExtraRow
+                          key={subRow.key}
+                          row={subRow}
+                          columns={shownColumns}
+                          cellCount={cellCount}
+                          rowClass={subRowClass}
+                          cellClass={extraCell}
+                          leadingEmptyCell={selection !== undefined}
+                          indentFirstCell={expandable !== undefined}
+                        />
+                      ))}
+                      {summary ? (
+                        <ExtraRow
+                          row={summary}
+                          columns={shownColumns}
+                          cellCount={cellCount}
+                          rowClass={summaryRowClass}
+                          cellClass={extraCell}
+                          leadingEmptyCell={selection !== undefined}
+                          indentFirstCell={false}
+                        />
+                      ) : null}
+                    </Fragment>
                   );
                 })
               )}

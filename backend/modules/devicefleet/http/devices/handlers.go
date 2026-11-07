@@ -177,10 +177,9 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 	device.DeviceType = req.DeviceType
 	device.Name = req.Name
 	device.RegisteredByID = req.RegisteredByID
-
-	if req.Status != "" {
-		device.Status = devicefleet.DeviceStatus(req.Status)
-	}
+	// An omitted status keeps the stored one; the edit then does not write
+	// the status this request read, which may already be outdated.
+	device.Status = devicefleet.DeviceStatus(req.Status)
 
 	// Update device
 	if err := rs.IoTService.UpdateDevice(r.Context(), device); err != nil {

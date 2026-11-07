@@ -6,6 +6,7 @@ import { useState, useEffect, useLayoutEffect, useRef, Suspense } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -20,11 +21,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { trackTenantEvent } from "~/lib/analytics";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { TenantPasswordResetModal } from "~/components/auth/tenant-password-reset-modal";
@@ -47,6 +44,8 @@ import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { passkeysConcept } from "~/lib/concepts/passkeys";
 import { Button } from "~/components/ui/button";
+import { Loading } from "~/components/ui/loading";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "TenantLoginPage" });
 
@@ -451,29 +450,29 @@ function LoginForm() {
         }
       >
         {isCheckingAuth && (
-          <div className="flex items-center justify-center py-12">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-              <p className="text-sm text-gray-500">Sitzung wird überprüft...</p>
-            </div>
-          </div>
+          <output
+            aria-live="polite"
+            aria-busy="true"
+            className="flex items-center justify-center gap-3 py-12 text-gray-600"
+          >
+            <SpinnerIcon className="h-6 w-6" />
+            <span className="text-sm font-medium">
+              Sitzung wird überprüft...
+            </span>
+          </output>
         )}
 
         <div
           className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
         >
           {isSmartRedirecting ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="flex flex-col items-center gap-4 text-center">
-                <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    Sie sind bereits angemeldet.
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    moto öffnet Ihre OGS...
-                  </p>
-                </div>
+            <div className="flex flex-col items-center gap-4 py-12 text-center">
+              <SpinnerIcon className="h-6 w-6 text-gray-600" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-gray-900">
+                  Sie sind bereits angemeldet.
+                </p>
+                <p className="text-sm text-gray-500">moto öffnet Ihre OGS...</p>
               </div>
             </div>
           ) : mfaStep ? (
@@ -595,7 +594,7 @@ function LoginForm() {
                     }
                     revealable
                   />
-                  <AuthFieldError
+                  <FieldErrorHint
                     id="password-error"
                     message={formErrors.fieldError("password")}
                   />
@@ -685,10 +684,7 @@ export default function HomePage() {
           variant="tenant"
           brand={<MotoBrand />}
         >
-          <div className="flex flex-col items-center gap-4 py-8">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-            <p className="text-sm text-gray-500">Laden...</p>
-          </div>
+          <Loading fullPage={false} message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >

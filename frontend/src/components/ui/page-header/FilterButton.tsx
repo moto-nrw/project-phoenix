@@ -1,4 +1,5 @@
 "use client";
+import { NotificationBadge } from "~/components/ui/notification-badge";
 
 interface FilterButtonProps {
   readonly isOpen: boolean;
@@ -57,12 +58,13 @@ export function FilterButton({
         />
       </svg>
       {showCountBadge ? (
-        <span
-          className="bg-moto-blue absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white tabular-nums shadow-sm"
-          aria-hidden
-        >
-          {activeCount}
-        </span>
+        <NotificationBadge
+          count={activeCount}
+          tone="blue"
+          size="sm"
+          ariaLabel={`${activeCount} aktive Filter`}
+          className="absolute -top-1 -right-1 tabular-nums shadow-sm"
+        />
       ) : null}
     </button>
   );

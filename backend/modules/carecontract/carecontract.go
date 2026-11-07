@@ -21,9 +21,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The states of a contract (ADR 0088 section 2). This owner reaches only
-// StatusDraft and StatusSent today; signature (#4679), conclusion at the
-// acceptance (#4680) and termination (#4682) move it further.
+// The states of a contract (ADR 0088 section 2). The Träger-Büro reaches
+// StatusDraft and StatusSent; the conclusion (conclusion.go: at the
+// acceptance, #4680, or with the signature, #4679) reaches StatusActive;
+// termination (#4682) moves it further.
 const (
 	StatusDraft  = "entwurf"
 	StatusSent   = "versendet"
@@ -39,6 +40,9 @@ const (
 	VersionEffective  = "wirksam"
 	VersionSuperseded = "abgeloest"
 	VersionRejected   = "abgelehnt"
+	// VersionReplaced is a version that a change on its own first day
+	// replaced (#4681): it stays in the history and holds on no day.
+	VersionReplaced = "ersetzt"
 )
 
 // The term of a contract template.
@@ -80,13 +84,19 @@ var (
 	ErrContractExists = errors.New("the application has a contract")
 	// ErrContractNotDraft reports a write that only a draft allows.
 	ErrContractNotDraft = errors.New("the contract is no draft")
-	// ErrContractNotSendable reports a contract past sending (signed, active
-	// or ended).
+	// ErrContractNotSendable reports a contract that cannot be sent
+	// (signed, ended, or active without its frozen document).
 	ErrContractNotSendable = errors.New("the contract can no longer be sent")
 	// ErrRecipientMissing reports a party without an address.
 	ErrRecipientMissing = errors.New("the contract party has no e-mail address")
 	// ErrMailPending reports a send while the last mail still waits.
 	ErrMailPending = errors.New("the last mail of the contract still waits")
+	// ErrMailDelayed reports a send while the server still tries the last mail.
+	ErrMailDelayed = errors.New("the last mail of the contract is delayed")
+	// ErrMailBlocked reports a send a stop, a list or the provider would hold back.
+	ErrMailBlocked = errors.New("a mail to this address would stay back")
+	// ErrMailBlockUnreadable reports a block moto could not read just now.
+	ErrMailBlockUnreadable = errors.New("the mail provider's block could not be read")
 	// ErrLetterheadTooLong reports a letterhead or footer that leaves too
 	// little room for the contract.
 	ErrLetterheadTooLong = errors.New("the letterhead leaves too little room for the contract")
@@ -139,6 +149,9 @@ type OfferingTemplate struct {
 	PriceCents   *int      `json:"price_cents"`
 	Active       bool      `json:"active"`
 	Template     *Template `json:"template"`
+	// AcceptanceText is the complete saved conditions text for the enrollment
+	// form. It is empty without a template or an explicit contract partner.
+	AcceptanceText string `json:"acceptance_text"`
 }
 
 // CandidateKey names one accepted application child.
@@ -169,15 +182,24 @@ type Service struct {
 // without conditions, or modules whose conditions differ.
 type Candidate struct {
 	CandidateKey
-	SchoolName     string        `json:"school_name"`
-	ChildFirstName string        `json:"child_first_name"`
-	ChildLastName  string        `json:"child_last_name"`
-	GuardianName   string        `json:"guardian_name"`
-	GuardianEmail  string        `json:"guardian_email"`
-	PhaseName      string        `json:"phase_name"`
-	Services       []Service     `json:"services"`
-	EffectiveFrom  calendar.Date `json:"effective_from"`
-	TemplateIssue  string        `json:"template_issue"`
+	// AcceptanceIssue tells why the application gives no proof of the
+	// parents' agreement for a conclusion at the acceptance (Weg b): empty,
+	// SkipAcceptanceMissing or SkipAcceptanceChanged.
+	AcceptanceIssue string        `json:"acceptance_issue"`
+	SchoolName      string        `json:"school_name"`
+	ChildFirstName  string        `json:"child_first_name"`
+	ChildLastName   string        `json:"child_last_name"`
+	GuardianName    string        `json:"guardian_name"`
+	GuardianEmail   string        `json:"guardian_email"`
+	PhaseName       string        `json:"phase_name"`
+	Services        []Service     `json:"services"`
+	EffectiveFrom   calendar.Date `json:"effective_from"`
+	TemplateIssue   string        `json:"template_issue"`
+	// MailBlock names, for a child the conclusion at the acceptance (Weg b)
+	// could conclude, why the mail to the parents' address would stay back
+	// now (#4680): MailBlockStopped or MailBlockAddress. The contract then
+	// waits until the school corrects or clears the address.
+	MailBlock string `json:"mail_block,omitempty"`
 }
 
 // CreateResult answers a creation of several drafts: the created contracts
@@ -197,10 +219,13 @@ type CreateSkip struct {
 // The reasons of a CreateSkip; the first two are also the TemplateIssue
 // of a Candidate.
 const (
-	SkipTemplateMissing = "template_missing"
-	SkipTemplatesDiffer = "templates_differ"
-	SkipContractExists  = "contract_exists"
-	SkipNotFound        = "application_not_found"
+	SkipTemplateMissing     = "template_missing"
+	SkipTemplatesDiffer     = "templates_differ"
+	SkipContractExists      = "contract_exists"
+	SkipNotFound            = "application_not_found"
+	SkipConclusionAutomatic = "conclusion_automatic"
+	SkipAcceptanceMissing   = "acceptance_missing"
+	SkipAcceptanceChanged   = "acceptance_changed"
 )
 
 // ContractFilter selects the contracts of the list.
@@ -226,6 +251,8 @@ type ContractSummary struct {
 	EffectiveFrom  calendar.Date `json:"effective_from"`
 	CreatedAt      time.Time     `json:"created_at"`
 	SentAt         *time.Time    `json:"sent_at"`
+	// Concluded is how and when the contract was concluded; nil before.
+	Concluded *Concluded `json:"concluded"`
 }
 
 // ContractList is the filtered list with the count of every status over all
@@ -257,6 +284,13 @@ type Version struct {
 	PriceCents *int64        `json:"price_cents"`
 	Terms      TemplateInput `json:"terms"`
 	CreatedAt  time.Time     `json:"created_at"`
+	// Source tells where the version came from: SourceConclusion or
+	// SourceBookingChange (#4681).
+	Source string `json:"source"`
+	// ValidUntil is the last day the version holds: the day before the next
+	// effective version starts, else its own end. Nil while it holds open
+	// ended or is no effective version.
+	ValidUntil *calendar.Date `json:"valid_until"`
 }
 
 // Party is a party to the contract.
@@ -272,6 +306,11 @@ type Mailing struct {
 	Recipient string    `json:"recipient"`
 	SentAt    time.Time `json:"sent_at"`
 	State     string    `json:"state"`
+	// Outcome is what Delivery knows about the mail, as with the Abrechnung's letters.
+	Outcome string `json:"outcome,omitempty"`
+	// SendBlock says why another mail to this address would stay back now. Only the
+	// newest mailing carries it.
+	SendBlock string `json:"send_block,omitempty"`
 	// OutboxID is the mail in Delivery's outbox; the wire never shows it.
 	OutboxID int64 `json:"-"`
 }
@@ -284,6 +323,15 @@ const (
 	MailUnknown = "unknown"
 )
 
+// Why another mail would stay back now, in Delivery's words.
+const (
+	MailBlockDelayed    = "delayed"
+	MailBlockStopped    = "stopped"
+	MailBlockAddress    = "address"
+	MailBlockProvider   = "provider"
+	MailBlockUnreadable = "provider_unknown"
+)
+
 // ContractDetail is one contract with its version, parties and sends.
 type ContractDetail struct {
 	ContractSummary
@@ -293,6 +341,9 @@ type ContractDetail struct {
 	// DocumentFrozen tells that the PDF was rendered at the first send and
 	// no longer follows the template.
 	DocumentFrozen bool `json:"document_frozen"`
+	// Versions are all versions of the contract, oldest first (#4681). The
+	// version above is the one in force today, else the next one.
+	Versions []Version `json:"versions"`
 }
 
 // File is a rendered PDF.
@@ -316,10 +367,13 @@ type SendSkip struct {
 
 // The reasons of a SendSkip.
 const (
-	SkipRecipientMissing = "recipient_missing"
-	SkipPartnerMissing   = "partner_missing"
-	SkipMailPending      = "mail_pending"
-	SkipNotSendable      = "not_sendable"
+	SkipRecipientMissing    = "recipient_missing"
+	SkipPartnerMissing      = "partner_missing"
+	SkipMailPending         = "mail_pending"
+	SkipMailDelayed         = "mail_delayed"
+	SkipMailBlocked         = "mail_blocked"
+	SkipMailBlockUnreadable = "mail_block_unreadable"
+	SkipNotSendable         = "not_sendable"
 )
 
 // Contracts serves the contracts of a Träger to its Träger-Büro. Every
@@ -337,7 +391,7 @@ type Contracts interface {
 	// that a preview with the current template, which stores nothing.
 	ContractDocument(ctx context.Context, reviewer Reviewer, contractID int64) (File, error)
 	// SendContracts sends each contract by mail and into the inbox: a draft
-	// gets its PDF and becomes versendet, a sent one is sent again with the
+	// gets its PDF and becomes versendet, a sent or active one is sent again with the
 	// same PDF.
 	SendContracts(ctx context.Context, reviewer Reviewer, contractIDs []int64) (SendResult, error)
 	// ResendContract corrects only the delivery address of a failed send,
@@ -345,6 +399,10 @@ type Contracts interface {
 	ResendContract(ctx context.Context, reviewer Reviewer, contractID int64, email string) (SendResult, error)
 	// DiscardContract removes a draft; a sent contract stays.
 	DiscardContract(ctx context.Context, reviewer Reviewer, contractID int64) error
+	// VersionDocument answers the PDF of one version (#4681): the stored one
+	// when it was sent, else a rendering with the current template that
+	// stores nothing.
+	VersionDocument(ctx context.Context, reviewer Reviewer, contractID int64, number int) (File, error)
 }
 
 // Intake creates contracts from the accepted applications and keeps the
@@ -364,6 +422,9 @@ type Intake interface {
 	Templates(ctx context.Context, reviewer Reviewer) ([]OfferingTemplate, error)
 	// SaveTemplate creates or replaces the template of one offering.
 	SaveTemplate(ctx context.Context, reviewer Reviewer, schoolID, offeringID int64, input TemplateInput) (OfferingTemplate, error)
+	// ConclusionModes tells for every school of the Träger how its contracts
+	// come about: ModeSendLater (Weg a) or ModeOnAcceptance (Weg b).
+	ConclusionModes(ctx context.Context, reviewer Reviewer) ([]SchoolConclusion, error)
 }
 
 // InboxReader is the parents' account that reads its inbox, with its
@@ -383,6 +444,10 @@ type InboxContract struct {
 	SchoolName  string        `json:"school_name"`
 	SentAt      time.Time     `json:"sent_at"`
 	EffectiveOn calendar.Date `json:"effective_on"`
+	// Replaced tells that a change on the first day of the sent version
+	// replaced it (#4681): it holds on no day, and a changed version holds
+	// from EffectiveOn.
+	Replaced bool `json:"replaced"`
 }
 
 // Inbox serves the contracts of one Träger in the parents' inbox (ADR 0088
@@ -408,6 +473,9 @@ type ContractMail struct {
 	Filename       string `json:"filename"`
 	PDF            []byte `json:"pdf"`
 	IdempotencyKey string `json:"idempotency_key"`
+	// Concluded tells that the contract is concluded already (Weg b): the
+	// parents receive it for their records and sign nothing.
+	Concluded bool `json:"concluded,omitempty"`
 }
 
 // RenderedContractMail is the mail the worker sends.
@@ -426,6 +494,7 @@ type ContractMailContent struct {
 	TraegerName  string
 	ChildName    string
 	Modules      string
+	Concluded    bool
 }
 
 // ContractMailRenderer renders the payload of a claimed contract mail.

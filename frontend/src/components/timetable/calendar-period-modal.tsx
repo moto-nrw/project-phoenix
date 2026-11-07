@@ -397,16 +397,15 @@ export function CalendarPeriodModal({
         if (!open) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[560px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>
-              {persisted
-                ? "Kalenderzeitraum bearbeiten"
-                : "Kalenderzeitraum anlegen"}
-            </SlideOverTitle>
-          </div>
-          <SlideOverCloseButton aria-label="Zeitraum schließen" />
+      <SlideOverContent size="md">
+        <SlideOverHeader
+          close={<SlideOverCloseButton aria-label="Zeitraum schließen" />}
+        >
+          <SlideOverTitle>
+            {persisted
+              ? "Kalenderzeitraum bearbeiten"
+              : "Kalenderzeitraum anlegen"}
+          </SlideOverTitle>
         </SlideOverHeader>
         <SlideOverBody error={formErrors.error}>
           <div ref={formRef}>
@@ -590,7 +589,7 @@ export function CalendarPeriodModal({
             </form>
           </div>
         </SlideOverBody>
-        <SlideOverFooter className="items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SlideOverFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* On a phone the actions share one full-width row and „Löschen“
               sits full width below them, like the Regeltermin dialog. */}
           <div className={isEdit ? "order-2 sm:order-1" : "hidden sm:block"}>

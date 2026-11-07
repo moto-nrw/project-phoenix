@@ -2,9 +2,9 @@
 
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import Link from "~/components/ui/navigation-link";
+import { ListRow } from "~/components/ui/list-row";
 import { SectionCard } from "~/components/ui/section-card";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, SkeletonRows } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
@@ -114,16 +114,8 @@ export function MyGroupBlock() {
         if ((isLoading && !group) || error) {
           return (
             <div className="space-y-2" aria-hidden="true">
-              <Skeleton className="h-4 w-3/5 rounded" />
-              {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
-                >
-                  <Skeleton className="h-4 w-24 rounded" />
-                  <Skeleton className="h-4 w-16 rounded" />
-                </div>
-              ))}
+              <Skeleton className="h-4 w-3/5" />
+              <SkeletonRows rows={2} valueClassName="w-16" />
             </div>
           );
         }
@@ -231,9 +223,6 @@ function StudentName({
   );
 }
 
-const ROW_CLASS =
-  "flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50 sm:py-1.5";
-
 /** Rechts in der Zeile: die Uhrzeit und was sie bedeutet, ab `sm` nebeneinander. */
 const ROW_TIME_CLASS =
   "flex shrink-0 flex-col items-end gap-0.5 sm:flex-row sm:items-baseline sm:gap-1.5";
@@ -254,19 +243,22 @@ function MissingRow({
   const { student, expected, note } = arrival;
   return (
     <li>
-      <Link
+      <ListRow
         href={href}
+        tone="danger"
+        density="compact"
         aria-label={`${student.first_name} ${student.last_name}, fehlt seit ${expected}: Gruppe öffnen`}
-        className={`${ROW_CLASS} bg-moto-red/5 hover:bg-moto-red/10`}
+        trailing={
+          <span className={ROW_TIME_CLASS}>
+            <span className="text-sm font-semibold text-gray-900 tabular-nums">
+              {expected}
+            </span>
+            <span className="text-moto-red-strong text-xs">Fehlt noch</span>
+          </span>
+        }
       >
         <StudentName student={student} note={note} />
-        <span className={ROW_TIME_CLASS}>
-          <span className="text-sm font-semibold text-gray-900 tabular-nums">
-            {expected}
-          </span>
-          <span className="text-moto-red-strong text-xs">Fehlt noch</span>
-        </span>
-      </Link>
+      </ListRow>
     </li>
   );
 }
@@ -285,23 +277,25 @@ function PickupRow({
   const { student, time, note, isException } = pickup;
   return (
     <li>
-      <Link
+      <ListRow
         href={href}
+        density="compact"
         aria-label={`${student.first_name} ${student.last_name}, Abholung ${time}: Gruppe öffnen`}
-        className={ROW_CLASS}
+        trailing={
+          <span className={ROW_TIME_CLASS}>
+            <span className="text-sm font-semibold text-gray-900 tabular-nums">
+              {time}
+            </span>
+            {isException ? (
+              <StatusBadge tone="orange" label="Ausnahme" />
+            ) : (
+              <span className="text-xs text-gray-500">Abholung</span>
+            )}
+          </span>
+        }
       >
         <StudentName student={student} note={note} />
-        <span className={ROW_TIME_CLASS}>
-          <span className="text-sm font-semibold text-gray-900 tabular-nums">
-            {time}
-          </span>
-          {isException ? (
-            <StatusBadge tone="orange" label="Ausnahme" />
-          ) : (
-            <span className="text-xs text-gray-500">Abholung</span>
-          )}
-        </span>
-      </Link>
+      </ListRow>
     </li>
   );
 }
@@ -317,20 +311,22 @@ function AwayRow({
 }) {
   return (
     <li>
-      <Link
+      <ListRow
         href={href}
+        density="compact"
         aria-label={`${student.first_name} ${student.last_name}: Gruppe öffnen`}
-        className={ROW_CLASS}
+        trailing={
+          <AwayBadge
+            student={student}
+            onlyIfLessonCancelled={onlyIfLessonCancelled}
+          />
+        }
       >
         <StudentName
           student={student}
           note={student.arrival_notes || undefined}
         />
-        <AwayBadge
-          student={student}
-          onlyIfLessonCancelled={onlyIfLessonCancelled}
-        />
-      </Link>
+      </ListRow>
     </li>
   );
 }

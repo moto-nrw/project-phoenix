@@ -28,6 +28,7 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "EnrollPhasePicker" });
 
@@ -97,13 +98,7 @@ export default function EnrollPhasePickerPage() {
       <PublicEnrollmentPageShell withInlineSwitcher>
         <PhasePickerHeader tenant={tenant} />
         <section className="moto-content-surface flex min-h-[24rem] items-center justify-center rounded-2xl border">
-          <div
-            className="moto-content-surface rounded-xl border px-5 py-4 text-sm font-medium text-gray-600"
-            role="status"
-            aria-live="polite"
-          >
-            {t("loading")}
-          </div>
+          <Loading fullPage={false} message={t("loading")} />
         </section>
       </PublicEnrollmentPageShell>
     );

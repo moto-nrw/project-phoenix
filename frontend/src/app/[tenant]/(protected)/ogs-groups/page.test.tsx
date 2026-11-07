@@ -213,13 +213,6 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-// Mock studentService
-vi.mock("~/lib/api", () => ({
-  studentService: {
-    getStudents: vi.fn(),
-  },
-}));
-
 // Mock location helpers. Partial mock via importOriginal — MotoConceptIcon
 // (rendered for the substitution badge) pulls in MOTO_COLOR_PALETTE, which
 // must stay real; only the location predicates below are deliberately
@@ -374,7 +367,7 @@ vi.mock("~/components/students/student-card", () => ({
       >
         {pickupTime && <>Abholzeit: {pickupTime} Uhr</>}
         {!pickupTime && isException && (notes || "Abwesend")}
-        {!pickupTime && !isException && <>Abholzeit: —</>}
+        {!pickupTime && !isException && <>Abholzeit: –</>}
         {notes && <span>({notes})</span>}
       </div>
     );
@@ -818,10 +811,11 @@ describe("OGSGroupPage", () => {
     render(<OGSGroupPage />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Abwesenheiten heute")).toBeInTheDocument();
+      // Die Zähler stehen in der Statuszeile, nicht in einer eigenen Zeile.
+      expect(
+        screen.getByText(/von 3 da · 1 krank · 1 entschuldigt$/),
+      ).toBeInTheDocument();
       expect(screen.queryByText("3 Kinder")).not.toBeInTheDocument();
-      expect(screen.getByText("1/3 krank")).toBeInTheDocument();
-      expect(screen.getByText("1/3 entschuldigt")).toBeInTheDocument();
     });
   });
 
@@ -2067,8 +2061,8 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(screen.getAllByTestId("student-card")).toHaveLength(3);
     });
 
-    // Always-show-pickup-time: fallback "Abholzeit: —" row is rendered
-    const fallbackRows = screen.getAllByText("Abholzeit: —");
+    // Always-show-pickup-time: fallback "Abholzeit: –" row is rendered
+    const fallbackRows = screen.getAllByText("Abholzeit: –");
     expect(fallbackRows).toHaveLength(3);
   });
 });

@@ -38,6 +38,9 @@ type WorkerDependencies struct {
 	// HolidayRegistrationRetention deletes ended holiday registrations of
 	// every Träger (#4661).
 	HolidayRegistrationRetention HolidayRegistrationRetention
+	// TraegerDocumentReadRetention deletes the expired reads of the shared
+	// Träger documents (#4692).
+	TraegerDocumentReadRetention TraegerDocumentReadRetention
 	WorkSessionCleanup           WorkSessionCleaner
 	BreakAutoEnder               BreakAutoEnder
 	AutoCheckouter               AutoCheckouter
@@ -61,6 +64,9 @@ type WorkerDependencies struct {
 	BookingConsistency      BookingConsistencyAudit
 	HolidayGuests           HolidayGuestReconciliation
 	PlannedStaffExits       PlannedStaffExits
+	// CareContractConclusion concludes the contracts at the acceptance
+	// (#4680); nil leaves the job out.
+	CareContractConclusion CareContractConclusion
 	// StaffQualificationReminders sends the Nachweis reminders (#4808).
 	StaffQualificationReminders StaffQualificationReminders
 	WeekProtocols               WeekProtocolEvenings

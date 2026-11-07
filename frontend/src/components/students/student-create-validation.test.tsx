@@ -7,7 +7,14 @@ import { StudentCreateModal } from "./student-create-modal";
 vi.mock("~/lib/student-arrival-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/student-arrival-api")>()),
   fetchArrivalSettings: vi.fn(async () => ({
-    care_days_source: "weekly_plan",
+    careDaysSource: "weekly_plan",
+  })),
+}));
+
+vi.mock("~/lib/student-api", () => ({
+  fetchPrivacyConsentDefaults: vi.fn(async () => ({
+    accepted: false,
+    dataRetentionDays: 30,
   })),
 }));
 
@@ -63,6 +70,11 @@ describe("student creation required fields", () => {
 
     const firstName = await screen.findByRole("textbox", { name: /Vorname/ });
     const lastName = screen.getByRole("textbox", { name: /Nachname/ });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Aufbewahrungsdauer (Tage)")).toHaveValue(
+        30,
+      ),
+    );
     fireEvent.change(firstName, { target: { value: "Mia" } });
     fireEvent.change(lastName, { target: { value: "Muster" } });
     fireEvent.change(screen.getByRole("textbox", { name: /Klasse/ }), {

@@ -7,7 +7,6 @@ import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import { DetailDeleteButton } from "~/components/database/detail-delete-button";
-import { DetailLoadingSpinner } from "~/components/database/detail-loading-spinner";
 import {
   DetailPanel,
   type DetailTab,
@@ -38,6 +37,7 @@ import { rolesConcept } from "~/lib/concepts/roles";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { Loading } from "~/components/ui/loading";
 
 interface RolesMasterDetailProps {
   roles: Role[];
@@ -270,7 +270,7 @@ function RoleStammdatenTab({
   const saveErrors = useApiFormError();
 
   if (loading) {
-    return <DetailLoadingSpinner label="Rollendaten werden geladen..." />;
+    return <Loading fullPage={false} message="Rollendaten werden geladen..." />;
   }
 
   // Ohne Detail fehlen die Berechtigungen: keine „0 Berechtigungen“ zeigen.

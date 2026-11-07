@@ -468,12 +468,10 @@ func TestOperatorLinkRedemptionRollsBackAfterEachWrite(t *testing.T) {
 					return err
 				},
 				func(txCtx context.Context) error {
-					current, err := module.FindOperator(txCtx, operator.ID)
-					if err != nil {
-						return err
-					}
-					current.Email = change.NewEmail
-					_, err = module.UpdateOperator(txCtx, current)
+					_, err := module.UpdateOperator(txCtx, operator.ID, func(current *identityaccess.Operator) error {
+						current.Email = change.NewEmail
+						return nil
+					})
 					return err
 				},
 			},

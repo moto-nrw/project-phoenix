@@ -198,6 +198,8 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/abrechnung/familien",
   "/abrechnung/familien/:id",
   "/belegung",
+  "/dokumente",
+  "/dokumente/:id",
   "/einstellungen",
   "/einstellungen/abrechnung",
   "/einstellungen/briefkopf",
@@ -220,6 +222,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/vertraege",
   "/vertraege/:id",
   "/vertraege/bedingungen",
+  "/zeitvergleich",
 ] as const;
 
 /** Public pages of the bare domain: school choice, start, demo, help. */

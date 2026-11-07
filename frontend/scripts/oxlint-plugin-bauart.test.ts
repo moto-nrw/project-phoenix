@@ -276,12 +276,8 @@ describe.concurrent("bauart rules", () => {
     });
 
     it.each([
-      "src/app/operator/persons/page.tsx",
       "src/app/parents/(protected)/page.tsx",
-      "src/app/school/page.tsx",
-      "src/components/operator/persons-table.tsx",
       "src/components/parent/guardians-panel.tsx",
-      "src/components/school/list.tsx",
     ])("leaves %s alone", async (path) => {
       const source = `import { Button } from "~/components/ui/button";
       export function Probe({ rows }: { rows: string[] }) {
@@ -291,6 +287,22 @@ describe.concurrent("bauart rules", () => {
       }`;
 
       expect((await lintSource(source, path)).output).not.toContain(ROW_ACTION);
+    });
+
+    it.each([
+      "src/app/operator/persons/page.tsx",
+      "src/app/school/page.tsx",
+      "src/components/operator/persons-table.tsx",
+      "src/components/school/list.tsx",
+    ])("reports row actions in %s (#5604)", async (path) => {
+      const source = `import { Button } from "~/components/ui/button";
+      export function Probe({ rows }: { rows: string[] }) {
+        return rows.map((row) => (
+          <Button key={row} type="button">Löschen</Button>
+        ));
+      }`;
+
+      expect((await lintSource(source, path)).output).toContain(ROW_ACTION);
     });
 
     it("reports row actions in the tenant portal", async () => {
@@ -629,7 +641,6 @@ describe.concurrent("bauart rules", () => {
       for (const path of [
         "src/components/ui/probe.tsx",
         "src/components/probe.test.tsx",
-        "src/app/operator/probe.tsx",
         "src/components/parent/probe.tsx",
       ]) {
         const { output } = await lintSource(source, path);
@@ -790,13 +801,42 @@ describe.concurrent("bauart rules", () => {
       for (const path of [
         "src/components/ui/probe.tsx",
         "src/components/probe.test.tsx",
-        "src/app/operator/probe.tsx",
         "src/components/parent/probe.tsx",
       ]) {
         const { output } = await lintSource(source, path);
         expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
       }
     });
+  });
+
+  describe("Geltungsbereich Schul- und Operator-Portal (#5604)", () => {
+    it.each([
+      "src/app/school/probe/page.tsx",
+      "src/components/school/probe.tsx",
+      "src/app/operator/probe/page.tsx",
+      "src/components/operator/probe.tsx",
+    ])("reports an own skeleton in %s", async (path) => {
+      const source = `export function Probe() {
+        return <div className="h-4 animate-pulse rounded bg-gray-200" />;
+      }`;
+
+      expect((await lintSource(source, path)).output).toContain(
+        "bauart(no-own-skeleton)",
+      );
+    });
+
+    it.each(["src/app/parents/page.tsx", "src/components/parent/probe.tsx"])(
+      "still leaves %s alone",
+      async (path) => {
+        const source = `export function Probe() {
+        return <div className="h-4 animate-pulse rounded bg-gray-200" />;
+      }`;
+
+        expect((await lintSource(source, path)).output).not.toContain(
+          "bauart(no-own-skeleton)",
+        );
+      },
+    );
   });
 
   describe("bauart/one-detail-per-type", () => {
@@ -983,7 +1023,6 @@ describe.concurrent("bauart rules", () => {
       for (const path of [
         "src/components/ui/form-modal.tsx",
         "src/components/probe.test.tsx",
-        "src/app/operator/provisioning/edit-organization-modal.tsx",
         "src/app/parents/page.tsx",
       ]) {
         expect((await lintSource(source, path)).output).not.toContain(
@@ -1069,7 +1108,6 @@ describe.concurrent("bauart rules", () => {
       for (const path of [
         "src/components/ui/detail-modal-components.tsx",
         "src/components/probe.test.tsx",
-        "src/app/operator/settings/page.tsx",
         "src/components/parent/child-master-data.tsx",
       ]) {
         expect((await lintSource(source, path)).output).not.toContain(
@@ -1176,12 +1214,111 @@ describe.concurrent("bauart rules", () => {
         "src/components/probe.test.tsx",
         "src/components/probe.stories.tsx",
         "src/app/parents/page.tsx",
-        "src/components/school/room-board.tsx",
       ]) {
         expect((await lintSource(source, path)).output).not.toContain(
           "bauart(no-own-skeleton)",
         );
       }
+    });
+
+    it("rejects rows rebuilt from several Skeletons in an own surface", async () => {
+      for (const surface of [
+        "moto-content-surface rounded-2xl border p-4",
+        "rounded-xl bg-gray-50/50 px-3 py-2",
+        "rounded-lg border border-gray-100 p-4",
+      ]) {
+        const { status, output } = await lintSource(
+          `import { Skeleton } from "~/components/ui/skeleton";
+          export function Probe() {
+            return (
+              <div className="${surface}">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            );
+          }`,
+        );
+
+        expect(status).toBe(1);
+        expect(output).toContain("bauart(no-own-skeleton)");
+      }
+    });
+
+    it("counts one Skeleton in a loop as several rows", async () => {
+      const { status, output } = await lintSource(
+        `import { Skeleton } from "~/components/ui/skeleton";
+        export function Probe() {
+          return (
+            <div className="moto-content-surface rounded-2xl border p-4">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-4 w-24" />
+              ))}
+            </div>
+          );
+        }`,
+      );
+
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-own-skeleton)");
+    });
+
+    it("lets Skeletons in a kit card, a plain layout and a positioned plan block through", async () => {
+      const source = `import { SectionCard } from "~/components/ui/section-card";
+      import { Skeleton } from "~/components/ui/skeleton";
+      export function Probe() {
+        return (
+          <>
+            <SectionCard>
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+            </SectionCard>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+            <div className="moto-content-surface absolute left-2 rounded-xl border p-2">
+              <Skeleton className="h-3 w-2/5" />
+              <Skeleton className="mt-2 h-2.5 w-1/4" />
+            </div>
+          </>
+        );
+      }`;
+
+      expect((await lintSource(source)).output).not.toContain(
+        "bauart(no-own-skeleton)",
+      );
+    });
+
+    it("rejects a radius class on Skeleton, in the other portals too", async () => {
+      for (const path of [
+        "src/components/probe.tsx",
+        "src/components/parent/probe.tsx",
+        "src/app/operator/probe.tsx",
+      ]) {
+        for (const className of ["rounded", "rounded-full", "sm:rounded-xl"]) {
+          const { status, output } = await lintSource(
+            `import { Skeleton } from "~/components/ui/skeleton";
+            export function Probe() {
+              return <Skeleton className="h-4 ${className}" />;
+            }`,
+            path,
+          );
+
+          expect(status).toBe(1);
+          expect(output).toContain("bauart(no-own-skeleton)");
+        }
+      }
+    });
+
+    it("lets the shape prop through", async () => {
+      const source = `import { Skeleton } from "~/components/ui/skeleton";
+      export function Probe() {
+        return <Skeleton shape="round" className="h-10 w-10" />;
+      }`;
+
+      expect((await lintSource(source)).output).not.toContain(
+        "bauart(no-own-skeleton)",
+      );
     });
 
     it("keeps no per-file tolerance: a formerly baselined file fails on its first block", async () => {
@@ -1283,7 +1420,6 @@ describe.concurrent("bauart rules", () => {
           "src/test/fixtures/rooms.ts",
           "src/components/ui/status-badge.tsx",
           "src/components/probe.test.ts",
-          "src/app/operator/tenants/page.tsx",
           "src/components/parent/child-card.tsx",
         ].map((path) => lintSource(source, path)),
       );
@@ -1349,8 +1485,6 @@ describe.concurrent("bauart rules", () => {
       for (const path of [
         "src/components/ui/page-header/OverflowMenu.stories.tsx",
         "src/components/probe.test.tsx",
-        "src/app/school/page.tsx",
-        "src/components/operator/tenant-menu.tsx",
       ]) {
         expect((await lintSource(source, path)).output).not.toContain(
           "bauart(no-disabled-menu-item)",

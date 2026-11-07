@@ -23,9 +23,12 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { EditActions } from "~/components/ui/edit-actions";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverFooter,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
@@ -220,16 +223,12 @@ export default function SchoolParentLettersPage() {
   const classError = formErrors.fieldError("school_class");
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-            Elternbriefe
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Briefe an die Eltern Ihrer Klasse. Die Eltern lesen sie in moto.
-          </p>
-        </div>
+    <TenantPage
+      title="Elternbriefe"
+      info={
+        <p>Briefe an die Eltern Ihrer Klasse. Die Eltern lesen sie in moto.</p>
+      }
+      actions={
         <Button
           type="button"
           variant="primary"
@@ -241,8 +240,138 @@ export default function SchoolParentLettersPage() {
           <Plus className="h-4 w-4" aria-hidden />
           Neuer Elternbrief
         </Button>
-      </div>
+      }
+      overlays={
+        <SlideOver
+          open={formOpen}
+          onOpenChange={(open) => {
+            if (!open && !submitting) closeForm();
+          }}
+        >
+          <SlideOverContent size="md">
+            <SlideOverHeader
+              close={<SlideOverCloseButton disabled={submitting} />}
+            >
+              <SlideOverTitle>Neuer Elternbrief</SlideOverTitle>
+            </SlideOverHeader>
+            <form
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={handleSubmit}
+              noValidate
+            >
+              <SlideOverBody error={formErrors.error}>
+                <div ref={formRef}>
+                  <div className="space-y-5">
+                    {createdLetter ? (
+                      <p className="text-sm text-gray-600">
+                        Der Brief ist gespeichert. Sie können das Senden erneut
+                        versuchen.
+                      </p>
+                    ) : null}
+                    <label htmlFor="parent-letter-class" className="block">
+                      <span className="mb-2 block text-sm font-medium text-gray-700">
+                        Klasse
+                      </span>
+                      <CustomSelect
+                        id="parent-letter-class"
+                        name="school_class"
+                        ariaLabel="Klasse"
+                        value={draft.schoolClass}
+                        placeholder="Klasse wählen"
+                        onChange={(next) => update({ schoolClass: next })}
+                        disabled={fieldsDisabled}
+                        invalid={!!classError}
+                        ariaDescribedBy={
+                          classError ? "parent-letter-class-error" : undefined
+                        }
+                        options={classes.map((schoolClass) => ({
+                          value: schoolClass,
+                          label: schoolClassLabel(schoolClass),
+                        }))}
+                      />
+                      <FieldErrorHint
+                        id="parent-letter-class-error"
+                        message={classError}
+                      />
+                    </label>
 
+                    <Input
+                      label="Betreff"
+                      name="title"
+                      value={draft.title}
+                      onChange={(event) =>
+                        update({ title: event.target.value })
+                      }
+                      error={formErrors.fieldError("title")}
+                      disabled={fieldsDisabled}
+                      maxLength={200}
+                      required
+                    />
+
+                    <Textarea
+                      label="Text"
+                      name="body"
+                      rows={8}
+                      value={draft.body}
+                      onChange={(event) => update({ body: event.target.value })}
+                      error={formErrors.fieldError("body")}
+                      disabled={fieldsDisabled}
+                      maxLength={4000}
+                      required
+                    />
+
+                    <fieldset className="space-y-2">
+                      <legend className="mb-2 block text-sm font-medium text-gray-700">
+                        Was sollen die Eltern tun?
+                      </legend>
+                      <div className="grid gap-2">
+                        {SCHOOL_PARENT_LETTER_KINDS.map((option) => (
+                          <ChoiceTile
+                            key={option.value}
+                            htmlFor={`parent-letter-kind-${option.value}`}
+                            selected={draft.kind === option.value}
+                            disabled={fieldsDisabled}
+                          >
+                            <Radio
+                              id={`parent-letter-kind-${option.value}`}
+                              name="kind"
+                              value={option.value}
+                              checked={draft.kind === option.value}
+                              disabled={fieldsDisabled}
+                              onChange={() => update({ kind: option.value })}
+                            />
+                            <span className="min-w-0 flex-1">
+                              {option.label}
+                              <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                                {option.hint}
+                              </span>
+                            </span>
+                          </ChoiceTile>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <p className="text-sm text-gray-600">
+                      Die Eltern der Klasse bekommen den Brief in moto und eine
+                      E-Mail. Als Absender sehen sie Ihren Namen, die Klasse und
+                      die Schule. Die OGS kann den Brief lesen.
+                    </p>
+                  </div>
+                </div>
+              </SlideOverBody>
+              <SlideOverFooter>
+                <EditActions
+                  onCancel={closeForm}
+                  saving={submitting}
+                  saveLabel="Senden"
+                  savingLabel="Wird gesendet…"
+                />
+              </SlideOverFooter>
+            </form>
+          </SlideOverContent>
+        </SlideOver>
+      }
+    >
       {classesError && classesLoadError ? (
         <LoadErrorAlert error={classesLoadError} />
       ) : null}
@@ -281,140 +410,6 @@ export default function SchoolParentLettersPage() {
           />
         )}
       </SectionCard>
-
-      <SlideOver
-        open={formOpen}
-        onOpenChange={(open) => {
-          if (!open && !submitting) closeForm();
-        }}
-      >
-        <SlideOverContent widthClass="sm:w-[640px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>Neuer Elternbrief</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton disabled={submitting} />
-          </SlideOverHeader>
-          <SlideOverBody error={formErrors.error}>
-            <div ref={formRef}>
-              <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-                {createdLetter ? (
-                  <p className="text-sm text-gray-600">
-                    Der Brief ist gespeichert. Sie können das Senden erneut
-                    versuchen.
-                  </p>
-                ) : null}
-                <label htmlFor="parent-letter-class" className="block">
-                  <span className="mb-2 block text-sm font-medium text-gray-700">
-                    Klasse
-                  </span>
-                  <CustomSelect
-                    id="parent-letter-class"
-                    name="school_class"
-                    ariaLabel="Klasse"
-                    value={draft.schoolClass}
-                    placeholder="Klasse wählen"
-                    onChange={(next) => update({ schoolClass: next })}
-                    disabled={fieldsDisabled}
-                    invalid={!!classError}
-                    ariaDescribedBy={
-                      classError ? "parent-letter-class-error" : undefined
-                    }
-                    options={classes.map((schoolClass) => ({
-                      value: schoolClass,
-                      label: schoolClassLabel(schoolClass),
-                    }))}
-                  />
-                  <FieldErrorHint
-                    id="parent-letter-class-error"
-                    message={classError}
-                  />
-                </label>
-
-                <Input
-                  label="Betreff"
-                  name="title"
-                  value={draft.title}
-                  onChange={(event) => update({ title: event.target.value })}
-                  error={formErrors.fieldError("title")}
-                  disabled={fieldsDisabled}
-                  maxLength={200}
-                  required
-                />
-
-                <Textarea
-                  label="Text"
-                  name="body"
-                  rows={8}
-                  value={draft.body}
-                  onChange={(event) => update({ body: event.target.value })}
-                  error={formErrors.fieldError("body")}
-                  disabled={fieldsDisabled}
-                  maxLength={4000}
-                  required
-                />
-
-                <fieldset className="space-y-2">
-                  <legend className="mb-2 block text-sm font-medium text-gray-700">
-                    Was sollen die Eltern tun?
-                  </legend>
-                  <div className="grid gap-2">
-                    {SCHOOL_PARENT_LETTER_KINDS.map((option) => (
-                      <ChoiceTile
-                        key={option.value}
-                        htmlFor={`parent-letter-kind-${option.value}`}
-                        selected={draft.kind === option.value}
-                        disabled={fieldsDisabled}
-                      >
-                        <Radio
-                          id={`parent-letter-kind-${option.value}`}
-                          name="kind"
-                          value={option.value}
-                          checked={draft.kind === option.value}
-                          disabled={fieldsDisabled}
-                          onChange={() => update({ kind: option.value })}
-                        />
-                        <span className="min-w-0 flex-1">
-                          {option.label}
-                          <span className="mt-0.5 block text-xs font-normal text-gray-500">
-                            {option.hint}
-                          </span>
-                        </span>
-                      </ChoiceTile>
-                    ))}
-                  </div>
-                </fieldset>
-
-                <p className="text-sm text-gray-600">
-                  Die Eltern der Klasse bekommen den Brief in moto und eine
-                  E-Mail. Als Absender sehen sie Ihren Namen, die Klasse und die
-                  Schule. Die OGS kann den Brief lesen.
-                </p>
-
-                <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={closeForm}
-                    disabled={submitting}
-                  >
-                    Abbrechen
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="md"
-                    isLoading={submitting}
-                    loadingText="Wird gesendet…"
-                  >
-                    Senden
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </SlideOverBody>
-        </SlideOverContent>
-      </SlideOver>
-    </div>
+    </TenantPage>
   );
 }

@@ -85,6 +85,7 @@ func NativeGuardianProfile(row *users.GuardianProfile) *directory.GuardianProfil
 		return nil
 	}
 	out := &directory.GuardianProfileSnapshot{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, FirstName: row.FirstName, LastName: row.LastName, Email: row.Email, AddressStreet: row.AddressStreet, AddressCity: row.AddressCity, AddressPostalCode: row.AddressPostalCode, AccountID: row.AccountID, HasAccount: row.HasAccount, PreferredContactMethod: row.PreferredContactMethod, LanguagePreference: row.LanguagePreference, PortalLocale: row.PortalLocale, Notes: row.Notes}
+	out.EmailsStoppedAt = row.EmailsStoppedAt
 	if row.PhoneNumbers != nil {
 		out.PhoneNumbers = make([]*directory.GuardianProfilePhoneSnapshot, len(row.PhoneNumbers))
 		for i, p := range row.PhoneNumbers {

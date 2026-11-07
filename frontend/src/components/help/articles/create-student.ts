@@ -48,7 +48,9 @@ export function createStudentTopic(): HelpTopic {
         description:
           "Für ein ganzes Schuljahr ist die Vorlage schneller als das Fenster.",
         steps: [
-          "Öffnen Sie `Kinderdaten` und wählen Sie oben `Importieren`.",
+          "Öffnen Sie `Kinderdaten`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Importieren`.",
           "Wählen Sie bei `Format wählen` `Excel (.xlsx)` oder `CSV (Komma-getrennt)`.",
           "Wählen Sie `Vorlage herunterladen`.",
           "Tragen Sie die Kinder ein. Beim Geburtstag geht zum Beispiel `14.03.2018`.",

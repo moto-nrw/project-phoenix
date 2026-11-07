@@ -15,7 +15,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ApiError } from "~/lib/api-error";
 import { useLocale, useTranslations } from "next-intl";
-import { Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
@@ -861,13 +861,12 @@ export function SickNoteModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 sm:w-auto"
+              className="w-full sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={submitting || (!sickEnabled && !excusedEnabled)}
+              isLoading={submitting}
+              loadingText={t("sick.submitting")}
             >
-              {submitting && (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              )}
               {status === "sick"
                 ? t("sick.submitSick")
                 : t("sick.submitExcused")}
@@ -1462,20 +1461,19 @@ export function PickupTimeModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 whitespace-nowrap sm:w-auto"
+              className="w-full whitespace-nowrap sm:w-auto"
               onClick={() => void handleSaveEdit()}
               disabled={submitting || todayLocked}
+              isLoading={submitting}
+              loadingText={t("pickup.savingEdit")}
             >
-              {submitting && (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              )}
               {t("pickup.saveEdit")}
             </Button>
           ) : pending ? null : (
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 whitespace-nowrap sm:w-auto"
+              className="w-full whitespace-nowrap sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={
                 submitting ||
@@ -1486,10 +1484,9 @@ export function PickupTimeModal({
                 !careExceptionsLoaded ||
                 !pickupChangeRequestsLoaded
               }
+              isLoading={submitting}
+              loadingText={t("pickup.submitting")}
             >
-              {submitting && (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              )}
               {t("pickup.submit")}
             </Button>
           )}
@@ -1634,7 +1631,7 @@ export function PickupTimeModal({
         ) : staffOwned ? (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.staffSet", {
-              pickup: existing?.pickup_time ?? "—",
+              pickup: existing?.pickup_time ?? "–",
             })}
           </p>
         ) : (

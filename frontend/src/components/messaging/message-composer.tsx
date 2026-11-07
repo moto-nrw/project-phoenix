@@ -1,11 +1,9 @@
 "use client";
 
-import {
-  CircleNotchIcon,
-  PaperPlaneRightIcon,
-} from "@phosphor-icons/react/ssr";
+import { PaperPlaneRightIcon } from "@phosphor-icons/react/ssr";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 // Hard client cap mirroring the backend's 2000-rune message/note limit
 // (maxMessageLen in modules/communication/internal/parentmessages, maxParentNoteLen on the parent side).
@@ -121,12 +119,7 @@ export function MessageComposer({
       >
         {parent ? (
           sending ? (
-            <CircleNotchIcon
-              size={19}
-              weight="bold"
-              className="animate-spin"
-              aria-hidden="true"
-            />
+            <SpinnerIcon className="h-5 w-5" />
           ) : (
             <PaperPlaneRightIcon
               size={19}

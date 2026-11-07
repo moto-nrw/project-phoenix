@@ -21,7 +21,6 @@ import {
   Pencil,
   Power,
   Trash2,
-  X,
 } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -79,6 +78,7 @@ import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -107,6 +107,8 @@ import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { SpinnerIcon } from "~/components/ui/icons";
+import { RemovableChip } from "~/components/ui/removable-chip";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -942,8 +944,10 @@ export function PhasesEditor() {
               cancelEdit();
             }}
           >
-            <SlideOverContent widthClass="sm:w-[760px]">
-              <SlideOverHeader>
+            <SlideOverContent size="lg">
+              <SlideOverHeader
+                close={<SlideOverCloseButton disabled={saving} />}
+              >
                 <SlideOverTitle>
                   {rolloverSource
                     ? "Anmeldephase übertragen"
@@ -999,7 +1003,8 @@ export function PhasesEditor() {
                       Diese Aktion kann nicht rückgängig gemacht werden:
                     </p>
                     {impactLoading ? (
-                      <p className="mt-1 text-xs">
+                      <p className="mt-1 flex items-center gap-2 text-xs">
+                        <SpinnerIcon className="h-3 w-3" />
                         Löschvorschau wird geladen…
                       </p>
                     ) : impactLoad.error ? (
@@ -1313,9 +1318,7 @@ function PhaseActions({
           ariaLabel={`Aktionen für ${phase.name}`}
           items={menuEntries}
           triggerClassName={
-            highlight
-              ? "bg-moto-green/10 shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
-              : ""
+            highlight ? "bg-moto-green/10 ring-4 ring-moto-green/18" : ""
           }
         />
       </div>
@@ -1627,7 +1630,7 @@ function PhaseForm(props: PhaseFormProps) {
         ref={formSectionRef}
         className={`rounded-xl border p-4 transition-colors duration-300 ${
           highlightFormSection
-            ? "border-moto-green bg-moto-green/8 shadow-[0_0_0_4px_rgba(131,205,45,0.12)]"
+            ? "border-moto-green bg-moto-green/8 ring-moto-green/12 ring-4"
             : "border-gray-200"
         }`}
       >
@@ -2048,19 +2051,12 @@ function SchoolClassListEditor({
       {value.length > 0 ? (
         <ul className="mt-2 flex flex-wrap gap-2">
           {value.map((cls) => (
-            <li
-              key={cls}
-              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-1 pr-1 pl-3 text-sm font-medium text-gray-700"
-            >
-              {cls}
-              <button
-                type="button"
-                onClick={() => onChange(value.filter((c) => c !== cls))}
-                aria-label={`${schoolClassLabel(cls)} entfernen`}
-                className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+            <li key={cls} className="max-w-full">
+              <RemovableChip
+                label={cls}
+                onRemove={() => onChange(value.filter((c) => c !== cls))}
+                removeLabel={`${schoolClassLabel(cls)} entfernen`}
+              />
             </li>
           ))}
         </ul>

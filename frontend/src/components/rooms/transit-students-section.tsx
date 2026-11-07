@@ -9,6 +9,8 @@ import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/database/database-select";
 import {
@@ -21,8 +23,8 @@ import {
   summarizeStudentMoveResult,
 } from "~/lib/active-service";
 import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
-import { studentService } from "~/lib/api";
-import type { Student } from "~/lib/api";
+import { fetchStudents } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { SEARCH_STUDENTS_KEY_PREFIX } from "~/lib/swr/search-students-key";
@@ -36,6 +38,7 @@ import {
 } from "~/lib/tenant-context";
 import { transitConcept } from "~/lib/concepts/transit";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { Loading } from "~/components/ui/loading";
 
 const DETAIL_CARD_CLASS = "moto-content-surface rounded-2xl border p-5 sm:p-6";
 const EMPTY_STUDENTS: Student[] = [];
@@ -159,7 +162,7 @@ export function TransitStudentsSection({
     students: Student[];
     pagination?: { total_records: number };
   }>(dayStatus ? `transit-students-${dayStatus}` : "transit-students", () =>
-    studentService.getStudents({
+    fetchStudents({
       locationState: "transit",
       ...(dayStatus ? { dayStatus } : {}),
       pageSize: 200,
@@ -450,26 +453,21 @@ export function TransitStudentsSection({
       {isExpanded ? (
         <>
           {attendanceWebEnabled ? (
-            <div
+            <SelectionBar
               ref={assignBarRef}
-              className={`mt-4 mb-4 rounded-xl border p-3 transition-shadow ${
+              aria-label="Kinder einem Raum zuweisen"
+              placement="bottom"
+              className="mt-4 mb-4 p-3"
+              count={selectedVisibleCount}
+              label={
                 selectedVisibleCount > 0
-                  ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
-                  : "border-transparent bg-gray-50/80 shadow-none"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <p className="min-w-0 text-sm font-semibold text-gray-900">
-                  <span className="block truncate">
-                    {selectedVisibleCount > 0
-                      ? `${selectedVisibleCount} von ${students.length} ausgewählt`
-                      : "Kinder auswählen"}
-                  </span>
-                  <span className="block text-xs font-medium text-gray-500">
-                    Zielraum wählen und gemeinsam zuweisen
-                  </span>
-                </p>
-                {students.length > 0 ? (
+                  ? `${selectedVisibleCount} von ${students.length} ausgewählt`
+                  : "Kinder auswählen"
+              }
+              description="Zielraum wählen und gemeinsam zuweisen"
+              busy={submitting}
+              actions={
+                students.length > 0 ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -479,10 +477,10 @@ export function TransitStudentsSection({
                   >
                     {allSelected ? "Aufheben" : "Alle auswählen"}
                   </Button>
-                ) : null}
-              </div>
-
-              <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                ) : null
+              }
+            >
+              <FormRow>
                 <DatabaseSelect
                   id="transit-target-room"
                   name="transit-target-room"
@@ -506,7 +504,6 @@ export function TransitStudentsSection({
                     value: option.value,
                     label: option.label,
                   }))}
-                  className="bg-white text-sm md:text-sm"
                 />
                 <Button
                   type="button"
@@ -522,16 +519,14 @@ export function TransitStudentsSection({
                 >
                   In Raum setzen
                 </Button>
-              </div>
+              </FormRow>
               <FormErrorAlert message={assignErrors.error} className="mt-2" />
-            </div>
+            </SelectionBar>
           ) : null}
 
           <div className="mt-4 flex flex-col gap-2">
             {studentsLoading && students.length === 0 ? (
-              <div className="moto-content-surface rounded-xl border px-4 py-6 text-center text-sm text-gray-500">
-                Kinder werden geladen...
-              </div>
+              <Loading fullPage={false} message="Kinder werden geladen …" />
             ) : studentsError ? null : students.length === 0 ? (
               <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500">
                 Aktuell keine Kinder unterwegs.

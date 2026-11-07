@@ -118,7 +118,7 @@ describe("TimetableRosterContent pickup times", () => {
     for (const time of ["13:00", "13:10", "13:20", "13:30", "13:40"]) {
       expect(screen.getByText(`Gehzeit: ${time}`)).toBeInTheDocument();
     }
-    expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+    expect(screen.getByText("Gehzeit: –")).toBeInTheDocument();
   });
 
   it("shows a load error without replacing it with the empty-time placeholder", () => {
@@ -130,7 +130,7 @@ describe("TimetableRosterContent pickup times", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Gehzeit: Nicht geladen")).toBeInTheDocument();
-    expect(screen.queryByText("Gehzeit: —")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gehzeit: –")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Einchecken" }),
     ).toBeInTheDocument();

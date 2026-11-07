@@ -7,6 +7,7 @@ import (
 
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 
+	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -39,19 +40,20 @@ type StatisticsSettings interface {
 func newStatisticsReports(db transactionruntime.Database, carePlan careplan.StudentStatusDaysQuery, careDays careplan.CareDayQuery, calendar schoolcalendar.Days, students statisticsStudentRows, rooms facilities.Query, logger *slog.Logger, now func() time.Time) func(AccessLogLedger, StatisticsSettings) studentpresence.StatisticsReports {
 	return func(accessLog AccessLogLedger, settings StatisticsSettings) studentpresence.StatisticsReports {
 		return NewStatistics(logger, presenceCompose.StatisticsDependencies{
-			DB:              db.Pool(),
-			StatusDays:      StatisticsStatusDays{carePlan},
-			Courses:         NewCourseStatistics(db),
-			Holidays:        schoolCalendarCompose.NewTenantHolidays(calendar),
-			ClosingDays:     schoolCalendarCompose.NewTenantClosingDays(calendar),
-			Periods:         StatisticsReportPeriods{calendar},
-			Students:        StatisticsReportStudents{students},
-			Rooms:           StatisticsReportRooms{rooms},
-			AccessLog:       StatisticsAuditLog{accessLog},
-			Retention:       settingsModule.NewStatisticsRetention(settings),
-			PlannedCareDays: StatisticsPlannedCareDays{careDays},
-			Logger:          logger.With("service", "statistics"),
-			Now:             now,
+			DB:               db.Pool(),
+			StatusDays:       StatisticsStatusDays{carePlan},
+			Courses:          NewCourseStatistics(db),
+			Holidays:         schoolCalendarCompose.NewTenantHolidays(calendar),
+			ClosingDays:      schoolCalendarCompose.NewTenantClosingDays(calendar),
+			Periods:          StatisticsReportPeriods{calendar},
+			Students:         StatisticsReportStudents{students},
+			Rooms:            StatisticsReportRooms{rooms},
+			AccessLog:        StatisticsAuditLog{accessLog},
+			Retention:        settingsModule.NewStatisticsRetention(settings),
+			PlannedCareDays:  StatisticsPlannedCareDays{careDays},
+			ContractCareDays: StatisticsContractCareDays{careContractCompose.NewBookedCare()},
+			Logger:           logger.With("service", "statistics"),
+			Now:              now,
 		})
 	}
 }

@@ -1,4 +1,6 @@
+import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import type { InstanceStatus } from "~/lib/timetable-types";
 
 export const timetableSurface = "moto-content-surface rounded-2xl border";
 
@@ -8,9 +10,6 @@ export const timetableNestedSurface = "moto-content-surface rounded-xl border";
 
 export const timetableMutedSurface =
   "rounded-xl border border-gray-200 bg-gray-50/70";
-
-export const timetablePopoverSurface =
-  "moto-popover-surface overflow-hidden rounded-xl border";
 
 export const timetableDangerPanel =
   "rounded-xl border border-moto-red/20 bg-moto-red/5 p-3";
@@ -36,6 +35,18 @@ export const timetableToneColors: Record<TimetableTone, string> = {
   warning: LOCATION_COLORS.WARNING,
   danger: LOCATION_COLORS.DANGER,
 } as const;
+
+/**
+ * Pillenfarbe des Terminstatus, damit „Läuft“ und „Abgesagt“ im Termin-Detail
+ * und in der Vertretung dieselbe Pille tragen. Geplant und Abgeschlossen teilen
+ * sich Grau, die Beschriftung trennt sie.
+ */
+export const instanceStatusTone: Record<InstanceStatus, StatusBadgeTone> = {
+  planned: "gray",
+  active: "green",
+  completed: "gray",
+  cancelled: "red",
+};
 
 /**
  * Neutrale Blockkante für Termine ohne Planungsspur. Derselbe Wert wie

@@ -36,6 +36,16 @@ var visitorTraceCounts = map[string]string{
 		WHERE tenant_id = ?0 AND sender_name = '` + visitorFull + `'`,
 	"platform.email_outbox": `SELECT count(*) FROM platform.email_outbox
 		WHERE tenant_id = ?0 AND payload->>'last_name' = '` + visitorLast + `'`,
+	// The care contract of the visitor's application names the visitor as
+	// the contracting parent and outlives the school (ADR 0088 section 9).
+	"care_contract.contract_parties": `SELECT count(*) FROM care_contract.contract_parties AS party
+		JOIN care_contract.contracts AS contract ON contract.id = party.contract_id
+		WHERE contract.school_id = ?0 AND party.first_name = '` + visitorFirst + `' AND party.last_name = '` + visitorLast + `'`,
+	// Its mail is the Träger's: it has no school, only the contract it names.
+	"care contract mail": `SELECT count(*) FROM platform.email_outbox AS outbox
+		JOIN care_contract.contracts AS contract ON contract.id = outbox.related_entity_id
+		WHERE outbox.related_entity_type = 'care_contract' AND contract.school_id = ?0
+			AND outbox.recipient->>'name' = '` + visitorFull + `'`,
 }
 
 type visitorAccounts struct {
@@ -78,6 +88,37 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 			RETURNING id)
 		INSERT INTO platform.email_delivery (tenant_id, related_entity_type, related_entity_id, outbox_id, account_id, recipient_email)
 		SELECT ?0, 'parent_message', ?1, id, ?3, 'eltern@example.org' FROM outbox`,
+		// The Träger sent the care contract of the visitor's application
+		// (#4678): party, PDF, mailing, its Träger mail and the trail.
+		`WITH contract AS (
+			INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, status, sent_at)
+			SELECT organization_id, id, ?1, 'versendet', NOW() FROM platform.schools WHERE id = ?0
+			RETURNING id, organization_id),
+		party AS (
+			INSERT INTO care_contract.contract_parties (organization_id, contract_id, first_name, last_name, email, account_id)
+			SELECT organization_id, id, '` + visitorFirst + `', '` + visitorLast + `', 'eltern@example.org', ?3 FROM contract),
+		version AS (
+			INSERT INTO care_contract.contract_versions (organization_id, contract_id, version_number, effective_from,
+				child_first_name, child_last_name, school_name, term_kind, notice_months, notice_to, special_termination,
+				special_termination_note, statute_required, statute_title, statute_url, contract_partner)
+			SELECT organization_id, id, 1, DATE '2026-08-01', 'Mia', 'Schneider', 'OGS', 'school_year', 1, 'month_end',
+				false, '', false, '', '', '' FROM contract
+			RETURNING id, organization_id, contract_id),
+		document AS (
+			INSERT INTO care_contract.contract_documents (organization_id, contract_id, contract_version_id, template_version, filename, pdf)
+			SELECT organization_id, contract_id, id, 1, 'vertrag.pdf', convert_to('` + visitorFull + `', 'UTF8') FROM version
+			RETURNING id, organization_id, contract_id),
+		outbox AS (
+			INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status, related_entity_type, related_entity_id)
+			SELECT organization_id, 'care_contract', jsonb_build_object('address', 'eltern@example.org', 'name', '` + visitorFull + `'),
+				jsonb_build_object('guardian_name', '` + visitorFull + `'), 'sent', 'care_contract', id FROM contract
+			RETURNING id, organization_id, related_entity_id AS contract_id),
+		mailing AS (
+			INSERT INTO care_contract.contract_mailings (organization_id, contract_id, contract_document_id, outbox_id, recipient_email)
+			SELECT document.organization_id, document.contract_id, document.id, outbox.id, 'eltern@example.org'
+			FROM document JOIN outbox ON outbox.contract_id = document.contract_id)
+		INSERT INTO care_contract.contract_events (organization_id, contract_id, school_id, account_id, action)
+		SELECT organization_id, id, ?0, ?3, 'send' FROM contract`,
 	} {
 		_, err := db.NewRaw(statement, schoolID, student.ID, guardian.ID, parent.ID).Exec(ctx)
 		require.NoError(t, err, statement)
@@ -617,4 +658,56 @@ func TestDemoSchoolQueueErasesTheRealtimeNotificationsOfTheRetiredSchool(t *test
 	require.NoError(t, db.NewRaw(`SELECT id FROM platform.realtime_notifications WHERE id IN (?) ORDER BY id`,
 		bun.List([]int64{retired, open})).Scan(ctx, &remaining))
 	assert.Equal(t, []int64{open}, remaining, "the retired demo school keeps no notification copy naming the visitor")
+}
+
+// careContractRows counts the rows of every care contract table that belong
+// to the contracts of the school, and its trail.
+func careContractRows(t *testing.T, db *bun.DB, schoolID int64) map[string]int {
+	t.Helper()
+	rows := map[string]int{}
+	for _, table := range []string{"contracts", "contract_versions", "contract_parties", "contract_documents", "contract_mailings", "contract_events"} {
+		query := `SELECT count(*) FROM care_contract.` + table + ` WHERE contract_id IN (
+			SELECT id FROM care_contract.contracts WHERE school_id = ?)`
+		if table == "contracts" {
+			query = `SELECT count(*) FROM care_contract.contracts WHERE school_id = ?`
+		}
+		var count int
+		require.NoError(t, db.NewRaw(query, schoolID).Scan(t.Context(), &count), table)
+		rows[table] = count
+	}
+	var events int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM care_contract.contract_events WHERE school_id = ?`, schoolID).Scan(t.Context(), &events))
+	rows["contract_events of the school"] = events
+	return rows
+}
+
+// A care contract outlives its school (ADR 0088 section 9), so the retired
+// demo school's contracts go with the visitor: the contracting party, the PDF
+// and the mailing name the visitor, and so does the Träger mail that carried
+// the contract. Nothing of the contract stays, its trail neither. A school of
+// the same Träger that is still open keeps its contract.
+func TestDemoSchoolQueueErasesTheCareContractsOfTheRetiredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	openID := schoolOfOrganization(t, db, schoolID, false)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	leaveVisitorTraces(t, db, openID)
+	everyRow := map[string]int{"contracts": 1, "contract_versions": 1, "contract_parties": 1, "contract_documents": 1,
+		"contract_mailings": 1, "contract_events": 1, "contract_events of the school": 1}
+	require.Equal(t, everyRow, careContractRows(t, db, schoolID), "the fixture leaves a whole sent contract")
+	var mails []int64
+	require.NoError(t, db.NewRaw(`SELECT outbox.id FROM platform.email_outbox AS outbox
+		JOIN care_contract.contracts AS contract ON contract.id = outbox.related_entity_id
+		WHERE outbox.related_entity_type = 'care_contract' AND contract.school_id IN (?, ?)
+		ORDER BY contract.school_id = ?`, schoolID, openID, openID).Scan(t.Context(), &mails))
+	require.Len(t, mails, 2)
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+
+	assert.Equal(t, map[string]int{"contracts": 0, "contract_versions": 0, "contract_parties": 0, "contract_documents": 0,
+		"contract_mailings": 0, "contract_events": 0, "contract_events of the school": 0}, careContractRows(t, db, schoolID),
+		"no row of the retired school's contract stays")
+	assert.Equal(t, []int64{mails[1]}, remainingMails(t, db, mails...), "only the open school keeps its contract mail")
+	assert.Equal(t, everyRow, careContractRows(t, db, openID), "the open school keeps its contract")
 }

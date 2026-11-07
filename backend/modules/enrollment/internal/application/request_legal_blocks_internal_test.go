@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"testing"
+	"time"
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
@@ -255,4 +256,19 @@ func TestFilterConsentFlags_DropsKeysOutsideContract(t *testing.T) {
 		enrollmentNative.ConsentKeyDataProcessing: true,
 		"custom_pool": false,
 	}, filtered)
+}
+
+func TestLegalSnapshotChecksumsTheExactShownText(t *testing.T) {
+	t.Parallel()
+	text := "Vertragsbedingungen mit Umlauten: Kündigung zum Monatsende."
+	entry, err := legalBlocksSnapshotEntry([]enrollmentNative.LegalBlock{{Key: "contract", Kind: enrollmentNative.LegalBlockKindTerms,
+		Text: text, Required: true}}, map[string]any{"contract": true}, formsOf(&enrollmentNative.FormSchema{ID: 81}, 80), time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC), func(content []byte) string {
+		assert.Equal(t, text, string(content))
+		return "known-text-fingerprint"
+	})
+	require.NoError(t, err)
+	require.Len(t, entry.Blocks, 1)
+	assert.Equal(t, "known-text-fingerprint", entry.Blocks[0].TextSHA256)
+	assert.Equal(t, int64(81), entry.FormSchemaID, "the version in force")
+	assert.Equal(t, int64(80), entry.DisplayedFormSchemaID, "the version the form showed, kept apart (#4680)")
 }

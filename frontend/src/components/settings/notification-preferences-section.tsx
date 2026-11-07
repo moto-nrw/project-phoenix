@@ -59,6 +59,7 @@ const PARENT_TYPES = new Set([
 
 interface NotificationPreferencesSectionProps {
   readonly portal?: PreferencePortal;
+  readonly description?: string;
 }
 
 /**
@@ -70,13 +71,17 @@ interface NotificationPreferencesSectionProps {
  */
 export function NotificationPreferencesSection({
   portal = "tenant",
+  description,
 }: NotificationPreferencesSectionProps) {
   return portal === "parent" ? (
     <ParentNotificationPreferencesSection />
   ) : (
     // Staff-catalogue portals (OGS and, since #2208, the school portal) share
     // the German copy; only the proxy base path differs.
-    <NotificationPreferencesSectionContent portal={portal} />
+    <NotificationPreferencesSectionContent
+      portal={portal}
+      description={description}
+    />
   );
 }
 
@@ -93,9 +98,11 @@ function ParentNotificationPreferencesSection() {
 function NotificationPreferencesSectionContent({
   portal,
   parentText,
+  description,
 }: Readonly<{
   portal: PreferencePortal;
   parentText?: (key: string, values?: Record<string, string>) => string;
+  description?: string;
 }>) {
   const isParentPortal = portal === "parent";
   const t = useCallback(
@@ -296,11 +303,11 @@ function NotificationPreferencesSectionContent({
       description={
         isParentPortal
           ? t("description")
-          : "Wählen Sie, worüber moto Sie informieren soll."
+          : (description ?? "Wählen Sie, worüber moto Sie informieren soll.")
       }
       actions={
         isParentPortal && loading ? (
-          <Skeleton className="h-9 w-28 rounded-lg" />
+          <Skeleton shape="control" className="h-9 w-28" />
         ) : isParentPortal && types.length > 0 ? (
           allEnabled ? (
             <span
@@ -377,7 +384,7 @@ function NotificationPreferencesSectionContent({
                       <Skeleton className="h-4 w-40 max-w-2/3" />
                       <Skeleton className="h-3 w-64 max-w-full" />
                     </div>
-                    <Skeleton className="h-6 w-11 shrink-0 rounded-full" />
+                    <Skeleton shape="round" className="h-6 w-11 shrink-0" />
                   </div>
                 ))}
               </div>

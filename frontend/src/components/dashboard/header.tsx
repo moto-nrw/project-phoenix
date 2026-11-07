@@ -37,7 +37,11 @@ import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
 import { RemindersBell } from "./header/reminders-bell";
 import { SessionWarning } from "./header/session-warning";
-import { ProfileTrigger, ProfileDropdownMenu } from "./header/profile-dropdown";
+import {
+  ProfileDropdownHeader,
+  ProfileDropdownMenu,
+  ProfileTrigger,
+} from "./header/profile-dropdown";
 import {
   SectionBreadcrumb,
   OgsGroupsBreadcrumb,
@@ -150,6 +154,7 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/stichtagszahlen", "Stichtagszahlen"],
   ["/belegung", "Belegung"],
   ["/ferien", "Ferienbetreuung"],
+  ["/dokumente", "Dokumente"],
   ["/abrechnung", "Abrechnung"],
   ["/vertraege", "Verträge"],
   ["/einstellungen/mitglieder", "Mitglieder und Rollen"],
@@ -512,7 +517,14 @@ export function Header() {
               ariaLabel={profileMenuLabel}
               preferredWidth={288}
               align="end"
-              className="border-0 bg-transparent p-0 shadow-none"
+              focusPanelOnOpen
+              header={
+                <ProfileDropdownHeader
+                  displayName={displayName}
+                  displayAvatar={displayAvatar}
+                  userEmail={userEmail}
+                />
+              }
               renderTrigger={({ ref, toggle, panelId }) => (
                 <ProfileTrigger
                   ref={ref}
@@ -529,10 +541,6 @@ export function Header() {
             >
               {({ close }) => (
                 <ProfileDropdownMenu
-                  isOpen={isProfileMenuOpen}
-                  displayName={displayName}
-                  displayAvatar={displayAvatar}
-                  userEmail={userEmail}
                   profileUrl={profileUrl}
                   profileLabel={
                     mode === "operator"

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { LogIn, MoreVertical } from "lucide-react";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -8,6 +7,8 @@ import { classTripConcept } from "~/lib/concepts/classTrip";
 import { excusedConcept } from "~/lib/concepts/excused";
 import { homeConcept } from "~/lib/concepts/home";
 import { sickConcept } from "~/lib/concepts/sick";
+import { SpinnerIcon } from "~/components/ui/icons";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 
 interface StudentCheckoutSectionProps {
   readonly onCheckoutClick: () => void;
@@ -91,9 +92,7 @@ export function StudentSickReportSection({
 
   const renderSickIcon = () => {
     if (isLoading) {
-      return (
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-      );
+      return <SpinnerIcon className="h-5 w-5" />;
     }
     return <MotoConceptIcon concept={sickConcept} size={26} />;
   };
@@ -151,9 +150,7 @@ export function StudentExcusedReportSection({
 
   const renderExcusedIcon = () => {
     if (isLoading) {
-      return (
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-      );
+      return <SpinnerIcon className="h-5 w-5" />;
     }
     return <MotoConceptIcon concept={excusedConcept} size={26} />;
   };
@@ -199,8 +196,6 @@ export function StudentStatusActionsMenu({
   onPlanClassTrip,
   isLoading,
 }: StudentStatusActionsMenuProps) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const classTripSinceDisplay = classTripSince
     ? new Date(classTripSince).toLocaleDateString("de-DE", {
         timeZone: "Europe/Berlin",
@@ -210,81 +205,45 @@ export function StudentStatusActionsMenu({
       })
     : null;
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
-
   return (
-    <div className="relative shrink-0" ref={menuRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        disabled={isLoading}
-        aria-label="Weitere Statusaktionen"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="moto-content-surface moto-hover-elevated flex h-full min-h-[116px] w-full items-center justify-center rounded-2xl border text-gray-500 transition-all hover:text-gray-700 active:scale-[0.97] disabled:opacity-50 sm:min-h-[140px] sm:w-16"
-      >
-        {isLoading ? (
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        ) : (
-          // Auf dem Telefon ist das eine Karte so gross wie ihre Nachbarn --
-          // drei Punkte allein sagen darin nichts. Neben den schmalen
-          // Streifen auf dem Desktop passt kein Wort, dort bleibt es beim
-          // Symbol.
-          <span className="flex flex-col items-center gap-3">
-            <MoreVertical className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
-            <span className="text-base font-semibold text-gray-900 sm:hidden">
-              Weitere
-            </span>
-          </span>
-        )}
-      </button>
-      {open ? (
-        <div
-          role="menu"
-          className="moto-popover-surface absolute top-full right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border py-1"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onPlanClassTrip();
-            }}
-            className="flex w-full items-start gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-          >
-            <MotoConceptIcon
-              concept={classTripConcept}
-              size={18}
-              className="mt-0.5"
-            />
-            <span>
-              <span className="block font-medium">
-                {isClassTrip
-                  ? "Klassenfahrt bearbeiten"
-                  : "Klassenfahrt planen"}
-              </span>
-              <span className="block text-xs text-gray-500">
-                {isClassTrip && classTripSinceDisplay
-                  ? `Seit ${classTripSinceDisplay}`
-                  : "Zeitraum für seltene Abwesenheit setzen"}
+    <OverflowMenu
+      ariaLabel="Weitere Statusaktionen"
+      disabled={isLoading}
+      wrapperClassName="h-full shrink-0"
+      triggerClassName="moto-hover-elevated h-full min-h-[116px] w-full rounded-2xl disabled:opacity-50 sm:min-h-[140px] sm:w-16"
+      triggerContent={
+        // Die Fläche sitzt innen: Ihr Schatten überdeckte sonst den Fokusring
+        // des Auslösers.
+        <span className="moto-content-surface flex size-full items-center justify-center rounded-2xl border text-gray-500 transition-colors hover:text-gray-700">
+          {isLoading ? (
+            <SpinnerIcon className="h-5 w-5" />
+          ) : (
+            // Auf dem Telefon ist das eine Karte so gross wie ihre Nachbarn --
+            // drei Punkte allein sagen darin nichts. Neben den schmalen
+            // Streifen auf dem Desktop passt kein Wort, dort bleibt es beim
+            // Symbol.
+            <span className="flex flex-col items-center gap-3">
+              <MoreVertical className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
+              <span className="text-base font-semibold text-gray-900 sm:hidden">
+                Weitere
               </span>
             </span>
-          </button>
-        </div>
-      ) : null}
-    </div>
+          )}
+        </span>
+      }
+      items={[
+        {
+          label: isClassTrip
+            ? "Klassenfahrt bearbeiten"
+            : "Klassenfahrt planen",
+          description:
+            isClassTrip && classTripSinceDisplay
+              ? `Seit ${classTripSinceDisplay}`
+              : "Zeitraum für seltene Abwesenheit setzen",
+          icon: <MotoConceptIcon concept={classTripConcept} size={16} />,
+          onClick: onPlanClassTrip,
+        },
+      ]}
+    />
   );
 }

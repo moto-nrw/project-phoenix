@@ -33,7 +33,6 @@ import {
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
-  SlideOverCloseButton,
 } from "~/components/ui/slide-over";
 import {
   EnrollmentForm,
@@ -45,6 +44,7 @@ import {
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
 import { createLogger } from "~/lib/logger";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "PhaseEnrollmentActions" });
 
@@ -308,14 +308,9 @@ export function ManualApprovedEnrollmentModal({
         if (!open) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[900px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>
-              Kind manuell über Anmeldung freigeben
-            </SlideOverTitle>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="xl">
+        <SlideOverHeader>
+          <SlideOverTitle>Kind manuell über Anmeldung freigeben</SlideOverTitle>
         </SlideOverHeader>
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <p className="text-sm leading-6 text-gray-600">
@@ -390,9 +385,10 @@ export function ManualApprovedEnrollmentModal({
             </div>
           </div>
           {loading ? (
-            <p className="text-sm text-gray-500">
-              Formularvorlage wird geladen...
-            </p>
+            <Loading
+              fullPage={false}
+              message="Formularvorlage wird geladen..."
+            />
           ) : prefetchedData && gradeLevelMax !== null ? (
             <EnrollmentForm
               phaseID={phase.id}

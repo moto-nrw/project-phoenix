@@ -9,11 +9,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
 import {
   credentialError,
   LOGIN_REFUSALS,
@@ -21,6 +17,7 @@ import {
 } from "~/components/auth/credential-error";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { PasswordResetModal } from "~/components/auth/password-reset-modal";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -41,6 +38,7 @@ import {
   isPasskeySupported,
   loginWithPasskey,
 } from "~/lib/passkey-api";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "CatererLoginPage" });
 
@@ -240,10 +238,7 @@ function LoginForm() {
             onCancel={backToCredentials}
           />
         ) : isCheckingAuth ? (
-          <div className="flex flex-col items-center gap-4 py-12">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-            <p className="text-sm text-gray-500">Anmeldung wird geprüft …</p>
-          </div>
+          <Loading fullPage={false} message="Anmeldung wird geprüft …" />
         ) : (
           <form
             ref={formRef}
@@ -304,7 +299,7 @@ function LoginForm() {
                   }
                   revealable
                 />
-                <AuthFieldError id="password-error" message={passwordError} />
+                <FieldErrorHint id="password-error" message={passwordError} />
               </div>
 
               <div className="text-center">
@@ -366,10 +361,7 @@ export default function CatererLoginPage() {
     <Suspense
       fallback={
         <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-          <div className="flex flex-col items-center gap-4 py-8">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-            <p className="text-sm text-gray-500">Wird geladen …</p>
-          </div>
+          <Loading fullPage={false} message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >

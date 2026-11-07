@@ -41,7 +41,7 @@ type StringSettings interface {
 	// earlier, so a cached re-read would return the stale value it is meant
 	// to replace.
 	//
-	// Requires an ambient transaction (tenant.WithTransactionForTest) whose role can
+	// Requires an ambient transaction (tenanttest.WithTransaction) whose role can
 	// read setting_values for tenantID — phoenix_admin, or a tenant
 	// transaction on the same tenant. Without one it returns an error rather
 	// than silently falling back to an RLS-filtered read that would report

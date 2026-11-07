@@ -52,6 +52,8 @@ import type { dutyRosterTopic as authored_dutyRosterTopic } from "./articles/dut
 
 import type { editStudentTopic as authored_editStudentTopic } from "./articles/edit-student";
 
+import type { emailDeliveryTopic as authored_emailDeliveryTopic } from "./articles/email-delivery";
+
 import type { emergencyTopic as authored_emergencyTopic } from "./articles/emergency";
 
 import type { endCareTopic as authored_endCareTopic } from "./articles/end-care";
@@ -226,6 +228,8 @@ import type { roomsCatalogTopic as authored_roomsCatalogTopic } from "./articles
 
 import type { roomsTopic as authored_roomsTopic } from "./articles/rooms";
 
+import type { schoolTraegerDocumentsTopic as authored_schoolTraegerDocumentsTopic } from "./articles/school-traeger-documents";
+
 import type { settingsGuideTopic as authored_settingsGuideTopic } from "./articles/settings-guide";
 
 import type { settingsTopic as authored_settingsTopic } from "./articles/settings";
@@ -324,6 +328,8 @@ import type { traegerBriefkopfTopic as authored_traegerBriefkopfTopic } from "./
 
 import type { traegerCareContractsTopic as authored_traegerCareContractsTopic } from "./articles/traeger-care-contracts";
 
+import type { traegerCareTimeOverrunsTopic as authored_traegerCareTimeOverrunsTopic } from "./articles/traeger-care-time-overruns";
+
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
 
 import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplatesTopic } from "./articles/traeger-document-templates";
@@ -351,6 +357,8 @@ import type { traegerSchoolSwitchTopic as authored_traegerSchoolSwitchTopic } fr
 import type { traegerSchoolViewTopic as authored_traegerSchoolViewTopic } from "./articles/traeger-school-view";
 
 import type { traegerSettingsTopic as authored_traegerSettingsTopic } from "./articles/traeger-settings";
+
+import type { traegerSharedDocumentsTopic as authored_traegerSharedDocumentsTopic } from "./articles/traeger-shared-documents";
 
 import type { traegerTestSystemTopic as authored_traegerTestSystemTopic } from "./articles/traeger-test-system";
 
@@ -649,7 +657,8 @@ export const activeSupervisionTopic = function activeSupervisionTopic(
         // #3823, ADR 0091: externe Kräfte mit einer von drei Zugangsstufen.
         title: "Weitere Betreuer eintragen",
         steps: [
-          "Wählen Sie in der laufenden Aufsicht `Betreuer hinzufügen`.",
+          "Öffnen Sie in der laufenden Aufsicht oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Betreuer hinzufügen`.",
           "Wählen Sie die Person unter `Betreuer auswählen` und dann `Hinzufügen`.",
           "Fehlt die Person, zum Beispiel jemand von der Musikschule? Wählen Sie `Externe Person eintragen`.",
           "Tragen Sie `Vorname` und `Nachname` ein.",
@@ -1230,9 +1239,10 @@ export const careTimeComparisonTopic =
         },
       ],
       result:
-        "Überschreitungen sind orange markiert und tragen den Text `Außerhalb der Buchung` oder `Da ohne Buchung`.",
+        "Überschreitungen tragen den Text `Außerhalb der Buchung` oder `Da ohne Buchung`. Ihre `Abweichung` steht in Rot.",
       notes: [
         "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
+        "Hat das Kind einen Vertrag vom Träger, gilt der Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Vertrag`. Das Ende ist die Endzeit des letzten Moduls an diesem Wochentag. Die Ankunft kommt weiter aus dem Wochenplan.",
         "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
         "Zeit im Unterricht wird nicht abgezogen. Unter `Hinweis` steht sie als `Zum Unterricht` mit der Uhrzeit.",
         "Kommt ein Kind nach dem Unterricht nicht zurück, endet `Tatsächlich` mit dieser Abmeldung. Die `Abweichung` ist dann groß und negativ. `Zum Unterricht: ab` mit der Uhrzeit zeigt, dass es nicht nach Hause gegangen ist.",
@@ -1244,6 +1254,7 @@ export const careTimeComparisonTopic =
       differences: [
         "Steht `Keine Zeiten hinterlegt`? Für das Kind ist kein Wochenplan eingetragen. Dann gibt es nichts zu vergleichen.",
         "Steht `Noch nicht abgemeldet`? Das Kind ist noch da, oder die Abmeldung fehlt.",
+        "Steht `Abholzeit fehlt`? Für diesen Tag ist keine Abholzeit gebucht, zum Beispiel ein Modul im Vertrag ohne Endzeit. Dann lässt sich das Gehen nicht vergleichen.",
       ],
       troubleshootingDetails: [
         "Fehlt `Soll und Ist` beim Kind? Ihr Konto darf die Kinderdaten nicht lesen.",
@@ -1290,7 +1301,8 @@ export const careTimesTopic = function careTimesTopic(): HelpTopic {
         title: "Zeiten für mehrere Kinder auf einmal setzen",
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Kinderdaten`.",
-          "Wählen Sie oben rechts `Auswählen`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Auswählen`.",
           "Haken Sie die Kinder an.",
           "Wählen Sie `Ankunftszeiten` oder `Gehzeiten`.",
           "Tragen Sie die Zeiten ein und wählen Sie `Speichern`.",
@@ -1516,7 +1528,8 @@ export const classListEntriesTopic =
           title: "Viele Einträge auf einmal",
           steps: [
             "Öffnen Sie `Klassenliste`.",
-            "Wählen Sie oben `Sammelimport`.",
+            "Öffnen Sie oben das Menü mit den drei Punkten.",
+            "Wählen Sie `Sammelimport`.",
             "Folgen Sie den Schritten auf der Seite.",
           ],
         },
@@ -1624,7 +1637,9 @@ export const createStudentTopic = function createStudentTopic(): HelpTopic {
         description:
           "Für ein ganzes Schuljahr ist die Vorlage schneller als das Fenster.",
         steps: [
-          "Öffnen Sie `Kinderdaten` und wählen Sie oben `Importieren`.",
+          "Öffnen Sie `Kinderdaten`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Importieren`.",
           "Wählen Sie bei `Format wählen` `Excel (.xlsx)` oder `CSV (Komma-getrennt)`.",
           "Wählen Sie `Vorlage herunterladen`.",
           "Tragen Sie die Kinder ein. Beim Geburtstag geht zum Beispiel `14.03.2018`.",
@@ -2101,6 +2116,102 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
   };
 } satisfies typeof authored_editStudentTopic;
 
+/**
+ * Die Zustellhinweise (#5934). Sie stehen an fünf Stellen: Einladung der Eltern,
+ * Elternbrief, Einladung ins Personal, Anmeldung und, für den Träger, im Versand
+ * der Schreiben. Hier steht, was jedes Wort bedeutet und wer als Nächstes handelt.
+ * `Versendet` heißt nur: Die Mail ist raus. `Zugestellt` meldet erst der
+ * Mail-Dienst, und ohne ihn (Strato, Brevo, Notweg) bleibt es bei `Versendet`.
+ */
+export const emailDeliveryTopic = function emailDeliveryTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadEmailDelivery,
+    title: "Wenn eine E-Mail nicht ankommt",
+    question: "Was bedeuten Zugestellt, Verzögert und Adresse prüfen?",
+    summary:
+      "moto zeigt bei jeder Mail an Eltern, was aus ihr geworden ist und was Sie tun können.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "EnvelopeSimple",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Das bedeuten die Hinweise",
+        ordered: false,
+        steps: [
+          "`Wird gesendet`: Die Mail wartet noch.",
+          "`Versendet`: Die Mail ist raus. Ob sie im Postfach ankam, ist nicht bekannt.",
+          "`Zugestellt`: Die Mail ist angekommen.",
+          "`Verzögert`: Die Mail kommt später an. Es wird weiter versucht. Bitte senden Sie sie nicht noch einmal.",
+          "`Überfällig`: Die Mail ist seit Tagen verzögert. Sie können sie noch einmal senden.",
+          "`Nicht zustellbar`: Die Mail kam nicht an.",
+          "`Nicht gesendet`: Die Mail ging nicht raus. Der Hinweis nennt den Grund. Besteht er nicht mehr, können Sie neu senden.",
+          "`Gesperrt`: Diese Adresse ist gesperrt. Eine neue Mail hilft nicht. Der moto-Support muss das klären.",
+          "`Stand unklar`: Ob die Adresse gesperrt ist, lässt sich gerade nicht prüfen. Versuchen Sie es später noch einmal.",
+          "`Nicht versendet`: Es gab keine Mail, zum Beispiel weil die Adresse fehlt.",
+          "`Fehlgeschlagen`: Das Senden hat nicht geklappt. Bitte senden Sie neu.",
+          "`Ergebnis unbekannt`: Ob die Mail rausging, ist nicht bekannt.",
+          "`Abgebrochen`: Die Mail wurde nicht mehr gesendet.",
+          "`Abgemeldet`: Die Person hat sich von den Mails abgemeldet. Sprechen Sie sie direkt an.",
+          "`Alte Adresse abgemeldet` oder `Alte Adresse gesperrt`: Die Person hat inzwischen eine neue Adresse. Eine neue Mail an diese Adresse ist möglich.",
+          "`Adresse prüfen`: An diese Adresse geht keine Mail mehr raus, weil sie gesperrt ist.",
+          "`Versand gestoppt`: Ihre Schule hat die Mails an diese Person gestoppt. Nutzt noch jemand diese Adresse, gehen Mails an die Adresse weiter raus.",
+        ],
+      },
+      {
+        title: "Einen Elternbrief neu senden",
+        description:
+          "Das geht für Mails, die nicht ankamen. Gesperrte Adressen und gestoppte Personen bekommen keine neue Mail.",
+        steps: [
+          "Öffnen Sie den Elternbrief und sehen Sie sich den Status an.",
+          "Steht bei einer Person `Adresse prüfen`? Prüfen Sie zuerst die Adresse wie unten beschrieben.",
+          "Wählen Sie `Fehlgeschlagene erneut senden`. moto sendet an die aktuelle Adresse der Person.",
+        ],
+      },
+      {
+        title: "Eine gesperrte Adresse prüfen",
+        description:
+          "Die Sperre gilt, bis jemand an Ihrer Schule die Adresse geprüft hat.",
+        steps: [
+          "Öffnen Sie das Kind und den Reiter `Erziehungsberechtigte`.",
+          "Fragen Sie die Familie nach der richtigen Adresse.",
+          "Ist die Adresse falsch: Wählen Sie im Menü der Person `Bearbeiten` und tragen Sie die richtige ein.",
+          "Ist die Adresse richtig: Wählen Sie im Menü der Person `Sperre aufheben` und bestätigen Sie.",
+          "Senden Sie danach neu, zum Beispiel mit `Erneut einladen`.",
+        ],
+      },
+      {
+        title: "Mails an eine Person stoppen",
+        description:
+          "Zum Beispiel, wenn eine Person keine Mails der Schule mehr bekommen möchte. Der Stopp bleibt, auch wenn sich die Adresse ändert.",
+        steps: [
+          "Öffnen Sie das Kind und den Reiter `Erziehungsberechtigte`.",
+          "Wählen Sie im Menü der Person `Mails stoppen` und bestätigen Sie mit `Stoppen`.",
+          "Später heben Sie das im selben Menü mit `Mails wieder senden` auf.",
+        ],
+      },
+    ],
+    notes: [
+      "Anmeldecodes und Mails zum Passwort kommen auch an eine gesperrte Adresse.",
+      "Abrechnungsbriefe des Trägers gehen auch an gesperrte Adressen und gestoppte Personen.",
+      "Mails an das Team hält eine Sperre nicht zurück. Die Einladung zeigt den Hinweis trotzdem.",
+    ],
+    troubleshootingDetails: [
+      "Hat die Person eine Mail als unerwünscht gemeldet? Dann können Sie die Sperre nicht aufheben. Sprechen Sie die Person direkt an. Eine andere Adresse tragen Sie unter `Bearbeiten` ein.",
+      "`Erneut einladen` fehlt? Dann ist die Adresse gesperrt oder die letzte Mail noch unterwegs. Der Hinweis bei der Person sagt, was davon zutrifft.",
+      "Steht bei der Person `Gesperrt`? Die Schule kann das nicht aufheben. Wenden Sie sich an den moto-Support. Die Sperre lässt sich nicht weiter zuordnen.",
+      "Hat sich die Person abgemeldet oder eine Mail als unerwünscht gemeldet? An dieselbe Adresse geht kein Elternbrief mehr. Hat sie eine andere Adresse? Tragen Sie diese unter `Bearbeiten` ein. Dann können Sie den Brief neu senden.",
+      "Ist die Adresse in einem Elternbrief geändert? Die Zeile nennt die Adresse, an die die Mail ging, und darunter die aktuelle Adresse. Das Ergebnis gehört zur ersten.",
+      "Kommt nach dem Aufheben wieder eine Mail zurück? Dann sperrt moto die Adresse erneut. Fragen Sie die Familie nach einer anderen Adresse.",
+    ],
+    related: [
+      HELP_TOPICS.leadInviteGuardians,
+      HELP_TOPICS.leadInviteStaff,
+      HELP_TOPICS.leadManageStudent,
+    ],
+  };
+} satisfies typeof authored_emailDeliveryTopic;
+
 export const emergencyTopic = function emergencyTopic(
   presenceMode: HelpPresenceMode,
 ): HelpTopic {
@@ -2190,7 +2301,8 @@ export const endCareTopic = function endCareTopic(): HelpTopic {
       {
         title: "Mehrere Kinder auf einmal abmelden",
         steps: [
-          "Wählen Sie oben rechts `Auswählen`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Auswählen`.",
           "Haken Sie die Kinder an.",
           "Wählen Sie `Betreuung beenden`.",
           "Gehen Sie die beiden Schritte wie oben durch.",
@@ -2272,13 +2384,13 @@ export const enrollmentExportTopic =
       steps: [
         "Öffnen Sie `Anmeldungen` und danach `Überblick`.",
         "Wählen Sie bei der Phase `Anmeldungen ansehen`.",
-        "Wählen Sie oben `Anmeldungen exportieren`.",
-        "Wählen Sie `PDF`, `Word` oder `Excel`.",
+        "Öffnen Sie oben das Menü mit den drei Punkten.",
+        "Wählen Sie unter `Exportieren` `PDF`, `Word` oder `Excel`.",
       ],
       result: "Die Datei wird erstellt und heruntergeladen.",
       notes: [
         "Oben steht, wie viele Eingänge die Phase hat und wie viele davon offen sind.",
-        "Die Seite hat drei Exporte: `Anmeldungen exportieren`, `Klassenliste exportieren` und `Auswertung exportieren`.",
+        "Die Seite hat drei Exporte: `Exportieren` im Menü für die Anmeldungen sowie `Klassenliste exportieren` und `Auswertung exportieren` weiter unten.",
         "`Klassenliste exportieren` gilt für die Klasse, die Sie unter `Klasse für Klassenliste` wählen.",
         "`Auswertung exportieren` bietet PDF und Word `ausführlich` oder als `kompakte Tabelle`.",
       ],
@@ -2501,6 +2613,8 @@ export const enrollmentReviewTopic =
         "Die Eltern sehen die Entscheidung bei ihrer Anmeldung. Bei `Bestätigen` wird das Kind übernommen.",
       notes: [
         "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
+        // #5934
+        "Unter `E-Mails an die Familie` sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind. Steht dort `Adresse prüfen`, sprechen Sie die Familie direkt an.",
         "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",
         "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
         "Hat die Vorlage `Unterschrift erforderlich`, steht die Unterschrift der Eltern im Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie den Anmeldenachweis mit der Unterschrift herunter.",
@@ -2799,7 +2913,7 @@ export const firstStepsTopic = function firstStepsTopic(): HelpTopic {
       "Sie können jeden Schritt in der Checkliste aufklappen, auch in anderer Reihenfolge.",
       "Ob moto auch den Raum erfasst, stimmt das moto-Team mit Ihnen ab.",
       "Sie möchten die Anwesenheit mit NFC-Armbändern erfassen? Dann melden Sie sich beim moto-Team.",
-      "Sie haben eine Liste aller Kinder? Wählen Sie in der Tour zu `Erstes Kind anlegen` den Knopf `Importieren`. Dann zeigt die Tour den Import.",
+      "Sie haben eine Liste aller Kinder? Starten Sie die Tour zu `Erstes Kind anlegen`. Öffnen Sie dort das Menü mit den drei Punkten. Wählen Sie `Importieren`. Dann zeigt die Tour den Import.",
       "Ihre OGS nutzt die Eltern-App nicht? Dann überspringen Sie `Erste Eltern einladen`.",
       "Der Stand gilt für die ganze OGS. Andere Leitungen sehen denselben Stand.",
     ],
@@ -3442,7 +3556,7 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
       },
     ],
     result:
-      "Die Person bekommt eine E-Mail mit einem Link. Sobald sie ihr Passwort festlegt, sieht sie ihr Kind im Elternportal.",
+      "Die Person bekommt eine E-Mail mit einem Link. Bei der Person sehen Sie, ob die Mail angekommen ist. Sobald sie ihr Passwort festlegt, sieht sie ihr Kind im Elternportal.",
     notes: [
       "Hinter dem Namen steht, wie weit die Person ist: `Kein Konto`, `Einladung offen` oder `Konto aktiv`.",
       "Bei `Einladung offen` heißt der Knopf `Erneut einladen`. Damit geht die E-Mail noch einmal raus.",
@@ -3456,11 +3570,13 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "`Einladen` bewirkt nichts? Dann fehlt die `E-Mail`. Tragen Sie sie über `Bearbeiten` nach.",
+      "Bei der Person steht `Adresse prüfen` oder `Verzögert`, und `Erneut einladen` fehlt? Der Hinweis dort sagt, was zu tun ist. Mehr dazu unter `Wenn eine E-Mail nicht ankommt`.",
       "Die Person ist schon bei einem anderen Kind eingetragen? Wählen Sie `Vorhandene/n suchen` statt `+ Hinzufügen`. Sonst entstehen zwei Einträge für dieselbe Person.",
       "Fehlt `Elternzugänge` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
       "Eine Anfrage passt nicht? Wählen Sie `Ablehnen` und bestätigen Sie mit `Ablehnen`. Es wird kein Zugang gewährt.",
     ],
     related: [
+      HELP_TOPICS.leadEmailDelivery,
       HELP_TOPICS.leadManageStudent,
       HELP_TOPICS.leadParentVisibility,
       HELP_TOPICS.parentMessage,
@@ -3543,7 +3659,9 @@ export const inviteStaffTopic = function inviteStaffTopic(): HelpTopic {
         description:
           "Für ein ganzes Team ist die Vorlage schneller als einzelne Einladungen.",
         steps: [
-          "Öffnen Sie `Personal` und wählen Sie oben `Importieren`.",
+          "Öffnen Sie `Personal`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Importieren`.",
           "Wählen Sie bei `Format wählen` `Excel (.xlsx)` oder `CSV (Komma-getrennt)`.",
           "Wählen Sie `Vorlage herunterladen`.",
           "Füllen Sie `Vorname`, `Nachname` und `Rolle` aus. Diese drei sind Pflicht.",
@@ -3577,7 +3695,8 @@ export const inviteStaffTopic = function inviteStaffTopic(): HelpTopic {
       "Auf dem Handy steht `+ Personal` als runder Knopf unten rechts. Er öffnet dieselbe Auswahl.",
     ],
     troubleshootingDetails: [
-      "Die Einladung kam nicht an? Prüfen Sie die E-Mail-Adresse und den Spam-Ordner. Danach laden Sie erneut ein.",
+      "Die Einladung kam nicht an? Unter `Offene Einladungen` steht bei der Adresse `Nicht zustellbar` oder `Adresse prüfen`. Stimmt die Adresse nicht, löschen Sie die Einladung und laden neu ein. Prüfen Sie auch den Spam-Ordner.",
+      "Bei der Adresse steht `Verzögert`, und `Erneut senden` fehlt? Die Mail kommt später an. Bitte warten Sie, sonst kommt sie doppelt an.",
       "Eine Zeile wird als Fehler gemeldet? Dann gibt es die Person schon.",
       "moto erkennt eine bekannte Zeile an der Personalnummer, sonst an der E-Mail, sonst am Namen.",
       "Fehlt `Personal` in der Seitenleiste? Dafür braucht Ihre Rolle ein eigenes Recht.",
@@ -5345,6 +5464,7 @@ export const parentCareChangeTopic =
         "Eine Änderung am Wochenplan ist dauerhaft und gilt jede Woche.",
         "Geht es nur um einen Tag? Ändern Sie stattdessen die Abholung für diesen Tag.",
         "Eine offene Anfrage lässt sich mit `Anfrage bearbeiten` noch ändern.",
+        "Gilt Ihr Betreuungsvertrag schon? Nach der Bestätigung bekommt er eine neue Version ab dem bestätigten Tag. Die alte Version gilt bis dahin weiter.",
         "Betreut Ihre OGS am Wochenende? Dann gilt der Freitagsplan auch für Samstag und Sonntag.",
       ],
       differences: [
@@ -5653,35 +5773,43 @@ export const parentDepartureTopic = function parentDepartureTopic(): HelpTopic {
   };
 } satisfies typeof authored_parentDepartureTopic;
 
-/** `/parents/documents` (#4671, #4678): Schreiben und Verträge des Trägers. */
+/**
+ * `/parents/documents` (#4671, #4678, #4692): Schreiben und Verträge des
+ * Trägers und Dokumente, die der Träger für Eltern freigegeben hat.
+ */
 export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.parentDocuments,
     title: "Dokumente vom Träger finden",
     question: "Wo finde ich Schreiben vom Träger?",
     summary:
-      "Unter `Dokumente` liegen die Schreiben und Verträge, die Ihnen der Träger geschickt hat.",
+      "Unter `Dokumente` liegen die Schreiben und Verträge, die Ihnen der Träger geschickt hat. Dort finden Sie auch Dokumente, die der Träger für Eltern freigegeben hat, etwa eine Hausordnung.",
     group: "nachrichten",
     audience: "parent",
     icon: "FileText",
     steps: [
       "Tippen Sie unten auf `Mehr`.",
       "Wählen Sie `Dokumente`.",
-      "Wählen Sie beim Schreiben `Als PDF laden`.",
+      "Wählen Sie beim Schreiben `Als PDF laden`. Bei einem freigegebenen Dokument wählen Sie `Herunterladen`.",
     ],
     result:
-      "Sie bekommen das Schreiben als PDF. Sie können es speichern oder drucken.",
+      "Sie bekommen das Dokument auf Ihr Gerät. Sie können es speichern oder drucken.",
     notes: [
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
+      "Steht im Vertrag `Vertragsschluss`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
+      "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
+      "Bei einem freigegebenen Dokument steht `Vom Träger für Eltern freigegeben`. Es gilt für alle Eltern, für die der Träger es freigegeben hat, zum Beispiel für eine Gruppe. Diese Dokumente kommen nicht per Mail.",
       "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein Bestätigungsschreiben kommt? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Einen Betreuungsvertrag bekommen Sie per Mail.",
     ],
     troubleshootingDetails: [
       "Ein Schreiben fehlt? Hier liegt es nur, wenn es an die Mail-Adresse Ihres Kontos ging. Haben Sie bei der Anmeldung eine andere Adresse angegeben, bekommen Sie es nur per Mail.",
       "Statt der Liste steht, dass Ihnen die Berechtigung fehlt? Bitte fragen Sie die Schule.",
+      "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen.",
     ],
     related: [
+      HELP_TOPICS.parentCareChange,
       HELP_TOPICS.parentHolidayRegistration,
       HELP_TOPICS.parentNotifications,
     ],
@@ -6202,6 +6330,7 @@ export const parentLetterTopic = function parentLetterTopic(): HelpTopic {
     result:
       "Der Brief steht im Elternportal. Die erreichten Eltern bekommen zusätzlich eine E-Mail.",
     notes: [
+      "Unter `Empfänger` steht bei jeder Mail, was aus ihr geworden ist. Steht dort `Adresse prüfen`, korrigieren Sie die Adresse beim Kind unter `Erziehungsberechtigte`.",
       "Unter `Wer erhält die E-Mail?` wählen Sie `Nur mit Portalzugang` oder `Alle Bezugspersonen`.",
       "Die Eltern bestätigen den Brief. Eine Bestätigung pro Kind genügt.",
       "Der Kasten im Fenster zählt auf, was beim Veröffentlichen automatisch passiert.",
@@ -7280,6 +7409,44 @@ export const roomsTopic = function roomsTopic(
 } satisfies typeof authored_roomsTopic;
 
 /**
+ * `/dateien`, Karte `Vom Träger` (#4692): Dokumente, die der Träger für die
+ * Schule oder die Eltern an ihr freigegeben hat.
+ */
+export const schoolTraegerDocumentsTopic =
+  function schoolTraegerDocumentsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.schoolTraegerDocuments,
+      title: "Dokumente vom Träger finden",
+      question: "Wo finde ich Dokumente, die der Träger freigegeben hat?",
+      summary:
+        "Ihr Träger kann Dokumente für Ihre Schule freigeben. Sie finden sie unter `Dateien`.",
+      group: "elternarbeit",
+      audience: "lead",
+      icon: "Download",
+      requirements: ["Sie dürfen die Dateien Ihrer Schule verwalten."],
+      steps: [
+        "Klappen Sie in der Seitenleiste `Verwaltung` auf und öffnen Sie `Dateien`.",
+        "Oben steht die Karte `Vom Träger`.",
+        "Unter jedem Titel steht, für wen der Träger das Dokument freigegeben hat.",
+        "Wählen Sie `Herunterladen`.",
+      ],
+      result:
+        "Sie haben das Dokument auf Ihrem Gerät. Ändern kann es nur der Träger.",
+      notes: [
+        "Hier stehen auch Dokumente, die der Träger für die Eltern Ihrer Schule oder einer Gruppe freigegeben hat. So wissen Sie, was die Eltern bekommen haben.",
+        "Soll das Team ein Dokument sehen? Laden Sie es in einen Ordner unter `Dateien` hoch.",
+      ],
+      differences: [
+        "Die Karte `Vom Träger` fehlt? Dann hat der Träger zurzeit nichts für Ihre Schule freigegeben. Oder Ihnen fehlt das Recht, die Dateien zu verwalten.",
+      ],
+      troubleshootingDetails: [
+        "Ein Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen. Fragen Sie beim Träger nach.",
+      ],
+      related: [HELP_TOPICS.sharedFiles],
+    };
+  } satisfies typeof authored_schoolTraegerDocumentsTopic;
+
+/**
  * Die wichtigsten Einstellungen je Bereich (#3727). Bewusst eine Auswahl, keine
  * vollständige Liste: Die vollständige Liste steht auf `/settings` selbst, mit
  * einem Satz unter jeder Einstellung. Bezeichnungen stammen aus der Registry
@@ -7545,7 +7712,7 @@ export const staffNoticesTopic = function staffNoticesTopic(): HelpTopic {
       "Wählen Sie bei `Wichtigkeit`, wie dringend der Hinweis ist.",
       "Wählen Sie bei `Woche`, ob der Hinweis sich wiederholt.",
       "Tragen Sie `Gilt ab` und bei Bedarf `Gilt bis (optional)` ein.",
-      "Haken Sie unter `Wochentage` die Tage an, an denen der Hinweis erscheint.",
+      "Wählen Sie unter `Wochentage` die Tage aus, an denen der Hinweis erscheint.",
       "Wählen Sie `Speichern`.",
     ],
     result: "Der Hinweis steht sofort unter `Heute` für die gewählte Gruppe.",
@@ -7683,7 +7850,8 @@ export const staffQualificationsTopic =
           steps: [
             "Öffnen Sie `Datenverwaltung` und danach `Nachweise`.",
             "Filtern Sie oben nach `Status` oder `Art`.",
-            "Wählen Sie `Für Excel herunterladen`, um die Liste als Datei zu speichern.",
+            "Öffnen Sie oben das Menü mit den drei Punkten.",
+            "Wählen Sie `Für Excel herunterladen`, um die Liste als Datei zu speichern. Ohne Treffer gibt es den Eintrag nicht.",
           ],
         },
         {
@@ -9258,6 +9426,7 @@ export const teacherParentLettersTopic =
         "Wählen Sie den Brief in der Liste. Dort sehen Sie, wer gelesen, bestätigt oder zugestimmt hat.",
         "Ein gesendeter Brief lässt sich nicht mehr ändern. Sie können ihn über `Zurückziehen` zurücknehmen.",
         "Die OGS sieht Ihre Briefe in ihrer Übersicht. Ändern kann sie nur Sie.",
+        "Unter `Empfänger` steht bei jeder Mail, was aus ihr geworden ist. Steht dort `Adresse prüfen`, sagen Sie der OGS Bescheid. Sie korrigiert die Adresse.",
       ],
       differences: [
         "Sie sehen nur Ihre eigenen Briefe. Briefe anderer Lehrkräfte stehen nicht in Ihrer Liste.",
@@ -9824,7 +9993,9 @@ export const traegerBillingRunTopic =
             "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat die Familie ein Konto in der Eltern-App mit derselben Mail-Adresse, liegt es auch dort unter `Dokumente`. Familien ohne E-Mail geben Sie das gedruckte Schreiben.",
           steps: [
             "Wählen Sie im freigegebenen Lauf bei `Versand per Mail` den Knopf `An alle Familien senden`. moto schickt nur Mails, die noch nicht gesendet sind.",
-            "Neben jeder Familie steht, ob die Mail gesendet ist. `Nicht angekommen` heißt: Die Mail kam nicht an.",
+            "Neben jeder Familie steht, was aus der Mail geworden ist. `Gesendet` heißt: Die Mail ist raus. `Zugestellt` heißt: Sie ist angekommen. `Nicht angekommen` und `Nicht zustellbar` heißen: Die Mail kam nicht an.",
+            "Bei `Verzögert` kommt die Mail später an. Warten Sie dann. `Erneut senden` steht erst danach wieder bereit. Spätestens bei `Überfällig` können Sie neu senden.",
+            "Bei `Nicht gesendet` und `Abgemeldet` zählt, ob die Sperre noch besteht. Besteht sie, fehlt `Erneut senden`, und der Hinweis sagt, was zu tun ist. Drucken Sie das Schreiben dann und geben Sie es der Familie. Ist sie weg, können Sie neu senden.",
             "Wählen Sie bei dieser Familie `Erneut senden`. Mit `Senden` schicken Sie das Schreiben an eine einzelne Familie.",
             "Wählen Sie `Alle Schreiben drucken`. Sie bekommen alle Schreiben des Laufs in einer Datei.",
           ],
@@ -10015,8 +10186,9 @@ export const traegerBriefkopfTopic =
   } satisfies typeof authored_traegerBriefkopfTopic;
 
 /**
- * `/traeger/vertraege` (#4678): Vertragsbedingungen je Angebot festlegen,
- * Entwürfe aus angenommenen Anmeldungen erstellen, prüfen und senden.
+ * `/traeger/vertraege` (#4678, #4680, #4681): festlegen, wann der Vertrag
+ * gilt, Vertragsbedingungen je Angebot festlegen, Entwürfe aus angenommenen
+ * Anmeldungen erstellen, prüfen und senden; Versionen nach einer Änderung.
  */
 export const traegerCareContractsTopic =
   function traegerCareContractsTopic(): HelpTopic {
@@ -10025,7 +10197,7 @@ export const traegerCareContractsTopic =
       title: "Betreuungsverträge erstellen und senden",
       question: "Wie schicke ich den Eltern den Betreuungsvertrag?",
       summary:
-        "Aus jeder angenommenen Anmeldung erstellt moto einen Vertragsentwurf mit den gebuchten Modulen je Wochentag. Sie prüfen ihn und senden ihn per Mail und in die Eltern-App.",
+        "Aus jeder angenommenen Anmeldung entsteht ein Vertrag mit den gebuchten Modulen je Wochentag. Entweder gilt er gleich bei der Annahme, oder Sie prüfen den Entwurf und senden ihn per Mail und in die Eltern-App.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "Signature",
@@ -10034,6 +10206,15 @@ export const traegerCareContractsTopic =
         "Die Schule hat die Anmeldung angenommen, und das Kind hat Betreuung gebucht.",
       ],
       instructionGroups: [
+        {
+          title: "Einmal: Festlegen, wann der Vertrag gilt",
+          steps: [
+            "Wählen Sie in der Navigation `Einstellungen` → `Allgemein`.",
+            "Wählen Sie den Reiter `Anmeldung`.",
+            "Wählen Sie bei `Wann gilt der Betreuungsvertrag?` eine Möglichkeit. `Bei der Annahme`: Nimmt die Schule eine Anmeldung an, gilt der Vertrag sofort. `Später verschicken`: Sie erstellen den Vertrag und schicken ihn den Eltern.",
+            "Eine Schule kann in ihren eigenen Einstellungen etwas anderes wählen. Was für welche Schule gilt, sehen Sie unter `Verträge` in der Karte `Wann gilt der Vertrag?`.",
+          ],
+        },
         {
           title: "Einmal: Vertragsbedingungen festlegen",
           steps: [
@@ -10045,10 +10226,20 @@ export const traegerCareContractsTopic =
             "Müssen die Eltern eine Satzung anerkennen? Setzen Sie den Haken bei `Satzung`. Tragen Sie den Namen und, wenn vorhanden, den Link ein.",
             "Tragen Sie den Namen des `Vertragspartners` ein, wenn er nicht im Briefkopf steht.",
             "Wählen Sie `Bedingungen speichern`.",
+            "Für `Bei der Annahme`: Tragen Sie den `Vertragspartner` immer ein. Speichern Sie die Bedingungen. Kopieren Sie den Text aus `Gespeicherter Text für das Anmeldeformular` unverändert. Die Schule wählt im Anmeldeformular `Eigene Zustimmung hinzufügen`. Sie trägt ihn unter `Rechtstext / Erklärung` ein. Sie setzt `Muss bestätigt werden` und behält bestehende Rechtstexte bei. Bei mehreren Modulen müssen deren Bedingungen übereinstimmen.",
           ],
         },
         {
-          title: "Entwürfe erstellen",
+          title: "Bei der Annahme: nichts zu tun",
+          steps: [
+            "Im Anmeldeformular stimmen die Eltern dem vollständigen gespeicherten Bedingungstext zu. Die eigene Zustimmung muss bestätigt werden. Ein allgemeiner Verweis auf Bedingungen reicht nicht. Die Schule nimmt die Anmeldung an.",
+            "Nach wenigen Minuten steht der Vertrag in der Liste. Sein Status ist `Aktiv`.",
+            "Die Eltern bekommen das PDF per Mail und in der Eltern-App. Sie müssen nichts unterschreiben.",
+            "Auf der Vertragsseite steht unter `Abgeschlossen`, wann der Vertrag gilt.",
+          ],
+        },
+        {
+          title: "Später verschicken: Entwürfe erstellen",
           steps: [
             "Wählen Sie den Reiter `Verträge`.",
             "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag.",
@@ -10067,27 +10258,49 @@ export const traegerCareContractsTopic =
             "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken und wählen Sie oben `Entwürfe senden`.",
           ],
         },
+        {
+          title: "Wenn sich die Betreuung ändert: neue Version",
+          steps: [
+            "Die Eltern beantragen in der Eltern-App andere Tage oder Zeiten. Die Schule gibt die Änderung frei.",
+            "Nach wenigen Minuten bekommt der aktive Vertrag eine neue Version. Sie gilt ab dem Tag, den die Schule freigegeben hat.",
+            "Wählen Sie in der Liste das Kind. Oben steht, ab wann die neue Version gilt.",
+            "Unter `Versionen` sehen Sie jede Version mit ihren Tagen. `Geändert` markiert die Wochentage, die anders sind als vorher.",
+            "Mit `PDF` laden Sie eine Version als PDF.",
+          ],
+        },
       ],
       steps: [],
       result:
-        "Die Eltern bekommen den Vertrag als PDF per Mail. Haben sie ein Konto in der Eltern-App, liegt er dort auch unter `Dokumente`. Der Status wird `Versendet`: Der Versand ist beauftragt. Ob die Mail gesendet wurde, sehen Sie unter `Versand`.",
+        "Die Eltern bekommen den Vertrag als PDF per Mail. Haben sie ein Konto in der Eltern-App, liegt er dort auch unter `Dokumente`. Gilt der Vertrag bei der Annahme, ist sein Status `Aktiv`. Sonst wird er `Versendet`: Der Versand ist beauftragt. Ob die Mail gesendet wurde, sehen Sie unter `Versand`.",
       notes: [
         "Die Suche und die Filter gelten für alle Verträge. Mit `Weitere Verträge laden` zeigen Sie ältere Treffer an.",
         "Beim ersten Senden hält moto das PDF fest. Ändern Sie danach Bedingungen oder Brieftext, bleibt der versendete Vertrag gleich.",
         "Unter `Versand` sehen Sie, ob die Mail gesendet wurde. Mit `Versand aktualisieren` prüfen Sie den neuen Stand. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern.",
+        "Neben jedem Versand steht, was aus der Mail geworden ist: wie bei der Abrechnung. Der Hinweis oben nennt den Grund und den nächsten Schritt. Bei `Verzögert` warten Sie. Hat die Schule die Mails gestoppt, klären Sie das mit der Schule. Bei `Gesperrt` klärt das der moto-Support. Solange das gilt, ist `Erneut senden` aus.",
         "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
         "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
+        "Frühere Versionen bleiben unter `Versionen` lesbar. `Gilt jetzt` zeigt die Version von heute. Die Abrechnung nimmt für jeden Tag die Version, die an diesem Tag gilt.",
+        "Eine neue Version gilt nie rückwirkend. Kommt eine Freigabe zu spät, gilt die Version ab dem Tag, an dem moto sie anlegt.",
+        "Beginnt an einem Tag schon eine Version, und die Schule gibt für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
+        "Ist schon eine spätere Version geplant, gilt eine frühere Änderung nur bis dahin. Die geplante Version übernimmt sie nicht von selbst.",
       ],
       differences: [
         "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
       ],
       troubleshootingDetails: [
+        "Die Schule hat angenommen, aber nach einigen Minuten steht kein aktiver Vertrag da? Dann fehlt etwas. Das Kind steht in `Verträge erstellen` mit dem Grund, zum Beispiel `Vertragsbedingungen fehlen`. Fehlt die E-Mail-Adresse der Eltern, ergänzt die Schule sie in der Anmeldung. moto versucht es danach von selbst noch einmal.",
+        "Ein Kind zeigt `Mail-Adresse gesperrt`? Mails an die Adresse der Eltern kamen nicht an. Die Schule prüft die Adresse beim Kind unter `Erziehungsberechtigte` und wählt `Sperre aufheben`. Danach entsteht der Vertrag von selbst.",
+        "Ein Kind zeigt `Mails gestoppt`? Die Schule hat die Mails an diese Eltern gestoppt. Der Vertrag kommt erst, wenn die Schule beim Kind unter `Erziehungsberechtigte` `Mails wieder senden` wählt.",
+        "Ein Kind zeigt `Zustimmung zum Vertrag fehlt` oder `Bedingungen nach der Anmeldung geändert`? Die Eltern haben in der Anmeldung den Vertragsbedingungen nicht zugestimmt, oder Sie haben die Bedingungen danach geändert. Dann entsteht kein aktiver Vertrag. Stellen Sie die Schule auf `Später verschicken` und schicken Sie den Vertrag. Eine frühere Anmeldung wird nicht nachträglich verbindlich.",
+        "Nach Änderungen an den Bedingungen: Speichern Sie diese zuerst. Ersetzen Sie danach den Text im Anmeldeformular durch den neuen gespeicherten Text. Unverändertes Speichern lässt eine passende Zustimmung weiter gelten.",
+        "Schulen mit `Bei der Annahme` erlauben keine manuellen Entwürfe. Bereits vorhandene Entwürfe werden nicht automatisch abgeschlossen. Prüfen und verwerfen Sie diese bei Bedarf.",
         "Ein Kind fehlt in `Verträge erstellen`? Die Schule hat die Anmeldung noch nicht angenommen, oder das Kind hat schon einen Vertrag.",
         "Ein Kind zeigt `Bedingungen der Module weichen ab`? Das Kind hat mehrere Module gebucht, und deren Vertragsbedingungen sind verschieden. Ein Vertrag hat eine Laufzeit und eine Frist. Gleichen Sie die Bedingungen der Module an.",
         "Eine Endzeit fehlt? Das Modul hat für diesen Tag keine Gehzeit. Die Schule trägt sie beim Angebot ein.",
         "Ein Entwurf ist falsch? Wählen Sie auf seiner Seite oben `Entwurf verwerfen`. Danach erstellen Sie ihn neu. Einen versendeten Vertrag können Sie nicht verwerfen.",
-        "Der Versand zeigt `Nicht angekommen`? Prüfen Sie die Adresse mit der Schule. Tragen Sie auf der Vertragsseite unter `Versand` die `Neue Versandadresse` ein. Wählen Sie `An diese Adresse senden`. Das PDF, die Vertragspartei und bisherige Versanddaten bleiben gleich. Spätere Wiederholungen nutzen die letzte Versandadresse.",
+        "Der Versand zeigt `Nicht angekommen`? Prüfen Sie die Adresse mit der Schule. Tragen Sie auf der Vertragsseite unter `Versand` die `Neue Versandadresse` ein. Wählen Sie `An diese Adresse senden`. Das geht auch bei aktiven Verträgen. Das PDF, der Abschluss, die Vertragspartei und bisherige Versanddaten bleiben gleich. Spätere Wiederholungen nutzen die letzte Versandadresse.",
         "Der Name des Vertragspartners fehlt? Ergänzen Sie den Briefkopf. Oder verwerfen Sie den Entwurf und erstellen ihn mit eingetragenem Vertragspartner neu.",
+        "Die Schule hat eine Änderung freigegeben, aber es gibt keine neue Version? Neue Versionen bekommen nur aktive Verträge. Bucht das Kind ab dem Tag gar keine Betreuung mehr, ist das eine Kündigung und keine neue Version.",
       ],
       related: [
         HELP_TOPICS.traegerDocumentTemplates,
@@ -10096,6 +10309,52 @@ export const traegerCareContractsTopic =
       ],
     };
   } satisfies typeof authored_traegerCareContractsTopic;
+
+/**
+ * `/traeger/zeitvergleich` (#4683): wie oft Kinder an den Schulen des Trägers
+ * länger da waren als gebucht, je Schule und mit Recht auch je Kind.
+ */
+export const traegerCareTimeOverrunsTopic =
+  function traegerCareTimeOverrunsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareTimeOverruns,
+      title: "Länger als gebucht",
+      question: "Welche Kinder waren länger da als gebucht?",
+      summary:
+        "moto vergleicht die Zeiten im Vertrag mit dem Ein- und Auschecken. Sie sehen je Schule, wie oft Kinder länger da waren.",
+      group: "auswertung",
+      audience: "traeger",
+      icon: "Hourglass",
+      requirements: [
+        "Für die Zahlen je Schule brauchen Sie das Recht `Berichte lesen`. Es gehört zu den Rollen `Verwaltung`, `Abrechnung`, `Personal` und `Nur lesen`.",
+        "Für die Namen der Kinder brauchen Sie das Recht `Verträge verwalten`. Es gehört zur Rolle `Verwaltung`.",
+      ],
+      steps: [
+        "Wählen Sie in der Navigation `Länger als gebucht`.",
+        "Wählen Sie oben den Monat. Am Anfang ist es der laufende Monat bis heute.",
+        "Wählen Sie bei Bedarf eine Schule. Sonst sehen Sie alle Schulen.",
+        "Lesen Sie oben die Summen: `Kinder`, `Tage` und `Zusätzliche Zeit`.",
+        "Lesen Sie unter `Je Schule` die Zahlen jeder Schule. Tippen Sie auf eine Spalte, um nach ihr zu sortieren.",
+        "Mit der Rolle `Verwaltung` sehen Sie unter `Kinder` jedes Kind mit Namen. Das Kind mit der meisten zusätzlichen Zeit steht oben.",
+      ],
+      result:
+        "Rote Zahlen zeigen Überschreitungen. Sprechen Sie mit den Eltern, oder ändern Sie die Buchung.",
+      notes: [
+        "Das Soll kommt aus dem versendeten Vertrag: je Wochentag die Module und die Endzeit. Ohne Vertrag gilt der Betreuungsplan der Schule.",
+        "Das Ist reicht vom ersten Einchecken bis zum letzten Auschecken des Tages.",
+        "Eine Überschreitung ist mehr als 15 Minuten früher oder später als gebucht. Ein Tag ohne Buchung zählt ganz.",
+        "Krank, entschuldigt, abgemeldet, Schließtage und Feiertage zählen nicht.",
+        "Jedes Mal, wenn Sie Namen sehen, steht das im Zugriffsprotokoll der Schule.",
+      ],
+      differences: [
+        "Fehlt der Bereich mit den Namen? Ihre Rolle hat das Recht `Verträge verwalten` nicht. Dann sehen Sie nur die Zahlen je Schule.",
+        "Steht bei einer Schule `Check-ins erst ab` mit einem Datum? Die Schule bewahrt Check-ins nicht so lange auf. Verglichen wird ab diesem Tag.",
+        "Steht bei einer Schule `–` und `Keine Check-ins im Zeitraum`? Die Schule hat in diesem Zeitraum keine Check-ins. Dann kann moto nicht vergleichen. Das heißt nicht, dass alle Zeiten passen.",
+        "Steht bei einer Schule `Tage nicht verglichen`? An diesen Tagen war ein Kind da, aber es gab keinen Plan oder es ist noch nicht ausgecheckt. Diese Tage zählen nicht mit.",
+      ],
+      related: [HELP_TOPICS.traegerCareContracts, HELP_TOPICS.traegerAccessLog],
+    };
+  } satisfies typeof authored_traegerCareTimeOverrunsTopic;
 
 /** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen und ihre Auffälligkeiten (#4675). */
 export const traegerDashboardTopic =
@@ -10987,6 +11246,79 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],
   };
 } satisfies typeof authored_traegerSettingsTopic;
+
+/**
+ * `/traeger/dokumente` (#4692): vorhandene Dokumente hochladen und für
+ * Eltern oder Schulen freigeben; eine Freigabe zurücknehmen.
+ */
+export const traegerSharedDocumentsTopic =
+  function traegerSharedDocumentsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerSharedDocuments,
+      title: "Dokumente für Eltern und Schulen freigeben",
+      question: "Wie teile ich ein Dokument mit Eltern oder Schulen?",
+      summary:
+        "Sie laden eine Datei hoch, die Sie schon haben, zum Beispiel eine Hausordnung oder eine Liste. Dann geben Sie sie für Eltern oder für Schulen frei.",
+      group: "elternarbeit",
+      audience: "traeger",
+      icon: "EnvelopeOpen",
+      requirements: [
+        "Sie haben die Rolle `Verwaltung`.",
+        "Die Datei ist ein PDF, ein Word-, Excel- oder PowerPoint-Dokument oder ein Bild. Sie ist höchstens 10 MB groß.",
+      ],
+      instructionGroups: [
+        {
+          title: "Dokument hochladen",
+          steps: [
+            "Wählen Sie in der Navigation `Dokumente`.",
+            "Wählen Sie oben `Dokument hochladen`.",
+            "Ziehen Sie die Datei in das Feld. Oder wählen Sie `Datei auswählen`.",
+            "Prüfen Sie den `Titel`. Eltern und Schulen sehen diesen Titel.",
+            "Wählen Sie `Hochladen`. moto öffnet danach die Seite des Dokuments.",
+          ],
+        },
+        {
+          title: "Dokument freigeben",
+          steps: [
+            "Öffnen Sie das Dokument in der Liste `Dokumente`.",
+            "Wählen Sie oben `Freigeben`.",
+            "Wählen Sie bei `Für wen?` entweder `Eltern` oder `Schulen`.",
+            "Wählen Sie bei `An welchen Schulen?`: `Alle Schulen`, `Eine Schule` oder bei Eltern auch `Eine Gruppe`.",
+            "Wählen Sie dann die `Schule` und gegebenenfalls die `Gruppe`.",
+            "Prüfen Sie den Kasten `Sichtbar für`. Wählen Sie `Freigeben`.",
+          ],
+        },
+        {
+          title: "Freigabe zurücknehmen",
+          steps: [
+            "Öffnen Sie das Dokument.",
+            "Wählen Sie bei der Freigabe `Zurücknehmen`.",
+            "Bestätigen Sie mit `Ja, zurücknehmen` und dann `Zurücknehmen`.",
+          ],
+        },
+      ],
+      steps: [],
+      result:
+        "Eltern finden das Dokument in der Eltern-App unter `Dokumente`. Die OGS-Leitung findet es in moto unter `Dateien` bei `Vom Träger`. Nach dem Zurücknehmen sehen sie es sofort nicht mehr, außer eine andere Freigabe des Dokuments gilt auch für sie.",
+      notes: [
+        "Ein Dokument kann mehrere Freigaben haben. Zum Beispiel für die Eltern einer Gruppe und für alle Schulen.",
+        "Eine Freigabe für Eltern sieht auch die OGS-Leitung der Schule. So weiß sie, was die Eltern bekommen haben.",
+        "Bei `Geöffnet` sehen Sie, wie oft Eltern und Schulen das Dokument geöffnet haben.",
+      ],
+      differences: [
+        "Sie sehen `Dokument hochladen` und `Freigeben` nicht? Ihnen fehlt die Rolle `Verwaltung`. Sie können die Dokumente nur ansehen.",
+      ],
+      troubleshootingDetails: [
+        "moto nimmt die Datei nicht an? Prüfen Sie Art und Größe. Eine umbenannte Datei erkennt moto am Inhalt.",
+        "Bei `Eine Gruppe` steht keine Gruppe? Die Schule hat in moto noch keine Gruppen angelegt.",
+        "Die Meldung sagt, das Dokument ist schon freigegeben? Für diese Menschen gibt es schon eine Freigabe.",
+      ],
+      related: [
+        HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.errorMessages,
+      ],
+    };
+  } satisfies typeof authored_traegerSharedDocumentsTopic;
 
 /** Hinweis `Testsystem` im Träger-Portal (#4658): erfundene Beispielkinder. */
 export const traegerTestSystemTopic =

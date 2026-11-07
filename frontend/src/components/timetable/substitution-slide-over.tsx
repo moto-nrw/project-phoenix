@@ -18,6 +18,7 @@
  * is a radio branch, not a checkbox that silently disables the rest.
  */
 
+import { ListRow } from "~/components/ui/list-row";
 import { RotateCcw } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -51,10 +52,10 @@ import { Input } from "~/components/ui/input";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -62,9 +63,12 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { useApiFormError } from "~/contexts/ToastContext";
 
 import {
+  instanceStatusTone,
   timetableMutedSurface,
   timetableNestedSurface,
 } from "./timetable-style";
@@ -572,32 +576,28 @@ export function SubstitutionSlideOver({
             className="flex min-h-0 flex-1 flex-col"
           >
             <SlideOverHeader className="pb-0">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <SlideOverTitle>{instance.title}</SlideOverTitle>
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-gray-600 uppercase">
-                      {getStatusLabel(instance.status)}
-                    </span>
-                    {typeBadge && (
-                      <span
-                        className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase"
-                        style={{ backgroundColor: typeBadge.bg }}
-                      >
-                        {typeBadge.label}
-                      </span>
-                    )}
-                  </div>
-                  <SlideOverDescription>
-                    {formatDate(instance.date)} • {instance.startTime} –{" "}
-                    {instance.endTime} • {instanceRoomLabel(instance)}
-                  </SlideOverDescription>
-                </div>
-                <SlideOverCloseButton />
+              <div className="flex flex-wrap items-center gap-2">
+                <SlideOverTitle>{instance.title}</SlideOverTitle>
+                <StatusBadge
+                  label={getStatusLabel(instance.status)}
+                  tone={instanceStatusTone[instance.status]}
+                  compact
+                />
+                {typeBadge && (
+                  <StatusColorBadge
+                    label={typeBadge.label}
+                    color={typeBadge.color}
+                    compact
+                  />
+                )}
               </div>
+              <SlideOverDescription>
+                {formatDate(instance.date)} • {instance.startTime} –{" "}
+                {instance.endTime} • {instanceRoomLabel(instance)}
+              </SlideOverDescription>
               <TabsList
                 variant="line"
-                className="mt-3 w-full justify-start border-b-0"
+                className="mt-2 w-full justify-start border-b-0"
               >
                 <TabsTrigger value="bearbeiten">Bearbeiten</TabsTrigger>
                 <TabsTrigger value="verlauf">Verlauf</TabsTrigger>
@@ -767,96 +767,102 @@ export function SubstitutionSlideOver({
                             const inactive =
                               (row.isAbsent && !restored) || removed;
                             return (
-                              <li
-                                key={row.staffId}
-                                className={`flex flex-col items-stretch gap-2 rounded-lg px-3 py-2 ${
-                                  inactive ? "bg-gray-100" : "bg-moto-green/10"
-                                }`}
-                              >
-                                <span
-                                  className={`truncate text-sm font-medium ${
-                                    inactive
-                                      ? "text-gray-400 line-through"
-                                      : "text-gray-900"
-                                  }`}
+                              <li key={row.staffId}>
+                                <ListRow
+                                  tone={inactive ? "muted" : "success"}
+                                  className="flex-col items-stretch gap-2"
                                 >
-                                  {staffLabel(staffNames, row.staffId)}
-                                </span>
-                                <div className="flex flex-wrap items-center justify-end gap-2">
-                                  {removed ? (
-                                    <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
-                                      Wird entfernt
-                                    </span>
-                                  ) : row.isAbsent && !restored ? (
-                                    <span className="bg-moto-red/10 text-moto-red-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
-                                      Abwesend
-                                    </span>
-                                  ) : restored ? (
-                                    <span className="bg-moto-green/20 text-moto-green-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
-                                      Wird wiederhergestellt
-                                    </span>
-                                  ) : (
-                                    <span className="bg-moto-green/20 text-moto-green-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
-                                      Ersatz
-                                    </span>
-                                  )}
-                                  {canEdit && !row.isSickAbsence && (
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="compact"
-                                      onClick={() =>
-                                        toggleRemoveSub(row.staffId)
-                                      }
-                                    >
-                                      {removed ? (
-                                        <>
-                                          <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                                          Rückgängig
-                                        </>
-                                      ) : (
-                                        <>
-                                          <MotoConceptIcon
-                                            concept={substitutionConcept}
-                                            size={14}
-                                            className="mr-1"
-                                          />
-                                          Entfernen
-                                        </>
-                                      )}
-                                    </Button>
-                                  )}
-                                  {canEdit &&
-                                    row.isAbsent &&
-                                    !row.isSickAbsence &&
-                                    !removed &&
-                                    canRestore && (
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="compact"
-                                        onClick={() =>
-                                          toggleRestoreSub(row.staffId)
-                                        }
-                                      >
-                                        {restored ? (
-                                          <>
-                                            <MotoConceptIcon
-                                              concept={substitutionConcept}
-                                              size={14}
-                                              className="mr-1"
-                                            />
-                                            Rückgängig
-                                          </>
-                                        ) : (
-                                          <>
-                                            <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                                            Anwesend melden
-                                          </>
-                                        )}
-                                      </Button>
+                                  <span
+                                    className={`truncate text-sm font-medium ${
+                                      inactive
+                                        ? "text-gray-400 line-through"
+                                        : "text-gray-900"
+                                    }`}
+                                  >
+                                    {staffLabel(staffNames, row.staffId)}
+                                  </span>
+                                  <div className="flex flex-wrap items-center justify-end gap-2">
+                                    {removed ? (
+                                      <StatusBadge
+                                        label="Wird entfernt"
+                                        tone="gray"
+                                        size="xs"
+                                      />
+                                    ) : row.isAbsent && !restored ? (
+                                      <StatusBadge
+                                        label="Abwesend"
+                                        tone="red"
+                                        size="xs"
+                                      />
+                                    ) : restored ? (
+                                      <StatusBadge
+                                        label="Wird wiederhergestellt"
+                                        tone="green"
+                                        size="xs"
+                                      />
+                                    ) : (
+                                      <StatusBadge
+                                        label="Ersatz"
+                                        tone="green"
+                                        size="xs"
+                                      />
                                     )}
-                                </div>
+                                    {canEdit && !row.isSickAbsence && (
+                                      <OverflowMenu
+                                        ariaLabel={`Aktionen für ${staffLabel(staffNames, row.staffId)}`}
+                                        triggerSize="sm"
+                                        items={[
+                                          {
+                                            label: removed
+                                              ? "Rückgängig"
+                                              : "Entfernen",
+                                            icon: removed ? (
+                                              <RotateCcw
+                                                className="h-3.5 w-3.5"
+                                                aria-hidden
+                                              />
+                                            ) : (
+                                              <MotoConceptIcon
+                                                concept={substitutionConcept}
+                                                size={14}
+                                              />
+                                            ),
+                                            onClick: () =>
+                                              toggleRemoveSub(row.staffId),
+                                          },
+                                          ...(row.isAbsent &&
+                                          !removed &&
+                                          canRestore
+                                            ? [
+                                                {
+                                                  label: restored
+                                                    ? "Rückgängig"
+                                                    : "Anwesend melden",
+                                                  icon: restored ? (
+                                                    <MotoConceptIcon
+                                                      concept={
+                                                        substitutionConcept
+                                                      }
+                                                      size={14}
+                                                    />
+                                                  ) : (
+                                                    <RotateCcw
+                                                      className="h-3.5 w-3.5"
+                                                      aria-hidden
+                                                    />
+                                                  ),
+                                                  onClick: () =>
+                                                    toggleRestoreSub(
+                                                      row.staffId,
+                                                    ),
+                                                },
+                                              ]
+                                            : []),
+                                        ]}
+                                      />
+                                    )}
+                                  </div>
+                                </ListRow>
                               </li>
                             );
                           })}
@@ -979,41 +985,39 @@ export function SubstitutionSlideOver({
               </form>
 
               {canEdit && (
-                <SlideOverFooter>
-                  <div className="flex items-center justify-end gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      disabled={saving}
-                      onClick={onClose}
-                    >
-                      Abbrechen
-                    </Button>
-                    <Button
-                      type="submit"
-                      form={FORM_ID}
-                      variant="primary"
-                      size="md"
-                      isLoading={saving}
-                      loadingText="Speichere …"
-                      disabled={
-                        saving ||
-                        !hasChanges ||
-                        (!cancel && !peopleValid) ||
-                        (cancel &&
-                          guardianNoticeIncomplete(
-                            noticeDraft,
-                            noticeReach,
-                            Boolean(
-                              instance && instance.date >= berlinTodayISO(),
-                            ),
-                          ))
-                      }
-                    >
-                      Speichern
-                    </Button>
-                  </div>
+                <SlideOverFooter className="gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    disabled={saving}
+                    onClick={onClose}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button
+                    type="submit"
+                    form={FORM_ID}
+                    variant="primary"
+                    size="md"
+                    isLoading={saving}
+                    loadingText="Speichere …"
+                    disabled={
+                      saving ||
+                      !hasChanges ||
+                      (!cancel && !peopleValid) ||
+                      (cancel &&
+                        guardianNoticeIncomplete(
+                          noticeDraft,
+                          noticeReach,
+                          Boolean(
+                            instance && instance.date >= berlinTodayISO(),
+                          ),
+                        ))
+                    }
+                  >
+                    Speichern
+                  </Button>
                 </SlideOverFooter>
               )}
             </TabsContent>
@@ -1238,9 +1242,7 @@ function HistoryTab({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         <div className="mb-3">
-          <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-600">
-            {contextChip}
-          </span>
+          <StatusBadge label={contextChip} tone="gray" compact wrap />
         </div>
 
         {showSkeleton ? (

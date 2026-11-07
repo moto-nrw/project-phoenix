@@ -19,7 +19,11 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import {
+  correctAttendance,
+  fetchAttendanceCorrections,
+  type AttendanceCorrection,
+} from "~/lib/student-care-plan-api";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AttendanceCorrectionModal" });
@@ -53,15 +57,6 @@ export interface CorrectableSlot {
   readonly note: string | null;
 }
 
-interface CorrectionEntry {
-  readonly field_name: string;
-  readonly old_value?: string | null;
-  readonly new_value?: string | null;
-  readonly reason: string;
-  readonly actor_name?: string | null;
-  readonly corrected_at: string;
-}
-
 interface AttendanceCorrectionModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
@@ -85,11 +80,6 @@ function describeValue(value: string | null | undefined): string {
   return value;
 }
 
-// BFF routes read the session cookie; the browser holds no token (#5005).
-const JSON_HEADERS: Record<string, string> = {
-  "Content-Type": "application/json",
-};
-
 export function AttendanceCorrectionModal({
   isOpen,
   onClose,
@@ -106,7 +96,7 @@ export function AttendanceCorrectionModal({
   const clearErrors = errors.clear;
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehler.
   const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
-  const [history, setHistory] = useState<CorrectionEntry[]>([]);
+  const [history, setHistory] = useState<AttendanceCorrection[]>([]);
 
   // Reset whenever a different slot opens the modal — otherwise the previous
   // block's values would be offered as this one's starting point.
@@ -121,21 +111,13 @@ export function AttendanceCorrectionModal({
 
   const loadHistory = useCallback(async () => {
     try {
-      const response = await transportFetch(
-        `/api/timetable/instances/${slot.instanceId}/students/${studentId}/corrections`,
-        { credentials: "include", headers: JSON_HEADERS },
-      );
-      // Ohne Verlauf bleibt die Korrektur möglich; die Liste fehlt dann nur.
-      if (!response.ok) return;
-      const payload = (await response.json()) as {
-        data?: { corrections?: CorrectionEntry[] };
-        corrections?: CorrectionEntry[];
-      };
-      setHistory(payload.data?.corrections ?? payload.corrections ?? []);
+      setHistory(await fetchAttendanceCorrections(slot.instanceId, studentId));
     } catch (err) {
       // The trail is context, not the purpose of this dialog: failing to load
       // it must not block the correction itself.
-      logger.warn("Korrekturverlauf konnte nicht geladen werden", { err });
+      logger.warn("attendance_corrections_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }, [slot.instanceId, studentId]);
 
@@ -178,21 +160,7 @@ export function AttendanceCorrectionModal({
           ? { note: note.trim() === "" ? null : note.trim() }
           : {}),
       };
-      const response = await transportFetch(
-        `/api/timetable/instances/${slot.instanceId}/students/${studentId}/correction`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: JSON_HEADERS,
-          body: JSON.stringify(correction),
-        },
-      );
-      if (!response.ok) {
-        throw await apiErrorFromResponse(
-          response,
-          "attendance correction failed",
-        );
-      }
+      await correctAttendance(slot.instanceId, studentId, correction);
       onCorrected();
       onClose();
     } catch (err) {

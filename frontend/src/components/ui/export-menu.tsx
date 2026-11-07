@@ -2,7 +2,6 @@
 
 import { ChevronDown, FileSpreadsheet, FileText, Printer } from "lucide-react";
 
-import { buttonClassName } from "~/components/ui/button";
 import {
   EXPORT_FORMAT_LABELS,
   type ExportFileFormat,
@@ -96,17 +95,13 @@ export function ExportMenu({
       ariaLabel={ariaLabel ?? label}
       disabled={args.unavailable}
       items={exportMenuItems({ ...args, header: args.header ?? null })}
+      triggerButton={{ variant: "outline", size: "md" }}
+      triggerClassName="gap-2 whitespace-nowrap"
       triggerContent={
-        <span
-          className={buttonClassName({
-            variant: "outline",
-            size: "md",
-            className: "gap-2 whitespace-nowrap",
-          })}
-        >
+        <>
           {label}
           <ChevronDown className="h-4 w-4" aria-hidden />
-        </span>
+        </>
       }
     />
   );

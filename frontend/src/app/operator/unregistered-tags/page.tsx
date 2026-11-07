@@ -4,8 +4,8 @@ import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 import { Suspense, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth } from "~/lib/swr";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import type { FilterConfig } from "~/components/ui/page-header/types";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
@@ -16,7 +16,6 @@ import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { DataTable } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
-import { ListPageSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import {
@@ -27,7 +26,6 @@ import type { FormErrorInput } from "~/components/ui/form-error";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { rfidConcept } from "~/lib/concepts/rfid";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -93,40 +91,7 @@ function OperatorUnregisteredTagsPageContent() {
     () => void mutate(),
   );
 
-  const tabs = useMemo(
-    () => ({
-      items: [
-        {
-          id: "unregistered-tags",
-          label: "Unbekannte RFID",
-          count: scans?.length,
-        },
-      ],
-      activeTab: "unregistered-tags",
-      onTabChange: () => undefined,
-    }),
-    [scans?.length],
-  );
-
-  const filters = useMemo<FilterConfig[]>(
-    () => [
-      {
-        id: "status",
-        label: "Status",
-        type: "dropdown",
-        value: resolvedFilter,
-        onChange: (value) => {
-          const nextValue = Array.isArray(value) ? value[0] : value;
-          setResolvedFilter(nextValue === "all" ? "all" : "unresolved");
-        },
-        options: [
-          { value: "unresolved", label: "Offen" },
-          { value: "all", label: "Alle" },
-        ],
-      },
-    ],
-    [resolvedFilter],
-  );
+  const count = scans?.length;
 
   const openResolveModal = useCallback(
     (scan: UnregisteredTagScan) => {
@@ -172,27 +137,47 @@ function OperatorUnregisteredTagsPageContent() {
   ]);
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Unbekannte RFID"
-        concept={rfidConcept}
-        tabs={tabs}
-        filters={filters}
-      />
-
-      <OrgSchoolFilter
-        idPrefix="unregistered-tags"
-        organizations={activeOrganizations}
-        filteredSchools={filteredSchools}
-        filterOrgId={filterOrgId}
-        selectedSchool={selectedSchool}
-        onOrgChange={handleOrgFilterChange}
-        onSchoolChange={handleSchoolFilterChange}
-      />
-
-      <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
-      <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
-      <LoadErrorAlert error={scansLoadError} className="mb-4" />
+    <TenantPage
+      title="Unbekannte RFID"
+      stats={
+        count === undefined ? undefined : (
+          <TenantPageStats
+            items={[{ value: count, label: count === 1 ? "Scan" : "Scans" }]}
+          />
+        )
+      }
+      searchSlot={
+        <OrgSchoolFilter
+          idPrefix="unregistered-tags"
+          organizations={activeOrganizations}
+          filteredSchools={filteredSchools}
+          filterOrgId={filterOrgId}
+          selectedSchool={selectedSchool}
+          onOrgChange={handleOrgFilterChange}
+          onSchoolChange={handleSchoolFilterChange}
+        >
+          <StatusFilter value={resolvedFilter} onChange={setResolvedFilter} />
+        </OrgSchoolFilter>
+      }
+      overlays={
+        <>
+          {resolveTarget && (
+            <ResolveScanModal
+              scan={resolveTarget}
+              note={resolutionNote}
+              error={resolveErrors.error}
+              loading={resolving}
+              onNoteChange={setResolutionNote}
+              onClose={closeResolveModal}
+              onResolve={handleResolve}
+            />
+          )}
+        </>
+      }
+    >
+      <LoadErrorAlert error={organizationsLoadError} />
+      <LoadErrorAlert error={schoolsLoadError} />
+      <LoadErrorAlert error={scansLoadError} />
 
       {!isLoading && !scansError && scans?.length === 0 ? (
         <SimpleEmptyState
@@ -206,19 +191,7 @@ function OperatorUnregisteredTagsPageContent() {
           onResolve={openResolveModal}
         />
       )}
-
-      {resolveTarget && (
-        <ResolveScanModal
-          scan={resolveTarget}
-          note={resolutionNote}
-          error={resolveErrors.error}
-          loading={resolving}
-          onNoteChange={setResolutionNote}
-          onClose={closeResolveModal}
-          onResolve={handleResolve}
-        />
-      )}
-    </div>
+    </TenantPage>
   );
 }
 
@@ -254,7 +227,7 @@ function UnregisteredTagsTable({
       {
         key: "device",
         header: "Gerät",
-        render: (row) => row.deviceName || row.deviceIdentifier || "—",
+        render: (row) => row.deviceName || row.deviceIdentifier || "–",
         sortValue: (row) =>
           (row.deviceName || row.deviceIdentifier || "").toLowerCase(),
         className: "text-gray-600",
@@ -389,11 +362,39 @@ export function ResolveScanModal({
   );
 }
 
+function StatusFilter({
+  value,
+  onChange,
+}: {
+  readonly value: "all" | "unresolved";
+  readonly onChange: (value: "all" | "unresolved") => void;
+}) {
+  return (
+    <div className="flex-1">
+      <label
+        id="filter-unregistered-tags-status-label"
+        htmlFor="filter-unregistered-tags-status"
+        className="mb-1 block text-xs font-medium text-gray-500"
+      >
+        Status
+      </label>
+      <CustomSelect
+        id="filter-unregistered-tags-status"
+        ariaLabelledBy="filter-unregistered-tags-status-label"
+        value={value}
+        options={[
+          { value: "unresolved", label: "Offen" },
+          { value: "all", label: "Alle" },
+        ]}
+        onChange={(next) => onChange(next === "all" ? "all" : "unresolved")}
+      />
+    </div>
+  );
+}
+
 export default function OperatorUnregisteredTagsPage() {
   return (
-    <Suspense
-      fallback={<ListPageSkeleton label="Unbekannte RFID werden geladen" />}
-    >
+    <Suspense fallback={<TenantPage title="Unbekannte RFID" loading />}>
       <OperatorUnregisteredTagsPageContent />
     </Suspense>
   );

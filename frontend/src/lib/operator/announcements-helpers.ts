@@ -144,9 +144,3 @@ export const ANNOUNCEMENT_STATUS_LABELS: Record<AnnouncementStatus, string> = {
   published: "Veröffentlicht",
   expired: "Abgelaufen",
 };
-
-export const TYPE_TEXT_COLORS: Record<AnnouncementType, string> = {
-  announcement: "text-moto-blue", // moto blue
-  release: "text-moto-green", // moto green
-  maintenance: "text-moto-orange", // moto orange
-};

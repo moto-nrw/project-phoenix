@@ -31,6 +31,8 @@ import type { Session } from "next-auth";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/database/database-select";
 import type { FormErrorInput } from "~/components/ui/form-error";
@@ -38,10 +40,13 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import {
+  ChoiceTileListSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { studentService } from "~/lib/api";
-import type { Student } from "~/lib/api";
+import { fetchStudents } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
 import {
   activeService,
   summarizeStudentMoveResult,
@@ -139,7 +144,7 @@ export function StudentsInRoomSection({
     students: Student[];
     pagination?: { total_records: number };
   }>(`room-students-${roomId}`, async () =>
-    studentService.getStudents({
+    fetchStudents({
       roomId,
       pageSize: 200,
     }),
@@ -690,29 +695,23 @@ function BulkMoveToolbar({
   const isMoving = state.type === "loading";
   const canMove = selectedCount > 0 && targetValue.length > 0 && !isMoving;
   const allSelected = totalCount > 0 && selectedCount === totalCount;
-  const hasSelection = selectedCount > 0;
   const noTargets = targetOptions.length === 0;
 
   return (
-    <div
+    <SelectionBar
       ref={containerRef}
-      className={`mb-4 rounded-xl border p-3 transition-shadow ${
-        hasSelection
-          ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
-          : "border-transparent bg-gray-50/80 shadow-none"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 text-sm font-semibold text-gray-900">
-          <span className="block truncate">
-            {selectedCount > 0
-              ? `${selectedCount} von ${totalCount} ausgewählt`
-              : "Kinder auswählen"}
-          </span>
-          <span className="block text-xs font-medium text-gray-500">
-            {TARGET_SCOPE_HINT[targetScope]}
-          </span>
-        </p>
+      aria-label="Kinder in einen anderen Raum setzen"
+      placement="bottom"
+      className="mb-4 p-3"
+      count={selectedCount}
+      label={
+        selectedCount > 0
+          ? `${selectedCount} von ${totalCount} ausgewählt`
+          : "Kinder auswählen"
+      }
+      description={TARGET_SCOPE_HINT[targetScope]}
+      busy={isMoving}
+      actions={
         <Button
           type="button"
           variant="outline"
@@ -723,9 +722,9 @@ function BulkMoveToolbar({
         >
           {allSelected ? "Aufheben" : "Alle auswählen"}
         </Button>
-      </div>
-
-      <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+      }
+    >
+      <FormRow>
         <DatabaseSelect
           id="room-bulk-target"
           name="room-bulk-target"
@@ -740,7 +739,6 @@ function BulkMoveToolbar({
             value: option.value,
             label: option.label,
           }))}
-          className="bg-white text-sm md:text-sm"
         />
         <Button
           type="button"
@@ -754,7 +752,7 @@ function BulkMoveToolbar({
         >
           In Raum setzen
         </Button>
-      </div>
+      </FormRow>
 
       {noTargets ? (
         <p role="status" className="mt-2 text-sm text-gray-600">
@@ -763,7 +761,7 @@ function BulkMoveToolbar({
       ) : null}
 
       <FormErrorAlert message={error} className="mt-2" />
-    </div>
+    </SelectionBar>
   );
 }
 
@@ -821,7 +819,7 @@ function StudentsInRoomBody({
         label="Kinderliste wird geladen"
         testId="students-in-room-skeleton"
       >
-        <ListSkeleton rows={4} avatar={photosEnabled} />
+        <ChoiceTileListSkeleton rows={4} avatar={photosEnabled} />
       </SkeletonRegion>
     );
   }
