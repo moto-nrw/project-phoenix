@@ -262,9 +262,7 @@ function ParentDocumentCard({
           {formatDate(document.sent_at, false, locale)}
         </DataField>
       </DataGrid>
-      {contract && !document.replaced ? (
-        <ContractNoticeRow document={document} />
-      ) : null}
+      {contract ? <ContractNoticeRow document={document} /> : null}
     </InboxDocumentCard>
   );
 }

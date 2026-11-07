@@ -236,7 +236,7 @@ describe("ParentDocumentsPage", () => {
     }
   });
 
-  it("marks a replaced contract version and names from when the new version applies (#4681)", async () => {
+  it("keeps cancellation available when an active contract has a replaced PDF", async () => {
     const contract: ParentDocument = {
       ...letter,
       id: "74",
@@ -249,8 +249,8 @@ describe("ParentDocumentsPage", () => {
     };
     mocks.listMyDocuments.mockResolvedValue({
       documents: [
-        { ...contract, replaced: true },
-        { ...contract, id: "75", replaced: false },
+        { ...contract, contract_status: "aktiv", replaced: true },
+        { ...contract, id: "75", contract_status: "aktiv", replaced: false },
       ],
       shared: [],
       failedSource: null,
@@ -267,6 +267,9 @@ describe("ParentDocumentsPage", () => {
         "Diese Fassung gilt nicht mehr. Ab 01.03.2027 gilt eine neue Fassung. Sie enthält Ihre bestätigten Änderungen. Die neue Fassung bekommen Sie vom Träger.",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("link", { name: "Verträge hier kündigen" }),
+    ).toHaveLength(2);
     // Only the replaced version carries the mark.
     expect(screen.getAllByText("Ersetzt")).toHaveLength(1);
   });

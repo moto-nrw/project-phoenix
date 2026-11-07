@@ -34,5 +34,6 @@
   "declaredAt": "Отримано",
   "declaredAtValue": "{date} о {time}",
   "sentTo": "Підтвердження надіслано на",
-  "confirmationTitle": "Ваше підтвердження"
+  "confirmationTitle": "Ваше підтвердження",
+  "datesChanged": "Дати змінилися. Будь ласка, виберіть ще раз."
 }

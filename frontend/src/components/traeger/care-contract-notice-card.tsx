@@ -161,7 +161,7 @@ function ActiveFacts({
       ) : null}
       <DataField label="Widerruf">
         {options.withdrawalUntil ? (
-          `Möglich bis ${formatDate(options.withdrawalUntil)}`
+          `Absendefrist bis ${formatDate(options.withdrawalUntil)}`
         ) : (
           <span className="font-normal text-gray-500">Nicht mehr möglich</span>
         )}
@@ -199,6 +199,11 @@ function NoticeFacts({
             {formatBerlinTime(notice.declaredAt)} Uhr
           </span>
         </DataField>
+        {notice.dispatchedOn ? (
+          <DataField label="Abgesendet am">
+            {formatDate(notice.dispatchedOn)}
+          </DataField>
+        ) : null}
         <DataField label="Bestätigung an">
           <span className="wrap-anywhere">{notice.recipient}</span>
         </DataField>
@@ -243,7 +248,9 @@ function RecordNoticeModal({
   const [terminationKind, setTerminationKind] =
     useState<TerminationKind>("ordentlich");
   const [receivedOn, setReceivedOn] = useState<string>(today);
+  const [dispatchedOn, setDispatchedOn] = useState("");
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const form = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(form);
   const { success } = useToast();
@@ -296,7 +303,14 @@ function RecordNoticeModal({
   ]);
 
   const submit = async () => {
-    if (!choices || optionsError) return;
+    if (
+      savingRef.current ||
+      !choices ||
+      optionsError ||
+      (kind === "widerruf" && !dispatchedOn)
+    )
+      return;
+    savingRef.current = true;
     formErrors.clear();
     setSaving(true);
     try {
@@ -304,6 +318,7 @@ function RecordNoticeModal({
         kind,
         terminationKind,
         receivedOn,
+        ...(kind === "widerruf" ? { dispatchedOn } : {}),
       });
       success(
         kind === "widerruf"
@@ -317,6 +332,7 @@ function RecordNoticeModal({
       });
       void formErrors.show(err, { object: "die Erklärung" });
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -348,7 +364,12 @@ function RecordNoticeModal({
             form="care-contract-notice-form"
             variant="primary"
             size="md"
-            disabled={!choices || Boolean(optionsError)}
+            disabled={
+              saving ||
+              !choices ||
+              Boolean(optionsError) ||
+              (kind === "widerruf" && !dispatchedOn)
+            }
             isLoading={saving}
             loadingText="Wird eingetragen …"
           >
@@ -382,6 +403,7 @@ function RecordNoticeModal({
               setKind("kuendigung");
               setTerminationKind("ordentlich");
               setReceivedOn(date ? toISODate(date) : today);
+              setDispatchedOn("");
             }}
             maxDate={parseISODate(today)}
             minDate={parseISODate(berlinTodayISO(new Date(concludedAt)))}
@@ -463,10 +485,41 @@ function RecordNoticeModal({
                 </p>
               </fieldset>
             ) : (
-              <Alert
-                type="info"
-                message={`Der Vertrag wird vom ersten Tag an aufgehoben. Möglich bis ${formatDate(choices.withdrawalUntil ?? "")}.`}
-              />
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <FieldLabel
+                    htmlFor="care-contract-notice-dispatched"
+                    required
+                  >
+                    Abgesendet am
+                  </FieldLabel>
+                  <DatePicker
+                    id="care-contract-notice-dispatched"
+                    name="dispatched_on"
+                    value={
+                      dispatchedOn ? parseISODate(dispatchedOn) : undefined
+                    }
+                    onChange={(date) =>
+                      setDispatchedOn(date ? toISODate(date) : "")
+                    }
+                    minDate={parseISODate(
+                      berlinTodayISO(new Date(concludedAt)),
+                    )}
+                    maxDate={parseISODate(
+                      choices.withdrawalUntil &&
+                        choices.withdrawalUntil < receivedOn
+                        ? choices.withdrawalUntil
+                        : receivedOn,
+                    )}
+                    required
+                    invalid={Boolean(formErrors.fieldError("dispatched_on"))}
+                  />
+                </div>
+                <Alert
+                  type="info"
+                  message={`Der Vertrag wird vom ersten Tag an aufgehoben. Rechtzeitig abgesendet: bis ${formatDate(choices.withdrawalUntil ?? "")}.`}
+                />
+              </div>
             )}
           </>
         ) : !optionsError ? (

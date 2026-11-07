@@ -34,5 +34,6 @@
   "declaredAt": "Marrë më",
   "declaredAtValue": "{date} në orën {time}",
   "sentTo": "Konfirmimi u dërgua te",
-  "confirmationTitle": "Konfirmimi juaj"
+  "confirmationTitle": "Konfirmimi juaj",
+  "datesChanged": "Datat kanë ndryshuar. Ju lutemi zgjidhni përsëri."
 }

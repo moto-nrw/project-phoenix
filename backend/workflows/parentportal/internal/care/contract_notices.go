@@ -37,12 +37,14 @@ var (
 // ContractNoticeInput is the parents' declaration: kind "kuendigung" with
 // termination_kind "ordentlich" or "sonderkuendigung", or kind "widerruf".
 type ContractNoticeInput struct {
-	Kind            string `json:"kind"`
-	TerminationKind string `json:"termination_kind"`
+	ExpectedEndsOn  calendar.Date `json:"expected_ends_on"`
+	Kind            string        `json:"kind"`
+	TerminationKind string        `json:"termination_kind"`
 }
 
 // ContractNotice is a declaration made, with its confirmation as sent.
 type ContractNotice struct {
+	DispatchedOn     *calendar.Date `json:"dispatched_on,omitempty"`
 	Kind             string         `json:"kind"`
 	TerminationKind  string         `json:"termination_kind,omitempty"`
 	Channel          string         `json:"channel"`

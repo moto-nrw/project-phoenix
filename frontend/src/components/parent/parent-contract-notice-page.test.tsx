@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render as renderPlain,
   screen,
@@ -24,6 +25,7 @@ vi.mock("~/lib/parent-api", () => ({
   declareMyContractNotice: mocks.declareMyContractNotice,
 }));
 
+import { setTestClock } from "~/test/clock";
 import { ParentContractNoticePage } from "./parent-contract-notice-page";
 
 const active: ContractNoticeOptions = {
@@ -79,6 +81,7 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
       expect(mocks.declareMyContractNotice).toHaveBeenCalledWith("2", "27", {
         kind: "kuendigung",
         terminationKind: "ordentlich",
+        expectedEndsOn: "2026-12-31",
       }),
     );
     expect(
@@ -116,5 +119,38 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
       await screen.findByRole("radio", { name: /Kündigen zum/ }),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("radio")).toHaveLength(1);
+  });
+  it("refreshes at Berlin midnight and requires a new choice when dates change", async () => {
+    setTestClock("2026-11-30T22:59:30Z");
+    vi.useFakeTimers();
+    mocks.fetchMyContractNoticeOptions
+      .mockResolvedValueOnce(active)
+      .mockResolvedValue({
+        ...active,
+        ordinaryEndsOn: "2027-01-31",
+        withdrawalUntil: null,
+      });
+    await act(async () => {
+      render(<ParentContractNoticePage organizationId="2" contractId="27" />);
+    });
+    expect(screen.getByRole("radio", { name: /31.12.2026/ })).toBeChecked();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(mocks.fetchMyContractNoticeOptions).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByText(
+        "Die Termine haben sich geändert. Bitte wählen Sie erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /31.01.2027/ })).not.toBeChecked();
+    expect(
+      screen.getByRole("button", { name: "Jetzt kündigen" }),
+    ).toBeDisabled();
+    expect(mocks.declareMyContractNotice).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("radio", { name: /31.01.2027/ }));
+    expect(
+      screen.getByRole("button", { name: "Jetzt kündigen" }),
+    ).toBeEnabled();
   });
 });

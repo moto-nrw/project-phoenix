@@ -107,7 +107,7 @@ func (n *Notices) NoticeOptions(ctx context.Context, reviewer carecontract.Revie
 				return err
 			}
 		}
-		if options, err = n.options(txCtx, reviewer.OrganizationID, record, day); err != nil {
+		if options, err = n.options(txCtx, reviewer.OrganizationID, record, day, true); err != nil {
 			return err
 		}
 		return n.trail(txCtx, reviewer.OrganizationID, reviewer.AccountID, record, ActionRead, map[string]any{"view": "notice_options"})
@@ -150,7 +150,7 @@ func (n *Notices) ParentNoticeOptions(ctx context.Context, organizationID, contr
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
-	options, err := n.options(ctx, organizationID, record, n.today())
+	options, err := n.options(ctx, organizationID, record, n.today(), false)
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
@@ -167,6 +167,7 @@ func (n *Notices) ParentDeclareNotice(ctx context.Context, organizationID, contr
 	}
 	// The parents declare today; only the office dates a received letter.
 	input.ReceivedOn = n.today()
+	input.DispatchedOn = input.ReceivedOn
 	return n.declare(ctx, declaration{
 		organizationID: organizationID, accountID: reader.AccountID, channel: carecontract.ChannelParents,
 		contractID: contractID, input: input, recipient: reader.Email, traeger: traeger,
@@ -205,7 +206,7 @@ func (n *Notices) declare(ctx context.Context, d declaration) (carecontract.Noti
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
-	state, err := n.notices.NoticeState(ctx, d.organizationID, d.contractID)
+	state, err := n.noticeState(ctx, d.organizationID, d.contractID)
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
@@ -223,7 +224,7 @@ func (n *Notices) declare(ctx context.Context, d declaration) (carecontract.Noti
 	if notice.Kind == carecontract.NoticeTermination {
 		record.Summary.Status = carecontract.StatusTerminated
 	}
-	return n.options(ctx, d.organizationID, record, n.today())
+	return n.options(ctx, d.organizationID, record, n.today(), false)
 }
 
 // newNotice checks the declaration against the contract and dates it.
@@ -252,14 +253,34 @@ func (n *Notices) newNotice(record ContractRecord, state ports.NoticeState, d de
 		}
 		notice.TerminationKind = d.input.TerminationKind
 	case carecontract.NoticeWithdrawal:
+		dispatched, err := withdrawalDispatch(d.input.DispatchedOn, received, calendar.DateFromTime(record.Concluded.At))
+		if err != nil {
+			return ports.NewNotice{}, err
+		}
+		notice.DispatchedOn = &dispatched
 		until := withdrawalUntil(record.Concluded, state.InformedAt)
-		if until == nil || received.After(*until) {
+		if until == nil || dispatched.After(*until) {
 			return ports.NewNotice{}, carecontract.ErrWithdrawalClosed
 		}
 	default:
 		return ports.NewNotice{}, &carecontract.ValidationError{Fields: map[string]string{"kind": "unknown"}}
 	}
+	if notice.EndsOn != nil && !d.input.ExpectedEndsOn.IsZero() && *notice.EndsOn != d.input.ExpectedEndsOn {
+		return ports.NewNotice{}, &carecontract.ValidationError{Fields: map[string]string{"expected_ends_on": "changed"}}
+	}
 	return notice, nil
+}
+
+// withdrawalDispatch keeps postal dispatch separate from receipt. Without
+// a supplied date, receipt is the conservative latest possible dispatch.
+func withdrawalDispatch(dispatched, received, concluded calendar.Date) (calendar.Date, error) {
+	if dispatched.IsZero() {
+		dispatched = received
+	}
+	if dispatched.After(received) || dispatched.Before(concluded) {
+		return calendar.Date(""), &carecontract.ValidationError{Fields: map[string]string{"dispatched_on": "out_of_range"}}
+	}
+	return dispatched, nil
 }
 
 // receivedOn is the day the declaration reached the Träger: not before the
@@ -282,6 +303,13 @@ func (n *Notices) confirm(ctx context.Context, record ContractRecord, d declarat
 			return carecontract.ErrRecipientMissing
 		}
 		address = party.Email
+		mailings, err := n.store.Mailings(ctx, d.organizationID, d.contractID)
+		if err != nil {
+			return err
+		}
+		if len(mailings) > 0 {
+			address = mailings[0].Recipient
+		}
 	}
 	traeger := strings.TrimSpace(d.traeger)
 	if traeger == "" {
@@ -317,6 +345,9 @@ func (n *Notices) confirm(ctx context.Context, record ContractRecord, d declarat
 	action := ActionWithdraw
 	details := map[string]any{"notice_id": noticeID, "channel": d.channel, "received_on": notice.ReceivedOn.String(),
 		"version_id": record.Version.ID, "outbox_id": outboxID}
+	if notice.DispatchedOn != nil {
+		details["dispatched_on"] = notice.DispatchedOn.String()
+	}
 	if notice.Kind == carecontract.NoticeTermination {
 		action = ActionTerminate
 		details["termination_kind"], details["ends_on"] = notice.TerminationKind, notice.EndsOn.String()
@@ -326,8 +357,8 @@ func (n *Notices) confirm(ctx context.Context, record ContractRecord, d declarat
 
 // options calculates declaration choices on the receipt day, or returns
 // the declaration already made.
-func (n *Notices) options(ctx context.Context, organizationID int64, record ContractRecord, day calendar.Date) (carecontract.NoticeOptions, error) {
-	state, err := n.notices.NoticeState(ctx, organizationID, record.Summary.ID)
+func (n *Notices) options(ctx context.Context, organizationID int64, record ContractRecord, day calendar.Date, includeExpiredWithdrawal bool) (carecontract.NoticeOptions, error) {
+	state, err := n.noticeState(ctx, organizationID, record.Summary.ID)
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
@@ -342,8 +373,46 @@ func (n *Notices) options(ctx context.Context, organizationID int64, record Cont
 	}
 	ordinary, special := noticeDates(record.Version.Terms, day, state.ContractEnd)
 	options.OrdinaryEndsOn, options.SpecialEndsOn = &ordinary, special
-	if until := withdrawalUntil(record.Concluded, state.InformedAt); until != nil && !day.After(*until) {
+	if until := withdrawalUntil(record.Concluded, state.InformedAt); until != nil && (includeExpiredWithdrawal || !day.After(*until)) {
 		options.WithdrawalUntil = until
 	}
 	return options, nil
+}
+
+// noticeState joins delivery evidence through the consumer port, never through
+// a cross-owner SQL read. Only a delivered, notice-bearing PDF starts the period.
+func (n *Notices) noticeState(ctx context.Context, organizationID, contractID int64) (ports.NoticeState, error) {
+	state, err := n.notices.NoticeState(ctx, organizationID, contractID)
+	if err != nil {
+		return state, err
+	}
+	recorded := state.InformedAt
+	mailings, err := n.store.Mailings(ctx, organizationID, contractID)
+	if err != nil {
+		return state, err
+	}
+	documents := make(map[int64]bool, len(mailings))
+	for _, mailing := range mailings {
+		documents[mailing.OutboxID] = mailing.WithdrawalNotice
+	}
+	if len(documents) == 0 {
+		return state, nil
+	}
+	deliveries, err := n.post.NoticeDeliveries(ctx, organizationID, contractID)
+	if err != nil {
+		return state, err
+	}
+	for _, delivery := range deliveries {
+		if !documents[delivery.OutboxID] || delivery.ProvidedAt.IsZero() {
+			continue
+		}
+		if state.InformedAt == nil || delivery.ProvidedAt.Before(*state.InformedAt) {
+			at := delivery.ProvidedAt
+			state.InformedAt = &at
+		}
+	}
+	if state.InformedAt != nil && (recorded == nil || state.InformedAt.Before(*recorded)) {
+		err = n.store.MarkWithdrawalInformed(ctx, organizationID, contractID, *state.InformedAt)
+	}
+	return state, err
 }

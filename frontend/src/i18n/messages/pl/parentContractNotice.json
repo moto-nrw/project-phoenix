@@ -34,5 +34,6 @@
   "declaredAt": "Wpłynęło",
   "declaredAtValue": "{date}, godz. {time}",
   "sentTo": "Potwierdzenie wysłane do",
-  "confirmationTitle": "Twoje potwierdzenie"
+  "confirmationTitle": "Twoje potwierdzenie",
+  "datesChanged": "Terminy się zmieniły. Proszę wybrać ponownie."
 }

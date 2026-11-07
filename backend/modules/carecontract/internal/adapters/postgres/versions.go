@@ -257,7 +257,7 @@ func (Store) VersionDocument(ctx context.Context, organizationID, versionID int6
 		return carecontract.File{}, false, err
 	}
 	var row documentRow
-	err = db.NewRaw(`SELECT d.filename, d.pdf FROM care_contract.contract_documents AS d
+	err = db.NewRaw(`SELECT d.filename, d.pdf, d.withdrawal_notice FROM care_contract.contract_documents AS d
 		WHERE d.organization_id = ? AND d.contract_version_id = ?`, organizationID, versionID).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return carecontract.File{}, false, nil

@@ -185,17 +185,19 @@ func (Store) Mailings(ctx context.Context, organizationID, contractID int64) ([]
 		return nil, err
 	}
 	var rows []struct {
-		OutboxID       int64     `bun:"outbox_id"`
-		RecipientEmail string    `bun:"recipient_email"`
-		SentAt         time.Time `bun:"sent_at"`
+		WithdrawalNotice bool      `bun:"withdrawal_notice"`
+		OutboxID         int64     `bun:"outbox_id"`
+		RecipientEmail   string    `bun:"recipient_email"`
+		SentAt           time.Time `bun:"sent_at"`
 	}
-	if err := db.NewRaw(`SELECT outbox_id, recipient_email, sent_at FROM care_contract.contract_mailings
-		WHERE organization_id = ? AND contract_id = ? ORDER BY sent_at DESC, id DESC`, organizationID, contractID).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(`SELECT m.outbox_id, m.recipient_email, m.sent_at, d.withdrawal_notice FROM care_contract.contract_mailings AS m
+		JOIN care_contract.contract_documents AS d ON d.organization_id = m.organization_id AND d.id = m.contract_document_id
+		WHERE m.organization_id = ? AND m.contract_id = ? ORDER BY m.sent_at DESC, m.id DESC`, organizationID, contractID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read mailings: %w", err)
 	}
 	result := make([]ports.StoredMailing, len(rows))
 	for i, row := range rows {
-		result[i] = ports.StoredMailing{OutboxID: row.OutboxID, Recipient: row.RecipientEmail, SentAt: row.SentAt}
+		result[i] = ports.StoredMailing{OutboxID: row.OutboxID, Recipient: row.RecipientEmail, SentAt: row.SentAt, WithdrawalNotice: row.WithdrawalNotice}
 	}
 	return result, nil
 }
@@ -208,8 +210,8 @@ func (Store) InsertDocument(ctx context.Context, organizationID, accountID int64
 	}
 	var id int64
 	if err := db.NewRaw(`INSERT INTO care_contract.contract_documents (organization_id, contract_id, contract_version_id,
-			template_version, filename, pdf, created_by_account_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`, organizationID, record.Summary.ID, record.Version.ID, templateVersion,
+			template_version, filename, pdf, created_by_account_id, withdrawal_notice)
+		VALUES (?, ?, ?, ?, ?, ?, ?, true) RETURNING id`, organizationID, record.Summary.ID, record.Version.ID, templateVersion,
 		file.Filename, file.Data, accountRef(accountID)).Scan(ctx, &id); err != nil {
 		return 0, fmt.Errorf("care contract postgres: insert document: %w", err)
 	}
@@ -223,14 +225,15 @@ func (Store) Document(ctx context.Context, organizationID, contractID int64) (ca
 		return carecontract.File{}, err
 	}
 	var row documentRow
-	err = db.NewRaw(`SELECT d.filename, d.pdf FROM care_contract.contract_documents AS d
+	err = db.NewRaw(`SELECT d.filename, d.pdf, d.withdrawal_notice FROM care_contract.contract_documents AS d
 		WHERE d.organization_id = ? AND d.contract_id = ? ORDER BY d.id DESC LIMIT 1`, organizationID, contractID).Scan(ctx, &row)
 	return row.file(err, carecontract.ErrContractNotFound)
 }
 
 type documentRow struct {
-	Filename string `bun:"filename"`
-	PDF      []byte `bun:"pdf"`
+	WithdrawalNotice bool   `bun:"withdrawal_notice"`
+	Filename         string `bun:"filename"`
+	PDF              []byte `bun:"pdf"`
 }
 
 func (r documentRow) file(err error, notFound error) (carecontract.File, error) {
@@ -240,7 +243,7 @@ func (r documentRow) file(err error, notFound error) (carecontract.File, error) 
 	if err != nil {
 		return carecontract.File{}, fmt.Errorf("care contract postgres: read document: %w", err)
 	}
-	return carecontract.File{Filename: r.Filename, ContentType: "application/pdf", Data: r.PDF}, nil
+	return carecontract.File{Filename: r.Filename, ContentType: "application/pdf", Data: r.PDF, WithdrawalNotice: r.WithdrawalNotice}, nil
 }
 
 // InsertMailing records one send of a document.
@@ -257,17 +260,15 @@ func (Store) InsertMailing(ctx context.Context, organizationID, accountID, contr
 	return nil
 }
 
-// MarkSent moves a draft to versendet and records provision of the notice
-// in its newly generated PDF. Re-sending a previously frozen PDF never
-// invents provision evidence or restarts the withdrawal period.
+// MarkSent records enqueueing, not provision of the withdrawal notice.
 func (Store) MarkSent(ctx context.Context, organizationID, contractID int64, at time.Time) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
 	}
-	result, err := db.ExecContext(ctx, `UPDATE care_contract.contracts SET status = ?, sent_at = ?, withdrawal_informed_at = ?
+	result, err := db.ExecContext(ctx, `UPDATE care_contract.contracts SET status = ?, sent_at = ?
 		WHERE organization_id = ? AND id = ? AND status = ?`,
-		carecontract.StatusSent, at, at, organizationID, contractID, carecontract.StatusDraft)
+		carecontract.StatusSent, at, organizationID, contractID, carecontract.StatusDraft)
 	if err != nil {
 		return fmt.Errorf("care contract postgres: mark sent: %w", err)
 	}
@@ -351,7 +352,7 @@ func (Store) InboxDocument(ctx context.Context, organizationID, contractID int64
 	}
 	var row documentRow
 	schools, students := inboxChildScope(reader.Children)
-	err = db.NewRaw(`SELECT d.filename, d.pdf FROM care_contract.contract_mailings AS m
+	err = db.NewRaw(`SELECT d.filename, d.pdf, d.withdrawal_notice FROM care_contract.contract_mailings AS m
 		JOIN care_contract.contract_documents AS d ON d.organization_id = m.organization_id AND d.id = m.contract_document_id
 		JOIN care_contract.contracts AS c ON c.organization_id = m.organization_id AND c.id = m.contract_id
 		WHERE m.organization_id = ? AND m.contract_id = ? AND lower(m.recipient_email) = lower(?) AND `+inboxChildScopeSQL+`

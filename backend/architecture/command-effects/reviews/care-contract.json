@@ -73,6 +73,16 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticePost.NoticeDeliveries",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticePost.NoticeDeliveries",
+      "reason": "Reads the existing Träger-scoped delivery statuses and exposes only positive delivery receipts with their timestamps. Care Contract, not Delivery, decides and persists withdrawal-notice provision (ADR 0159). No cross-owner write or locking read occurs in this binding.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeTemplates.NoticeTemplate",
       "classification": "query",
       "effect": "query",

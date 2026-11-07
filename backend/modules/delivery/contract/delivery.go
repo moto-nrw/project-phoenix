@@ -250,7 +250,8 @@ type Status struct {
 	// DeliveryState is what the mail provider reported after it accepted
 	// the mail (#5932): one of the DeliveryState values, empty while
 	// nothing was reported. A sent mail can still bounce.
-	DeliveryState string
+	DeliveryStateAt *time.Time
+	DeliveryState   string
 	// Outcome is set for a mail; a push has none.
 	Outcome EmailOutcome
 }

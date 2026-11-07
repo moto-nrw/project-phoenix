@@ -94,7 +94,7 @@ func (n parentContractNotices) ContractNoticeOptions(ctx context.Context, organi
 func (n parentContractNotices) DeclareContractNotice(ctx context.Context, organizationID, contractID int64,
 	reader parentportal.BillingDocumentReader, traeger string, input parentportal.ContractNoticeInput) (parentportal.ContractNoticeOptions, error) {
 	options, err := n.notices.ParentDeclareNotice(ctx, organizationID, contractID, carecontract.InboxReader(reader), traeger,
-		carecontract.NoticeInput{Kind: input.Kind, TerminationKind: input.TerminationKind})
+		carecontract.NoticeInput{Kind: input.Kind, TerminationKind: input.TerminationKind, ExpectedEndsOn: input.ExpectedEndsOn})
 	return parentNoticeOptions(options), parentNoticeError(err)
 }
 
@@ -107,7 +107,7 @@ func parentNoticeOptions(options carecontract.NoticeOptions) parentportal.Contra
 	if notice := options.Notice; notice != nil {
 		result.Notice = &parentportal.ContractNotice{
 			Kind: notice.Kind, TerminationKind: notice.TerminationKind, Channel: notice.Channel, DeclaredAt: notice.DeclaredAt,
-			ReceivedOn: notice.ReceivedOn, EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
+			DispatchedOn: notice.DispatchedOn, ReceivedOn: notice.ReceivedOn, EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
 		}
 	}
 	return result
@@ -134,4 +134,20 @@ func parentNoticeError(err error) error {
 		return fmt.Errorf("%w: %w", parentportal.ErrContractNoticeInvalid, err)
 	}
 	return err
+}
+
+// NoticeDeliveries returns only positive provision evidence. Queueing, SMTP
+// acceptance without a delivery receipt and bounces do not shorten the period.
+func (p careContractNoticePost) NoticeDeliveries(ctx context.Context, organizationID, contractID int64) ([]carecontract.NoticeDelivery, error) {
+	statuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID, deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})
+	if err != nil {
+		return nil, err
+	}
+	var deliveries []carecontract.NoticeDelivery
+	for _, status := range statuses {
+		if status.DeliveryState == deliveryContract.DeliveryDelivered && status.DeliveryStateAt != nil {
+			deliveries = append(deliveries, carecontract.NoticeDelivery{OutboxID: status.ID, ProvidedAt: *status.DeliveryStateAt})
+		}
+	}
+	return deliveries, nil
 }

@@ -28,7 +28,8 @@ func WithdrawalNoticeText(partner string) string {
 	}
 	return "Widerrufsbelehrung\n\n" +
 		"Widerrufsrecht: Sie haben das Recht, binnen 14 Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. " +
-		"Die Widerrufsfrist beträgt 14 Tage ab dem Tag des Vertragsabschlusses.\n\n" +
+		"Die Widerrufsfrist beträgt 14 Tage ab dem Tag des Vertragsabschlusses. " +
+		"Die Frist beginnt erst, wenn Sie diese Belehrung erhalten haben.\n\n" +
 		"Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (" + partner + ") mittels einer eindeutigen Erklärung " +
 		"(zum Beispiel per E-Mail, per Brief oder mit dem Knopf „Vertrag widerrufen“ in der moto Eltern-App) " +
 		"über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. " +

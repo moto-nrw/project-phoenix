@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
@@ -20,6 +21,9 @@ import (
 var _ ports.NoticeStore = Store{}
 
 type noticeRow struct {
+	bun.BaseModel `bun:"table:care_contract.contract_notices"`
+
+	DispatchedOn     *calendar.Date `bun:"dispatched_on,type:date"`
 	Kind             string         `bun:"kind"`
 	NoticeKind       *string        `bun:"notice_kind"`
 	Channel          string         `bun:"channel"`
@@ -62,7 +66,7 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 	}
 	state := ports.NoticeState{FirstFrom: row.FirstFrom, ContractEnd: row.ContractEnd, InformedAt: row.InformedAt, EarlyStart: row.EarlyStart}
 	var notices []noticeRow
-	if err := db.NewRaw(`SELECT kind, notice_kind, channel, declared_at, received_on, ends_on, recipient_email, confirmation_text
+	if err := db.NewRaw(`SELECT kind, notice_kind, channel, declared_at, received_on, dispatched_on, ends_on, recipient_email, confirmation_text
 		FROM care_contract.contract_notices WHERE organization_id = ? AND contract_id = ? ORDER BY id DESC LIMIT 1`,
 		organizationID, contractID).Scan(ctx, &notices); err != nil {
 		return ports.NoticeState{}, fmt.Errorf("care contract postgres: read notice: %w", err)
@@ -71,7 +75,7 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 		notice := notices[0]
 		state.Notice = &carecontract.Notice{
 			Kind: notice.Kind, Channel: notice.Channel, DeclaredAt: notice.DeclaredAt, ReceivedOn: notice.ReceivedOn,
-			EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
+			DispatchedOn: notice.DispatchedOn, EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
 		}
 		if notice.NoticeKind != nil {
 			state.Notice.TerminationKind = *notice.NoticeKind
@@ -100,10 +104,10 @@ func (Store) InsertNotice(ctx context.Context, organizationID int64, notice port
 	}
 	var id int64
 	if err := db.NewRaw(`INSERT INTO care_contract.contract_notices (organization_id, contract_id, kind, notice_kind, channel,
-			account_id, declared_at, received_on, ends_on, recipient_email, confirmation_text)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+			account_id, declared_at, received_on, dispatched_on, ends_on, recipient_email, confirmation_text)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
 		organizationID, notice.ContractID, notice.Kind, terminationKind, notice.Channel, account, notice.DeclaredAt,
-		notice.ReceivedOn, notice.EndsOn, notice.Recipient, notice.ConfirmationText).Scan(ctx, &id); err != nil {
+		notice.ReceivedOn, notice.DispatchedOn, notice.EndsOn, notice.Recipient, notice.ConfirmationText).Scan(ctx, &id); err != nil {
 		return 0, fmt.Errorf("care contract postgres: insert notice: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE care_contract.contracts SET status = ?, ends_on = ?
@@ -143,4 +147,19 @@ func (Store) InboxContractID(ctx context.Context, organizationID, contractID int
 		return false, fmt.Errorf("care contract postgres: read inbox contract: %w", err)
 	}
 	return len(found) == 1, nil
+}
+
+// MarkWithdrawalInformed retains the first proven provision independently of
+// outbox retention and later sends. Callers supply delivery or download evidence.
+func (Store) MarkWithdrawalInformed(ctx context.Context, organizationID, contractID int64, at time.Time) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, `UPDATE care_contract.contracts SET withdrawal_informed_at = LEAST(withdrawal_informed_at, ?)
+		WHERE organization_id = ? AND id = ?`, at, organizationID, contractID)
+	if err != nil {
+		return fmt.Errorf("care contract postgres: record notice provision: %w", err)
+	}
+	return nil
 }

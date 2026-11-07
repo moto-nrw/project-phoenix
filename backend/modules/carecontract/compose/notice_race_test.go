@@ -100,3 +100,7 @@ func TestTerminationHoldsTheLockAndTheAmendmentAddsNoVersion(t *testing.T) {
 	require.NoError(t, f.db.NewRaw(`SELECT status FROM care_contract.contracts WHERE id = ?`, f.contract).Scan(f.ctx, &status))
 	assert.Equal(t, carecontract.StatusTerminated, status)
 }
+
+func (*noticePostDouble) NoticeDeliveries(context.Context, int64, int64) ([]carecontract.NoticeDelivery, error) {
+	return nil, nil
+}

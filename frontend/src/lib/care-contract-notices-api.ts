@@ -34,7 +34,10 @@ export async function fetchContractNoticeOptions(
 /** Records a declaration the office received by mail or letter on a day. */
 export async function recordContractNotice(
   id: string,
-  declaration: NoticeDeclaration & { readonly receivedOn: string },
+  declaration: NoticeDeclaration & {
+    readonly receivedOn: string;
+    readonly dispatchedOn?: string;
+  },
 ): Promise<ContractNoticeOptions> {
   return noticeOptionsFromBackend(
     await traegerRequest<BackendNoticeOptions>(officePath(id), {
@@ -42,6 +45,9 @@ export async function recordContractNotice(
       body: {
         ...declarationBody(declaration),
         received_on: declaration.receivedOn,
+        ...(declaration.kind === "widerruf"
+          ? { dispatched_on: declaration.dispatchedOn }
+          : {}),
       },
     }),
   );

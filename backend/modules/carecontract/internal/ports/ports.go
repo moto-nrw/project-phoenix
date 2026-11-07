@@ -100,9 +100,10 @@ type SentDocument struct {
 
 // StoredMailing is a send of the contract as stored.
 type StoredMailing struct {
-	OutboxID  int64
-	Recipient string
-	SentAt    time.Time
+	WithdrawalNotice bool
+	OutboxID         int64
+	Recipient        string
+	SentAt           time.Time
 }
 
 // Event is one entry of the trail.
@@ -126,6 +127,7 @@ const (
 
 // Store persists the contracts of a Träger in its Träger transaction.
 type Store interface {
+	MarkWithdrawalInformed(ctx context.Context, organizationID, contractID int64, at time.Time) error
 	Templates(ctx context.Context, organizationID int64) ([]TemplateRow, error)
 	UpsertTemplate(ctx context.Context, organizationID, accountID, schoolID, offeringID int64, input carecontract.TemplateInput) (carecontract.Template, error)
 	ContractKeys(ctx context.Context, organizationID int64, schoolIDs []int64) (map[ContractKey]bool, error)

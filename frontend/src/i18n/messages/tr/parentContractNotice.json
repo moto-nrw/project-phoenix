@@ -34,5 +34,6 @@
   "declaredAt": "Ulaştığı tarih",
   "declaredAtValue": "{date}, saat {time}",
   "sentTo": "Onayın gönderildiği adres",
-  "confirmationTitle": "Onayınız"
+  "confirmationTitle": "Onayınız",
+  "datesChanged": "Tarihler değişti. Lütfen yeniden seçin."
 }

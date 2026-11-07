@@ -17,6 +17,7 @@ export interface ContractNotice {
   readonly channel: "eltern_app" | "traeger_buero";
   readonly declaredAt: string;
   readonly receivedOn: string;
+  readonly dispatchedOn?: string | null;
   /** Last day of a terminated contract; null after a withdrawal. */
   readonly endsOn: string | null;
   readonly recipient: string;
@@ -36,7 +37,7 @@ export interface ContractNoticeOptions {
   readonly ordinaryEndsOn: string | null;
   /** Earlier end of the special termination; null when there is none. */
   readonly specialEndsOn: string | null;
-  /** Last day of the withdrawal period; null when it is over or absent. */
+  /** Last dispatch day. Office reads retain expired deadlines for postal notices. */
   readonly withdrawalUntil: string | null;
   readonly earlyStart: boolean;
   readonly notice: ContractNotice | null;
@@ -45,6 +46,7 @@ export interface ContractNoticeOptions {
 export interface NoticeDeclaration {
   readonly kind: NoticeKind;
   readonly terminationKind?: TerminationKind;
+  readonly expectedEndsOn?: string;
 }
 
 interface BackendNotice {
@@ -53,6 +55,7 @@ interface BackendNotice {
   channel: "eltern_app" | "traeger_buero";
   declared_at: string;
   received_on: string;
+  dispatched_on?: string | null;
   ends_on: string | null;
   recipient: string;
   confirmation_text: string;
@@ -95,6 +98,7 @@ export function noticeOptionsFromBackend(
           channel: row.notice.channel,
           declaredAt: row.notice.declared_at,
           receivedOn: row.notice.received_on,
+          dispatchedOn: row.notice.dispatched_on ?? null,
           endsOn: row.notice.ends_on,
           recipient: row.notice.recipient,
           confirmationText: row.notice.confirmation_text,
@@ -107,7 +111,12 @@ export function declarationBody(declaration: NoticeDeclaration) {
   return {
     kind: declaration.kind,
     ...(declaration.kind === "kuendigung"
-      ? { termination_kind: declaration.terminationKind ?? "ordentlich" }
+      ? {
+          termination_kind: declaration.terminationKind ?? "ordentlich",
+          ...(declaration.expectedEndsOn
+            ? { expected_ends_on: declaration.expectedEndsOn }
+            : {}),
+        }
       : {}),
   };
 }

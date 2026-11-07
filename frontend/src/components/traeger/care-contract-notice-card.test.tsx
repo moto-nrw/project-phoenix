@@ -33,13 +33,13 @@ vi.mock("~/components/ui/date-picker", () => ({
     onChange,
   }: {
     id: string;
-    value: Date;
+    value?: Date;
     onChange: (value: Date | undefined) => void;
   }) => (
     <input
       id={id}
       type="date"
-      value={toISODate(value)}
+      value={value ? toISODate(value) : ""}
       onChange={(event) => onChange(parseISODate(event.target.value))}
     />
   ),
@@ -151,7 +151,7 @@ describe("CareContractNoticeCard (#4682)", () => {
     fireEvent.click(screen.getByRole("radio", { name: /Sonderkündigung/ }));
     fireEvent.click(screen.getByRole("button", { name: /^Widerruf$/ }));
     expect(
-      await screen.findByText(/Möglich bis 02.09.2026/),
+      await screen.findByText(/Rechtzeitig abgesendet: bis 02.09.2026/),
     ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/Eingegangen am/), {
       target: { value: "2026-09-09" },
@@ -212,6 +212,67 @@ describe("CareContractNoticeCard (#4682)", () => {
     expect(mocks.fetchContractNoticeOptions).toHaveBeenCalledWith(
       "25",
       "2026-09-01",
+    );
+  });
+  it("submits an office declaration only once while saving", async () => {
+    mocks.fetchContractNoticeOptions.mockResolvedValue(active);
+    mocks.recordContractNotice.mockReturnValue(new Promise(() => {}));
+    render(
+      <CareContractNoticeCard
+        contractId="25"
+        status="aktiv"
+        concludedAt="2026-08-19T09:00:00Z"
+        onChanged={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Kündigung eintragen" }),
+    );
+    await screen.findByText(/Nächster Termin:/);
+    const submit = document.querySelector(
+      'button[form="care-contract-notice-form"]',
+    )!;
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+    expect(submit).toBeDisabled();
+    expect(mocks.recordContractNotice).toHaveBeenCalledTimes(1);
+  });
+  it("records a timely dispatch separately from a late receipt", async () => {
+    mocks.fetchContractNoticeOptions.mockResolvedValue({
+      ...active,
+      withdrawalUntil: "2026-09-02",
+    });
+    mocks.recordContractNotice.mockResolvedValue({
+      ...active,
+      status: "widerrufen",
+    });
+    render(
+      <CareContractNoticeCard
+        contractId="25"
+        status="aktiv"
+        concludedAt="2026-08-19T09:00:00Z"
+        onChanged={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Kündigung eintragen" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /^Widerruf$/ }));
+    const submit = document.querySelector(
+      'button[form="care-contract-notice-form"]',
+    )!;
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Abgesendet am/), {
+      target: { value: "2026-09-01" },
+    });
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(mocks.recordContractNotice).toHaveBeenCalledWith("25", {
+        kind: "widerruf",
+        terminationKind: "ordentlich",
+        receivedOn: "2026-09-09",
+        dispatchedOn: "2026-09-01",
+      }),
     );
   });
 });

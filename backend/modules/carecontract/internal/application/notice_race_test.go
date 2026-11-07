@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -34,9 +35,10 @@ func (noticeTemplates) NoticeTemplate(_ context.Context, _ int64, kind string) (
 
 // noticePost counts the confirmation mails, safe for two transactions.
 type noticePost struct {
-	mu    sync.Mutex
-	next  int64
-	mails []carecontract.NoticeMail
+	mu         sync.Mutex
+	next       int64
+	mails      []carecontract.NoticeMail
+	deliveries []carecontract.NoticeDelivery
 }
 
 func (p *noticePost) EnqueueNoticeMail(_ context.Context, mail carecontract.NoticeMail) (int64, error) {
@@ -73,6 +75,9 @@ func newNoticeFixture(t *testing.T, name string, now time.Time) noticeFixture {
 		return race.conclude(txCtx)
 	}))
 	store, post := postgres.NewStore(), &noticePost{next: testpkg.UniqueTestTenantID(t)}
+	require.NoError(t, testpkg.WithinTraeger(race.ctx, race.org, func(ctx context.Context) error {
+		return store.MarkWithdrawalInformed(ctx, race.org, race.contract, race.conclusion.At)
+	}))
 	notices := NewNotices(store, store, NoticePorts{Templates: noticeTemplates{}, Post: post}, Clock{Now: func() time.Time { return now }},
 		race.contracts)
 	return noticeFixture{raceFixture: race, notices: notices, post: post}
@@ -233,7 +238,7 @@ func TestWithdrawalOnlyWithinThePeriod(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		options, err = f.notices.options(txCtx, f.org, record, f.notices.today())
+		options, err = f.notices.options(txCtx, f.org, record, f.notices.today(), false)
 		return err
 	}))
 	assert.Nil(t, options.WithdrawalUntil, "the page offers no withdrawal after the period")
@@ -278,14 +283,27 @@ func TestDeclarationNeedsAnActiveContractAndAValidDay(t *testing.T) {
 func TestDelayedConclusionStartsWithdrawalAtNoticeProvision(t *testing.T) {
 	t.Parallel()
 	f := newRaceFixture(t, "Träger verspäteter Abschluss")
-	provided := time.Date(2026, 12, 1, 10, 0, 0, 0, time.UTC)
-	f.contracts.clock = Clock{Now: func() time.Time { return provided }}
+	enqueued := time.Date(2026, 12, 1, 10, 0, 0, 0, time.UTC)
+	provided := enqueued.AddDate(0, 0, 9)
+	f.contracts.clock = Clock{Now: func() time.Time { return enqueued }}
 	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, f.conclude))
 	var informed *time.Time
 	require.NoError(t, f.db.NewRaw(`SELECT withdrawal_informed_at FROM care_contract.contracts WHERE id = ?`, f.contract).Scan(f.ctx, &informed))
+	assert.Nil(t, informed, "queueing is not provision")
+	var outboxID int64
+	require.NoError(t, f.db.NewRaw(`SELECT outbox_id FROM care_contract.contract_mailings WHERE contract_id = ?`, f.contract).Scan(f.ctx, &outboxID))
+	post := &noticePost{deliveries: []carecontract.NoticeDelivery{{OutboxID: outboxID, ProvidedAt: provided}}}
+	store := postgres.NewStore()
+	notices := NewNotices(store, store, NoticePorts{Templates: noticeTemplates{}, Post: post}, Clock{Now: func() time.Time { return provided }}, f.contracts)
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(ctx context.Context) error {
+		state, err := notices.noticeState(ctx, f.org, f.contract)
+		require.NoError(t, err)
+		assert.Equal(t, new(calendar.NewDate(2026, 12, 24)), withdrawalUntil(&f.conclusion, state.InformedAt))
+		return nil
+	}))
+	require.NoError(t, f.db.NewRaw(`SELECT withdrawal_informed_at FROM care_contract.contracts WHERE id = ?`, f.contract).Scan(f.ctx, &informed))
 	require.NotNil(t, informed)
 	assert.WithinDuration(t, provided, *informed, time.Second)
-	assert.Equal(t, new(calendar.NewDate(2026, 12, 15)), withdrawalUntil(&f.conclusion, informed))
 }
 
 // deliveredRacePost reports the first send as complete so the conclusion
@@ -327,7 +345,7 @@ func TestOfficeOptionsUseTheReceiptDay(t *testing.T) {
 	require.NoError(t, err)
 	now, err := f.notices.NoticeOptions(f.ctx, f.reviewer, f.contract, "")
 	require.NoError(t, err)
-	assert.Nil(t, now.WithdrawalUntil)
+	assert.Equal(t, new(calendar.NewDate(2026, 11, 20)), now.WithdrawalUntil, "the office must still record a timely postal dispatch")
 	assert.Nil(t, now.SpecialEndsOn)
 	earlier, err := f.notices.NoticeOptions(f.ctx, f.reviewer, f.contract, calendar.NewDate(2026, 11, 10))
 	require.NoError(t, err)
@@ -338,4 +356,111 @@ func TestOfficeOptionsUseTheReceiptDay(t *testing.T) {
 		var invalid *carecontract.ValidationError
 		assert.ErrorAs(t, err, &invalid)
 	}
+}
+
+func TestOfficeConfirmationUsesCorrectedMailingRecipient(t *testing.T) {
+	t.Parallel()
+	f := newNoticeFixture(t, "Träger korrigierte Bestätigung", noticeToday)
+	_, err := f.db.ExecContext(f.ctx, `UPDATE care_contract.contract_mailings SET recipient_email = 'corrected@example.org' WHERE contract_id = ?`, f.contract)
+	require.NoError(t, err)
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, f.declare(terminate)))
+	require.Len(t, f.post.mails, 1)
+	assert.Equal(t, "corrected@example.org", f.post.mails[0].Recipient)
+}
+
+func TestPostalWithdrawalUsesDispatchAndKeepsReceipt(t *testing.T) {
+	t.Parallel()
+	f := newNoticeFixture(t, "Träger rechtzeitig abgesendet", time.Date(2026, 11, 25, 10, 0, 0, 0, time.UTC))
+	var input carecontract.NoticeInput
+	require.NoError(t, json.Unmarshal([]byte(`{"kind":"widerruf","received_on":"2026-11-25","dispatched_on":"2026-11-19"}`), &input))
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, f.declare(input)))
+	assert.Equal(t, carecontract.StatusWithdrawn, f.state(t).status)
+	var received, dispatched calendar.Date
+	require.NoError(t, f.db.NewRaw(`SELECT received_on, dispatched_on FROM care_contract.contract_notices WHERE contract_id = ?`, f.contract).Scan(f.ctx, &received, &dispatched))
+	assert.Equal(t, calendar.NewDate(2026, 11, 25), received)
+	assert.Equal(t, calendar.NewDate(2026, 11, 19), dispatched)
+}
+
+func TestEnqueuedContractDoesNotProveWithdrawalNoticeProvision(t *testing.T) {
+	t.Parallel()
+	f := newRaceFixture(t, "Träger wartende Belehrung")
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, f.conclude))
+	var informed *time.Time
+	require.NoError(t, f.db.NewRaw(`SELECT withdrawal_informed_at FROM care_contract.contracts WHERE id = ?`, f.contract).Scan(f.ctx, &informed))
+	assert.Nil(t, informed, "an enqueued mail may fail without ever providing the notice")
+}
+
+func (p *noticePost) NoticeDeliveries(context.Context, int64, int64) ([]carecontract.NoticeDelivery, error) {
+	return p.deliveries, nil
+}
+
+func TestParentConfirmationKeepsTheSuppliedRecipient(t *testing.T) {
+	t.Parallel()
+	f := newNoticeFixture(t, "Träger persönliche Bestätigung", noticeToday)
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(ctx context.Context) error {
+		_, err := f.notices.declare(ctx, declaration{organizationID: f.org, accountID: f.reviewer.AccountID,
+			channel: carecontract.ChannelParents, contractID: f.contract, input: terminate, recipient: "declaring-parent@example.org"})
+		return err
+	}))
+	require.Len(t, f.post.mails, 1)
+	assert.Equal(t, "declaring-parent@example.org", f.post.mails[0].Recipient)
+}
+
+func TestWithdrawalRejectsDispatchAfterReceiptAndChangedTerminationDate(t *testing.T) {
+	t.Parallel()
+	f := newNoticeFixture(t, "Träger unzulässige Erklärung", noticeToday)
+	for _, raw := range []string{
+		`{"kind":"widerruf","received_on":"2026-11-10","dispatched_on":"2026-11-11"}`,
+		`{"kind":"widerruf","received_on":"2026-11-10","dispatched_on":"2026-11-05"}`,
+		`{"kind":"kuendigung","termination_kind":"ordentlich","received_on":"2026-11-10","expected_ends_on":"2026-11-30"}`,
+	} {
+		var input carecontract.NoticeInput
+		require.NoError(t, json.Unmarshal([]byte(raw), &input))
+		var invalid *carecontract.ValidationError
+		assert.ErrorAs(t, testpkg.WithinTraeger(f.ctx, f.org, f.declare(input)), &invalid)
+		assert.Equal(t, carecontract.StatusActive, f.state(t).status)
+	}
+	assert.Empty(t, f.post.mails)
+}
+
+type failedRacePost struct{ *racePost }
+
+func (p failedRacePost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {
+	states, err := p.racePost.ContractMailStates(ctx, organizationID, contractID)
+	for i := range states {
+		states[i].State = carecontract.MailFailed
+	}
+	return states, err
+}
+
+func TestFailedMailAndCorrectedResendWaitForActualProvision(t *testing.T) {
+	t.Parallel()
+	f := newRaceFixture(t, "Träger Belehrung nach Korrektur")
+	now := f.conclusion.At
+	f.contracts.clock = Clock{Now: func() time.Time { return now }}
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, f.conclude))
+	f.contracts.post = failedRacePost{f.contracts.post.(*racePost)}
+	now = now.AddDate(0, 0, 40)
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(ctx context.Context) error {
+		result, err := f.contracts.ResendContract(ctx, f.reviewer, f.contract, "corrected@example.org")
+		require.NoError(t, err)
+		require.Equal(t, []int64{f.contract}, result.Sent)
+		return nil
+	}))
+	store, post := postgres.NewStore(), &noticePost{}
+	notices := NewNotices(store, store, NoticePorts{Templates: noticeTemplates{}, Post: post}, Clock{Now: func() time.Time { return now }}, f.contracts)
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(ctx context.Context) error {
+		state, err := notices.noticeState(ctx, f.org, f.contract)
+		require.NoError(t, err)
+		assert.Nil(t, state.InformedAt, "a correction queued after 40 days has still provided no notice")
+		mailings, err := store.Mailings(ctx, f.org, f.contract)
+		require.NoError(t, err)
+		require.Len(t, mailings, 2)
+		assert.Equal(t, "corrected@example.org", mailings[0].Recipient)
+		post.deliveries = []carecontract.NoticeDelivery{{OutboxID: mailings[0].OutboxID, ProvidedAt: now}}
+		state, err = notices.noticeState(ctx, f.org, f.contract)
+		require.NoError(t, err)
+		assert.Equal(t, new(calendar.DateFromTime(now).AddDays(14)), withdrawalUntil(&f.conclusion, state.InformedAt))
+		return nil
+	}))
 }

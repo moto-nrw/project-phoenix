@@ -29,8 +29,8 @@ func init() {
 //     (§ 355 BGB). The contract is undone from its start and holds on no day.
 //   - withdrawal_informed_at is when the parents received the withdrawal
 //     notice on a durable medium: every contract PDF carries it from this
-//     migration on. The first send of a newly generated PDF records it
-//     independently of concluded_at. Previously frozen PDFs keep NULL: their period
+//     migration on (document.withdrawal_notice). Positive delivery or a
+//     parent download records provision, never enqueueing. Without proof the period
 //     ends 12 months and 14 days after the conclusion (§ 356 Abs. 3 BGB),
 //     a paper contract signed at the office has none. early_start_requested records the
 //     parents' express wish that care begins within the period (§ 356 Abs. 4,
@@ -40,6 +40,7 @@ func init() {
 //     contract carries at most one, because the contract leaves aktiv with
 //     it; the row lock of the contract orders concurrent declarations.
 const careContractNoticesUpSQL = `
+ALTER TABLE care_contract.contract_documents ADD COLUMN withdrawal_notice BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE care_contract.contracts DROP CONSTRAINT chk_contracts_status;
 ALTER TABLE care_contract.contracts ADD CONSTRAINT chk_contracts_status
 	CHECK (status IN ('entwurf', 'versendet', 'unterschrieben', 'aktiv', 'gekuendigt', 'widerrufen', 'beendet'));
@@ -68,12 +69,14 @@ CREATE TABLE care_contract.contract_notices (
 	account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	declared_at TIMESTAMPTZ NOT NULL,
 	received_on DATE NOT NULL,
+	dispatched_on DATE,
 	ends_on DATE,
 	recipient_email VARCHAR(320) NOT NULL,
 	confirmation_text TEXT NOT NULL,
 	outbox_id BIGINT,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (organization_id, contract_id) REFERENCES care_contract.contracts (organization_id, id) ON DELETE CASCADE,
+	CONSTRAINT chk_contract_notices_dispatch CHECK (dispatched_on IS NULL OR (kind = 'widerruf' AND dispatched_on <= received_on)),
 	CONSTRAINT chk_contract_notices_kind CHECK (kind IN ('kuendigung', 'widerruf')),
 	CONSTRAINT chk_contract_notices_notice_kind CHECK (
 		(kind = 'kuendigung' AND notice_kind IS NOT NULL AND notice_kind IN ('ordentlich', 'sonderkuendigung') AND ends_on IS NOT NULL)
@@ -125,6 +128,7 @@ DELETE FROM care_contract.contract_events WHERE action IN ('terminate', 'withdra
 ALTER TABLE care_contract.contract_events DROP CONSTRAINT chk_contract_events_action;
 ALTER TABLE care_contract.contract_events ADD CONSTRAINT chk_contract_events_action
 	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'conclude', 'sign', 'remind'));
+ALTER TABLE care_contract.contract_documents DROP COLUMN withdrawal_notice;
 DROP TABLE IF EXISTS care_contract.contract_notices;
 DROP FUNCTION IF EXISTS care_contract.require_notice_account();
 ALTER TABLE care_contract.contracts DROP CONSTRAINT IF EXISTS chk_contracts_terminated;

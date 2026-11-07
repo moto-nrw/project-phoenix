@@ -358,9 +358,11 @@ type ContractDetail struct {
 
 // File is a rendered PDF.
 type File struct {
-	Filename    string
-	ContentType string
-	Data        []byte
+	// WithdrawalNotice identifies PDFs generated with the withdrawal notice.
+	WithdrawalNotice bool `json:"-"`
+	Filename         string
+	ContentType      string
+	Data             []byte
 }
 
 // SendResult answers a send of several contracts.

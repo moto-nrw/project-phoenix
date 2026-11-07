@@ -90,7 +90,12 @@ func TestCareContractNoticeNeedsTheRightStaysWithItsTraegerAndIsAudited(t *testi
 	require.NoError(t, f.db.NewRaw(`SELECT withdrawal_informed_at IS NOT NULL AS informed,
 			(concluded_at AT TIME ZONE 'Europe/Berlin')::date AS concluded_on FROM care_contract.contracts WHERE id = ?`, contract).
 		Scan(ctx, &informed, &concludedOn))
-	assert.True(t, informed, "the PDF of the conclusion carries the withdrawal notice")
+	assert.False(t, informed, "queueing alone proves no notice provision")
+	_, err := f.db.ExecContext(ctx, `UPDATE platform.email_outbox AS o SET status = 'sent', sent_at = c.concluded_at,
+      delivery_state = 'delivered', delivery_state_at = c.concluded_at
+      FROM care_contract.contracts AS c WHERE o.organization_id = c.organization_id
+        AND o.related_entity_type = 'care_contract' AND o.related_entity_id = c.id AND c.id = ?`, contract)
+	require.NoError(t, err)
 
 	rec := traegerJSON(t, f.traeger, token, http.MethodGet, path, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

@@ -122,7 +122,7 @@ func (d parentContractDocuments) ContractDocumentFile(ctx context.Context, organ
 	if err != nil {
 		return parentportal.BillingDocumentFile{}, err
 	}
-	return parentportal.BillingDocumentFile(file), nil
+	return parentportal.BillingDocumentFile{Filename: file.Filename, ContentType: file.ContentType, Data: file.Data}, nil
 }
 
 // parentSchoolTraeger binds the Träger of a school to Organisation &

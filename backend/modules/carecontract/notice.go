@@ -86,6 +86,10 @@ var (
 // the day the Träger-Büro received a declaration by mail or letter; the
 // parents portal sets today.
 type NoticeInput struct {
+	// DispatchedOn is the postal dispatch day. Omission conservatively uses receipt.
+	DispatchedOn calendar.Date `json:"dispatched_on"`
+	// ExpectedEndsOn rejects a termination date changed since the displayed choice.
+	ExpectedEndsOn  calendar.Date `json:"expected_ends_on"`
 	Kind            string        `json:"kind"`
 	TerminationKind string        `json:"termination_kind"`
 	ReceivedOn      calendar.Date `json:"received_on"`
@@ -93,6 +97,7 @@ type NoticeInput struct {
 
 // Notice is a declaration as recorded, with its confirmation.
 type Notice struct {
+	DispatchedOn     *calendar.Date `json:"dispatched_on,omitempty"`
 	Kind             string         `json:"kind"`
 	TerminationKind  string         `json:"termination_kind,omitempty"`
 	Channel          string         `json:"channel"`
@@ -119,7 +124,8 @@ type NoticeOptions struct {
 	OrdinaryEndsOn *calendar.Date `json:"ordinary_ends_on"`
 	SpecialEndsOn  *calendar.Date `json:"special_ends_on"`
 	// WithdrawalUntil is the last day of the withdrawal period, nil when
-	// the contract has no right of withdrawal or it has passed.
+	// the contract has no right of withdrawal. Parents see nil after expiry;
+	// the office retains the deadline for timely postal dispatches.
 	WithdrawalUntil *calendar.Date `json:"withdrawal_until"`
 	// EarlyStart tells that the parents asked for care within the period.
 	EarlyStart bool    `json:"early_start"`
@@ -160,9 +166,16 @@ type NoticeTemplates interface {
 	NoticeTemplate(ctx context.Context, organizationID int64, kind string) (string, error)
 }
 
-// NoticePost enqueues the confirmation mail in the caller's Träger
-// transaction.
+// NoticeDelivery is evidence that the provider delivered a contract mail.
+type NoticeDelivery struct {
+	OutboxID   int64
+	ProvidedAt time.Time
+}
+
+// NoticePost enqueues confirmations and reads positive delivery evidence
+// in the caller's Träger transaction.
 type NoticePost interface {
+	NoticeDeliveries(ctx context.Context, organizationID, contractID int64) ([]NoticeDelivery, error)
 	EnqueueNoticeMail(ctx context.Context, mail NoticeMail) (int64, error)
 }
 

@@ -34,6 +34,7 @@ import type {
 } from "~/lib/care-contract-notices";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import {
+  berlinTodayISO,
   formatBerlinDate,
   formatBerlinTime,
   formatDate,
@@ -42,6 +43,8 @@ import {
   declareMyContractNotice,
   fetchMyContractNoticeOptions,
 } from "~/lib/parent-api";
+
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 type Choice = "ordentlich" | "sonderkuendigung" | "widerruf";
 
@@ -53,16 +56,36 @@ export function ParentContractNoticePage({
 }: Readonly<{ organizationId: string; contractId: string }>) {
   const t = useTranslations("parentContractNotice");
   const [options, setOptions] = useState<ContractNoticeOptions | null>(null);
+  const today = useBerlinToday();
+  const [optionsDay, setOptionsDay] = useState("");
+  const [requireSelection, setRequireSelection] = useState(false);
+  const previous = useRef<ContractNoticeOptions | null>(null);
+  const generation = useRef(0);
   const load = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = load;
 
   const read = useCallback(async () => {
+    const request = ++generation.current;
+    const day = berlinTodayISO();
     try {
-      setOptions(
-        await fetchMyContractNoticeOptions(organizationId, contractId),
+      const next = await fetchMyContractNoticeOptions(
+        organizationId,
+        contractId,
       );
+      if (request !== generation.current) return;
+      const old = previous.current;
+      setRequireSelection(
+        old !== null &&
+          (old.ordinaryEndsOn !== next.ordinaryEndsOn ||
+            old.specialEndsOn !== next.specialEndsOn ||
+            old.withdrawalUntil !== next.withdrawalUntil),
+      );
+      previous.current = next;
+      setOptions(next);
+      setOptionsDay(day);
       clearLoadError();
     } catch (err) {
+      if (request !== generation.current) return;
       await showLoadError(err, {
         object: t("errorObject"),
         retry: () => void read(),
@@ -72,7 +95,7 @@ export function ParentContractNoticePage({
 
   useEffect(() => {
     void read();
-  }, [read]);
+  }, [read, today]);
 
   const ended = options?.notice ?? null;
   return (
@@ -91,9 +114,16 @@ export function ParentContractNoticePage({
       {options && !ended && options.status !== "aktiv" ? (
         <Alert type="info" message={t("notActive")} />
       ) : null}
-      {options && !ended && options.status === "aktiv" ? (
+      {options &&
+      optionsDay === today &&
+      !ended &&
+      options.status === "aktiv" ? (
         <NoticeForm
+          key={`${options.ordinaryEndsOn}:${options.specialEndsOn}:${options.withdrawalUntil}`}
           options={options}
+          optionsDay={optionsDay}
+          requireSelection={requireSelection}
+          onRefresh={read}
           organizationId={organizationId}
           contractId={contractId}
           onDeclared={setOptions}
@@ -130,18 +160,26 @@ function ContractSummary({
 
 function NoticeForm({
   options,
+  optionsDay,
+  requireSelection,
+  onRefresh,
   organizationId,
   contractId,
   onDeclared,
 }: Readonly<{
   options: ContractNoticeOptions;
+  optionsDay: string;
+  requireSelection: boolean;
+  onRefresh: () => Promise<void>;
   organizationId: string;
   contractId: string;
   onDeclared: (next: ContractNoticeOptions) => void;
 }>) {
   const t = useTranslations("parentContractNotice");
   const locale = useLocale();
-  const [choice, setChoice] = useState<Choice>("ordentlich");
+  const [choice, setChoice] = useState<Choice | null>(
+    requireSelection ? null : "ordentlich",
+  );
   const [sending, setSending] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   const errors = useApiFormError(form);
@@ -149,6 +187,11 @@ function NoticeForm({
     iso ? formatDate(iso, false, locale) : "–";
 
   const submit = async () => {
+    if (sending || choice === null) return;
+    if (berlinTodayISO() !== optionsDay) {
+      await onRefresh();
+      return;
+    }
     errors.clear();
     setSending(true);
     try {
@@ -158,7 +201,11 @@ function NoticeForm({
           contractId,
           choice === "widerruf"
             ? { kind: "widerruf" }
-            : { kind: "kuendigung", terminationKind: choice },
+            : {
+                kind: "kuendigung",
+                terminationKind: choice,
+                expectedEndsOn: endsOn ?? undefined,
+              },
         ),
       );
       window.scrollTo({ top: 0 });
@@ -213,6 +260,9 @@ function NoticeForm({
         <ParentSection level={2} title={t("chooseTitle")}>
           <div className="space-y-4">
             <FormErrorAlert message={errors.error} />
+            {choice === null ? (
+              <Alert type="warning" message={t("datesChanged")} />
+            ) : null}
             <fieldset className="space-y-2">
               <legend className="sr-only">{t("chooseTitle")}</legend>
               {choices
@@ -256,6 +306,7 @@ function NoticeForm({
                 variant="danger"
                 size="base"
                 className="w-full sm:w-auto"
+                disabled={sending || choice === null}
                 isLoading={sending}
                 loadingText={t("sending")}
               >

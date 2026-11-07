@@ -73,7 +73,7 @@ func noticeDates(terms carecontract.TemplateInput, receivedOn calendar.Date, con
 
 // withdrawalUntil is the last day of the withdrawal period, or nil when the
 // contract has none. Every contract PDF carries the withdrawal notice since
-// #4682 (informedAt, recorded at its first send): the period runs 14 days
+// #4682 (informedAt, proven delivery or parent download): the period runs 14 days
 // from the later of conclusion and notice provision (§ 355, § 356 BGB). A contract concluded before
 // without it has its period end 12 months and 14 days after the conclusion
 // (§ 356 Abs. 3 BGB), except one signed on paper, which was signed at the

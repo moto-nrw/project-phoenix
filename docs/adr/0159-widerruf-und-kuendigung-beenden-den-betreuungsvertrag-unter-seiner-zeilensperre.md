@@ -41,11 +41,18 @@ Ergänzung in #4682. Keine Rechtsberatung.
    Vorlage. Die Widerrufsfrist ist gesetzlich und keine Einstellung.
 4. **Belehrung im PDF.** Jedes Vertrags-PDF trägt ab dieser Änderung die
    Widerrufsbelehrung und die Angabe, ob die Eltern den Beginn vor Ende der
-   Frist verlangt haben. Der erste Versand eines neu erzeugten PDFs setzt
-   `withdrawal_informed_at`, unabhängig vom historischen Abschlussdatum.
-   Die Frist beginnt frühestens mit diesem Versand. Bereits eingefrorene
-   PDFs ohne Belehrungsnachweis behalten die längere Frist; ein früher auf
-   Papier geschlossener Vertrag hat keine.
+   Frist verlangt haben. Neue PDFs tragen `withdrawal_notice`; alte PDFs
+   erhalten diesen Nachweis nicht nachträglich. Ein Versandauftrag startet
+   keine Frist. Erst ein positiver Zustellbeleg oder der PDF-Abruf in der
+   Eltern-App setzt `withdrawal_informed_at`, unabhängig vom Abschlussdatum.
+   Delivery liefert Zustellbelege durch den konsumereigenen Port; Care
+   Contract übernimmt vorhandene Zustellbelege beim Lesen der Optionen oder
+   beim Prüfen einer Erklärung dauerhaft. Bereits übernommene Nachweise
+   bleiben nach dem Löschen der Outbox-Mail erhalten. Ohne positiven
+   Nachweis bleibt konservativ die längere Frist, auch bei reinem SMTP ohne
+   Zustellbeleg. Ein früher auf Papier geschlossener Vertrag hat keine.
+   Ein rechtzeitig abgesandter Widerruf bleibt auch bei späterem Eingang gültig:
+   `dispatched_on` hält den Absende-, `received_on` den Eingangstag fest.
 5. **Bestätigung in Textform.** Die Texte sind Träger-Einstellungen
    (`care_contract.termination_confirmation`,
    `care_contract.withdrawal_confirmation`, ADR 0086, kein Env-Fallback). Der

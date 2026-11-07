@@ -28,6 +28,7 @@ type NoticeState struct {
 
 // NewNotice is a declaration to store.
 type NewNotice struct {
+	DispatchedOn     *calendar.Date
 	ContractID       int64
 	Kind             string
 	TerminationKind  string
