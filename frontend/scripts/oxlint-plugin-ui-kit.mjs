@@ -12,7 +12,6 @@ import {
 } from "./ui-kit-field-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
-import { insetBaseline } from "./ui-kit-inset-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -2162,6 +2161,7 @@ function makeRatchetRule({
   countEnv = "UI_KIT_BUTTON_RATCHET",
   kitFile = BUTTON_KIT_FILE,
   exemptDir = null,
+  exemptFiles = [],
   followStaticClassSources = false,
   onlySrc = false,
 }) {
@@ -2181,6 +2181,7 @@ function makeRatchetRule({
         EXEMPT_FILE_RE.test(key) ||
         key.endsWith(kitFile) ||
         (exemptDir !== null && key.startsWith(exemptDir)) ||
+        exemptFiles.includes(key) ||
         (onlySrc && !key.startsWith("src/")) ||
         key.includes("src/test/")
       ) {
@@ -3880,7 +3881,14 @@ const noHandRolledListRow = makeRatchetRule({
 // `InsetPanel`. Fund: ein Element mit Radius, `bg-gray-50` und Polster, auch über
 // Ternär-Zweige und lokale Konstanten hinweg. Ein Knopf oder Link ist keine Fläche.
 // Zweiter Fund: eine Flächen-Klassenkette in einer Modul-Konstante; dort entstand
-// das nächste Mini-Kit. Start mit shrink-only Baseline, Abbau je Bereich in Sub-Issues.
+// das nächste Mini-Kit. Hard-zero seit dem Abbau der Baseline.
+// Eltern-Ausnahmen aus #2619: Kinderkarten, Kinderwahl und Startseite des
+// Elternportals behalten ihre Flächen. Nie anfassen, auch nicht für das Kit.
+const INSET_PARENT_EXCEPTIONS = [
+  "src/components/parent/child/child-day-card.tsx",
+  "src/components/parent/child/child-switcher.tsx",
+  "src/components/parent/start/parent-start-page.tsx",
+];
 const INSET_ACTION_ELEMENTS = new Set([
   "a",
   "button",
@@ -3924,11 +3932,11 @@ const noHandRolledInset = makeRatchetRule({
     "Inner surfaces come from InsetPanel; surface class chains do not live in module constants.",
   message:
     "Keine eigene Innenfläche: `InsetPanel` (`tone`, `framed`, `dashed`, `padding`, `as`) aus ~/components/ui/inset-panel, Flächenklassen nicht in einer Modul-Konstante (#5592, .claude/rules/frontend-ui-kit.md).",
-  baselines: insetBaseline,
+  baselines: {},
   allowlist: [],
-  countEnv: "UI_KIT_INSET_RATCHET",
   kitFile: "src/components/ui/inset-panel.tsx",
   exemptDir: UI_KIT_DIR,
+  exemptFiles: INSET_PARENT_EXCEPTIONS,
   // E2E-Dateien halten Selektoren als Konstanten, keine Oberfläche.
   onlySrc: true,
   detect: ({ classText, found }) => ({
