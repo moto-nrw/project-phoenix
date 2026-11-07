@@ -217,6 +217,12 @@ const demoVisitorErasureCareContractsUpSQL = `
 					-- names the visitor as the contracting parent, in its PDF and in
 					-- the mail that carried it. The school is the visitor's alone, so
 					-- every contract of it goes with what hangs on it by cascade.
+					-- Send holds this row lock until its mail and event commit. Take
+					-- it before cleanup so those copies cannot arrive after it.
+					PERFORM 1 FROM care_contract.contracts AS contract
+					WHERE contract.school_id = ANY (hidden_schools)
+					ORDER BY contract.id
+					FOR UPDATE;
 					DELETE FROM platform.email_outbox AS outbox
 					USING care_contract.contracts AS contract
 					WHERE contract.school_id = ANY (hidden_schools)
