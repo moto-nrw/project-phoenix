@@ -232,7 +232,7 @@ export function PeriodSwitcherDropdown({
         </Button>
       )}
     >
-      {() => (
+      {({ close }) => (
         <>
           {showContextAssignments && view === "month" && (
             <MonthPeriodSummary
@@ -306,7 +306,7 @@ export function PeriodSwitcherDropdown({
                       <button
                         type="button"
                         onClick={() => {
-                          setOpen(false);
+                          close();
                           onSelect(p);
                         }}
                         className={`group relative min-w-0 flex-1 rounded-lg px-2 py-1.5 pr-8 text-left transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${

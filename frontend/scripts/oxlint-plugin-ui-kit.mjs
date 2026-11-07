@@ -27,7 +27,7 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     (`rounded-xl/2xl` + `border` + `bg-white`),
 //                                     in the kit except SURFACE_KIT_CONTROLS; use
 //                                     moto-content-surface (cards),
-//                                     moto-popover-surface (floating menus),
+//                                     AnchoredPopover or OverflowMenu (floating panels),
 //                                     ChoiceTile (selectable rows) or a kit
 //                                     surface component (issue #2933)
 //   ui-kit/no-rounded-3xl           — off-scale surface radius, also per
@@ -660,8 +660,7 @@ const noHandRolledSurface = {
     },
     messages: {
       handRolledSurface:
-        // oxlint-disable-next-line ui-kit/no-hand-rolled-popover -- Text der Regelmeldung, keine Fläche
-        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), moto-popover-surface (floating menus), ChoiceTile (selectable rows and tiles) or a kit surface component (SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
+        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), AnchoredPopover or OverflowMenu (floating panels), ChoiceTile (selectable rows and tiles) or a kit surface component (SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
     },
     schema: [],
   },
@@ -883,8 +882,7 @@ const noDeadSurfaceUtility = {
           tokens: tokens.join(" "),
           surface: CONTENT_SURFACE_RE.test(text)
             ? "moto-content-surface"
-            : // oxlint-disable-next-line ui-kit/no-hand-rolled-popover -- Text der Regelmeldung, keine Fläche
-              "moto-popover-surface",
+            : "AnchoredPopover",
         },
       });
     };

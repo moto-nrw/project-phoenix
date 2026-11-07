@@ -41,6 +41,9 @@ describe("TimetableAddMenu", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Neu" })).toBeDisabled();
+    const trigger = screen.getByRole("button", { name: "Neu" });
+    expect(trigger).toBeDisabled();
+    fireEvent.click(trigger);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 });

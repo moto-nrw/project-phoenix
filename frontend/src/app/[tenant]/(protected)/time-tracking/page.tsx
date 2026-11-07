@@ -608,8 +608,6 @@ function ClockInCard({
   // Mutex to prevent race condition in auto-end break effect
   const autoEndInFlightRef = useRef(false);
   const autoEndAttemptedBreakIdRef = useRef<string | null>(null);
-  // Anchor for the desktop break-duration popover; dismissal is handled by
-  // document listeners scoped to this subtree (see effect below).
 
   const isCheckedIn =
     currentSession !== null && currentSession.checkOutTime === null;
@@ -1061,7 +1059,11 @@ function ClockInCard({
                         aria-label="Pause starten"
                         aria-expanded={breakMenuOpen}
                         aria-haspopup="dialog"
-                        aria-controls={breakMenuOpen ? panelId : undefined}
+                        aria-controls={
+                          showBreakDurationPicker && !isMobileViewport
+                            ? panelId
+                            : undefined
+                        }
                       >
                         <svg
                           className="h-5 w-5"

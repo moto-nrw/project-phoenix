@@ -298,7 +298,11 @@ export function OverflowMenu({
       // last table row) drops the menu below the fold, where the first scroll
       // attempt immediately closes it via the scroll listener. Anchoring by
       // `bottom` needs no exact height — only the flip decision estimates one.
-      const estimatedMenuHeight = items.length * 40 + 16;
+      const describedEntries = items.filter(
+        (entry) => "description" in entry && entry.description,
+      ).length;
+      const estimatedMenuHeight =
+        items.length * 40 + describedEntries * 20 + 16;
       const roomAbove = Math.max(0, rect.top - gap - viewportInset);
       const roomBelow = Math.max(
         0,
@@ -407,6 +411,14 @@ export function OverflowMenu({
     if (next === undefined) return;
     event.preventDefault();
     entries[next]?.focus();
+  };
+
+  // Ein Link reagiert von sich aus nur auf Enter; als Menüeintrag auch auf die
+  // Leertaste wie seine Nachbarn.
+  const onLinkKey = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== " ") return;
+    event.preventDefault();
+    event.currentTarget.click();
   };
 
   const onItemKey =
@@ -640,6 +652,7 @@ export function OverflowMenu({
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={onLinkActivate}
+                        onKeyDown={onLinkKey}
                         className={itemClassName}
                       >
                         {inner}
@@ -656,6 +669,7 @@ export function OverflowMenu({
                       tabIndex={0}
                       href={item.href}
                       onClick={onLinkActivate}
+                      onKeyDown={onLinkKey}
                       className={itemClassName}
                     >
                       {inner}

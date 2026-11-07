@@ -58,7 +58,7 @@ describe("GapJumpList", () => {
     fireEvent.click(trigger);
 
     const panel = screen.getByRole("dialog", { name: "Offene Lücken" });
-    expect(panel).toHaveFocus();
+    expect(panel).toContainElement(document.activeElement as HTMLElement);
     fireEvent.keyDown(panel, { key: "Escape" });
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

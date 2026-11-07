@@ -173,7 +173,7 @@ describe("AnchoredPopover", () => {
 
   it("keeps header and footer outside the scrolling content", () => {
     function Slots() {
-      const [open, setOpen] = useState(true);
+      const [open, setOpen] = useState(false);
       return (
         <AnchoredPopover
           open={open}
@@ -192,7 +192,6 @@ describe("AnchoredPopover", () => {
       );
     }
     render(<Slots />);
-    fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
     fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
 
     const panel = screen.getByRole("dialog", { name: "Mit Kopf" });
@@ -246,6 +245,32 @@ describe("AnchoredPopover", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it("returns to the trigger when Tab reaches the edge of the content", () => {
+    render(<FocusPopover />);
+    const trigger = screen.getByRole("button", { name: "Öffnen" });
+    fireEvent.click(trigger);
+    const inner = screen.getByRole("button", { name: "Im Rahmen" });
+
+    inner.focus();
+    fireEvent.keyDown(inner, { key: "Tab" });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("toggles from the trigger while a swallowing popover is open", () => {
+    render(<FocusPopover swallowOutsideClick />);
+    const trigger = screen.getByRole("button", { name: "Öffnen" });
+
+    fireEvent.click(trigger);
+    expect(
+      screen.getByRole("dialog", { name: "Mit Fokus" }),
+    ).toBeInTheDocument();
+    fireEvent.click(trigger);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("consumes the outside click that closes a swallowing popover", () => {

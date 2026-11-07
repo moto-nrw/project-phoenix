@@ -4,6 +4,7 @@ import { Z_INDEX } from "./overlay-styles";
 import {
   type CSSProperties,
   type HTMLAttributes,
+  type KeyboardEvent,
   type ReactNode,
   type RefObject,
   useCallback,
@@ -21,6 +22,8 @@ const VIEWPORT_MARGIN = 8;
 const PANEL_GAP = 4;
 const DEFAULT_MAX_HEIGHT = 420;
 const DEFAULT_PORTAL_SCOPE = '[data-date-picker-focus-trap="true"]';
+const TABBABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]';
 
 interface AnchoredPopoverProps {
   readonly open: boolean;
@@ -89,6 +92,7 @@ export function AnchoredPopover({
   const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const hasFocusedOnOpenRef = useRef(false);
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
   const portalContainer =
@@ -212,9 +216,24 @@ export function AnchoredPopover({
     if (!panelStyle || hasFocusedOnOpenRef.current) return;
 
     if (initialFocusRef?.current) initialFocusRef.current.focus();
-    else if (focusPanelOnOpen) panelRef.current?.focus();
+    // Mit Kopf oder Fuß scrollt der Inhalt: Dort liegt der Fokus, damit die
+    // Pfeiltasten die Liste bewegen und nicht die Seite dahinter.
+    else if (focusPanelOnOpen) (bodyRef.current ?? panelRef.current)?.focus();
     hasFocusedOnOpenRef.current = true;
   }, [focusPanelOnOpen, initialFocusRef, open, panelStyle]);
+
+  // Der Rahmen liegt am Ende des Dokuments. Am Rand des Inhalts führt die
+  // Tab-Taste deshalb zurück zum Auslöser, statt aus der Seite zu laufen.
+  const leavePanelOnTab = (event: KeyboardEvent<HTMLDivElement>) => {
+    const entries = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR),
+    );
+    const index = entries.indexOf(document.activeElement as HTMLElement);
+    const atEdge = event.shiftKey ? index <= 0 : index === entries.length - 1;
+    if (!atEdge) return;
+    if (event.shiftKey) event.preventDefault();
+    close();
+  };
 
   const hasSlots = header != null || footer != null;
   const content =
@@ -236,6 +255,10 @@ export function AnchoredPopover({
         data-overflow-menu-scope="true"
         {...panelHandlers}
         onKeyDown={(event) => {
+          if (event.key === "Tab" && focusPanelOnOpen) {
+            leavePanelOnTab(event);
+            return;
+          }
           if (event.key !== "Escape") return;
           event.preventDefault();
           event.stopPropagation();
@@ -258,7 +281,11 @@ export function AnchoredPopover({
                 {header}
               </div>
             ) : null}
-            <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain">
+            <div
+              ref={bodyRef}
+              tabIndex={-1}
+              className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain focus:outline-none"
+            >
               {content}
             </div>
             {footer != null ? (

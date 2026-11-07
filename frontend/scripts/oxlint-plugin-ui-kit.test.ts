@@ -585,7 +585,8 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
       }
       void Probe;
     `,
-      "src/probe.tsx",
+      // moto-popover-surface steht seit #5601 nur noch im Kit.
+      "src/components/ui/probe.tsx",
     );
     const output = result.output;
 

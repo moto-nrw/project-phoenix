@@ -683,4 +683,19 @@ describe("OverflowMenu", () => {
       screen.getByRole("menuitem", { name: "Schule B" }).querySelector("svg"),
     ).toBeNull();
   });
+
+  it("activates a link entry with the space bar", () => {
+    const onClick = vi.fn();
+    render(
+      <OverflowMenu items={[{ label: "Ziel", href: "/ziel", onClick }]} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Ziel" }), {
+      key: " ",
+    });
+
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
 });

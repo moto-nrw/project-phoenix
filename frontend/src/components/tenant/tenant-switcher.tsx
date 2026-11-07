@@ -246,7 +246,6 @@ export function BrandTenantSwitcher({
     for (const t of orgTenants) {
       menuItems.push({
         label: t.name,
-        disabled: isSwitching,
         onClick: () => void handleSwitch(t),
       });
     }

@@ -210,22 +210,26 @@ export function StudentStatusActionsMenu({
       ariaLabel="Weitere Statusaktionen"
       disabled={isLoading}
       wrapperClassName="h-full shrink-0"
-      triggerClassName="moto-content-surface moto-hover-elevated h-full min-h-[116px] w-full rounded-2xl border text-gray-500 transition-all hover:text-gray-700 active:scale-[0.97] disabled:opacity-50 sm:min-h-[140px] sm:w-16"
+      triggerClassName="moto-hover-elevated h-full min-h-[116px] w-full rounded-2xl disabled:opacity-50 sm:min-h-[140px] sm:w-16"
       triggerContent={
-        isLoading ? (
-          <SpinnerIcon className="h-5 w-5" />
-        ) : (
-          // Auf dem Telefon ist das eine Karte so gross wie ihre Nachbarn --
-          // drei Punkte allein sagen darin nichts. Neben den schmalen
-          // Streifen auf dem Desktop passt kein Wort, dort bleibt es beim
-          // Symbol.
-          <span className="flex flex-col items-center gap-3">
-            <MoreVertical className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
-            <span className="text-base font-semibold text-gray-900 sm:hidden">
-              Weitere
+        // Die Fläche sitzt innen: Ihr Schatten überdeckte sonst den Fokusring
+        // des Auslösers.
+        <span className="moto-content-surface flex size-full items-center justify-center rounded-2xl border text-gray-500 transition-colors hover:text-gray-700">
+          {isLoading ? (
+            <SpinnerIcon className="h-5 w-5" />
+          ) : (
+            // Auf dem Telefon ist das eine Karte so gross wie ihre Nachbarn --
+            // drei Punkte allein sagen darin nichts. Neben den schmalen
+            // Streifen auf dem Desktop passt kein Wort, dort bleibt es beim
+            // Symbol.
+            <span className="flex flex-col items-center gap-3">
+              <MoreVertical className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
+              <span className="text-base font-semibold text-gray-900 sm:hidden">
+                Weitere
+              </span>
             </span>
-          </span>
-        )
+          )}
+        </span>
       }
       items={[
         {
