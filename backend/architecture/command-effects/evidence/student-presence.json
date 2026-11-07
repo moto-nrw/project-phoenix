@@ -11633,6 +11633,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordAttendances",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordAttendances",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordCombination",
       "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordCombination",
@@ -11665,6 +11673,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordGroups",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordGroups",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordPrivacyConsent",
       "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordPrivacyConsent",
@@ -11684,6 +11700,14 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordVisit",
       "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordVisit",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordVisits",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordVisits",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
       "target_owner": "tenant-runtime"

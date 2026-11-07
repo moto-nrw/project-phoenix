@@ -64,6 +64,7 @@ type Store interface {
 	VisitStore
 	GroupSessionStore
 	PrivacyConsentStore
+	PastPresenceStore
 	LatestPresenceDate(context.Context, int64) (*string, Stats, error)
 	CountAttendanceRecords(context.Context, int64) (int, Stats, error)
 	CountStudentVisitsForDeletion(context.Context, int64) (int, Stats, error)
