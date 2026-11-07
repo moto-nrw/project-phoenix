@@ -191,6 +191,9 @@ func (s *Intake) LoadPhasePreviewCareOfferings(ctx context.Context, phaseID int6
 		func(ctx context.Context) (*enrollmentNative.Phase, error) {
 			phase, err := s.intakePhase(ctx, phaseID)
 			if err != nil {
+				if s.deps.Runtime.NotFound(err) {
+					return nil, enrollmentNative.ErrPhaseNotFound
+				}
 				return nil, err
 			}
 			narrowOfferedClassesToEligibleForForm(phase)

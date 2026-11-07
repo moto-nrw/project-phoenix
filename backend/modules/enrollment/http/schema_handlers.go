@@ -157,14 +157,16 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 		return rs.loadSchemaPreview(ctx, schemaID, phaseID, &loaded)
 	})
 	if err != nil {
-		// A missing schema id is the caller's problem (404); everything
-		// else (phase listing, DB failures) is a genuine 500 — rendering
-		// those as 400 would hide internal failures behind client blame.
-		if errors.Is(err, capability.ErrFormSchemaNotFound) {
+		// Missing preview targets are 404; phase listing and DB failures
+		// remain 500 so internal failures are not blamed on the caller.
+		switch {
+		case errors.Is(err, capability.ErrFormSchemaNotFound):
 			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentSchemaNotFound))
-			return
+		case errors.Is(err, capability.ErrPhaseNotFound):
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
