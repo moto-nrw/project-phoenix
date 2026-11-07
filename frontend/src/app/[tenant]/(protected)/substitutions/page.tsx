@@ -329,28 +329,19 @@ function LabeledSelect({
   options: Array<{ id: string; name: string }>;
 }>) {
   return (
-    <div>
-      <label
-        id={`${id}-label`}
-        htmlFor={id}
-        className="mb-2 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <CustomSelect
-        id={id}
-        name={name}
-        invalid={invalid}
-        ariaLabelledBy={`${id}-label`}
-        value={value}
-        onChange={onChange}
-        placeholder={`${label} auswählen...`}
-        options={options.map((option) => ({
-          value: option.id,
-          label: option.name,
-        }))}
-      />
-    </div>
+    <CustomSelect
+      id={id}
+      name={name}
+      label={label}
+      invalid={invalid}
+      value={value}
+      onChange={onChange}
+      placeholder={`${label} auswählen...`}
+      options={options.map((option) => ({
+        value: option.id,
+        label: option.name,
+      }))}
+    />
   );
 }
 
@@ -373,23 +364,16 @@ function LabeledDate({
   onChange: (value: string) => void;
 }>) {
   return (
-    <div>
-      <label
-        htmlFor={id}
-        className="mb-2 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <Input
-        id={id}
-        name={name}
-        error={error}
-        type="date"
-        min={min}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </div>
+    <Input
+      id={id}
+      name={name}
+      label={label}
+      error={error}
+      type="date"
+      min={min}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
   );
 }
 

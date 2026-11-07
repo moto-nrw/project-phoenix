@@ -94,26 +94,17 @@ function SupervisorSelect({
   setSelectedStaffId: (value: string) => void;
 }) {
   return (
-    <div>
-      <label
-        id="additional-supervisor-label"
-        htmlFor="additional-supervisor"
-        className="mb-2 block text-sm font-medium text-gray-700"
-      >
-        Betreuer auswählen
-      </label>
-      <CustomSelect
-        id="additional-supervisor"
-        ariaLabelledBy="additional-supervisor-label"
-        value={selectedStaffId}
-        onChange={setSelectedStaffId}
-        placeholder="Person auswählen..."
-        options={targets.map((target) => ({
-          value: target.id,
-          label: supervisionTargetLabel(target),
-        }))}
-      />
-    </div>
+    <CustomSelect
+      id="additional-supervisor"
+      label="Betreuer auswählen"
+      value={selectedStaffId}
+      onChange={setSelectedStaffId}
+      placeholder="Person auswählen..."
+      options={targets.map((target) => ({
+        value: target.id,
+        label: supervisionTargetLabel(target),
+      }))}
+    />
   );
 }
 
