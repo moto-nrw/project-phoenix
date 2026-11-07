@@ -66,7 +66,10 @@ export function PushInstallSteps({
             </span>
             <InsetPanel
               padding="compact"
-              className="flex min-w-0 flex-1 items-start gap-2"
+              className={cn(
+                "flex min-w-0 flex-1 items-start gap-2",
+                !compact && "py-2.5",
+              )}
             >
               <StepIcon
                 className="mt-0.5 h-5 w-5 shrink-0 text-gray-600"
