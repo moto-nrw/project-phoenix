@@ -40,6 +40,14 @@ describe("Loading", () => {
     expect(output.className).toContain("min-h-40");
   });
 
+  it("renders compactly in a bounded inline region", () => {
+    render(<Loading compact />);
+
+    const output = screen.getByLabelText("Lädt...");
+    expect(output).toHaveClass("min-h-0", "py-3");
+    expect(output).not.toHaveClass("fixed", "min-h-40", "py-8");
+  });
+
   it("allows an inline loading region to preserve its layout height", () => {
     render(<Loading fullPage={false} className="h-full min-h-[240px]" />);
 

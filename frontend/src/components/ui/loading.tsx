@@ -11,17 +11,23 @@ import { SpinnerIcon } from "~/components/ui/icons";
 interface LoadingProps {
   readonly message?: string;
   readonly fullPage?: boolean;
+  /** Kompakte Zeile für einen begrenzten Bereich wie einen Picker. */
+  readonly compact?: boolean;
   readonly className?: string;
 }
 
 export function Loading({
   message = "Lädt...",
   fullPage = true,
+  compact = false,
   className,
 }: LoadingProps) {
-  const containerClasses = fullPage
-    ? `fixed inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm ${Z_LAYER.sheet}`
-    : "flex min-h-40 items-center justify-center py-8";
+  const containerClasses =
+    fullPage && !compact
+      ? `fixed inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm ${Z_LAYER.sheet}`
+      : compact
+        ? "flex min-h-0 items-center justify-center py-3"
+        : "flex min-h-40 items-center justify-center py-8";
 
   return (
     <output
