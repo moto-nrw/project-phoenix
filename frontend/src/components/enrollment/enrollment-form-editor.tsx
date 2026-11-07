@@ -2142,9 +2142,7 @@ function UnsavedChangesDialog({
           : "Sie haben Änderungen an dieser Vorlage. Speichern Sie sie, bevor Sie den Bereich verlassen, oder verwerfen Sie sie bewusst."}
       </p>
       {saveBlockedMessage ? (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-4 rounded-lg border px-3 py-2 text-sm font-medium">
-          {saveBlockedMessage}
-        </div>
+        <Alert type="warning" message={saveBlockedMessage} className="mt-4" />
       ) : null}
     </Modal>
   );
@@ -2978,7 +2976,7 @@ function AGBTemplateSourceEditor({
           />
         </div>
       ) : (
-        <div className="border-moto-blue/20 bg-moto-blue/5 rounded-xl border p-3">
+        <InsetPanel framed padding="sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900">PDF-Datei</p>
@@ -3046,7 +3044,7 @@ function AGBTemplateSourceEditor({
               PDF wird hochgeladen...
             </p>
           ) : null}
-        </div>
+        </InsetPanel>
       )}
     </div>
   );

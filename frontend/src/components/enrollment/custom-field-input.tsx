@@ -1,6 +1,7 @@
 "use client";
 
 import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
+import { Alert } from "~/components/ui/alert";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -20,17 +21,21 @@ type FieldInputTranslator = (key: string) => string;
  */
 export function InfoBlock({ field }: { readonly field: FormField }) {
   return (
-    <div className="border-moto-blue/20 bg-moto-blue/5 rounded-lg border p-3">
-      {field.label && (
-        <p className="text-sm font-semibold text-gray-900">{field.label}</p>
-      )}
-      {field.content && (
-        <p className="mt-1 text-sm leading-6 whitespace-pre-line text-gray-600">
-          {field.content}
-        </p>
-      )}
-      <DocumentAttachmentList attachments={field.attachments} />
-    </div>
+    <Alert
+      type="info"
+      announce="off"
+      message={
+        <>
+          {field.label && <p className="font-semibold">{field.label}</p>}
+          {field.content && (
+            <p className="mt-1 leading-6 whitespace-pre-line first:mt-0">
+              {field.content}
+            </p>
+          )}
+          <DocumentAttachmentList attachments={field.attachments} />
+        </>
+      }
+    />
   );
 }
 
