@@ -34,6 +34,12 @@ describe("Alert", () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it("renders a numeric message of zero", () => {
+    render(<Alert type="info" message={0} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("0");
+  });
+
   it("renders an optional action next to the message", () => {
     render(
       <Alert

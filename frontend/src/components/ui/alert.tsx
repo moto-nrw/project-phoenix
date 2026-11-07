@@ -74,7 +74,7 @@ export function Alert({
   style,
   ...props
 }: Readonly<AlertProps>) {
-  if (!message) return null;
+  if (message === null || message === undefined || message === "") return null;
   const compact = size === "compact";
   const isAssertive = type === "error" || type === "warning";
   const announcement = announce ?? (isAssertive ? "assertive" : "polite");
