@@ -58,13 +58,72 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
   // Sentry's global error handler can use the current page URL as a
   // stack-frame filename when an error has no parsed frames.
   for (const exception of event.exception?.values ?? []) {
+    if (typeof exception.value === "string") {
+      exception.value = scrubText(exception.value);
+    }
     for (const frame of exception.stacktrace?.frames ?? []) {
       if (frame.filename) frame.filename = redactFeedToken(frame.filename);
       if (frame.abs_path) frame.abs_path = redactFeedToken(frame.abs_path);
     }
   }
+  scrubTexts(event);
 
   return event;
+}
+
+/**
+ * The free texts of an event: its message, the log entry, extra data,
+ * contexts and tags. An error text or a URL in any of them may name a feed
+ * or signing link (#4679), so every string in them is scrubbed.
+ */
+function scrubTexts(event: Event): void {
+  if (typeof event.message === "string") {
+    event.message = scrubText(event.message);
+  }
+  if (event.logentry) {
+    if (typeof event.logentry.message === "string") {
+      event.logentry.message = scrubText(event.logentry.message);
+    }
+    if (Array.isArray(event.logentry.params)) {
+      event.logentry.params = event.logentry.params.map((param: unknown) =>
+        scrubDeep(param, new WeakSet()),
+      );
+    }
+  }
+  if (event.extra) {
+    event.extra = scrubDeep(event.extra, new WeakSet()) as Event["extra"];
+  }
+  if (event.contexts) {
+    event.contexts = scrubDeep(
+      event.contexts,
+      new WeakSet(),
+    ) as Event["contexts"];
+  }
+  if (event.tags) {
+    event.tags = scrubDeep(event.tags, new WeakSet()) as Event["tags"];
+  }
+}
+
+// scrubDeep scrubs every string at any depth of plain objects and lists, in
+// place; other values stay.
+function scrubDeep(value: unknown, seen: WeakSet<object>): unknown {
+  if (typeof value === "string") {
+    return scrubText(value);
+  }
+  if (!isRecord(value) || seen.has(value)) {
+    return value;
+  }
+  seen.add(value);
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index++) {
+      value[index] = scrubDeep(value[index], seen);
+    }
+    return value;
+  }
+  for (const [key, nested] of Object.entries(value)) {
+    value[key] = scrubDeep(nested, seen);
+  }
+  return value;
 }
 
 /** A browser fetch with no HTTP response is not a defect owned by the client. */
@@ -245,6 +304,9 @@ function scrubUrls(event: Event): void {
       event.request.url = scrubUrl(event.request.url);
     }
     delete event.request.query_string;
+    if (event.request.data !== undefined) {
+      event.request.data = scrubDeep(event.request.data, new WeakSet());
+    }
     const headers = event.request.headers;
     for (const name of Object.keys(headers ?? {})) {
       const value = headers?.[name];

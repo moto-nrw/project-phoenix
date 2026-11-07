@@ -684,3 +684,111 @@ it.each([
   });
   expect(JSON.stringify(scrubSpan(span))).not.toContain("signing-credential");
 });
+
+// The secret part of a care contract's one-time link (#4679): it must reach
+// Sentry in no field. One case per field, each red when that field is sent
+// unscrubbed.
+const signingToken = "geheimes-signier-token-0123456789";
+const signingUrl = `https://parents.example/vertrag-unterschreiben/7.${signingToken}`;
+const signingApiPath = `/api/public/care-contract-signing/7.${signingToken}/sign`;
+
+describe("scrubEvent redacts signing tokens", () => {
+  const cases: [string, () => ErrorEvent, (event: ErrorEvent) => unknown][] = [
+    [
+      "message",
+      () => makeEvent({ message: `POST ${signingApiPath} failed` }),
+      (event) => event.message,
+    ],
+    [
+      "log entry",
+      () =>
+        makeEvent({
+          logentry: { message: `open ${signingUrl}`, params: [signingApiPath] },
+        }),
+      (event) => event.logentry,
+    ],
+    [
+      "exception value",
+      () =>
+        makeEvent({
+          exception: {
+            values: [
+              { type: "Error", value: `fetch ${signingApiPath} failed` },
+            ],
+          },
+        }),
+      (event) => event.exception?.values?.[0]?.value,
+    ],
+    [
+      "breadcrumb message",
+      () => makeEvent({ breadcrumbs: [{ message: `navigate ${signingUrl}` }] }),
+      (event) => event.breadcrumbs?.[0]?.message,
+    ],
+    [
+      "breadcrumb data",
+      () => makeEvent({ breadcrumbs: [{ data: { url: signingUrl } }] }),
+      (event) => event.breadcrumbs?.[0]?.data,
+    ],
+    [
+      "request url",
+      () => makeEvent({ request: { url: signingUrl } }),
+      (event) => event.request?.url,
+    ],
+    [
+      "request query",
+      () =>
+        makeEvent({
+          request: {
+            url: "https://parents.example/",
+            query_string: signingUrl,
+          },
+        }),
+      (event) => event.request,
+    ],
+    [
+      "request data",
+      () =>
+        makeEvent({
+          request: {
+            url: "https://parents.example/",
+            data: { back: signingUrl },
+          },
+        }),
+      (event) => event.request?.data,
+    ],
+    [
+      "extra",
+      () =>
+        makeEvent({
+          extra: { link: signingUrl, nested: { list: [signingApiPath] } },
+        }),
+      (event) => event.extra,
+    ],
+    [
+      "contexts",
+      () => makeEvent({ contexts: { page: { url: signingUrl } } }),
+      (event) => event.contexts,
+    ],
+    [
+      "tags",
+      () => makeEvent({ tags: { url: signingUrl } }),
+      (event) => event.tags,
+    ],
+  ];
+
+  it.each(cases)("in the %s", (_field, build, read) => {
+    const result = scrubEvent(build());
+    if (result === null) throw new Error("expected event to be kept");
+    const sent = JSON.stringify(read(result) ?? null);
+    expect(sent).not.toContain(signingToken);
+  });
+
+  it.each(cases.filter(([field]) => field !== "request query"))(
+    "and marks the %s as redacted",
+    (_field, build, read) => {
+      const result = scrubEvent(build());
+      if (result === null) throw new Error("expected event to be kept");
+      expect(JSON.stringify(read(result))).toContain("[REDACTED]");
+    },
+  );
+});
