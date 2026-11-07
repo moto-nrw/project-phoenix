@@ -77,6 +77,10 @@ const SIDE_EFFECT_TARGETS: ReadonlySet<string> = new Set([
 
 /** Texte der Sprechblase, wenn die Stelle fehlt (Wizards, setup-tours.ts). */
 const TARGET_MISSING = "Diese Stelle ist gerade nicht zu sehen.";
+// Beim ersten Aufruf einer noch nicht besuchten Route kompiliert der
+// Entwicklungsserver die Seite. Die Navigation selbst bleibt der Nachweis;
+// nur das Eintreffen darf nicht schon nach zehn Sekunden als fehlend gelten.
+const NAVIGATION_TIMEOUT = 30_000;
 
 /** Die Sprechblase der Tour, auch solange sie die nächste Stelle sucht. */
 function tourBubble(page: Page): Locator {
@@ -345,7 +349,9 @@ async function expectNavigation(
   const arrived = () => new URL(page.url()).pathname === target;
   const waitForArrival = () =>
     page
-      .waitForURL((url) => url.pathname === target, { timeout: 10_000 })
+      .waitForURL((url) => url.pathname === target, {
+        timeout: NAVIGATION_TIMEOUT,
+      })
       .catch(() => undefined);
   await waitForArrival();
   if (!arrived() && (await link.isVisible())) {

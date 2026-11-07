@@ -4,6 +4,7 @@
 // happen (per-class counts, Abgänge, unmapped classes) and requires an
 // explicit second confirmation before applying.
 
+import { Alert } from "~/components/ui/alert";
 import { FramedList } from "~/components/ui/framed-list";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
@@ -215,33 +216,27 @@ export function TransitionPreviewModal({
                 </FramedList>
 
                 {preview.toGraduate > 0 && (
-                  <div className="border-moto-red/30 bg-moto-red/5 rounded-xl border p-3 text-sm text-gray-800">
-                    <p className="text-moto-red font-semibold">
-                      {preview.toGraduate}{" "}
-                      {preview.toGraduate === 1
+                  <Alert
+                    type="warning"
+                    announce="off"
+                    title={`${preview.toGraduate} ${
+                      preview.toGraduate === 1
                         ? "Kind verlässt die OGS"
-                        : "Kinder verlassen die OGS"}
-                    </p>
-                    <p className="mt-1">
-                      Diese Kinder werden nach dem Anwenden in der App nicht
-                      mehr angezeigt. Über Zurücksetzen lässt sich das
-                      wiederherstellen.
-                    </p>
-                  </div>
+                        : "Kinder verlassen die OGS"
+                    }`}
+                    message="Diese Kinder werden nach dem Anwenden in der App nicht mehr angezeigt. Über Zurücksetzen lässt sich das wiederherstellen."
+                  />
                 )}
 
                 {preview.unmappedClasses.length > 0 && (
-                  <div className="border-moto-orange/30 bg-moto-orange/5 rounded-xl border p-3 text-sm text-gray-800">
-                    <p className="text-moto-orange font-semibold">
-                      Nicht berücksichtigte Klassen
-                    </p>
-                    <p className="mt-1">
-                      {preview.unmappedClasses
-                        .map((u) => `${u.className} (${u.studentCount})`)
-                        .join(", ")}{" "}
-                      bleiben unverändert.
-                    </p>
-                  </div>
+                  <Alert
+                    type="warning"
+                    announce="off"
+                    title="Nicht berücksichtigte Klassen"
+                    message={`${preview.unmappedClasses
+                      .map((u) => `${u.className} (${u.studentCount})`)
+                      .join(", ")} bleiben unverändert.`}
+                  />
                 )}
 
                 <FormErrorAlert message={applyError} />

@@ -1,7 +1,7 @@
 import { useId, type ComponentProps, type ReactNode } from "react";
 
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
-import { RequiredMark } from "~/components/ui/field-label";
+import { SectionLabel } from "~/components/ui/section-label";
 import { cn } from "~/lib/utils";
 
 /**
@@ -50,10 +50,9 @@ export function FormFieldset({
       )}
       {...rest}
     >
-      <legend className="px-1 text-sm font-medium text-gray-700">
+      <SectionLabel as="legend" required={required} className="px-1">
         {legend}
-        {required && <RequiredMark />}
-      </legend>
+      </SectionLabel>
       {hint ? (
         <p id={hintId} className="mb-2 text-xs leading-5 text-gray-500">
           {hint}
