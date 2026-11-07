@@ -10,9 +10,6 @@ import {
 
 const logger = createLogger({ component: "EnrollmentFormSchemaAPI" });
 
-/** Query parameter that carries a late-invite token on the public form link. */
-export const LATE_INVITE_QUERY_PARAM = "late_invite";
-
 /** Field types accepted by the backend FormFieldType enum. */
 export type FormFieldType =
   | "boolean"
@@ -443,7 +440,7 @@ export async function fetchPublicLegalTexts(
   const params = new URLSearchParams();
   if (phaseId) params.set("phaseId", phaseId);
   if (options.lateInviteToken?.trim()) {
-    params.set(LATE_INVITE_QUERY_PARAM, options.lateInviteToken.trim());
+    params.set("late_invite", options.lateInviteToken.trim());
   }
   const query = params.toString();
   const url = query ? `${path}?${query}` : path;
@@ -469,7 +466,7 @@ export async function fetchPublicActiveSchema(
   )}/${encodeURIComponent(phaseId)}`;
   const trimmedToken = options.lateInviteToken?.trim();
   const url = trimmedToken
-    ? `${path}?${LATE_INVITE_QUERY_PARAM}=${encodeURIComponent(trimmedToken)}`
+    ? `${path}?late_invite=${encodeURIComponent(trimmedToken)}`
     : path;
   const response = await sendEnrollmentRequest(url, { cache: "no-store" });
   if (response.status === 404) {
