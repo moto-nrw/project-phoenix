@@ -18,6 +18,7 @@ import {
 } from "~/components/enrollment/public-enrollment-shell";
 import { BackLink } from "~/components/ui/back-link";
 import { ButtonLink } from "~/components/ui/button";
+import { SectionCard } from "~/components/ui/section-card";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { fetchPhasePreviewBootstrap } from "~/lib/enrollment-phase-preview-api";
 import { useTenant } from "~/lib/tenant-context";
@@ -207,7 +208,7 @@ function EnrollmentPreviewPageContent() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
-          <div className="moto-content-surface rounded-2xl border p-5 sm:p-8">
+          <SectionCard>
             {phaseId ? (
               <BackLink
                 href={tenantPath("/enrollment-phases")}
@@ -237,7 +238,7 @@ function EnrollmentPreviewPageContent() {
                 ? "So sehen Eltern diese Anmeldephase mit ihren Betreuungsangeboten. Hier können Sie nichts absenden."
                 : "Hier sehen Sie nur die Fragen dieses Formulars. Die Betreuungsangebote fehlen hier. Sie sehen sie in der Vorschau einer Anmeldephase."}
             </p>
-          </div>
+          </SectionCard>
 
           {loading ? (
             <SkeletonRegion label="Vorschau wird geladen">
@@ -267,7 +268,7 @@ function EnrollmentPreviewPageContent() {
         </section>
 
         <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
-          <section className="moto-content-surface rounded-2xl border p-5">
+          <SectionCard>
             {loading ? (
               <Skeleton className="h-7 w-40" />
             ) : (
@@ -279,7 +280,7 @@ function EnrollmentPreviewPageContent() {
               {loading ? "" : `${previewStatus.hint} `}Diese Seite dient nur zur
               Prüfung des Formulars.
             </p>
-          </section>
+          </SectionCard>
 
           {phaseId ? null : (
             <PublicInfoCard
