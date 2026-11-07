@@ -85,6 +85,7 @@ import {
 } from "./guardian-notice-fields";
 import type { GuardianNoticeReach } from "~/lib/timetable-types";
 import { substitutionConcept } from "~/lib/concepts/substitution";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface StaffOption {
@@ -620,9 +621,10 @@ export function SubstitutionSlideOver({
                     <legend className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                       Aktion
                     </legend>
-                    <label
+                    <ChoiceTile
                       htmlFor="vp-action-edit"
-                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3"
+                      selected={!cancel}
+                      className="items-start gap-2 p-3 font-normal"
                     >
                       <Radio
                         id="vp-action-edit"
@@ -639,10 +641,11 @@ export function SubstitutionSlideOver({
                           pflegen.
                         </span>
                       </span>
-                    </label>
-                    <label
+                    </ChoiceTile>
+                    <ChoiceTile
                       htmlFor="vp-action-cancel"
-                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3"
+                      selected={cancel}
+                      className="items-start gap-2 p-3 font-normal"
                     >
                       <Radio
                         id="vp-action-cancel"
@@ -659,7 +662,7 @@ export function SubstitutionSlideOver({
                           unverändert.
                         </span>
                       </span>
-                    </label>
+                    </ChoiceTile>
                   </fieldset>
                 )}
 

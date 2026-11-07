@@ -96,6 +96,7 @@ import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
 import { childrenConcept } from "~/lib/concepts/children";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -1658,10 +1659,7 @@ function CareOfferingWeekdayFields({
   const pickupTimesRequired = draft.is_active && draft.counts_as_care;
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Wochentage
-      </legend>
+    <FormFieldset legend="Wochentage">
       <div className="flex flex-wrap gap-2">
         {WEEKDAY_KEYS.map((day) => {
           const active = draft.available_days.includes(day);
@@ -1727,7 +1725,7 @@ function CareOfferingWeekdayFields({
           hint="Sonst gilt das Angebot für den gesamten gewählten Rhythmus."
         />
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -1782,10 +1780,7 @@ function CareOfferingAutomationFields({
   );
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Betreuungstage & Mitbuchung
-      </legend>
+    <FormFieldset legend="Betreuungstage & Mitbuchung">
       <div className="space-y-4">
         <CheckboxCard
           checked={draft.counts_as_care}
@@ -1874,7 +1869,7 @@ function CareOfferingAutomationFields({
           </p>
         </div>
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -1929,10 +1924,7 @@ function CareOfferingAvailabilityFields({
   const conflicts = countCareOfferingRuleConflicts(rule, bookingGradeCounts);
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Bedingungen für die Verfügbarkeit
-      </legend>
+    <FormFieldset legend="Bedingungen für die Verfügbarkeit">
       <CheckboxCard
         checked={rule !== null}
         onChange={(checked) =>
@@ -2142,7 +2134,7 @@ function CareOfferingAvailabilityFields({
           ) : null}
         </div>
       ) : null}
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -2227,10 +2219,7 @@ function CareOfferingDisplayFields({
   onChange: (patch: Partial<CareOfferingInput>) => void;
 }>) {
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Anzeige im Elternformular
-      </legend>
+    <FormFieldset legend="Anzeige im Elternformular">
       <div className="grid gap-2 sm:grid-cols-3">
         <CheckboxCard
           checked={draft.includes_holiday_care}
@@ -2263,7 +2252,7 @@ function CareOfferingDisplayFields({
           hint="Jedes Kind muss dieses Angebot wählen (ohne Platzbegrenzung)"
         />
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -2422,10 +2411,7 @@ function CareOfferingForm({
         placeholder="Kurz erklären, was Eltern hier auswählen."
       />
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Pflichtauswahl
-        </legend>
+      <FormFieldset legend="Pflichtauswahl">
         <p className="mt-1 mb-3 text-sm leading-6 text-gray-600">
           Angebote mit demselben Gruppennamen werden bei der Anmeldung gemeinsam
           geprüft. Verwenden Sie für eine Gruppe überall dieselbe Regel.
@@ -2480,7 +2466,7 @@ function CareOfferingForm({
             einer späteren Änderung gilt dann pro Tag ein Angebot.
           </p>
         )}
-      </fieldset>
+      </FormFieldset>
 
       <CareOfferingWeekdayFields draft={draft} onChange={update} />
 

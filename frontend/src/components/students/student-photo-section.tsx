@@ -12,6 +12,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { compressAvatar } from "~/lib/image-utils";
 import { createLogger } from "~/lib/logger";
 import type { Student } from "~/lib/student-helpers";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 const logger = createLogger({ component: "StudentPhotoSection" });
 
@@ -183,9 +184,10 @@ export function StudentPhotoSection({
         </div>
       </div>
 
-      <label
+      <ChoiceTile
         htmlFor="photo-consent"
-        className="moto-content-surface mt-4 flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+        selected={consentGiven}
+        className="mt-4 items-start p-3"
       >
         <Checkbox
           id="photo-consent"
@@ -209,7 +211,7 @@ export function StudentPhotoSection({
             </span>
           )}
         </div>
-      </label>
+      </ChoiceTile>
 
       {consentGiven ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
