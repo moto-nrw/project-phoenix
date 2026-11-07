@@ -851,44 +851,28 @@ export function PlannedStatusDaysModal({
                     Zeitraum
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label
-                        htmlFor="planned-status-range-start"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Von
-                      </label>
-                      <ISODatePicker
-                        id="planned-status-range-start"
-                        value={rangeStart}
-                        onChange={setRangeStart}
-                        calendarLayout="popover"
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="planned-status-range-end"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Bis
-                      </label>
-                      <ISODatePicker
-                        id="planned-status-range-end"
-                        value={rangeEnd}
-                        min={rangeStart || undefined}
-                        onChange={setRangeEnd}
-                        calendarLayout="popover"
-                        className="mt-1"
-                        error={
-                          hasInvalidRangeOrder
-                            ? "Das Bis-Datum darf nicht vor dem Von-Datum liegen."
-                            : hasRangeTooLong
-                              ? "Ein Zeitraum darf höchstens 366 Tage umfassen."
-                              : undefined
-                        }
-                      />
-                    </div>
+                    <ISODatePicker
+                      label="Von"
+                      id="planned-status-range-start"
+                      value={rangeStart}
+                      onChange={setRangeStart}
+                      calendarLayout="popover"
+                    />
+                    <ISODatePicker
+                      label="Bis"
+                      id="planned-status-range-end"
+                      value={rangeEnd}
+                      min={rangeStart || undefined}
+                      onChange={setRangeEnd}
+                      calendarLayout="popover"
+                      error={
+                        hasInvalidRangeOrder
+                          ? "Das Bis-Datum darf nicht vor dem Von-Datum liegen."
+                          : hasRangeTooLong
+                            ? "Ein Zeitraum darf höchstens 366 Tage umfassen."
+                            : undefined
+                      }
+                    />
                   </div>
                   {rangeDateKeys.length > 0 ? (
                     <p className="mt-2 text-sm text-gray-500">

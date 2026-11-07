@@ -434,29 +434,21 @@ function InfoDisplaysPageContent() {
               </div>
             }
           >
-            <div className="space-y-2">
-              <label
-                htmlFor="display-name"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Name des Displays
-              </label>
-              <Input
-                id="display-name"
-                name="name"
-                error={nameErrors.fieldError("name")}
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                placeholder="z. B. Eingangsbereich"
-                maxLength={100}
-              />
-              {!renameTarget && (
-                <p className="text-sm text-gray-500">
-                  Nach dem Erstellen wird der Link zum Dashboard genau einmal
-                  angezeigt.
-                </p>
-              )}
-            </div>
+            <Input
+              id="display-name"
+              name="name"
+              label="Name des Displays"
+              hint={
+                renameTarget
+                  ? undefined
+                  : "Nach dem Erstellen wird der Link zum Dashboard genau einmal angezeigt."
+              }
+              error={nameErrors.fieldError("name")}
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              placeholder="z. B. Eingangsbereich"
+              maxLength={100}
+            />
           </FormModal>
 
           {/* One-time token modal */}

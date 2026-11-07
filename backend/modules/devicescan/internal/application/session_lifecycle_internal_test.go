@@ -65,7 +65,10 @@ type lifecycleHeartbeatStub struct {
 	calls int
 }
 
-func (p *lifecycleHeartbeatStub) PingDevice(context.Context, string) error { p.calls++; return p.err }
+func (p *lifecycleHeartbeatStub) RecordDeviceHeartbeat(context.Context, string) error {
+	p.calls++
+	return p.err
+}
 
 func lifecycleForTest(store *lifecycleStoreStub, people *lifecyclePeopleStub) *sessionLifecycle {
 	return &sessionLifecycle{store: store, people: people, principals: fakePrincipals{device: testDevice()}, heartbeat: &lifecycleHeartbeatStub{}, clock: fakeClock{now: time.Now()}, logger: slog.Default()}

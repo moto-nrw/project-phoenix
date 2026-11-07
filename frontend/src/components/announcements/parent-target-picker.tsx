@@ -1,8 +1,9 @@
 "use client";
 
+import { FieldLabel } from "~/components/ui/field-label";
 import { FramedList } from "~/components/ui/framed-list";
 import { groups as groupsKeys } from "~/lib/swr/groups";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { summarizeTargets } from "~/components/announcements/announcement-meta";
 import type { FormError } from "~/components/ui/form-error";
@@ -149,6 +150,7 @@ export function ParentTargetPicker({
 
   // Students are too many to list, so this stays a debounced search; the chosen
   // children render as removable chips below it.
+  const fieldId = useId();
   const [studentSearch, setStudentSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -188,8 +190,6 @@ export function ParentTargetPicker({
     () => void retryStudentSearch(),
   );
 
-  const fieldLabel = "mb-1.5 block text-sm font-medium text-gray-700";
-
   return (
     <div className="space-y-4">
       <div>
@@ -224,9 +224,15 @@ export function ParentTargetPicker({
           <LoadErrorAlert error={lookupLoadError} />
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <span className={fieldLabel}>Klassen</span>
+              <FieldLabel
+                id={`${fieldId}-classes-label`}
+                htmlFor={`${fieldId}-classes`}
+              >
+                Klassen
+              </FieldLabel>
               <MultiSelect
-                ariaLabel="Klassen auswählen"
+                id={`${fieldId}-classes`}
+                ariaLabelledBy={`${fieldId}-classes-label`}
                 value={selectedClasses}
                 options={schoolClasses.map((c) => ({ value: c, label: c }))}
                 onChange={(values) => setCategory("class", values)}
@@ -239,9 +245,15 @@ export function ParentTargetPicker({
               />
             </div>
             <div>
-              <span className={fieldLabel}>Gruppen</span>
+              <FieldLabel
+                id={`${fieldId}-groups-label`}
+                htmlFor={`${fieldId}-groups`}
+              >
+                Gruppen
+              </FieldLabel>
               <MultiSelect
-                ariaLabel="Gruppen auswählen"
+                id={`${fieldId}-groups`}
+                ariaLabelledBy={`${fieldId}-groups-label`}
                 value={selectedGroups}
                 options={groups.map((g) => ({ value: g.id, label: g.name }))}
                 onChange={(values) => setCategory("group", values)}
@@ -254,9 +266,15 @@ export function ParentTargetPicker({
               />
             </div>
             <div>
-              <span className={fieldLabel}>AGs / Betreuung</span>
+              <FieldLabel
+                id={`${fieldId}-activities-label`}
+                htmlFor={`${fieldId}-activities`}
+              >
+                AGs / Betreuung
+              </FieldLabel>
               <MultiSelect
-                ariaLabel="AGs auswählen"
+                id={`${fieldId}-activities`}
+                ariaLabelledBy={`${fieldId}-activities-label`}
                 value={selectedActivities}
                 options={activities.map((a) => ({
                   value: a.id,
@@ -274,7 +292,9 @@ export function ParentTargetPicker({
           </div>
 
           <div>
-            <span className={fieldLabel}>Einzelne Kinder</span>
+            <FieldLabel htmlFor="announcement-student-search">
+              Einzelne Kinder
+            </FieldLabel>
             {selectedStudents.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2">
                 {selectedStudents.map((t) => (

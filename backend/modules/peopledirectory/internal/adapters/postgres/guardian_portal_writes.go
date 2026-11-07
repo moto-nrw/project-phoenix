@@ -168,6 +168,36 @@ func (s *GuardianStore) InsertPhone(ctx context.Context, guardianID int64, phone
 	return row.ID, stats, nil
 }
 
+// InsertPhones inserts the normalized replacement in input order, retaining
+// duplicate rows and using the caller's tenant transaction and database defaults.
+func (s *GuardianStore) InsertPhones(ctx context.Context, guardianID int64, phones []domain.GuardianPhoneRecord) (domain.OperationStats, error) {
+	if len(phones) == 0 {
+		return domain.OperationStats{}, nil
+	}
+	db, scope, err := s.tenantDB(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	rows := make([]guardianPhoneRow, len(phones))
+	for i, phone := range phones {
+		rows[i] = guardianPhoneRow{
+			TenantID: scope.TenantID, GuardianProfileID: guardianID, PhoneNumber: phone.PhoneNumber,
+			PhoneType: phone.PhoneType, Label: phone.Label, IsPrimary: phone.IsPrimary, Priority: phone.Priority,
+		}
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewInsert().Model(&rows).ModelTableExpr("users.guardian_phone_numbers").
+		Column("tenant_id", "guardian_profile_id", "phone_number", "phone_type", "label", "is_primary", "priority").
+		Returning("id").Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, wrapGuardianWriteError("add guardian phone", err)
+	}
+	stats.Rows = int64(len(rows))
+	return stats, nil
+}
+
 func (s *GuardianStore) UpdatePhoneNumber(ctx context.Context, phoneID int64, number string) (bool, domain.OperationStats, error) {
 	db, scope, err := s.tenantDB(ctx)
 	if err != nil {

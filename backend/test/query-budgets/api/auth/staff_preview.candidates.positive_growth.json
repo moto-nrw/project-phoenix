@@ -1,0 +1,6 @@
+{
+  "scenario": "api.auth.staff_preview.candidates.positive_growth",
+  "max": 5,
+  "exact": true,
+  "description": "GET /auth/staff-preview/candidates: route-sized real authenticated resource with tenant RLS and actual staff/name capabilities; complete 3/8 calendar staff fixtures and roles. No school-portal-only branch or host liveness claim."
+}

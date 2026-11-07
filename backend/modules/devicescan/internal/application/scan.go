@@ -284,7 +284,7 @@ func binaryModeGreeting(action, firstName string) string {
 func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDevice, student *ports.Student, person *ports.Person, command devicescan.ScanCommand) (*devicescan.ScanResult, error) {
 	now := s.now()
 
-	checkout, err := s.checkoutCurrentVisit(ctx, student, person)
+	checkout, err := s.checkoutCurrentVisit(ctx, student, person, command.RoomID)
 	if err != nil {
 		return nil, err
 	}

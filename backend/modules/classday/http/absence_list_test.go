@@ -185,6 +185,7 @@ func TestAbsenceListRetentionWindows(t *testing.T) {
 	for _, key := range []string{"gdpr.morning_attendance_retention_days", "gdpr.status_day_retention_days"} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
+			testpkg.OwnTenant(t)
 			f := setupMorningAttendanceFixture(t, morningMonday)
 			_, err := f.db.ExecContext(testpkg.Ctx(t), `INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES (?, ?, '31'::jsonb)`, f.tenantID, key)
 			require.NoError(t, err)

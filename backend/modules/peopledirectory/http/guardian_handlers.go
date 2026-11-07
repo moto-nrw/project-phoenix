@@ -230,13 +230,13 @@ func (rs *GuardianResource) guardianDeletePreview(w http.ResponseWriter, r *http
 		rs.failMessage(w, r, FailureForbidden, "only administrators can preview a full guardian delete")
 		return
 	}
-	if _, err := rs.directory.FindGuardian(r.Context(), id); err != nil {
-		rs.guardianLookupFailure(w, r, err)
-		return
-	}
 	impact, err := rs.directory.GuardianDeleteImpact(r.Context(), id)
 	if err != nil {
-		rs.moduleFailure(w, r, err)
+		if !impact.GuardianFound {
+			rs.guardianLookupFailure(w, r, err)
+		} else {
+			rs.moduleFailure(w, r, err)
+		}
 		return
 	}
 	rs.succeed(w, r, http.StatusOK, &GuardianDeletePreview{

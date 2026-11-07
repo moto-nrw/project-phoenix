@@ -1157,6 +1157,7 @@ func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLi
 		Attendance:           stubOpAttendance{},
 		Students:             stubOpStudents{},
 		People:               personSvc,
+		CallerStaff:          unavailableCallerStaff{},
 		EducationGroups:      stubOpEducationGroups{},
 		Rooms:                stubOpRooms{},
 		BlockMetadata:        stubOpBlockMetadata{},
@@ -1170,6 +1171,12 @@ func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLi
 	}, personSvc)
 	require.NoError(t, err)
 	return operations
+}
+
+type unavailableCallerStaff struct{}
+
+func (unavailableCallerStaff) StaffID(context.Context) (int64, error) {
+	return 0, timetable.ErrTimetableOperationForbidden
 }
 
 // testRequestSession reads the operational day's session from the claims and

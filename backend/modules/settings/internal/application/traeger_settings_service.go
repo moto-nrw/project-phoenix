@@ -156,8 +156,10 @@ func (t *TraegerSettings) TraegerBools(ctx context.Context, organizationID int64
 
 // TraegerInts reads the effective values of Träger-level whole numbers of a
 // Träger: its own value or the registry default. The Träger dashboard reads
-// the thresholds of its hints (#4675). It opens the Träger transaction; a
-// key without a Träger level, or a value that is no whole number, is an
+// the thresholds of its hints (#4675), the Betreuungsvertrag after how many
+// days it reminds parents of an unsigned contract (#4679). It opens the
+// Träger transaction; a key without a Träger level, or a value that is no
+// whole number, is an
 // error.
 func (t *TraegerSettings) TraegerInts(ctx context.Context, organizationID int64, keys []string) (map[string]int, error) {
 	snapshot, err := t.traegerSnapshot(ctx, organizationID, keys, "traeger_ints")

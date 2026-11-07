@@ -12,6 +12,9 @@ import (
 type ActiveGroupRepository interface {
 	Create(context.Context, *ActiveGroup) error
 	FindByID(context.Context, int64) (*ActiveGroup, error)
+	// FindVisitTransferGroups reads the already locked source and target without
+	// display enrichment, preserving FindByID's source-first missing-row error.
+	FindVisitTransferGroups(context.Context, int64, int64) (*ActiveGroup, *ActiveGroup, error)
 	Update(context.Context, *ActiveGroup) error
 	Delete(context.Context, int64) error
 

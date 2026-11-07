@@ -135,9 +135,13 @@ func (s *staffAbsenceService) previewRebooking(ctx context.Context, staffID int6
 	if err != nil {
 		return nil, err
 	}
+	snapshots, err := s.rebookingClosedMonths(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
 	result := &AbsenceRebookingResult{}
 	for _, entry := range entries {
-		if err := s.validateRebookedAbsence(ctx, entry); err != nil {
+		if err := s.validateRebookedAbsence(ctx, entry, snapshots); err != nil {
 			return nil, err
 		}
 		result.Days += countWorkingDays(entry.after.DateStart, entry.after.DateEnd, effectiveStartHalf(entry.after), effectiveEndHalf(entry.after))
@@ -195,21 +199,27 @@ func validateRebookingRequest(req RebookAbsencesRequest, reason string) ([]int64
 // loadRebookedAbsences reads the entries and prepares their new shape. Only
 // entries the Leitung or the staff member entered directly qualify: a
 // vacation request has its own workflow, and a sick report its plan cascade.
+// Read the set under the held staff locks, but validate in request order so
+// a later missing or invalid entry cannot hide an earlier refusal.
 func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID int64, ids []int64, baseType string, typeID *int64) ([]rebookedAbsence, error) {
-	entries := make([]rebookedAbsence, 0, len(ids))
-	for _, id := range ids {
-		storedAbsence, err := s.absenceRepo.FindStaffAbsence(ctx, id)
-		absence := absenceToRecord(storedAbsence)
-		err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
-		if err != nil {
-			if isRecordNotFound(err) {
-				return nil, workforce.ErrAbsenceNotFound
-			}
-			return nil, err
-		}
-		if absence == nil || absence.StaffID != staffID {
+	storedAbsences, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, IDs: ids})
+	if err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound); err != nil {
+		if isRecordNotFound(err) {
 			return nil, workforce.ErrAbsenceNotFound
 		}
+		return nil, err
+	}
+	byID := make(map[int64]workforce.StaffAbsence, len(storedAbsences))
+	for _, absence := range storedAbsences {
+		byID[absence.ID] = absence
+	}
+	entries := make([]rebookedAbsence, 0, len(ids))
+	for _, id := range ids {
+		storedAbsence, found := byID[id]
+		if !found || storedAbsence.StaffID != staffID {
+			return nil, workforce.ErrAbsenceNotFound
+		}
+		absence := absenceToRecord(storedAbsence)
 		day := absence.DateStart.Format("02.01.2006")
 		switch {
 		case absence.AbsenceType == AbsenceTypeSick:
@@ -248,10 +258,10 @@ func (s *staffAbsenceService) loadRebookingAbsences(ctx context.Context, staffID
 	return absences, nil
 }
 
-func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry rebookedAbsence) error {
+func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry rebookedAbsence, snapshots []*MonthSnapshot) error {
 	after := entry.after
 	day := after.DateStart.Format("02.01.2006")
-	if err := s.rejectClosedMonths(ctx, after.StaffID, after.DateStart, after.DateEnd); err != nil {
+	if err := rejectClosedMonths(snapshots, after.DateStart, after.DateEnd); err != nil {
 		return err
 	}
 	// Only vacation keeps half days at the edges of a longer range; every
@@ -311,24 +321,33 @@ func validateRebookedAbsenceOverlaps(absences []*StaffAbsence, entries []rebooke
 	return nil
 }
 
+// rebookingClosedMonths loads the staff's active closes once under the existing
+// absence/balance lock. Validation still visits entries and months in request
+// order, and all other guards keep their live readers.
+func (s *staffAbsenceService) rebookingClosedMonths(ctx context.Context, staffID int64) ([]*MonthSnapshot, error) {
+	if s.snapshotRepo == nil {
+		return nil, nil
+	}
+	snapshots, err := s.snapshotRepo.ClosedMonthSnapshotsForStaff(ctx, []int64{staffID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to check month close state for rebooking: %w", err)
+	}
+	return snapshots, nil
+}
+
 // rejectClosedMonths blocks a change inside a closed month: its closing
 // balance is frozen, so the Stundenkonto would not follow the new type.
-func (s *staffAbsenceService) rejectClosedMonths(ctx context.Context, staffID int64, start, end calendar.Date) error {
-	if s.snapshotRepo == nil {
-		return nil
-	}
+func rejectClosedMonths(snapshots []*MonthSnapshot, start, end calendar.Date) error {
 	for key := monthOf(start); !monthOf(end).before(key); key = key.next() {
-		snapshot, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, key.Year, key.Month)
-		if err != nil {
-			return fmt.Errorf("failed to check month close state for rebooking: %w", err)
-		}
-		if snapshot != nil && snapshot.Year == key.Year && snapshot.Month == key.Month {
-			month := germanMonth(key)
-			return rebookingBlocked(
-				workforce.MonthClosedCode, workforce.RebookingValues{Month: month},
-				"Der %s ist abgeschlossen. Öffnen Sie den Monat zuerst wieder. Das geht im Reiter Zeiterfassung.",
-				month,
-			)
+		for _, snapshot := range snapshots {
+			if snapshot.Year == key.Year && snapshot.Month == key.Month {
+				month := germanMonth(key)
+				return rebookingBlocked(
+					workforce.MonthClosedCode, workforce.RebookingValues{Month: month},
+					"Der %s ist abgeschlossen. Öffnen Sie den Monat zuerst wieder. Das geht im Reiter Zeiterfassung.",
+					month,
+				)
+			}
 		}
 	}
 	return nil
@@ -354,6 +373,16 @@ func (s *staffAbsenceService) rebookingBalanceDelta(ctx context.Context, absence
 		return 0, fmt.Errorf("rebooking requires the month service")
 	}
 	before, after := rebookingBalanceAbsences(absences, entries)
+	targetByDay := make(map[calendar.Date]int)
+	for _, window := range rebookingTargetWindows(entries) {
+		targets, err := s.monthService.GetDailyTargets(ctx, entries[0].after.StaffID, window[0], window[1])
+		if err != nil {
+			return 0, fmt.Errorf("failed to resolve targets for rebooking: %w", err)
+		}
+		for _, target := range targets {
+			targetByDay[target.Date] = target.TargetMinutes
+		}
+	}
 	delta := 0
 	for _, entry := range entries {
 		for start := entry.after.DateStart; !start.After(entry.after.DateEnd); {
@@ -361,19 +390,36 @@ func (s *staffAbsenceService) rebookingBalanceDelta(ctx context.Context, absence
 			if entry.after.DateEnd.Before(end) {
 				end = entry.after.DateEnd
 			}
-			targets, err := s.monthService.GetDailyTargets(ctx, entry.after.StaffID, start, end)
-			if err != nil {
-				return 0, fmt.Errorf("failed to resolve targets for rebooking: %w", err)
-			}
-			targetByDay := make(map[calendar.Date]int, len(targets))
-			for _, target := range targets {
-				targetByDay[target.Date] = target.TargetMinutes
-			}
 			delta += creditedAbsenceMinutes(after, start, end, targetByDay) - creditedAbsenceMinutes(before, start, end, targetByDay)
 			start = end.AddDays(1)
 		}
 	}
 	return delta, nil
+}
+
+// rebookingTargetWindows shares date-valid Soll inputs between nearby entries.
+// Windows stay within the existing daily-target limit; distant entries do not
+// cause a read of the intervening years. Credit arithmetic still runs over each
+// original entry and chunk so half-day rounding and overlap selection stay put.
+func rebookingTargetWindows(entries []rebookedAbsence) [][2]calendar.Date {
+	ordered := slices.Clone(entries)
+	slices.SortFunc(ordered, func(a, b rebookedAbsence) int {
+		return strings.Compare(string(a.after.DateStart), string(b.after.DateStart))
+	})
+	var windows [][2]calendar.Date
+	for _, entry := range ordered {
+		for start := entry.after.DateStart; !start.After(entry.after.DateEnd); {
+			end := min(entry.after.DateEnd, start.AddDays(maxDailyTargetRangeDays))
+			last := len(windows) - 1
+			if last >= 0 && !end.After(windows[last][0].AddDays(maxDailyTargetRangeDays)) {
+				windows[last][1] = max(windows[last][1], end)
+			} else {
+				windows = append(windows, [2]calendar.Date{start, end})
+			}
+			start = end.AddDays(1)
+		}
+	}
+	return windows
 }
 
 func rebookingChangesCompTime(entries []rebookedAbsence) bool {

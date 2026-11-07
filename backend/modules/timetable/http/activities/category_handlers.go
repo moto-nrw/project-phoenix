@@ -90,14 +90,6 @@ func (rs *Resource) listCategories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var usage map[int64]int
-	if withUsage {
-		if usage, err = rs.ActivityService.CategoryUsageCounts(r.Context()); err != nil {
-			common.RenderError(w, r, categoryErrorRenderer(err))
-			return
-		}
-	}
-
 	responses := make([]CategoryResponse, 0, len(categories))
 	for _, category := range categories {
 		if category.IsSystem && !includeSystem {
@@ -106,12 +98,21 @@ func (rs *Resource) listCategories(w http.ResponseWriter, r *http.Request) {
 		if category.IsArchived() && !includeArchived {
 			continue
 		}
-		response := newCategoryResponse(category)
-		if withUsage {
-			count := usage[category.ID]
-			response.UsageCount = &count
+		responses = append(responses, newCategoryResponse(category))
+	}
+
+	// Keep the existing usage error path for requests already cancelled
+	// after listing, even when no category is visible.
+	if withUsage && (len(responses) > 0 || r.Context().Err() != nil) {
+		usage, err := rs.ActivityService.CategoryUsageCounts(r.Context())
+		if err != nil {
+			common.RenderError(w, r, categoryErrorRenderer(err))
+			return
 		}
-		responses = append(responses, response)
+		for i := range responses {
+			count := usage[responses[i].ID]
+			responses[i].UsageCount = &count
+		}
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Categories retrieved successfully")

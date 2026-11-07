@@ -330,6 +330,10 @@ type TeacherRepository interface {
 	// ListAllWithStaffAndPerson retrieves all teachers with their staff and person data in a single query
 	ListAllWithStaffAndPerson(ctx context.Context) ([]*peopledirectory.Teacher, error)
 
+	// ListRosterWithStaffAndPerson combines teacher and live membership facts
+	// while retaining employment failures and person filtering.
+	ListRosterWithStaffAndPerson(ctx context.Context) ([]*peopledirectory.Teacher, error)
+
 	// FindWithStaffAndPersonByIDs retrieves teachers with staff and person data for multiple IDs
 	FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*peopledirectory.Teacher, error)
 }
@@ -379,6 +383,7 @@ type StudentGuardianRepository interface {
 
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
+	FindByGuardianProfileIDForDeletePreview(ctx context.Context, guardianProfileID int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
 
 	// AccountHasStudentPermission reports whether the guardian account holds the
 	// named parent_portal.* permission on its relationship to the given student
@@ -474,6 +479,10 @@ type GuardianProfileRepository interface {
 	// FindByID retrieves a guardian profile by their ID
 	FindByID(ctx context.Context, id int64) (*peopledirectory.GuardianProfileSnapshot, error)
 
+	// FindByIDForUpdate reads the complete guardian profile while locking its
+	// row for the current transaction, before phone-list validation or writes.
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.GuardianProfileSnapshot, error)
+
 	// SetEmailsStopped records or clears the school's decision that this person
 	// gets no school mail. The first stop keeps its time.
 	SetEmailsStopped(ctx context.Context, id int64, stopped bool) error
@@ -568,6 +577,10 @@ type GuardianPhoneNumberRepository interface {
 
 	// CountByGuardianID returns the number of phone numbers for a guardian
 	CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error)
+
+	// CountAndNextPriority returns the phone count and MAX(priority)+1 (1 if empty).
+	// Callers that mutate the list must hold the guardian profile lock.
+	CountAndNextPriority(ctx context.Context, guardianProfileID int64) (int, int, error)
 
 	// GetNextPriority returns the next priority value for a guardian's phone numbers
 	GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error)

@@ -53,6 +53,7 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	// before reading the limit, also without a Kinderkontingent. The count
 	// scales with the rows, so the ceiling holds for this ten-row file only.
 	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import", counter.Queries())
+	require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "new-profile create proves the phone list is empty")
 	// BUN labels RawQuery as SELECT, including the three owner INSERTs of each
 	// guardian link; this is the driver-reported DML counter, not physical
 	// table writes.
@@ -66,6 +67,7 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.preview_110", counter.Queries())
 	run(large, false)
 	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import_110", counter.Queries())
+	require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "each new profile carries its fact only within its write transaction")
 	t.Logf("import statements: %d rows -> %d, %d rows -> %d", studentBatchRows, smallImport, len(large), counter.Total())
 }
 

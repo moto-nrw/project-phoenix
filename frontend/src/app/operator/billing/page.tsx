@@ -179,32 +179,18 @@ function KeyDaySection({
       {editing ? (
         <div ref={formRef} className="space-y-4">
           <FormErrorAlert message={saveErrors.error} />
-          <div className="max-w-xs space-y-1.5">
-            <label
-              id="billing-key-day-label"
-              htmlFor="billing-key-day"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Tag im Monat
-            </label>
+          <div className="max-w-xs">
             <CustomSelect
               id="billing-key-day"
               name="key_day"
-              ariaLabelledBy="billing-key-day-label"
+              label="Tag im Monat"
+              hint="Gilt ab dem nächsten Stichtag. Schon erfasste Monate bleiben, wie sie sind. Höchstens der 28., damit jeder Monat den Tag hat."
+              error={saveErrors.fieldError("key_day")}
               value={draft}
               options={KEY_DAY_OPTIONS}
               onChange={setDraft}
             />
-            <p className="text-xs text-gray-500">
-              Gilt ab dem nächsten Stichtag. Schon erfasste Monate bleiben, wie
-              sie sind. Höchstens der 28., damit jeder Monat den Tag hat.
-            </p>
           </div>
-          {saveErrors.fieldError("key_day") ? (
-            <p className="text-moto-red text-xs">
-              {saveErrors.fieldError("key_day")}
-            </p>
-          ) : null}
           <EditActions
             onCancel={() => setEditing(false)}
             onSave={() => void save()}

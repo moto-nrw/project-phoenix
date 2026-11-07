@@ -305,26 +305,17 @@ export function StudentDeletionModal({
                 </InfoText>
               </InfoSection>
 
-              <div>
-                <label
-                  id="student-deletion-reason-label"
-                  htmlFor="student-deletion-reason"
-                  className="mb-2 block text-sm font-medium text-gray-700"
-                >
-                  Löschgrund
-                </label>
-                <CustomSelect
-                  id="student-deletion-reason"
-                  value={reason}
-                  options={reasonOptions}
-                  onChange={(value) =>
-                    setReason(value as StudentDeletionReason | "")
-                  }
-                  ariaLabelledBy="student-deletion-reason-label"
-                  disabled={deleting}
-                  required
-                />
-              </div>
+              <CustomSelect
+                label="Löschgrund"
+                id="student-deletion-reason"
+                value={reason}
+                options={reasonOptions}
+                onChange={(value) =>
+                  setReason(value as StudentDeletionReason | "")
+                }
+                disabled={deleting}
+                required
+              />
 
               <ChoiceTile
                 htmlFor="student-deletion-acknowledgement"

@@ -27,8 +27,9 @@ func studentRowRead(sql string) bool {
 // on the locked path, holds student-row locks for the subject and every linked
 // child while it reads each owner count twice (#3411). These budgets turn that
 // cost into numbers: Preview takes no lock and must not grow with companions;
-// Execute (deleteConfirmed -> lockedSnapshot) pays 2(K+1) student-row reads,
-// one lock round trip per locked read, and the doubled owner-count block. The
+// Execute (deleteConfirmed -> lockedSnapshot) pays 2K+1 student-row reads:
+// the graph locks the subject once and passes its record to the snapshot.
+// Companion plan reads and the doubled owner-count block remain fresh. The
 // scenario uses the owner composition of the production root; the Feedback
 // counter, the authorization and the verified-staff check are test doubles,
 // so their statements are not counted.

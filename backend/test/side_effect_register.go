@@ -14,6 +14,10 @@ func sideEffectRegisterOnlyShrinks(root string, current map[string]losableSideEf
 	run := func(args ...string) ([]byte, error) {
 		return registerGitOutput(repo, args...)
 	}
+	return sideEffectRegisterAgainstBase(run, current)
+}
+
+func sideEffectRegisterAgainstBase(run func(...string) ([]byte, error), current map[string]losableSideEffectNotice) error {
 	base, err := registerMergeBase(run)
 	if err != nil {
 		return err

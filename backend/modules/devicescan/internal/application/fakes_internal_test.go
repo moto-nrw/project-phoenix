@@ -147,6 +147,19 @@ type fakeRooms struct {
 	nextID    int64
 }
 
+func (r *fakeRooms) ListRoomsByID(_ context.Context, ids []int64) ([]facilities.Room, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+	var rooms []facilities.Room
+	for _, id := range ids {
+		if room, ok := r.rooms[id]; ok {
+			rooms = append(rooms, room)
+		}
+	}
+	return rooms, nil
+}
+
 func (r *fakeRooms) FindRoom(_ context.Context, id int64) (facilities.Room, error) {
 	if r.findErr != nil {
 		return facilities.Room{}, r.findErr
@@ -381,18 +394,27 @@ func (a *fakeAttendance) ConfirmDailyCheckout(_ context.Context, _, _ int64, des
 }
 
 type fakeActivities struct {
-	byID       map[int64]*devicescan.Activity
-	findErr    error
-	byName     map[string][]devicescan.Activity
-	listErr    error
-	listCalls  int
-	categories []devicescan.Category
-	created    []devicescan.NewActivity
-	createErr  error
+	byID                map[int64]*devicescan.Activity
+	findErr             error
+	byName              map[string][]devicescan.Activity
+	listErr             error
+	listCalls           int
+	categories          []devicescan.Category
+	created             []devicescan.NewActivity
+	createErr           error
+	batchCalls          [][]int64
+	wantBatchContext    context.Context
+	batchContextMatches []bool
 }
 
-func (a *fakeActivities) Find(_ context.Context, id int64) (*devicescan.Activity, error) {
-	return a.byID[id], a.findErr
+func (a *fakeActivities) FindByIDs(ctx context.Context, ids []int64) (map[int64]*devicescan.Activity, error) {
+	a.batchCalls = append(a.batchCalls, append([]int64(nil), ids...))
+	a.batchContextMatches = append(a.batchContextMatches, ctx == a.wantBatchContext)
+	result := make(map[int64]*devicescan.Activity, len(ids))
+	for _, id := range ids {
+		result[id] = a.byID[id]
+	}
+	return result, a.findErr
 }
 func (a *fakeActivities) ListByName(_ context.Context, name string) ([]devicescan.Activity, error) {
 	a.listCalls++

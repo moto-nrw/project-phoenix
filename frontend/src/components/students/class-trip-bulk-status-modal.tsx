@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -268,37 +269,21 @@ export function ClassTripBulkStatusModal({
           )}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="class-trip-bulk-from"
-              className="text-sm font-medium text-gray-700"
-            >
-              Von
-            </label>
-            <ISODatePicker
-              id="class-trip-bulk-from"
-              value={from}
-              onChange={setFrom}
-              calendarLayout="popover"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="class-trip-bulk-to"
-              className="text-sm font-medium text-gray-700"
-            >
-              Bis
-            </label>
-            <ISODatePicker
-              id="class-trip-bulk-to"
-              value={to}
-              min={from || undefined}
-              onChange={setTo}
-              calendarLayout="popover"
-              className="mt-1"
-            />
-          </div>
+          <ISODatePicker
+            label="Von"
+            id="class-trip-bulk-from"
+            value={from}
+            onChange={setFrom}
+            calendarLayout="popover"
+          />
+          <ISODatePicker
+            label="Bis"
+            id="class-trip-bulk-to"
+            value={to}
+            min={from || undefined}
+            onChange={setTo}
+            calendarLayout="popover"
+          />
         </div>
         {schoolReport && returnTimeOffered ? (
           <TimeField
@@ -310,13 +295,8 @@ export function ClassTripBulkStatusModal({
           />
         ) : null}
         {schoolReport ? (
-          <div className="space-y-1">
-            <label
-              htmlFor={studentsFieldId}
-              className="block text-sm font-medium text-gray-700"
-            >
-              Kinder
-            </label>
+          <div>
+            <FieldLabel htmlFor={studentsFieldId}>Kinder</FieldLabel>
             <MultiSelect
               id={studentsFieldId}
               ariaLabel="Kinder"

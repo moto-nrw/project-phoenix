@@ -35,3 +35,27 @@ func NewAmbientTransaction[ID interface{ Int64() int64 }](label string, school f
 		return nil, 0, fmt.Errorf("%s: unsupported transaction %T", label, transaction)
 	}
 }
+
+// NewAmbientTraegerTransaction resolves the caller's Träger transaction and
+// its organization; a school or administrative transaction is refused.
+func NewAmbientTraegerTransaction(label string, organization func(context.Context) int64, resolve func(context.Context) (any, bool)) func(context.Context) (bun.IDB, int64, error) {
+	return func(ctx context.Context) (bun.IDB, int64, error) {
+		organizationID := organization(ctx)
+		if organizationID <= 0 {
+			return nil, 0, errors.New(label + ": the Träger transaction is required")
+		}
+		transaction, found := resolve(ctx)
+		if !found {
+			return nil, 0, errors.New(label + ": the Träger transaction is required")
+		}
+		switch tx := transaction.(type) {
+		case bun.Tx:
+			return tx, organizationID, nil
+		case *bun.Tx:
+			if tx != nil {
+				return *tx, organizationID, nil
+			}
+		}
+		return nil, 0, fmt.Errorf("%s: unsupported transaction %T", label, transaction)
+	}
+}

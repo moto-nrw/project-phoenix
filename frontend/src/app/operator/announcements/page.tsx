@@ -25,6 +25,7 @@ import {
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { DatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
@@ -612,9 +613,7 @@ export default function OperatorAnnouncementsPage() {
 
               {/* Type */}
               <div>
-                <span className="mb-1 block text-sm font-medium text-gray-700">
-                  Typ
-                </span>
+                <FieldLabel>Typ</FieldLabel>
                 <SegmentedControl
                   ariaLabel="Typ"
                   items={TYPE_ITEMS}
@@ -662,13 +661,11 @@ export default function OperatorAnnouncementsPage() {
 
               {/* Expires at */}
               <div>
-                <span
-                  id="announcement-expires-label"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
+                <FieldLabel htmlFor="announcement-expires">
                   Ablaufdatum (optional)
-                </span>
+                </FieldLabel>
                 <DatePicker
+                  id="announcement-expires"
                   value={
                     formData.expiresAt ? new Date(formData.expiresAt) : null
                   }
@@ -684,12 +681,9 @@ export default function OperatorAnnouncementsPage() {
 
               {/* Target Roles */}
               <div>
-                <span
-                  id="announcement-roles-label"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
+                <FieldLabel id="announcement-roles-label">
                   Zielgruppen
-                </span>
+                </FieldLabel>
                 <p className="mb-2 text-xs text-gray-500">
                   Leer = Alle Benutzer sehen die Ankündigung
                 </p>
@@ -817,12 +811,9 @@ export default function OperatorAnnouncementsPage() {
 
               {/* Target Organizations */}
               <div>
-                <span
-                  id="announcement-orgs-label"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
+                <FieldLabel id="announcement-orgs-label">
                   Organisationen
-                </span>
+                </FieldLabel>
                 <p className="mb-2 text-xs text-gray-500">
                   Leer = Alle Organisationen
                 </p>
@@ -892,12 +883,7 @@ export default function OperatorAnnouncementsPage() {
 
               {/* Target Schools/Tenants */}
               <div>
-                <span
-                  id="announcement-tenants-label"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Schulen
-                </span>
+                <FieldLabel id="announcement-tenants-label">Schulen</FieldLabel>
                 <p className="mb-2 text-xs text-gray-500">
                   Leer = Alle Schulen
                   {formData.targetOrgIds.length > 0

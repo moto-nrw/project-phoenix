@@ -612,56 +612,38 @@ export default function ClassListEntriesPage() {
             <div ref={formRef} className="space-y-4">
               <FormErrorAlert message={formErrors.error} />
               <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="entry-first-name"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Vorname
-                  </label>
-                  <Input
-                    id="entry-first-name"
-                    name="first_name"
-                    error={formErrors.fieldError("first_name")}
-                    value={form.firstName}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        firstName: e.target.value,
-                      }))
-                    }
-                    placeholder="z.B. Lena"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="entry-last-name"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Nachname
-                  </label>
-                  <Input
-                    id="entry-last-name"
-                    name="last_name"
-                    error={formErrors.fieldError("last_name")}
-                    value={form.lastName}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, lastName: e.target.value }))
-                    }
-                    placeholder="z.B. Beispiel"
-                  />
-                </div>
+                <Input
+                  id="entry-first-name"
+                  name="first_name"
+                  label="Vorname"
+                  error={formErrors.fieldError("first_name")}
+                  value={form.firstName}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      firstName: e.target.value,
+                    }))
+                  }
+                  placeholder="z.B. Lena"
+                />
+                <Input
+                  id="entry-last-name"
+                  name="last_name"
+                  label="Nachname"
+                  error={formErrors.fieldError("last_name")}
+                  value={form.lastName}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, lastName: e.target.value }))
+                  }
+                  placeholder="z.B. Beispiel"
+                />
               </div>
               <div>
-                <label
-                  htmlFor="entry-school-class"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Klasse
-                </label>
                 <Input
                   id="entry-school-class"
                   name="school_class"
+                  label="Klasse"
+                  hint="Genau wie bei den regulären Kindern geschrieben, damit der Eintrag in derselben Klassenliste landet."
                   error={formErrors.fieldError("school_class")}
                   value={form.schoolClass}
                   onChange={(e) =>
@@ -678,10 +660,6 @@ export default function ClassListEntriesPage() {
                     <option key={klass} value={klass} />
                   ))}
                 </datalist>
-                <p className="mt-1 text-xs text-gray-500">
-                  Genau wie bei den regulären Kindern geschrieben, damit der
-                  Eintrag in derselben Klassenliste landet.
-                </p>
               </div>
               <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
                 <Button
