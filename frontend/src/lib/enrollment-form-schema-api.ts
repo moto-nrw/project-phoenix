@@ -1,4 +1,3 @@
-import type { PublicEnrollmentBootstrap } from "./enrollment-submission-api";
 import {
   ApiError,
   apiErrorFromResponse,
@@ -367,14 +366,12 @@ export function schemaToPublicFormSchema(schema: FormSchema): PublicFormSchema {
 export interface EnrollmentPreviewBootstrap {
   /** Effective tenant gate, present for phase previews only. */
   enrollment_enabled?: boolean;
-  phase_offerings?: Pick<
-    PublicEnrollmentBootstrap,
-    | "offerings"
-    | "care_offering_selection_mode"
-    | "school_class"
-    | "collect_grade_level"
-    | "care_offerings_enabled"
-  > & { eligible_grade_levels: number[] };
+  /**
+   * The phase's form configuration, present for phase previews only. Typed in
+   * `enrollment-phase-preview-api.ts`: the offering types live in the
+   * submission module, which imports this one.
+   */
+  phase_offerings?: unknown;
   schema: FormSchema | null;
   assigned_phase_count: number;
   active_assigned_phase_count: number;

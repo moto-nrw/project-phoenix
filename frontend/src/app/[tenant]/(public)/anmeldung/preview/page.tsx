@@ -19,6 +19,7 @@ import {
 import { BackLink } from "~/components/ui/back-link";
 import { ButtonLink } from "~/components/ui/button";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
+import { fetchPhasePreviewBootstrap } from "~/lib/enrollment-phase-preview-api";
 import { useTenant } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
@@ -87,11 +88,10 @@ function EnrollmentPreviewPageContent() {
       if (!phase) {
         throw new Error("Diese Anmeldephase gibt es nicht mehr.");
       }
-      const result = await fetchEnrollmentPreviewBootstrap(
-        phase.form_schema_id
-          ? { schemaId: phase.form_schema_id, phaseId: id }
-          : { base: true, phaseId: id },
-      );
+      const result = await fetchPhasePreviewBootstrap({
+        phaseId: id,
+        schemaId: phase.form_schema_id,
+      });
       if (cancelled) return;
       const config = result.phase_offerings;
       if (!config || typeof result.enrollment_enabled !== "boolean") {

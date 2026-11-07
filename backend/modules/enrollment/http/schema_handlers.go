@@ -147,60 +147,14 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var phaseID int64
-	if raw := r.URL.Query().Get("phaseId"); raw != "" {
-		var err error
-		phaseID, err = strconv.ParseInt(raw, 10, 64)
-		if err != nil || phaseID <= 0 {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId must be a positive integer")))
-			return
-		}
-		if rs.RequestService == nil {
-			common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase preview endpoint not configured")))
-			return
-		}
+	phaseID, ok := rs.parseSchemaPreviewPhaseID(w, r)
+	if !ok {
+		return
 	}
 
-	var (
-		enrollmentEnabled *bool
-		phaseOfferings    *PublicCareOfferingsResponse
-		schema            *capability.FormSchema
-		phases            []*capability.Phase
-	)
+	var loaded schemaPreviewData
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		if schemaID > 0 {
-			loaded, loadErr := rs.FormSchemaService.SchemaVersion(ctx, schemaID)
-			if loadErr != nil {
-				return loadErr
-			}
-			schema = loaded
-		}
-		if phaseID > 0 {
-			data, loadErr := bootstrapValue(rs.RequestService.LoadPhasePreviewCareOfferings(ctx, phaseID))
-			if loadErr != nil {
-				return loadErr
-			}
-			enabled := rs.RequestService.IsEnrollmentEnabled(ctx)
-			enrollmentEnabled = &enabled
-			capabilities := data.EffectiveCapabilities
-			items := make([]CareOfferingResponse, 0, len(data.Offerings))
-			for _, offering := range data.Offerings {
-				items = append(items, toPublicCareOfferingResponse(offering))
-			}
-			mode := data.Phase.CareOfferingSelectionMode
-			phaseOfferings = &PublicCareOfferingsResponse{
-				Offerings:                 items,
-				CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(mode, capabilities.CareOfferingsEnabled),
-				CareRequired:              capabilities.CareOfferingsEnabled && mode != capability.PhaseCareOfferingSelectionOptional,
-				SchoolClass:               toPublicSchoolClassConfig(data.Phase, capabilities.CollectSchoolClass),
-				CollectGradeLevel:         capabilities.CollectGradeLevel,
-				CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
-				EligibleGradeLevels:       publicEligibleGradeLevels(data.Phase),
-			}
-		}
-		list, listErr := rs.PhaseService.Phases(ctx)
-		phases = list
-		return listErr
+		return rs.loadSchemaPreview(ctx, schemaID, phaseID, &loaded)
 	})
 	if err != nil {
 		// A missing schema id is the caller's problem (404); everything
@@ -215,18 +169,92 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 	}
 
 	var schemaOut *FormSchemaResponse
-	if schema != nil {
-		out := toFormSchemaResponse(schema)
+	if loaded.schema != nil {
+		out := toFormSchemaResponse(loaded.schema)
 		schemaOut = &out
 	}
-	assigned, active := countAssignedPreviewPhases(phases, schema)
+	assigned, active := countAssignedPreviewPhases(loaded.phases, loaded.schema)
 	common.Respond(w, r, http.StatusOK, SchemaPreviewBootstrapResponse{
 		Schema:                   schemaOut,
-		EnrollmentEnabled:        enrollmentEnabled,
-		PhaseOfferings:           phaseOfferings,
+		EnrollmentEnabled:        loaded.enrollmentEnabled,
+		PhaseOfferings:           loaded.phaseOfferings,
 		AssignedPhaseCount:       assigned,
 		ActiveAssignedPhaseCount: active,
 	}, "Schema preview bootstrap retrieved")
+}
+
+type schemaPreviewData struct {
+	schema            *capability.FormSchema
+	phases            []*capability.Phase
+	enrollmentEnabled *bool
+	phaseOfferings    *PublicCareOfferingsResponse
+}
+
+// loadSchemaPreview reads the template, the optional phase configuration and
+// the phase list inside the caller's tenant transaction.
+func (rs *Resource) loadSchemaPreview(ctx context.Context, schemaID, phaseID int64, out *schemaPreviewData) error {
+	if schemaID > 0 {
+		loaded, err := rs.FormSchemaService.SchemaVersion(ctx, schemaID)
+		if err != nil {
+			return err
+		}
+		out.schema = loaded
+	}
+	if phaseID > 0 {
+		var err error
+		out.enrollmentEnabled, out.phaseOfferings, err = rs.loadPhasePreviewConfiguration(ctx, phaseID)
+		if err != nil {
+			return err
+		}
+	}
+	list, err := rs.PhaseService.Phases(ctx)
+	out.phases = list
+	return err
+}
+
+// parseSchemaPreviewPhaseID reads the optional phase of a phase preview
+// (#6044). Zero means no phase. On a bad request it renders the error and
+// returns ok=false.
+func (rs *Resource) parseSchemaPreviewPhaseID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	raw := r.URL.Query().Get("phaseId")
+	if raw == "" {
+		return 0, true
+	}
+	phaseID, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || phaseID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId must be a positive integer")))
+		return 0, false
+	}
+	if rs.RequestService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase preview endpoint not configured")))
+		return 0, false
+	}
+	return phaseID, true
+}
+
+// loadPhasePreviewConfiguration returns the school's online-enrollment switch
+// and the phase's parent-form configuration, without the public access gates.
+func (rs *Resource) loadPhasePreviewConfiguration(ctx context.Context, phaseID int64) (*bool, *PublicCareOfferingsResponse, error) {
+	data, err := bootstrapValue(rs.RequestService.LoadPhasePreviewCareOfferings(ctx, phaseID))
+	if err != nil {
+		return nil, nil, err
+	}
+	enabled := rs.RequestService.IsEnrollmentEnabled(ctx)
+	capabilities := data.EffectiveCapabilities
+	items := make([]CareOfferingResponse, 0, len(data.Offerings))
+	for _, offering := range data.Offerings {
+		items = append(items, toPublicCareOfferingResponse(offering))
+	}
+	mode := data.Phase.CareOfferingSelectionMode
+	return &enabled, &PublicCareOfferingsResponse{
+		Offerings:                 items,
+		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(mode, capabilities.CareOfferingsEnabled),
+		CareRequired:              capabilities.CareOfferingsEnabled && mode != capability.PhaseCareOfferingSelectionOptional,
+		SchoolClass:               toPublicSchoolClassConfig(data.Phase, capabilities.CollectSchoolClass),
+		CollectGradeLevel:         capabilities.CollectGradeLevel,
+		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
+		EligibleGradeLevels:       publicEligibleGradeLevels(data.Phase),
+	}, nil
 }
 
 // parseSchemaPreviewSchemaID reads the preview target from the query. A
