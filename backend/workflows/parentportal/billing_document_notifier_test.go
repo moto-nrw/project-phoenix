@@ -80,8 +80,7 @@ func TestParentDocumentNotifierAsksForConsentAndNamesNoChild(t *testing.T) {
 func TestTraegerDocumentNotifierKeysEachKindAndReportsWhatWentOut(t *testing.T) {
 	t.Parallel()
 	router := &documentNotificationsDouble{}
-	notifier, ok := owners.NewParentDocumentNotifier(router, documentPreferencesDouble{optedIn: []int64{7301}}).(parentService.TraegerDocumentNotifierPort)
-	require.True(t, ok)
+	var notifier parentService.TraegerDocumentNotifierPort = owners.NewParentDocumentNotifier(router, documentPreferencesDouble{optedIn: []int64{7301}})
 	for _, kind := range []string{parentService.DocumentPushBilling, parentService.DocumentPushContract, parentService.DocumentPushRelease} {
 		sent, err := notifier.NotifyTraegerDocument(context.Background(), parentService.BillingDocumentPush{Kind: kind, TenantID: 21, AccountID: 7301, StudentIDs: []int64{11}, DocumentID: 31})
 		require.NoError(t, err)
@@ -98,11 +97,11 @@ func TestTraegerDocumentNotifierKeysEachKindAndReportsWhatWentOut(t *testing.T) 
 	}
 
 	disabled := &documentNotificationsDouble{err: deliveryPolicy.ErrNotificationsDisabled}
-	sent, err := owners.NewParentDocumentNotifier(disabled, documentPreferencesDouble{optedIn: []int64{7301}}).(parentService.TraegerDocumentNotifierPort).
+	sent, err := owners.NewParentDocumentNotifier(disabled, documentPreferencesDouble{optedIn: []int64{7301}}).
 		NotifyTraegerDocument(context.Background(), parentService.BillingDocumentPush{Kind: parentService.DocumentPushRelease, TenantID: 21, AccountID: 7301, DocumentID: 31})
 	require.NoError(t, err)
 	assert.False(t, sent, "a school with notifications off sends nothing, so the next school is tried")
-	sent, err = owners.NewParentDocumentNotifier(router, documentPreferencesDouble{}).(parentService.TraegerDocumentNotifierPort).
+	sent, err = owners.NewParentDocumentNotifier(router, documentPreferencesDouble{}).
 		NotifyTraegerDocument(context.Background(), parentService.BillingDocumentPush{Kind: parentService.DocumentPushRelease, TenantID: 21, AccountID: 7301, DocumentID: 31})
 	require.NoError(t, err)
 	assert.False(t, sent, "no consent, no push")

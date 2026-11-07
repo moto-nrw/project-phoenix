@@ -207,20 +207,27 @@ type DocumentNotificationPreferences interface {
 	FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
 }
 
-// parentDocumentNotifier sends the push that a document arrived through the
+// ParentDocumentNotifier sends the push that a document arrived through the
 // school's notification router: only with the parent's consent, in the
-// parent's language, naming no child and no amount.
-type parentDocumentNotifier struct {
+// parent's language, naming no child and no amount. It serves the letters'
+// port and, for a contract or a release (#5941), the one that reports
+// whether a push went out.
+type ParentDocumentNotifier struct {
 	notifications deliveryPolicy.NotificationCommands
 	preferences   DocumentNotificationPreferences
 }
 
+var (
+	_ parentportal.BillingDocumentNotifierPort = ParentDocumentNotifier{}
+	_ parentportal.TraegerDocumentNotifierPort = ParentDocumentNotifier{}
+)
+
 // NewParentDocumentNotifier binds the push of the inbox to Delivery.
-func NewParentDocumentNotifier(notifications deliveryPolicy.NotificationCommands, preferences DocumentNotificationPreferences) parentportal.BillingDocumentNotifierPort {
-	return parentDocumentNotifier{notifications: notifications, preferences: preferences}
+func NewParentDocumentNotifier(notifications deliveryPolicy.NotificationCommands, preferences DocumentNotificationPreferences) ParentDocumentNotifier {
+	return ParentDocumentNotifier{notifications: notifications, preferences: preferences}
 }
 
-func (n parentDocumentNotifier) NotifyBillingDocument(ctx context.Context, push parentportal.BillingDocumentPush) error {
+func (n ParentDocumentNotifier) NotifyBillingDocument(ctx context.Context, push parentportal.BillingDocumentPush) error {
 	_, err := n.NotifyTraegerDocument(ctx, push)
 	return err
 }
@@ -229,7 +236,7 @@ func (n parentDocumentNotifier) NotifyBillingDocument(ctx context.Context, push 
 // tells whether a device push was enqueued at the school. Without consent,
 // with notifications switched off at the school or outside its active window
 // none is.
-func (n parentDocumentNotifier) NotifyTraegerDocument(ctx context.Context, push parentportal.BillingDocumentPush) (bool, error) {
+func (n ParentDocumentNotifier) NotifyTraegerDocument(ctx context.Context, push parentportal.BillingDocumentPush) (bool, error) {
 	optedIn, err := n.preferences.FilterOptedIn(ctx, parentBillingDocumentType, []int64{push.AccountID})
 	if err != nil || len(optedIn) == 0 {
 		return false, err
@@ -285,7 +292,7 @@ func BuildParentDocumentNotices(
 	db transactionruntime.Database, env RootEnvironment, portal carePlanCompose.ParentPortalRepositories, organizations organizationtenancy.Query,
 	identity identityaccess.GuardianAccessQuery, people PeopleRows, notifications DeliveryNotifications, outbox DeferredPushOutbox,
 ) parentportal.DocumentNotices {
-	notifier := parentDocumentNotifier{notifications: notifications.Notifier, preferences: notifications.Preferences}
+	notifier := NewParentDocumentNotifier(notifications.Notifier, notifications.Preferences)
 	return parentportalcompose.NewDocumentNotices(parentportalcompose.Dependencies{
 		Runtime: ParentPortalRuntime{}, ChildRepo: NewParentChildReads(carePlanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)),
 		SchoolTraeger: NewParentSchoolTraeger(organizations), ParentAccounts: NewParentAccounts(identity),
