@@ -148,6 +148,7 @@ function NewsCardType({
   const t = useTranslations("parentDashboard");
   if (item.system_kind === "care_cancellation") {
     return (
+      // oxlint-disable-next-line ui-kit/no-hand-rolled-field-label -- Kicker einer Elternneuigkeit, keine Feldbeschriftung (Epic #5576: der Kicker bleibt im Elternportal)
       <span className="text-moto-red-strong mb-1 block text-xs font-semibold tracking-wide uppercase">
         {t("newsCareCancellation")}
       </span>
@@ -161,6 +162,7 @@ function NewsCardType({
         : null;
   if (type === null) return null;
   return (
+    // oxlint-disable-next-line ui-kit/no-hand-rolled-field-label -- Kicker einer Elternneuigkeit, keine Feldbeschriftung (Epic #5576: der Kicker bleibt im Elternportal)
     <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
       {type}
     </span>

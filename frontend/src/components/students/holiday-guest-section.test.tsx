@@ -17,11 +17,30 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
-const { sheetMock } = vi.hoisted(() => ({ sheetMock: vi.fn() }));
+const { sheetMock, clock } = vi.hoisted(() => ({
+  sheetMock: vi.fn(),
+  clock: { today: "2026-09-09" },
+}));
+
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: () => clock.today,
+}));
 
 vi.mock("~/lib/holiday-host-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/holiday-host-api")>()),
   fetchHolidayGuestSheet: sheetMock,
+}));
+
+vi.mock("./care-times-section", () => ({
+  StudentCareTimesSection: ({
+    initialRange,
+  }: {
+    initialRange?: { from: string; to: string };
+  }) => (
+    <div data-testid="care-times">
+      {initialRange ? `${initialRange.from}/${initialRange.to}` : "Monat"}
+    </div>
+  ),
 }));
 
 function renderSection(ui: ReactElement) {
@@ -53,6 +72,79 @@ const sheet: HolidayGuestSheet = {
   health: null,
   readOnly: false,
 };
+
+// Die Testuhr steht auf Mittwoch, 09.09.2026.
+describe("Soll und Ist des Feriengasts (#5994)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clock.today = "2026-09-09";
+    vi.mocked(useTenantSlugSafe).mockReturnValue("test-tenant");
+  });
+
+  it("zeigt die vergangene Ferienwoche", async () => {
+    sheetMock.mockResolvedValue({
+      ...sheet,
+      startsOn: "2026-08-24",
+      endsOn: "2026-08-28",
+    });
+    renderSection(<HolidayGuestSection studentId="91" canRead />);
+    expect(await screen.findByTestId("care-times")).toHaveTextContent(
+      "2026-08-24/2026-08-28",
+    );
+  });
+
+  it("endet in der laufenden Ferienwoche heute", async () => {
+    sheetMock.mockResolvedValue({
+      ...sheet,
+      startsOn: "2026-09-07",
+      endsOn: "2026-09-11",
+    });
+    renderSection(<HolidayGuestSection studentId="91" canRead />);
+    expect(await screen.findByTestId("care-times")).toHaveTextContent(
+      "2026-09-07/2026-09-09",
+    );
+  });
+
+  it("lädt vor der Ferienwoche keinen Vergleich", async () => {
+    sheetMock.mockResolvedValue(sheet);
+    renderSection(<HolidayGuestSection studentId="91" canRead />);
+    expect(
+      await screen.findByText("14.09.2026 bis 18.09.2026"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("care-times")).not.toBeInTheDocument();
+  });
+
+  it("beginnt den Vergleich, wenn bei offener Seite die Woche anfängt", async () => {
+    clock.today = "2026-09-13";
+    sheetMock.mockResolvedValue(sheet);
+    const { rerender } = renderSection(
+      <HolidayGuestSection studentId="91" canRead />,
+    );
+    expect(
+      await screen.findByText("14.09.2026 bis 18.09.2026"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("care-times")).not.toBeInTheDocument();
+
+    clock.today = "2026-09-14";
+    rerender(
+      <ToastProvider>
+        <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+          <HolidayGuestSection studentId="91" canRead />
+        </SWRConfig>
+      </ToastProvider>,
+    );
+    expect(await screen.findByTestId("care-times")).toHaveTextContent(
+      "2026-09-14/2026-09-14",
+    );
+  });
+
+  it("zeigt ohne Leserecht keinen Vergleich", () => {
+    renderSection(<HolidayGuestSection studentId="91" canRead={false} />);
+    expect(screen.getByText("Feriengast")).toBeInTheDocument();
+    expect(screen.queryByTestId("care-times")).not.toBeInTheDocument();
+    expect(sheetMock).not.toHaveBeenCalled();
+  });
+});
 
 describe("HolidayGuestSection", () => {
   beforeEach(() => {

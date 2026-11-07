@@ -1,10 +1,10 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 // Authenticated proxy for the staff proof of a signed enrollment (#4786):
 // the backend answers the request detail with ?format=pdf as a PDF with the
-// parent's signature. Inject the JWT server-side, refresh once on 401, pass
-// the bytes and their headers through unchanged.
+// parent's signature.
 
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
@@ -41,13 +41,9 @@ async function GETHandler(
       cache: "no-store",
     });
 
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
-    }
-  }
+  const upstream = await sendWithTokenRefresh(token, makeRequest, () =>
+    uncachedAuth(),
+  );
   if (!upstream.ok) {
     logger.warn("enrollment_signature_proof_proxy_non_ok", {
       request_id: id,

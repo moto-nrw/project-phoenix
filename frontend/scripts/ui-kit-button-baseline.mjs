@@ -65,7 +65,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/guardians/guardian-picker-panel.tsx",
-    lines: [329],
+    lines: [323],
     reason: "Trefferzeile der Erziehungsberechtigten-Suche: Auswahlzeile",
   },
   {
@@ -121,7 +121,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1068],
+    lines: [1066],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {

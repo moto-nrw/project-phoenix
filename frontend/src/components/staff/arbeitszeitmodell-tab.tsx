@@ -358,13 +358,10 @@ function FourWeekPreview({
         {weeks.map((week) => {
           const badge = WEEK_BADGE_LETTERS[week.weekIndex] ?? "?";
           return (
-            <div
+            <InsetPanel
               key={toDateKey(week.monday)}
-              className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
-                week.isCurrent
-                  ? "border-moto-orange/40 bg-moto-orange-soft shadow-sm"
-                  : "moto-content-surface"
-              }`}
+              tone={week.isCurrent ? "warning" : "white"}
+              className="flex flex-wrap items-center gap-3"
             >
               <span className="w-16 text-xs font-semibold tracking-wider text-gray-500 uppercase">
                 {week.label}
@@ -401,7 +398,7 @@ function FourWeekPreview({
               <span className="ml-auto text-sm font-bold text-gray-700 tabular-nums">
                 {week.total === null ? pending : formatDuration(week.total)}
               </span>
-            </div>
+            </InsetPanel>
           );
         })}
       </div>

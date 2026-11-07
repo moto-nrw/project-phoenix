@@ -3,8 +3,7 @@ import { backendResponseError } from "~/lib/api-helpers.server";
 // the authoritative magic-number validation and the visibility / upload
 // permission checks; this route mirrors the size and type gate so oversized
 // or obviously wrong files never leave the Next.js server, and forwards the
-// multipart body unchanged. On 401 we refresh the access token via
-// uncachedAuth() and retry once, mirroring the child document upload proxy.
+// multipart body unchanged.
 
 import type { NextRequest } from "next/server";
 import {
@@ -13,7 +12,6 @@ import {
 } from "~/lib/file-upload-wrapper.server";
 import { proxyGet } from "~/lib/route-proxy.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
-import { uncachedAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 
 export const GET = proxyGet(
@@ -40,29 +38,14 @@ export const POST = createFileUploadHandler<unknown>(
     }
 
     const backendUrl = `${getServerApiUrl()}/api/files/folders/${folderId}/files`;
-    // Rebuild the form from the in-memory file so the body is re-readable for
-    // the post-refresh retry.
-    const buffer = await file.arrayBuffer();
     const forwarded = new FormData();
-    forwarded.append(
-      "file",
-      new File([buffer], file.name, { type: file.type }),
-    );
+    forwarded.append("file", file);
 
-    const sendUpload = (bearer: string) =>
-      fetch(backendUrl, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${bearer}` },
-        body: forwarded,
-      });
-
-    let response = await sendUpload(token);
-    if (response.status === 401) {
-      const refreshed = await uncachedAuth();
-      if (refreshed?.user?.token && refreshed.user.token !== token) {
-        response = await sendUpload(refreshed.user.token);
-      }
-    }
+    const response = await fetch(backendUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: forwarded,
+    });
 
     if (!response.ok) throw await backendResponseError(response);
 

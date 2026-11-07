@@ -563,11 +563,18 @@ describe("CaregiverCapabilityModal", () => {
 
     fireEvent.click(screen.getByText("Betreuung aktivieren"));
 
-    await waitFor(() => {
-      expect(screen.getByTestId("form-error")).toHaveTextContent(
-        catalogText("general.server", "das Einschalten der Betreuung"),
-      );
-    });
+    await waitFor(() =>
+      expect(mockEnableTenantAccountCapability).toHaveBeenCalledWith("42", {
+        first_name: "Ada",
+        last_name: "Lovelace",
+        position: undefined,
+      }),
+    );
+    expect(
+      await screen.findByTestId("form-error", {}, { timeout: 3_000 }),
+    ).toHaveTextContent(
+      catalogText("general.server", "das Einschalten der Betreuung"),
+    );
   });
 
   it("shows blocker resolution modal when disable blockers exist", async () => {
