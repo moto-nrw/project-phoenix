@@ -1429,17 +1429,21 @@ func TestUpdateGuardianContact_RequiresEditOnEverySiblingTheContactServes(t *tes
 	shared.TenantID = testpkg.Tenant(t)
 	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CreateGuardianLinkFixture, shared))
 
-	contactOf := func() *parentService.ChildGuardian {
+	listed := func(profileID int64) *parentService.ChildGuardian {
 		guardians, err := svc.ListChildGuardians(ctx, chain.AccountID, chain.StudentID)
 		require.NoError(t, err)
 		for _, g := range guardians {
-			if g.GuardianProfileID == contactID {
+			if g.GuardianProfileID == profileID {
 				return g
 			}
 		}
-		t.Fatalf("contact %d not listed", contactID)
+		t.Fatalf("guardian %d not listed", profileID)
 		return nil
 	}
+	contactOf := func() *parentService.ChildGuardian { return listed(contactID) }
+	self := listed(chain.GuardianProfileID)
+	assert.True(t, self.CanEditContact, "the caller's own profile stays editable despite the pickup-only sibling")
+	assert.False(t, self.ContactLockedShared)
 	before := contactOf()
 	assert.False(t, before.CanEditContact, "a contact shared with a pickup-only sibling is not editable")
 	assert.True(t, before.ContactLockedShared, "the listing names the shared lock")

@@ -57,8 +57,9 @@ func (s *Service) callerStudentSets(ctx context.Context, accountID int64) (famil
 // lockContactOutsideEditReach marks an otherwise editable contact as
 // shared-locked when it also serves a child the caller may not edit
 // guardians for, so the listing never offers an edit the write path refuses.
+// The caller's own profile stays editable, as in the write guards.
 func lockContactOutsideEditReach(g *ChildGuardian, outsideEditReach bool) {
-	if g.CanEditContact && outsideEditReach {
+	if g.CanEditContact && outsideEditReach && !g.IsSelf {
 		g.CanEditContact = false
 		g.ContactLockedShared = true
 	}
