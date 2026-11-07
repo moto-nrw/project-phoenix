@@ -60,12 +60,7 @@ export function ListRowLink({
           {title}
         </span>
         {subtitle ? (
-          <span
-            className={cn(
-              "block text-xs text-gray-500",
-              framed ? "mt-1" : "truncate",
-            )}
-          >
+          <span className={cn("block text-xs text-gray-500", framed && "mt-1")}>
             {subtitle}
           </span>
         ) : null}
