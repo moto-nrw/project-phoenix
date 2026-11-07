@@ -2,13 +2,13 @@
 
 import { ExternalLink, Info } from "lucide-react";
 import {
-  FormPreview as SharedFormPreview,
+  FormPreviewFrame,
   FormPreviewHeading,
   PreviewAttachmentNames,
   PreviewFieldsSection,
   PreviewSection,
   type PreviewFieldLabel,
-} from "~/components/enrollment/form-field-builder";
+} from "~/components/enrollment/form-preview";
 import { CORE_FIELDS } from "~/components/enrollment/form-template-core-fields";
 import {
   StatusBadge,
@@ -134,7 +134,7 @@ export function FormPreview({
     }));
 
   return (
-    <SharedFormPreview
+    <FormPreviewFrame
       sticky={sticky}
       title={templateName.trim() || "Basisformular"}
       header={
@@ -247,7 +247,7 @@ export function FormPreview({
           </div>
         </section>
       ) : null}
-    </SharedFormPreview>
+    </FormPreviewFrame>
   );
 }
 
