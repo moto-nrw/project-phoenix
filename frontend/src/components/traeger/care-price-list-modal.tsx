@@ -1,8 +1,8 @@
 "use client";
 
 // Neue Monatspreise einer Schule ab einem Monat (#4684). Je Modul und
-// Wochentag ein Preis für den ganzen Monat. Ein leeres Feld behält den
-// bisherigen Preis. Ein Monat, den schon eine Rechnung abrechnet, steht
+// Wochentag ein Preis für den ganzen Monat. Ein leeres Feld setzt ab diesem
+// Monat keinen Preis; dann gilt der Preis davor, falls es einen gibt. Ein Monat, den schon eine Rechnung abrechnet, steht
 // nicht zur Wahl.
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -203,8 +203,8 @@ export function CarePriceListModal({
             error={formErrors.fieldError("valid_from")}
           />
           <p className="text-sm text-gray-600 sm:pb-2.5">
-            Monatspreis je gebuchtem Wochentag. Leer lassen: Der bisherige Preis
-            gilt weiter.
+            Monatspreis je gebuchtem Wochentag. Ein leeres Feld setzt ab diesem
+            Monat keinen Preis. Dann gilt der Preis davor.
           </p>
         </div>
         {rows.length === 0 ? (

@@ -25,7 +25,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
           "Wählen Sie `Abrechnung` und dann den Reiter `Preisliste`.",
           "Wählen Sie bei der Schule `Neue Preise`.",
           "Wählen Sie bei `Gültig ab` den Monat, ab dem die Preise gelten.",
-          "Tragen Sie je Modul und Wochentag den Monatspreis ein, zum Beispiel 32,00. Ein leeres Feld behält den bisherigen Preis.",
+          "Tragen Sie je Modul und Wochentag den Monatspreis ein, zum Beispiel 32,00. Ein leeres Feld setzt keinen Preis. Dann gilt der Preis davor.",
           "Wählen Sie `Preise speichern`.",
         ],
       },

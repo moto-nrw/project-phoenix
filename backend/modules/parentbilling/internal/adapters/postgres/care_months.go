@@ -309,28 +309,52 @@ func (s *Store) InsertCareRunEvent(ctx context.Context, organizationID, runID, a
 	return err
 }
 
-// HolidayNumbersTaken names the numbers a holiday document of the Träger
-// already carries, so a monthly invoice never repeats one.
-func (s *Store) HolidayNumbersTaken(ctx context.Context, organizationID int64, numbers []string) (bool, error) {
-	db, err := traegerDB(ctx, organizationID)
-	if err != nil {
-		return false, err
+// Tables of issued numbers. The holiday documents and the monthly invoices
+// take their numbers from two number ranges; a Träger may give both the same
+// pattern, so neither may repeat a number of the other.
+const (
+	holidayNumbersTable = "parent_billing.documents"
+	careNumbersTable    = "parent_billing.care_invoices"
+)
+
+// claimInvoiceNumbers holds the invoice numbers of the Träger until the
+// transaction ends, so a holiday and a monthly issue run one after the
+// other, and reports a number the other table already carries as
+// ErrInvoiceNumberTaken. Both issue paths call it before they insert.
+func claimInvoiceNumbers(ctx context.Context, db bun.IDB, organizationID int64, numbers []string, otherTable string) error {
+	if len(numbers) == 0 {
+		return nil
+	}
+	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('parent_billing.invoice_numbers:' || ?::text, 0))`,
+		organizationID).Exec(ctx); err != nil {
+		return fmt.Errorf("hold the invoice numbers: %w", err)
 	}
 	var taken bool
-	if err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM parent_billing.documents WHERE organization_id = ? AND number = ANY(?))`,
+	if err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM `+otherTable+` WHERE organization_id = ? AND number = ANY(?))`,
 		organizationID, pgdialect.Array(numbers)).Scan(ctx, &taken); err != nil {
-		return false, fmt.Errorf("check invoice numbers: %w", err)
+		return fmt.Errorf("check invoice numbers: %w", err)
 	}
-	return taken, nil
+	if taken {
+		return parentbilling.ErrInvoiceNumberTaken
+	}
+	return nil
 }
 
 // IssueCareInvoices stores the numbered invoices of a release with their
 // positions; the i-th invoice has the sequence first+i of the counter of
-// year. A taken number is ErrInvoiceNumberTaken, a contract an invoice of
-// the month already bills ErrBillingRunChanged.
+// year. A number a holiday document or another monthly invoice carries is
+// ErrInvoiceNumberTaken, a contract an invoice of the month already bills
+// ErrBillingRunChanged.
 func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run parentbilling.CareRun, rule string, year int, first int64, invoices []parentbilling.CareInvoice) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
+		return err
+	}
+	numbers := make([]string, len(invoices))
+	for i, invoice := range invoices {
+		numbers[i] = invoice.Number
+	}
+	if err := claimInvoiceNumbers(ctx, db, organizationID, numbers, holidayNumbersTable); err != nil {
 		return err
 	}
 	rows := make([]careInvoiceRow, len(invoices))

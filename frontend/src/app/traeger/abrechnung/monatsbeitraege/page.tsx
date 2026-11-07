@@ -13,10 +13,12 @@ import {
   CARE_RUN_STATUS_LABELS,
   CARE_RUN_STATUS_TONES,
   MONTH_RULE_LABELS,
+  addMonths,
   formatMonth,
+  monthRange,
   invoiceCountLabel,
 } from "~/components/traeger/care-billing-format";
-import { CareRunStartModal } from "~/components/traeger/care-run-start-modal";
+import { RunStartModal } from "~/components/traeger/billing-run-start-modal";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -33,6 +35,7 @@ import {
   type CareTariffs,
   fetchCareRuns,
   fetchCareTariffs,
+  startCareRun,
 } from "~/lib/traeger-care-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -87,6 +90,13 @@ const COLUMNS: DataTableColumn<CareRun>[] = [
     stacked: "meta",
   },
 ];
+
+/** Twelve months back and three ahead of the suggested month, latest first. */
+function startMonths(suggested: string) {
+  return monthRange(addMonths(suggested, -12), 16)
+    .reverse()
+    .map((value) => ({ value, label: formatMonth(value) }));
+}
 
 interface PageData {
   readonly list: CareRunList;
@@ -170,11 +180,22 @@ export default function TraegerMonatsbeitraegePage() {
       loading={!pageLoad.error && !data}
       overlays={
         data ? (
-          <CareRunStartModal
+          <RunStartModal
             isOpen={starting}
-            suggestedMonth={data.list.suggestedMonth}
+            title="Monatslauf starten"
+            field={{
+              id: "care-run-month",
+              name: "billing_month",
+              label: "Monat",
+              missing: "Bitte wählen Sie einen Monat.",
+            }}
+            options={startMonths(data.list.suggestedMonth)}
+            initialValue={data.list.suggestedMonth}
+            hint="Der Lauf rechnet jedes Kind mit gültigem Vertrag in diesem Monat ab. Es zählen die gebuchten Tage, nicht die Anwesenheit. Sie prüfen zuerst die Vorschau."
+            object="der Monatslauf"
             onClose={() => setStarting(false)}
-            onStarted={(run) => {
+            onStart={async (month) => {
+              const run = await startCareRun(month);
               setStarting(false);
               openRun(run);
             }}

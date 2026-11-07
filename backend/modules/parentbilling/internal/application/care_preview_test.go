@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -305,4 +306,30 @@ func TestSuggestedMonthSkipsReleasedMonths(t *testing.T) {
 	assert.Equal(t, "2026-11-01", suggestedMonth(day(t, "2026-11-07"), nil).String())
 	runs[1].Status = parentbilling.RunReleased
 	assert.Equal(t, "2027-01-01", suggestedMonth(day(t, "2026-11-30"), runs).String())
+}
+
+// spanContracts records the spans the price list asks the contracts for.
+type spanContracts struct {
+	spans [][2]string
+}
+
+func (s *spanContracts) VersionsInForce(_ context.Context, _ int64, from, to calendar.Date) ([]parentbilling.CareContractVersion, error) {
+	s.spans = append(s.spans, [2]string{from.String(), to.String()})
+	return nil, nil
+}
+
+func (s *spanContracts) Recipients(context.Context, int64, []int64) (map[int64]parentbilling.CareRecipient, error) {
+	return nil, nil
+}
+
+// TestPriceListReadsTheBookedModulesOfTheYearBefore asks for the modules a
+// year back as well, so a module whose contracts ended can still get the
+// price of a month that no invoice bills yet.
+func TestPriceListReadsTheBookedModulesOfTheYearBefore(t *testing.T) {
+	t.Parallel()
+	contracts := &spanContracts{}
+	billing := &CareBilling{contracts: contracts, today: func() calendar.Date { return day(t, "2026-11-07") }}
+	_, err := billing.bookedVersions(context.Background(), 7)
+	require.NoError(t, err)
+	assert.Equal(t, [][2]string{{"2025-11-01", "2026-10-31"}, {"2026-11-01", "2027-11-01"}}, contracts.spans)
 }

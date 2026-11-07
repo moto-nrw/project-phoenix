@@ -68,8 +68,8 @@ var (
 )
 
 // CareModule is a module of a school as the price list shows it: a care
-// offering the contracts of the Träger book, with the weekdays they book
-// it on and how many contracts book it now.
+// offering the contracts of the Träger book in the year before or after the
+// current month, with the weekdays they book it on and how many contracts.
 type CareModule struct {
 	SchoolID       int64    `json:"school_id"`
 	SchoolName     string   `json:"school_name"`

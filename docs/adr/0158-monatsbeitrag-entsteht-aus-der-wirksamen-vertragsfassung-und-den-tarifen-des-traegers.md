@@ -99,6 +99,6 @@ und #4681. Er führt keinen Owner ein und hält fest, was er in den Registern
   (`moduleComposeBudgetTotal` 12946 → 12951) und `modules/parentbilling`
   6 → 7 Durchreichungen (`modulePassthroughOwnerBudgetTotal` 1409 → 1410).
 - Query-Budgets `api.traeger.care_billing_runs` (2, exact) und
-  `api.traeger.care_tariffs` (5, exact).
+  `api.traeger.care_tariffs` (6, exact).
 - Datenlebenszyklus und Aufbewahrung: je fünf Einträge.
 - Migration `1.15.789`.

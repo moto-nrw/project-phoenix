@@ -13,8 +13,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// careModuleHorizon is how far ahead the price list looks for booked
-// modules: a year, within the span the contract owner answers.
+// careModuleHorizon is how far back and ahead the price list looks for
+// booked modules: a year each way, as far as a new price may start back
+// (#4684); each read stays within the span the contract owner answers.
 const careModuleHorizon = 365
 
 // CareStore persists the price list, the monthly runs and their invoices
@@ -34,7 +35,6 @@ type CareStore interface {
 	CareRun(ctx context.Context, organizationID, runID int64, lock bool) (parentbilling.CareRun, error)
 	InvoicedContracts(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]bool, error)
 	InsertCareRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
-	HolidayNumbersTaken(ctx context.Context, organizationID int64, numbers []string) (bool, error)
 	IssueCareInvoices(ctx context.Context, organizationID int64, run parentbilling.CareRun, rule string, year int, first int64, invoices []parentbilling.CareInvoice) error
 	MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string) (parentbilling.CareRun, error)
 	CareRunInvoices(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareInvoice, error)
@@ -77,10 +77,9 @@ func (c *CareBilling) CareTariffs(ctx context.Context, reviewer parentbilling.Ho
 	if err != nil {
 		return parentbilling.CareTariffs{}, fmt.Errorf("parent billing: read the schools: %w", err)
 	}
-	from := firstOfMonth(c.today())
-	versions, err := c.contracts.VersionsInForce(ctx, reviewer.OrganizationID, from, from.AddDays(careModuleHorizon))
+	versions, err := c.bookedVersions(ctx, reviewer.OrganizationID)
 	if err != nil {
-		return parentbilling.CareTariffs{}, fmt.Errorf("parent billing: read the booked modules: %w", err)
+		return parentbilling.CareTariffs{}, err
 	}
 	tariffs, err := c.store.CareTariffs(ctx, reviewer.OrganizationID)
 	if err != nil {
@@ -101,6 +100,23 @@ func (c *CareBilling) CareTariffs(ctx context.Context, reviewer parentbilling.Ho
 		}
 	}
 	return parentbilling.CareTariffs{Schools: schools, Modules: modules, Tariffs: withValidity(tariffs), BilledUntil: billed}, nil
+}
+
+// bookedVersions reads the versions in force in the year before and the
+// year after the current month, so a module whose contracts ended can still
+// get the price of a month not billed yet.
+func (c *CareBilling) bookedVersions(ctx context.Context, organizationID int64) ([]parentbilling.CareContractVersion, error) {
+	current := firstOfMonth(c.today())
+	past := calendar.NewDate(current.Year()-1, current.Month(), 1)
+	earlier, err := c.contracts.VersionsInForce(ctx, organizationID, past, current.AddDays(-1))
+	if err != nil {
+		return nil, fmt.Errorf("parent billing: read the booked modules: %w", err)
+	}
+	later, err := c.contracts.VersionsInForce(ctx, organizationID, current, current.AddDays(careModuleHorizon))
+	if err != nil {
+		return nil, fmt.Errorf("parent billing: read the booked modules: %w", err)
+	}
+	return append(earlier, later...), nil
 }
 
 // ownSchool reports whether the school belongs to the Träger.
@@ -389,7 +405,7 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 }
 
 // issue numbers the invoices from the counter of the issue year and stores
-// them. A number a holiday document already carries is
+// them. A number another invoice of the Träger already carries is
 // ErrInvoiceNumberTaken.
 func (c *CareBilling) issue(ctx context.Context, organizationID int64, run parentbilling.CareRun, rule, pattern string, invoices []parentbilling.CareInvoice) error {
 	issuedOn := c.today()
@@ -398,18 +414,9 @@ func (c *CareBilling) issue(ctx context.Context, organizationID int64, run paren
 	if err != nil {
 		return fmt.Errorf("parent billing: reserve invoice numbers: %w", err)
 	}
-	numbers := make([]string, len(invoices))
 	for i := range invoices {
 		invoices[i].Number = formatInvoiceNumber(pattern, issuedOn.Year(), first+int64(i))
 		invoices[i].IssuedOn = &issuedOn
-		numbers[i] = invoices[i].Number
-	}
-	taken, err := c.store.HolidayNumbersTaken(ctx, organizationID, numbers)
-	if err != nil {
-		return err
-	}
-	if taken {
-		return parentbilling.ErrInvoiceNumberTaken
 	}
 	return c.store.IssueCareInvoices(ctx, organizationID, run, rule, year, first, invoices)
 }

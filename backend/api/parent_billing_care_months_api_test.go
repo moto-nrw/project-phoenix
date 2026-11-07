@@ -408,3 +408,43 @@ func TestCareMonthlyListsQueryBudgetIsFlat(t *testing.T) {
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_billing_runs", runs)
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_tariffs", tariffs)
 }
+
+// The holiday and the monthly invoices take their numbers from two number
+// ranges. With the same pattern in both, a holiday release that would
+// repeat a number of a monthly invoice is refused and uses no number.
+func TestHolidayAndMonthlyInvoicesNeverShareANumber(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Nummern Monat und Ferien")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	testpkg.OwnTraegerCareContracts(t, f.db, f.office.organization)
+	school := f.office.schools[0]
+	careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, billing, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPut, numberRangesPath+"/care", map[string]any{"pattern": "R-{NNNN}"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, careRunsPath, map[string]any{"billing_month": careMonth})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	careRun := decodeSchoolPortalData[careRunBody](t, rec.Body.Bytes())
+	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, careRunPath(careRun.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, careRunPath(careRun.ID, "/release"),
+		careRelease(decodeSchoolPortalData[careRunBody](t, rec.Body.Bytes())))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "R-0001", decodeSchoolPortalData[careRunBody](t, rec.Body.Bytes()).Invoices[0].Number)
+
+	require.Equal(t, http.StatusOK, f.act(t, f.siblings, "confirm").Code)
+	setNumberRange(t, f, billing, "R-{NNNN}")
+	run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "parent_billing.invoice_number_taken")
+	var holidayDocuments int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.documents WHERE organization_id = ?`, f.office.organization).
+		Scan(context.Background(), &holidayDocuments))
+	assert.Zero(t, holidayDocuments, "the refused release issued nothing")
+
+	setNumberRange(t, f, billing, "F-{NNNN}")
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
+	require.Equal(t, http.StatusOK, rec.Code, "another pattern releases: %s", rec.Body.String())
+}
