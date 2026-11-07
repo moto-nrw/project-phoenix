@@ -9,6 +9,7 @@ import {
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { RejectReasonModal } from "./care-contract-notice-modal";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { ContractNoticeOptions } from "~/lib/care-contract-notices";
 
@@ -415,5 +416,59 @@ describe("CareContractNoticeCard (#4682)", () => {
     expect(
       screen.queryByRole("button", { name: "Vertragsende festlegen" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("RejectReasonModal", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  it("locks dismissal while saving and displays a failed decision inline", async () => {
+    let refuse!: (error: Error) => void;
+    mocks.rejectContractNoticeReason.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        refuse = reject;
+      }),
+    );
+    const onClose = vi.fn();
+    const onRejected = vi.fn();
+    render(
+      <RejectReasonModal
+        isOpen
+        onClose={onClose}
+        contractId="25"
+        reason="Wir ziehen um."
+        receivedOn="2026-11-07"
+        endsOn="2026-12-31"
+        onRejected={onRejected}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Grund nicht anerkennen" }),
+    );
+    const saving = await within(dialog).findByRole("button", {
+      name: "Wird eingetragen …",
+    });
+    expect(saving).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Abbrechen" }),
+    ).toBeDisabled();
+    fireEvent.click(saving);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(mocks.rejectContractNoticeReason).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    await act(async () => {
+      refuse(new Error("request failed"));
+    });
+    const error = await within(dialog).findByText(
+      /Entscheidung konnte nicht bearbeitet werden/,
+    );
+    expect(error.closest('[role="alert"]')).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Grund nicht anerkennen" }),
+    ).toBeEnabled();
+    expect(onRejected).not.toHaveBeenCalled();
   });
 });

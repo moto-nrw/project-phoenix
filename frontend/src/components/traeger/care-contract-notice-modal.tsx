@@ -11,8 +11,12 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatePicker } from "~/components/ui/date-picker";
 import { FieldLabel } from "~/components/ui/field-label";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { Radio } from "~/components/ui/radio";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Textarea } from "~/components/ui/textarea";
@@ -543,8 +547,7 @@ export function RejectReasonModal({
 }>) {
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
-  const form = useRef<HTMLFormElement>(null);
-  const formErrors = useApiFormError(form);
+  const formErrors = useApiFormError();
   const { success } = useToast();
 
   const submit = async () => {
@@ -570,49 +573,20 @@ export function RejectReasonModal({
   };
 
   return (
-    <FormModal
+    <ConfirmationModal
       isOpen={isOpen}
       onClose={onClose}
+      onConfirm={() => void submit()}
       title="Grund nicht anerkennen"
-      size="sm"
-      closeDisabled={saving}
+      confirmText="Grund nicht anerkennen"
+      isConfirmLoading={saving}
+      isDismissDisabled={saving}
       isBackdropDismissDisabled
-      error={formErrors.error}
-      footer={
-        <div className="flex w-full flex-wrap justify-end gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={onClose}
-            disabled={saving}
-          >
-            Abbrechen
-          </Button>
-          <Button
-            type="submit"
-            form="care-contract-notice-rejection-form"
-            variant="primary"
-            size="md"
-            disabled={saving}
-            isLoading={saving}
-            loadingText="Wird eingetragen …"
-          >
-            Grund nicht anerkennen
-          </Button>
-        </div>
-      }
+      loadingText="Wird eingetragen …"
+      mobileSheet
     >
-      <form
-        id="care-contract-notice-rejection-form"
-        ref={form}
-        noValidate
-        className="space-y-5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
+      <div className="space-y-5">
+        <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-700">
           Dann gilt die Kündigung als ordentliche Kündigung. Der Vertrag endet
           zum nächsten möglichen Termin. Wir zählen ab dem Tag, an dem die
@@ -640,7 +614,7 @@ export function RejectReasonModal({
           type="warning"
           message="Sie können die Entscheidung danach nicht mehr ändern."
         />
-      </form>
-    </FormModal>
+      </div>
+    </ConfirmationModal>
   );
 }

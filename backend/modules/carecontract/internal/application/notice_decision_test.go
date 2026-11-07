@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // The decided end of an extraordinary termination (#4682, decision of
@@ -190,6 +192,72 @@ func TestRefusalAgainstSetEndLetsOneWin(t *testing.T) {
 			mails := f.endMails()
 			require.Len(t, mails, 1, "one notice")
 			assert.Equal(t, order[0].decision, mails[0].Decision)
+		})
+	}
+}
+
+// A late declaration cannot extend an already expired fixed term. Only a
+// manually chosen end is constrained by the day the declaration arrived.
+func TestRefusedReasonPreservesAnExpiredFixedTerm(t *testing.T) {
+	t.Parallel()
+	f := newNoticeFixture(t, "Träger abgelaufene Befristung", noticeToday)
+	end := calendar.NewDate(2026, 11, 9)
+	_, err := f.db.NewUpdate().Table("care_contract.contract_versions").Set("ends_on = ?", end).
+		Where("contract_id = ?", f.contract).Exec(f.ctx)
+	require.NoError(t, err)
+	_, err = f.parentDeclare(extraordinary)
+	require.NoError(t, err)
+	options, err := f.notices.NoticeOptions(f.ctx, f.reviewer, f.contract, calendar.Date(""))
+	require.NoError(t, err)
+	require.Equal(t, &end, options.ReinterpretedEndsOn)
+	_, err = f.notices.SetNoticeEnd(f.ctx, f.reviewer, f.contract, end)
+	var invalid *carecontract.ValidationError
+	require.ErrorAs(t, err, &invalid, "a manually chosen end still cannot precede receipt")
+	options, err = f.notices.RejectNoticeReason(f.ctx, f.reviewer, f.contract, end)
+	require.NoError(t, err)
+	assert.Equal(t, &end, options.Notice.EndsOn)
+	assert.Equal(t, &end, f.state(t).endsOn)
+	mails := f.endMails()
+	require.Len(t, mails, 1)
+	assert.Contains(t, mails[0].ConfirmationText, "09.11.2026")
+}
+
+type repeatedReasonTemplate struct{ noticeTemplates }
+
+func (templates repeatedReasonTemplate) NoticeTemplate(ctx context.Context, org int64, kind string) (string, error) {
+	if kind == carecontract.NoticeTemplateReasonRejected || kind == carecontract.NoticeTemplateEndSet {
+		return strings.Repeat("{Grund}\n\n", 4), nil
+	}
+	return templates.noticeTemplates.NoticeTemplate(ctx, org, kind)
+}
+
+// The saved notice and the mail both retain every expanded placeholder,
+// even when an allowed template produces more than 8,000 characters.
+func TestEndDecisionStoresTheFullExpandedLetter(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+	for _, decision := range []string{carecontract.EndDecisionSet, carecontract.EndDecisionReinterpreted} {
+		t.Run(decision, func(t *testing.T) {
+			f := newNoticeFixture(t, "Träger vollständiges Endschreiben", noticeToday)
+			f.notices.templates = repeatedReasonTemplate{}
+			input := extraordinary
+			input.Reason = strings.Repeat("ä", 2000)
+			_, err := f.parentDeclare(input)
+			require.NoError(t, err)
+			end := calendar.NewDate(2026, 12, 31)
+			var options carecontract.NoticeOptions
+			if decision == carecontract.EndDecisionSet {
+				options, err = f.notices.SetNoticeEnd(f.ctx, f.reviewer, f.contract, end)
+			} else {
+				options, err = f.notices.RejectNoticeReason(f.ctx, f.reviewer, f.contract, end)
+			}
+			require.NoError(t, err)
+			text := options.Notice.EndNoticeText
+			assert.Equal(t, 4, strings.Count(text, input.Reason))
+			assert.Contains(t, text, "Letzter Betreuungstag: 31.12.2026")
+			mails := f.endMails()
+			require.Len(t, mails, 1)
+			assert.Equal(t, text, mails[0].ConfirmationText)
 		})
 	}
 }

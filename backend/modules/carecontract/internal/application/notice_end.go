@@ -83,11 +83,12 @@ func (n *Notices) decideEnd(ctx context.Context, reviewer carecontract.Reviewer,
 		if !decision.expected.IsZero() && decision.expected != endsOn {
 			return carecontract.NoticeOptions{}, &carecontract.ValidationError{Fields: map[string]string{"expected_ends_on": "changed"}}
 		}
-	}
-	notice, err := openEnd(record, state.Notice, endsOn)
-	if err != nil {
+	} else if _, err := openEnd(record, state.Notice, endsOn); err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
+	// A computed ordinary end may preserve a fixed term before receipt.
+	// Only a manually chosen end must be on or after receipt.
+	notice := state.Notice
 	traeger, err := n.officeTraeger(ctx, reviewer, record)
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
