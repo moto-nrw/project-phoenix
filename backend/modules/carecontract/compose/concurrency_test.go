@@ -49,6 +49,9 @@ func (p *waitingPost) EnqueueContractMail(context.Context, carecontract.Contract
 	return p.next, nil
 }
 
+// ShareMailBlockLimit shares nothing: no provider is asked.
+func (p *waitingPost) ShareMailBlockLimit(ctx context.Context) context.Context { return ctx }
+
 // ContractMailBlock holds no address back.
 func (p *waitingPost) ContractMailBlock(context.Context, int64, string, string) (string, error) {
 	return "", nil

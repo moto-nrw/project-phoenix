@@ -28,6 +28,9 @@ func (m *CareContractTestMails) ContractMailStates(context.Context, int64, int64
 	return nil, nil
 }
 
+// ShareMailBlockLimit shares nothing; the test mails read no provider.
+func (m *CareContractTestMails) ShareMailBlockLimit(ctx context.Context) context.Context { return ctx }
+
 // ContractMailBlock holds no address back.
 func (m *CareContractTestMails) ContractMailBlock(context.Context, int64, string, string) (string, error) {
 	return "", nil

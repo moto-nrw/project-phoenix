@@ -17,7 +17,6 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import {
   lintSource as lintProbe,
@@ -1750,8 +1749,7 @@ describe("button ratchet baseline", () => {
   });
 });
 
-// #5584: Pillen-Ratchet. Ein Fund je Element; die Baseline hält den Ist-Stand
-// je Datei fest und darf nur sinken.
+// #5584: hard-zero. Ein Fund je Element, ohne Ausnahme für den alten Bestand.
 describe.concurrent("ui-kit/no-hand-rolled-pill", () => {
   const handRolled = (count: number) =>
     `function Probe() {
@@ -1805,25 +1803,141 @@ describe.concurrent("ui-kit/no-hand-rolled-pill", () => {
     expect(result.output).not.toContain("no-hand-rolled-pill");
   });
 
-  it("keeps the shrink-only baseline: equal and fewer pass, more fails", async () => {
-    const [file, count] = Object.entries(
-      pillRatchetBaseline["no-hand-rolled-pill"] ?? {},
-    ).find(([candidate]) => candidate.endsWith(".tsx"))!;
-    const [equal, more, fewer] = await Promise.all([
-      lintSource(handRolled(count), file),
-      lintSource(handRolled(count + 1), file),
-      lintSource(handRolled(count - 1), file),
-    ]);
-    expect(equal.output).not.toContain("no-hand-rolled-pill");
+  it("is hard-zero: a file from the former baseline fails too", async () => {
+    const result = await lintSource(
+      handRolled(1),
+      "src/components/ui/page-header/ActiveFilterChips.tsx",
+    );
 
-    expect(more.status).toBe(1);
-    expect(more.output).toContain("ui-kit(no-hand-rolled-pill)");
-
-    expect(fewer.output).not.toContain("no-hand-rolled-pill");
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-pill)");
   });
 });
 
+// #5584 Abschlussrunde: auch `div` und Klassen aus erkennbar statischen Quellen.
+describe.concurrent(
+  "ui-kit/no-hand-rolled-pill, div und statische Quellen",
+  () => {
+    const RULE = "ui-kit(no-hand-rolled-pill)";
+
+    it("fails a div pill", async () => {
+      const result = await lintSource(
+        `export const Probe = () => (
+        <div className="bg-moto-orange-soft flex items-center gap-1.5 rounded-full px-3 py-1 text-xs">Achtung</div>
+      );`,
+        "src/components/probe.tsx",
+      );
+
+      expect(result.output).toContain(RULE);
+    });
+
+    it("accepts a hint box, a brand surface and a tooltip on a div", async () => {
+      const result = await lintSource(
+        `export const Probe = () => (
+        <>
+          <div className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">Hinweis in ganzer Breite</div>
+          <div className="w-fit rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">Kurzer Hinweis</div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/85 px-3 py-1.5 text-xs shadow-sm backdrop-blur-sm">Für Schulen</div>
+          <div role="tooltip" className="inline-block rounded-md bg-gray-900 px-2 py-1 text-xs text-white">Hilfe</div>
+        </>
+      );`,
+        "src/components/probe.tsx",
+      );
+
+      expect(result.output).not.toContain(RULE);
+    });
+
+    it("finds a surface in a helper or table declared below the element", async () => {
+      const result = await lintSource(
+        `export const Probe = ({ status }: { status: string }) => (
+        <>
+          <span className={\`rounded-full px-2 py-1 text-xs \${statusClass(status)}\`}>Status</span>
+          <span className={\`rounded-full px-2 py-1 text-xs \${TONES[status]}\`}>Status</span>
+        </>
+      );
+      function statusClass(status: string) {
+        return status === "aktiv" ? "bg-moto-green-soft" : "bg-gray-100";
+      }
+      const TONES: Record<string, string> = { aktiv: "bg-moto-green-soft" };`,
+        "src/components/probe.tsx",
+      );
+
+      expect(
+        result.output.match(/ui-kit\(no-hand-rolled-pill\)/g),
+      ).toHaveLength(2);
+    });
+
+    it("finds a surface in an exported helper of another module", () => {
+      const root = mkdtempSync(join(tmpdir(), "pill-import-"));
+      temporaryDirectories.push(root);
+      mkdirSync(join(root, "src/lib"), { recursive: true });
+      mkdirSync(join(root, "src/components"), { recursive: true });
+      writeFileSync(
+        join(root, "src/lib/tones.ts"),
+        `export function statusClass(status: string) {
+  return \`font-medium \${status === "aktiv" ? "bg-moto-green-soft" : "bg-gray-100"}\`;
+}
+export function statusName(status: string) {
+  return status === "aktiv" ? "Aktiv" : "Inaktiv";
+}
+async function other() {
+  return "bg-moto-red-soft";
+}
+void other;`,
+      );
+      const lintProbeFile = (name: string, helper: string) => {
+        const path = join(root, "src/components", name);
+        writeFileSync(
+          path,
+          `import { ${helper} } from "~/lib/tones";
+        export const Probe = ({ status }: { status: string }) => (
+          <span className={\`rounded-full px-2 py-1 text-xs \${${helper}(status)}\`}>Status</span>
+        );`,
+        );
+        return spawnSync(
+          resolve("node_modules/.bin/oxlint"),
+          ["-c", resolve(".oxlintrc.json"), path],
+          { encoding: "utf8" },
+        ).stdout;
+      };
+
+      expect(lintProbeFile("surface.tsx", "statusClass")).toContain(
+        "no-hand-rolled-pill",
+      );
+      // Der andere Export desselben Moduls trägt keine Fläche bei.
+      expect(lintProbeFile("name.tsx", "statusName")).not.toContain(
+        "no-hand-rolled-pill",
+      );
+    });
+
+    it("stays silent on classes it cannot resolve statically (known limit)", async () => {
+      const result = await lintSource(
+        `export const Probe = ({ toneClass }: { toneClass: string }) => (
+        <span className={\`rounded-full px-2 py-1 text-xs \${toneClass}\`}>Status</span>
+      );`,
+        "src/components/probe.tsx",
+      );
+
+      expect(result.output).not.toContain(RULE);
+    });
+  },
+);
+
 describe.concurrent("ui-kit/no-pill-dot", () => {
+  it("fails a dot inside a div pill", async () => {
+    const result = await lintSource(
+      `export const Probe = () => (
+        <div className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs">
+          <span className="h-1.5 w-1.5 rounded-full bg-gray-400" aria-hidden />
+          Keine Lücken
+        </div>
+      );`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-pill-dot)");
+  });
+
   it("fails a dot inside a pill (#2476)", async () => {
     const result = await lintSource(
       `function Probe() {
@@ -1998,27 +2112,6 @@ describe.concurrent("ui-kit/no-hex-alpha-tint", () => {
     );
 
     expect(result.output).not.toContain("no-hex-alpha-tint");
-  });
-});
-
-describe("pill ratchet baseline", () => {
-  it("matches the current findings exactly", () => {
-    const result = spawnSync(
-      process.execPath,
-      [resolve("scripts/ui-kit-pill-baseline-update.mjs"), "--check"],
-      { encoding: "utf8" },
-    );
-
-    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
-  }, 120_000);
-
-  it("names only files that exist and positive counts", () => {
-    for (const [rule, files] of Object.entries(pillRatchetBaseline)) {
-      for (const [file, count] of Object.entries(files)) {
-        expect(existsSync(resolve(file)), `${rule}: ${file}`).toBe(true);
-        expect(count).toBeGreaterThan(0);
-      }
-    }
   });
 });
 
@@ -2247,3 +2340,99 @@ describe.concurrent(
     });
   },
 );
+
+describe.concurrent("ui-kit Eingabe-Bausteine (#5596)", () => {
+  it.each([
+    [
+      "no-hand-rolled-removable-chip",
+      `<span className="inline-flex items-center rounded-full bg-gray-50">
+        {label}
+        <button type="button" onClick={remove} aria-label="Weg"><X /></button>
+      </span>`,
+    ],
+    [
+      "no-hand-rolled-removable-chip",
+      `<span className="inline-flex rounded-full bg-gray-50">
+        {label}
+        <button type="button" onClick={remove} aria-label="Weg">×</button>
+      </span>`,
+    ],
+    [
+      "no-hand-rolled-number-stepper",
+      `<div className="flex">
+        <Button onClick={remove} aria-label="Weniger"><Minus /></Button>
+        <span>{label}</span>
+        <Button onClick={remove} aria-label="Mehr"><Plus /></Button>
+      </div>`,
+    ],
+    [
+      "no-hand-rolled-weekday-toggle",
+      `<div>{weekdays.map((day) => (
+        <label key={day}><Checkbox checked onChange={remove} />{day}</label>
+      ))}</div>`,
+    ],
+    [
+      "no-hand-rolled-weekday-toggle",
+      `<div>{WEEKDAYS.map((day) => (
+        <Button key={day} aria-pressed onClick={remove}>{day}</Button>
+      ))}</div>`,
+    ],
+  ])("%s fails the hand-built form", async (rule, element) => {
+    const result = await lintSource(
+      `import { Minus, Plus, X } from "lucide-react";
+      import { Button } from "~/components/ui/button";
+      import { Checkbox } from "~/components/ui/checkbox";
+      const weekdays = ["Mo"];
+      const WEEKDAYS = ["Mo"];
+      function Probe({ label, remove }: { label: string; remove: () => void }) {
+        return ${element};
+      }
+      void Probe; void Minus; void Plus; void X; void Button; void Checkbox;
+      void weekdays; void WEEKDAYS;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain(rule);
+  });
+
+  it.each([
+    [
+      "no-hand-rolled-removable-chip",
+      `<RemovableChip label={label} onRemove={remove} removeLabel="Weg" />`,
+    ],
+    [
+      "no-hand-rolled-removable-chip",
+      // Eine Zeile mit Schließen-Kreuz ist kein Chip.
+      `<div className="flex rounded-xl border">
+        {label}
+        <button type="button" onClick={remove} aria-label="Weg"><X /></button>
+      </div>`,
+    ],
+    [
+      "no-hand-rolled-number-stepper",
+      `<Button onClick={remove} aria-label="Mehr"><Plus /></Button>`,
+    ],
+    [
+      "no-hand-rolled-weekday-toggle",
+      `<div>{weekdays.map((day) => (
+        <ToggleChip key={day} pressed onPressedChange={remove}>{day}</ToggleChip>
+      ))}</div>`,
+    ],
+  ])("%s accepts the kit form", async (rule, element) => {
+    const result = await lintSource(
+      `import { Plus, X } from "lucide-react";
+      import { Button } from "~/components/ui/button";
+      import { RemovableChip } from "~/components/ui/removable-chip";
+      import { ToggleChip } from "~/components/ui/toggle-chip";
+      const weekdays = ["Mo"];
+      function Probe({ label, remove }: { label: string; remove: () => void }) {
+        return ${element};
+      }
+      void Probe; void Plus; void X; void Button; void RemovableChip;
+      void ToggleChip; void weekdays;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(rule);
+  });
+});

@@ -175,6 +175,9 @@ type Post interface {
 	// nothing. Outcome is the last mail's to this address, if there was one: only a
 	// mail that left a block at the provider makes the provider worth asking.
 	ContractMailBlock(ctx context.Context, organizationID int64, address, outcome string) (string, error)
+	// ShareMailBlockLimit makes the provider's limits count once for everything that
+	// uses the returned context, so one request cannot wait once per contract.
+	ShareMailBlockLimit(ctx context.Context) context.Context
 	ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]MailState, error)
 }
 

@@ -166,6 +166,8 @@ func (p *postDouble) ContractMailBlock(context.Context, int64, string, string) (
 	return "", nil
 }
 
+func (p *postDouble) ShareMailBlockLimit(ctx context.Context) context.Context { return ctx }
+
 func (p *postDouble) ContractMailStates(context.Context, int64, int64) ([]carecontract.MailState, error) {
 	return nil, nil
 }

@@ -50,6 +50,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractPost.ContractMailBlock",
+      "binding_digest": "cd347e81e8d90277cac7e64617b1ef40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.ContractMailBlock",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractPost.ContractMailBlock",
       "binding_digest": "1ba829e2739321f97f116b4cb7a84a18",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.ContractMailBlock",
       "source_owner": "care-contract",

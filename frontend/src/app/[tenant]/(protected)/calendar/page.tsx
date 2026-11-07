@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 
@@ -55,6 +55,8 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { Textarea } from "~/components/ui/textarea";
+import { RemovableChip } from "~/components/ui/removable-chip";
+import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import {
   useApiErrorDisplay,
   useApiLoadError,
@@ -1340,21 +1342,13 @@ function StaffCalendarPageInner() {
                     {targets.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {targets.map((target) => (
-                          <span
+                          <RemovableChip
                             key={target.key}
-                            className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700"
-                          >
-                            {target.label}
-                            <button
-                              type="button"
-                              className="rounded p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900"
-                              onClick={() => removeTarget(target.key)}
-                              disabled={submitting}
-                              aria-label={`${target.label} entfernen`}
-                            >
-                              <X className="h-3.5 w-3.5" aria-hidden />
-                            </button>
-                          </span>
+                            label={target.label}
+                            onRemove={() => removeTarget(target.key)}
+                            removeLabel={`${target.label} entfernen`}
+                            disabled={submitting}
+                          />
                         ))}
                       </div>
                     ) : null}
@@ -1407,31 +1401,19 @@ function StaffCalendarPageInner() {
                     </div>
 
                     {frequency === "weekly" ? (
-                      <div className="flex flex-wrap gap-2">
-                        {weekdays.map((day) => (
-                          <label
-                            key={day.value}
-                            htmlFor={`calendar-weekday-${day.value}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-700"
-                          >
-                            <Checkbox
-                              id={`calendar-weekday-${day.value}`}
-                              checked={weeklyDays.includes(day.value)}
-                              onChange={(event) => {
-                                setWeeklyDays((current) =>
-                                  event.target.checked
-                                    ? [...current, day.value]
-                                    : current.filter(
-                                        (value) => value !== day.value,
-                                      ),
-                                );
-                              }}
-                              disabled={submitting}
-                            />
-                            {day.label}
-                          </label>
-                        ))}
-                      </div>
+                      <WeekdayToggleGroup
+                        ariaLabel="Wochentage"
+                        days={weekdays}
+                        value={weeklyDays}
+                        onToggle={(day) =>
+                          setWeeklyDays((current) =>
+                            current.includes(day)
+                              ? current.filter((value) => value !== day)
+                              : [...current, day],
+                          )
+                        }
+                        disabled={submitting}
+                      />
                     ) : null}
 
                     <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4">

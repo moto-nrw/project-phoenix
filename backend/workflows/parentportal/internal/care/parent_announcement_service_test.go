@@ -15,8 +15,6 @@ import (
 
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	"github.com/stretchr/testify/assert"
@@ -81,7 +79,7 @@ func seedPublishedAnnouncement(
 	repo api.ParentAnnouncementFixtures,
 	createdBy, tenantID int64,
 	requiresAck bool,
-) *communication.ParentAnnouncementFixture {
+) *api.ParentAnnouncementFixture {
 	return seedPublishedAnnouncementWithSystemKind(t, ctx, repo, createdBy, tenantID, requiresAck, nil)
 }
 
@@ -92,9 +90,9 @@ func seedPublishedAnnouncementWithSystemKind(
 	createdBy, tenantID int64,
 	requiresAck bool,
 	systemKind *string,
-) *communication.ParentAnnouncementFixture {
+) *api.ParentAnnouncementFixture {
 	t.Helper()
-	a := &communication.ParentAnnouncementFixture{
+	a := &api.ParentAnnouncementFixture{
 		Title:                   "Sommerfest",
 		Body:                    "Wir feiern am Freitag.",
 		Priority:                "info",
@@ -105,7 +103,7 @@ func seedPublishedAnnouncementWithSystemKind(
 	}
 	a.TenantID = tenantID
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.Create, a))
-	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), repo.ReplaceTargets, tenantID, a.ID, []*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}}))
+	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), repo.ReplaceTargets, tenantID, a.ID, []*api.ParentAnnouncementTargetFixture{{TargetType: "school_all"}}))
 	now := time.Now().Add(-time.Minute)
 	require.NoError(t, testpkg.TenantCommand2(t, ctx, testpkg.SetupTestDB(t), repo.SetPublished, a.ID, &now))
 	t.Cleanup(func() { _ = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.Delete, a.ID) })

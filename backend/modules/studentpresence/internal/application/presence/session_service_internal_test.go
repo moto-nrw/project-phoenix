@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -693,7 +694,7 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectBegin()
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := tenant.WithTransactionForTest(withSessionTestRuntime(t, ctx, db), &tx)
+		txCtx := tenanttest.WithTransaction(withSessionTestRuntime(t, ctx, db), &tx)
 		mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnError(errors.New("savepoint failed"))
 		mock.ExpectRollback()
 
@@ -716,7 +717,7 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectBegin()
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := tenant.WithTransactionForTest(withSessionTestRuntime(t, ctx, db), &tx)
+		txCtx := tenanttest.WithTransaction(withSessionTestRuntime(t, ctx, db), &tx)
 		mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectExec("ROLLBACK TO SAVEPOINT phoenix_operation").WillReturnError(errors.New("rollback failed"))
 		mock.ExpectRollback()
@@ -739,7 +740,7 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectBegin()
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := tenant.WithTransactionForTest(withSessionTestRuntime(t, ctx, db), &tx)
+		txCtx := tenanttest.WithTransaction(withSessionTestRuntime(t, ctx, db), &tx)
 		mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnError(errors.New("release failed"))
 		mock.ExpectRollback()

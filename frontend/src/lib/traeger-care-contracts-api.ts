@@ -87,7 +87,9 @@ export type TemplateIssue =
   | "conclusion_automatic"
   | "acceptance_missing"
   | "acceptance_changed"
-  | "recipient_missing";
+  | "recipient_missing"
+  | "mail_blocked"
+  | "mail_stopped";
 
 /**
  * Why the application gives no proof of the parents' agreement for a
@@ -107,6 +109,11 @@ export interface ContractCandidate extends CandidateKey {
   readonly services: readonly ContractService[];
   readonly effectiveFrom: string;
   readonly templateIssue: TemplateIssue | null;
+  /**
+   * Why a mail to the parents' address would stay back now, for a child the
+   * conclusion at the acceptance could conclude (#4680); null otherwise.
+   */
+  readonly mailBlock: "stopped" | "address" | null;
 }
 
 /**
@@ -287,6 +294,7 @@ interface BackendService {
 
 interface BackendCandidate {
   acceptance_issue?: AcceptanceIssue | "";
+  mail_block?: "stopped" | "address" | "";
   school_id: number;
   request_child_id: number;
   school_name: string;
@@ -437,6 +445,7 @@ function candidateFromBackend(row: BackendCandidate): ContractCandidate {
     effectiveFrom: row.effective_from,
     templateIssue: row.template_issue === "" ? null : row.template_issue,
     acceptanceIssue: row.acceptance_issue ? row.acceptance_issue : null,
+    mailBlock: row.mail_block ? row.mail_block : null,
   };
 }
 

@@ -4,12 +4,13 @@ package application
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
 )
 
 // ParentFixtureProtocol binds the model constants the compatibility contract
 // tests compare, without copying their values into the test or public DTO.
-func (*Service) ParentFixtureProtocol() peopledirectory.ParentFixtureProtocol {
-	return peopledirectory.ParentFixtureProtocol{
+func (*Service) ParentFixtureProtocol() parentfixture.ParentFixtureProtocol {
+	return parentfixture.ParentFixtureProtocol{
 		ParentRequestTypeExcusedAbsence:    peopledirectory.ParentRequestTypeExcusedAbsence,
 		ParentRequestEventSubmitted:        peopledirectory.ParentRequestEventSubmitted,
 		ParentRequestEventGuardianEdit:     peopledirectory.ParentRequestEventGuardianEdit,

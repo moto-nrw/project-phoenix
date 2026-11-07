@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -68,14 +70,14 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 	}
 	assert.Equal(t, []int64{recipient.AccountID}, answers())
 
-	protectionOn := &peopledirectory.FamilyProtectionFixture{
+	protectionOn := &parentfixture.FamilyProtectionFixture{
 		StudentID: author.StudentID, Enabled: true, Reason: "Schutzfall", ActorAccountID: author.AccountID,
 	}
 	protectionOn.TenantID = author.TenantID
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateFamilyProtectionFixture, protectionOn))
 	assert.Empty(t, answers())
 
-	protectionOff := &peopledirectory.FamilyProtectionFixture{
+	protectionOff := &parentfixture.FamilyProtectionFixture{
 		StudentID: author.StudentID, Enabled: false, Reason: "Schutz aufgehoben", ActorAccountID: author.AccountID,
 	}
 	protectionOff.TenantID = author.TenantID

@@ -110,8 +110,11 @@ func TestSharedDocumentsFollowTheRelationship(t *testing.T) {
 	var group, otherGroup int64
 	require.NoError(t, db.NewRaw(`INSERT INTO education.groups (tenant_id, name) VALUES (?, 'Sonnenblumen') RETURNING id`, chain.TenantID).Scan(ctx, &group))
 	require.NoError(t, db.NewRaw(`INSERT INTO education.groups (tenant_id, name) VALUES (?, 'Mondgruppe') RETURNING id`, chain.TenantID).Scan(ctx, &otherGroup))
-	_, err := db.ExecContext(ctx, `UPDATE users.student_school_memberships SET group_id = ? WHERE id = ?`, group, chain.StudentID)
+	moved, err := db.ExecContext(ctx, `UPDATE users.student_school_memberships SET group_id = ? WHERE tenant_id = ? AND student_profile_id = ?`, group, chain.TenantID, chain.StudentID)
 	require.NoError(t, err)
+	rows, err := moved.RowsAffected()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rows, "the child's membership joins the group")
 	sibling := testpkg.CreateTestSchoolInOrganization(t, db, organization, "Andere OGS Dokumente")
 
 	own := sharedDocumentTraeger{t: t, db: db, organization: organization}

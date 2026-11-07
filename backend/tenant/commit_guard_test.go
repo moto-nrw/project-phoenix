@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,7 +74,7 @@ func TestCommitGuardRejectionRollsTheTransactionBack(t *testing.T) {
 
 	err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
 		tenant.RegisterAfterCommit(txCtx, func() { afterCommit = true })
-		tenant.RegisterAfterRollback(txCtx, func() { afterRollback = true })
+		tenanttest.RegisterAfterRollback(txCtx, func() { afterRollback = true })
 		return nil
 	})
 

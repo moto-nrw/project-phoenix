@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
 )
 
 // Preserve the concrete fixture facet while arranging the same application
 // transaction used by production guardian relationship writes.
-func (c guardianRelationshipCommands) CreateGuardianLinkFixture(ctx context.Context, value *peopledirectory.GuardianLinkFixture) error {
+func (c guardianRelationshipCommands) CreateGuardianLinkFixture(ctx context.Context, value *parentfixture.GuardianLinkFixture) error {
 	// Preserve fixture validation before acquiring a database unit of work.
 	if value == nil || value.StudentID <= 0 || value.GuardianProfileID <= 0 {
 		return errors.New("guardian relationship fixture requires a student and guardian")
@@ -23,7 +23,7 @@ func (c guardianRelationshipCommands) CreateGuardianLinkFixture(ctx context.Cont
 			return err
 		}
 	}
-	writer, ok := c.StudentGuardianRepository.(peopledirectory.GuardianLinkFixtureWriter)
+	writer, ok := c.StudentGuardianRepository.(parentfixture.GuardianLinkFixtureWriter)
 	if !ok {
 		return errors.New("guardian relationship fixture writer is unavailable")
 	}

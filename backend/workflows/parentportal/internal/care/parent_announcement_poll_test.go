@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
 
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
@@ -31,10 +30,10 @@ func seedPublishedPoll(
 	createdBy, tenantID int64,
 	deadline *time.Time,
 	labels ...string,
-) *communication.ParentAnnouncementFixture {
+) *api.ParentAnnouncementFixture {
 	t.Helper()
 	return seedPublishedPollWithTargets(t, ctx, repo, createdBy, tenantID, deadline,
-		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}},
+		[]*api.ParentAnnouncementTargetFixture{{TargetType: "school_all"}},
 		labels...)
 }
 
@@ -44,11 +43,11 @@ func seedPublishedPollWithTargets(
 	repo api.ParentAnnouncementFixtures,
 	createdBy, tenantID int64,
 	deadline *time.Time,
-	targets []*communication.ParentAnnouncementTargetFixture,
+	targets []*api.ParentAnnouncementTargetFixture,
 	labels ...string,
-) *communication.ParentAnnouncementFixture {
+) *api.ParentAnnouncementFixture {
 	t.Helper()
-	a := &communication.ParentAnnouncementFixture{
+	a := &api.ParentAnnouncementFixture{
 		Title:            "Murmelparty",
 		Body:             "Kommt Ihr Kind zur Murmelparty?",
 		Priority:         "info",
@@ -61,9 +60,9 @@ func seedPublishedPollWithTargets(
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.Create, a))
 	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), repo.ReplaceTargets, tenantID, a.ID, targets))
 
-	options := make([]*communication.ParentAnnouncementOptionFixture, 0, len(labels))
+	options := make([]*api.ParentAnnouncementOptionFixture, 0, len(labels))
 	for i, label := range labels {
-		options = append(options, &communication.ParentAnnouncementOptionFixture{Label: label, Position: i})
+		options = append(options, &api.ParentAnnouncementOptionFixture{Label: label, Position: i})
 	}
 	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), repo.ReplaceOptions, tenantID, a.ID, options))
 
@@ -92,7 +91,7 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	poll := seedPublishedPollWithTargets(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, nil,
-		[]*communication.ParentAnnouncementTargetFixture{{
+		[]*api.ParentAnnouncementTargetFixture{{
 			TargetType:  "student",
 			TargetRefID: &chain.StudentID,
 		}},
@@ -168,7 +167,7 @@ func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	poll := seedPublishedPollWithTargets(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, nil,
-		[]*communication.ParentAnnouncementTargetFixture{{
+		[]*api.ParentAnnouncementTargetFixture{{
 			TargetType:  "student",
 			TargetRefID: &chain.StudentID,
 		}},

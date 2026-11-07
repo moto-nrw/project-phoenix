@@ -275,3 +275,44 @@ func TestCredentialedTransportsRefusePlainText(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "TLSMandatory", client.TLSPolicy())
 }
+
+// With no fallback left, a mail that asks for it does not go back to the provider,
+// which already gave up on it. The answer ends the request, and the log names the
+// mail's kind, never its address (#5957).
+func TestRequestedFallbackWithoutAFallbackEndsTheRequest(t *testing.T) {
+	t.Parallel()
+	client, sent := fakeSMTP(t, smtpAnswers{dataClose: acceptedWithID})
+	mailer := identityMailer(t, client)
+	var logs bytes.Buffer
+	mailer.logger = slog.New(slog.NewTextHandler(&logs, nil))
+	message := securityTestMessage()
+	message.UseFallback = true
+
+	receipt, err := mailer.SendWithReceipt(context.Background(), message)
+
+	require.ErrorIs(t, err, mailcontract.ErrFallbackRemoved)
+	assert.Empty(t, sent(), "the provider already gave up on this mail")
+	assert.False(t, receipt.UsedFallback)
+	assert.Contains(t, logs.String(), "security mail fallback request ended")
+	assert.Contains(t, logs.String(), "level=ERROR")
+	assert.NotContains(t, logs.String(), message.To.Address)
+	assert.NotContains(t, err.Error(), message.To.Address)
+
+	message.UseFallback = false
+	_, err = mailer.SendWithReceipt(context.Background(), message)
+	require.NoError(t, err)
+	assert.NotEmpty(t, sent(), "a mail without a request stays on the provider")
+}
+
+// The real construction of a deployment without a fallback answers that way.
+func TestAMailerWithoutAFallbackEndsARequest(t *testing.T) {
+	t.Parallel()
+	mailer, err := NewMailer(mailcontract.MailerConfig{Host: "smtp.invalid", Port: 25, TemplateDir: "../../../../../templates", AppEnv: "development"})
+	require.NoError(t, err)
+	message := securityTestMessage()
+	message.UseFallback = true
+
+	_, err = mailer.(mailcontract.ReceiptMailer).SendWithReceipt(context.Background(), message)
+
+	require.ErrorIs(t, err, mailcontract.ErrFallbackRemoved)
+}

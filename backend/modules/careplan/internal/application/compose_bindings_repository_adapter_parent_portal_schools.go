@@ -33,7 +33,8 @@ func (r SchoolChildRepository) ListByAccount(ctx context.Context, accountID int6
 	if err != nil {
 		return nil, err
 	}
-	if err := EnrichChildrenWithSchools(ctx, r.schools, children); err != nil {
+	children, err = ChildrenOfLiveSchools(ctx, r.schools, children)
+	if err != nil {
 		return nil, err
 	}
 	slices.SortStableFunc(children, func(left, right *parentModels.ChildSummary) int {
@@ -52,10 +53,12 @@ func (r SchoolChildRepository) FindForAccount(ctx context.Context, accountID, st
 	if err != nil || child == nil {
 		return child, err
 	}
-	if err := EnrichChildrenWithSchools(ctx, r.schools, []*parentModels.ChildSummary{child}); err != nil {
+	live, err := ChildrenOfLiveSchools(ctx, r.schools, []*parentModels.ChildSummary{child})
+	if err != nil || len(live) == 0 {
+		// A child of a school that is not live reads as not linked.
 		return nil, err
 	}
-	return child, nil
+	return live[0], nil
 }
 
 type SchoolEnrollablePhaseRepository struct {
@@ -135,24 +138,39 @@ func (r SchoolEnrollmentRequestRepository) ListByAccount(ctx context.Context, ac
 	}
 	return result, nil
 }
-func EnrichChildrenWithSchools(ctx context.Context, directory carePlanBindingPorts.ParentPortalSchools, children []*parentModels.ChildSummary) error {
+
+// ChildrenOfLiveSchools names the school of every child and keeps only the
+// children of schools that are switched active and not deleted. A school
+// the operator switches inactive or deletes locks out its staff; its
+// children leave the parents portal and the parent calendar with it, so no
+// request or message reaches a school nobody reads. This is the parent
+// child gate every per-child read and write resolves through.
+func ChildrenOfLiveSchools(ctx context.Context, directory carePlanBindingPorts.ParentPortalSchools, children []*parentModels.ChildSummary) ([]*parentModels.ChildSummary, error) {
+	if len(children) == 0 {
+		return children, nil
+	}
 	ids := make([]int64, 0, len(children))
 	for _, child := range children {
 		ids = append(ids, child.TenantID)
 	}
 	schools, err := ParentPortalSchoolsByID(ctx, directory, ids)
 	if err != nil {
-		return fmt.Errorf("parent: load schools for children: %w", err)
+		return nil, fmt.Errorf("parent: load schools for children: %w", err)
 	}
+	live := make([]*parentModels.ChildSummary, 0, len(children))
 	for _, child := range children {
 		school, found := schools[child.TenantID]
 		if !found {
-			return fmt.Errorf("parent: school %d missing for child", child.TenantID)
+			return nil, fmt.Errorf("parent: school %d missing for child", child.TenantID)
+		}
+		if !school.Active || school.Deleted {
+			continue
 		}
 		child.SchoolName = school.Name
 		child.SchoolSlug = school.Slug
+		live = append(live, child)
 	}
-	return nil
+	return live, nil
 }
 func PhaseSchoolIDs(phases []*parentModels.EnrollablePhase) []int64 {
 	ids := make([]int64, 0, len(phases))

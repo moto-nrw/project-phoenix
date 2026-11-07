@@ -96,6 +96,7 @@ const CANDIDATE: ContractCandidate = {
   effectiveFrom: "2027-08-01",
   templateIssue: null,
   acceptanceIssue: null,
+  mailBlock: null,
 };
 
 function renderPage() {
@@ -334,6 +335,67 @@ describe("TraegerVertraegePage", () => {
     expect(
       screen.getByText(/sind hier keine Entwürfe nötig/),
     ).toBeInTheDocument();
+  });
+
+  it("names the children whose contract waits for a freed mail address and how the school frees it", async () => {
+    api.fetchConclusionModes.mockResolvedValue([
+      { schoolId: "3", schoolName: "OGS Am Lindenhof", mode: "bei_annahme" },
+    ]);
+    api.fetchContractCandidates.mockResolvedValue([
+      CANDIDATE,
+      {
+        ...CANDIDATE,
+        requestChildId: "47",
+        childFirstName: "Jona",
+        mailBlock: "address",
+      },
+      {
+        ...CANDIDATE,
+        requestChildId: "48",
+        childFirstName: "Lea",
+        mailBlock: "stopped",
+      },
+    ]);
+    renderPage();
+    await screen.findAllByText("Lina Muster");
+    fireEvent.click(screen.getByRole("button", { name: /Verträge erstellen/ }));
+    expect(await screen.findByLabelText("Jona Kern auswählen")).toBeDisabled();
+
+    // Only the child whose mail goes out is promised a contract in minutes.
+    expect(screen.getAllByText("Entsteht bei der Annahme")).toHaveLength(1);
+    expect(screen.getByText("Mail-Adresse gesperrt")).toBeInTheDocument();
+    expect(screen.getByText("Mails gestoppt")).toBeInTheDocument();
+    // A failed address is freed at the child; the application's address
+    // cannot be changed.
+    expect(
+      screen.getByText(
+        "Der Vertrag für Jona Kern kommt erst, wenn die Schule die Sperre der Mail-Adresse aufhebt. Mails an diese Adresse kamen nicht an. Die Schule prüft die Adresse beim Kind unter „Erziehungsberechtigte“ und wählt „Sperre aufheben“.",
+      ),
+    ).toBeInTheDocument();
+    // A stop is the school's own choice, not a wrong address.
+    expect(
+      screen.getByText(
+        "Der Vertrag für Lea Kern kommt erst, wenn die Schule wieder Mails an die Eltern sendet. Die Schule hat die Mails gestoppt. Sie wählt beim Kind unter „Erziehungsberechtigte“ „Mails wieder senden“.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/in der Anmeldung korrigiert/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the held mail out of a school that sends later", async () => {
+    api.fetchConclusionModes.mockResolvedValue([
+      { schoolId: "3", schoolName: "OGS Am Lindenhof", mode: "nachtraeglich" },
+    ]);
+    api.fetchContractCandidates.mockResolvedValue([
+      { ...CANDIDATE, mailBlock: "address" },
+    ]);
+    renderPage();
+    await screen.findAllByText("Lina Muster");
+    fireEvent.click(screen.getByRole("button", { name: /Verträge erstellen/ }));
+    expect(await screen.findByLabelText("Mia Kern auswählen")).toBeEnabled();
+    expect(screen.getByText("Mia Kern")).toBeInTheDocument();
+    expect(screen.queryByText("Mail-Adresse gesperrt")).not.toBeInTheDocument();
   });
 
   it("names an active contract with the day it was concluded", async () => {

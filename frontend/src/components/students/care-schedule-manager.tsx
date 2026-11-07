@@ -110,6 +110,7 @@ import { classTripConcept } from "~/lib/concepts/classTrip";
 import { sickConcept } from "~/lib/concepts/sick";
 import { excusedConcept } from "~/lib/concepts/excused";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
 import { CARE_SCHEDULE_STALE_EVENT } from "~/lib/care-schedule-stale";
 import { groupKeys } from "~/lib/swr/groups-keys";
 
@@ -1320,37 +1321,15 @@ function MobileDayButton({
       : getStatusLabel(day.status)
     : null;
   return (
-    <button
-      type="button"
+    <PlanningDayChip
+      stacked
+      weekdayLabel={shortWeekdayLabel(day.date)}
+      dateLabel={String(day.date.getDate())}
+      selected={isSelected}
       onClick={onClick}
-      className={`min-w-0 rounded-lg border px-1 py-2 text-center transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-        isSelected
-          ? "border-gray-300 bg-gray-100 text-gray-900 shadow-sm"
-          : "border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50"
-      }`}
-    >
-      <span className="block truncate text-xs font-semibold">
-        {shortWeekdayLabel(day.date)}
-      </span>
-      <span
-        className={`mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold ${
-          day.isToday
-            ? "bg-moto-orange-strong text-white"
-            : isSelected
-              ? "bg-white text-gray-900"
-              : "bg-gray-100 text-gray-700"
-        }`}
-      >
-        {day.date.getDate()}
-      </span>
-      <span
-        className={`mt-1 block truncate text-sm font-semibold ${
-          isSelected ? "text-gray-500" : "text-gray-400"
-        }`}
-      >
-        {statusLabel ?? " "}
-      </span>
-    </button>
+      statusLabel={statusLabel ?? undefined}
+      today={day.isToday}
+    />
   );
 }
 

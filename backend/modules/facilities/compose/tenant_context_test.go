@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -76,7 +77,7 @@ func TestEveryOperationRejectsMissingTenantContext(t *testing.T) {
 		}
 	}
 	checkOperations("shared connection", context.Background())
-	checkOperations("unsupported transaction", tenant.WithTransactionForTest(context.Background(), struct{}{}))
+	checkOperations("unsupported transaction", tenanttest.WithTransaction(context.Background(), struct{}{}))
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		checkOperations("tenant transaction", tenant.ContextWithoutTenant(ctx))
 		return nil

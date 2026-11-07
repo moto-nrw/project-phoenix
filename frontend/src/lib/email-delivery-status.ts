@@ -179,6 +179,33 @@ export function mailStatusCopy(
 }
 
 /**
+ * A refusal belongs to the address it came from. Once the person has another
+ * address, the row says so and that a new mail can go there.
+ */
+export function correctedAddressCopy(
+  outcome?: MailOutcome | "",
+): MailStatusCopy | null {
+  switch (outcome) {
+    case "unsubscribed":
+      return {
+        label: "Alte Adresse abgemeldet",
+        tone: "gray",
+        explanation:
+          "Die alte Adresse war abgemeldet. Eine neue Mail an die neue Adresse ist möglich.",
+      };
+    case "complained":
+      return {
+        label: "Alte Adresse gesperrt",
+        tone: "gray",
+        explanation:
+          "Die Mail an die alte Adresse wurde als unerwünscht gemeldet. Eine neue Mail an die neue Adresse ist möglich.",
+      };
+    default:
+      return null;
+  }
+}
+
+/**
  * The next step on a guardian's card. Only a bounced address can be freed by the
  * school: a complaint stays.
  */

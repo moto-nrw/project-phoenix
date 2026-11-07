@@ -101,6 +101,11 @@ func (p CareContractPost) ContractMailBlocks(ctx context.Context, organizationID
 	return blocks, nil
 }
 
+// ShareMailBlockLimit lets one request share the limits of the provider's read.
+func (CareContractPost) ShareMailBlockLimit(ctx context.Context) context.Context {
+	return deliveryContract.WithProviderBlockBudget(ctx)
+}
+
 func (p CareContractPost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {
 	statuses, err := p.Delivery.TraegerEmailStatuses(ctx, organizationID,
 		deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})

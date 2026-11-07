@@ -113,6 +113,89 @@ describe("LetterStatusPanel mail state (#5934)", () => {
     expect(screen.getAllByText("Zugestellt").length).toBeGreaterThan(0);
   });
 
+  it.each([
+    ["unsubscribed", "Alte Adresse abgemeldet", /alte Adresse war abgemeldet/],
+    ["complained", "Alte Adresse gesperrt", /als unerwünscht gemeldet/],
+  ] as const)(
+    "says a new mail can go to the corrected address after %s",
+    async (mailOutcome, label, explanation) => {
+      fetchLetterStatus.mockResolvedValue(
+        status({ emails_failed: 1, emails_resendable: 1 }, [
+          recipient({
+            email: "neu@example.com",
+            mailed_to: "alt@example.com",
+            email_status: "failed",
+            mail_outcome: mailOutcome,
+          }),
+        ]),
+      );
+      renderPanel();
+      expect(await screen.findByText(explanation)).toHaveTextContent(
+        /neue Mail an die neue Adresse ist möglich/,
+      );
+      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(screen.queryByText(/direkt an/)).toBeNull();
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Fehlgeschlagene erneut senden" }),
+        ).toBeEnabled(),
+      );
+    },
+  );
+
+  it("offers nothing new while the address stays the same", async () => {
+    fetchLetterStatus.mockResolvedValue(
+      status({ emails_sent: 1, emails_resendable: 0 }, [
+        recipient({ mail_outcome: "unsubscribed" }),
+      ]),
+    );
+    renderPanel();
+    expect(await screen.findByText(/Sprechen Sie sie direkt an/)).toBeVisible();
+    expect(screen.getAllByText("Abgemeldet").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/neue Adresse/)).toBeNull();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Fehlgeschlagene erneut senden" }),
+      ).toBeDisabled(),
+    );
+  });
+
+  it("promises nothing for a corrected address that a hold still stops", async () => {
+    fetchLetterStatus.mockResolvedValue(
+      status({ emails_address_check: 1, emails_resendable: 0 }, [
+        recipient({
+          email: "neu@example.com",
+          mailed_to: "alt@example.com",
+          email_status: "failed",
+          mail_outcome: "unsubscribed",
+          address_mark: "failed",
+        }),
+      ]),
+    );
+    renderPanel();
+    expect(
+      await screen.findByText(/Aktuelle Adresse: neu@example.com/),
+    ).toHaveTextContent(/Adresse prüfen/);
+    expect(screen.queryByText(/neue Adresse ist möglich/)).toBeNull();
+  });
+
+  it("names the block of a current address that refused an earlier mail", async () => {
+    fetchLetterStatus.mockResolvedValue(
+      status({ emails_provider_blocked: 1, emails_resendable: 0 }, [
+        recipient({
+          email: "zurueck@example.com",
+          mailed_to: "anders@example.com",
+          email_status: "failed",
+          mail_outcome: "undeliverable",
+          provider_block: "active",
+        }),
+      ]),
+    );
+    renderPanel();
+    expect(await screen.findByText(/moto-Support/)).toBeInTheDocument();
+    expect(screen.queryByText(/neue Adresse ist möglich/)).toBeNull();
+  });
+
   it("names the support for a block at the provider and offers no resend", async () => {
     fetchLetterStatus.mockResolvedValue(
       status(
