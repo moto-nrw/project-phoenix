@@ -228,3 +228,28 @@ func TestDecisionService_Decide_StartedRenewalAppliesWeeklyPlanAtOnce(t *testing
 		r.student(t).AllowedDepartureModes.DepartureDays().ModeFor(peopleValues.PickupDayMonday))
 	assert.Zero(t, r.applyDue(t, r.start), "an immediate renewal plans nothing")
 }
+
+func TestDecisionService_ApplyDueWeeklyPlans_ClearedConfirmedFields(t *testing.T) {
+	t.Parallel()
+
+	r := setupFutureRenewal(t)
+	r.approve(t)
+	ctx := testpkg.Ctx(t)
+	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
+	require.NoError(t, err)
+	child.CustomData["pickup_times"] = nil
+	delete(child.CustomData, "arrival_times")
+	child.CustomData["allowed_modes"] = nil
+	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
+	_, err = changeRequestApplierForTest(t, r.env).SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
+		RequestID: r.requestID, ChildID: r.childID, ActorAccountID: r.reviewerAccountID, ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+	r.assertRunningPlan(t, "after a confirmed removal before the start")
+
+	assert.Equal(t, 1, r.applyDue(t, r.start))
+	assert.Empty(t, r.pickups(t), "an explicit null clears the approved pickup times")
+	assert.Empty(t, r.careDays(t), "an omitted field clears the approved care days")
+	assert.Empty(t, r.student(t).AllowedDepartureModes, "an explicit null clears the approved Heimweg")
+	assert.Zero(t, r.applyDue(t, r.start.AddDays(1)))
+}

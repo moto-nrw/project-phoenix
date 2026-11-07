@@ -150,8 +150,8 @@ func (d *Decisions) applyWeeklyPlan(ctx context.Context, requestChildID int64) (
 		return false, fmt.Errorf("weekly plan: request child %d has no reviewer", requestChildID)
 	}
 	planSynced, err := d.applyTargetedFields(ctx, request, child, student, nil, *child.ReviewedBy, targetedFieldSyncOptions{
-		ReplaceSchedules: true,
-		Scope:            weeklyPlanOnly,
+		Replace: true,
+		Scope:   weeklyPlanOnly,
 	})
 	if err != nil {
 		return false, fmt.Errorf("weekly plan: apply: %w", err)
