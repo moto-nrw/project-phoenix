@@ -155,19 +155,45 @@ func (s *service) lockForceStartSupervisors(ctx context.Context, activityID int6
 
 // Group locks are now held. A supervisor added since discovery requires a
 // fresh command, not an out-of-order staff lock while holding supervision rows.
+//
+// Each group keeps its own read, in order, and the reads stop at the first
+// group with an unlocked supervisor. The staff members of the groups read so
+// far, the conflicting group included, resolve in one directory read before
+// the conflict is reported: a failing resolution still answers before the
+// conflict, as it did when every group read resolved its own staff (#5783).
 func (s *service) validateTransferredSupervisorLocks(ctx context.Context, groupIDs []int64, lockedStaff map[int64]bool) error {
+	if len(groupIDs) == 0 {
+		return nil
+	}
+	var read []*ports.GroupSupervisor
+	conflict := false
 	for _, groupID := range groupIDs {
-		supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, groupID, true)
+		supervisors, err := s.SupervisorRepo.FindActiveByGroupIDWithoutStaff(ctx, groupID)
 		if err != nil {
 			return err
 		}
-		for _, supervisor := range supervisors {
-			if supervisor != nil && !lockedStaff[supervisor.StaffID] {
-				return ErrSessionConflict
-			}
+		read = append(read, supervisors...)
+		if hasUnlockedSupervisor(supervisors, lockedStaff) {
+			conflict = true
+			break
 		}
 	}
+	if err := s.SupervisorRepo.AttachStaff(ctx, read); err != nil {
+		return err
+	}
+	if conflict {
+		return ErrSessionConflict
+	}
 	return nil
+}
+
+func hasUnlockedSupervisor(supervisors []*ports.GroupSupervisor, lockedStaff map[int64]bool) bool {
+	for _, supervisor := range supervisors {
+		if supervisor != nil && !lockedStaff[supervisor.StaffID] {
+			return true
+		}
+	}
+	return false
 }
 
 // markRollbackOnFailure rolls back the caller's request transaction on every

@@ -22,18 +22,21 @@ type historyReadInterleave struct {
 	fired           bool
 }
 
-func (s *historyReadInterleave) ChildrenForRequest(ctx context.Context, id int64, lock bool) ([]*enrollment.RequestChild, error) {
+func (s *historyReadInterleave) ChildrenForRequests(ctx context.Context, ids []int64) ([]*enrollment.RequestChild, error) {
 	if !s.fired {
 		s.fired = true
 		s.afterFirstPhase()
 	}
-	return s.DecisionChildren.ChildrenForRequest(ctx, id, lock)
+	return s.DecisionChildren.ChildrenForRequests(ctx, ids)
 }
 
-// A committed phase edit between the first phase read and the next request's
-// phase read is visible at READ COMMITTED. The child port supplies only the
-// deterministic scheduling point; both the reads and concurrent edit use SQL.
-func TestEnrollmentHistoryKeepsPhaseReadOrder(t *testing.T) {
+// The history reads the phases of all its requests once, before the children
+// (#5778, decision E2: one early shared read replaces the former per-request
+// READ COMMITTED phase reads). A phase edit committed after that read is
+// therefore visible on no row, instead of on every row after the first. The
+// child port supplies only the deterministic scheduling point; both the
+// reads and the concurrent edit use SQL.
+func TestEnrollmentHistorySharesOnePhaseRead(t *testing.T) {
 	t.Parallel()
 	f := newEnrollmentGrowthFixture(t)
 	env := f.env
@@ -66,8 +69,8 @@ func TestEnrollmentHistoryKeepsPhaseReadOrder(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Len(t, body.Data, 3)
-	require.Equal(t, beforeName, body.Data[0].PhaseName)
-	require.Equal(t, "Committed phase edit", body.Data[1].PhaseName)
-	require.Equal(t, "Committed phase edit", body.Data[2].PhaseName)
+	for i, row := range body.Data {
+		require.Equal(t, beforeName, row.PhaseName, "row %d shows the phase as the shared read saw it", i)
+	}
 	require.True(t, children.fired)
 }

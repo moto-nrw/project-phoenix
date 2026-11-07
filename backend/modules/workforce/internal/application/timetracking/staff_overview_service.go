@@ -259,7 +259,7 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 	for _, staff := range staffMembers {
 		staffIDs = append(staffIDs, staff.ID)
 	}
-	vacation, err := s.prefetchOverviewVacation(ctx, staffIDs, key, today)
+	vacation, err := s.prefetchOverviewVacation(ctx, prefetch, staffIDs, key, today)
 	if err != nil {
 		return nil, err
 	}
@@ -329,33 +329,60 @@ type overviewVacation struct {
 // prefetchOverviewVacation loads the Resturlaub inputs. Resturlaub is counted
 // in the year of the SELECTED month, not of today: a December view opened in
 // January must not show the new year's quota.
-func (s *staffOverviewService) prefetchOverviewVacation(ctx context.Context, staffIDs []int64, key monthKey, today calendar.Date) (overviewVacation, error) {
+func (s *staffOverviewService) prefetchOverviewVacation(ctx context.Context, prefetch *monthPrefetch, staffIDs []int64, key monthKey, today calendar.Date) (overviewVacation, error) {
 	quotaValues, err := s.quotaRepo.ListStaffVacationQuotas(ctx, workforce.StaffVacationFilter{StaffIDs: staffIDs, Year: key.Year})
 	quotas := quotasByStaff(quotaValues)
 	err = rowReadError("get vacation quotas by staff IDs+year", err, nil)
 	if err != nil {
 		return overviewVacation{}, fmt.Errorf("failed to prefetch vacation quotas: %w", err)
 	}
-	// Loaded separately rather than reused from the month prefetch: that
-	// window starts at the account anchor, which may lie after January 1st.
 	// Current-month views keep the annual semantics of the quota endpoint.
 	// Historical views stop at month end so later vacation does not rewrite
-	// an earlier Resturlaub. One extra query, constant in N.
+	// an earlier Resturlaub.
+	yearStart := calendar.NewDate(key.Year, time.January, 1)
 	vacationThrough := calendar.NewDate(key.Year, time.December, 31)
 	if key.before(monthOf(today)) {
 		vacationThrough = key.lastDay()
 	}
-	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffIDs: staffIDs, OverlapFrom: calendar.NewDate(key.Year, time.January, 1).String(), OverlapTo: vacationThrough.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderStaffID}, {Field: workforce.StaffAbsenceOrderDateStart}}})
-	vacationAbsences := staffAbsencesByID(absenceValues)
-	err = rowReadError("get absences by staff IDs and date range", err, nil)
-	if err != nil {
-		return overviewVacation{}, fmt.Errorf("failed to prefetch vacation absences: %w", err)
+	vacationAbsences, covered := prefetchedVacationAbsences(prefetch, yearStart, vacationThrough)
+	if !covered {
+		// The month window starts at the account anchor, which may lie after
+		// January 1st, and ends with the month: read the year separately.
+		absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffIDs: staffIDs, OverlapFrom: yearStart.String(), OverlapTo: vacationThrough.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderStaffID}, {Field: workforce.StaffAbsenceOrderDateStart}}})
+		vacationAbsences = staffAbsencesByID(absenceValues)
+		err = rowReadError("get absences by staff IDs and date range", err, nil)
+		if err != nil {
+			return overviewVacation{}, fmt.Errorf("failed to prefetch vacation absences: %w", err)
+		}
 	}
 	openings, err := s.prefetchVacationOpenings(ctx, staffIDs, key.Year)
 	if err != nil {
 		return overviewVacation{}, err
 	}
 	return overviewVacation{through: vacationThrough, quotas: quotas, absences: vacationAbsences, openings: openings}, nil
+}
+
+// prefetchedVacationAbsences reuses the month prefetch for the Resturlaub when
+// its window covers [from, through]: the absences overlapping that range, in
+// the prefetch's staff and start order, copied so the month math and the
+// Resturlaub never share a record (#5787, decision E2: one early shared read
+// may replace the former second READ COMMITTED absence read; the overview
+// takes no lock).
+func prefetchedVacationAbsences(prefetch *monthPrefetch, from, through calendar.Date) (map[int64][]*StaffAbsence, bool) {
+	if prefetch == nil || prefetch.from.IsZero() || prefetch.from.After(from) || prefetch.to.Before(through) {
+		return nil, false
+	}
+	result := make(map[int64][]*StaffAbsence, len(prefetch.absences))
+	for staffID, absences := range prefetch.absences {
+		for _, absence := range absences {
+			if absence.DateStart.After(through) || absence.DateEnd.Before(from) {
+				continue
+			}
+			copied := *absence
+			result[staffID] = append(result[staffID], &copied)
+		}
+	}
+	return result, true
 }
 
 // overviewRow computes one staff member's row of the overview.

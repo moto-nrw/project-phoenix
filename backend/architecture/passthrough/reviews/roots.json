@@ -2997,11 +2997,6 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/calendarRelationshipPort.FindByGuardianProfileID",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "roots/owners/calendarSchoolPort.FindByID",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

@@ -1097,6 +1097,14 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudents.HolidayStudentsBornOn",
+      "binding_digest": "807dfbd98531ed94458d1e98bb8e9edc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentsByBirthDate.HolidayStudentsBornOn",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindBornOn",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
       "binding_digest": "395691a599a5829943bc2e426b64afea",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",

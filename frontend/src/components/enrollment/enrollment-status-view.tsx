@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyState } from "~/components/ui/empty-state";
+import { Alert } from "~/components/ui/alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   useCallback,
@@ -571,9 +572,7 @@ function EnrollmentStatusContent({
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
       {duplicateWarning ? (
-        <div className="border-moto-orange/30 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-sm leading-6">
-          {t("duplicateWarning")}
-        </div>
+        <Alert type="warning" message={t("duplicateWarning")} />
       ) : null}
       <EnrollmentStatusHero
         // Back to the parents app only for families who can use it: without

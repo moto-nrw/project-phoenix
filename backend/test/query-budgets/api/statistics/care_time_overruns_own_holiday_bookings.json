@@ -1,0 +1,6 @@
+{
+  "scenario": "api.statistics.care_time_overruns_own_holiday_bookings",
+  "max": 18,
+  "exact": false,
+  "description": "GET /statistics/care-time-overruns with confirmed holiday bookings of the school's own children (#5994): the list of api.statistics.care_time_overruns plus one read of the People Directory that finds the children of all own bookings by date of birth; guests and own bookings come in the one holiday statement. Children with a group add the one batched group-name lookup of the roster decorator; constant, not per booking. TestCareTimeOverrunsQueryBudgetWithOwnHolidayBookings compares one with three booked children."
+}

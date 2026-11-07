@@ -153,11 +153,10 @@ func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
 	}, classListEntryTrail(t, db, entryID))
 }
 
-// The listing resolves the "Zuordnen" hint per entry (#2382): the entry set is
-// a hand-maintained handful per school and the lookup is an exact-name query,
-// so one pair of statements per entry is the accepted shape. The budget pins
-// that pair — a third statement per entry, or a new constant read inside the
-// loop, fails here.
+// The listing resolves the "Zuordnen" hints of all entries (#2382) from one
+// shared exact-name read and one student read (#5891, decision E2: an early
+// shared read may replace the former per-entry READ COMMITTED reads). The
+// budget pins that constant shape: any statement per entry fails here.
 func TestClassListEntriesCompositionKeepsItsQueryBudget(t *testing.T) {
 	t.Parallel()
 	db, router := setupClassListEntriesRoute(t)
@@ -190,8 +189,8 @@ func TestClassListEntriesCompositionKeepsItsQueryBudget(t *testing.T) {
 
 	add(3, 6)
 	large := list()
-	assert.Equal(t, len(small)+6, len(large),
-		"three more entries cost three more hint lookups, two statements each, and nothing else")
+	assert.Equal(t, len(small), len(large),
+		"three more entries cost no further statement: every hint comes from the shared reads")
 }
 
 // classListEntryChangeRow is the part of the audit trail this contract pins:

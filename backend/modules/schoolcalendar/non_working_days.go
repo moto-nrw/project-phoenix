@@ -3,6 +3,8 @@ package schoolcalendar
 import (
 	"context"
 	"errors"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrFederalStateUnavailable is returned when the tenant's federal state
@@ -37,4 +39,11 @@ type NonWorkingDayQuery interface {
 	// that is both collapses into one key, so it can never be subtracted
 	// twice from a Soll.
 	NonWorkingDayDates(ctx context.Context, from, to string) (map[string]bool, error)
+}
+
+// CareCalendarQuery reads the days of a window on which the school's own
+// calendar gives no care, its closing days and its active holiday periods,
+// in one statement; each is a date set clamped to the window (#5994).
+type CareCalendarQuery interface {
+	CareCalendarDays(ctx context.Context, from, to calendar.Date) (closing, holidays map[calendar.Date]bool, err error)
 }

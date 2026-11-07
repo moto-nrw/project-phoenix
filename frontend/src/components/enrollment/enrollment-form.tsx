@@ -1916,9 +1916,11 @@ export function EnrollmentForm({
             profile.children.length > 0 &&
             !lockChildStructure &&
             isNewStudentsPhase && (
-              <p className="border-moto-orange/30 bg-moto-orange/5 rounded-lg border px-4 py-3 text-sm text-gray-700">
-                {tr("sections.newStudentsOnlyNotice")}
-              </p>
+              <Alert
+                type="warning"
+                announce="off"
+                message={tr("sections.newStudentsOnlyNotice")}
+              />
             )}
 
           {reusableChildren.length > 0 &&
@@ -2091,13 +2093,19 @@ export function EnrollmentForm({
                           : tr("locked.noCare")}
                     </DataField>
                   </DataGrid>
-                  <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
-                    {tr("locked.hint", {
-                      name: name || tr("structured.child"),
-                    })}
-                    <br />
-                    {tr("locked.noAccess")}
-                  </p>
+                  <Alert
+                    type="info"
+                    announce="off"
+                    message={
+                      <p className="leading-6">
+                        {tr("locked.hint", {
+                          name: name || tr("structured.child"),
+                        })}
+                        <br />
+                        {tr("locked.noAccess")}
+                      </p>
+                    }
+                  />
                 </SectionCard>
               );
             }
@@ -3834,7 +3842,7 @@ function ExistingChildrenPanel({
   tr,
 }: ExistingChildrenPanelProps) {
   return (
-    <div className="border-moto-green/40 bg-moto-green/5 rounded-lg border p-4">
+    <InsetPanel framed padding="md">
       <h3 className="text-sm font-semibold text-gray-900">
         {tr("structured.existingTitle")}
       </h3>
@@ -3873,6 +3881,6 @@ function ExistingChildrenPanel({
           );
         })}
       </ul>
-    </div>
+    </InsetPanel>
   );
 }
