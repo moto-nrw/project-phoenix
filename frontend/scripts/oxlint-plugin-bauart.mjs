@@ -1629,7 +1629,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // Betreuung): keine Feldgruppe des Datensatzes, aus dem Kebab der
     // Personalakte geöffnet (#3116).
     "src/components/auth/mfa-admin-override-modal.tsx": [
-      "Zwei-Faktor-Authentifizierung verwalten@386",
+      "Zwei-Faktor-Authentifizierung verwalten@387",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
       "resolve Zuordnungen auflösen: Betreuung verwalten:@334",

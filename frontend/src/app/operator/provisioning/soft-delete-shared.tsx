@@ -10,6 +10,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import type { FormError, FormErrorInput } from "~/components/ui/form-error";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 
 const logger = createLogger({ component: "SoftDeleteShared" });
@@ -197,7 +198,7 @@ export function DeletedEntityCard({
   readonly restoreDisabledReason?: string;
 }) {
   return (
-    <div className="border-moto-red/10 bg-moto-red-soft/50 rounded-2xl border p-5 shadow-sm">
+    <SectionCard>
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold text-gray-900">{name}</h3>
@@ -235,7 +236,7 @@ export function DeletedEntityCard({
           )}
         </div>
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
