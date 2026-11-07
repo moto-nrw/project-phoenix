@@ -197,10 +197,14 @@ export function SurveyEditorFields({
         </ChoiceTile>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <FieldLabel invalid={Boolean(errors?.closesAt)}>
+            <FieldLabel
+              htmlFor="survey-closes-at"
+              invalid={Boolean(errors?.closesAt)}
+            >
               Teilnahme bis
             </FieldLabel>
             <DatePicker
+              id="survey-closes-at"
               value={draft.closesDay}
               onChange={(closesDay) => update({ closesDay })}
               placeholder="Datum wählen"
