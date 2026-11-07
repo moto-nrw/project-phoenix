@@ -93,9 +93,7 @@ export async function loginAtBackend(
  * The CredentialsSignin the login pages read by its `code`. Imported on use:
  * next-auth's entry pulls in next/server, which only resolves inside Next.
  */
-export async function credentialsRefusal(
-  code: string,
-): Promise<CredentialsSignin> {
+async function credentialsRefusal(code: string): Promise<CredentialsSignin> {
   const { CredentialsSignin } = await import("next-auth");
   const error = new CredentialsSignin();
   error.code = code;
