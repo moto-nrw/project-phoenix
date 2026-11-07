@@ -60,14 +60,9 @@ export function EnrollmentSignatureStatus({
 
   return (
     <section className="moto-content-surface space-y-4 rounded-xl border p-5 sm:p-6">
-      <div>
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("signatureEyebrow")}
-        </p>
-        <h2 className="mt-1 text-xl font-semibold text-gray-900">
-          {t("signatureTitle")}
-        </h2>
-      </div>
+      <h2 className="text-xl font-semibold text-gray-900">
+        {t("signatureTitle")}
+      </h2>
       <p className="text-sm leading-6 text-gray-700">
         {t("signatureSigned", { name: signature.signer_name, date: signedAt })}{" "}
         {signature.method === "typed"

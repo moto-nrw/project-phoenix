@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import type { DatabaseFormErrorPath } from "~/components/database/database-form";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
@@ -238,16 +239,19 @@ export function PasswordChangeModal({
           />
 
           {/* Simple Password Requirements */}
-          <div className="border-moto-blue/20 bg-moto-blue-soft rounded-lg border p-3">
-            <h5 className="mb-2 text-sm font-medium text-gray-900">
-              Passwort-Anforderungen
-            </h5>
-            <ul className="space-y-1 text-xs text-gray-600">
-              <li>• Mindestens 8 Zeichen</li>
-              <li>• Groß- und Kleinbuchstaben empfohlen</li>
-              <li>• Zahlen und Sonderzeichen empfohlen</li>
-            </ul>
-          </div>
+          <Alert
+            type="info"
+            size="compact"
+            announce="off"
+            title="Passwort-Anforderungen"
+            message="Mindestens 8 Zeichen"
+            details={
+              <ul className="mt-0.5 list-disc space-y-0.5 pl-5">
+                <li>Groß- und Kleinbuchstaben empfohlen</li>
+                <li>Zahlen und Sonderzeichen empfohlen</li>
+              </ul>
+            }
+          />
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">

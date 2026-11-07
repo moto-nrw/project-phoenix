@@ -22,9 +22,9 @@ func NewContracts(ports ContractPorts) carecontract.Contracts {
 	return application.NewContracts(postgres.NewStore(), rendering.NewRenderer(), ports, application.Clock{Now: time.Now}, NewContractVersions())
 }
 
-// NewContractVersions reads the versions in force for the billing (#4681, #4684) in the caller's Träger unit.
-func NewContractVersions() carecontract.ContractVersions {
-	return application.NewVersions(postgres.NewStore())
+// NewContractVersions reads the versions in force and the recipients for the billing (#4681, #4684) in the caller's Träger unit.
+func NewContractVersions() carecontract.ContractBilling {
+	return application.NewBillingReads(postgres.NewStore())
 }
 
 // NewContractChanges builds the office's decision of the parents' changes (#5979); it opens its own units.

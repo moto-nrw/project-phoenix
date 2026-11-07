@@ -24,6 +24,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -405,16 +406,24 @@ function PoolSection({
   const [expanded, setExpanded] = useState(!collapsedByDefault);
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        className="flex w-full items-center gap-1.5 text-left text-[10px] font-bold tracking-wider text-gray-400 uppercase"
-        onClick={() => setExpanded((current) => !current)}
-        aria-expanded={expanded}
-      >
-        <span className="text-gray-400">{icon}</span>
-        {title}
-        <span className="font-medium text-gray-300">({entries.length})</span>
-      </button>
+      <ListGroupHeader
+        className="rounded-lg px-3"
+        title={
+          <span className="inline-flex items-center gap-1.5">
+            <span className="text-gray-400">{icon}</span>
+            {title}
+          </span>
+        }
+        addon={
+          <span className="text-xs text-gray-500 tabular-nums">
+            {entries.length}
+          </span>
+        }
+        collapsible={{
+          expanded,
+          onToggle: () => setExpanded((current) => !current),
+        }}
+      />
       {expanded &&
         (entries.length === 0 ? (
           <EmptyState

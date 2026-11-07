@@ -17,6 +17,13 @@ const CodeParentBillingBillingRunNotFound = "parent_billing.billing_run_not_foun
 const CodeParentBillingBillingRunNotReleased = "parent_billing.billing_run_not_released"
 const CodeParentBillingBillingRunOpen = "parent_billing.billing_run_open"
 const CodeParentBillingBillingRunReleased = "parent_billing.billing_run_released"
+const CodeParentBillingCareRunInvalid = "parent_billing.care_run_invalid"
+const CodeParentBillingCareRunNotFound = "parent_billing.care_run_not_found"
+const CodeParentBillingCareRunOpen = "parent_billing.care_run_open"
+const CodeParentBillingCareTariffInvalid = "parent_billing.care_tariff_invalid"
+const CodeParentBillingCareTariffMonthBilled = "parent_billing.care_tariff_month_billed"
+const CodeParentBillingCareTariffNotFound = "parent_billing.care_tariff_not_found"
+const CodeParentBillingCareVersionsOverlap = "parent_billing.care_versions_overlap"
 const CodeParentBillingCarriedCorrectionNotFound = "parent_billing.carried_correction_not_found"
 const CodeParentBillingContributionRuleInvalid = "parent_billing.contribution_rule_invalid"
 const CodeParentBillingContributionRuleNotFound = "parent_billing.contribution_rule_not_found"
@@ -64,6 +71,13 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBillingRunNotReleased, "business_rejection"},
 	{CodeParentBillingBillingRunOpen, "business_rejection"},
 	{CodeParentBillingBillingRunReleased, "business_rejection"},
+	{CodeParentBillingCareRunInvalid, "input"},
+	{CodeParentBillingCareRunNotFound, "business_rejection"},
+	{CodeParentBillingCareRunOpen, "business_rejection"},
+	{CodeParentBillingCareTariffInvalid, "input"},
+	{CodeParentBillingCareTariffMonthBilled, "business_rejection"},
+	{CodeParentBillingCareTariffNotFound, "business_rejection"},
+	{CodeParentBillingCareVersionsOverlap, "business_rejection"},
 	{CodeParentBillingCarriedCorrectionNotFound, "business_rejection"},
 	{CodeParentBillingContributionRuleInvalid, "input"},
 	{CodeParentBillingContributionRuleNotFound, "business_rejection"},

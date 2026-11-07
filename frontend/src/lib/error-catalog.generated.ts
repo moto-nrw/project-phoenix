@@ -819,6 +819,19 @@ export const ERROR_CATALOG = {
         "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
       "parent_billing.billing_run_released":
         "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
+      "parent_billing.care_run_invalid": "Bitte wählen Sie einen Monat.",
+      "parent_billing.care_run_not_found":
+        "Diesen Monatslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“ und „Monatsbeiträge“.",
+      "parent_billing.care_run_open":
+        "Für diesen Monat gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
+      "parent_billing.care_tariff_invalid":
+        "Bitte prüfen Sie die Preise. Jeder Preis ist ein Betrag in Euro, nicht unter 0 €, und gilt ab dem 1. eines Monats.",
+      "parent_billing.care_tariff_month_billed":
+        "Mit diesem Preis ist schon eine Rechnung ausgestellt. Er bleibt für diesen Monat. Ändern Sie ihn ab einem späteren Monat.",
+      "parent_billing.care_tariff_not_found":
+        "Diese Preisliste gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_versions_overlap":
+        "Ein Vertrag hat an einem Tag zwei gültige Fassungen. Bitte melden Sie das dem Support. Der Lauf rechnet diesen Monat nicht ab.",
       "parent_billing.carried_correction_not_found":
         "Diese Korrektur wird in diesem Lauf nicht mehr vorgeschlagen. Bitte laden Sie die Seite neu.",
       "parent_billing.contribution_rule_invalid":
