@@ -1813,7 +1813,7 @@ function FormTemplateDetail({
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-gray-600">
                   {assignedPhases.length > 0
-                    ? `Diese Vorlage ist in ${assignedPhases.length} Anmeldephase ausgewählt.`
+                    ? `Diese Vorlage ist in ${anmeldephasen(assignedPhases.length)} ausgewählt.`
                     : "Eine Vorlage wird erst für Eltern relevant, wenn sie in einer Anmeldephase ausgewählt ist. Ohne Auswahl nutzt die Phase das Basisformular."}
                 </p>
               </div>
@@ -3403,6 +3403,7 @@ function FormPreview({
       />
       <PreviewSection
         title="Betreuungsangebot"
+        description="Die Angebote legen Sie in der Anmeldephase fest. Eltern sehen sie über den Link der Phase."
         fields={["Gewünschtes Angebot", "Betreuungstage"]}
       />
 
@@ -3498,7 +3499,7 @@ function getPreviewStatus({
   if (assignedPhaseCount > 0) {
     return {
       label: "In Phase verwendet",
-      hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
+      hint: `Diese Vorlage ist in ${anmeldephasen(assignedPhaseCount)} ausgewählt.`,
       tone: "green",
     };
   }
@@ -4096,6 +4097,11 @@ function getSchemaDraftValidationMessage({
   }
 
   return null;
+}
+
+/** Dative after „in“: „1 Anmeldephase“, „3 Anmeldephasen“. */
+function anmeldephasen(count: number): string {
+  return `${count} Anmeldephase${count === 1 ? "" : "n"}`;
 }
 
 function formatSchemaDate(value: string): string {

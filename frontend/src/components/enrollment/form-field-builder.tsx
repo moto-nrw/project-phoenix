@@ -7,6 +7,7 @@
 // Bausteine; welche Feldtypen und Bedingungsquellen eine Seite anbietet,
 // bestimmt sie über Props.
 
+import { Alert } from "~/components/ui/alert";
 import {
   createContext,
   useContext,
@@ -687,6 +688,14 @@ export function FieldEditorRow({
 
               {field.target === "schedule.pickup" ? (
                 <div>
+                  {/* The answer becomes the child's maintained pickup time,
+                      which outranks an offering's Gehzeit in the care plan
+                      (#6044): two sources for one time. */}
+                  <Alert
+                    type="info"
+                    message="Haben Ihre Betreuungsangebote eine Gehzeit? Dann brauchen Sie diese Frage nicht. Eine Antwort hier ersetzt die Gehzeit des Angebots."
+                    className="mb-3"
+                  />
                   <span className="text-xs font-medium text-gray-700">
                     Feste Auswahlzeiten (optional)
                   </span>
@@ -1248,14 +1257,20 @@ function ConditionOfferingControls({
 
 export function PreviewSection({
   title,
+  description,
   fields,
 }: Readonly<{
   title: string;
+  /** One line under the title: where the shown answers come from. */
+  description?: string;
   fields: readonly (string | PreviewFieldLabel)[];
 }>) {
   return (
     <section>
       <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
+      {description ? (
+        <p className="mt-1 text-xs leading-5 text-gray-500">{description}</p>
+      ) : null}
       <div className="mt-3 grid gap-2">
         {fields.map((entry) => {
           const field = typeof entry === "string" ? { label: entry } : entry;

@@ -2554,6 +2554,8 @@ export const enrollmentFormTopic = function enrollmentFormTopic(): HelpTopic {
     notes: [
       "Eine Vorlage gilt für alle Phasen, die sie auswählen. Sie brauchen nicht für jede Phase eine eigene.",
       "Mit `Vorschau öffnen` sehen Sie den Entwurf in einem neuen Tab, bevor Sie speichern.",
+      "Die Vorschau zeigt nur Ihre Fragen, keine Betreuungsangebote. Unter `Angebote prüfen` öffnen Sie die Vorschau jeder Phase, die die Vorlage nutzt. Dort stehen die Angebote, auch wenn die Phase noch nicht aktiv ist.",
+      "Haben Ihre Betreuungsangebote eine Gehzeit, brauchen Sie keine Frage nach `Abholzeiten`. Eine Antwort darauf ersetzt die Gehzeit des Angebots beim Kind.",
       "Die Zustimmungen `Datenschutzinformation`, `Fotoeinwilligung` und `E-Mail-Kontakt` tragen `Aus Einstellungen übernommen`. Sie kommen aus Ihren Einstellungen und lassen sich je Vorlage ausblenden.",
       "Über `+ Eigene Zustimmung hinzufügen` ergänzen Sie einen Text, der nur in dieser Vorlage steht.",
 
@@ -2700,28 +2702,31 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
         steps: [
           "Öffnen Sie `Betreuungsangebote` und tragen Sie ein, was buchbar sein soll.",
           "Öffnen Sie `Anmeldeformulare`. Dort steht schon ein `Basisformular`. Für die meisten OGS reicht es.",
-          "Sehen Sie es sich mit `Vorschau` an.",
-          "Öffnen Sie `Überblick` und wählen Sie `Formular ansehen`.",
+          "Sehen Sie es sich mit `Vorschau` an. Dort fehlen die Angebote noch.",
+          "Öffnen Sie `Anmeldephasen`, dann bei der Phase das Menü mit den drei Punkten, und wählen Sie `Vorschau mit Angeboten`. Dort sehen Sie das Formular mit den Angeboten, so wie die Eltern. Das geht auch, bevor die Phase aktiv ist.",
         ],
       },
       {
         title: "Die Anmeldung öffnen",
         steps: [
+          "Schalten Sie unter `Einstellungen` > `Anmeldung` die `Online-Anmeldung` ein.",
           "Öffnen Sie `Anmeldephasen`.",
           "Öffnen Sie bei der Phase das Menü mit den drei Punkten.",
           "Wählen Sie `Aktivieren`.",
-          "Kopieren Sie den Link der Phase und geben Sie ihn an die Eltern.",
+          "Hat das Menü `Elternlink kopieren`? Geben Sie diesen Link an die Eltern. Sonst läuft die Anmeldung über das Elternportal.",
         ],
       },
     ],
     result:
-      "Eltern können sich über den Link anmelden. Eingänge sehen Sie im `Überblick`.",
+      "Eltern melden sich über den Link oder im Elternportal an. Eingänge sehen Sie im `Überblick`.",
     notes: [
       "Über `Elternansicht öffnen` sehen Sie das Formular so wie die Eltern.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
       "Bei `Betreuungsangebote` steht in der Spalte `Belegt`, wie viele Plätze gebucht sind. Bei Angeboten mit Kapazität steht auch, wie viele Plätze frei sind. Ein volles Angebot ist mit `Voll` markiert.",
       "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
+      "Tragen Sie bei jeder Variante unter `Gehzeit je Betreuungstag` ihre Uhrzeit ein. Nach der Zusage steht sie beim Kind. Bucht ein Kind an einem Tag zwei Angebote, gilt die spätere Gehzeit.",
+      "Ein Angebot nur für eine Klassenstufe, zum Beispiel Klasse 1: Setzen Sie den Haken bei `Nur für bestimmte Klassenstufen anbieten` und wählen Sie `Klasse 1`. Ohne Haken können alle Kinder das Angebot wählen.",
     ],
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Die Anmeldungen laufen am Computer.",
