@@ -224,6 +224,9 @@ type DeviceCommand interface {
 	CreateDevice(context.Context, CreateDevice) (Device, error)
 	UpdateDevice(context.Context, UpdateDevice) (Device, error)
 	UpdateDeviceColumns(context.Context, UpdateDevice, []string) (int64, error)
+	// ApplyDeviceEdit applies only the school administration fields and returns
+	// the stored device, preserving ambient room observations.
+	ApplyDeviceEdit(context.Context, DeviceEdit) (Device, error)
 	DeleteDevice(context.Context, int64) error
 	UpdateDeviceStatus(context.Context, string, DeviceStatus) error
 	UpdateDeviceLastSeen(context.Context, int64, time.Time) error
@@ -341,4 +344,15 @@ func (input *UpdateDevice) Validate() error {
 	}
 	input.Status = status
 	return nil
+}
+
+// DeviceEdit names the fields owned by the school's device edit. An omitted
+// status preserves the current stored status, including a concurrent change.
+type DeviceEdit struct {
+	ID             int64
+	DeviceID       string
+	DeviceType     string
+	Name           *string
+	RegisteredByID *int64
+	Status         *DeviceStatus
 }

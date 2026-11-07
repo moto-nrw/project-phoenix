@@ -3,6 +3,8 @@ package integration
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -100,5 +102,42 @@ func TestSubmittedOfferingChoicesEnforceTwoTenantIsolation(t *testing.T) {
 		require.Error(t, err, "tenant-safe child FK must reject foreign children")
 		err = testpkg.TenantCommand2(t, own.ctx, db, module.RecordSubmittedOfferingChoices, own.childID, []enrollment.SubmittedOfferingChoice{{CareOfferingID: foreign.offeringID}})
 		require.Error(t, err, "tenant-safe offering FK must reject foreign offerings")
+	}
+}
+
+func TestSubmittedOfferingReadbackStatements(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	phaseID, _, childID := testpkg.CreateAuditAdjustmentChain(t, db)
+	choices := make([]enrollment.SubmittedOfferingChoice, 8)
+	for i := range choices {
+		offering := testpkg.CreateTestCareOffering(t, db, phaseID, fmt.Sprintf("Readback %d", i))
+		choices[i] = enrollment.SubmittedOfferingChoice{CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, Notes: new("unchanged")}
+	}
+	module := enrollmentCompose.New()
+	counter := testpkg.CaptureQueries(t, db)
+	for _, retry := range []bool{false, true} {
+		counter.Reset()
+		require.NoError(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), db, module.RecordSubmittedOfferingChoices, childID, choices))
+		inserts := counter.Operation("INSERT")
+		reads := counter.Matching(func(q string) bool {
+			return strings.HasPrefix(q, "select") && strings.Contains(q, "request_child_offering_selections")
+		})
+		t.Logf("retry=%v inserts=%d readbacks=%d total=%d", retry, len(inserts), len(reads), counter.Total())
+		require.Len(t, inserts, len(choices))
+		if retry {
+			require.Len(t, reads, len(choices))
+		} else {
+			require.Empty(t, reads, "new choices come from INSERT RETURNING")
+		}
+	}
+	counter.Stop()
+	stored, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, module.SubmittedOfferingChoices, []int64{childID})
+	require.NoError(t, err)
+	require.Len(t, stored, len(choices))
+	for i, choice := range stored {
+		require.Equal(t, choices[i].CareOfferingID, choice.CareOfferingID)
+		require.Equal(t, choices[i].SelectedDays, choice.SelectedDays)
+		require.Equal(t, choices[i].Notes, choice.Notes)
 	}
 }

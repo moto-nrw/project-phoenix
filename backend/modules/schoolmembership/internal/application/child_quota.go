@@ -31,6 +31,18 @@ func (s *Service) countingWrite(ctx context.Context, stats *domain.OperationStat
 	if err != nil {
 		return err
 	}
+	return s.countingWriteAfterClassGate(ctx, stats, write)
+}
+
+// countingWriteAfterClassGate requires the caller's shared class-writes lock.
+// It keeps the cancellation boundary without reacquiring that transaction lock.
+func (s *Service) countingWriteAfterClassGate(ctx context.Context, stats *domain.OperationStats, write func(context.Context) error) error {
+	if s.quota == nil {
+		return errChildQuotaUnbound
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	lockStats, err := s.store.LockChildQuota(ctx)
 	stats.Add(lockStats)
 	if err != nil {
