@@ -3945,6 +3945,23 @@ function containsStaticUppercaseLabelText(
   return false;
 }
 
+function classNameUsesStaticUppercaseLabelConstant(value, constants) {
+  let expression = value;
+  while (
+    expression?.type === "JSXExpressionContainer" ||
+    expression?.type === "ChainExpression" ||
+    expression?.type === "TSAsExpression" ||
+    expression?.type === "TSTypeAssertion" ||
+    expression?.type === "TypeCastExpression"
+  ) {
+    expression = expression.expression;
+  }
+  return (
+    expression?.type === "Identifier" &&
+    containsStaticUppercaseLabelText(expression, constants)
+  );
+}
+
 function isClassNameAttribute(node) {
   return (
     node?.type === "JSXAttribute" &&
@@ -3984,7 +4001,7 @@ const noUppercaseLabel = makeRatchetRule({
         if (!isClassNameAttribute(node) || !node.value) return;
         if (
           isUppercaseLabelText(textOf(node.value)) &&
-          !containsStaticUppercaseLabelText(node.value, constants)
+          !classNameUsesStaticUppercaseLabelConstant(node.value, constants)
         ) {
           found(node);
         }
