@@ -104,3 +104,61 @@ func historicalQueryFixture(t *testing.T, repo string) {
 	runGit(t, repo, "add", ".")
 	runGit(t, repo, "commit", "-qm", "historical query base")
 }
+
+const (
+	fixtureRoute      = "GET /fixture/list"
+	fixtureRetirement = `[{"scenario":"fixture.list","route":"GET /fixture/list","issue":5972}]`
+)
+
+// TestCompareQueryBudgetsRetiresABudgetOnlyWithItsRoute pins ADR 0160: a base
+// scenario may disappear only under a retirement record this change adds, and
+// only when the named route leaves the router golden in the same change.
+func TestCompareQueryBudgetsRetiresABudgetOnlyWithItsRoute(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name                      string
+		baseRecord                bool
+		removeBudget, removeRoute bool
+		record, want              string
+	}{
+		{name: "route and budget leave", removeBudget: true, removeRoute: true, record: fixtureRetirement},
+		{name: "route stays", removeBudget: true, record: fixtureRetirement, want: "names a route the router golden still lists"},
+		{name: "no record", removeBudget: true, removeRoute: true, want: "fixture.list disappeared"},
+		{name: "idle record for an active budget", record: fixtureRetirement, want: "names a budget that is still registered"},
+		{name: "idle record for an unknown budget", record: strings.Replace(fixtureRetirement, "fixture.list", "fixture.other", 1), want: "retires no budget of the base register"},
+		{name: "idle record for an unknown route", removeBudget: true, removeRoute: true, record: strings.Replace(fixtureRetirement, "/fixture/list", "/fixture/other", 1), want: "names a route the base router golden does not list"},
+		{name: "historical record grants nothing", baseRecord: true, removeBudget: true, removeRoute: true, record: fixtureRetirement, want: "fixture.list disappeared"},
+		{name: "malformed record", removeBudget: true, removeRoute: true, record: `[{"scenario":"fixture.list","route":"fixture/list","issue":5972}]`, want: "read candidate query budget retirements"},
+		{name: "unknown field", removeBudget: true, removeRoute: true, record: `[{"scenario":"fixture.list","route":"GET /fixture/list","issue":5972,"force":true}]`, want: "unknown field"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			repo, _ := ratchetRepository(t, legacyRecord(2583))
+			golden := filepath.Join(repo, "api", "testdata", "routes", "fixture.golden")
+			writeFile(t, golden, "GET /fixture/\n"+fixtureRoute+"\n")
+			record := filepath.Join(repo, "architecture", "query-budget-retirements.json")
+			if test.baseRecord {
+				writeFile(t, record, fixtureRetirement)
+			}
+			runGit(t, repo, "add", ".")
+			runGit(t, repo, "commit", "-qm", "route golden base")
+			base := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+			if test.removeBudget {
+				writeFile(t, filepath.Join(repo, "test", "query-budgets", "owner", "other.json"), strings.Replace(queryBudgetFragment, "fixture.list", "fixture.kept", 1))
+				if err := os.Remove(filepath.Join(repo, "test", "query-budgets", "owner", "list.json")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if test.removeRoute {
+				writeFile(t, golden, "GET /fixture/\n")
+			}
+			if test.record != "" {
+				writeFile(t, record, test.record)
+			}
+			err := CompareQueryBudgets(repo, base)
+			if test.want == "" && err != nil || test.want != "" && (err == nil || !strings.Contains(err.Error(), test.want)) {
+				t.Fatalf("want %q, got %v", test.want, err)
+			}
+		})
+	}
+}
