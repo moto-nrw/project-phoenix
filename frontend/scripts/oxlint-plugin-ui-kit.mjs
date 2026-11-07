@@ -451,7 +451,8 @@ function crossJoin(left, right) {
  */
 function classCombinations(
   node,
-  seen = new WeakSet(),
+  // Conditional alternatives need independent copies of the traversal state.
+  seen = new Set(),
   sourceCode,
   seenVariables = new Set(),
   { skipReportedSurfaceConstants = false } = {},
@@ -500,16 +501,16 @@ function classCombinations(
   if (node.type === "ConditionalExpression") {
     const consequent = classCombinations(
       node.consequent,
-      seen,
+      new Set(seen),
       sourceCode,
-      seenVariables,
+      new Set(seenVariables),
       { skipReportedSurfaceConstants },
     );
     const alternate = classCombinations(
       node.alternate,
-      seen,
+      new Set(seen),
       sourceCode,
-      seenVariables,
+      new Set(seenVariables),
       { skipReportedSurfaceConstants },
     );
     if (!consequent || !alternate) return null;
@@ -519,16 +520,20 @@ function classCombinations(
   if (node.type === "LogicalExpression") {
     const right = classCombinations(
       node.right,
-      seen,
+      new Set(seen),
       sourceCode,
-      seenVariables,
+      new Set(seenVariables),
       { skipReportedSurfaceConstants },
     );
     if (!right) return null;
     if (node.operator === "&&") return ["", ...right];
-    const left = classCombinations(node.left, seen, sourceCode, seenVariables, {
-      skipReportedSurfaceConstants,
-    });
+    const left = classCombinations(
+      node.left,
+      new Set(seen),
+      sourceCode,
+      new Set(seenVariables),
+      { skipReportedSurfaceConstants },
+    );
     if (!left) return null;
     const merged = [...left, ...right];
     return merged.length > MAX_CLASS_COMBINATIONS ? null : merged;
@@ -1058,7 +1063,7 @@ const noHandRolledSurface = {
               if (initializer.type === "CallExpression") {
                 const combinations = classCombinations(
                   initializer,
-                  new WeakSet(),
+                  new Set(),
                   context.sourceCode,
                 );
                 for (const combo of combinations ?? []) {
@@ -1104,7 +1109,7 @@ const noHandRolledSurface = {
           if (chunks.some(isSurfaceCombo)) return;
           const combos = classCombinations(
             node.init,
-            new WeakSet(),
+            new Set(),
             context.sourceCode,
           );
           const rendered = combos?.find((combo) => isSurfaceCombo(combo));
@@ -1122,7 +1127,7 @@ const noHandRolledSurface = {
           const reported = separatelyReportedSurfaceCombos(node.value);
           const combinations = classCombinations(
             node.value,
-            new WeakSet(),
+            new Set(),
             context.sourceCode,
           ) ?? [chunks.join(" ")];
           for (const combo of new Set(combinations)) {
@@ -1141,7 +1146,7 @@ const noHandRolledSurface = {
           if (!className?.value) return;
           const combinations = classCombinations(
             className.value,
-            new WeakSet(),
+            new Set(),
             context.sourceCode,
           );
           if (
@@ -1368,7 +1373,7 @@ const noDeadSurfaceUtility = {
         }
         const combos = classCombinations(
           node.value,
-          new WeakSet(),
+          new Set(),
           sourceCode,
         ) ?? [chunks.join(" ")];
         const rendered = combos.find(
@@ -1554,7 +1559,7 @@ const noWhiteOnWarmFill = {
         if (chunks.some((chunk) => whiteOnWarmFill(chunk))) return;
         const combos = classCombinations(
           node.value,
-          new WeakSet(),
+          new Set(),
           sourceCode,
         ) ?? [chunks.join(" ")];
         const rendered = combos.find((combo) => whiteOnWarmFill(combo));
@@ -1776,7 +1781,7 @@ const noHandRolledPageCard = {
           if (initializer.type === "CallExpression") {
             const combinations = classCombinations(
               initializer,
-              new WeakSet(),
+              new Set(),
               context.sourceCode,
             );
             if (combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
@@ -1816,7 +1821,7 @@ const noHandRolledPageCard = {
           }
           const combos = classCombinations(
             node.init,
-            new WeakSet(),
+            new Set(),
             context.sourceCode,
           );
           if (combos?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
@@ -1838,7 +1843,7 @@ const noHandRolledPageCard = {
           if (isReportedPageCardConstant(node.value)) return;
           const combos = classCombinations(
             node.value,
-            new WeakSet(),
+            new Set(),
             context.sourceCode,
           ) ?? [chunks.join(" ")];
           const rendered = combos.find((combo) =>
@@ -3495,7 +3500,7 @@ const noHandRolledIconTile = {
         if (!classAttribute?.value) return;
         const combos = classCombinations(
           classAttribute.value,
-          new WeakSet(),
+          new Set(),
           sourceCode,
         ) ?? [
           (() => {
@@ -4228,7 +4233,7 @@ const noHandRolledPortalNav = {
         collectStaticStrings(node, chunks);
         const combinations = classCombinations(
           node,
-          new WeakSet(),
+          new Set(),
           sourceCode,
         ) ?? [chunks.join(" ")];
         const rendered = combinations?.find(hasPortalNavShellSignature);
@@ -4246,7 +4251,7 @@ const noHandRolledPortalNav = {
         if (chunks.some(hasPortalNavShellSignature)) return;
         const combinations = classCombinations(
           node.value,
-          new WeakSet(),
+          new Set(),
           sourceCode,
         ) ?? [chunks.join(" ")];
         const rendered = combinations.find(hasPortalNavShellSignature);

@@ -710,6 +710,19 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     expect(output.match(/ui-kit\(no-hand-rolled-surface\)/g)).toHaveLength(1);
   });
 
+  it("follows a shared constant in every conditional branch", async () => {
+    const result = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      const frame = "rounded-lg border p-3";
+      export const Probe = ({ active }: { active: boolean }) => (
+        <div className={active ? cn(frame, "bg-gray-50") : cn(frame, "bg-white")} />
+      );`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
   it("accepts the kit surfaces and non-card shapes", async () => {
     const result = await lintSource(
       `
