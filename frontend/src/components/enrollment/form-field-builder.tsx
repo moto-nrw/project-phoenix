@@ -7,7 +7,6 @@
 // Bausteine; welche Feldtypen und Bedingungsquellen eine Seite anbietet,
 // bestimmt sie über Props.
 
-import { Alert } from "~/components/ui/alert";
 import {
   createContext,
   useContext,
@@ -18,6 +17,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Alert } from "~/components/ui/alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   ArrowDown,
