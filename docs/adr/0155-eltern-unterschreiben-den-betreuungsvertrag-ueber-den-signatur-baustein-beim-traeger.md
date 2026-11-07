@@ -44,7 +44,7 @@ und ADR 0088 §3 auf.
    `aktiv` mit `concluded_at` und `conclusion_method` (`einfach_elektronisch`
    online, `papier` auf Papier), die Version `wirksam`. So gilt
    `chk_contracts_active_concluded` aus 1.15.773 auch für unterschriebene
-   Verträge; die Migration 1.15.776 hängt von 1.15.773 ab.
+   Verträge; die Migration 1.15.790 hängt von 1.15.773 ab.
 3. **Einmaliger Mail-Link.** `<Träger>.<Token>`, gespeichert wird nur der
    SHA-256 des Tokens. Der Link nennt einen Vertrag und das PDF, mit dem er
    ging, gilt 30 Tage und einmal. Lesen verbraucht ihn nicht; nur die
