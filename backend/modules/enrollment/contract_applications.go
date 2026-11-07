@@ -54,6 +54,11 @@ type ContractAcceptance struct {
 	Text        string
 	SHA256      string
 	SubmittedAt time.Time
+	// Required tells that the form demanded the tick. The conditions of a
+	// contract count only as a required block; an optional block the
+	// parents ticked records a wish, such as the early start of care within
+	// the withdrawal period (#4682).
+	Required bool
 }
 
 // ContractAcceptances reads only the latest parent submission. A submission
@@ -88,12 +93,12 @@ func ContractAcceptances(raw json.RawMessage, source string, acceptedAt *time.Ti
 }
 
 func contractAcceptance(block LegalBlockSnapshot, flags map[string]bool, at time.Time, fingerprint func([]byte) string) (ContractAcceptance, bool) {
-	if block.Kind != LegalBlockKindTerms || block.Source != LegalBlockSourceCustom || !block.Required || !flags[block.Key] || block.Text == "" || len(block.Attachments) > 0 {
+	if block.Kind != LegalBlockKindTerms || block.Source != LegalBlockSourceCustom || !flags[block.Key] || block.Text == "" || len(block.Attachments) > 0 {
 		return ContractAcceptance{}, false
 	}
 	checksum := fingerprint([]byte(block.Text))
 	if block.TextSHA256 == "" || block.TextSHA256 != checksum {
 		return ContractAcceptance{}, false
 	}
-	return ContractAcceptance{Key: block.Key, Text: block.Text, SHA256: checksum, SubmittedAt: at}, true
+	return ContractAcceptance{Key: block.Key, Text: block.Text, SHA256: checksum, SubmittedAt: at, Required: block.Required}, true
 }

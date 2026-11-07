@@ -1,0 +1,2 @@
+GET /traeger/contract-notices/{id} -> basis
+POST /traeger/contract-notices/{id} -> basis

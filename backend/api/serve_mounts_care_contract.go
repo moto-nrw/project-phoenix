@@ -175,7 +175,8 @@ func (a careContractApplications) AcceptedApplications(ctx context.Context, requ
 			ServiceStartDate: application.ServiceStartDate, ActivateOn: application.ActivateOn,
 		}
 		for _, proof := range application.Acceptances {
-			result[i].Acceptances = append(result[i].Acceptances, carecontract.AcceptedText{Key: proof.Key, Text: proof.Text, SHA256: proof.SHA256, SubmittedAt: proof.SubmittedAt})
+			result[i].Acceptances = append(result[i].Acceptances, carecontract.AcceptedText{Key: proof.Key, Text: proof.Text, SHA256: proof.SHA256, SubmittedAt: proof.SubmittedAt,
+				Required: proof.Required})
 		}
 	}
 	return result, nil

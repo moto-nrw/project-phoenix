@@ -88,7 +88,7 @@ func TestAcceptanceIssueNeedsTickedConditionsShownBeforeTheAcceptance(t *testing
 	accepted := submitted.Add(24 * time.Hour)
 	terms := carecontract.TemplateInput{TermKind: carecontract.TermOpenEnded, NoticeMonths: 1,
 		NoticeTo: carecontract.NoticeMonthEnd, ContractPartner: "Träger"}
-	proof := carecontract.AcceptedText{Key: "terms", Text: acceptanceText(terms), SHA256: "abc", SubmittedAt: submitted}
+	proof := carecontract.AcceptedText{Key: "terms", Text: acceptanceText(terms), SHA256: "abc", SubmittedAt: submitted, Required: true}
 	draft := func(at *time.Time, proofs ...carecontract.AcceptedText) NewContract {
 		return NewContract{AcceptedAt: at, Acceptances: proofs, Version: carecontract.Version{Terms: terms}}
 	}
@@ -100,6 +100,10 @@ func TestAcceptanceIssueNeedsTickedConditionsShownBeforeTheAcceptance(t *testing
 	unsigned := proof
 	unsigned.SHA256 = ""
 	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(&accepted, unsigned), before), "no checksum of the shown text")
+	optional := proof
+	optional.Required = false
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(&accepted, optional), before),
+		"an optional block the parents ticked is no proof of the conditions (#4682)")
 	late := proof
 	late.SubmittedAt = accepted.Add(time.Minute)
 	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(&accepted, late), before), "a submission after the acceptance")
