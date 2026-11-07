@@ -64,6 +64,14 @@ func (f *fakeMembership) ListStaff(_ context.Context, filter schoolmembership.St
 		if staff.IsDeleted() && !filter.IncludeDeleted {
 			continue
 		}
+		if filter.MembershipOnly {
+			staff.StaffNotes = ""
+			staff.EmploymentType = nil
+			staff.WorkTimeModelID = nil
+			staff.PersonnelNumber = nil
+			staff.RotationAnchorDate = ""
+			staff.BirthdayDisplayOptOut = false
+		}
 		result = append(result, staff)
 	}
 	sortByID(result)

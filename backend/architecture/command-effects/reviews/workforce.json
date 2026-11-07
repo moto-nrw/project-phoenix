@@ -6377,7 +6377,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
-      "reason": "Read-only already reviewed target: workforce reaches modules/schoolmembership.Capability.ListStaff (school-membership) through roots/owners.personStaffAbsenceRepository.ListRequests. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: Absence projection resolves membership ID/person ID including offboarded memberships, without unused Employment hydration. This ListRequests binding still reads only; no decision, persistent mutation, lock or scope switch is added.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -6387,7 +6387,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
-      "reason": "Read-only already reviewed target: workforce reaches modules/schoolmembership.Owner.ListStaff (school-membership) through roots/owners.personStaffAbsenceRepository.ListRequests. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: Absence projection resolves membership ID/person ID including offboarded memberships, without unused Employment hydration. This ListRequests binding still reads only; no decision, persistent mutation, lock or scope switch is added.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -6397,7 +6397,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
-      "reason": "Read-only already reviewed target: workforce reaches modules/schoolmembership.Query.ListStaff (school-membership) through roots/owners.personStaffAbsenceRepository.ListRequests. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: Absence projection resolves membership ID/person ID including offboarded memberships, without unused Employment hydration. This ListRequests binding still reads only; no decision, persistent mutation, lock or scope switch is added.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -6419,7 +6419,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
-      "reason": "Read-only already reviewed target: workforce reaches modules/schoolmembership.Capability.ListStaff (school-membership) through roots/owners.staffAbsenceRepository.ListRequests. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: Absence projection resolves membership ID/person ID including offboarded memberships, without unused Employment hydration. This ListRequests binding still reads only; no decision, persistent mutation, lock or scope switch is added.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -6429,7 +6429,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
-      "reason": "Read-only already reviewed target: workforce reaches modules/schoolmembership.Owner.ListStaff (school-membership) through roots/owners.staffAbsenceRepository.ListRequests. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: Absence projection resolves membership ID/person ID including offboarded memberships, without unused Employment hydration. This ListRequests binding still reads only; no decision, persistent mutation, lock or scope switch is added.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -6439,7 +6439,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
-      "reason": "Read-only already reviewed target: workforce reaches modules/schoolmembership.Query.ListStaff (school-membership) through roots/owners.staffAbsenceRepository.ListRequests. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: Absence projection resolves membership ID/person ID including offboarded memberships, without unused Employment hydration. This ListRequests binding still reads only; no decision, persistent mutation, lock or scope switch is added.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -10210,7 +10210,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.AbsenceRequestRecords.ListRequests",
-      "reason": "Read-only already reviewed target: workforce reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/workforce/compose.AbsenceRequestRecords.ListRequests. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: Absence projection resolves membership ID/person ID including offboarded memberships, without unused Employment hydration. This ListRequests binding still reads only; no decision, persistent mutation, lock or scope switch is added.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership"
@@ -10220,7 +10220,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.AbsenceRequestRecords.ListRequests",
-      "reason": "Read-only already reviewed target: workforce reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/workforce/compose.AbsenceRequestRecords.ListRequests. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: Absence projection resolves membership ID/person ID including offboarded memberships, without unused Employment hydration. This ListRequests binding still reads only; no decision, persistent mutation, lock or scope switch is added.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
@@ -10230,7 +10230,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.AbsenceRequestRecords.ListRequests",
-      "reason": "Read-only already reviewed target: workforce reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/workforce/compose.AbsenceRequestRecords.ListRequests. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: Absence projection resolves membership ID/person ID including offboarded memberships, without unused Employment hydration. This ListRequests binding still reads only; no decision, persistent mutation, lock or scope switch is added.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -10928,9 +10928,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.PayrollConfigurationReader.GetPayrollConfiguration",
-      "reason": "Read-only newly exposed target: workforce reaches modules/settings/records.PayrollStatusGetter.GetPayrollStatus (settings-platform) through roots/owners.PayrollExportSettings.GetPayrollConfiguration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "E1 #5889: Settings-only payroll configuration via GetPayrollConfigurationStatus. Same ResolveMany keys, category/header/dispatch resolution and tenant context; no staff-completeness callback, writes or locks. The payroll page retains GetPayrollStatus and its counts.",
       "source_owner": "workforce",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.PayrollStatusGetter.GetPayrollStatus",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.PayrollStatusGetter.GetPayrollConfigurationStatus",
       "target_owner": "settings-platform"
     },
     {

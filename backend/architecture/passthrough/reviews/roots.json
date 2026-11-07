@@ -2033,7 +2033,7 @@
     {
       "decision": "0090",
       "id": "roots/owners/ParentStaffMembers.List",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "E1 #5889: retain tenant/person mapping and existing tenant set, omitting unused Employment. Query-only inbox port; ADR 0075 consumer-port translation unchanged."
     },
     {
       "decision": "0090",

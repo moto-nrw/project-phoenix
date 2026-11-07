@@ -4538,7 +4538,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.personStaffAbsenceRepository.ListRequests",
-      "binding_digest": "3d3a314f563a801de7acb168bbbd62c9",
+      "binding_digest": "6ba95bdf5315c3640dce5ed485817f7b",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -4546,7 +4546,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.personStaffAbsenceRepository.ListRequests",
-      "binding_digest": "19ad8f4732c60f647d2cc02e1619200c",
+      "binding_digest": "e4da288e3f47f4cfe205e6499a7899c8",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -4554,7 +4554,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.personStaffAbsenceRepository.ListRequests",
-      "binding_digest": "c37735799c55102a8265cc3685b06d65",
+      "binding_digest": "2965c38067a0dd648c9cab781dbcb977",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
@@ -4570,7 +4570,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffAbsenceRepository.ListRequests",
-      "binding_digest": "275ca3508e18f7b2d09e4d0464338ce1",
+      "binding_digest": "56a5957910ca2dcde2284d3e1bf81a33",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -4578,7 +4578,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffAbsenceRepository.ListRequests",
-      "binding_digest": "7af19318484e4ffba0d30c782807f0ec",
+      "binding_digest": "85a797cc165bf0a2349c2d25377bb268",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -4586,7 +4586,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffAbsenceRepository.ListRequests",
-      "binding_digest": "8d809b23c6cd09db3b1ec63d7dd058fd",
+      "binding_digest": "b726d6618ea1e2e6581d3fae6c50a50f",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
@@ -7210,7 +7210,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
-      "binding_digest": "275ca3508e18f7b2d09e4d0464338ce1",
+      "binding_digest": "56a5957910ca2dcde2284d3e1bf81a33",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.AbsenceRequestRecords.ListRequests",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -7218,7 +7218,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
-      "binding_digest": "7af19318484e4ffba0d30c782807f0ec",
+      "binding_digest": "85a797cc165bf0a2349c2d25377bb268",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.AbsenceRequestRecords.ListRequests",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -7226,7 +7226,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.AbsenceRequestRecords.ListRequests",
-      "binding_digest": "8d809b23c6cd09db3b1ec63d7dd058fd",
+      "binding_digest": "b726d6618ea1e2e6581d3fae6c50a50f",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.AbsenceRequestRecords.ListRequests",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
@@ -7730,10 +7730,10 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PayrollExportSettings.GetPayrollConfiguration",
-      "binding_digest": "73048d0cbac4e50ad2cc82ea11dd7822",
+      "binding_digest": "e23dba539b1e6b33a8f718d223790f80",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.PayrollConfigurationReader.GetPayrollConfiguration",
       "source_owner": "workforce",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.PayrollStatusGetter.GetPayrollStatus",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.PayrollStatusGetter.GetPayrollConfigurationStatus",
       "target_owner": "settings-platform"
     },
     {

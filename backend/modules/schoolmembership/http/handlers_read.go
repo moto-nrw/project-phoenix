@@ -132,7 +132,7 @@ type documentDirectoryEntry struct {
 // roles. It intentionally omits directory, attendance, and account data.
 func (rs *Resource) listDocumentDirectory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	members, err := rs.membership.ListStaff(ctx, schoolmembership.StaffFilter{})
+	members, err := rs.membership.ListStaff(ctx, schoolmembership.StaffFilter{MembershipOnly: true})
 	if err != nil {
 		rs.internal(w, r, err)
 		return
