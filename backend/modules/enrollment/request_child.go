@@ -29,6 +29,9 @@ type RequestChild struct {
 	SortOrder             int             `json:"sort_order"`
 	RolloverSourceChildID *int64          `json:"rollover_source_child_id,omitempty"`
 	ReviewReason          *string         `json:"review_reason,omitempty"`
+	// WeeklyPlanOn is the day an approved future renewal's weekly plan
+	// applies (#6043). Read-only: plans are written through WeeklyPlans.
+	WeeklyPlanOn *Date `json:"weekly_plan_on,omitempty"`
 }
 
 // PhaseResponseChild is a child selected for a phase response overview. A

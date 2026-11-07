@@ -2219,3 +2219,56 @@ describe("describeOfferingAdjustmentChanges", () => {
     expect(screen.queryByText(/Vorher:/)).not.toBeInTheDocument();
   });
 });
+
+describe("AdminEnrollmentDetail future renewal (#6043)", () => {
+  const request = {
+    id: "request-1",
+    phase_id: "phase-1",
+    phase_name: "Ab Februar",
+    guardian_first_name: "Mara",
+    guardian_last_name: "Beispiel",
+    guardian_email: "mara@example.test",
+    submitted_at: "2026-12-01T10:00:00Z",
+    status_token: "status-token",
+  };
+  const approvedChild = {
+    id: "child-1",
+    first_name: "Lina",
+    last_name: "Kind",
+    date_of_birth: "2018-04-15",
+    status: "approved" as const,
+    activation_mode: "scheduled",
+    created_student_id: "42",
+  };
+
+  it("names the day the approved weekly plan applies", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(
+      await screen.findByText(
+        "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab 03.02.2027. Bis dahin bleiben die bisherigen.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("shows no hint once the weekly plan applies", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [approvedChild],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(await screen.findAllByText("Mara Beispiel")).not.toHaveLength(0);
+    expect(
+      screen.queryByText(/aus dieser Anmeldung gelten ab/),
+    ).not.toBeInTheDocument();
+  });
+});

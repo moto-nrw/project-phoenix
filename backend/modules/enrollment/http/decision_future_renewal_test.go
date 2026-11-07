@@ -163,6 +163,8 @@ func TestDecisionService_Decide_FutureRenewalAppliesWeeklyPlanAtStart(t *testing
 	ctx := testpkg.Ctx(t)
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
 	require.NoError(t, err)
+	require.NotNil(t, child.WeeklyPlanOn, "the request child names the day its weekly plan applies")
+	assert.Equal(t, r.start, *child.WeeklyPlanOn)
 	child.CustomData["pickup_times"] = map[string]any{"mon": "16:00"}
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
 	_, err = changeRequestApplierForTest(t, r.env).SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
@@ -183,6 +185,9 @@ func TestDecisionService_Decide_FutureRenewalAppliesWeeklyPlanAtStart(t *testing
 		"the approved Heimweg applies from the start")
 
 	assert.Zero(t, r.applyDue(t, r.start.AddDays(1)), "the plan applies once")
+	child, err = enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
+	require.NoError(t, err)
+	assert.Nil(t, child.WeeklyPlanOn, "an applied plan is cleared")
 	assert.Equal(t, map[int]string{timetable.WeekdayMonday: "16:00"}, r.pickups(t))
 }
 
