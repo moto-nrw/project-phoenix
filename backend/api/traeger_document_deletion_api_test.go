@@ -200,7 +200,7 @@ func TestAFailedTraegerDocumentDeletionChangesNothing(t *testing.T) {
 		Runtime: failingTraegerRuntime{}, Access: traegerDocumentAccessLog{}, Downloads: traegerDocumentDownloadLedger{},
 	})
 	unit := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db))
-	err = documents.Delete(unit, f.office.organization, 0, document.ID)
+	err = documents.DeleteDocument(unit, f.office.organization, 0, document.ID)
 	require.ErrorIs(t, err, errTraegerCommitLost)
 
 	trail := f.trail(t, document.ID)

@@ -274,9 +274,9 @@ func (d *TraegerDocuments) audienceGroupName(ctx context.Context, organizationID
 	return groups[index].Name, nil
 }
 
-// Delete deletes a document of the Träger in one Träger transaction: the
+// DeleteDocument deletes a document of the Träger in one Träger transaction: the
 // releases end, the file goes, the deletion is recorded, all or nothing.
-func (d *TraegerDocuments) Delete(ctx context.Context, organizationID, accountID, documentID int64) error {
+func (d *TraegerDocuments) DeleteDocument(ctx context.Context, organizationID, accountID, documentID int64) error {
 	if organizationID <= 0 {
 		return errTraegerRequired
 	}

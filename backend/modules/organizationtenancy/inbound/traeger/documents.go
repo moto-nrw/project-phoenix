@@ -221,7 +221,7 @@ func (rs *DocumentsResource) delete(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.documents.Delete(r.Context(), organizationID, accountID, documentID); err != nil {
+	if err := rs.documents.DeleteDocument(r.Context(), organizationID, accountID, documentID); err != nil {
 		renderDocumentError(w, r, err)
 		return
 	}
