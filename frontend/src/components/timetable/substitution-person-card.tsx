@@ -10,6 +10,7 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Radio } from "~/components/ui/radio";
 
 import {
@@ -368,9 +369,7 @@ function SubstitutePicker(props: PersonCardProps) {
   const { person, name, canEdit, substituteOptions, onUpdate } = props;
   return (
     <div>
-      <span className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-        Vertretung für {name}
-      </span>
+      <FieldLabel className="mb-1">Vertretung für {name}</FieldLabel>
       {canEdit ? (
         <CustomSelect
           value={person.substituteId}

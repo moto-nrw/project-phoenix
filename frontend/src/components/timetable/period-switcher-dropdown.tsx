@@ -38,6 +38,7 @@ import {
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { getGermanWeekdayShort, toISODate } from "~/lib/timetable-helpers";
 import { StatusDot } from "~/components/ui/status-dot";
+import { SectionLabel } from "~/components/ui/section-label";
 
 interface PeriodSwitcherDropdownProps {
   periods: CalendarPeriod[];
@@ -242,9 +243,9 @@ export function PeriodSwitcherDropdown({
 
           {showContextAssignments && view !== "month" && (
             <div className="border-b border-gray-100 bg-gray-50/60 px-4 py-2.5">
-              <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+              <SectionLabel as="p" className="mb-1">
                 {contextLabel}
-              </p>
+              </SectionLabel>
               <div className="space-y-0.5">
                 {assignments.map((a, index) => {
                   const day = weekDays[index]!;
@@ -293,9 +294,9 @@ export function PeriodSwitcherDropdown({
           <div className="py-1">
             {grouped.map((group) => (
               <div key={group.label} className="py-1">
-                <p className="px-4 py-1 text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
+                <SectionLabel as="p" className="px-4 py-1">
                   {group.label}
-                </p>
+                </SectionLabel>
                 {group.periods.map((p) => {
                   const isSelected = selectedPeriodId
                     ? p.id === selectedPeriodId
@@ -360,9 +361,9 @@ function MonthPeriodSummary({
     const period = assignedPeriods[0]!;
     return (
       <div className="border-b border-gray-100 bg-gray-50/60 px-4 py-2.5">
-        <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+        <SectionLabel as="p" className="mb-1">
           Dieser Monat
-        </p>
+        </SectionLabel>
         <p className="text-xs text-gray-700">
           Liegt komplett in{" "}
           <span className="font-semibold text-gray-900">{period.name}</span>.
@@ -374,9 +375,9 @@ function MonthPeriodSummary({
   if (assignedPeriods.length === 0) {
     return (
       <div className="border-b border-gray-100 bg-gray-50/60 px-4 py-2.5">
-        <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+        <SectionLabel as="p" className="mb-1">
           Dieser Monat
-        </p>
+        </SectionLabel>
         <p className="text-moto-amber-strong text-xs">
           Für diesen Monat ist kein aktiver Zeitraum hinterlegt.
         </p>
@@ -386,9 +387,9 @@ function MonthPeriodSummary({
 
   return (
     <div className="border-b border-gray-100 bg-gray-50/60 px-4 py-2.5">
-      <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+      <SectionLabel as="p" className="mb-1">
         Dieser Monat
-      </p>
+      </SectionLabel>
       <p className="mb-1.5 text-xs text-gray-700">Umfasst mehrere Zeiträume.</p>
       <div className="space-y-0.5">
         {assignedPeriods.map((period) => (
