@@ -480,6 +480,13 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    Replay ein zweites Mal gezählt; ein Rücksetzen über Längen und Zähler
    fängt den In-place-Fall nicht. Punkt 2 regelt das (Invariante
    Chunk-Rollback).
+10. **Erneutes Vorladen ist kein frischer Zustand.** Dasselbe Config-Objekt
+   erneut vorzuladen hinterlässt Zustand des ersten Vorladens: `schoolName`
+   bleibt bei gescheitertem Lookup stehen (`staff_import_owner.go:35–39`),
+   die Resolver-Maps des Student-Imports werden nur ergänzt
+   (`relationship_resolver.go:45`, `:60`), die Validierung legt Rollen mit
+   gesetzten `Permissions` ab (`staff_import_config.go:596`, `:621`).
+   Punkt 2 legt deshalb ein neues Config-Objekt für den Replay fest.
 
 ### Entscheidung
 
@@ -520,13 +527,35 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    liefert die neue Suche für Zeile 2 im Update-Modus `not_found`, wie im
    heutigen Zeilenpfad.
 
-   **Invariante Chunk-Rollback.** Nach einem Chunk-Rollback ist der gesamte
-   Ergebniszustand des Imports bytegleich mit dem Zustand vor dem Chunk.
-   Gemeint sind alle Zeilenergebnisse, Fehler und Warnungen, auch die in
-   place geänderten Einträge, ihre Reihenfolge und Zeitstempel, alle Zähler
-   und der Zustand der Config. Der Replay beginnt also auf genau dem Stand,
-   auf dem heute der Zeilenpfad den Chunk beginnt, und das Ergebnis danach
-   entspricht exakt dem sequenziellen Lauf.
+   **Invariante Chunk-Rollback.** Sie hat zwei Teile:
+
+   - **Ergebniszustand** (Zeilenergebnisse, Fehler, Warnungen einschließlich
+     in place geänderter Einträge, ihre Reihenfolge und Zeitstempel, Zähler):
+     Nach einem Chunk-Rollback ist er bytegleich mit dem Stand vor dem Chunk.
+   - **Config- und Vorladezustand** (Namensindizes, Rollen samt
+     `Permissions`, `schoolName`, Resolver-Maps, vorbereitete Match-Mengen):
+     Er wird beim Replay frisch geladen. Der Replay liefert dasselbe Ergebnis
+     und dieselbe Persistenz wie ein sequenzieller Lauf dieses Chunks, der
+     zum Zeitpunkt des Replays startet. Das entspricht Entscheidung E2 und dem
+     heutigen Verhalten, bei dem jede Zeile frisch liest. Eine parallele
+     Änderung zwischen erstem Vorladen und Replay ist ausdrücklich erlaubt
+     und kein Abweichen. Kein Zustand aus dem ersten Vorladen darf in den
+     Replay durchsickern: keine veränderte Map, kein Rollen-Objekt, kein
+     gecachter Name.
+
+   Beispiel: Ein Staff-Update-Chunk lädt vor, eine parallele Anfrage benennt
+   Staff A danach um und committet, der Batch scheitert. Der Replay lädt neu
+   vor und sieht den neuen Namen. Sucht eine Zeile A noch unter dem alten
+   Namen ohne Personalnummer, liefert der Replay im Update-Modus `not_found`
+   statt eines Updates. Das ist dasselbe Ergebnis wie ein sequenzieller Lauf,
+   der nach der Umbenennung startet, und damit korrekt.
+
+   Unverändert und geteilt bleiben die Ergebnisse der Validierung des
+   ganzen Uploads: `r.validated`, `r.accepted`, `r.order`, `orderHash` und
+   die in der Validierung aufgelösten Zeilenfelder (etwa `RoleID`,
+   `GroupID`, `StaffID`, normalisierte Zellen). Sie stammen heute schon aus
+   der Validierungstransaktion und gelten für jeden Chunk und jede
+   Wiederholung; der Schreibpfad verändert sie nicht (Tabelle unten).
 
    Ablauf je Chunk, nach Import-Lock, Checkpoint und Vorlast
    (`batches.go:284–298`):
@@ -550,29 +579,35 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    Nach dem letzten Segment `RELEASE SAVEPOINT chunk`, dann der Checkpoint
    wie heute.
 
-   **Mechanismus: Puffer je Chunk neu aufbauen.** Das Chunk-Ergebnis ist
-   heute schon ein Puffer: `execute` baut es je Versuch mit
-   `importValidationSlice` neu aus den Validierungsergebnissen
-   (`batches.go:300`, `:413–431`; die Fehlerlisten werden dabei kopiert,
-   `:428`), und `writeBatches` übernimmt es erst nach dem Commit in das
-   Gesamtergebnis (`:256`; bei Abbruch nur mit Zählern 0, `:248–251`). Beim
-   Chunk-Rollback verwirft der Executor diesen Puffer und baut ihn auf
-   dieselbe Weise neu, wie es die Wiederholung einer Transaktion schon tut.
-   Die Config baut er ebenfalls neu: `BatchWriteConfig` erneut bzw. die
-   unveränderte Config, dann `PreloadReferenceData`. Das ist einfacher als
-   ein tiefer Snapshot, der jede Struktur einzeln kopieren und vollständig
-   bleiben müsste, und als ein Puffer je Segment, der Einträge mit dem
-   Eintrag derselben Zeile zusammenführen müsste (`appendRowErrors` hält
-   einen Eintrag je Zeile, `import_service.go:312–330`). Ein Rücksetzen über
-   Längen und Zähler genügt nicht: `appendRowErrors` ergänzt einen
-   bestehenden Eintrag in place (`import_service.go:317–321`). Hat Zeile 2
-   eine Warnung aus der Validierung und erhält in Schritt 2 `already_exists`,
-   bliebe der Fehler stehen, obwohl der Replay Zeile 2 nach dem Fehler in
-   Zeile 1 nie erreicht.
+   **Mechanismus.** Beides wird neu erzeugt, nichts wird tief kopiert.
+   - **Ergebnis-Puffer:** Das Chunk-Ergebnis ist heute schon ein Puffer:
+     `execute` baut es je Versuch mit `importValidationSlice` neu aus den
+     Validierungsergebnissen (`batches.go:300`, `:413–431`; die Fehlerlisten
+     werden dabei kopiert, `:428`), und `writeBatches` übernimmt es erst nach
+     dem Commit in das Gesamtergebnis (`:256`; bei Abbruch nur mit Zählern 0,
+     `:248–251`). Beim Chunk-Rollback verwirft der Executor diesen Puffer und
+     baut ihn auf dieselbe Weise neu, wie es die Wiederholung einer
+     Transaktion schon tut. Ein Rücksetzen über Längen und Zähler genügt
+     nicht: `appendRowErrors` ergänzt einen bestehenden Eintrag in place
+     (`import_service.go:317–321`). Hat Zeile 2 eine Warnung aus der
+     Validierung und erhält in Schritt 2 `already_exists`, bliebe der Fehler
+     stehen, obwohl der Replay Zeile 2 nach dem Fehler in Zeile 1 nie
+     erreicht.
+   - **Config:** Der Replay arbeitet auf einem frisch erzeugten
+     Config-Objekt mit denselben Deps (`NewRequestScoped` wie beim Staff,
+     `staff_import_config.go:125–127`), ruft `PreloadReferenceData` und, beim
+     Student-Create, `BatchWriteConfig` neu auf. Student- und
+     Anfangssalden-Config bekommen dafür dieselbe Fähigkeit; die
+     Klassenliste hat keinen Zustand. Das ist einfacher als ein tiefer
+     Snapshot, der jede Struktur einzeln kopieren und vollständig bleiben
+     müsste, und als ein Puffer je Segment, der Einträge mit dem Eintrag
+     derselben Zeile zusammenführen müsste (`appendRowErrors` hält einen
+     Eintrag je Zeile, `import_service.go:312–330`). Ein neues Objekt nimmt
+     auch die Felder mit, die das Vorladen nur bedingt setzt
+     (`schoolName`, `staff_import_owner.go:35–39`) oder heute nur ergänzt
+     (Resolver-Maps, `relationship_resolver.go:45`, `:60`).
 
-   **Schreibstellen auf den Ergebniszustand.** Der Neuaufbau deckt sie alle
-   ab, weil keine davon in einen Zustand außerhalb des Chunk-Puffers oder
-   der neu gebauten Config schreibt:
+   **Ergebniszustand: Schreibstellen.** Alle liegen im Chunk-Puffer:
 
    | Zustand | Schreibstelle |
    |---|---|
@@ -583,16 +618,45 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    | `ChildQuotaRequested` | `import_service.go:387` (nur Vorschau) |
    | `StartedAt`, `CompletedAt` des Chunks | `batches.go:301`, `:306`; Gesamtergebnis `:253`, `:264`, `mergeImportBatch` `:464–474` |
    | `BulkActions` | `batches.go:265` (nach allen Chunks) |
-   | Config: Namenskonsum der Student-Anlage | `student_import_write_batch.go:50–53` (`delete(persons.names, …)`) |
-   | Config: Staff-Index | `staff_import_owner.go:74–107` (`indexStaff`/`unindexStaff`), Aufrufe `:250`, `:430–431` |
-   | Config: Rollen | `staff_import_owner.go:26–30`; `staff_import_config.go:618–621` |
-   | Config: Anfangssalden | `opening_balance_import_config.go:60–89` (nur in `PreloadReferenceData`) |
 
-   Keine Schreibstelle hält einen Zeiger auf `r.validated` oder auf das
-   Gesamtergebnis. Kommt eine hinzu, gilt die Invariante auch für sie; der
-   Regressionstest unten fällt sonst. Die Observation (`batches.go:137–146`,
-   `:281`) ist Telemetrie, kein Ergebniszustand: Sie behält die Kommandos
-   des abgebrochenen Batches und erhält `batch_fallback`.
+   **Config- und Vorladeobjekte.** Gesucht mit `git grep` nach Map-, Slice-
+   und Zeiger-Mutationen in `importservice/`, `modules/dataimport/ports/`,
+   `compose/`, `internal/adapters/runtimebinding/`, den Root-Bindungen
+   (`api/import_*.go`, `roots/owners/import_*.go`) und den Resolvern. „Neu“
+   heißt: Der Replay bekommt ein neues Objekt. „Geteilt“ ist nur erlaubt,
+   wo das Objekt nie verändert wird; einzige benannte Ausnahme sind die
+   Anfrage-Memos in der letzten Zeile.
+
+   | Objekt | Lebensdauer heute | Schreibstellen | Beim Replay |
+   |---|---|---|---|
+   | Staff `roleDisplayNames` (Slice) | Anfrage (`staff_import_config.go:125–127`, `batches.go:71–77`) | `staff_import_owner.go:26`, `:29` | neu |
+   | Staff `rolesByID` (Map) und ihre `*SchoolRole` | Anfrage | Vorladen `staff_import_owner.go:27`, `:30`; Validierung legt geprüfte Rollen ab `staff_import_config.go:618–621` | neu; Rollen-Objekte kommen je Aufruf neu aus Identity & Access (`modules/identityaccess/internal/application/school_role.go:63–74`) |
+   | `role.Permissions` der geprüften Rolle | Validierung | `staff_import_config.go:596` (am Objekt aus `FindSchoolRoleByName`, danach in `rolesByID`, `:621`) | gelangt nicht in den Replay: die neue Config hat eine neue `rolesByID` |
+   | Staff `schoolName` (String) | Anfrage | `staff_import_owner.go:37`, nur bei erfolgreichem Lookup (`:35–39`) | neu (leer, dann Lookup); heute bliebe bei gescheitertem Lookup der Wert des ersten Vorladens |
+   | Staff `staffByPersonnelNumber`, `staffByName` (Maps) und ihre `*indexedStaff` | Anfrage | Vorladen `staff_import_owner.go:41–42`, `:62–68`; `indexStaff` `:74–90`, `unindexStaff` `:92–107` (Splice in place `:100`); Aufrufe aus Create `:250`, Update `:430–431` | neu |
+   | Student `RelationshipResolver` `groupCache`, `roomCache` (Maps) | **Prozess**: ein Resolver je Import-Service (`api/import_composition.go:66`, `newServeImports` `:152–172`), seine Maps entstehen einmal (`relationship_resolver.go:31–32`) | `relationship_resolver.go:45`, `:60`: Vorladen ergänzt, leert nie | neu: neue Maps je Vorladen (Ersetzen statt Ergänzen), Resolver je Anfrage statt je Prozess. `roomCache` füllt der Import heute nicht (`PreloadRooms` hat keinen Aufrufer). Die Maps sind nur nach Namen geschlüsselt; am 08.11.2026 belegt: Eine Vorschau in Schule B löst einen Gruppennamen von Schule A ohne Warnung auf und schlägt ihn bei Tippfehlern vor. Das ist ein eigener Mangel der Mandantentrennung, der vor Q1 behoben wird |
+   | Student `studentCreateBatchConfig.matches` mit `previewPersons.names` (Map), `previewStudents.personIDs` (Map), `.students` (Slice) | Versuch: `BatchWriteConfig` je `applyAcceptedRows` (`batches.go:331–341`, `student_import_write_batch.go:16–43`, `PreviewConfig` `student_import_preview.go:17–49`, `:114–117`, `:135–139`) | Namenskonsum `student_import_write_batch.go:50–53` (`delete`); die flache Kopie `clone := *c` (`student_import_preview.go:40`) teilt Deps und Resolver der Basis-Config | neu (`BatchWriteConfig` erneut, auf der neuen Basis-Config) |
+   | Anfangssalden `staffByPersonnelNumber`, `staffByName`, `staffWithHoursOpening`, `staffWithVacOpening` (Maps) und `*OpeningStaff` | Anfrage (Fabrik je Upload, `api/import_composition.go:145–149`) | nur Vorladen `opening_balance_import_config.go:60–89`; `*OpeningStaff` je Aufruf neu (`roots/owners/import_callback_opening_staff_reader.go:25–29`) | neu |
+   | Anfangssalden `EffectiveDate`, `Note`, `DecidedByStaffID` | Anfrage | nur Konstruktor | geteilt, unverändert |
+   | Deps aller Configs (`StaffImportDeps`, `StudentImportDeps`, `ClassListImportDeps`, `OpeningBalanceImportDeps`), `StaffImportModePolicy`, beobachtete Ports (`ports/observed_commands.go`), Root-Bindungen (`api/import_*.go`, `roots/owners/import_*.go`), Compose-Adapter | Prozess | keine; die Root-Leser bauen ihre Maps je Aufruf neu (`roots/owners/import_callback_opening_staff_reader.go:25–29`) | geteilt, unverändert |
+   | Klassenliste `ClassListImportConfig` | Prozess | keine (Vorladen leer, `class_list_import_config.go:39–41`) | geteilt, unverändert |
+   | `importMu` (Staff `staff_import_config.go:88`, Service `import_service.go:47`) | Prozess | Sperre, kein Zustand | geteilt |
+   | Anfrage-Memos im Kontext: Einstellungen (#2065, `modules/settings/records/settings_request_cache.go:20–30`, angehängt `api/serve_middleware.go:70`) und Identität (#2099, `api/identity_request_cache_middleware.go:16`) | Anfrage, also der ganze Upload über alle Chunks | Lesen memoisiert; Schreiben eines Einstellungsschlüssels entfernt ihn | geteilt, als bewusste Ausnahme: Ein sequenzieller Lauf in derselben Anfrage nutzt heute dasselbe Memo, auch über Chunk-Grenzen. Auflage: Kein im zurückgerollten Batch geschriebener Wert bleibt im Memo. Der Import schreibt heute keine Einstellungen; Q1 belegt das, sonst wird das Memo beim Rollback geleert |
+
+   **Validierungsergebnisse des Uploads.** Geteilt, im Schreibpfad nie
+   verändert:
+
+   | Objekt | Schreibstellen (nur Validierung) |
+   |---|---|
+   | `r.validated`, `r.accepted`, `r.order`, `r.key`, `r.orderHash` | `batches.go:170–181`, `:208–216`, `:225` |
+   | Zeilen `r.request.Rows` (normalisierte Zellen, aufgelöste IDs) | Student `student_import_config.go:135`, `:139`, `:161` (`validateTag`), `:437` (`GroupID`), `:491`, `:494`, `:518`; Staff `staff_import_config.go:162`, `:182–202`, `:334`, `:437`, `:451`, `:545`, `:594` (`RoleID`); Anfangssalden `opening_balance_import_config.go:103–109`, `:228`, `:251` (`StaffID`), `:277`, `:291`, `:305`, `:319`; Klassenliste `class_list_import_config.go:46–48` |
+
+   Der Schreibpfad übergibt Zeilen als Wert (`batches.go:385`, `:398`,
+   `:405`) und schreibt keine Zeilenfelder. Kommt eine Schreibstelle hinzu,
+   gilt die Invariante auch für sie; die Tests unten fallen sonst. Die
+   Observation (`batches.go:137–146`, `:281`) ist Telemetrie, kein
+   Ergebniszustand: Sie behält die Kommandos des abgebrochenen Batches und
+   erhält `batch_fallback`.
 
    **Retry-Budget.** Ein `40P01`/`40001` aus Schritt 1 bis 3 verlässt die
    Transaktion nicht: Der Executor fängt ihn wie jeden anderen Fehler im
@@ -858,6 +922,18 @@ Jeder Schritt prüft:
   `duplicate_check_failed` aus `ResolveChunk` und mit zwei Segmenten, deren
   zweites scheitert. Bei erfolgreichem Replay (Fehler nur im Batch) gilt
   derselbe Vergleich.
+- **Frisches Vorladen beim Replay (Q1, Pflicht):** Zwischen erstem
+  Vorladen und Replay ändert eine zweite Verbindung eine Zeile und
+  committet, etwa die Umbenennung von Staff A aus dem Beispiel oben; der
+  Batch scheitert per Trigger. Erwartet wird das Ergebnis eines
+  sequenziellen Laufs dieses Chunks, der nach der Änderung startet, auf
+  einem gleichen Ausgangsstand: Antwort-JSON ohne Timestamps, Receipt und
+  Owner-Zeilen gleich, im Beispiel `not_found` statt Update. Dazu je eine
+  Variante für `schoolName` (Lookup im Replay scheitert: Einladung ohne den
+  Namen des ersten Vorladens), für eine Rolle mit geänderten Rechten und für
+  eine gelöschte oder umbenannte Gruppe (kein Treffer aus dem ersten
+  Vorladen). Gegenprobe: Gegen eine Variante, die die vorgeladene Config
+  wiederverwendet, wird der Test rot.
 - **Sperren, parallele Schreiber (E10, Auflage 5):** Real-DB-Tests mit zwei
   Verbindungen und PostgreSQL-Sperrbeobachtung. (a) Ein blockierender,
   aufsteigend sperrender Schreiber (Student-Edit mit Begleitern,
