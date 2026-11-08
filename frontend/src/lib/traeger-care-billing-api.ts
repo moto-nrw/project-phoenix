@@ -64,19 +64,40 @@ export interface CareModule {
   /** End time "HH:MM" or empty. */
   readonly endsAt: string;
   readonly bookedWeekdays: readonly CareWeekday[];
+  readonly bookedDaysPerWeek: readonly number[];
   readonly contractCount: number;
 }
 
-/** The monthly price of one weekday of a module from a month on. */
+/**
+ * How a module is priced (#6196): a price per booked weekday (the sum of
+ * the booked days) or a scale by the number of booked days per week.
+ */
+export type CarePriceForm = "weekday" | "days_per_week";
+
+/**
+ * The monthly price of one weekday of a module from a month on, or with
+ * `daysPerWeek` the price for that many booked days per week. `siblingCents`
+ * is the price for every further child; null keeps the first child's.
+ */
 interface CareTariff {
   readonly id: string;
   readonly schoolId: string;
   readonly careOfferingId: string;
   readonly moduleName: string;
-  readonly weekday: CareWeekday;
+  readonly weekday: CareWeekday | "";
+  readonly daysPerWeek?: number | null;
   readonly validFrom: string;
   readonly validUntil: string | null;
   readonly monthlyCents: number;
+  readonly siblingCents?: number | null;
+  readonly mealExtra?: boolean;
+}
+
+/** The head of a price list: the months it bills nothing for (1–12). */
+interface CarePriceListHead {
+  readonly schoolId: string;
+  readonly validFrom: string;
+  readonly freeMonths: readonly number[];
 }
 
 export interface CareSchool {
@@ -88,6 +109,7 @@ export interface CareTariffs {
   readonly schools: readonly CareSchool[];
   readonly modules: readonly CareModule[];
   readonly tariffs: readonly CareTariff[];
+  readonly lists?: readonly CarePriceListHead[];
   /** Per school ID the last month an issued invoice bills ("YYYY-MM-01"). */
   readonly billedUntil: Readonly<Record<string, string>>;
 }
@@ -95,8 +117,13 @@ export interface CareTariffs {
 export interface CarePriceInput {
   readonly careOfferingId: string;
   readonly moduleName: string;
-  readonly weekday: CareWeekday;
+  /** Set for a price per weekday … */
+  readonly weekday?: CareWeekday;
+  /** … or for a scale step. */
+  readonly daysPerWeek?: number;
   readonly monthlyCents: number;
+  readonly siblingCents: number | null;
+  readonly mealExtra: boolean;
 }
 
 export interface CareRun {
@@ -135,6 +162,11 @@ export interface CarePosition {
   readonly serviceFrom: string;
   readonly serviceUntil: string;
   readonly weekdays: readonly CareWeekdayPrice[];
+  /** The scale step a module priced by days per week billed (#6196). */
+  readonly daysPerWeek?: number | null;
+  readonly tierMonthlyCents?: number | null;
+  /** The price excludes the meal, which the Mensa bills. */
+  readonly mealExtra?: boolean;
   readonly amountCents: number;
 }
 
@@ -199,6 +231,8 @@ export interface CareReduction {
   readonly discountCents: number | null;
   readonly priceCents: number | null;
   readonly capCents: number | null;
+  /** The sibling prices of the price list (#6196). */
+  readonly tariffSiblingPrice?: boolean;
   readonly amountCents: number;
 }
 
@@ -243,7 +277,10 @@ export interface CareUnpriced {
   readonly childLastName: string;
   readonly careOfferingId: string;
   readonly moduleName: string;
-  readonly weekday: CareWeekday;
+  /** Empty for a missing scale step. */
+  readonly weekday: CareWeekday | "";
+  /** The missing scale step of a module priced by days per week. */
+  readonly daysPerWeek?: number | null;
 }
 
 /**
@@ -277,6 +314,8 @@ export interface CareRunDetail extends CareRun {
    */
   readonly uncountedFamilies?: number;
   readonly billed: number;
+  /** Contracts a free month of their price list bills nothing for. */
+  readonly freeOfCharge?: number;
   readonly previewCount: number;
   readonly previewCents: number;
   readonly numberPattern: string;
@@ -306,6 +345,7 @@ interface BackendModule {
   module_name: string;
   ends_at: string;
   booked_weekdays: CareWeekday[] | null;
+  booked_days_per_week?: number[] | null;
   contract_count: number;
 }
 
@@ -314,16 +354,22 @@ interface BackendTariff {
   school_id: number;
   care_offering_id: number;
   module_name: string;
-  weekday: CareWeekday;
+  weekday: CareWeekday | "";
+  days_per_week?: number | null;
   valid_from: string;
   valid_until: string | null;
   monthly_cents: number;
+  sibling_cents?: number | null;
+  meal_extra?: boolean;
 }
 
 interface BackendTariffs {
   schools: { id: number; name: string }[] | null;
   modules: BackendModule[] | null;
   tariffs: BackendTariff[] | null;
+  lists?:
+    | { school_id: number; valid_from: string; free_months: number[] | null }[]
+    | null;
   billed_until: Record<string, string> | null;
 }
 
@@ -375,6 +421,9 @@ interface BackendInvoice {
               amount_cents: number;
             }[]
           | null;
+        days_per_week?: number | null;
+        tier_monthly_cents?: number | null;
+        meal_extra?: boolean;
         amount_cents: number;
       }[]
     | null;
@@ -388,6 +437,7 @@ interface BackendInvoice {
         discount_cents: number | null;
         price_cents: number | null;
         cap_cents: number | null;
+        tariff_sibling_price?: boolean;
         amount_cents: number;
       }[]
     | null;
@@ -418,7 +468,8 @@ export interface BackendRunDetail extends BackendRun {
         child_last_name: string;
         care_offering_id: number;
         module_name: string;
-        weekday: CareWeekday;
+        weekday: CareWeekday | "";
+        days_per_week?: number | null;
       }[]
     | null;
   duplicates:
@@ -435,6 +486,7 @@ export interface BackendRunDetail extends BackendRun {
   duplicate_children: number;
   uncounted_families?: number;
   billed: number;
+  free_of_charge?: number;
   preview_count: number;
   preview_cents: number;
   number_pattern: string;
@@ -477,6 +529,7 @@ function tariffsFromBackend(body: BackendTariffs): CareTariffs {
       moduleName: module.module_name,
       endsAt: module.ends_at,
       bookedWeekdays: module.booked_weekdays ?? [],
+      bookedDaysPerWeek: module.booked_days_per_week ?? [],
       contractCount: module.contract_count,
     })),
     tariffs: (body.tariffs ?? []).map((tariff) => ({
@@ -485,9 +538,17 @@ function tariffsFromBackend(body: BackendTariffs): CareTariffs {
       careOfferingId: id(tariff.care_offering_id),
       moduleName: tariff.module_name,
       weekday: tariff.weekday,
+      daysPerWeek: tariff.days_per_week ?? null,
       validFrom: tariff.valid_from,
       validUntil: tariff.valid_until,
       monthlyCents: tariff.monthly_cents,
+      siblingCents: tariff.sibling_cents ?? null,
+      mealExtra: tariff.meal_extra ?? false,
+    })),
+    lists: (body.lists ?? []).map((list) => ({
+      schoolId: id(list.school_id),
+      validFrom: list.valid_from,
+      freeMonths: list.free_months ?? [],
     })),
     billedUntil: { ...body.billed_until },
   };
@@ -547,6 +608,9 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
         monthlyCents: weekday.monthly_cents,
         amountCents: weekday.amount_cents,
       })),
+      daysPerWeek: position.days_per_week ?? null,
+      tierMonthlyCents: position.tier_monthly_cents ?? null,
+      mealExtra: position.meal_extra ?? false,
       amountCents: position.amount_cents,
     })),
     reductions: (invoice.reductions ?? []).map((reduction) => ({
@@ -558,6 +622,7 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
       discountCents: reduction.discount_cents,
       priceCents: reduction.price_cents,
       capCents: reduction.cap_cents,
+      tariffSiblingPrice: reduction.tariff_sibling_price ?? false,
       amountCents: reduction.amount_cents,
     })),
     mealPositions: mealPositionsFromBackend(invoice.meal_positions),
@@ -593,6 +658,7 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
       careOfferingId: id(entry.care_offering_id),
       moduleName: entry.module_name,
       weekday: entry.weekday,
+      daysPerWeek: entry.days_per_week ?? null,
     })),
     duplicates: (detail.duplicates ?? []).map((entry) => ({
       childFirstName: entry.child_first_name,
@@ -608,6 +674,7 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
     duplicateChildren: detail.duplicate_children ?? 0,
     uncountedFamilies: detail.uncounted_families ?? 0,
     billed: detail.billed,
+    freeOfCharge: detail.free_of_charge ?? 0,
     previewCount: detail.preview_count,
     previewCents: detail.preview_cents,
     numberPattern: detail.number_pattern,
@@ -641,6 +708,7 @@ export async function saveCarePriceList(
   schoolId: string,
   validFrom: string,
   prices: readonly CarePriceInput[],
+  freeMonths: readonly number[] = [],
 ): Promise<CareTariffs> {
   return tariffsFromBackend(
     await traegerRequest<BackendTariffs>(TARIFFS_PATH, {
@@ -648,11 +716,15 @@ export async function saveCarePriceList(
       body: {
         school_id: Number(schoolId),
         valid_from: validFrom,
+        free_months: freeMonths,
         prices: prices.map((price) => ({
           care_offering_id: Number(price.careOfferingId),
           module_name: price.moduleName,
-          weekday: price.weekday,
+          weekday: price.weekday ?? "",
+          days_per_week: price.daysPerWeek ?? null,
           monthly_cents: price.monthlyCents,
+          sibling_cents: price.siblingCents,
+          meal_extra: price.mealExtra,
         })),
       },
     }),

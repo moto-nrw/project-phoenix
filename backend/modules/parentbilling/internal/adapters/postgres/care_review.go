@@ -43,7 +43,10 @@ func withRunSchools(query *bun.SelectQuery) *bun.SelectQuery {
 	return query.ColumnExpr("care_run_row.*").ColumnExpr(`ARRAY(SELECT run_school.school_id
 		FROM parent_billing.care_run_schools AS run_school
 		WHERE run_school.organization_id = care_run_row.organization_id AND run_school.run_id = care_run_row.id
-		ORDER BY run_school.school_id) AS school_ids`)
+		ORDER BY run_school.school_id) AS school_ids`).ColumnExpr(`COALESCE((SELECT (event.details->>'free_of_charge')::integer
+		FROM parent_billing.care_run_events AS event
+		WHERE event.organization_id = care_run_row.organization_id AND event.run_id = care_run_row.id AND event.action = 'release'
+		ORDER BY event.id DESC LIMIT 1), 0) AS free_of_charge`)
 }
 
 // insertCareRunSchools stores the schools of a new run as open. A school

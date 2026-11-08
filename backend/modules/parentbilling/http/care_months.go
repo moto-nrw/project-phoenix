@@ -64,27 +64,35 @@ func (rs *CareBillingResource) RunRouter(protectedTraegerRoutes func(chi.Router,
 	return r
 }
 
-// CarePriceRequest is one price of PUT /traeger/care-tariffs.
+// CarePriceRequest is one price of PUT /traeger/care-tariffs: for a
+// weekday or, with days_per_week, a scale step, with the price for every
+// further child and the meal note of the module (#6196).
 type CarePriceRequest struct {
 	CareOfferingID int64  `json:"care_offering_id"`
 	ModuleName     string `json:"module_name"`
 	Weekday        string `json:"weekday"`
+	DaysPerWeek    *int   `json:"days_per_week"`
 	MonthlyCents   int64  `json:"monthly_cents"`
+	SiblingCents   *int64 `json:"sibling_cents"`
+	MealExtra      bool   `json:"meal_extra"`
 }
 
 // CarePriceListRequest is the body of PUT /traeger/care-tariffs: the
-// prices of one school from the first day of a month on.
+// prices of one school from the first day of a month on and the months of
+// the year it bills nothing for.
 type CarePriceListRequest struct {
-	SchoolID  int64              `json:"school_id"`
-	ValidFrom calendar.Date      `json:"valid_from"`
-	Prices    []CarePriceRequest `json:"prices"`
+	SchoolID   int64              `json:"school_id"`
+	ValidFrom  calendar.Date      `json:"valid_from"`
+	FreeMonths []int              `json:"free_months"`
+	Prices     []CarePriceRequest `json:"prices"`
 }
 
 // Bind accepts the body; the Owner validates the price list.
 func (req *CarePriceListRequest) Bind(*http.Request) error { return nil }
 
 func (req *CarePriceListRequest) list() capability.CarePriceList {
-	list := capability.CarePriceList{SchoolID: req.SchoolID, ValidFrom: req.ValidFrom, Prices: make([]capability.CarePrice, len(req.Prices))}
+	list := capability.CarePriceList{SchoolID: req.SchoolID, ValidFrom: req.ValidFrom, FreeMonths: req.FreeMonths,
+		Prices: make([]capability.CarePrice, len(req.Prices))}
 	for i, price := range req.Prices {
 		list.Prices[i] = capability.CarePrice(price)
 	}

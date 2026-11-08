@@ -24,6 +24,7 @@ const data: CareTariffs = {
       moduleName: "Betreuung bis 14:00 Uhr",
       endsAt: "14:00",
       bookedWeekdays: ["mon", "sat"],
+      bookedDaysPerWeek: [2],
       contractCount: 3,
     },
     {
@@ -33,6 +34,7 @@ const data: CareTariffs = {
       moduleName: "Betreuung bis 16:30 Uhr",
       endsAt: "16:30",
       bookedWeekdays: ["tue"],
+      bookedDaysPerWeek: [1],
       contractCount: 1,
     },
   ],
