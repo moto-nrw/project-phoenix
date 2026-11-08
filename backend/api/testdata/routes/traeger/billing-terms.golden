@@ -1,0 +1,2 @@
+GET /traeger/billing-terms/
+PUT /traeger/billing-terms/{service}

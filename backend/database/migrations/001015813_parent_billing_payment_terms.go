@@ -33,7 +33,9 @@ func init() {
 //     day of the month the invoice is due. It hangs on the contract it was
 //     set from and goes with it.
 //   - family_billing_events: the trail of every read and change of a
-//     deviation, without names.
+//     deviation, without names. It outlives a removed deviation and goes
+//     with the contract, like the deviation itself; the erasure of a demo
+//     visitor's contracts takes both.
 //   - run_due_dates: the due date of a calculated run per payment method; a
 //     released run never changes them.
 //   - care_invoices and documents copy at the release the family, the
@@ -101,11 +103,14 @@ COMMENT ON TABLE parent_billing.family_billing IS
 
 CREATE TABLE parent_billing.family_billing_events (
 	id BIGSERIAL PRIMARY KEY,
-	organization_id BIGINT NOT NULL REFERENCES platform.organizations(id) ON DELETE CASCADE,
+	organization_id BIGINT NOT NULL,
 	family_billing_id BIGINT NOT NULL,
+	care_contract_id BIGINT NOT NULL,
 	action VARCHAR(16) NOT NULL,
 	actor_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	occurred_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT fk_family_billing_events_contract FOREIGN KEY (organization_id, care_contract_id)
+		REFERENCES care_contract.contracts (organization_id, id) ON DELETE CASCADE,
 	CONSTRAINT chk_family_billing_events_action CHECK (action IN ('read', 'save', 'delete'))
 );
 CREATE INDEX idx_family_billing_events_family ON parent_billing.family_billing_events (organization_id, family_billing_id, occurred_at);

@@ -80,6 +80,7 @@ type familyBillingEventRow struct {
 	ID              int64  `bun:"id,pk,autoincrement"`
 	OrganizationID  int64  `bun:"organization_id"`
 	FamilyBillingID int64  `bun:"family_billing_id"`
+	CareContractID  int64  `bun:"care_contract_id"`
 	Action          string `bun:"action"`
 	ActorAccountID  *int64 `bun:"actor_account_id"`
 }
@@ -185,11 +186,11 @@ func (s *Store) SaveFamilyBilling(ctx context.Context, organizationID, accountID
 }
 
 // DeleteFamilyBilling removes a deviation by its ID or, with id zero, by its
-// family, and answers the ID it removed.
-func (s *Store) DeleteFamilyBilling(ctx context.Context, organizationID, id int64, familyEmail string) (int64, error) {
+// family, and answers the deviation it removed.
+func (s *Store) DeleteFamilyBilling(ctx context.Context, organizationID, id int64, familyEmail string) (*parentbilling.FamilyBilling, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	query := db.NewDelete().Model((*familyBillingRow)(nil)).Where("organization_id = ?", organizationID)
 	if id > 0 {
@@ -197,29 +198,31 @@ func (s *Store) DeleteFamilyBilling(ctx context.Context, organizationID, id int6
 	} else {
 		query = query.Where("family_email = ?", familyEmail)
 	}
-	var removed []int64
-	if err := query.Returning("id").Scan(ctx, &removed); err != nil {
-		return 0, fmt.Errorf("delete family billing: %w", err)
+	var removed []familyBillingRow
+	if err := query.Returning("*").Scan(ctx, &removed); err != nil {
+		return nil, fmt.Errorf("delete family billing: %w", err)
 	}
 	if len(removed) == 0 {
-		return 0, nil
+		return nil, nil
 	}
-	return removed[0], nil
+	family := removed[0].family()
+	return &family, nil
 }
 
 // InsertFamilyBillingEvents records one action of the trail for each
 // deviation in one statement.
-func (s *Store) InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, ids []int64) error {
-	if len(ids) == 0 {
+func (s *Store) InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, families []parentbilling.FamilyBilling) error {
+	if len(families) == 0 {
 		return nil
 	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
 	}
-	rows := make([]familyBillingEventRow, len(ids))
-	for i, id := range ids {
-		rows[i] = familyBillingEventRow{OrganizationID: organizationID, FamilyBillingID: id, Action: action, ActorAccountID: accountRef(accountID)}
+	rows := make([]familyBillingEventRow, len(families))
+	for i, family := range families {
+		rows[i] = familyBillingEventRow{OrganizationID: organizationID, FamilyBillingID: family.ID, CareContractID: family.ContractID,
+			Action: action, ActorAccountID: accountRef(accountID)}
 	}
 	if _, err := db.NewInsert().Model(&rows).Exec(ctx); err != nil {
 		return fmt.Errorf("record family billing: %w", err)

@@ -40,9 +40,11 @@ type TermsStore interface {
 	// SaveFamilyBilling inserts or replaces the deviation of its family.
 	SaveFamilyBilling(ctx context.Context, organizationID, accountID int64, family parentbilling.FamilyBilling) (parentbilling.FamilyBilling, error)
 	// DeleteFamilyBilling removes a deviation by its ID or, with id zero, by
-	// its family; it answers the ID it removed, zero for none.
-	DeleteFamilyBilling(ctx context.Context, organizationID, id int64, familyEmail string) (int64, error)
-	InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, ids []int64) error
+	// its family; it answers the deviation it removed, nil for none.
+	DeleteFamilyBilling(ctx context.Context, organizationID, id int64, familyEmail string) (*parentbilling.FamilyBilling, error)
+	// InsertFamilyBillingEvents records one action for each deviation, with
+	// its contract, in one statement.
+	InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, families []parentbilling.FamilyBilling) error
 	// ReplaceRunDueDates replaces the due dates of a run; the database
 	// refuses it for a released run.
 	ReplaceRunDueDates(ctx context.Context, organizationID, accountID, careRunID, holidayRunID int64, dates parentbilling.RunDueDates) error
@@ -141,11 +143,7 @@ func (t *BillingTerms) ListFamilyBilling(ctx context.Context, reviewer parentbil
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]int64, len(families))
-	for i, family := range families {
-		ids[i] = family.ID
-	}
-	if err := t.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead, ids); err != nil {
+	if err := t.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead, families); err != nil {
 		return nil, fmt.Errorf("parent billing: record the read of the family billing: %w", err)
 	}
 	return families, nil
@@ -179,8 +177,9 @@ func (t *BillingTerms) SaveFamilyBilling(ctx context.Context, reviewer parentbil
 		if err != nil {
 			return nil, err
 		}
-		if removed > 0 {
-			if err := t.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingDelete, []int64{removed}); err != nil {
+		if removed != nil {
+			if err := t.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingDelete,
+				[]parentbilling.FamilyBilling{*removed}); err != nil {
 				return nil, fmt.Errorf("parent billing: record the family billing: %w", err)
 			}
 		}
@@ -190,7 +189,8 @@ func (t *BillingTerms) SaveFamilyBilling(ctx context.Context, reviewer parentbil
 	if err != nil {
 		return nil, err
 	}
-	if err := t.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingSave, []int64{saved.ID}); err != nil {
+	if err := t.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingSave,
+		[]parentbilling.FamilyBilling{saved}); err != nil {
 		return nil, fmt.Errorf("parent billing: record the family billing: %w", err)
 	}
 	return &saved, nil
@@ -214,10 +214,11 @@ func (t *BillingTerms) DeleteFamilyBilling(ctx context.Context, reviewer parentb
 	if err != nil {
 		return err
 	}
-	if removed == 0 {
+	if removed == nil {
 		return parentbilling.ErrFamilyBillingNotFound
 	}
-	if err := t.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingDelete, []int64{removed}); err != nil {
+	if err := t.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingDelete,
+		[]parentbilling.FamilyBilling{*removed}); err != nil {
 		return fmt.Errorf("parent billing: record the family billing: %w", err)
 	}
 	return nil
