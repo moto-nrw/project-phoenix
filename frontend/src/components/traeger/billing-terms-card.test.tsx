@@ -72,7 +72,8 @@ describe("BillingTermsCard", () => {
     expect(
       table.getByText("Auf der Rechnung der Betreuung"),
     ).toBeInTheDocument();
-    expect(table.getAllByText("Immer eigene Rechnung")).toHaveLength(2);
+    expect(table.getByText("Eigene Rechnung")).toBeInTheDocument();
+    expect(table.getAllByText("Immer eigene Rechnung")).toHaveLength(1);
   });
 
   it("refuses a payment term outside 0 to 120 days", async () => {

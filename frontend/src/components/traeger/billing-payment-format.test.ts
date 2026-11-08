@@ -40,6 +40,7 @@ describe("billing payment format", () => {
     );
     expect(bundleLabel("", ["care"])).toBe("Eigene Rechnung");
     expect(bundleLabel("", [])).toBe("Immer eigene Rechnung");
+    expect(bundleLabel("", [], true)).toBe("Eigene Rechnung");
   });
 
   it("names both parents and the payer, not the contract party", () => {

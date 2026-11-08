@@ -39,12 +39,17 @@ interface TermsRow {
   readonly terms: ServiceTerms;
   /** The services whose invoice may carry this one. */
   readonly options: readonly string[];
+  /** Whether another service may travel on this one's invoice. */
+  readonly carries: boolean;
 }
 
 function rowsOf(data: BillingTerms): TermsRow[] {
   return data.services.flatMap((option) => {
     const terms = data.terms.find((entry) => entry.service === option.service);
-    return terms ? [{ terms, options: option.bundleWith }] : [];
+    const carries = data.services.some((other) =>
+      other.bundleWith.includes(option.service),
+    );
+    return terms ? [{ terms, options: option.bundleWith, carries }] : [];
   });
 }
 
@@ -240,7 +245,8 @@ export function BillingTermsCard({
       key: "bundle",
       header: "Rechnung",
       stacked: "field",
-      render: ({ terms, options }) => bundleLabel(terms.bundleWith, options),
+      render: ({ terms, options, carries }) =>
+        bundleLabel(terms.bundleWith, options, carries),
     },
     {
       key: "actions",

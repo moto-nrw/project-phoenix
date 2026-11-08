@@ -34,15 +34,17 @@ export function dueDaysLabel(days: number): string {
 
 /**
  * Which invoice carries a service: its own, or the invoice of the service
- * it travels with. `options` are the services it may travel with; a
- * service without options always has its own invoice.
+ * it travels with. `options` are the services it may travel with; `carries`
+ * tells that another service may travel on its invoice. A service with
+ * neither (the holiday care) always has its own invoice.
  */
 export function bundleLabel(
   bundleWith: string,
   options: readonly string[],
+  carries = false,
 ): string {
   if (bundleWith === "care") return "Auf der Rechnung der Betreuung";
-  if (options.length === 0) return "Immer eigene Rechnung";
+  if (options.length === 0 && !carries) return "Immer eigene Rechnung";
   return "Eigene Rechnung";
 }
 
