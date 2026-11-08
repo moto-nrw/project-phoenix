@@ -80,7 +80,8 @@ func seedCareReductions(client *Client, auth AuthRef, month calendar.Date) (int,
 		for _, rule := range []map[string]any{
 			{"kind": "income_level", "name": "Stufe 1 (Platzhalter)", "discount_basis_points": 5000},
 			{"kind": "income_level", "name": "Stufe 2 (Platzhalter)", "discount_basis_points": 2500},
-			{"kind": "sibling", "name": "Geschwister ab dem 2. Kind (Platzhalter)", "sibling_from_child": 2, "discount_basis_points": 5000},
+			{"kind": "sibling", "name": "Geschwister ab dem 2. Kind (Platzhalter)", "sibling_from_child": 2, "discount_basis_points": 5000,
+				"counts_family_children": true},
 			{"kind": "single_parent", "name": "Alleinerziehende (Platzhalter)", "discount_cents": 1000},
 			{"kind": "cap", "name": "Höchstbetrag je Familie (Platzhalter)", "cap_cents": 25000},
 		} {
@@ -93,6 +94,14 @@ func seedCareReductions(client *Client, auth AuthRef, month calendar.Date) (int,
 		}
 	}
 	evidences, err := seedCareEvidences(client, auth, month)
+	if err != nil {
+		return 0, evidences, err
+	}
+	if err := seedCareCostShares(client, auth, month); err != nil {
+		return 0, evidences, err
+	}
+	families, err := seedFamilyChildren(client, auth, month)
+	fmt.Printf("  Träger family numbers: %d confirmed\n", families)
 	return max(len(set.Rules), 5), evidences, err
 }
 

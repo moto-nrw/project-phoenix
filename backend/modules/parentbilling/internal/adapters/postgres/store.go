@@ -49,23 +49,24 @@ func traegerDB(ctx context.Context, organizationID int64) (bun.IDB, error) {
 type ruleRow struct {
 	bun.BaseModel `bun:"table:parent_billing.contribution_rules"`
 
-	ID                  int64          `bun:"id,pk,autoincrement"`
-	OrganizationID      int64          `bun:"organization_id"`
-	Service             string         `bun:"service"`
-	Kind                string         `bun:"kind"`
-	ValidFrom           calendar.Date  `bun:"valid_from,type:date"`
-	ValidUntil          *calendar.Date `bun:"valid_until,type:date"`
-	SiblingFromChild    *int           `bun:"sibling_from_child"`
-	DiscountBasisPoints *int           `bun:"discount_basis_points"`
-	DiscountCents       *int64         `bun:"discount_cents"`
-	Note                string         `bun:"note"`
-	Name                string         `bun:"name"`
-	SchoolIDs           []int64        `bun:"school_ids,array"`
-	CareOfferingIDs     []int64        `bun:"care_offering_ids,array"`
-	CountSchoolIDs      []int64        `bun:"count_school_ids,array"`
-	PriceCents          *int64         `bun:"price_cents"`
-	CapCents            *int64         `bun:"cap_cents"`
-	UpdatedAt           time.Time      `bun:"updated_at,nullzero,default:current_timestamp"`
+	ID                   int64          `bun:"id,pk,autoincrement"`
+	OrganizationID       int64          `bun:"organization_id"`
+	Service              string         `bun:"service"`
+	Kind                 string         `bun:"kind"`
+	ValidFrom            calendar.Date  `bun:"valid_from,type:date"`
+	ValidUntil           *calendar.Date `bun:"valid_until,type:date"`
+	SiblingFromChild     *int           `bun:"sibling_from_child"`
+	DiscountBasisPoints  *int           `bun:"discount_basis_points"`
+	DiscountCents        *int64         `bun:"discount_cents"`
+	Note                 string         `bun:"note"`
+	Name                 string         `bun:"name"`
+	SchoolIDs            []int64        `bun:"school_ids,array"`
+	CareOfferingIDs      []int64        `bun:"care_offering_ids,array"`
+	CountSchoolIDs       []int64        `bun:"count_school_ids,array"`
+	PriceCents           *int64         `bun:"price_cents"`
+	CapCents             *int64         `bun:"cap_cents"`
+	CountsFamilyChildren bool           `bun:"counts_family_children"`
+	UpdatedAt            time.Time      `bun:"updated_at,nullzero,default:current_timestamp"`
 }
 
 func (r ruleRow) rule() parentbilling.ContributionRule {
@@ -74,6 +75,7 @@ func (r ruleRow) rule() parentbilling.ContributionRule {
 		SiblingFromChild: r.SiblingFromChild, DiscountBasisPoints: r.DiscountBasisPoints, DiscountCents: r.DiscountCents,
 		Note: r.Note, Name: r.Name, SchoolIDs: idsOrEmpty(r.SchoolIDs), CareOfferingIDs: idsOrEmpty(r.CareOfferingIDs),
 		CountSchoolIDs: idsOrEmpty(r.CountSchoolIDs), PriceCents: r.PriceCents, CapCents: r.CapCents, UpdatedAt: r.UpdatedAt,
+		CountsFamilyChildren: r.CountsFamilyChildren,
 	}
 }
 

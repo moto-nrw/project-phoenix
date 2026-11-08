@@ -1,7 +1,6 @@
 package behavior_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -28,7 +27,7 @@ func TestLoginReportsDisabledAccountOnlyAfterTheCorrectPassword(t *testing.T) {
 	setAccountActive(t, db, account.ID, false)
 
 	t.Run("wrong password stays a credentials error", func(t *testing.T) {
-		_, _, loginErr := service.LoginWithAudit(context.Background(), email, "Wr0ng!Password", "", "", "")
+		_, _, loginErr := tenantPasswordLogin(service, email, "Wr0ng!Password", "", "", "")
 
 		require.Error(t, loginErr)
 		require.ErrorIs(t, loginErr, identityaccess.ErrInvalidCredentials)
@@ -37,7 +36,7 @@ func TestLoginReportsDisabledAccountOnlyAfterTheCorrectPassword(t *testing.T) {
 	})
 
 	t.Run("correct password names the real reason", func(t *testing.T) {
-		_, _, loginErr := service.LoginWithAudit(context.Background(), email, testPassword, "", "", "")
+		_, _, loginErr := tenantPasswordLogin(service, email, testPassword, "", "", "")
 
 		require.Error(t, loginErr)
 		require.ErrorIs(t, loginErr, identityaccess.ErrAccountInactive)
@@ -46,7 +45,7 @@ func TestLoginReportsDisabledAccountOnlyAfterTheCorrectPassword(t *testing.T) {
 	t.Run("re-enabled account signs in again", func(t *testing.T) {
 		setAccountActive(t, db, account.ID, true)
 
-		accessToken, refreshToken, loginErr := service.LoginWithAudit(context.Background(), email, testPassword, "", "", "")
+		accessToken, refreshToken, loginErr := tenantPasswordLogin(service, email, testPassword, "", "", "")
 
 		require.NoError(t, loginErr)
 		require.NotEmpty(t, accessToken)

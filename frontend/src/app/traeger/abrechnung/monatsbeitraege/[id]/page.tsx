@@ -70,6 +70,14 @@ const CareExcludeModal = dynamic(
     ),
   { ssr: false },
 );
+// Only a run in which a cost bearer pays a part loads its card (#4687).
+const CareCostBearerCard = dynamic(
+  () =>
+    import("~/components/traeger/care-cost-bearer-card").then(
+      (module) => module.CareCostBearerCard,
+    ),
+  { ssr: false },
+);
 const CareInvoiceDateModal = dynamic(
   () =>
     import("~/components/traeger/care-run-review-modals").then(
@@ -445,6 +453,21 @@ export default function TraegerCareRunPage() {
               }
             />
           ) : null}
+          {preview && (run.uncountedFamilies ?? 0) > 0 ? (
+            <Alert
+              type="info"
+              message={`${run.uncountedFamilies === 1 ? "Für 1 Familie" : `Für ${run.uncountedFamilies ?? 0} Familien`} gibt es in diesem Monat keine bestätigte Kinderzahl. Die Geschwisterregel zählt dort nur die Kinder mit Vertrag.`}
+              action={
+                <ButtonLink
+                  href={traegerPath("/traeger/abrechnung/kinderzahl")}
+                  variant="surface"
+                  size="compact"
+                >
+                  Kinderzahl prüfen
+                </ButtonLink>
+              }
+            />
+          ) : null}
           <CareDuplicatesCard duplicates={run.duplicates} released={!preview} />
           {preview ? <CareUnpricedCard unpriced={run.unpriced} /> : null}
           {preview ? (
@@ -461,6 +484,13 @@ export default function TraegerCareRunPage() {
               )}
               letters={letters}
               loadError={lettersLoad.error}
+            />
+          ) : null}
+          {run.costBearers.length > 0 ? (
+            <CareCostBearerCard
+              runId={run.id}
+              released={!preview}
+              totals={run.costBearers}
             />
           ) : null}
           <CareRunInvoices

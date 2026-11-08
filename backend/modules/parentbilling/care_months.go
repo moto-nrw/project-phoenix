@@ -225,7 +225,11 @@ type CareInvoice struct {
 	// Reductions are the rules of the chain in their order (#4685); the
 	// total is the positions less the reductions.
 	Reductions []CareReduction `json:"reductions"`
-	TotalCents int64           `json:"total_cents"`
+	// CostShares are the parts cost bearers pay of what the family would
+	// pay after the reductions (#4687, ADR 0169); TotalCents is the rest the
+	// family pays.
+	CostShares []CareInvoiceCostShare `json:"cost_shares"`
+	TotalCents int64                  `json:"total_cents"`
 }
 
 // CareUnpriced is a booked weekday of a module the price list has no price
@@ -296,7 +300,11 @@ type CareRunDetail struct {
 	Duplicates []CareDuplicate `json:"duplicates"`
 	// DuplicateChildren counts the children of Duplicates: the run, and its
 	// release, bills none of them.
-	DuplicateChildren int    `json:"duplicate_children"`
+	DuplicateChildren int `json:"duplicate_children"`
+	// UncountedFamilies counts the families a sibling rule that counts the
+	// family ranked without a confirmed number for the month (#5918): the
+	// rule counts their children with a contract alone.
+	UncountedFamilies int    `json:"uncounted_families"`
 	Billed            int    `json:"billed"`
 	PreviewCount      int    `json:"preview_count"`
 	PreviewCents      int64  `json:"preview_cents"`
@@ -304,6 +312,8 @@ type CareRunDetail struct {
 	NumberRangeSet    bool   `json:"number_range_set"`
 	// DueDates are the due dates of the run per payment method (#4689).
 	DueDates []RunDueDate `json:"due_dates"`
+	// CostBearers are what each cost bearer pays of the invoices (#4687).
+	CostBearers []CareCostBearerTotal `json:"cost_bearers"`
 	// CareRunReviewState is the review of a calculated run (#5916).
 	CareRunReviewState
 }

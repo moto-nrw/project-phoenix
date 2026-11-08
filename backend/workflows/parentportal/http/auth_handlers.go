@@ -10,6 +10,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 )
 
 // LoginRequest is the body shape for POST /parent/auth/login.
@@ -26,13 +27,6 @@ func (req *LoginRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.Email, validation.Required, is.Email),
 		validation.Field(&req.Password, validation.Required),
 	)
-}
-
-// TokenResponse is the success response shape — same as the tenant
-// login response so the frontend NextAuth provider can consume both.
-type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
 }
 
 // PasswordResetRequest is the body shape for POST /parent/auth/password-reset.
@@ -70,64 +64,24 @@ func (req *PasswordResetConfirmRequest) Bind(_ *http.Request) error {
 	)
 }
 
-// login authenticates a guardian via email/password and issues a
-// parent-scope JWT. Refuses accounts that don't have a guardian role
-// at any tenant.
+// login signs a guardian in to a parent-scope session. Accounts without
+// guardian access at any school are refused.
 func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	req := &LoginRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-
-	if !rs.Auth.complete() {
-		common.RenderError(w, r, common.ErrorInternalServer(ErrLoginUnavailable))
+	if !common.RequireDependency(w, r, rs.Auth.Login != nil, errLoginUnavailable) {
 		return
 	}
-
-	ipAddress := getClientIP(r)
-	userAgent := r.Header.Get("User-Agent")
-
-	accessToken, refreshToken, err := rs.Auth.Login(
-		r.Context(), req.Email, req.Password, ipAddress, userAgent,
-	)
+	client := portalauth.ClientOf(r)
+	accessToken, refreshToken, err := rs.Auth.Login(r.Context(), req.Email, req.Password, client.IP, client.UserAgent)
 	if err != nil {
-		if module, label, notBooked := rs.Auth.PortalNotBooked(err); notBooked {
-			// The parents portal needs the module Eltern-App (#4895). Told
-			// only after the password matched, like the inactive account.
-			common.RenderError(w, r, common.ErrorModuleNotBooked(err, module, label))
-			return
-		}
-		switch {
-		case rs.Auth.InvalidCredentials(err):
-			// Mask the specific cause to prevent account
-			// enumeration. Same pattern as the tenant login.
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-				ErrInvalidCredentials, common.CodeCareInvalidCredentials))
-		case rs.Auth.AccountInactive(err):
-			// Distinct code so the frontend can show
-			// "your account is disabled, contact the school"
-			// instead of a generic credentials error.
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-				ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
-		case rs.Auth.NotAGuardian(err):
-			// 403 with a stable code — frontend masks this as
-			// invalid_credentials in the user-facing copy (the
-			// German copy already includes a staff-login hint
-			// for this case) to avoid leaking that the email is
-			// a known staff account.
-			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				ErrAccountNoGuardianRole, common.CodeCareNotAGuardian))
-		default:
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-		}
+		portalauth.Render(w, r, err, portalauth.ParentLoginRules, portalauth.LoginRules)
 		return
 	}
-
-	common.Respond(w, r, http.StatusOK, TokenResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-	}, "Login successful")
+	common.Respond(w, r, http.StatusOK, portalauth.TokenResponse{AccessToken: accessToken, RefreshToken: refreshToken}, "Login successful")
 }
 
 // initiatePasswordReset sends a parent-portal password reset link when the
@@ -192,9 +146,4 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Password reset successfully")
-}
-
-// getClientIP returns the router-selected client IP for audit/rate-limit flows.
-func getClientIP(r *http.Request) string {
-	return common.GetClientIPString(r)
 }

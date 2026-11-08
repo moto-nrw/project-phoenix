@@ -22,7 +22,7 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 
 	t.Run("fails for non-existent account", func(t *testing.T) {
 		// ACT
-		accessToken, refreshToken, err := service.SwitchTenant(ctx, 999999, "t1", "")
+		accessToken, refreshToken, err := service.SwitchTenant(ctx, 999999, "t1", "", "", "")
 
 		// ASSERT
 		require.Error(t, err)
@@ -48,7 +48,7 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		require.NoError(t, dbErr)
 
 		// ACT
-		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, "t1", "")
+		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, "t1", "", "", "")
 
 		// ASSERT
 		require.Error(t, err)
@@ -70,7 +70,7 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT: Use a non-existent tenant slug
-		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, "nonexistent-tenant", "")
+		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, "nonexistent-tenant", "", "", "")
 
 		// ASSERT
 		require.Error(t, err)
@@ -91,7 +91,7 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		testpkg.EnsureTestTenant(t, db, targetTenantID)
 
 		// ACT: Try switching to the target (no account_tenants mapping)
-		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), "")
+		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), "", "", "")
 
 		// ASSERT
 		require.Error(t, err)
@@ -112,7 +112,7 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 
 		// ACT
-		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), "")
+		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), "", "", "")
 
 		// ASSERT
 		require.NoError(t, err)
@@ -160,7 +160,7 @@ func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
 	require.NoError(t, err, "User A login should succeed")
 
 	// Step 2: User A switches to tenant 2
-	_, _, err = service.SwitchTenant(ctx, accountA.ID, fmt.Sprintf("t%d", targetTenantID), "")
+	_, _, err = service.SwitchTenant(ctx, accountA.ID, fmt.Sprintf("t%d", targetTenantID), "", "", "")
 	require.NoError(t, err, "User A switch to tenant 2 should succeed")
 
 	// Step 3: User A logs out — this should invalidate User A's tokens
@@ -176,7 +176,7 @@ func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
 	require.NoError(t, err, "User B login should succeed")
 
 	// Step 5: User B switches to tenant 2 — should get User B's tokens, NOT User A's
-	accessTokenB, _, err := service.SwitchTenant(ctx, accountB.ID, fmt.Sprintf("t%d", targetTenantID), "")
+	accessTokenB, _, err := service.SwitchTenant(ctx, accountB.ID, fmt.Sprintf("t%d", targetTenantID), "", "", "")
 	require.NoError(t, err, "User B switch to tenant 2 should succeed")
 	assert.NotEmpty(t, accessTokenB, "User B should receive a valid access token")
 }

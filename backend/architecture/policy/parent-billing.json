@@ -45,6 +45,18 @@
   ],
   "data_objects": [
     {
+      "name": "parent_billing.care_cost_share_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_cost_shares",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoice_cost_shares",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_evidence_events",
       "write_owner": "parent-billing"
     },
@@ -58,6 +70,14 @@
     },
     {
       "name": "parent_billing.care_invoice_cancellations",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.family_child_count_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.family_child_counts",
       "write_owner": "parent-billing"
     },
     {

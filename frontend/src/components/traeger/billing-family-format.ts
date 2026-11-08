@@ -20,6 +20,8 @@ export type BillingTab =
   | "preise"
   | "ermaessigungen"
   | "nachweise"
+  | "kinderzahl"
+  | "kostentraeger"
   | "familien";
 
 export function billingTabs(
@@ -55,6 +57,16 @@ export function billingTabs(
         value: "nachweise",
         label: "Nachweise",
         href: traegerPath("/traeger/abrechnung/nachweise"),
+      },
+      {
+        value: "kinderzahl",
+        label: "Kinderzahl",
+        href: traegerPath("/traeger/abrechnung/kinderzahl"),
+      },
+      {
+        value: "kostentraeger",
+        label: "Kostenträger",
+        href: traegerPath("/traeger/abrechnung/kostentraeger"),
       },
       {
         value: "familien",

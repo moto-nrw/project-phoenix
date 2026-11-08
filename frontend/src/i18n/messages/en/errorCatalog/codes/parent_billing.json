@@ -59,9 +59,15 @@
   "care_evidence_invalid": "{object} could not be saved. Please check your entries.",
   "care_evidence_not_found": "{object} could not be changed. Please check its current status.",
   "care_evidence_overlap": "{object} could not be changed. Please check its current status.",
+  "care_cost_share_invalid": "{object} could not be saved. Please check your entries.",
+  "care_cost_share_not_found": "{object} could not be changed. Please check its current status.",
+  "care_cost_share_overlap": "{object} could not be changed. Please check its current status.",
   "billing_terms_invalid": "{object} could not be saved. Please check your entries.",
   "family_billing_invalid": "{object} could not be saved. Please check your entries.",
   "family_billing_not_found": "{object} could not be changed. Please check its current status.",
   "family_unknown": "{object} could not be changed. Please check its current status.",
-  "due_dates_invalid": "{object} could not be saved. Please check your entries."
+  "due_dates_invalid": "{object} could not be saved. Please check your entries.",
+  "family_children_invalid": "Please enter a whole number from 1 to 20.",
+  "family_children_not_found": "{object} could not be changed. Please check its current status.",
+  "family_without_address": "{object} could not be changed. Please check its current status."
 }

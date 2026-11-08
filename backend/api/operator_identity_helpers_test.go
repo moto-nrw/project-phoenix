@@ -5,12 +5,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 )
 
 // newIdentityResource builds the Identity & Access operator routes the
 // operator router mounts (#3252), answering in the operator error format.
 func newIdentityResource(identity identityoperator.Capability) *identityoperator.Resource {
-	return identityoperator.NewResource(identity, operatorIdentityResponses())
+	return identityoperator.NewResource(identity, provisioningOperatorAPI.ProvisioningErrorRenderer)
 }
 
 // identityOperatorOf is the operator the capability answers with: the

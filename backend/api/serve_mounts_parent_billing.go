@@ -44,6 +44,7 @@ import (
 // of the letters as mails of the Träger on Delivery's outbox and their
 // print in one file (#4670, ADR 0123), and the invoices and amounts per
 // family at /traeger/billing-families behind the right "Abrechnung" (#4691),
+// and the children of the families at /traeger/family-children (#5918),
 // and the payment terms, the family deviations and the due dates of the runs
 // at /traeger/billing-terms, /traeger/family-billing and
 // /traeger/billing-run-due-dates behind the same right (#4689).
@@ -59,11 +60,13 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	families := parentBillingHTTP.NewBillingFamilyResource(parentBillingCompose.NewBillingFamilies(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
-	care, reductions := NewCareBillingHTTP(organizations, settings, delivery, outcomes)
+	care, reductions, familyChildren := NewCareBillingHTTP(organizations, settings, delivery, outcomes)
 	root.Mount("/traeger/care-tariffs", care.TariffRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-billing-runs", care.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-rules", reductions.RuleRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-evidences", reductions.EvidenceRouter(ProtectedTraegerRoutes))
+	root.Mount("/traeger/care-cost-shares", reductions.CostShareRouter(ProtectedTraegerRoutes))
+	root.Mount("/traeger/family-children", familyChildren.Router(ProtectedTraegerRoutes))
 	terms := NewBillingTermsHTTP()
 	root.Mount("/traeger/billing-terms", terms.TermsRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/family-billing", terms.FamilyRouter(ProtectedTraegerRoutes))
@@ -81,19 +84,23 @@ func NewBillingTermsHTTP() *parentBillingHTTP.BillingTermsResource {
 }
 
 // NewCareBillingHTTP binds the monthly contribution of the care contract
-// (#4684) and its rule chain (#4685) to the right "Abrechnung", to the
+// (#4684), its rule chain (#4685) and the children of the families (#5918)
+// to the right "Abrechnung", to the
 // versions in force and the parties of the Betreuungsvertrag in the caller's
 // Träger transaction, to the schools of the Träger and to its month rule; its
 // letters, their mail and Storno to the letterhead of the Träger and to
 // Delivery like the holiday letters (ADR 0165).
-func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes) (*parentBillingHTTP.CareBillingResource, *parentBillingHTTP.CareReductionResource) {
+func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability,
+	outcomes deliveryRuntime.EmailOutcomes,
+) (*parentBillingHTTP.CareBillingResource, *parentBillingHTTP.CareReductionResource, *parentBillingHTTP.FamilyChildrenResource) {
 	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
 	billing, reductions := parentBillingCompose.NewCareBilling(contracts,
 		parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings})
 	post := parentBillingLetterPost{settings: settings, delivery: delivery, outcomes: outcomes}
 	letters := parentBillingCompose.NewCareLetters(newParentBillingLetterheads(settings), contracts, post, post)
 	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
-	return parentBillingHTTP.NewCareBillingResource(billing, letters, requireBilling), parentBillingHTTP.NewCareReductionResource(reductions, requireBilling)
+	return parentBillingHTTP.NewCareBillingResource(billing, letters, requireBilling), parentBillingHTTP.NewCareReductionResource(reductions, requireBilling),
+		parentBillingHTTP.NewFamilyChildrenResource(reductions, requireBilling)
 }
 
 // parentBillingCareSchools lists the schools of the Träger at Organisation

@@ -33,9 +33,26 @@ func offboardingCredential(prefix string, suffix string) string {
 // offboardingIdentity is what the suite drives on the composed identity
 // module: the membership the offboarding revokes and the login it must
 // refuse afterwards.
-type offboardingIdentity interface {
+type offboardingIdentity struct {
+	VerifyAccountTenantMembership func(ctx context.Context, accountID, tenantID int64) (bool, error)
+	// Login is the tenant password login; it fails unless the login answers
+	// with a session.
+	Login func(ctx context.Context, email, password string) error
+}
+
+func newOffboardingIdentity(owner interface {
 	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)
-	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error)
+}, login func(ctx context.Context, email, password string) (string, error)) offboardingIdentity {
+	return offboardingIdentity{
+		VerifyAccountTenantMembership: owner.VerifyAccountTenantMembership,
+		Login: func(ctx context.Context, email, password string) error {
+			refresh, err := login(ctx, email, password)
+			if err == nil && refresh == "" {
+				return errors.New("tenant login answered without a session")
+			}
+			return err
+		},
+	}
 }
 
 type offboardingScenario struct {
@@ -94,10 +111,16 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 		timetable:   api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
 		workTime:    owners.MustNewWorkforce(testpkg.NewDatabase(t, db)),
 		rows:        rows,
-		authSvc:     authService,
-		svc:         svc,
-		deps:        deps,
-		ctx:         testpkg.Ctx(t),
+		authSvc: newOffboardingIdentity(authService, func(ctx context.Context, email, password string) (string, error) {
+			result, err := authService.LoginWithMFAGate(ctx, email, password, "", "", "", "")
+			if err != nil {
+				return "", err
+			}
+			return result.RefreshToken, nil
+		}),
+		svc:  svc,
+		deps: deps,
+		ctx:  testpkg.Ctx(t),
 	}
 }
 
@@ -445,7 +468,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	assignTenantRole(t, sc.db, account.ID, role.ID)
 	testpkg.CreateTestToken(t, sc.db, account.ID, "refresh")
 
-	_, _, err := sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
+	err := sc.authSvc.Login(context.Background(), emailAddr, credential)
 	require.NoError(t, err, "login must work before offboarding")
 
 	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
@@ -491,7 +514,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, roleCount, "tenant roles must be removed")
 
-	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
+	err = sc.authSvc.Login(context.Background(), emailAddr, credential)
 	require.Error(t, err, "login must fail after offboarding")
 }
 
@@ -532,7 +555,7 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, existsB, "other school mapping must stay active")
 
-	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
+	err = sc.authSvc.Login(context.Background(), emailAddr, credential)
 	require.NoError(t, err, "login at the other school must keep working")
 }
 
@@ -659,10 +682,10 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	assert.True(t, stored.Active)
 	assert.NotEqual(t, account.PasswordHash, stored.PasswordHash, "the invitee's new credential replaced the old one")
 
-	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, newCredential, "", "", "")
+	err = sc.authSvc.Login(context.Background(), emailAddr, newCredential)
 	require.NoError(t, err, "the password chosen in the invitation grants access")
 
-	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, oldCredential, "", "", "")
+	err = sc.authSvc.Login(context.Background(), emailAddr, oldCredential)
 	require.Error(t, err, "the credential from before the offboarding must not survive")
 }
 
@@ -1049,7 +1072,7 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 	// though the account stays active and linked: the Account -> Person ->
 	// Staff chain skips the retired staff record. The parents portal remains
 	// the entry point.
-	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
+	err = sc.authSvc.Login(context.Background(), emailAddr, credential)
 	require.Error(t, err, "staff login must be refused for the guardian-only account")
 	assert.ErrorIs(t, err, api.ErrParentMustUseParentPortal)
 }

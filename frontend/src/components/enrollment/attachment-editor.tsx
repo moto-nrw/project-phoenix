@@ -14,13 +14,7 @@ import {
   deleteEnrollmentLegalDocument,
   type FormAttachment,
 } from "~/lib/enrollment-form-schema-api";
-import {
-  DraftDocumentContext,
-  useDraftDocumentLifecycle,
-} from "~/components/enrollment/draft-documents";
-
-/** The draft-document provider under the name traeger/holiday-form-editor uses. */
-export const AttachmentUploadContext = DraftDocumentContext;
+import { useDraftDocumentLifecycle } from "~/components/enrollment/draft-documents";
 
 /** Removal is staged with the form. The editor cleans unreferenced drafts
  * on save/discard, while the backend protects every saved version's files. */

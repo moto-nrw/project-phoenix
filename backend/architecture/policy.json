@@ -533,10 +533,6 @@
       "class": "crypto"
     },
     {
-      "path": "github.com/lestrrat-go/jwx/v3/transform",
-      "class": "crypto"
-    },
-    {
       "path": "github.com/pkg/sftp",
       "class": "delivery"
     },

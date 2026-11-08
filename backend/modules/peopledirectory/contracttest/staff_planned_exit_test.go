@@ -93,7 +93,7 @@ func TestPlannedExit_BlockedClosesThisSchoolThenCompletes(t *testing.T) {
 	stillOther, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, otherTenant)
 	require.NoError(t, err)
 	assert.True(t, stillOther, "the other school keeps the account")
-	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
+	err = sc.authSvc.Login(context.Background(), emailAddr, credential)
 	require.NoError(t, err, "login at the other school keeps working")
 
 	// The supervision ended long ago; the fixture started it today.

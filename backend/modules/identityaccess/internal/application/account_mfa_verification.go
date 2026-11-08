@@ -11,7 +11,7 @@ import (
 
 // VerifyChallenge verifies a tenant-portal challenge.
 func (f *AccountMFAFlows) VerifyChallenge(ctx context.Context, challengeToken, code string) (domain.VerifiedMFAChallenge, error) {
-	return f.VerifyChallengeForScope(ctx, challengeToken, code, domain.MFAChallengeScopeTenant)
+	return f.VerifyChallengeForScope(ctx, challengeToken, code, domain.PortalTenant.Name)
 }
 
 // VerifyChallengeForScope refuses a challenge started for another portal

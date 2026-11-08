@@ -2,6 +2,7 @@ DELETE /traeger/care-billing-runs/{id}/exclusions/{contractID}
 GET /traeger/care-billing-runs/
 GET /traeger/care-billing-runs/schools
 GET /traeger/care-billing-runs/{id}
+GET /traeger/care-billing-runs/{id}/cost-shares/{costBearerID}/export
 GET /traeger/care-billing-runs/{id}/invoices/{invoiceID}/letter
 GET /traeger/care-billing-runs/{id}/letters
 GET /traeger/care-billing-runs/{id}/letters/print

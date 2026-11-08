@@ -23,14 +23,14 @@ func TestTenantSessionLifecycle(t *testing.T) {
 	f.persons.names[personKey{1, 10}] = [2]string{"Ada", "Lovelace"}
 	ctx := context.Background()
 
-	access, refresh, err := f.auth.loginWithAudit(ctx, "user1@example.com", "secret", "192.0.2.1", "tests", "")
+	access, refresh, err := tenantPasswordLogin(f.auth, ctx, "user1@example.com", "secret", "192.0.2.1", "tests")
 	require.NoError(t, err)
 
 	accessClaims := decodeAccess(t, access)
 	assert.Equal(t, int64(1), accessClaims.AccountID)
 	assert.Equal(t, int64(10), accessClaims.TenantID)
 	assert.Equal(t, int64(100), accessClaims.OrgID)
-	assert.Equal(t, domain.ScopeTenant, accessClaims.Scope)
+	assert.Equal(t, domain.PortalTenant.Claim, accessClaims.Scope)
 	assert.Equal(t, []string{"admin"}, accessClaims.Roles)
 	assert.Equal(t, []string{"students:read"}, accessClaims.Permissions)
 	assert.Equal(t, "Ada", accessClaims.FirstName)
@@ -45,12 +45,12 @@ func TestTenantSessionLifecycle(t *testing.T) {
 	require.Len(t, sessions, 1)
 	assert.Equal(t, refreshClaims.Token, sessions[0].Token)
 	assert.Equal(t, int64(10), sessions[0].TenantID, "the tenant comes from the database resolution, not the context")
-	assert.Equal(t, domain.PortalScopeTenant, sessions[0].PortalScope)
+	assert.Equal(t, domain.PortalTenant.Name, sessions[0].PortalScope)
 	assert.Equal(t, accessClaims.FamilyID, sessions[0].FamilyID)
 	require.Len(t, f.audit.eventsOfType(domain.AuthEventLogin), 1)
 	assert.True(t, f.audit.eventsOfType(domain.AuthEventLogin)[0].Success)
 
-	_, rotated, err := f.auth.refreshTokenWithAudit(ctx, refresh, "192.0.2.1", "tests")
+	_, rotated, err := f.auth.refreshTokenWithAudit(ctx, refresh, domain.RecoveryProof{}, "192.0.2.1", "tests")
 	require.NoError(t, err)
 	rotatedClaims := decodeRefresh(t, rotated)
 	assert.NotEqual(t, refreshClaims.Token, rotatedClaims.Token, "a refresh rotates the session handle")
@@ -62,12 +62,12 @@ func TestTenantSessionLifecycle(t *testing.T) {
 	assert.Equal(t, int64(10), f.audit.eventsOfType(domain.AuthEventTokenRevoked)[0].TenantID)
 }
 
-func TestLoginWithAudit_WrongPasswordIsInvalidCredentials(t *testing.T) {
+func TestTenantLogin_WrongPasswordIsInvalidCredentials(t *testing.T) {
 	t.Parallel()
 	f := newAuthFixture(t)
 	f.seedStaff(1, 10, "user")
 
-	_, _, err := f.auth.loginWithAudit(context.Background(), "user1@example.com", "wrong", "192.0.2.1", "tests", "")
+	_, _, err := tenantPasswordLogin(f.auth, context.Background(), "user1@example.com", "wrong", "192.0.2.1", "tests")
 	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials)
 	assert.Empty(t, f.store.sessionsOf(1))
 	events := f.audit.eventsOfType(domain.AuthEventLogin)
@@ -75,12 +75,12 @@ func TestLoginWithAudit_WrongPasswordIsInvalidCredentials(t *testing.T) {
 	assert.False(t, events[0].Success)
 }
 
-func TestLoginWithAudit_GuardianOnlyAccountMustUseParentPortal(t *testing.T) {
+func TestTenantLogin_GuardianOnlyAccountMustUseParentPortal(t *testing.T) {
 	t.Parallel()
 	f := newAuthFixture(t)
 	f.seedStaff(1, 10, "guardian")
 
-	_, _, err := f.auth.loginWithAudit(context.Background(), "user1@example.com", "secret", "192.0.2.1", "tests", "")
+	_, _, err := tenantPasswordLogin(f.auth, context.Background(), "user1@example.com", "secret", "192.0.2.1", "tests")
 	require.ErrorIs(t, err, identityaccess.ErrParentMustUseParentPortal, "wrong-portal rejection")
 	assert.Empty(t, f.store.sessionsOf(1))
 }
@@ -126,7 +126,7 @@ func TestRefreshToken_RejectionsRevokeFamilyWithoutIssuingTokens(t *testing.T) {
 			f := newAuthFixture(t)
 			f.seedStaff(1, 10, "user")
 			ctx := context.Background()
-			_, refresh, err := f.auth.loginWithAudit(ctx, "user1@example.com", "secret", "", "tests", "")
+			_, refresh, err := tenantPasswordLogin(f.auth, ctx, "user1@example.com", "secret", "", "tests")
 			require.NoError(t, err)
 			sessions := f.store.sessionsOf(1)
 			require.Len(t, sessions, 1)
@@ -135,7 +135,7 @@ func TestRefreshToken_RejectionsRevokeFamilyWithoutIssuingTokens(t *testing.T) {
 			f.store.sessions[presented.ID] = presented
 			f.store.calls = nil
 
-			access, rotated, err := f.auth.refreshTokenWithAudit(ctx, refresh, "", "tests")
+			access, rotated, err := f.auth.refreshTokenWithAudit(ctx, refresh, domain.RecoveryProof{}, "", "tests")
 
 			require.ErrorIs(t, err, tt.want)
 			assert.Empty(t, access)
@@ -164,7 +164,7 @@ func TestRefreshHandoffAcrossCatererRepinning(t *testing.T) {
 		{name: "changed account", proof: "recovery", wantError: true, alter: func(s *domain.AccountSession) { s.AccountID++ }},
 		{name: "changed family", proof: "recovery", wantError: true, alter: func(s *domain.AccountSession) { s.FamilyID += "-other" }},
 		{name: "skipped generation", proof: "recovery", wantError: true, alter: func(s *domain.AccountSession) { s.Generation++ }},
-		{name: "changed portal", proof: "recovery", wantError: true, alter: func(s *domain.AccountSession) { s.PortalScope = domain.PortalScopeTenant }},
+		{name: "changed portal", proof: "recovery", wantError: true, alter: func(s *domain.AccountSession) { s.PortalScope = domain.PortalTenant.Name }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -172,13 +172,13 @@ func TestRefreshHandoffAcrossCatererRepinning(t *testing.T) {
 			now := time.Now()
 			replacement := domain.SuccessorRefreshToken("predecessor")
 			replacementHash := domain.HashToken(replacement)
-			current := domain.AccountSession{ID: 1, Token: "predecessor", AccountID: 1, TenantID: 10, PortalScope: domain.PortalScopeCaterer, FamilyID: "family", RotatedAt: &now, ReplacementTokenHash: &replacementHash, RecoveryProofHash: fakeRotation{}.RecoveryProofHash(withProof(context.Background(), "recovery"))}
-			next := domain.AccountSession{ID: 2, Token: replacement, AccountID: current.AccountID, TenantID: 20, PortalScope: domain.PortalScopeCaterer, FamilyID: current.FamilyID, Generation: 1}
+			current := domain.AccountSession{ID: 1, Token: "predecessor", AccountID: 1, TenantID: 10, PortalScope: domain.PortalCaterer.Name, FamilyID: "family", RotatedAt: &now, ReplacementTokenHash: &replacementHash, RecoveryProofHash: domain.NewRecoveryProof("recovery").Hash()}
+			next := domain.AccountSession{ID: 2, Token: replacement, AccountID: current.AccountID, TenantID: 20, PortalScope: domain.PortalCaterer.Name, FamilyID: current.FamilyID, Generation: 1}
 			if test.alter != nil {
 				test.alter(&next)
 			}
 			f.store.sessions[next.ID] = next
-			recovered, ok, err := f.auth.resolveRefreshHandoff(withProof(context.Background(), test.proof), current, now)
+			recovered, ok, err := f.auth.handoffs().Resolve(context.Background(), current, domain.NewRecoveryProof(test.proof), now)
 			if test.wantError {
 				require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
 				return
@@ -189,7 +189,7 @@ func TestRefreshHandoffAcrossCatererRepinning(t *testing.T) {
 		})
 	}
 	// Tenant and school sessions must never recover a handoff to another tenant.
-	for _, scope := range []string{domain.PortalScopeTenant, domain.PortalScopeSchool, domain.PortalScopeParent} {
+	for _, scope := range []string{domain.PortalTenant.Name, domain.PortalSchool.Name, domain.PortalParent.Name} {
 		current := domain.AccountSession{AccountID: 1, TenantID: 10, FamilyID: "family", PortalScope: scope}
 		next := current
 		next.TenantID, next.Generation = 20, 1
@@ -202,12 +202,12 @@ func TestRefreshRequiresMFAAfterPrivilegeGrant(t *testing.T) {
 	f := newAuthFixture(t)
 	f.seedStaff(1, 10, "custom")
 	ctx := context.Background()
-	_, refresh, err := f.auth.loginWithAudit(ctx, "user1@example.com", "secret", "", "tests", "")
+	_, refresh, err := tenantPasswordLogin(f.auth, ctx, "user1@example.com", "secret", "", "tests")
 	require.NoError(t, err)
 	f.mfa.configured = true
 	f.mfa.policyInTx = domain.MFAPolicyForMode(domain.MFAModeOff)
 	f.store.permissions[mappingKey{1, 10}] = []string{"student_documents:health"}
-	access, successor, err := f.auth.refreshTokenWithAudit(ctx, refresh, "", "tests")
+	access, successor, err := f.auth.refreshTokenWithAudit(ctx, refresh, domain.RecoveryProof{}, "", "tests")
 	require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
 	assert.Empty(t, access)
 	assert.Empty(t, successor)

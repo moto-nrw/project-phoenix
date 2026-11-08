@@ -40,7 +40,7 @@ func newSwitchLineageFixture(t *testing.T, prefix string) switchLineageFixture {
 	targetTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, targetTenantID)
 	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
-	access, refresh, err := service.IssueTokensForAuthenticatedAccount(ctx, account.ID, homeTenantID, "", "")
+	access, refresh, err := service.IssueTokensForPasskey(ctx, account.ID, homeTenantID, "", "")
 	require.NoError(t, err)
 	return switchLineageFixture{
 		db: db, module: module, service: service, accountID: account.ID,
@@ -49,7 +49,7 @@ func newSwitchLineageFixture(t *testing.T, prefix string) switchLineageFixture {
 }
 
 func (f switchLineageFixture) switchToTarget(ctx context.Context, sourceFamilyID string) (string, string, error) {
-	return f.service.SwitchTenant(ctx, f.accountID, fmt.Sprintf("t%d", f.targetTenantID), sourceFamilyID)
+	return f.service.SwitchTenant(ctx, f.accountID, fmt.Sprintf("t%d", f.targetTenantID), sourceFamilyID, "", "")
 }
 
 // TestLogoutRevokesAFamilySwitchedFromIt pins #5422: a school switch that
@@ -108,7 +108,7 @@ func TestLogoutRevokesSwitchesAcrossTheWholeLineage(t *testing.T) {
 	require.NoError(t, err)
 	secondAccess, _, err := f.switchToTarget(ctx, source.FamilyID)
 	require.NoError(t, err, "the retired source still switches within its grace")
-	thirdAccess, _, err := f.service.SwitchTenant(ctx, f.accountID, fmt.Sprintf("t%d", f.homeTenantID), accessSessionOf(t, secondAccess).FamilyID)
+	thirdAccess, _, err := f.service.SwitchTenant(ctx, f.accountID, fmt.Sprintf("t%d", f.homeTenantID), accessSessionOf(t, secondAccess).FamilyID, "", "")
 	require.NoError(t, err)
 
 	other := newOtherDeviceSession(t, f)
@@ -123,7 +123,7 @@ func TestLogoutRevokesSwitchesAcrossTheWholeLineage(t *testing.T) {
 
 func newOtherDeviceSession(t *testing.T, f switchLineageFixture) identityaccess.AccessSession {
 	t.Helper()
-	access, _, err := f.service.IssueTokensForAuthenticatedAccount(testpkg.Ctx(t), f.accountID, f.homeTenantID, "", "")
+	access, _, err := f.service.IssueTokensForPasskey(testpkg.Ctx(t), f.accountID, f.homeTenantID, "", "")
 	require.NoError(t, err)
 	return accessSessionOf(t, access)
 }
@@ -263,7 +263,7 @@ func assertLogoutAfterAncestorCleanup(t *testing.T, intermediate bool) {
 	if intermediate {
 		expiredFamilies = append(expiredFamilies, accessSessionOf(t, siblingAccess).FamilyID)
 		siblingAccess, siblingRefresh, err = f.service.SwitchTenant(ctx, f.accountID,
-			fmt.Sprintf("t%d", f.homeTenantID), accessSessionOf(t, siblingAccess).FamilyID)
+			fmt.Sprintf("t%d", f.homeTenantID), accessSessionOf(t, siblingAccess).FamilyID, "", "")
 		require.NoError(t, err)
 	}
 	other := newOtherDeviceSession(t, f)

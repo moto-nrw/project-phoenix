@@ -105,6 +105,10 @@ type CareRunReview interface {
 	ExcludeCareInvoice(ctx context.Context, reviewer HolidayReviewer, runID, contractID int64, reason string) (CareRunDetail, error)
 	IncludeCareInvoice(ctx context.Context, reviewer HolidayReviewer, runID, contractID int64) (CareRunDetail, error)
 	ExportCareRunReview(ctx context.Context, reviewer HolidayReviewer, runID int64, format string) (ExportFile, error)
+	// ExportCareCostShares renders the list of what one cost bearer pays of
+	// the invoices of a run (#4687): the preview of a calculated run, the
+	// issued invoices of a released one.
+	ExportCareCostShares(ctx context.Context, reviewer HolidayReviewer, runID, costBearerID int64, format string) (ExportFile, error)
 	// CareRunSchools lists the schools of the Träger with the open run of
 	// the month that bills each; it names no person.
 	CareRunSchools(ctx context.Context, organizationID int64, month calendar.Date) ([]CareRunSchool, error)

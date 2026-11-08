@@ -7,19 +7,21 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func newOperatorMFARecords(t *testing.T, db *bun.DB) identityaccess.OperatorMFARecords {
+func newOperatorMFARecords(t *testing.T, db *bun.DB) ports.OperatorMFARecords {
 	t.Helper()
 	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
-	return module
+	return module.(ports.Records)
 }
 
 func pendingChallenge(operatorID int64, expiresAt time.Time) identityaccess.OperatorMFAChallenge {
@@ -243,8 +245,9 @@ func TestOperatorMFARecordsAreVisibleFromEveryTenantContext(t *testing.T) {
 func TestOperatorMFADisableRollsBackAfterEachWrite(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
+	owner, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
+	module := owner.(ports.Records)
 	operator := testpkg.CreateTestOperator(t, db)
 	plain := testpkg.Ctx(t)
 	ctx := testpkg.WithTenantRuntime(t, plain, db)
@@ -310,10 +313,11 @@ func TestOperatorMFAObservationsUseStableOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	operator := testpkg.CreateTestOperator(t, db)
 	var observations []identityCompose.Observation
-	records, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
+	owner, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
 		observations = append(observations, observation)
 	}})
 	require.NoError(t, err)
+	records := owner.(ports.Records)
 	ctx := testpkg.Ctx(t)
 
 	_, err = records.FindOperatorMFACredential(ctx, operator.ID)

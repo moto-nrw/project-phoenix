@@ -1,0 +1,18 @@
+{
+  "title": "Children in your family",
+  "description": "For the sibling discount, the provider counts all children in your family. Children without a care contract count too.",
+  "fieldLabel": "How many children does your family have?",
+  "less": "One child less",
+  "more": "One child more",
+  "send": "Send",
+  "sending": "Sending …",
+  "saved": "The provider has your answer and will check it.",
+  "errorObject": "the number of children",
+  "confirmedBadge": "Confirmed",
+  "confirmedFrom": "{count, plural, one {1 child} other {# children}}, valid from {from}.",
+  "confirmedUntil": "{count, plural, one {1 child} other {# children}}, valid from {from} to {until}.",
+  "pendingBadge": "Being checked",
+  "pending": "Your answer from {date}: {count, plural, one {1 child} other {# children}}. The provider is checking it.",
+  "noRight": "Parents who may send registrations for this child enter the number.",
+  "onlyNumber": "We only store the number. We do not need the names of the other children."
+}

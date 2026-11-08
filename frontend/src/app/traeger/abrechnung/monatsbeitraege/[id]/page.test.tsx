@@ -40,6 +40,7 @@ const RUN: CareRunDetail = {
   unpriced: [],
   duplicates: [],
   duplicateChildren: 0,
+  uncountedFamilies: 0,
   billed: 0,
   previewCount: 1,
   previewCents: 9600,
@@ -51,6 +52,7 @@ const RUN: CareRunDetail = {
   excludedCount: 0,
   excludedCents: 0,
   fingerprint: "",
+  costBearers: [],
 };
 const CANCELLATION = { kind: "cancellation" } as CareLetterMailing;
 

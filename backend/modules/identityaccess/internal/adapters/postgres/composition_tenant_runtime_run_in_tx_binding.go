@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -12,7 +13,7 @@ func TenantRuntimeRunInTxBinding(ctx context.Context, fn func(context.Context) e
 		return fn(ctx)
 	}
 	scope := tenant.ScopeFromContext(ctx)
-	if tenant.FromContext(ctx) == 0 && scope == "platform" {
+	if tenant.FromContext(ctx) == 0 && scope == domain.PortalPlatform.Claim {
 		return execute1(ctx, fn)
 	}
 	return execute2(ctx, fn)

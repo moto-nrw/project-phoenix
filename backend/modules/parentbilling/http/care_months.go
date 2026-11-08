@@ -249,6 +249,8 @@ func renderCareError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareVersionsOverlap))
 	case errors.Is(err, capability.ErrCareTariffMonthBilled):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareTariffMonthBilled))
+	case errors.Is(err, capability.ErrCostBearerNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingCostBearerNotFound))
 	default:
 		renderBillingConflict(w, r, err)
 	}

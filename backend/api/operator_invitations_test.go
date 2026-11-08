@@ -11,14 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
 // invitationMockService implements OperatorAccess —
@@ -45,15 +44,15 @@ func (m *invitationMockService) ListOperators(ctx context.Context) ([]identityac
 }
 
 func (m *invitationMockService) FindOperator(context.Context, int64) (identityaccess.Operator, error) {
-	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+	return identityaccess.Operator{}, identityaccess.ErrOperatorNotFound
 }
 
 func (m *invitationMockService) FindOperatorForUpdate(context.Context, int64) (identityaccess.Operator, error) {
-	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+	return identityaccess.Operator{}, identityaccess.ErrOperatorNotFound
 }
 
 func (m *invitationMockService) FindOperatorByEmail(context.Context, string) (identityaccess.Operator, error) {
-	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+	return identityaccess.Operator{}, identityaccess.ErrOperatorNotFound
 }
 
 func (m *invitationMockService) IssueTokensForAuthenticatedOperator(context.Context, int64, string, string) (string, string, error) {
@@ -290,7 +289,7 @@ func TestCreateInvitation_EmailAlreadyExists(t *testing.T) {
 
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
-			return identityoperator.ErrOperatorEmailExists
+			return identityaccess.ErrOperatorEmailExists
 		},
 	}
 
@@ -309,7 +308,7 @@ func TestCreateInvitation_RateLimit(t *testing.T) {
 
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
-			return identityoperator.ErrOperatorInvitationRateLimited
+			return identityaccess.ErrOperatorInvitationRateLimited
 		},
 	}
 
@@ -348,7 +347,7 @@ func TestCreateInvitation_InvalidData(t *testing.T) {
 
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
-			return &identityoperator.InvalidInputError{Err: errors.New("invalid email format")}
+			return &identityaccess.InvalidInputError{Err: errors.New("invalid email format")}
 		},
 	}
 
@@ -523,7 +522,7 @@ func TestResendInvitation_NotFound(t *testing.T) {
 
 	mockService := &invitationMockService{
 		resendOperatorInvitationFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
-			return identityoperator.ErrOperatorInvitationNotFound
+			return identityaccess.ErrOperatorInvitationNotFound
 		},
 	}
 
@@ -599,7 +598,7 @@ func TestRevokeInvitation_NotFound(t *testing.T) {
 
 	mockService := &invitationMockService{
 		revokeOperatorInvitationFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
-			return identityoperator.ErrOperatorInvitationNotFound
+			return identityaccess.ErrOperatorInvitationNotFound
 		},
 	}
 
@@ -706,7 +705,7 @@ func TestValidateInvitation_TokenNotFound(t *testing.T) {
 
 	mockService := &invitationMockService{
 		validateOperatorInvitationFn: func(_ context.Context, _ string) (*identityaccess.OperatorInvitation, error) {
-			return nil, identityoperator.ErrOperatorInvitationNotFound
+			return nil, identityaccess.ErrOperatorInvitationNotFound
 		},
 	}
 
@@ -896,7 +895,7 @@ func TestAcceptInvitation_TokenNotFound(t *testing.T) {
 
 	mockService := &invitationMockService{
 		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*identityaccess.Operator, error) {
-			return nil, identityoperator.ErrOperatorInvitationNotFound
+			return nil, identityaccess.ErrOperatorInvitationNotFound
 		},
 	}
 
@@ -923,7 +922,7 @@ func TestAcceptInvitation_EmailAlreadyExists(t *testing.T) {
 
 	mockService := &invitationMockService{
 		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*identityaccess.Operator, error) {
-			return nil, identityoperator.ErrOperatorEmailExists
+			return nil, identityaccess.ErrOperatorEmailExists
 		},
 	}
 
@@ -950,7 +949,7 @@ func TestAcceptInvitation_InvalidData(t *testing.T) {
 
 	mockService := &invitationMockService{
 		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*identityaccess.Operator, error) {
-			return nil, &identityoperator.InvalidInputError{Err: errors.New("password too weak")}
+			return nil, &identityaccess.InvalidInputError{Err: errors.New("password too weak")}
 		},
 	}
 

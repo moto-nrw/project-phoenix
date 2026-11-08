@@ -4501,6 +4501,16 @@
       "reason": "ADR 0126 (#4671): Consumer-port adapter of the parents portal's inbox onto the Elternabrechnung; it reads the letter in the caller's Träger transaction with the children whose relationship grants the inbox (ADR 0165) and translates the file and the refusal into the portal's vocabulary."
     },
     {
+      "decision": "0088",
+      "id": "roots/owners/parentBillingDocuments.FamilyChildren",
+      "reason": "Consumer-port adapter of the parents portal (#5918): it reads the family's number through the Elternabrechnung's inbox in the caller's Träger transaction and maps values and refusals into the workflow's words."
+    },
+    {
+      "decision": "0088",
+      "id": "roots/owners/parentBillingDocuments.StateFamilyChildren",
+      "reason": "Consumer-port adapter of the parents portal (#5918): it stores the parents' number through the Elternabrechnung's inbox and maps validation and missing-family refusals into the workflow's errors."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/parentCareRequestReads.FindIdentity",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -4539,6 +4549,11 @@
       "decision": "0155",
       "id": "roots/owners/parentContractDocuments.ContractSigningView",
       "reason": "ADR 0155 (#4679): Consumer-port adapter of the parents' inbox; it reads a contract to sign through the Betreuungsvertrag in the caller's Träger transaction, maps its errors to the workflow's and passes the view on as the workflow's document."
+    },
+    {
+      "decision": "0088",
+      "id": "roots/owners/parentContractDocuments.FamilyEmail",
+      "reason": "ADR 0088 (#5918): Consumer-port adapter translating Care Contract's authoritative billing recipient into the Parent Portal's family key after inbox and relationship authorization; no authorization or billing write in the root."
     },
     {
       "decision": "0155",

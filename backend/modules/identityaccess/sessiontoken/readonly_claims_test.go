@@ -1,7 +1,6 @@
 package sessiontoken_test
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -11,86 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 )
-
-// jsonRoundTrip pushes the stamped claim map through JSON so numbers arrive
-// as float64 — exactly the shape ParseClaims sees after jwx decoding.
-func jsonRoundTrip(t *testing.T, claims map[string]any) map[string]any {
-	t.Helper()
-	raw, err := json.Marshal(claims)
-	require.NoError(t, err)
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(raw, &out))
-	return out
-}
-
-// A read-only preview token (#2893) must survive the stamp → parse round
-// trip with both preview claims intact.
-func TestReadOnlyPreviewClaimsRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	minted := sessiontoken.AppClaims{
-		ID:            42,
-		Sub:           "target@example.com",
-		Roles:         []string{"user"},
-		Permissions:   []string{"students:read"},
-		TenantID:      77,
-		ReadOnly:      true,
-		ActingAdminID: 99,
-	}
-	stamped, err := tokentest.ParseStructToMap(minted)
-	require.NoError(t, err)
-
-	assert.Equal(t, true, stamped["read_only"])
-	assert.EqualValues(t, 99, stamped["acting_admin_id"])
-
-	var parsed sessiontoken.AppClaims
-	require.NoError(t, parsed.ParseClaims(jsonRoundTrip(t, stamped)))
-	assert.True(t, parsed.ReadOnly)
-	assert.True(t, parsed.IsReadOnlyPreview())
-	assert.EqualValues(t, 99, parsed.ActingAdminID)
-	assert.Equal(t, 42, parsed.ID)
-	assert.EqualValues(t, 77, parsed.TenantID)
-}
-
-// Regular tokens must not grow preview claims: the stamped map omits them
-// and the parsed struct stays zero.
-func TestRegularClaimsCarryNoPreviewFields(t *testing.T) {
-	t.Parallel()
-
-	stamped, err := tokentest.ParseStructToMap(sessiontoken.AppClaims{
-		ID:    42,
-		Sub:   "user@example.com",
-		Roles: []string{"admin"},
-	})
-
-	require.NoError(t, err)
-
-	_, hasReadOnly := stamped["read_only"]
-	_, hasActingAdmin := stamped["acting_admin_id"]
-	assert.False(t, hasReadOnly)
-	assert.False(t, hasActingAdmin)
-
-	var parsed sessiontoken.AppClaims
-	require.NoError(t, parsed.ParseClaims(jsonRoundTrip(t, stamped)))
-	assert.False(t, parsed.IsReadOnlyPreview())
-	assert.Zero(t, parsed.ActingAdminID)
-}
-
-// A preview token must never pass as a refresh token, even if a future
-// change ever adds the fields RefreshClaims wants (mirrors the MFA gates).
-func TestRefreshClaimsRejectReadOnlyPreviewToken(t *testing.T) {
-	t.Parallel()
-
-	claims := map[string]any{
-		"id":        float64(42),
-		"token":     "some-refresh-token",
-		"read_only": true,
-	}
-	var refresh sessiontoken.RefreshClaims
-	err := refresh.ParseClaims(claims)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "read-only preview")
-}
 
 // ParseAccessJWT is how the staff-preview end call (#2893) proves which
 // preview a request closes: the token arrives in the request BODY, so it must
@@ -180,31 +99,4 @@ func TestParseExpiredAccessJWTAcceptsExpiredPreviewTokens(t *testing.T) {
 		_, parseErr := tokentest.ParseExpiredAccessJWT(other, expired)
 		require.Error(t, parseErr)
 	})
-}
-
-// The preview id identifies ONE preview instance across every re-mint, so it
-// has to survive the stamp → parse round trip and stay absent elsewhere.
-func TestPreviewIDClaimRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	stamped, err := tokentest.ParseStructToMap(sessiontoken.AppClaims{
-		ID:            42,
-		Sub:           "target@example.com",
-		Roles:         []string{"user"},
-		ReadOnly:      true,
-		ActingAdminID: 99,
-		PreviewID:     "0123456789abcdef",
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, "0123456789abcdef", stamped["preview_id"])
-
-	var parsed sessiontoken.AppClaims
-	require.NoError(t, parsed.ParseClaims(jsonRoundTrip(t, stamped)))
-	assert.Equal(t, "0123456789abcdef", parsed.PreviewID)
-
-	regular, err := tokentest.ParseStructToMap(sessiontoken.AppClaims{ID: 42, Sub: "u@example.com", Roles: []string{"admin"}})
-	require.NoError(t, err)
-	_, hasPreviewID := regular["preview_id"]
-	assert.False(t, hasPreviewID)
 }

@@ -227,11 +227,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/AccountAuthentication.ListActiveSessions",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/identityaccess/internal/application/AccountAuthentication.MarkAccountWideWipeCompleted",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -257,17 +252,22 @@
     },
     {
       "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountMFACapability.OperatorDisableMFA",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountMFACapability.OperatorSetMFAOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "modules/identityaccess/internal/application/AccountMFAFlows.GetGlobalMFAOverride",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/AccountMFAFlows.GetTenantMFAOverride",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallenge",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -548,11 +548,6 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.PrepareTrustedDevice",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResendMFAChallenge",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -1262,16 +1257,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorDisableMFA",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorSetMFAOverride",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/identityaccess/internal/application/ceremonyRejection.Error",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -1314,6 +1299,11 @@
       "decision": "0090",
       "id": "modules/identityaccess/internal/domain/SchoolInvitation.Redeemable",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0132",
+      "id": "modules/identityaccess/sessiontoken/TokenAuth.ParseAccessJWT",
+      "reason": "B3: verifies the signature, reads the claims through the one wire decoder and refuses expiry; shortened by the shared decoder, not a forward."
     }
   ]
 }

@@ -59,9 +59,15 @@
   "care_evidence_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "care_evidence_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "care_evidence_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "care_cost_share_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "care_cost_share_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "care_cost_share_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "billing_terms_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "family_billing_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "family_billing_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "family_unknown": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "due_dates_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+  "due_dates_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "family_children_invalid": "Proszę podać liczbę całkowitą od 1 do 20.",
+  "family_children_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "family_without_address": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }
