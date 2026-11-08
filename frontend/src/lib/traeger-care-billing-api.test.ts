@@ -90,7 +90,18 @@ describe("traeger-care-billing-api letters (#4684)", () => {
                 email: "oma@example.org",
                 kind: "payer",
               },
-              positions: [],
+              positions: [
+                {
+                  care_offering_id: 101,
+                  module_name: "Betreuung",
+                  version_number: 1,
+                  service_from: "2027-01-01",
+                  service_until: "2027-01-31",
+                  weekdays: [],
+                  amount_cents: 8000,
+                  payable_cents: 0,
+                },
+              ],
               reductions: [],
             },
           ],
@@ -103,6 +114,7 @@ describe("traeger-care-billing-api letters (#4684)", () => {
     expect(run.invoices[0]).toMatchObject({
       familyEmail: "familie@example.org",
       recipient: { email: "oma@example.org" },
+      positions: [{ amountCents: 8000, payableCents: 0 }],
     });
   });
 

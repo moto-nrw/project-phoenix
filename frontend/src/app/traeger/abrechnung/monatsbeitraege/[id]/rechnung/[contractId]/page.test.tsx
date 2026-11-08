@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type {
   CareAmendment,
@@ -273,6 +274,196 @@ describe("TraegerCareInvoiceAmendPage", () => {
       fingerprint: "f1",
       reason: "Elternbrief vom 3.1.",
     });
+  });
+
+  it("confirms the effective care deduction after reductions", async () => {
+    api.fetchCareRun.mockResolvedValue(
+      run({
+        invoices: [
+          {
+            ...INVOICE,
+            positions: [{ ...INVOICE.positions[0]!, payableCents: 1600 }],
+            amendments: [],
+          },
+        ],
+      }),
+    );
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Betreuung bis 14:00 Uhr",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: /Position entfernen/ }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("-16,00 €")).toBeInTheDocument();
+  });
+
+  it("offers meal removal and marks an applied removal", async () => {
+    api.fetchCareRun.mockResolvedValue(
+      run({
+        invoices: [
+          {
+            ...INVOICE,
+            mealPositions: [
+              {
+                mealMonth: "2026-09-01",
+                mode: "flat",
+                quantity: 1,
+                unitCents: 8000,
+                amountCents: 8000,
+                key: "meal:1:2026-09-01",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Mensa-Pauschale September 2026",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: /Position entfernen/ }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("-80,00 €")).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText(/Grund/), {
+      target: { value: "Nicht gebucht" },
+    });
+    amend.amendCareInvoice.mockResolvedValue(
+      run({
+        invoices: [
+          {
+            ...INVOICE,
+            mealPositions: [
+              {
+                mealMonth: "2026-09-01",
+                mode: "flat",
+                quantity: 1,
+                unitCents: 8000,
+                amountCents: 8000,
+                key: "meal:1:2026-09-01",
+              },
+            ],
+            amendments: [
+              amendment({
+                kind: "remove_position",
+                positionKey: "meal:1:2026-09-01",
+                amountCents: -8000,
+              }),
+            ],
+          },
+        ],
+      }),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Entfernen" }));
+    await vi.waitFor(() =>
+      expect(amend.amendCareInvoice).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ positionKey: "meal:1:2026-09-01" }),
+      ),
+    );
+    const meal = await screen.findByText("Mensa-Pauschale September 2026");
+    expect(meal.closest("div.line-through")).not.toBeNull();
+    expect(meal.closest("div.line-through")?.parentElement).toHaveTextContent(
+      "Entfällt",
+    );
+  });
+
+  it.each([
+    ["Betrag ändern", "total_cents", /Neuer Betrag in Euro/],
+    ["Empfänger ändern", "recipient.first_name", /Vorname/],
+    ["Anschrift ändern", "address.street", /Straße/],
+  ])(
+    "maps server errors for %s to the visible field",
+    async (action, field, label) => {
+      api.fetchCareRun.mockResolvedValue(run());
+      amend.amendCareInvoice.mockRejectedValue(
+        new ApiError("invalid", 400, {
+          code: "parent_billing.care_amendment_invalid",
+          errors: [{ field, reason: "invalid" }],
+        }),
+      );
+      renderPage();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Rechnung ändern" }),
+      );
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: new RegExp(action) }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      if (action === "Anschrift ändern") {
+        fireEvent.change(within(dialog).getByLabelText(/Straße/), {
+          target: { value: "Weg 2" },
+        });
+        fireEvent.change(within(dialog).getByLabelText(/PLZ/), {
+          target: { value: "75175" },
+        });
+        fireEvent.change(within(dialog).getByLabelText(/Ort/), {
+          target: { value: "Pforzheim" },
+        });
+      }
+      fireEvent.change(within(dialog).getByLabelText(/Grund/), {
+        target: { value: "Korrektur" },
+      });
+      fireEvent.click(within(dialog).getByRole("button", { name: action }));
+      const control = within(dialog).getByLabelText(label);
+      await vi.waitFor(() =>
+        expect(control).toHaveAttribute("aria-invalid", "true"),
+      );
+      expect(control).toHaveFocus();
+    },
+  );
+
+  it("uses Berlin dates for changes and revocations outside Germany", async () => {
+    const localDate = Date.prototype.toLocaleDateString;
+    const formatter = vi
+      .spyOn(Date.prototype, "toLocaleDateString")
+      .mockImplementation(function (this: Date, locale, options) {
+        return localDate.call(this, locale, {
+          ...options,
+          timeZone: options?.timeZone ?? "America/New_York",
+        });
+      });
+    try {
+      expect(new Date("2026-11-08T00:30:00Z").toLocaleDateString("de-DE")).toBe(
+        "7.11.2026",
+      );
+      api.fetchCareRun.mockResolvedValue(
+        run({
+          invoices: [
+            {
+              ...INVOICE,
+              amendments: [
+                amendment({
+                  amendedAt: "2026-11-08T00:30:00Z",
+                  revocation: {
+                    reason: "Irrtum",
+                    revokedAt: "2026-11-09T00:30:00Z",
+                  },
+                }),
+              ],
+            },
+          ],
+        }),
+      );
+      renderPage();
+      expect(
+        await screen.findByText(
+          /Grund: Kulanz wegen Schließtag · 08.11.2026, 01:30/,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Zurückgenommen: Irrtum · 09.11.2026, 01:30/),
+      ).toBeInTheDocument();
+    } finally {
+      formatter.mockRestore();
+    }
   });
 
   it("offers only the changes the Träger allows", async () => {

@@ -292,11 +292,26 @@ func (l *CareLetters) currentRecipients(ctx context.Context, reviewer parentbill
 	return recipients, nil
 }
 
-// sameRecipient tells whether the address the invoice copied is still the
-// address the contract bills, without case like the login.
+// sameRecipient checks the current family recipient against the authorized
+// invoice-specific changes, in order. Later master-data changes still refuse
+// delivery; the final address must be the one the issued invoice copied.
 func sameRecipient(invoice parentbilling.CareInvoice, recipients map[int64]parentbilling.CareRecipient) bool {
 	now, ok := recipients[invoice.ContractID]
-	return ok && strings.EqualFold(strings.TrimSpace(now.Email), strings.TrimSpace(invoice.Recipient.Email))
+	if !ok {
+		return false
+	}
+	email := now.Email
+	for _, amendment := range invoice.Amendments {
+		if amendment.Kind != parentbilling.AmendRecipient || !amendment.Applied() {
+			continue
+		}
+		before, after := amendment.Before.Recipient, amendment.After.Recipient
+		if before == nil || after == nil || !strings.EqualFold(strings.TrimSpace(email), strings.TrimSpace(before.Email)) {
+			return false
+		}
+		email = after.Email
+	}
+	return strings.EqualFold(strings.TrimSpace(email), strings.TrimSpace(invoice.Recipient.Email))
 }
 
 // overview builds the state of every invoice and Storno of the run and

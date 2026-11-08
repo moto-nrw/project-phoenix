@@ -168,6 +168,8 @@ export interface CarePosition {
   /** The price excludes the meal, which the Mensa bills. */
   readonly mealExtra?: boolean;
   readonly amountCents: number;
+  /** The amount a removal deducts after reductions and cost shares. */
+  readonly payableCents?: number;
   /** Names the position for a change of the review (#6197). */
   readonly key: string;
 }
@@ -508,6 +510,7 @@ interface BackendInvoice {
         tier_monthly_cents?: number | null;
         meal_extra?: boolean;
         amount_cents: number;
+        payable_cents?: number;
         key?: string;
       }[]
     | null;
@@ -782,6 +785,7 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
       tierMonthlyCents: position.tier_monthly_cents ?? null,
       mealExtra: position.meal_extra ?? false,
       amountCents: position.amount_cents,
+      payableCents: position.payable_cents,
       key: position.key ?? "",
     })),
     reductions: (invoice.reductions ?? []).map((reduction) => ({

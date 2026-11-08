@@ -234,7 +234,7 @@ type CarePosition struct {
 	MealExtra   bool  `json:"meal_extra,omitempty"`
 	AmountCents int64 `json:"amount_cents"`
 	// PayableCents preserves the rule chain allocation for later runs of the month.
-	PayableCents int64 `json:"-"`
+	PayableCents int64 `json:"payable_cents"`
 	// Key names the position for a change of the review (#6197).
 	Key string `json:"key,omitempty"`
 	// SiblingCents is what the position costs at the sibling prices of the

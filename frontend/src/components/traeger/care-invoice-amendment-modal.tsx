@@ -11,6 +11,7 @@ import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import {
   type CareAmendmentInput,
@@ -100,6 +101,20 @@ function initialFields(invoice: CareInvoice): Fields {
 }
 
 type FieldErrors = Partial<Record<keyof Fields, string>>;
+
+const SERVER_FIELDS: Readonly<Record<string, keyof Fields>> = {
+  total_cents: "total",
+  amount_cents: "amount",
+  "recipient.first_name": "firstName",
+  "recipient.last_name": "lastName",
+  "recipient.second_name": "secondName",
+  "recipient.email": "email",
+  "address.street": "street",
+  "address.postal_code": "postalCode",
+  "address.city": "city",
+  recipient: "firstName",
+  address: "street",
+};
 
 /** The change the fields describe, or the field errors that keep it back. */
 function draftInput(
@@ -239,6 +254,12 @@ export function CareInvoiceAmendmentModal({
         kind: draft.kind,
         error: err instanceof Error ? err.message : String(err),
       });
+      if (err instanceof ApiError && err.errors) {
+        err.errors = err.errors.map((entry) => ({
+          ...entry,
+          field: SERVER_FIELDS[entry.field] ?? entry.field,
+        }));
+      }
       void formErrors.show(err, { object: "die Rechnung" });
     } finally {
       setSaving(false);

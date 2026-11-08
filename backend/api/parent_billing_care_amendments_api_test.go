@@ -57,9 +57,10 @@ type careAmendedInvoiceBody struct {
 		} `json:"address"`
 	} `json:"recipient"`
 	Positions []struct {
-		Key         string `json:"key"`
-		ModuleName  string `json:"module_name"`
-		AmountCents int64  `json:"amount_cents"`
+		Key          string `json:"key"`
+		ModuleName   string `json:"module_name"`
+		AmountCents  int64  `json:"amount_cents"`
+		PayableCents int64  `json:"payable_cents"`
 	} `json:"positions"`
 	Amendments []careAmendmentBody `json:"amendments"`
 }
@@ -140,6 +141,7 @@ func TestCareAmendmentsChangeOneInvoiceUpToItsLetter(t *testing.T) {
 	require.Equal(t, int64(7750), amendedInvoice(t, review, mia).TotalCents)
 	tuesday := amendedInvoice(t, review, mia).Positions[1]
 	require.Equal(t, "Betreuung bis 16:30 Uhr", tuesday.ModuleName)
+	assert.Equal(t, int64(4550), tuesday.PayableCents, "the removal dialog receives the effective deduction")
 
 	code, review := f.amend(t, run.ID, mia, map[string]any{"kind": "amount", "total_cents": 7000, "reason": "Kulanz wegen Schließtag"})
 	require.Equal(t, http.StatusOK, code)

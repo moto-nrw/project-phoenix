@@ -11,7 +11,7 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { formatDate } from "~/lib/date-helpers";
+import { formatBerlinDate, formatBerlinTime } from "~/lib/date-helpers";
 import {
   type CareAmendment,
   type CareInvoice,
@@ -21,6 +21,7 @@ import {
 } from "~/lib/traeger-care-billing-api";
 import { WEEKDAY_SHORT } from "./care-billing-format";
 import { COST_SHARE_KIND_LABELS } from "./care-cost-share-format";
+import { mealPositionLabel } from "./care-meal-format";
 import { MealPositionLine } from "./care-run-meals";
 import { formatEuro } from "./contribution-format";
 import type { CareAmendmentDraft } from "./care-invoice-amendment-modal";
@@ -29,12 +30,7 @@ import { InvoiceLine } from "./invoice-line";
 /** "08.11.2026, 16:20" in Berlin time. */
 function formatInstant(value: string): string {
   if (!value) return "";
-  const time = new Intl.DateTimeFormat("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Europe/Berlin",
-  }).format(Date.parse(value));
-  return `${formatDate(value)}, ${time}`;
+  return `${formatBerlinDate(value)}, ${formatBerlinTime(value)}`;
 }
 
 /** The positions an applied change took off. */
@@ -163,7 +159,8 @@ export function CareAmendedInvoiceCard({
                             kind: "remove_position",
                             positionKey: position.key,
                             label: position.moduleName,
-                            amountCents: position.amountCents,
+                            amountCents:
+                              position.payableCents ?? position.amountCents,
                           }),
                       },
                     ]}
@@ -181,9 +178,49 @@ export function CareAmendedInvoiceCard({
               amountClassName="text-moto-green-strong"
             />
           ))}
-          {invoice.mealPositions.map((position) => (
-            <MealPositionLine key={position.mealMonth} position={position} />
-          ))}
+          {invoice.mealPositions.map((position) => {
+            const key = position.key;
+            const gone = removed.has(key ?? "");
+            const label = mealPositionLabel(
+              position.mealMonth,
+              position.mode,
+              position.quantity,
+            );
+            return (
+              <li
+                key={key ?? position.mealMonth}
+                className="flex items-center gap-2"
+              >
+                <div
+                  className={`min-w-0 flex-1 ${gone ? "text-gray-500 line-through" : ""}`}
+                >
+                  <ul>
+                    <MealPositionLine position={position} />
+                  </ul>
+                </div>
+                {gone ? <StatusBadge tone="gray" label="Entfällt" /> : null}
+                {editable && !gone && key ? (
+                  <OverflowMenu
+                    ariaLabel={`Aktionen für ${label}`}
+                    triggerSize="sm"
+                    items={[
+                      {
+                        label: "Position entfernen",
+                        description: "Mit Grund, die Zeile bleibt sichtbar",
+                        onClick: () =>
+                          onDraft({
+                            kind: "remove_position",
+                            positionKey: key,
+                            label,
+                            amountCents: position.amountCents,
+                          }),
+                      },
+                    ]}
+                  />
+                ) : null}
+              </li>
+            );
+          })}
           {invoice.costShares.length > 0 ? (
             <InvoiceLine
               title="Monatsbeitrag"

@@ -31,7 +31,8 @@ func init() {
 //     and the new value, the correction line it adds, the reason, the
 //     account and the time. A revocation is another entry naming the change
 //     of the run or the carried correction it takes back. The request role
-//     reads and inserts; a trigger refuses every update and an entry of a
+//     reads and inserts; a trigger permits only clearing account_id on
+//     deletion and otherwise refuses every update and an entry of a
 //     run that is no longer calculated, for every role.
 //   - care_invoice_corrections: what a release applied, copied onto the
 //     issued invoice and never changed: the correction lines with label and
@@ -77,12 +78,16 @@ CREATE INDEX idx_care_run_amendments_contract ON parent_billing.care_run_amendme
 COMMENT ON TABLE parent_billing.care_run_amendments IS
 	'Changes of single invoices in the review of a monthly run (#6197); only appended, a revocation is another entry.';
 
--- An entry is never changed, and a run takes entries only while it is
--- calculated: after the release a correction is a Storno (#4690).
+-- Apart from clearing the account reference, an entry never changes.
+-- A run takes entries only while it is calculated: after the release a correction is a Storno (#4690).
 CREATE FUNCTION parent_billing.refuse_care_run_amendment() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
 	IF TG_OP = 'UPDATE' THEN
+		IF OLD.account_id IS NOT NULL AND NEW.account_id IS NULL
+			AND to_jsonb(NEW) - 'account_id' = to_jsonb(OLD) - 'account_id' THEN
+			RETURN NEW;
+		END IF;
 		RAISE EXCEPTION 'a change of an invoice in the review is only ever appended (%)', TG_TABLE_NAME
 			USING ERRCODE = '55000';
 	END IF;
@@ -127,9 +132,21 @@ CREATE TABLE parent_billing.care_invoice_corrections (
 );
 COMMENT ON TABLE parent_billing.care_invoice_corrections IS
 	'Changes the review applied to an issued monthly invoice (#6197): correction lines, recipient and address; never changes.';
+CREATE FUNCTION parent_billing.refuse_care_invoice_correction_change() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+	IF OLD.account_id IS NOT NULL AND NEW.account_id IS NULL
+		AND to_jsonb(NEW) - 'account_id' = to_jsonb(OLD) - 'account_id' THEN
+		RETURN NEW;
+	END IF;
+	RAISE EXCEPTION 'an issued correction never changes (%)', TG_TABLE_NAME
+		USING ERRCODE = '55000';
+END;
+$$;
+REVOKE ALL ON FUNCTION parent_billing.refuse_care_invoice_correction_change() FROM PUBLIC;
 CREATE TRIGGER refuse_parent_billing_care_invoice_correction_change
 	BEFORE UPDATE ON parent_billing.care_invoice_corrections
-	FOR EACH ROW EXECUTE FUNCTION parent_billing.refuse_issued_change();
+	FOR EACH ROW EXECUTE FUNCTION parent_billing.refuse_care_invoice_correction_change();
 
 ALTER TABLE parent_billing.care_run_amendments
 	ADD CONSTRAINT fk_care_run_amendments_correction FOREIGN KEY (revokes_correction_id)
@@ -157,6 +174,7 @@ const parentBillingCareAmendmentsDownSQL = `
 DROP TABLE IF EXISTS parent_billing.care_run_amendments;
 DROP TABLE IF EXISTS parent_billing.care_invoice_corrections;
 DROP FUNCTION IF EXISTS parent_billing.refuse_care_run_amendment();
+DROP FUNCTION IF EXISTS parent_billing.refuse_care_invoice_correction_change();
 `
 
 // careAmendmentsErasureAnchor is the statement of the erasure of 1.15.811
