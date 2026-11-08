@@ -131,8 +131,8 @@ import {
   offeringIsFull,
 } from "~/lib/care-offering-booking-stats";
 import {
-  BLOCKED_OFFERING_ROW_TONE,
   OfferingRowShell,
+  type OfferingRowState,
 } from "~/components/enrollment/offering-row-shell";
 
 const logger = createLogger({ component: "EnrollmentForm" });
@@ -3184,7 +3184,7 @@ function BlockedOfferingCard({
     gradeLevelMax,
   );
   return (
-    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
+    <OfferingRowShell state="blocked">
       <div className="flex items-start gap-3">
         <span
           aria-hidden
@@ -3240,18 +3240,18 @@ function OfferingCard({
     !required &&
     toggleLocked &&
     offering.available_days.some((day) => automaticDays?.has(day) ?? false);
-  let stateClass = "border-gray-200 bg-white hover:border-gray-300";
+  let rowState: OfferingRowState = "available";
   if (dayError) {
-    stateClass = "border-moto-red bg-moto-red/5";
+    rowState = "invalid";
   } else if (autoIncluded || checked) {
-    stateClass = "border-moto-green/40 bg-moto-green/10";
+    rowState = "selected";
   } else if (required || toggleLocked) {
-    stateClass = "border-gray-200 bg-gray-50";
+    rowState = "locked";
   }
   const inputId = `children-${childIndex}-offering-${offering.id}`;
 
   return (
-    <OfferingRowShell tone={stateClass} invalid={dayError}>
+    <OfferingRowShell state={rowState}>
       <label
         htmlFor={inputId}
         className={`flex items-start gap-3 ${
