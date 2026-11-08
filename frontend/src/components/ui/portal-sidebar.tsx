@@ -8,15 +8,22 @@ import {
   type ReactNode,
 } from "react";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
-import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
+import type { NavLinkProps } from "~/components/ui/nav-link";
 import {
-  PORTAL_ICON_CLASSES,
-  portalSidebarRowClasses,
   type PortalSidebarTopOffset,
+  SIDEBAR_ICON_CLASSES,
+  SIDEBAR_NAV_GAP,
+  SIDEBAR_NAV_PADDING,
   SIDEBAR_WIDTH_COLLAPSED,
   SIDEBAR_WIDTH_EXPANDED,
   SIDEBAR_WIDTH_TRANSITION,
 } from "~/components/ui/sidebar-geometry";
+import {
+  SidebarRowButton,
+  SidebarRowLink,
+  SidebarSectionHeading,
+  type SidebarRowBadge,
+} from "~/components/ui/sidebar-row";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
 const STICKY_POSITION: Readonly<Record<PortalSidebarTopOffset, string>> = {
@@ -126,7 +133,8 @@ export function PortalSidebarFrame({
  * Die feste Seitenleiste eines Portals mit eigener Navigation ab 1024 px:
  * oben die Ziele, unten abgetrennt die Hilfe. Schul-, Träger- und Eltern-Portal
  * (#5145, #5603) teilen sie; die Ziele, ihre Freigabe und ihren Aktivzustand
- * bestimmt jedes Portal selbst.
+ * bestimmt jedes Portal selbst. Abstände und Zeilen sind die der
+ * Tenant-Leiste (#5975), nur ohne Einklappen.
  *
  * Ein Portal kann den Inhalt an derselben Stelle wechseln (Träger-Portal,
  * #5685): Position und Breite bleiben, nur Einträge und `navLabel` ändern sich.
@@ -136,7 +144,6 @@ export function PortalSidebar({
   navLabel = "Hauptnavigation",
   secondary,
   secondaryLabel = "Hilfe",
-  secondaryListClassName,
   topOffset,
   className,
 }: {
@@ -151,8 +158,6 @@ export function PortalSidebar({
   readonly secondary?: ReactNode;
   /** Der Name des unteren Blocks für Vorleseprogramme. */
   readonly secondaryLabel?: string;
-  /** Der Abstand der Einträge im unteren Block. */
-  readonly secondaryListClassName?: string;
   readonly topOffset?: PortalSidebarTopOffset;
   readonly className?: string;
 }) {
@@ -160,24 +165,27 @@ export function PortalSidebar({
     <PortalSidebarFrame topOffset={topOffset} className={className}>
       <nav
         aria-label={navLabel}
-        className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3"
+        className={`flex-1 overflow-y-auto ${SIDEBAR_NAV_PADDING}`}
       >
-        <ul>{children}</ul>
+        <ul className={SIDEBAR_NAV_GAP}>{children}</ul>
       </nav>
 
       {secondary ? (
         <nav
           aria-label={secondaryLabel}
-          className="border-t border-gray-200 p-3 lg:p-4 xl:p-3"
+          className={`border-t border-gray-200 ${SIDEBAR_NAV_PADDING}`}
         >
-          <ul className={secondaryListClassName}>{secondary}</ul>
+          <ul className={SIDEBAR_NAV_GAP}>{secondary}</ul>
         </nav>
       ) : null}
     </PortalSidebarFrame>
   );
 }
 
-/** Eine benannte Gruppe von Einträgen in der `PortalSidebar`. */
+/**
+ * Eine benannte Gruppe von Einträgen in der `PortalSidebar`, mit derselben
+ * Überschrift wie die Bereiche der Tenant-Leiste (#5975).
+ */
 export function PortalSidebarGroup({
   label,
   children,
@@ -188,21 +196,18 @@ export function PortalSidebarGroup({
 }) {
   const labelId = useId();
   return (
-    <li className="mt-4 first:mt-0">
-      <span
-        id={labelId}
-        className="mb-1 block px-3 text-xs font-semibold tracking-wider text-gray-500 uppercase"
-      >
-        {label}
-      </span>
-      <ul aria-labelledby={labelId}>{children}</ul>
+    <li className="pt-4 first:pt-0">
+      <SidebarSectionHeading id={labelId}>{label}</SidebarSectionHeading>
+      <ul aria-labelledby={labelId} className={SIDEBAR_NAV_GAP}>
+        {children}
+      </ul>
     </li>
   );
 }
 
 type PortalSidebarLinkProps = Omit<
   NavLinkProps,
-  "children" | "className" | "aria-current" | "target" | "rel"
+  "children" | "className" | "aria-current" | "target" | "rel" | "title"
 > & {
   readonly label: string;
   readonly concept: MotoConcept;
@@ -212,40 +217,31 @@ type PortalSidebarLinkProps = Omit<
   /** Ziele außerhalb des Portals (die Hilfe) öffnen in einem neuen Tab. */
   readonly newTab?: boolean;
   /** Ein Zähler hinter dem Namen. */
-  readonly badge?: ReactNode;
+  readonly badge?: SidebarRowBadge | null;
 };
 
 /** Ein Eintrag der `PortalSidebar`: Icon des Konzepts, Name, Aktivzustand. */
 export function PortalSidebarLink({
-  label,
   concept,
   iconConcept,
   active,
-  newTab = false,
-  badge,
-  ...linkProps
+  ...rowProps
 }: PortalSidebarLinkProps) {
   return (
     <li>
-      <NavLink
-        {...linkProps}
-        data-active={active ? "true" : "false"}
-        aria-current={active ? "page" : undefined}
-        {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-        className={portalSidebarRowClasses(active)}
-      >
-        <MotoNavIcon
-          scene
-          concept={concept}
-          iconConcept={iconConcept}
-          active={active}
-          className={`${PORTAL_ICON_CLASSES} ${active ? "" : "text-gray-400"}`}
-        />
-        <span className="flex flex-1 items-center">
-          {label}
-          {badge}
-        </span>
-      </NavLink>
+      <SidebarRowLink
+        {...rowProps}
+        active={active}
+        icon={
+          <MotoNavIcon
+            scene
+            concept={concept}
+            iconConcept={iconConcept}
+            active={active}
+            className={SIDEBAR_ICON_CLASSES}
+          />
+        }
+      />
     </li>
   );
 }
@@ -257,26 +253,25 @@ export function PortalSidebarButton({
   ...buttonProps
 }: Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
-  "children" | "className" | "type"
+  "children" | "className" | "type" | "title"
 > & {
   readonly label: string;
   readonly concept: MotoConcept;
 }) {
   return (
     <li>
-      <button
+      <SidebarRowButton
         {...buttonProps}
-        type="button"
-        className={`${portalSidebarRowClasses(false)} w-full text-left`}
-      >
-        <MotoNavIcon
-          scene
-          concept={concept}
-          active={false}
-          className={`${PORTAL_ICON_CLASSES} text-gray-400`}
-        />
-        <span className="flex flex-1 items-center">{label}</span>
-      </button>
+        label={label}
+        icon={
+          <MotoNavIcon
+            scene
+            concept={concept}
+            active={false}
+            className={SIDEBAR_ICON_CLASSES}
+          />
+        }
+      />
     </li>
   );
 }

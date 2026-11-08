@@ -1521,7 +1521,6 @@ function ChangeRequestsPanel({
                     diff={request.diff}
                     beforeLabel={t("changeRequestBefore")}
                     afterLabel={t("changeRequestRequested")}
-                    emptyLabel={t("notProvided")}
                     emptyMessage={t("changeRequestDiffEmpty")}
                     copy={diffCopy}
                   />

@@ -1,14 +1,12 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Eye, Info } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import {
-  EnrollmentForm,
-  type PreviewCareOfferings,
-} from "~/components/enrollment/enrollment-form";
+import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
+import type { PreviewCareOfferings } from "~/components/enrollment/enrollment-form-config";
 import {
   PublicEnrollmentBrand,
   PublicEnrollmentLocaleSwitcher,
@@ -77,7 +75,6 @@ function EnrollmentPreviewPageContent() {
     clear: clearLoadError,
   } = useApiLoadError();
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const previewProfileFetcher = useCallback(() => Promise.resolve(null), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -256,7 +253,6 @@ function EnrollmentPreviewPageContent() {
               gradeLevelMax={gradeLevelMax}
               localizedCopy
               onSubmitted={() => undefined}
-              profileFetcher={previewProfileFetcher}
               previewMode
               previewSchema={previewSchema}
               previewOfferings={previewOfferings}
