@@ -115,7 +115,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/active-supervisions/spontaneous-activity-start.tsx",
-    lines: [328],
+    lines: [329],
     reason: "Startkachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {

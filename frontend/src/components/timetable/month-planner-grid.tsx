@@ -18,6 +18,7 @@ import { TIMETABLE_UNTYPED_EDGE_COLOR } from "./timetable-colors";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { StatusDot } from "~/components/ui/status-dot";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionCard } from "~/components/ui/section-card";
 
 interface MonthPlannerGridProps {
   days: Date[];
@@ -57,7 +58,7 @@ export function MonthPlannerGrid({
   const currentMonth = monthDate.getMonth();
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       <div className="grid grid-cols-7 border-b border-gray-200">
         {days.slice(0, 7).map((day) => (
           <div
@@ -251,6 +252,6 @@ export function MonthPlannerGrid({
           {legend}
         </div>
       ) : null}
-    </div>
+    </SectionCard>
   );
 }

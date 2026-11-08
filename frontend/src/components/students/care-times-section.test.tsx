@@ -131,7 +131,8 @@ describe("Soll und Ist je Kind (#4774)", () => {
     render(<StudentCareTimesSection studentId="7" active />);
 
     const table = within(await screen.findByRole("table"));
-    const rows = await table.findAllByRole("row");
+    await table.findByText("laut Ferienbuchung");
+    const rows = table.getAllByRole("row");
     const rowOf = (date: string) =>
       rows.find((row) => row.textContent?.includes(date));
     expect(
