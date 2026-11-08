@@ -1,5 +1,6 @@
 "use client";
 
+import { weekdayShortLabel } from "~/lib/weekdays";
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -77,18 +78,8 @@ function joinNames(names: readonly string[]): string {
   return names.map((name) => `„${name}“`).join(" und ");
 }
 
-const WEEKDAY_LABELS: Readonly<Record<string, string>> = {
-  mon: "Mo",
-  tue: "Di",
-  wed: "Mi",
-  thu: "Do",
-  fri: "Fr",
-  sat: "Sa",
-  sun: "So",
-};
-
 function conflictDays(days: readonly string[]): string {
-  return days.map((day) => WEEKDAY_LABELS[day] ?? day).join(", ");
+  return days.map(weekdayShortLabel).join(", ");
 }
 
 /**

@@ -167,11 +167,7 @@ describe("FilesPage upload permission summary", () => {
     expect(card).toHaveClass("h-full", "min-h-0", "flex-col", "lg:flex");
     expect(body).toHaveClass("flex", "min-h-0", "flex-1", "flex-col");
     expect(aside).toHaveClass("flex", "min-h-0", "flex-1", "flex-col");
-    expect(folderList).toHaveClass(
-      "min-h-0",
-      "flex-1",
-      "overflow-y-auto",
-    );
+    expect(folderList).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
   });
 });
 

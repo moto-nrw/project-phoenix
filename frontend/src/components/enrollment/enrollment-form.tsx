@@ -1,5 +1,10 @@
 "use client";
 
+import { isValidContactEmail, isValidContactPhone } from "~/lib/contact-format";
+import {
+  materializeCareSelection,
+  type MaterializedCareSelection,
+} from "~/lib/care-offering-selection";
 import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import {
@@ -28,7 +33,6 @@ import {
   submitEnrollment,
   type MeProfileChild,
   type MeProfileResponse,
-  type CareOfferingSelectionMode,
   type PublicCareOffering,
   type SubmitChildPayload,
   type SubmitGuardianPayload,
@@ -38,6 +42,7 @@ import {
   type PublicSchoolClassConfig,
   EMPTY_SCHOOL_CLASS_CONFIG,
 } from "~/lib/enrollment-submission-api";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import {
   fetchPublicActiveSchema,
   fetchPublicCaptchaConfig,
@@ -125,29 +130,14 @@ import {
   careOfferingIsAvailable,
   careOfferingRuleExcludesNobody,
 } from "~/lib/care-offering-availability";
+import { type CareOfferingBookingStats } from "~/lib/care-offering-booking-stats";
 import {
-  type CareOfferingBookingStats,
-  formatOfferingOccupancy,
-  offeringIsFull,
-} from "~/lib/care-offering-booking-stats";
-import {
+  OfferingOccupancyLine,
   OfferingRowShell,
   type OfferingRowState,
 } from "~/components/enrollment/offering-row-shell";
 
 const logger = createLogger({ component: "EnrollmentForm" });
-
-// Mirror of the backend canonical phone format
-// (backend/models/users/phone_validation.go). Optional country code +
-// 7..15 chars of digits/spaces/hyphens. Kept in sync so a value the form
-// accepts can't later be rejected at student creation on approval.
-const GUARDIAN_PHONE_PATTERN = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
-
-// Mirror of the backend canonical email format
-// (backend/models/users/email_validation.go), the single rule enforced both
-// at enrollment submit AND at student creation on approval. Kept in sync so a
-// value the form accepts can never be rejected later at approval.
-const GUARDIAN_EMAIL_PATTERN = /^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
 
 // Student lifecycle statuses the backend counts as "enrolled"
 // (users.StudentStatusActive / StudentStatusPending — see
@@ -868,7 +858,7 @@ export function EnrollmentForm({
     child: ChildDraft,
     childOfferings: readonly PublicCareOffering[],
   ) =>
-    materializeCareOfferings(
+    materializeChildCare(
       child,
       childOfferings,
       careOfferingGradeForChild(child),
@@ -1083,7 +1073,7 @@ export function EnrollmentForm({
     const trimmedEmail = guardianEmail.trim();
     if (!trimmedEmail) {
       newFieldErrors.guardian_email = tr("errors.email");
-    } else if (!GUARDIAN_EMAIL_PATTERN.test(trimmedEmail)) {
+    } else if (!isValidContactEmail(trimmedEmail)) {
       newFieldErrors.guardian_email = tr("errors.validEmail");
     }
     // Phone is optional, but reject an invalid format before submit so the
@@ -1094,7 +1084,7 @@ export function EnrollmentForm({
       schema?.core_requirements?.guardian_phone === true;
     if (guardianPhoneRequired && !trimmedPhone) {
       newFieldErrors.guardian_phone = tr("errors.phone");
-    } else if (trimmedPhone && !GUARDIAN_PHONE_PATTERN.test(trimmedPhone)) {
+    } else if (trimmedPhone && !isValidContactPhone(trimmedPhone)) {
       newFieldErrors.guardian_phone = tr("errors.validPhone");
     }
     // Additional guardians: a card with ANY field filled must carry both
@@ -1114,11 +1104,11 @@ export function EnrollmentForm({
         newFieldErrors[`additional_guardian_${i}_last_name`] =
           tr("errors.lastName");
       }
-      if (gEmail && !GUARDIAN_EMAIL_PATTERN.test(gEmail)) {
+      if (gEmail && !isValidContactEmail(gEmail)) {
         newFieldErrors[`additional_guardian_${i}_email`] =
           tr("errors.validEmail");
       }
-      if (gPhone && !GUARDIAN_PHONE_PATTERN.test(gPhone)) {
+      if (gPhone && !isValidContactPhone(gPhone)) {
         newFieldErrors[`additional_guardian_${i}_phone`] =
           tr("errors.validPhone");
       }
@@ -3143,27 +3133,6 @@ function offeringRuleHint(rule: string, tr: TranslationFn): string {
 // checkbox. The day picker stays available for parent_choice offerings in
 // both cases.
 /**
- * Occupancy line under an offering in ADMIN flows (#2186). Renders nothing
- * without stats, so the parent form and a failed stats load look exactly as
- * they did before.
- */
-function OfferingOccupancyLine({
-  stats,
-}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
-  const label = formatOfferingOccupancy(stats);
-  if (!label) return null;
-  return (
-    <div
-      className={`mt-1 text-xs ${
-        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
-      }`}
-    >
-      {label}
-    </div>
-  );
-}
-
-/**
  * An offering an availability rule rules out for this child, shown greyed
  * with the reason. Admin flows only — for parents, silently omitting an
  * unavailable offering is the correct behaviour (#2186).
@@ -3657,7 +3626,7 @@ function selectedCareDaysForChild(
   offerings: readonly PublicCareOffering[],
   gradeLevel: string | undefined,
 ): string[] {
-  const materialized = materializeCareOfferings(child, offerings, gradeLevel);
+  const materialized = materializeChildCare(child, offerings, gradeLevel);
   const days = new Set<string>();
   for (const id of materialized.offeringIds) {
     const offering = offerings.find((o) => o.id === id);
@@ -3675,114 +3644,17 @@ function selectedCareDaysForChild(
   return WEEKDAYS.filter((day) => days.has(day));
 }
 
-interface MaterializedCareSelection {
-  offeringIds: Set<string>;
-  offeringDays: Record<string, Set<string>>;
-  automaticDays: Record<string, Set<string>>;
-}
-
-function materializeCareOfferings(
+function materializeChildCare(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
   gradeLevel: string | undefined,
 ): MaterializedCareSelection {
-  const offeringIds = new Set(child.offering_ids);
-  const offeringDays: Record<string, Set<string>> = {};
-  const automaticDays: Record<string, Set<string>> = {};
-  for (const [id, days] of Object.entries(child.offering_days)) {
-    offeringDays[id] = new Set(days);
-  }
-
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const target of offerings) {
-      if (!autoAddAppliesToGrade(gradeLevel, target)) continue;
-      const triggerIDs = target.auto_add_trigger_offering_ids ?? [];
-      if (triggerIDs.length === 0 && !isRequiredLunchOffering(target)) continue;
-
-      const auto = new Set<string>();
-      const targetDays = new Set(target.available_days);
-      for (const triggerID of triggerIDs) {
-        if (!offeringIds.has(triggerID)) continue;
-        const trigger = offerings.find((offering) => offering.id === triggerID);
-        if (!trigger) continue;
-        const triggerDays =
-          trigger.days_of_week_mode === "parent_choice"
-            ? Array.from(offeringDays[triggerID] ?? new Set<string>())
-            : trigger.available_days;
-        for (const day of triggerDays) {
-          if (targetDays.has(day)) auto.add(day);
-        }
-      }
-      if (isRequiredLunchOffering(target)) {
-        for (const source of offerings) {
-          if (source.id === target.id || !(source.counts_as_care ?? true)) {
-            continue;
-          }
-          if (!offeringIds.has(source.id)) {
-            continue;
-          }
-          const sourceDays =
-            source.days_of_week_mode === "parent_choice"
-              ? Array.from(offeringDays[source.id] ?? new Set<string>())
-              : source.available_days;
-          for (const day of sourceDays) {
-            if (targetDays.has(day)) auto.add(day);
-          }
-        }
-      }
-      if (auto.size === 0) continue;
-
-      if (!offeringIds.has(target.id)) {
-        offeringIds.add(target.id);
-        changed = true;
-      }
-      if (!sameSet(automaticDays[target.id], auto)) {
-        automaticDays[target.id] = auto;
-        changed = true;
-      }
-      const merged = new Set(offeringDays[target.id] ?? []);
-      const beforeSize = merged.size;
-      for (const day of auto) merged.add(day);
-      if (
-        merged.size !== beforeSize ||
-        !sameSet(offeringDays[target.id], merged)
-      ) {
-        offeringDays[target.id] = merged;
-        changed = true;
-      }
-    }
-  }
-
-  return { offeringIds, offeringDays, automaticDays };
-}
-
-function sameSet(left: Set<string> | undefined, right: Set<string>): boolean {
-  if (!left || left.size !== right.size) return false;
-  for (const value of left) {
-    if (!right.has(value)) return false;
-  }
-  return true;
-}
-
-function isRequiredLunchOffering(offering: PublicCareOffering): boolean {
-  return (
-    offering.is_required &&
-    offering.includes_lunch &&
-    offering.days_of_week_mode === "parent_choice"
+  const grade = Number(gradeLevel);
+  return materializeCareSelection(
+    offerings,
+    { offeringIds: child.offering_ids, offeringDays: child.offering_days },
+    Number.isFinite(grade) && grade > 0 ? grade : undefined,
   );
-}
-
-function autoAddAppliesToGrade(
-  gradeValue: string | undefined,
-  offering: PublicCareOffering,
-): boolean {
-  const gradeLevels = offering.auto_add_grade_levels ?? [];
-  if (gradeLevels.length === 0) return true;
-  const grade = Number(gradeValue);
-  if (!Number.isFinite(grade) || grade <= 0) return false;
-  return gradeLevels.includes(grade);
 }
 
 function relevantCareDaysForChild(
