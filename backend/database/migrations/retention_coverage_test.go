@@ -282,6 +282,8 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.care_evidences":                         parent("care_contract.contracts"),
 	"parent_billing.care_invoice_cancellations":             parent("parent_billing.care_invoices"),
 	"parent_billing.care_invoice_reductions":                parent("parent_billing.care_invoices"),
+	"parent_billing.family_child_count_events":              parent("care_contract.contracts"),
+	"parent_billing.family_child_counts":                    parent("care_contract.contracts"),
 	"parent_billing.care_invoice_positions":                 parent("parent_billing.care_invoices"),
 	"parent_billing.care_letter_mailings":                   parent("parent_billing.care_letters"),
 	"parent_billing.care_letters":                           parent("parent_billing.care_invoices"),

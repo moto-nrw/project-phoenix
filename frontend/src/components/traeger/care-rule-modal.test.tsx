@@ -21,6 +21,7 @@ const rule: CareRule = {
   discountCents: null,
   priceCents: null,
   capCents: null,
+  countsFamilyChildren: false,
 };
 const data: CareRuleSet = {
   rules: [rule],
@@ -53,6 +54,33 @@ describe("CareRuleModal", () => {
           name: "Geschwister neu",
           careOfferingIds: ["999"],
         }),
+      ),
+    );
+  });
+
+  it("lets a sibling rule count the children the family stated (#5918)", async () => {
+    saveCareRule.mockResolvedValue(data);
+    render(
+      <ToastProvider>
+        <CareRuleModal
+          data={data}
+          open={{ kind: "sibling", rule }}
+          currentMonth="2026-09-01"
+          onClose={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    const toggle = screen.getByRole("switch", {
+      name: /Geschwister ohne Vertrag mitzählen/,
+    });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "Regel speichern" }));
+    await waitFor(() =>
+      expect(saveCareRule).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ countsFamilyChildren: true }),
       ),
     );
   });

@@ -89,6 +89,9 @@ type BillingDocumentFile struct {
 type BillingDocuments interface {
 	ListBillingDocuments(ctx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
 	BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader BillingDocumentReader) (BillingDocumentFile, error)
+	// The children of the family on a contract of the inbox (#5918).
+	FamilyChildren(ctx context.Context, organizationID int64, reader FamilyChildrenReader) (FamilyChildren, error)
+	StateFamilyChildren(ctx context.Context, organizationID int64, reader FamilyChildrenReader, children int) (FamilyChildren, error)
 }
 
 // DocumentKindContract is the kind of a care contract in the inbox.
@@ -99,6 +102,8 @@ const DocumentKindContract = "care_contract"
 // sent to the account's address, the party of ADR 0088 section 7. Both
 // operations join the caller's Träger transaction and record the read.
 type ContractDocuments interface {
+	// FamilyEmail resolves billing's recipient after inbox authorization.
+	FamilyEmail(ctx context.Context, organizationID, contractID int64) (string, error)
 	ListContractDocuments(ctx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
 	ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader BillingDocumentReader) (BillingDocumentFile, error)
 	// The signature of #4679 (contract_signing.go); reader holds only the

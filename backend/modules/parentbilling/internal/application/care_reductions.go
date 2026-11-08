@@ -60,6 +60,7 @@ type CareReductionStore interface {
 
 // CareReductions serves parentbilling.CareReductions.
 type CareReductions struct {
+	*FamilyNumbers
 	store     CareReductionStore
 	contracts parentbilling.CareContracts
 	schools   parentbilling.CareSchools
@@ -70,13 +71,16 @@ var _ parentbilling.CareReductions = (*CareReductions)(nil)
 
 // NewCareReductions builds the rules and evidences of the monthly
 // contribution.
-func NewCareReductions(store CareReductionStore, contracts parentbilling.CareContracts, schools parentbilling.CareSchools,
-	today func() calendar.Date,
+func NewCareReductions(store interface {
+	CareReductionStore
+	FamilyChildrenStore
+}, contracts parentbilling.CareContracts, schools parentbilling.CareSchools, today func() calendar.Date,
 ) *CareReductions {
 	if store == nil || contracts == nil || schools == nil || today == nil {
 		panic("parent billing: the store, the care contracts, the schools and the clock are required")
 	}
-	return &CareReductions{store: store, contracts: contracts, schools: schools, today: today}
+	return &CareReductions{FamilyNumbers: NewFamilyChildren(store, contracts, today), store: store, contracts: contracts,
+		schools: schools, today: today}
 }
 
 // CareRules lists the care rules with the schools of the Träger and the

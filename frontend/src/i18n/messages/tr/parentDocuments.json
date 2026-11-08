@@ -41,5 +41,6 @@
   "terminatedOn": "{date} itibarıyla feshedildi",
   "withdrawn": "Cayıldı",
   "showConfirmation": "Onayı görüntüle",
-  "terminationInReview": "Feshedildi, bitiş tarihi inceleniyor"
+  "terminationInReview": "Feshedildi, bitiş tarihi inceleniyor",
+  "familyChildren": "Ailedeki çocukları girin"
 }

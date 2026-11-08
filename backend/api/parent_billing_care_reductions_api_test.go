@@ -50,12 +50,13 @@ type careEvidenceSetBody struct {
 }
 
 type careReductionRunBody struct {
-	ID           int64 `json:"id"`
-	Status       string
-	PreviewCount int    `json:"preview_count"`
-	PreviewCents int64  `json:"preview_cents"`
-	Fingerprint  string `json:"fingerprint"`
-	Invoices     []struct {
+	UncountedFamilies int   `json:"uncounted_families"`
+	ID                int64 `json:"id"`
+	Status            string
+	PreviewCount      int    `json:"preview_count"`
+	PreviewCents      int64  `json:"preview_cents"`
+	Fingerprint       string `json:"fingerprint"`
+	Invoices          []struct {
 		ContractID int64 `json:"contract_id"`
 		Reductions []struct {
 			Kind           string `json:"kind"`
