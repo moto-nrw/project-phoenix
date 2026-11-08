@@ -11,6 +11,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { looksLikeEmail } from "~/lib/email-format";
 import { createLogger } from "~/lib/logger";
 import { staffService, type ExternalAccess, type Staff } from "~/lib/staff-api";
 import { InsetPanel } from "~/components/ui/inset-panel";
@@ -70,14 +71,11 @@ function grantableExternalAccess(
   return canGrantView ? ["none", "view", "supervise"] : ["none", "supervise"];
 }
 
-// Deliberately loose: the backend decides; this only catches typing slips.
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /** Email check shared by the entry and the invitation dialog. */
 export function emailFieldHint(email: string): string | null {
   const trimmed = email.trim();
   if (!trimmed) return "Bitte E-Mail-Adresse eingeben.";
-  if (!EMAIL_PATTERN.test(trimmed))
+  if (!looksLikeEmail(trimmed))
     return "Bitte eine gültige E-Mail-Adresse eingeben.";
   return null;
 }

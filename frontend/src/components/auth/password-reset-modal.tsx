@@ -16,6 +16,7 @@ import { Input } from "~/components/ui/input";
 import type { DatabaseFormErrorPath } from "~/components/database/database-form";
 import { wireErrorCode } from "~/lib/api-error";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
+import { looksLikeEmail } from "~/lib/email-format";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordReset" });
@@ -117,9 +118,6 @@ const SuccessCheckIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// Loose on purpose: it catches typing slips, the backend decides.
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 const formatCountdown = (totalSeconds: number): string => {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -217,13 +215,14 @@ export function PasswordResetModal({
   const submit = async () => {
     const path = errorPath;
     path.clear();
-    if (!EMAIL_PATTERN.test(email.trim())) {
+    const address = email.trim();
+    if (!looksLikeEmail(address)) {
       path.invalid(copy.invalidEmail, { email: copy.invalidEmail });
       return;
     }
     setIsLoading(true);
     try {
-      await onRequestReset(email);
+      await onRequestReset(address);
       setIsSuccess(true);
     } catch (err) {
       const apiError = err as ApiError | undefined;

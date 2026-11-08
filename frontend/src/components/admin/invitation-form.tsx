@@ -23,6 +23,7 @@ import {
   type FormerEmploymentPart,
   type PendingInvitation,
 } from "~/lib/invitation-helpers";
+import { looksLikeEmail } from "~/lib/email-format";
 import { createLogger } from "~/lib/logger";
 import { useDebounce } from "~/lib/use-debounce";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
@@ -37,9 +38,6 @@ interface InvitationFormProps {
 
 const EMPTY_POSITIONS: readonly string[] = [];
 
-// Only an address that could be complete is worth a lookup; a half-typed one
-// would ask once per keystroke pause.
-const COMPLETE_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const FORMER_EMPLOYMENT_DEBOUNCE_MS = 400;
 const FORMER_EMPLOYMENT_LOOKUP_TIMEOUT_MS = 5_000;
 
@@ -60,7 +58,9 @@ function useFormerEmployment(email: string): {
   } | null>(null);
 
   useEffect(() => {
-    if (!COMPLETE_ADDRESS.test(address)) return;
+    // Only an address that could be complete is worth a lookup; a half-typed
+    // one would ask once per keystroke pause.
+    if (!looksLikeEmail(address)) return;
     let cancelled = false;
     setAnswer(null);
     const controller = new AbortController();
@@ -92,7 +92,7 @@ function useFormerEmployment(email: string): {
   return {
     formerEmployment:
       answer?.address === current ? answer.formerEmployment : null,
-    pending: COMPLETE_ADDRESS.test(current) && answer?.address !== current,
+    pending: looksLikeEmail(current) && answer?.address !== current,
   };
 }
 
