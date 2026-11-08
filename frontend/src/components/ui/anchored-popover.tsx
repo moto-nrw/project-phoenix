@@ -45,7 +45,7 @@ interface AnchoredPopoverProps<
   /** Handler für den Rahmen selbst, samt Rand und Scrollleiste. */
   readonly panelHandlers?: Pick<
     HTMLAttributes<HTMLDivElement>,
-    "onPointerEnter" | "onPointerLeave" | "onFocus"
+    "onPointerEnter" | "onPointerLeave" | "onPointerDown" | "onFocus"
   >;
   readonly preferredWidth?: number;
   readonly align?: "start" | "end";
@@ -164,18 +164,28 @@ export function AnchoredPopover<
       setPanelStyle(null);
       return;
     }
+    // Only motion of an ancestor moves the trigger; the panel's own hover
+    // transitions do not.
+    const updateAfterMotion = (event: Event) => {
+      if (
+        event.target instanceof Node &&
+        event.target.contains(triggerRef.current)
+      ) {
+        updatePosition();
+      }
+    };
     updatePosition();
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     // Ein Auslöser in einem Dialog, der noch einblendet, steht erst nach der
     // Animation an seinem Platz.
-    window.addEventListener("animationend", updatePosition, true);
-    window.addEventListener("transitionend", updatePosition, true);
+    window.addEventListener("animationend", updateAfterMotion, true);
+    window.addEventListener("transitionend", updateAfterMotion, true);
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("animationend", updatePosition, true);
-      window.removeEventListener("transitionend", updatePosition, true);
+      window.removeEventListener("animationend", updateAfterMotion, true);
+      window.removeEventListener("transitionend", updateAfterMotion, true);
     };
   }, [open, updatePosition]);
 

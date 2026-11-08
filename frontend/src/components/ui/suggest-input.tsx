@@ -62,8 +62,6 @@ interface SuggestInputProps extends NativeInputProps {
    * text and only an arrow key moves into the list.
    */
   readonly highlightFirst?: boolean;
-  /** Called after a suggestion was taken over into the field. */
-  readonly onSuggestionSelect?: (value: string) => void;
 }
 
 /**
@@ -83,7 +81,6 @@ export function SuggestInput({
   leadingIcon,
   maxSuggestions,
   highlightFirst = false,
-  onSuggestionSelect,
   id,
   name,
   className,
@@ -142,8 +139,25 @@ export function SuggestInput({
   const take = (suggestion: string) => {
     onValueChange(suggestion);
     closeList();
-    onSuggestionSelect?.(suggestion);
   };
+
+  // Escape closes only the list. A slide-over (Radix) listens on the document
+  // in the capture phase, before any React handler, so the field catches the
+  // key on the window first.
+  useEffect(() => {
+    if (!listOpen) return;
+    const handleEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (!(event.target instanceof HTMLElement)) return;
+      if (event.target.id !== inputId) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setOpen(false);
+      setActiveIndex(firstIndex);
+    };
+    window.addEventListener("keydown", handleEscape, true);
+    return () => window.removeEventListener("keydown", handleEscape, true);
+  }, [firstIndex, inputId, listOpen]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown" && !listOpen && matches.length > 0) {
@@ -155,13 +169,6 @@ export function SuggestInput({
     if (listOpen) {
       const last = matches.length - 1;
       switch (event.key) {
-        case "Escape":
-          // Close only the list. stopImmediatePropagation keeps the Escape
-          // from the document listener of a surrounding dialog.
-          event.preventDefault();
-          event.nativeEvent.stopImmediatePropagation();
-          closeList();
-          return;
         case "ArrowDown":
           event.preventDefault();
           setActiveIndex(activeOption >= last ? 0 : activeOption + 1);
@@ -214,6 +221,10 @@ export function SuggestInput({
         onOpenChange={(next) => (next ? openList() : closeList())}
         ariaLabel={listLabel}
         panelRole="listbox"
+        // Pressing anywhere in the list (entry or scrollbar) keeps the focus
+        // in the field. Without it the field would blur and close the list
+        // before a tap or click arrived (Safari/iOS focuses no tapped entry).
+        panelHandlers={{ onPointerDown: (event) => event.preventDefault() }}
         restoreFocusOnClose={false}
         portalScopeSelector={SUGGEST_PORTAL_SCOPE}
         className="py-1"
@@ -273,7 +284,8 @@ export function SuggestInput({
         {() => (
           <div role="presentation">
             {matches.map((suggestion, index) => (
-              <div
+              <button
+                type="button"
                 key={suggestion}
                 id={optionId(index)}
                 role="option"
@@ -281,14 +293,9 @@ export function SuggestInput({
                 tabIndex={-1}
                 aria-selected={index === activeOption}
                 onMouseEnter={() => setActiveIndex(index)}
-                // Take the entry on pointer-down and keep the focus in the
-                // field. Safari/iOS does not focus a tapped element, so the
-                // field would blur first and the list would close before a
-                // click arrived.
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  take(suggestion);
-                }}
+                // A tap, not a touch: a finger that only scrolls the list
+                // fires no click and takes nothing.
+                onClick={() => take(suggestion)}
                 className={cn(
                   OPTION_CLASS,
                   index === activeOption
@@ -297,7 +304,7 @@ export function SuggestInput({
                 )}
               >
                 <span className="min-w-0 break-words">{suggestion}</span>
-              </div>
+              </button>
             ))}
           </div>
         )}

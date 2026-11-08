@@ -543,12 +543,16 @@ describe("SpontaneousActivityStart", () => {
     fireEvent.change(activityInput, { target: { value: "Bast" } });
     const option = screen.getByRole("option", { name: "Basteln" });
 
-    // Safari/iOS does not focus a clicked button, so the input blurs with a
-    // null relatedTarget. Selection must happen on pointer-down (which the
-    // component preventDefaults to keep focus on the input) BEFORE that blur
-    // can close the menu and unmount the option.
-    fireEvent.pointerDown(option, { button: 0, pointerType: "mouse" });
-    fireEvent.blur(activityInput, { relatedTarget: null });
+    // Safari/iOS does not focus a tapped entry, so the input would blur with
+    // a null relatedTarget and the list would close before the click. The
+    // press is default-prevented, so the browser moves no focus; the tap
+    // (click) then takes the entry. A press alone, as when a finger starts to
+    // scroll the list, takes nothing.
+    expect(
+      fireEvent.pointerDown(option, { button: 0, pointerType: "touch" }),
+    ).toBe(false);
+    expect(activityInput).toHaveValue("Bast");
+    fireEvent.click(option);
 
     expect(activityInput).toHaveValue("Basteln");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();

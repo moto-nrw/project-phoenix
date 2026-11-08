@@ -178,7 +178,7 @@ describe("InvitationForm", () => {
       screen.getByRole("option", { name: "Pädagogische Fachkraft" }),
     ).toBeInTheDocument();
 
-    fireEvent.pointerDown(screen.getByRole("option", { name: "OGS-Büro" }));
+    fireEvent.click(screen.getByRole("option", { name: "OGS-Büro" }));
     expect(input).toHaveValue("OGS-Büro");
   });
 

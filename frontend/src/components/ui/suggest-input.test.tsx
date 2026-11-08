@@ -9,12 +9,10 @@ const POSITIONS = ["Pädagogische Fachkraft", "OGS-Büro", "Leitung"] as const;
 function Probe({
   highlightFirst = false,
   onKeyDown,
-  onSuggestionSelect,
   maxSuggestions,
 }: Readonly<{
   highlightFirst?: boolean;
   onKeyDown?: () => void;
-  onSuggestionSelect?: (value: string) => void;
   maxSuggestions?: number;
 }>) {
   const [value, setValue] = useState("");
@@ -29,7 +27,6 @@ function Probe({
       highlightFirst={highlightFirst}
       maxSuggestions={maxSuggestions}
       onKeyDown={onKeyDown}
-      onSuggestionSelect={onSuggestionSelect}
     />
   );
 }
@@ -68,8 +65,7 @@ describe("SuggestInput", () => {
   });
 
   it("moves with the arrow keys, wraps and takes the entry on Enter", () => {
-    const onSuggestionSelect = vi.fn();
-    render(<Probe onSuggestionSelect={onSuggestionSelect} />);
+    render(<Probe />);
     fireEvent.focus(field());
     expect(field()).not.toHaveAttribute("aria-activedescendant");
 
@@ -90,7 +86,6 @@ describe("SuggestInput", () => {
 
     fireEvent.keyDown(field(), { key: "Enter" });
     expect(field()).toHaveValue("Leitung");
-    expect(onSuggestionSelect).toHaveBeenCalledWith("Leitung");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
@@ -116,9 +111,12 @@ describe("SuggestInput", () => {
     expect(onKeyDown).not.toHaveBeenCalled();
   });
 
-  it("closes only the list on Escape and keeps it from the document", () => {
+  it.each([
+    ["a dialog (document, bubbling)", false],
+    ["a slide-over (document, capture phase)", true],
+  ])("closes only the list on Escape inside %s", (_name, capture) => {
     const documentEscape = vi.fn();
-    document.addEventListener("keydown", documentEscape);
+    document.addEventListener("keydown", documentEscape, capture);
     try {
       render(<Probe />);
       fireEvent.focus(field());
@@ -132,7 +130,7 @@ describe("SuggestInput", () => {
       fireEvent.keyDown(field(), { key: "Escape" });
       expect(documentEscape).toHaveBeenCalledTimes(1);
     } finally {
-      document.removeEventListener("keydown", documentEscape);
+      document.removeEventListener("keydown", documentEscape, capture);
     }
   });
 
@@ -147,15 +145,21 @@ describe("SuggestInput", () => {
     expect(field()).toHaveAttribute("aria-activedescendant", options[0]?.id);
   });
 
-  it("takes a tapped entry on pointer-down without moving the focus", () => {
+  it("keeps the focus in the field when the list is pressed", () => {
     render(<Probe />);
     field().focus();
     fireEvent.focus(field());
 
     const option = screen.getByRole("option", { name: "OGS-Büro" });
-    const pointerDown = fireEvent.pointerDown(option);
+    // Default prevented: the browser moves no focus, the field does not blur.
+    expect(fireEvent.pointerDown(option)).toBe(false);
+    expect(fireEvent.pointerDown(screen.getByRole("listbox"))).toBe(false);
+    // A press alone (a finger starting to scroll) takes nothing.
+    expect(field()).toHaveValue("");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
 
-    expect(pointerDown).toBe(false);
+    fireEvent.click(option);
+
     expect(field()).toHaveValue("OGS-Büro");
     expect(field()).toHaveFocus();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
