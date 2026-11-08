@@ -292,7 +292,9 @@ berechnet.
   Eine ausgeschlossene Rechnung wird nicht ausgestellt, bleibt in der Vorschau
   sichtbar und zählt nicht zur Summe. Der Ausschluss gehört zu seinem Lauf: Der
   nächste Lauf desselben Monats rechnet das Kind wieder ab, wenn es abrechenbar
-  ist. Es gibt keine dauerhafte Abrechnungssperre.
+  ist. Es gibt keine dauerhafte Abrechnungssperre. Sind alle Rechnungen eines Laufs
+  ausgeschlossen, schließt die Freigabe ihn ohne Rechnung und ohne Nummer ab
+  (Zahl und Summe 0), damit seine Schulen für den nächsten Lauf frei werden.
 - **Prüfliste.** Die Vorschau eines offenen Laufs lässt sich als Excel oder CSV
   laden, eine Zeile je Position und je Ermäßigung, mit Rechnungsdatum, Schule,
   Kind, Empfänger, Modul, Wochentagen, Zeitraum, Betrag und Status

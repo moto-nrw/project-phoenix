@@ -33,6 +33,9 @@ func init() {
 //   - care_run_events: the exclusion and the return of an invoice before the
 //     release ("exclude", "include"), with reason, account and time, and the
 //     download of the review list ("export"); the trail is append only.
+//   - chk_care_runs_release: a run whose invoices are all excluded closes
+//     without an invoice and without a number, so its schools are free for
+//     the next run of the month. Zero invoices mean zero money.
 const parentBillingCareReviewUpSQL = `
 ALTER TABLE parent_billing.care_runs ADD COLUMN invoice_date DATE;
 COMMENT ON COLUMN parent_billing.care_runs.invoice_date IS
@@ -77,6 +80,12 @@ JOIN platform.schools AS school ON school.organization_id = run.organization_id 
 
 DROP INDEX parent_billing.uq_care_runs_calculated_month;
 
+ALTER TABLE parent_billing.care_runs DROP CONSTRAINT chk_care_runs_release;
+ALTER TABLE parent_billing.care_runs ADD CONSTRAINT chk_care_runs_release CHECK (
+	(status = 'released') = (released_at IS NOT NULL AND issued_on IS NOT NULL
+		AND document_count >= 0 AND total_cents >= 0 AND month_rule IS NOT NULL
+		AND (document_count > 0 OR total_cents = 0)));
+
 ALTER TABLE parent_billing.care_run_events DROP CONSTRAINT chk_care_run_events_action;
 ALTER TABLE parent_billing.care_run_events ADD CONSTRAINT chk_care_run_events_action
 	CHECK (action IN ('create', 'read', 'release', 'letters', 'mail', 'cancel', 'exclude', 'include', 'export', 'invoice_date'));
@@ -103,6 +112,10 @@ WHERE run.status = 'calculated' AND EXISTS (
 		AND earlier.status = 'calculated' AND earlier.id < run.id);
 CREATE UNIQUE INDEX uq_care_runs_calculated_month
 	ON parent_billing.care_runs (organization_id, billing_month) WHERE status = 'calculated';
+DELETE FROM parent_billing.care_runs WHERE status = 'released' AND document_count = 0;
+ALTER TABLE parent_billing.care_runs DROP CONSTRAINT chk_care_runs_release;
+ALTER TABLE parent_billing.care_runs ADD CONSTRAINT chk_care_runs_release CHECK ((status = 'released') = (
+	released_at IS NOT NULL AND issued_on IS NOT NULL AND document_count >= 1 AND total_cents >= 0 AND month_rule IS NOT NULL));
 DELETE FROM parent_billing.care_run_events WHERE action IN ('exclude', 'include', 'export', 'invoice_date');
 ALTER TABLE parent_billing.care_run_events DROP CONSTRAINT chk_care_run_events_action;
 ALTER TABLE parent_billing.care_run_events ADD CONSTRAINT chk_care_run_events_action

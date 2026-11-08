@@ -121,6 +121,8 @@ func TestCareReviewRunBillsItsSchoolsAndKeepsASchoolInOneOpenRun(t *testing.T) {
 	code, next := f.startRunWith(t, map[string]any{"billing_month": careMonth, "school_ids": []int64{a}})
 	require.Equal(t, http.StatusCreated, code, "after the release a later run of the month may bill school A")
 	assert.Empty(t, f.review(t, next.ID).Invoices, "Mia is billed once")
+	assert.Equal(t, 1, f.review(t, next.ID).Billed, "school A counts its own issued invoice")
+	assert.Zero(t, f.review(t, runB.ID).Billed, "school B does not count school A's issued invoice")
 }
 
 // Two runs that start at once with overlapping schools: one starts, the
@@ -384,4 +386,47 @@ func TestCareReviewNeedsTheRightAndStaysWithItsTraeger(t *testing.T) {
 		assert.NotEqual(t, f.office.schools[0], school.ID, "no school of another Träger")
 		assert.Nil(t, school.OpenRunID, "no open run of another Träger")
 	}
+}
+
+// Closing an all-excluded run keeps its trail, reserves no numbers and
+// releases its schools so a later run can bill those contracts again.
+func TestCareReviewAllExcludedRunClosesWithoutIssuing(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Prüfphase ohne Ausstellung")
+	school := f.office.schools[0]
+	contract := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	pricedSchools(t, f)
+	code, run := f.startRunWith(t, map[string]any{"billing_month": careMonth, "school_ids": []int64{school}})
+	require.Equal(t, http.StatusCreated, code)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/exclusions"),
+		map[string]any{"contract_id": contract, "reason": "Vertrag wird geprüft"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	review := decodeSchoolPortalData[careReviewBody](t, rec.Body.Bytes())
+	require.Zero(t, review.PreviewCount)
+	require.Equal(t, 1, review.ExcludedCount)
+	stale := careRelease(review.careRunBody)
+	stale["fingerprint"] = ""
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), stale)
+	assert.Equal(t, http.StatusConflict, rec.Code, "even an empty release must match the reviewed state")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(review.careRunBody))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	released := decodeSchoolPortalData[careRunBody](t, rec.Body.Bytes())
+	assert.Equal(t, "released", released.Status)
+	assert.Empty(t, released.Invoices)
+	var exclusions int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.care_run_events
+		WHERE run_id = ? AND action = 'exclude' AND details->>'reason' = 'Vertrag wird geprüft'`, run.ID).
+		Scan(context.Background(), &exclusions))
+	assert.Equal(t, 1, exclusions, "the reason stays in the trail")
+	code, next := f.startRunWith(t, map[string]any{"billing_month": careMonth, "school_ids": []int64{school}})
+	require.Equal(t, http.StatusCreated, code, "closing the run releases the school")
+	nextReview := f.review(t, next.ID)
+	require.Len(t, nextReview.Invoices, 1)
+	assert.Equal(t, contract, nextReview.Invoices[0].ContractID)
+	assert.Nil(t, nextReview.Invoices[0].Exclusion)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(next.ID, "/release"), careRelease(nextReview.careRunBody))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	issued := decodeSchoolPortalData[careRunBody](t, rec.Body.Bytes())
+	require.Len(t, issued.Invoices, 1)
+	assert.Regexp(t, `^MB-\d{4}-0001$`, issued.Invoices[0].Number, "the empty release consumed no number")
 }

@@ -103,7 +103,7 @@ func careReviewTable(detail parentbilling.CareRunDetail) ExportTable {
 		}
 		for _, reduction := range invoice.Reductions {
 			rows = append(rows, withValues(base, map[string]string{
-				"position": reduction.Name, "amount": formatAmount(-reduction.AmountCents),
+				"position": reduction.Name, "amount": formatAmount(reduction.AmountCents),
 			}))
 		}
 	}

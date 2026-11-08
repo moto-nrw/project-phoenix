@@ -128,7 +128,8 @@ func (s *Store) SetCareRunInvoiceDate(ctx context.Context, organizationID, runID
 
 // CareRunExclusions reads the invoices of a run left out of its release:
 // per contract the last exclusion, unless a later return took it back. The
-// trail is read in the order it was written.
+// trail is read by ID, allocated after the run lock. Transaction-start
+// timestamps do not establish write order when transactions overlap.
 func (s *Store) CareRunExclusions(ctx context.Context, organizationID, runID int64) (map[int64]parentbilling.CareExclusion, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -142,7 +143,7 @@ func (s *Store) CareRunExclusions(ctx context.Context, organizationID, runID int
 	}
 	if err := db.NewRaw(`SELECT action, actor_account_id, occurred_at, details FROM parent_billing.care_run_events
 		WHERE organization_id = ? AND run_id = ? AND action = ANY(?)
-		ORDER BY occurred_at, id`, organizationID, runID,
+		ORDER BY id`, organizationID, runID,
 		pgdialect.Array([]string{careRunEventExclude, careRunEventInclude})).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read care run exclusions: %w", err)
 	}

@@ -87,3 +87,40 @@ func TestCareReviewFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 	})
 	require.ErrorIs(t, err, rollback)
 }
+
+// Transaction timestamps can run backwards relative to the run lock. The
+// last appended action, not the latest transaction start, decides inclusion.
+func TestCareReviewReplaysExclusionsInWriteOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := newCareScope(t, db, "Träger Ausschluss Reihenfolge")
+	store := NewStore()
+	rollback := errors.New("roll the review rows back")
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, scope.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		tx, err := traegerDB(ctx, scope.organization)
+		require.NoError(t, err)
+		scope = seedCareScope(t, ctx, tx, scope, "Träger Ausschluss Reihenfolge")
+		_, err = store.CareRun(ctx, scope.organization, scope.open, true)
+		require.NoError(t, err)
+		for _, event := range []struct{ action, timestamp, reason string }{
+			{"exclude", "2029-10-01 08:00:00+00", "Erste Prüfung"},
+			{"include", "2029-10-01 10:00:00+00", ""},
+			{"exclude", "2029-10-01 09:00:00+00", "Erneute Prüfung"},
+		} {
+			_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.care_run_events
+				(organization_id, run_id, action, occurred_at, details)
+				VALUES (?, ?, ?, ?::timestamptz,
+				jsonb_build_object('contract_ids', jsonb_build_array(?::bigint), 'reason', ?::text))`,
+				scope.organization, scope.open, event.action, event.timestamp, scope.contract, event.reason)
+			require.NoError(t, err)
+		}
+		exclusions, err := store.CareRunExclusions(ctx, scope.organization, scope.open)
+		require.NoError(t, err)
+		assert.Equal(t, "Erneute Prüfung", exclusions[scope.contract].Reason,
+			"a successful exclusion after an inclusion stays in force even if its transaction started earlier")
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}

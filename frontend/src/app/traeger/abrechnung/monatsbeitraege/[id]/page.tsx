@@ -152,8 +152,8 @@ export default function TraegerCareRunPage() {
   }, [runId, clearLettersError, showLettersError]);
 
   useEffect(() => {
-    if (released) void loadLetters();
-  }, [released, loadLetters]);
+    if (released && run.previewCount > 0) void loadLetters();
+  }, [released, run?.previewCount, loadLetters]);
 
   const release = async () => {
     if (!run) return;
@@ -163,9 +163,11 @@ export default function TraegerCareRunPage() {
       setRun(released);
       setConfirming(false);
       success(
-        released.duplicateChildren > 0
-          ? `Der Lauf ist freigegeben. ${notBilledLabel(released.duplicateChildren, true)}`
-          : "Der Lauf ist freigegeben. Die Rechnungen sind ausgestellt.",
+        released.previewCount === 0
+          ? "Der Lauf ist ohne Rechnungen abgeschlossen."
+          : released.duplicateChildren > 0
+            ? `Der Lauf ist freigegeben. ${notBilledLabel(released.duplicateChildren, true)}`
+            : "Der Lauf ist freigegeben. Die Rechnungen sind ausgestellt.",
       );
     } catch (err) {
       logger.error("traeger_care_run_release_failed", {
@@ -199,7 +201,9 @@ export default function TraegerCareRunPage() {
   };
 
   const preview = run?.status === "calculated";
-  const canRelease = preview && run.numberRangeSet && run.previewCount > 0;
+  const canRelease =
+    preview &&
+    (run.previewCount > 0 ? run.numberRangeSet : run.excludedCount > 0);
   const issuable = run?.invoices.filter((invoice) => !invoice.exclusion) ?? [];
   const excluded = run?.invoices.filter((invoice) => invoice.exclusion) ?? [];
 
@@ -253,11 +257,17 @@ export default function TraegerCareRunPage() {
             onConfirm={() => void release()}
           >
             <p className="text-sm text-gray-700">
-              {invoiceCountLabel(run.previewCount)} über{" "}
-              {formatEuro(run.previewCents)} für {formatMonth(run.billingMonth)}{" "}
-              bekommen ihre Nummer und das Rechnungsdatum{" "}
-              {invoiceDateLabel(run.invoiceDate)}. Danach lassen sie sich nicht
-              mehr ändern.
+              {run.previewCount === 0 ? (
+                "Der Lauf wird ohne Rechnungen abgeschlossen. Die Schulen sind danach wieder frei."
+              ) : (
+                <>
+                  {invoiceCountLabel(run.previewCount)} über{" "}
+                  {formatEuro(run.previewCents)} für{" "}
+                  {formatMonth(run.billingMonth)} bekommen ihre Nummer und das
+                  Rechnungsdatum {invoiceDateLabel(run.invoiceDate)}. Danach
+                  lassen sie sich nicht mehr ändern.
+                </>
+              )}
             </p>
             {run.excludedCount > 0 ? (
               <p className="mt-3 text-sm text-gray-700">
@@ -307,7 +317,9 @@ export default function TraegerCareRunPage() {
             description={
               preview
                 ? "Prüfen Sie die Vorschau. Neue Verträge und Preise kommen bis zur Freigabe dazu. Eine Rechnung, die noch nicht stimmt, schließen Sie über das Menü ihrer Zeile aus."
-                : "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern. Eine falsche Rechnung stornieren Sie auf der Seite „Schreiben“."
+                : run.previewCount === 0
+                  ? "Der Lauf ist ohne Rechnungen abgeschlossen. Die Schulen sind wieder frei."
+                  : "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern. Eine falsche Rechnung stornieren Sie auf der Seite „Schreiben“."
             }
             action={preview ? <CareReviewExport runId={run.id} /> : undefined}
           >
@@ -385,7 +397,7 @@ export default function TraegerCareRunPage() {
               ) : null}
             </DataGrid>
           </SectionCard>
-          {preview && !run.numberRangeSet ? (
+          {preview && run.previewCount > 0 && !run.numberRangeSet ? (
             <Alert
               type="warning"
               message="Bevor Sie freigeben: Legen Sie das Muster der Rechnungsnummern für Monatsbeiträge fest."
@@ -409,7 +421,7 @@ export default function TraegerCareRunPage() {
               onInclude={(invoice) => void include(invoice)}
             />
           ) : null}
-          {released ? (
+          {released && run.previewCount > 0 ? (
             <CareLettersSummaryCard
               href={traegerPath(
                 `/traeger/abrechnung/monatsbeitraege/${run.id}/schreiben`,

@@ -434,10 +434,6 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 	if run.Status != parentbilling.RunCalculated {
 		return parentbilling.CareRunDetail{}, parentbilling.ErrBillingRunReleased
 	}
-	pattern, err := numberPatternOf(ctx, c.store, reviewer.OrganizationID, parentbilling.ServiceCare)
-	if err != nil {
-		return parentbilling.CareRunDetail{}, err
-	}
 	// The review is checked again in this transaction: the schools, the
 	// exclusions, the invoice date and every invoice must be what the
 	// reviewer saw (#5916).
@@ -445,7 +441,7 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 	if err != nil {
 		return parentbilling.CareRunDetail{}, err
 	}
-	if len(month.invoices) == 0 {
+	if len(month.invoices) == 0 && len(month.excluded) == 0 {
 		return parentbilling.CareRunDetail{}, parentbilling.ErrBillingRunEmpty
 	}
 	if len(month.invoices) != release.DocumentCount || month.total() != release.TotalCents ||
@@ -456,8 +452,15 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 	if run.InvoiceDate != nil {
 		issuedOn = *run.InvoiceDate
 	}
-	if err := c.issue(ctx, reviewer.OrganizationID, run, rule, pattern, issuedOn, month.invoices); err != nil {
-		return parentbilling.CareRunDetail{}, err
+	// An all-excluded review closes without consuming invoice numbers.
+	if len(month.invoices) > 0 {
+		pattern, err := numberPatternOf(ctx, c.store, reviewer.OrganizationID, parentbilling.ServiceCare)
+		if err != nil {
+			return parentbilling.CareRunDetail{}, err
+		}
+		if err := c.issue(ctx, reviewer.OrganizationID, run, rule, pattern, issuedOn, month.invoices); err != nil {
+			return parentbilling.CareRunDetail{}, err
+		}
 	}
 	released, err := c.store.MarkCareRunReleased(ctx, reviewer.OrganizationID, run.ID, issuedOn,
 		len(month.invoices), month.total(), rule)

@@ -67,7 +67,12 @@ func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run pa
 func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parentbilling.CareExclusion) reviewedMonth {
 	inRun := func(schoolID int64) bool { return slices.Contains(schoolIDs, schoolID) }
 	review := reviewedMonth{careMonth: careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{},
-		duplicates: []parentbilling.CareDuplicate{}, billed: month.billed}, excluded: []parentbilling.CareInvoice{}}
+		duplicates: []parentbilling.CareDuplicate{}}, excluded: []parentbilling.CareInvoice{}}
+	for schoolID, count := range month.billedBySchool {
+		if inRun(schoolID) {
+			review.billed += count
+		}
+	}
 	for _, invoice := range month.invoices {
 		if !inRun(invoice.SchoolID) {
 			continue

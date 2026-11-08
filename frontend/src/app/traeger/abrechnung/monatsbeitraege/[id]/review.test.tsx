@@ -179,4 +179,47 @@ describe("monthly run review", () => {
       expect.objectContaining({ id: "7", previewCount: 1, fingerprint: "f1" }),
     );
   });
+  it("closes an all-excluded run without a number range or invoice issuance", async () => {
+    const excluded = RUN.invoices.filter((entry) => entry.exclusion);
+    const empty = {
+      ...RUN,
+      invoices: excluded,
+      previewCount: 0,
+      previewCents: 0,
+      numberRangeSet: false,
+    };
+    api.fetchCareRun.mockResolvedValue(empty);
+    api.releaseCareRun.mockResolvedValue({
+      ...empty,
+      status: "released",
+      invoices: [],
+    });
+    api.fetchCareLetters.mockResolvedValue({
+      letters: null,
+      documents: [],
+      summary: {
+        letters: 0,
+        sent: 0,
+        queued: 0,
+        failed: 0,
+        notSent: 0,
+        withoutEmail: 0,
+        withoutInbox: 0,
+      },
+    });
+    renderPage();
+    const release = await screen.findByRole("button", {
+      name: "Lauf freigeben",
+    });
+    expect(release).toBeEnabled();
+    fireEvent.click(release);
+    expect(
+      await screen.findByText(
+        "Der Lauf wird ohne Rechnungen abgeschlossen. Die Schulen sind danach wieder frei.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+    await screen.findByText("Der Lauf ist ohne Rechnungen abgeschlossen.");
+    expect(api.releaseCareRun).toHaveBeenCalledWith(empty);
+  });
 });

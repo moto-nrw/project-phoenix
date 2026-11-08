@@ -32,10 +32,11 @@ type careMonthInput struct {
 // without a price, the children with duplicate contracts and the count of
 // contracts already billed.
 type careMonth struct {
-	invoices   []parentbilling.CareInvoice
-	unpriced   []parentbilling.CareUnpriced
-	duplicates []parentbilling.CareDuplicate
-	billed     int
+	invoices       []parentbilling.CareInvoice
+	unpriced       []parentbilling.CareUnpriced
+	duplicates     []parentbilling.CareDuplicate
+	billed         int
+	billedBySchool map[int64]int
 }
 
 func (m careMonth) total() int64 {
@@ -97,6 +98,10 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	}
 	chained = append(chained, issuedCareEntries(in.invoiced, childOf, byContract)...)
 	result.billed = len(in.invoiced)
+	result.billedBySchool = make(map[int64]int)
+	for _, invoice := range in.invoiced {
+		result.billedBySchool[invoice.SchoolID]++
+	}
 	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences})
 	slices.SortStableFunc(result.invoices, func(a, b parentbilling.CareInvoice) int {
 		return firstNonZero(compareOrdered(a.SchoolName, b.SchoolName), compareOrdered(a.ChildLastName, b.ChildLastName),
