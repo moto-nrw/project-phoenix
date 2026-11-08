@@ -2580,8 +2580,8 @@ function unprefixedTokens(text) {
 // Knopf ist sie ein Hintergrund wie `bg-white border-gray-200`.
 const SURFACE_AS_FILL = "moto-content-surface";
 
-// #5608: `<label>` (Dateiauswahl) und `<span>` mit `cursor-pointer` sind
-// Knöpfe, wenn sie so aussehen: buttonClassName nehmen.
+// #5608: `<span>` und `<label>` mit `cursor-pointer` sowie ein `<label>` um
+// eine Dateiauswahl sind Knöpfe, wenn sie so aussehen: buttonClassName nehmen.
 const CLICKABLE_TEXT_ELEMENTS = new Set(["label", "span"]);
 
 // #5608: Farbe über `style` statt Klasse. Nur Hintergrund, Rahmen und
@@ -2589,6 +2589,7 @@ const CLICKABLE_TEXT_ELEMENTS = new Set(["label", "span"]);
 // Knopf.
 const STYLE_FILL_KEYS = new Set([
   "background",
+  "border",
   "backgroundColor",
   "borderColor",
   "boxShadow",
@@ -2596,6 +2597,19 @@ const STYLE_FILL_KEYS = new Set([
 
 function styleObjectHasFill(node, constants, depth) {
   if (!node || depth > 4) return false;
+  if (
+    node.type === "TSAsExpression" ||
+    node.type === "TSSatisfiesExpression" ||
+    node.type === "ParenthesizedExpression"
+  ) {
+    return styleObjectHasFill(node.expression, constants, depth);
+  }
+  if (node.type === "LogicalExpression") {
+    return (
+      styleObjectHasFill(node.left, constants, depth) ||
+      styleObjectHasFill(node.right, constants, depth)
+    );
+  }
   if (node.type === "Identifier") {
     return styleObjectHasFill(constants.get(node.name), constants, depth + 1);
   }
@@ -2610,13 +2624,25 @@ function styleObjectHasFill(node, constants, depth) {
     if (property.type === "SpreadElement") {
       return styleObjectHasFill(property.argument, constants, depth + 1);
     }
-    if (property.type !== "Property") return false;
+    if (property.type !== "Property" || property.computed) return false;
     const key =
       property.key.type === "Identifier"
         ? property.key.name
         : String(property.key.value);
     return STYLE_FILL_KEYS.has(key);
   });
+}
+
+/** `<label>` whose direct children include `<input type="file">`. */
+function wrapsFileInput(openingElement) {
+  const children = openingElement.parent?.children ?? [];
+  return children.some(
+    (child) =>
+      child.type === "JSXElement" &&
+      jsxName(child.openingElement.name) === "input" &&
+      staticAttributeValue(jsxAttribute(child.openingElement, "type")) ===
+        "file",
+  );
 }
 
 /** Static `style` of an element sets a background, frame or shadow colour. */
@@ -3012,7 +3038,8 @@ const noHandRolledButton = makeRatchetRule({
         bindings.actionComponents.has(name) ||
         staticAttributeValue(jsxAttribute(node, "role")) === "button" ||
         (CLICKABLE_TEXT_ELEMENTS.has(name) &&
-          unprefixedTokens(text).includes("cursor-pointer"));
+          unprefixedTokens(text).includes("cursor-pointer")) ||
+        (name === "label" && wrapsFileInput(node));
       if (!isAction) return;
       const styleFill = hasStyleFill(node, constants);
       if (hasButtonOptics(text, { styleFill })) found(node);

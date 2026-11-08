@@ -2271,6 +2271,7 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
           <>
             <button type="button" className="rounded-full px-5 py-3" style={{ boxShadow: "inset 0 0 0 1px #83CD2D" }}>A</button>
             <button type="button" className="rounded-full h-10 px-4" style={buttonStyle}>B</button>
+            <button type="button" className="rounded-lg px-4 py-2" style={(on && { background: "#fff" }) as object}>C</button>
           </>
         );
       }
@@ -2281,7 +2282,7 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
     expect(result.status).toBe(1);
     expect(
       result.output.match(/ui-kit\(no-hand-rolled-button\)/g),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
   });
 
   it("does not count a style that only positions or colours text", async () => {
@@ -2316,6 +2317,7 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
           <>
             <label className="cursor-pointer rounded-lg bg-white px-3 py-2 ring-1 ring-gray-200">Datei<input type="file" className="sr-only" /></label>
             <span className="cursor-pointer rounded-md bg-gray-900 px-3 py-2 text-white">B</span>
+            <label className="rounded-lg bg-white px-3 py-2 ring-1 ring-gray-200">C<input type="file" className="sr-only" /></label>
           </>
         );
       }
@@ -2326,7 +2328,7 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
     expect(result.status).toBe(1);
     expect(
       result.output.match(/ui-kit\(no-hand-rolled-button\)/g),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
   });
 
   it("leaves a label or span without cursor-pointer and a kit-styled label alone", async () => {

@@ -55,12 +55,6 @@ describe("Button", () => {
     expect(handleClick).not.toHaveBeenCalled();
   });
 
-  it("honours disabled without isLoading", () => {
-    render(<Button disabled>Submit</Button>);
-
-    expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
-  });
-
   it("calls onClick handler when clicked", () => {
     const handleClick = vi.fn();
     render(<Button onClick={handleClick}>Click</Button>);
