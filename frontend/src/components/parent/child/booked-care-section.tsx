@@ -12,6 +12,7 @@ import { CalendarCheckIcon, CalendarXIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OfferingChangeRequestModal } from "~/components/parent/offering-change-request-modal";
 import { RequestSharingControl } from "~/components/parent/request-sharing-control";
@@ -307,9 +308,10 @@ export function BookedCareSection({
           ) : (
             <ul className="space-y-2">
               {offerings.offerings.map((offering) => (
-                <li
+                <InsetPanel
+                  as="li"
+                  framed
                   key={`${offering.id}-${offering.valid_from ?? "current"}`}
-                  className="rounded-xl border border-gray-200 p-3"
                 >
                   <p className="text-sm font-semibold text-gray-900">
                     {offering.name}
@@ -339,7 +341,7 @@ export function BookedCareSection({
                       </span>
                     )}
                   </p>
-                </li>
+                </InsetPanel>
               ))}
             </ul>
           )}
