@@ -37,7 +37,9 @@ describe("authenticated route response coverage", () => {
   it("keeps all shared authenticated factories response-aware", () => {
     const wrappers = [
       ["src/lib/route-wrapper.server.ts", "withTenantAuth"],
-      ["src/lib/file-upload-wrapper.server.ts", "withTenantAuth"],
+      ["src/lib/file-upload-wrapper.server.ts", "tenant.route("],
+      // Every handler the factory builds runs in its portal's wrapper.
+      ["src/lib/portal-handlers.server.ts", "portal.withAuth("],
       ["src/lib/operator/route-wrapper.server.ts", "withOperatorAuth"],
       ["src/lib/parent/route-wrapper.server.ts", "withParentAuth"],
       ["src/lib/school/route-wrapper.server.ts", "withSchoolAuth"],

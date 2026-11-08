@@ -1,217 +1,41 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
 import {
   parentAuth,
   uncachedParentAuth,
   withParentAuth,
 } from "~/server/auth/parent";
-import { incomingClientForwardHeaders } from "../client-headers.server";
-import { handleApiError } from "../api-helpers.server";
-import { ApiResponseError } from "../api-response-error.server";
-import { makeProxyFactories } from "../route-proxy-factory.server";
-import { executeWithTokenRefresh } from "../token-refresh-retry.server";
-import {
-  extractParams,
-  parseRequestBody,
-  wrapInApiResponse,
-  createUnauthorizedResponse,
-} from "../route-wrapper-utils.server";
+import { unwrapEnvelope } from "../backend-client.server";
+import { makePortalHandlers } from "../portal-handlers.server";
 
-/**
- * Parent-app route wrapper. Mirrors lib/operator/route-wrapper.ts —
- * separate so parent routes use the parent NextAuth session (parent.
- * session-token cookie) instead of the operator session. Defense-in-
- * depth against accidentally hitting tenant or operator endpoints from
- * a parent-scoped request.
- */
+/** The parents portal's route handlers, on the parent session only. */
+export const parent = makePortalHandlers({
+  key: "parent",
+  auth: () => parentAuth(),
+  uncachedAuth: () => uncachedParentAuth(),
+  withAuth: (handler) => withParentAuth(handler),
+});
 
-async function parentServerFetch<T>(
-  endpoint: string,
-  token: string,
-  options: { method: string; body?: unknown },
-): Promise<T> {
-  const { getServerApiUrl } = await import("~/lib/server-api-url");
-  const url = `${getServerApiUrl()}${endpoint}`;
+export const {
+  proxyGet,
+  proxyPost,
+  proxyPut,
+  proxyPatch,
+  proxyDelete,
+  del: createParentDeleteHandler,
+  put: createParentPutHandler,
+  patch: createParentPatchHandler,
+} = parent;
 
-  const response = await fetch(url, {
-    method: options.method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...(await incomingClientForwardHeaders()),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+export const parentApiDelete = async <T>(endpoint: string, token: string) =>
+  unwrapEnvelope<T>(await parent.api("DELETE", endpoint, token));
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new ApiResponseError(response.status, errorText, {
-      contentType: response.headers.get("Content-Type"),
-      retryAfter: response.headers.get("Retry-After"),
-    });
-  }
-
-  return parseResponse<T>(response);
-}
-
-function parseResponse<T>(response: Response): Promise<T> {
-  if (response.status === 204) {
-    return Promise.resolve(undefined as T);
-  }
-
-  return response.json().then((json: unknown) => {
-    // Unwrap backend envelope { status, data, message } from common.Respond()
-    if (
-      typeof json === "object" &&
-      json !== null &&
-      "data" in json &&
-      "status" in json
-    ) {
-      return (json as { data: T }).data;
-    }
-    return json as T;
-  });
-}
-
-// Internal — used only by the proxy factories below. parentApiDelete stays
-// exported because hand-rolled DELETE routes still import it directly.
-function parentApiGet<T>(endpoint: string, token: string): Promise<T> {
-  return parentServerFetch<T>(endpoint, token, { method: "GET" });
-}
-
-function parentApiPost<T, B = unknown>(
+export const parentApiPut = async <T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
-): Promise<T> {
-  return parentServerFetch<T>(endpoint, token, { method: "POST", body });
-}
+) => unwrapEnvelope<T>(await parent.api("PUT", endpoint, token, body));
 
-export function parentApiDelete<T>(
-  endpoint: string,
-  token: string,
-): Promise<T> {
-  return parentServerFetch<T>(endpoint, token, { method: "DELETE" });
-}
-
-// Exported for parent routes with a dynamic path segment, which the static
-// proxy factories below cannot express.
-export function parentApiPut<T, B = unknown>(
+export const parentApiPatch = async <T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
-): Promise<T> {
-  return parentServerFetch<T>(endpoint, token, { method: "PUT", body });
-}
-
-export function parentApiPatch<T, B = unknown>(
-  endpoint: string,
-  token: string,
-  body?: B,
-): Promise<T> {
-  return parentServerFetch<T>(endpoint, token, { method: "PATCH", body });
-}
-
-type NoBodyHandler<T> = (
-  request: NextRequest,
-  token: string,
-  params: Record<string, unknown>,
-) => Promise<T>;
-
-type WithBodyHandler<T, B> = (
-  request: NextRequest,
-  body: B,
-  token: string,
-  params: Record<string, unknown>,
-) => Promise<T>;
-
-function createParentNoBodyHandler<T>(
-  handler: NoBodyHandler<T>,
-  formatResponse: (data: T) => NextResponse,
-) {
-  return withParentAuth(async (request, context): Promise<NextResponse> => {
-    try {
-      const session = await parentAuth();
-      if (!session?.user?.token) return createUnauthorizedResponse(request);
-      const params = await extractParams(request, context);
-
-      return await executeWithTokenRefresh(
-        request,
-        session.user.token,
-        (token) => handler(request, token, params),
-        formatResponse,
-        uncachedParentAuth,
-      );
-    } catch (error) {
-      return handleApiError(error, request);
-    }
-  });
-}
-
-function createParentWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
-  return withParentAuth(async (request, context): Promise<NextResponse> => {
-    try {
-      const session = await parentAuth();
-      if (!session?.user?.token) return createUnauthorizedResponse(request);
-      const params = await extractParams(request, context);
-      const body = await parseRequestBody<B>(request);
-
-      return await executeWithTokenRefresh(
-        request,
-        session.user.token,
-        (token) => handler(request, body, token, params),
-        (data) => NextResponse.json(wrapInApiResponse(data)),
-        uncachedParentAuth,
-      );
-    } catch (error) {
-      return handleApiError(error, request);
-    }
-  });
-}
-
-const jsonResponse = <T>(data: T) => NextResponse.json(wrapInApiResponse(data));
-
-function createParentGetHandler<T>(handler: NoBodyHandler<T>) {
-  return createParentNoBodyHandler(handler, jsonResponse);
-}
-
-function createParentPostHandler<T, B = unknown>(
-  handler: WithBodyHandler<T, B>,
-) {
-  return createParentWithBodyHandler(handler);
-}
-
-export function createParentDeleteHandler<T>(handler: NoBodyHandler<T>) {
-  return createParentNoBodyHandler(handler, jsonResponse);
-}
-
-export function createParentPutHandler<T, B = unknown>(
-  handler: WithBodyHandler<T, B>,
-) {
-  return createParentWithBodyHandler(handler);
-}
-
-export function createParentPatchHandler<T, B = unknown>(
-  handler: WithBodyHandler<T, B>,
-) {
-  return createParentWithBodyHandler(handler);
-}
-
-/**
- * Parent proxy factories — envelope-wrapping pass-throughs built on the parent
- * base handlers (parent fetchers already unwrap `data`). Use these for pure
- * pass-through parent routes instead of hand-rolling
- * `createParentXHandler(async … parentApiX(…))`.
- */
-export const { proxyGet, proxyPost, proxyPut, proxyDelete } =
-  makeProxyFactories({
-    get: createParentGetHandler,
-    post: createParentPostHandler,
-    put: createParentPutHandler,
-    del: createParentDeleteHandler,
-    apiGet: parentApiGet,
-    apiPost: parentApiPost,
-    apiPut: parentApiPut,
-    apiDelete: parentApiDelete,
-    fetcherUnwrapsData: true,
-  });
+) => unwrapEnvelope<T>(await parent.api("PATCH", endpoint, token, body));

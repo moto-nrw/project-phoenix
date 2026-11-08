@@ -15,10 +15,6 @@ vi.mock("~/server/auth/traeger", () => ({
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",
 }));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: async () => ({}),
-}));
-
 global.fetch = mockFetch as typeof fetch;
 
 import {
@@ -134,7 +130,8 @@ describe("Träger proxy", () => {
       context,
     );
 
-    expect(response.status).toBe(200);
+    // A DELETE without a result answers 204 in every portal.
+    expect(response.status).toBe(204);
     expect(mockFetch).toHaveBeenLastCalledWith(
       "http://localhost:8080/traeger/accounts/7",
       expect.objectContaining({
@@ -297,6 +294,7 @@ describe("Träger file proxy (#4655)", () => {
 
     const response = await proxyFile(
       "/traeger/holiday-periods/1/registrations/2/proofs/3",
+      { uploadedFile: true },
     )(
       new NextRequest(
         "http://localhost:3000/api/traeger/holiday-periods/1/registrations/2/proofs/3",
@@ -483,7 +481,7 @@ describe("Träger POST file proxy (#4669)", () => {
       },
     )(previewRequest("x".repeat(64 * 1024 + 1)), context);
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(413);
     expect(mockFetch).not.toHaveBeenCalled();
   });
 });

@@ -55,7 +55,6 @@ function fileResponse(init: { disposition?: string | null } = {}) {
 
 const route = createFileExportRoute({
   backendPath: "/api/staff-shifts/export",
-  component: "TestExportRoute",
 });
 
 beforeEach(() => {
@@ -176,7 +175,8 @@ describe("createFileExportRoute", () => {
 
     const response = await route(exportRequest());
 
-    expect(response.status).toBe(401);
+    // A renewal that kept the old token is undecided: 503, session left as is.
+    expect(response.status).toBe(503);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -197,7 +197,6 @@ describe("createFileExportRoute", () => {
 
     const normalizing = createFileExportRoute({
       backendPath: "/api/staff-shifts/export",
-      component: "TestExportRoute",
       normalizeBody: (raw) => ({ ...(raw as object), variant: "aushang" }),
     });
     await normalizing(exportRequest({ from: "2026-07-27" }));
@@ -217,7 +216,6 @@ describe("createFileExportRoute", () => {
 
     const normalizing = createFileExportRoute({
       backendPath: "/api/staff-shifts/export",
-      component: "TestExportRoute",
       normalizeBody: (raw) => raw,
     });
     const request = new NextRequest(
@@ -241,12 +239,13 @@ describe("createFileExportRoute", () => {
     request.headers.set("X-Request-ID", "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10");
     const response = await route(request);
 
-    expect(response.status).toBe(500);
+    // An unreachable backend is unavailability (503), not an internal error.
+    expect(response.status).toBe(503);
     const body = await response.text();
     expect(JSON.parse(body)).toMatchObject({
-      status: 500,
-      detail: "Internal Server Error",
-      code: "general.server",
+      status: 503,
+      detail: "Service Unavailable",
+      code: "general.unavailable",
     });
     expect(body).not.toContain("ECONNREFUSED");
     expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
@@ -259,7 +258,6 @@ describe("createFileDownloadRoute", () => {
   const download = createFileDownloadRoute<{ surveyId: string }>({
     backendPath: ({ surveyId }) =>
       `/api/surveys/${encodeURIComponent(surveyId)}/results/export`,
-    component: "TestDownloadRoute",
   });
   const request = () =>
     new NextRequest("http://localhost:3000/api/surveys/7/results/export");

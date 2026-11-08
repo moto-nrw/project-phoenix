@@ -350,8 +350,9 @@ that IP. The IP crosses four hops:
    `canonicalForwardedFor` (rightmost valid `X-Forwarded-For`, `X-Real-IP`
    fallback) through `frontend/src/lib/client-headers.server.ts`:
    `clientIdentityHeaders(request.headers)` with a request at hand,
-   `incomingClientForwardHeaders()` without one. The shared proxy factories
-   and portal wrappers already do this.
+   `incomingClientForwardHeaders()` without one. `sendBackend`
+   (`frontend/src/lib/backend-client.server.ts`), under every portal's route
+   handlers, sends this set plus the frontend origin on every call.
 4. The backend takes the rightmost entry
    (`ClientIPFromXFFTrustedProxies(1)` and `syncClientIPToRemoteAddr` in
    `backend/api/serve_middleware.go`). Trusting one hop is safe only while

@@ -3,7 +3,7 @@ import { problemResponse } from "~/lib/api-response-error.server";
 import { NextResponse } from "next/server";
 import { env } from "~/env";
 import {
-  getClientForwardHeaders,
+  frontendOrigin,
   getOriginalRequestHost,
   hostnameFromAuthority,
 } from "~/lib/client-headers.server";
@@ -15,7 +15,7 @@ export async function withInvitationOwnerSession(
   request: NextRequest,
   accept: (token: string) => Promise<Response>,
 ): Promise<Response> {
-  const origin = getClientForwardHeaders(request)["X-Moto-Frontend-Origin"];
+  const origin = frontendOrigin(request);
   if (request.headers.get("origin") !== origin) {
     return problemResponse(403, "Invalid origin", request);
   }

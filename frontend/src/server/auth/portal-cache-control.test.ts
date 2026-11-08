@@ -79,7 +79,7 @@ const routes: Array<[string, () => Promise<Route>]> = [
   [
     "tenant pass-through",
     async () =>
-      (await import("~/lib/backend-proxy-route.server")).createTenantJsonProxy({
+      (await import("~/lib/route-wrapper.server")).createTenantJsonProxy({
         method: "GET",
         path: "/api/x",
       }),
@@ -93,7 +93,7 @@ const routes: Array<[string, () => Promise<Route>]> = [
     "operator pass-through",
     async () =>
       (
-        await import("~/lib/backend-proxy-route.server")
+        await import("~/lib/operator/route-wrapper.server")
       ).createOperatorJsonProxy({ method: "GET", path: "/api/x" }),
   ],
   [
@@ -125,11 +125,12 @@ const routes: Array<[string, () => Promise<Route>]> = [
       }),
   ],
   [
-    "operator public login step",
+    "public login step",
     async () =>
-      (
-        await import("~/lib/operator/route-wrapper.server")
-      ).createOperatorPublicProxyPostHandler("/api/x") as Route,
+      (await import("~/lib/auth-proxy.server")).authStepProxy(
+        "/api/x",
+        "optional-json",
+      ) as Route,
   ],
 ];
 

@@ -1,17 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { ApiResponseError } from "~/lib/api-response-error.server";
 import { suppressConsole } from "~/test/helpers/console";
+import { createPublicJsonProxy } from "./backend-proxy-route.server";
+import { createOperatorJsonProxy } from "./operator/route-wrapper.server";
 import {
-  createOperatorJsonProxy,
   createOptionalTenantJsonProxy,
-  createPublicJsonProxy,
-  createTenantApiAdapter,
   createTenantJsonProxy,
-} from "./backend-proxy-route.server";
+} from "./route-wrapper.server";
 
 /**
- * Owner test for the shared `create*JsonProxy` request pipeline: URL and query
+ * Owner test for the shared JSON proxy request pipeline: URL and query
  * forwarding, body modes, headers, the 401 refresh retry and error responses.
  * Route tests only pin their own configuration (path, method, options).
  */
@@ -40,6 +38,9 @@ const consoleSpies = suppressConsole("error");
 const fetchMock = vi.fn<typeof fetch>();
 
 const session = (token: string) => ({ user: { id: "1", token } });
+
+/** The frontend origin every call for a browser request names. */
+const ORIGIN = { "X-Moto-Frontend-Origin": "http://localhost:3000" };
 
 function request(
   path: string,
@@ -95,33 +96,33 @@ afterEach(() => {
 describe("createTenantJsonProxy", () => {
   it("rejects a request without a session token before calling the backend", async () => {
     mockAuth.mockResolvedValueOnce({ user: { id: "1" } });
-    const GET = createTenantJsonProxy({
-      method: "GET",
-      path: "/api/things",
-      unauthorizedError: "Nicht angemeldet",
-    });
+    const GET = createTenantJsonProxy({ method: "GET", path: "/api/things" });
 
     const response = await GET(request("/api/things"), context());
 
     expect(response.status).toBe(401);
     expect(await response.json()).toMatchObject({
       status: 401,
-      detail: "Nicht angemeldet",
+      detail: "Unauthorized",
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("sends a GET with bearer token and JSON content type and forwards the body verbatim", async () => {
+  it("sends a GET with the bearer token, no body and no-store, and forwards the body verbatim", async () => {
     fetchMock.mockResolvedValueOnce(backendJson({ data: [1, 2] }, 200));
     const GET = createTenantJsonProxy({ method: "GET", path: "/api/things" });
 
     const response = await GET(request("/api/things"), context());
 
-    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(`${BACKEND}/api/things`, {
-      headers: {
-        Authorization: "Bearer tenant-token",
-        "Content-Type": "application/json",
-      },
+    expect(fetchCall().url).toBe(`${BACKEND}/api/things`);
+    expect(fetchCall().init).toMatchObject({
+      method: "GET",
+      cache: "no-store",
+      body: undefined,
+    });
+    expect(fetchHeaders()).toEqual({
+      ...ORIGIN,
+      Authorization: "Bearer tenant-token",
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ data: [1, 2] });
@@ -203,13 +204,14 @@ describe("createTenantJsonProxy", () => {
         context(),
       );
 
-      expect(fetchCall().init).toEqual({
+      expect(fetchCall().init).toMatchObject({
         method: "POST",
-        headers: {
-          Authorization: "Bearer tenant-token",
-          "Content-Type": "application/json",
-        },
         body: '{"name":"A"}',
+      });
+      expect(fetchHeaders()).toEqual({
+        ...ORIGIN,
+        Authorization: "Bearer tenant-token",
+        "Content-Type": "application/json",
       });
     });
 
@@ -249,29 +251,10 @@ describe("createTenantJsonProxy", () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it("uses invalidJsonMessage for malformed JSON", async () => {
+    it("answers malformed JSON with invalidJsonResponse when given", async () => {
       const POST = createTenantJsonProxy({
         method: "POST",
         path: "/api/things",
-        invalidJsonMessage: "Ungültige Eingabe",
-      });
-
-      const response = await POST(
-        request("/api/things", { method: "POST", body: "{" }),
-        context(),
-      );
-
-      expect(response.status).toBe(400);
-      expect(await response.json()).toMatchObject({
-        detail: "Ungültige Eingabe",
-      });
-    });
-
-    it("prefers invalidJsonResponse over invalidJsonMessage", async () => {
-      const POST = createTenantJsonProxy({
-        method: "POST",
-        path: "/api/things",
-        invalidJsonMessage: "unused",
         invalidJsonResponse: () =>
           Response.json({ own: true }, { status: 422 }),
       });
@@ -318,64 +301,56 @@ describe("createTenantJsonProxy", () => {
       const sent = fetchCall().init?.body;
       expect(sent).toBeInstanceOf(FormData);
       expect((sent as FormData).get("file")).toBeInstanceOf(File);
-      expect(fetchHeaders()).toEqual({ Authorization: "Bearer tenant-token" });
+      expect(fetchHeaders()).toEqual({
+        ...ORIGIN,
+        Authorization: "Bearer tenant-token",
+      });
     });
 
-    it("sends no body for body: none, and an explicit undefined body with includeEmptyBody", async () => {
-      const without = createTenantJsonProxy({
+    it("sends no body for body: none", async () => {
+      const POST = createTenantJsonProxy({
         method: "POST",
         path: "/api/things/1/read",
         body: "none",
       });
-      const withEmpty = createTenantJsonProxy({
-        method: "POST",
-        path: "/api/things/1/read",
-        body: "none",
-        includeEmptyBody: true,
-      });
 
-      await without(request("/api/x", { method: "POST" }), context());
-      await withEmpty(request("/api/x", { method: "POST" }), context());
+      await POST(request("/api/x", { method: "POST" }), context());
 
-      expect(fetchCall(0).init).not.toHaveProperty("body");
-      expect(fetchCall(1).init).toHaveProperty("body", undefined);
+      expect(fetchCall().init?.body).toBeUndefined();
+      expect(fetchHeaders()).not.toHaveProperty("Content-Type");
     });
   });
 
   describe("method and headers", () => {
-    it("omits Content-Type on GET and DELETE when disabled and sets an explicit GET method on request", async () => {
-      const GET = createTenantJsonProxy({
-        method: "GET",
-        path: "/api/a",
-        contentTypeOnGet: false,
-        explicitGetMethod: true,
-        cache: "no-store",
-      });
+    it("names the method and sends Content-Type only with a body", async () => {
+      const GET = createTenantJsonProxy({ method: "GET", path: "/api/a" });
       const DELETE = createTenantJsonProxy({
         method: "DELETE",
         path: "/api/a",
-        contentTypeOnDelete: false,
       });
 
       await GET(request("/api/a"), context());
       await DELETE(request("/api/a", { method: "DELETE" }), context());
 
-      expect(fetchCall(0).init).toEqual({
-        method: "GET",
-        headers: { Authorization: "Bearer tenant-token" },
-        cache: "no-store",
-      });
-      expect(fetchCall(1).init).toEqual({
-        method: "DELETE",
-        headers: { Authorization: "Bearer tenant-token" },
-      });
+      for (const [index, method] of [
+        [0, "GET"],
+        [1, "DELETE"],
+      ] as const) {
+        expect(fetchCall(index).init).toMatchObject({
+          method,
+          cache: "no-store",
+        });
+        expect(fetchHeaders(index)).toEqual({
+          ...ORIGIN,
+          Authorization: "Bearer tenant-token",
+        });
+      }
     });
 
     it("adds client forwarding and additional headers, but the session bearer wins", async () => {
       const POST = createTenantJsonProxy({
         method: "POST",
         path: "/api/things",
-        forwardClientHeaders: true,
         additionalHeaders: (req) => ({
           Authorization: "Bearer forged",
           "X-Tenant": req.headers.get("x-tenant") ?? "",
@@ -401,21 +376,18 @@ describe("createTenantJsonProxy", () => {
         "User-Agent": "Browser/1",
         "X-Forwarded-For": "203.0.113.9",
         "Content-Type": "application/json",
+        ...ORIGIN,
       });
     });
   });
 
-  describe("retryOn401", () => {
+  describe("401 retry", () => {
     it("retries once with a refreshed token", async () => {
       fetchMock
         .mockResolvedValueOnce(backendJson({ detail: "expired" }, 401))
         .mockResolvedValueOnce(backendJson({ data: "fresh" }, 200));
       mockUncachedAuth.mockResolvedValueOnce(session("new-token"));
-      const GET = createTenantJsonProxy({
-        method: "GET",
-        path: "/api/things",
-        retryOn401: true,
-      });
+      const GET = createTenantJsonProxy({ method: "GET", path: "/api/things" });
 
       const response = await GET(request("/api/things"), context());
 
@@ -426,30 +398,34 @@ describe("createTenantJsonProxy", () => {
       expect(await response.json()).toEqual({ data: "fresh" });
     });
 
-    it("forwards the 401 when the refreshed token is unchanged", async () => {
+    it("answers 503 when the renewal kept the old token (undecided)", async () => {
       fetchMock.mockResolvedValueOnce(backendJson({ detail: "expired" }, 401));
       mockUncachedAuth.mockResolvedValueOnce(session("tenant-token"));
-      const GET = createTenantJsonProxy({
-        method: "GET",
-        path: "/api/things",
-        retryOn401: true,
-      });
+      const GET = createTenantJsonProxy({ method: "GET", path: "/api/things" });
 
       const response = await GET(request("/api/things"), context());
 
       expect(fetchMock).toHaveBeenCalledOnce();
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({
+        code: "general.unavailable",
+      });
     });
 
-    it("does not refresh without retryOn401", async () => {
+    it("does not refresh an endpoint that opts out, and forwards its 401", async () => {
       fetchMock.mockResolvedValueOnce(backendJson({ detail: "expired" }, 401));
-      const GET = createTenantJsonProxy({ method: "GET", path: "/api/things" });
+      const GET = createTenantJsonProxy({
+        method: "GET",
+        path: "/api/things",
+        retry: { off: "credential check" },
+      });
 
       const response = await GET(request("/api/things"), context());
 
       expect(mockUncachedAuth).not.toHaveBeenCalled();
       expect(fetchMock).toHaveBeenCalledOnce();
       expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ detail: "expired" });
     });
   });
 
@@ -516,64 +492,21 @@ describe("createTenantJsonProxy", () => {
       expect(await response.json()).toEqual({ wrapped: { data: { id: 1 } } });
     });
 
-    it("answers an unreachable backend with a 500 problem", async () => {
+    it("answers an unreachable backend with 503 general.unavailable", async () => {
       fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
       const GET = createTenantJsonProxy({ method: "GET", path: "/api/things" });
 
       const response = await GET(request("/api/things"), context());
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(503);
       expect(await response.json()).toMatchObject({
-        status: 500,
-        detail: "Internal Server Error",
+        status: 503,
+        code: "general.unavailable",
       });
       expect(consoleSpies.error).toHaveBeenCalledWith(
         "JSON backend proxy failed",
         { method: "GET", path: "/api/things", error: "fetch failed" },
       );
-    });
-
-    it("keeps the public 500 detail generic even with networkErrorMessage or networkErrorFromException", async () => {
-      fetchMock
-        .mockRejectedValueOnce(new TypeError("fetch failed"))
-        .mockRejectedValueOnce(new TypeError("secret host down"));
-      const withMessage = createTenantJsonProxy({
-        method: "GET",
-        path: "/api/things",
-        networkErrorMessage: "Import fehlgeschlagen",
-      });
-      const fromException = createTenantJsonProxy({
-        method: "GET",
-        path: "/api/things",
-        networkErrorFromException: true,
-      });
-
-      const first = await withMessage(request("/api/things"), context());
-      const second = await fromException(request("/api/things"), context());
-
-      expect(first.status).toBe(500);
-      expect(await first.json()).toMatchObject({
-        detail: "Internal Server Error",
-      });
-      expect(second.status).toBe(500);
-      expect(await second.json()).toMatchObject({
-        detail: "Internal Server Error",
-      });
-    });
-
-    it("uses networkErrorResponse for an unreachable backend", async () => {
-      fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
-      const GET = createTenantJsonProxy({
-        method: "GET",
-        path: "/api/things",
-        networkErrorResponse: (error) =>
-          Response.json({ message: (error as Error).message }, { status: 503 }),
-      });
-
-      const response = await GET(request("/api/things"), context());
-
-      expect(response.status).toBe(503);
-      expect(await response.json()).toEqual({ message: "fetch failed" });
     });
   });
 });
@@ -620,7 +553,10 @@ describe("createOptionalTenantJsonProxy", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(fetchHeaders()).toEqual({ "Content-Type": "application/json" });
+    expect(fetchHeaders()).toEqual({
+      ...ORIGIN,
+      "Content-Type": "application/json",
+    });
   });
 
   it("attaches the session token when a session exists", async () => {
@@ -650,7 +586,10 @@ describe("createPublicJsonProxy", () => {
     );
 
     expect(mockAuth).not.toHaveBeenCalled();
-    expect(fetchHeaders()).toEqual({ "Content-Type": "application/json" });
+    expect(fetchHeaders()).toEqual({
+      ...ORIGIN,
+      "Content-Type": "application/json",
+    });
   });
 });
 
@@ -669,81 +608,14 @@ describe("client header forwarding", () => {
     const GET = createPublicJsonProxy({
       method: "GET",
       path: "/auth/tenant/resolve",
-      contentTypeOnGet: false,
     });
 
     await GET(clientRequest());
 
     expect(fetchHeaders()).toEqual({
+      ...ORIGIN,
       "X-Forwarded-For": "203.0.113.9",
       "User-Agent": "Browser/1",
     });
-  });
-
-  it("sends no client headers with forwardClientHeaders: false", async () => {
-    const GET = createPublicJsonProxy({
-      method: "GET",
-      path: "/auth/tenant/resolve",
-      contentTypeOnGet: false,
-      forwardClientHeaders: false,
-    });
-
-    await GET(clientRequest());
-
-    expect(fetchHeaders()).toEqual({});
-  });
-});
-
-describe("createTenantApiAdapter", () => {
-  it("rejects a request without a session token before running the handler", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-    const handler = vi.fn();
-    const GET = createTenantApiAdapter(handler);
-
-    const response = await GET(request("/api/a"), context());
-
-    expect(response.status).toBe(401);
-    expect(handler).not.toHaveBeenCalled();
-  });
-
-  it("passes request, token and context to the handler", async () => {
-    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }));
-    const GET = createTenantApiAdapter(handler);
-    const incoming = request("/api/a");
-    const ctx = context({ id: "3" });
-
-    const response = await GET(incoming, ctx);
-
-    expect(handler).toHaveBeenCalledWith(incoming, "tenant-token", ctx);
-    expect(await response.json()).toEqual({ ok: true });
-  });
-
-  it("maps a backend ApiResponseError through handleApiError even with onLocalError", async () => {
-    const onLocalError = vi.fn();
-    const GET = createTenantApiAdapter(
-      () => Promise.reject(new ApiResponseError(404, "Nicht gefunden")),
-      onLocalError,
-    );
-
-    const response = await GET(request("/api/a"), context());
-
-    expect(response.status).toBe(404);
-    expect(onLocalError).not.toHaveBeenCalled();
-  });
-
-  it("uses onLocalError for a non-backend error", async () => {
-    const failure = new Error("mapping failed");
-    const onLocalError = vi.fn(() =>
-      Response.json({ local: true }, { status: 422 }),
-    );
-    const GET = createTenantApiAdapter(
-      () => Promise.reject(failure),
-      onLocalError,
-    );
-
-    const response = await GET(request("/api/a"), context());
-
-    expect(onLocalError).toHaveBeenCalledWith(failure, expect.any(NextRequest));
-    expect(response.status).toBe(422);
   });
 });

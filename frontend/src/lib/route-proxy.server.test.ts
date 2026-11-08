@@ -1,355 +1,281 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import {
-  proxyGet,
-  proxyPost,
-  proxyPut,
-  proxyPatch,
-  proxyDelete,
-} from "./route-proxy.server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ExtendedSession,
   createMockContext,
   defaultSession,
 } from "~/test/route-test-helpers";
+import {
+  proxyDelete,
+  proxyGet,
+  proxyPatch,
+  proxyPost,
+  proxyPut,
+} from "./route-proxy.server";
 
-// ============================================================================
-// Mocks
-// ============================================================================
-
-const {
-  mockAuth,
-  mockApiGet,
-  mockApiPost,
-  mockApiPut,
-  mockApiPatch,
-  mockApiDelete,
-} = vi.hoisted(() => ({
+const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockApiGet: vi.fn(),
-  mockApiPost: vi.fn(),
-  mockApiPut: vi.fn(),
-  mockApiPatch: vi.fn(),
-  mockApiDelete: vi.fn(),
 }));
 
-vi.mock("../server/auth", () => ({
+vi.mock("~/server/auth", () => ({
   auth: mockAuth,
   uncachedAuth: mockAuth,
   withTenantAuth: (handler: unknown) => handler,
 }));
+vi.mock("./server-api-url", () => ({
+  getServerApiUrl: () => "http://backend:8080",
+}));
 
-vi.mock("./api-helpers.server", async () => {
-  const { mockHandleApiError } =
-    await import("~/test/helpers/handle-api-error");
-  return {
-    apiGet: mockApiGet,
-    apiPost: mockApiPost,
-    apiPut: mockApiPut,
-    apiPatch: mockApiPatch,
-    apiDelete: mockApiDelete,
-    handleApiError: vi.fn(mockHandleApiError),
-  };
-});
+const fetchMock = vi.fn<typeof fetch>();
+vi.stubGlobal("fetch", fetchMock);
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
-function createMockRequest(
+function request(
   path: string,
   options: { method?: string; body?: unknown; headers?: HeadersInit } = {},
 ): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const init: { method: string; body?: string; headers?: HeadersInit } = {
+  return new NextRequest(new URL(path, "http://localhost:3000"), {
     method: options.method ?? "GET",
-    headers: options.headers,
-  };
-  if (options.body) {
-    init.body = JSON.stringify(options.body);
-    init.headers = { ...options.headers, "Content-Type": "application/json" };
-  }
-  return new NextRequest(url, init);
+    headers: {
+      ...(options.body === undefined
+        ? {}
+        : { "Content-Type": "application/json" }),
+      ...options.headers,
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
 }
 
-async function parseJson<T>(response: Response): Promise<T> {
-  return (await response.json()) as T;
-}
+const backend = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 
-interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
+const sent = (index = 0) => {
+  const [url, init] = fetchMock.mock.calls[index]!;
+  return { url, init: init!, headers: new Headers(init!.headers) };
+};
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  mockAuth.mockResolvedValue(defaultSession);
+  fetchMock.mockReset();
+  fetchMock.mockImplementation(async () =>
+    backend({ status: "success", data: [{ id: 1 }] }),
+  );
+  mockAuth.mockReset().mockResolvedValue(defaultSession);
 });
-
-// ============================================================================
-// Tests
-// ============================================================================
 
 describe("proxyGet", () => {
   it("unwraps the backend data envelope by default", async () => {
-    mockApiGet.mockResolvedValueOnce({ data: [{ id: 1 }] });
-
-    const handler = proxyGet("/api/items");
-    const response = await handler(
-      createMockRequest("/api/items"),
+    const response = await proxyGet("/api/items")(
+      request("/api/items"),
       createMockContext(),
     );
 
-    expect(mockApiGet).toHaveBeenCalledWith("/api/items", "test-token");
-    const json = await parseJson<ApiResponse<{ id: number }[]>>(response);
-    expect(json.data).toEqual([{ id: 1 }]);
+    expect(sent().url).toBe("http://backend:8080/api/items");
+    expect(sent().headers.get("authorization")).toBe("Bearer test-token");
+    expect(await response.json()).toEqual({
+      success: true,
+      message: "Success",
+      data: [{ id: 1 }],
+    });
   });
 
   it("forwards the query string to the backend", async () => {
-    mockApiGet.mockResolvedValueOnce({ data: [] });
-
-    const handler = proxyGet("/api/items");
-    await handler(
-      createMockRequest("/api/items?page=2&limit=50"),
+    await proxyGet("/api/items")(
+      request("/api/items?page=2&limit=50"),
       createMockContext(),
     );
 
-    expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/items?page=2&limit=50",
-      "test-token",
-    );
+    expect(sent().url).toBe("http://backend:8080/api/items?page=2&limit=50");
   });
 
   it("forwards only the allowlisted query parameters", async () => {
-    mockApiGet.mockResolvedValueOnce({ data: [] });
-
-    const handler = proxyGet("/api/items", {
-      forwardQuery: ["view", "cursor"],
-    });
-    await handler(
-      createMockRequest("/api/items?cursor=abc&evil=1&view=history&limit="),
+    await proxyGet("/api/items", { forwardQuery: ["page"] })(
+      request("/api/items?page=2&secret=x"),
       createMockContext(),
     );
 
-    expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/items?view=history&cursor=abc",
-      "test-token",
-    );
+    expect(sent().url).toBe("http://backend:8080/api/items?page=2");
   });
 
   it("sends no query string when no allowlisted parameter is set", async () => {
-    mockApiGet.mockResolvedValueOnce({ data: [] });
-
-    const handler = proxyGet("/api/items", { forwardQuery: ["view"] });
-    await handler(createMockRequest("/api/items?evil=1"), createMockContext());
-
-    expect(mockApiGet).toHaveBeenCalledWith("/api/items", "test-token");
-  });
-
-  it("forwards the whole response when raw is set", async () => {
-    const whole = { data: [{ id: 1 }], pagination: { total: 1 } };
-    mockApiGet.mockResolvedValueOnce(whole);
-
-    const handler = proxyGet("/api/items", { raw: true });
-    const response = await handler(
-      createMockRequest("/api/items"),
+    await proxyGet("/api/items", { forwardQuery: ["page"] })(
+      request("/api/items?secret=x"),
       createMockContext(),
     );
 
-    const json = await parseJson<ApiResponse<typeof whole>>(response);
-    expect(json.data).toEqual(whole);
+    expect(sent().url).toBe("http://backend:8080/api/items");
+  });
+
+  it("forwards the whole response when raw is set", async () => {
+    fetchMock.mockResolvedValueOnce(
+      backend({ status: "success", data: [], pagination: { page: 1 } }),
+    );
+
+    const response = await proxyGet("/api/items", { raw: true })(
+      request("/api/items"),
+      createMockContext(),
+    );
+
+    expect(await response.json()).toMatchObject({
+      data: { data: [], pagination: { page: 1 } },
+    });
   });
 
   it("resolves an endpoint builder against route params (id in path)", async () => {
-    mockApiGet.mockResolvedValueOnce({ id: 123 });
-
-    const handler = proxyGet((p) => `/api/items/${String(p.id)}/subitems`, {
-      raw: true,
-    });
-    const response = await handler(
-      createMockRequest("/api/items/123/subitems"),
-      createMockContext({ id: "123" }),
+    await proxyGet((params) => `/api/items/${String(params.id)}`)(
+      request("/api/items/7"),
+      createMockContext({ id: "7" }),
     );
 
-    expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/items/123/subitems",
-      "test-token",
-    );
-    expect(response.status).toBe(200);
+    expect(sent().url).toBe("http://backend:8080/api/items/7");
   });
 
   it("returns 401 when unauthenticated", async () => {
     mockAuth.mockResolvedValueOnce(null);
-    const handler = proxyGet("/api/items");
-    const response = await handler(
-      createMockRequest("/api/items"),
+
+    const response = await proxyGet("/api/items")(
+      request("/api/items"),
       createMockContext(),
     );
+
     expect(response.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
 describe("proxyPost", () => {
   it("forwards the body and unwraps data by default", async () => {
-    const body = { name: "New" };
-    mockApiPost.mockResolvedValueOnce({ data: { id: 9 } });
+    fetchMock.mockResolvedValueOnce(
+      backend({ status: "success", data: { id: 3 } }),
+    );
 
-    const handler = proxyPost("/api/items");
-    const response = await handler(
-      createMockRequest("/api/items", { method: "POST", body }),
+    const response = await proxyPost("/api/items")(
+      request("/api/items", { method: "POST", body: { name: "A" } }),
       createMockContext(),
     );
 
-    expect(mockApiPost).toHaveBeenCalledWith("/api/items", "test-token", body);
-    const json = await parseJson<ApiResponse<{ id: number }>>(response);
-    expect(json.data).toEqual({ id: 9 });
+    expect(sent().init.method).toBe("POST");
+    expect(sent().init.body).toBe('{"name":"A"}');
+    expect(await response.json()).toMatchObject({ data: { id: 3 } });
   });
 
   it("rejects a body over maxBodyBytes before calling the backend", async () => {
-    const handler = proxyPost("/api/items", { maxBodyBytes: 16 });
-    const response = await handler(
-      createMockRequest("/api/items", {
-        method: "POST",
-        body: { name: "far more than sixteen bytes" },
-      }),
+    const response = await proxyPost("/api/items", { maxBodyBytes: 8 })(
+      request("/api/items", { method: "POST", body: { name: "too long" } }),
       createMockContext(),
     );
 
     expect(response.status).toBe(413);
-    expect(mockApiPost).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("forwards a body within maxBodyBytes", async () => {
-    mockApiPost.mockResolvedValueOnce({ data: { ok: true } });
-
-    const handler = proxyPost("/api/items", { maxBodyBytes: 1024 });
-    const response = await handler(
-      createMockRequest("/api/items", { method: "POST", body: { a: 1 } }),
+    await proxyPost("/api/items", { maxBodyBytes: 1024 })(
+      request("/api/items", { method: "POST", body: { name: "A" } }),
       createMockContext(),
     );
 
-    expect(response.status).toBe(200);
-    expect(mockApiPost).toHaveBeenCalledWith("/api/items", "test-token", {
-      a: 1,
-    });
+    expect(sent().init.body).toBe('{"name":"A"}');
   });
 
   it("forwards an idempotency key to the backend request", async () => {
-    const body = { name: "New" };
-    mockApiPost.mockResolvedValueOnce({ data: { id: 9 } });
-
-    const handler = proxyPost("/api/items");
-    await handler(
-      createMockRequest("/api/items", {
+    await proxyPost("/api/items")(
+      request("/api/items", {
         method: "POST",
-        body,
-        headers: { "Idempotency-Key": "create-instance-1" },
+        body: { name: "A" },
+        headers: { "Idempotency-Key": "abc" },
       }),
       createMockContext(),
     );
 
-    expect(mockApiPost).toHaveBeenCalledWith(
-      "/api/items",
-      "test-token",
-      body,
-      "create-instance-1",
-    );
+    expect(sent().headers.get("idempotency-key")).toBe("abc");
   });
 
   it("forwards the whole response when raw is set", async () => {
-    const created = { id: 9, name: "New" };
-    mockApiPost.mockResolvedValueOnce(created);
+    fetchMock.mockResolvedValueOnce(
+      backend({ status: "success", data: { id: 3 }, message: "created" }),
+    );
 
-    const handler = proxyPost("/api/items", { raw: true });
-    const response = await handler(
-      createMockRequest("/api/items", {
-        method: "POST",
-        body: { name: "New" },
-      }),
+    const response = await proxyPost("/api/items", { raw: true })(
+      request("/api/items", { method: "POST", body: {} }),
       createMockContext(),
     );
 
-    const json = await parseJson<ApiResponse<typeof created>>(response);
-    expect(json.data).toEqual(created);
+    expect(await response.json()).toMatchObject({
+      data: { message: "created" },
+    });
   });
 });
 
 describe("proxyPut", () => {
   it("resolves the endpoint builder, forwards the body, and can return raw", async () => {
-    const body = { name: "Updated" };
-    const updated = { id: 5, name: "Updated" };
-    mockApiPut.mockResolvedValueOnce(updated);
+    fetchMock.mockResolvedValueOnce(
+      backend({ status: "success", data: { id: 7 } }),
+    );
 
-    const handler = proxyPut<unknown, typeof body>(
-      (p) => `/api/items/${String(p.id)}`,
+    const response = await proxyPut(
+      (params) => `/api/items/${String(params.id)}`,
       { raw: true },
-    );
-    const response = await handler(
-      createMockRequest("/api/items/5", { method: "PUT", body }),
-      createMockContext({ id: "5" }),
+    )(
+      request("/api/items/7", { method: "PUT", body: { name: "B" } }),
+      createMockContext({ id: "7" }),
     );
 
-    expect(mockApiPut).toHaveBeenCalledWith("/api/items/5", "test-token", body);
-    const json = await parseJson<ApiResponse<typeof updated>>(response);
-    expect(json.data).toEqual(updated);
+    expect(sent().url).toBe("http://backend:8080/api/items/7");
+    expect(sent().init).toMatchObject({ method: "PUT", body: '{"name":"B"}' });
+    expect(await response.json()).toMatchObject({
+      data: { status: "success" },
+    });
   });
 });
 
 describe("proxyPatch", () => {
   it("forwards the body and unwraps data", async () => {
-    const body = { active: false };
-    mockApiPatch.mockResolvedValueOnce({ data: { id: 3, active: false } });
+    fetchMock.mockResolvedValueOnce(
+      backend({ status: "success", data: { id: 7 } }),
+    );
 
-    const handler = proxyPatch("/api/items/3");
-    const response = await handler(
-      createMockRequest("/api/items/3", { method: "PATCH", body }),
+    const response = await proxyPatch("/api/items/7")(
+      request("/api/items/7", { method: "PATCH", body: { name: "C" } }),
       createMockContext(),
     );
 
-    expect(mockApiPatch).toHaveBeenCalledWith(
-      "/api/items/3",
-      "test-token",
-      body,
-    );
-    const json = await parseJson<ApiResponse<{ id: number }>>(response);
-    expect(json.data).toEqual({ id: 3, active: false });
+    expect(sent().init).toMatchObject({
+      method: "PATCH",
+      body: '{"name":"C"}',
+    });
+    expect(await response.json()).toMatchObject({ data: { id: 7 } });
   });
 });
 
 describe("proxyDelete", () => {
   it("resolves the endpoint builder and returns 204", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    const handler = proxyDelete((p) => `/api/items/${String(p.id)}`);
-    const response = await handler(
-      createMockRequest("/api/items/7", { method: "DELETE" }),
+    const response = await proxyDelete(
+      (params) => `/api/items/${String(params.id)}`,
+    )(
+      request("/api/items/7", { method: "DELETE" }),
       createMockContext({ id: "7" }),
     );
 
-    expect(mockApiDelete).toHaveBeenCalledWith("/api/items/7", "test-token");
+    expect(sent().url).toBe("http://backend:8080/api/items/7");
+    expect(sent().init.method).toBe("DELETE");
     expect(response.status).toBe(204);
   });
 });
 
 describe("proxyDelete with a body", () => {
   it("forwards the confirmation body and returns 204", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
-    const body = { expected_fingerprint: "f", acknowledged: true };
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    const handler = proxyDelete((p) => `/api/items/${String(p.id)}`, {
-      withBody: true,
-    });
-    const response = await handler(
-      createMockRequest("/api/items/7", { method: "DELETE", body }),
-      createMockContext({ id: "7" }),
+    const response = await proxyDelete("/api/items/7", { withBody: true })(
+      request("/api/items/7", { method: "DELETE", body: { confirm: true } }),
+      createMockContext(),
     );
 
-    expect(mockApiDelete).toHaveBeenCalledWith(
-      "/api/items/7",
-      "test-token",
-      body,
-    );
+    expect(sent().init.body).toBe('{"confirm":true}');
     expect(response.status).toBe(204);
   });
 });

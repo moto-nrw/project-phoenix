@@ -1,308 +1,78 @@
-// lib/api-helpers.server.ts
-import type { NextRequest } from "next/server";
-import { recordBackendProxyMetric } from "./backend-proxy-metrics";
-import { incomingClientForwardHeaders } from "./client-headers.server";
-import { sanitizeEndpoint } from "./log-sanitize";
-import { createLogger } from "~/lib/logger";
-import type { ProblemBody } from "./api-error";
-import { ApiResponseError } from "./api-response-error.server";
-
-// Logger instance for API helpers
-const logger = createLogger({ component: "ApiHelpers" });
-
-/**
- * Type for API response to ensure consistent structure
- */
-export interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
-
-/**
- * The error body the frontend's API routes answer with: the backend's
- * RFC 9457 envelope (ADR 0006), forwarded or built by `problemResponse`.
- */
-export type ApiErrorResponse = ProblemBody;
+import {
+  readBackendJson,
+  sendBackend,
+  type BackendMethod,
+} from "./backend-client.server";
 
 export {
   ApiResponseError,
-  backendResponseError,
   bffError,
   handleApiError,
   problemResponse,
 } from "./api-response-error.server";
 
 /**
- * HTTP methods supported by the API helpers
+ * The tenant backend's JSON, envelope included, for a token the route
+ * handler holds. A backend error throws ApiResponseError; the tenant route
+ * handlers repeat a 401 with the renewed session.
  */
-type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-
-/**
- * Options for server-side fetch requests
- */
-interface ServerFetchOptions {
-  method: HttpMethod;
-  body?: unknown;
-  idempotencyKey?: string;
-  returnVoidOn204?: boolean;
-  signal?: AbortSignal;
-}
-
-/**
- * Server-side fetch against the backend API.
- * Route-level 401 retry with a refreshed session happens in route-wrapper.ts.
- */
-async function serverFetchWithRetry<T>(
+async function tenantJson<T>(
+  method: BackendMethod,
   endpoint: string,
   token: string,
-  options: ServerFetchOptions,
+  init: { body?: unknown; idempotencyKey?: string; signal?: AbortSignal } = {},
 ): Promise<T> {
-  const { getServerApiUrl } = await import("~/lib/server-api-url");
-  const url = `${getServerApiUrl()}${endpoint}`;
-  const forwardHeaders = await incomingClientForwardHeaders();
-  const startedAt = Date.now();
-  const requestBytes = estimateRequestBytes(options.body);
-  const tokenContext = extractTokenContext(token);
-  let responseStatus = 0;
-  let responseBytes: number | null = null;
-  let outcome: "success" | "backend_error" | "network_error" = "success";
-
-  const executeRequest = async (bearer: string) =>
-    fetch(url, {
-      method: options.method,
-      headers: {
-        Authorization: `Bearer ${bearer}`,
-        "Content-Type": "application/json",
-        ...forwardHeaders,
-        ...(options.idempotencyKey && {
-          "Idempotency-Key": options.idempotencyKey,
-        }),
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      cache: "no-store", // Prevent Next.js from caching API responses
-      ...(options.signal && { signal: options.signal }),
-    });
-
-  try {
-    const response = await executeRequest(token);
-    responseStatus = response.status;
-    responseBytes = parseResponseContentLength(response);
-
-    if (!response.ok) {
-      outcome = "backend_error";
-      const errorText = await response.text();
-      throw new ApiResponseError(response.status, errorText, {
-        retryAfter: response.headers.get("Retry-After"),
-        contentType: response.headers.get("Content-Type"),
-      });
-    }
-
-    if (response.status === 204) {
-      // DELETE should return void/undefined, others return empty object
-      if (options.returnVoidOn204) {
-        return undefined as T;
-      }
-      return {} as T;
-    }
-
-    return (await response.json()) as T;
-  } catch (error) {
-    if (outcome === "success") {
-      outcome = "network_error";
-    }
-    throw error;
-  } finally {
-    const durationMs = Date.now() - startedAt;
-    const backendEndpoint = sanitizeEndpoint(endpoint);
-
-    logger.info("frontend backend proxy request completed", {
-      method: options.method,
-      backend_endpoint: backendEndpoint,
-      status: responseStatus,
-      duration_ms: durationMs,
-      request_bytes: requestBytes,
-      response_bytes: responseBytes,
-      tenant_id: tokenContext.tenantId,
-      org_id: tokenContext.orgId,
-      scope: tokenContext.scope,
-      outcome,
-    });
-    await recordTenantBackendProxyMetric({
-      method: options.method,
-      backendEndpoint,
-      status: responseStatus,
-      durationMs,
-      outcome,
-      scope: tokenContext.scope,
-    });
-  }
+  const response = await sendBackend(endpoint, token, {
+    method,
+    json: init.body ?? undefined,
+    idempotencyKey: init.idempotencyKey,
+    signal: init.signal,
+  });
+  return readBackendJson<T>(response);
 }
 
-async function recordTenantBackendProxyMetric(args: {
-  method: string;
-  backendEndpoint: string;
-  status: number;
-  durationMs: number;
-  outcome: string;
-  scope?: string;
-}): Promise<void> {
-  try {
-    recordBackendProxyMetric(args);
-  } catch {
-    // Metrics must never alter request behavior.
-  }
-}
-
-function estimateRequestBytes(body: unknown): number {
-  if (body === undefined || body === null) return 0;
-  try {
-    return new TextEncoder().encode(JSON.stringify(body)).length;
-  } catch {
-    return 0;
-  }
-}
-
-function parseContentLength(value: string | null): number | null {
-  if (!value) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function parseResponseContentLength(response: Response): number | null {
-  return parseContentLength(response.headers?.get?.("content-length") ?? null);
-}
-
-function extractTokenContext(token: string): {
-  tenantId?: number;
-  orgId?: number;
-  scope?: string;
-} {
-  try {
-    const payload = token.split(".")[1];
-    if (!payload) return {};
-    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString());
-    return {
-      tenantId:
-        typeof decoded.tenant_id === "number" ? decoded.tenant_id : undefined,
-      orgId: typeof decoded.org_id === "number" ? decoded.org_id : undefined,
-      scope: typeof decoded.scope === "string" ? decoded.scope : undefined,
-    };
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Make a GET request to the API
- * @param endpoint API endpoint to request
- * @param token Authentication token
- * @returns Promise with the response data
- */
 export async function apiGet<T>(
   endpoint: string,
   token: string,
   options?: { signal?: AbortSignal },
 ): Promise<T> {
-  return serverFetchWithRetry<T>(endpoint, token, {
-    method: "GET",
-    signal: options?.signal,
-  });
+  return (await tenantJson<T>("GET", endpoint, token, options)) ?? ({} as T);
 }
 
-/**
- * Make a POST request to the API
- * @param endpoint API endpoint to request
- * @param token Authentication token
- * @param body Request body
- * @param idempotencyKey Optional key that makes a retried create request safe
- * @returns Promise with the response data
- */
+/** `idempotencyKey` makes a retried create request safe. */
 export async function apiPost<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
   idempotencyKey?: string,
 ): Promise<T> {
-  return serverFetchWithRetry<T>(endpoint, token, {
-    method: "POST",
-    body,
-    idempotencyKey,
-  });
+  return (
+    (await tenantJson<T>("POST", endpoint, token, { body, idempotencyKey })) ??
+    ({} as T)
+  );
 }
 
-/**
- * Make a PUT request to the API
- * @param endpoint API endpoint to request
- * @param token Authentication token
- * @param body Request body
- * @returns Promise with the response data
- */
 export async function apiPut<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
 ): Promise<T> {
-  return serverFetchWithRetry<T>(endpoint, token, { method: "PUT", body });
+  return (await tenantJson<T>("PUT", endpoint, token, { body })) ?? ({} as T);
 }
 
-/**
- * Make a PATCH request to the API
- * @param endpoint API endpoint to request
- * @param token Authentication token
- * @param body Request body
- * @returns Promise with the response data
- */
 export async function apiPatch<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
 ): Promise<T> {
-  return serverFetchWithRetry<T>(endpoint, token, { method: "PATCH", body });
+  return (await tenantJson<T>("PATCH", endpoint, token, { body })) ?? ({} as T);
 }
 
-/**
- * Make a DELETE request to the API
- * @param endpoint API endpoint to request
- * @param token Authentication token
- * @returns Promise with the response data, or void for 204 No Content responses
- */
+/** Resolves undefined for the backend's 204. */
 export async function apiDelete<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
 ): Promise<T | void> {
-  return serverFetchWithRetry<T>(endpoint, token, {
-    method: "DELETE",
-    body,
-    returnVoidOn204: true,
-  });
-}
-
-/**
- * Extract URL parameters from the request
- * @param request NextRequest object
- * @param params Parameter names to extract
- * @returns Object with extracted parameters
- */
-export function extractParams(
-  request: NextRequest,
-  params: Record<string, unknown>,
-): Record<string, string> {
-  const urlParams: Record<string, string> = {};
-
-  // Extract from URL params object
-  Object.keys(params).forEach((key) => {
-    if (params[key] && typeof params[key] === "string") {
-      urlParams[key] = params[key];
-    }
-  });
-
-  // Extract from query params
-  const searchParams = request.nextUrl.searchParams;
-  searchParams.forEach((value, key) => {
-    urlParams[key] = value;
-  });
-
-  return urlParams;
+  return tenantJson<T>("DELETE", endpoint, token, { body });
 }

@@ -316,11 +316,6 @@ describe("session cookie writers", () => {
         kinds: ["cookie-header"],
         proof: null,
       },
-      // The backend's own cookies (trusted device), without session cookies.
-      "src/lib/auth-proxy.server.ts": {
-        kinds: ["cookie-header"],
-        proof: /withoutSessionCookies\(/,
-      },
       "src/lib/login-route.server.ts": {
         kinds: ["cookie-header"],
         proof: /withoutSessionCookies\(/,
@@ -407,8 +402,6 @@ describe("session cookie writers", () => {
       (file) => inventories.get(file)?.sessionCookieNames.length,
     );
     expect(sources).toEqual([
-      // The option sessionToken carries the access token, no cookie name.
-      "src/lib/auth-proxy.server.ts",
       // The six portals' session cookie names (the portal table takes them
       // from here), isSessionCookieName and isWrittenSessionCookieName, #5520.
       "src/lib/session-cookie-exit.server.ts",
@@ -430,7 +423,6 @@ describe("session cookie writers", () => {
       (file) => inventories.get(file)?.exportedCookieNames.length,
     );
     expect(exporters).toEqual([
-      "src/lib/auth-proxy.server.ts", // listed writer
       "src/lib/login-route.server.ts", // listed writer
       "src/lib/session-cookie-exit.server.ts", // the lock at the exit
       // The portal table: names from the lock for the Auth.js configs and

@@ -248,7 +248,7 @@ describe("parent proxy factories", () => {
     });
   });
 
-  it("answers the retry's empty result instead of 401 after a token refresh", async () => {
+  it("answers the retry's empty result with 204 instead of 401 after a token refresh", async () => {
     mockParentAuth
       .mockResolvedValueOnce({ user: { token: "old-token" } })
       .mockResolvedValueOnce({ user: { token: "new-token" } });
@@ -262,6 +262,7 @@ describe("parent proxy factories", () => {
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(response.status).toBe(200);
+    // A DELETE without a result answers 204 in every portal.
+    expect(response.status).toBe(204);
   });
 });

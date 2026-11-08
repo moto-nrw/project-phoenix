@@ -56,25 +56,24 @@ export async function extractParams(
   return safeParams;
 }
 
+/**
+ * The request's JSON body, `{}` when empty. A malformed body is the client's
+ * mistake (400, review #2372); with `maxBodyBytes` an oversized one is
+ * refused with 413 while it is read.
+ */
 export async function parseRequestBody<B>(
   request: NextRequest,
   maxBodyBytes?: number,
 ): Promise<B> {
+  let text: string;
   if (maxBodyBytes === undefined) {
-    const text = await request.text();
-    if (!text) {
-      return {} as B;
-    }
-    return JSON.parse(text) as B;
+    text = await request.text();
+  } else {
+    const bytes = await readBoundedBody(request, maxBodyBytes);
+    if (bytes === null) throw bodyTooLargeError(maxBodyBytes);
+    text = new TextDecoder().decode(bytes);
   }
-  // The bounded path validates the body strictly: size while reading (413)
-  // and JSON shape after (400). A bare JSON.parse SyntaxError carries no
-  // status, so handleApiError would answer 500 for what is a client-side
-  // malformed request (review #2372).
-  const text = await readBodyBounded(request, maxBodyBytes);
-  if (!text) {
-    return {} as B;
-  }
+  if (!text) return {} as B;
   try {
     return JSON.parse(text) as B;
   } catch {
@@ -83,53 +82,40 @@ export async function parseRequestBody<B>(
 }
 
 /**
- * Reads the request body while enforcing a byte limit DURING the read: an
- * oversized payload is rejected as soon as the counter passes the limit,
- * instead of being buffered whole by request.text() and only then bounced by
- * the backend. The thrown error carries status 413, which handleApiError
- * forwards.
+ * Reads the request body up to `limit` bytes and stops as soon as it grows
+ * beyond, also without a Content-Length, so an oversized payload is never
+ * buffered whole. Null means too large.
  */
-async function readBodyBounded(
-  request: NextRequest,
-  maxBodyBytes: number,
-): Promise<string> {
-  // Fast reject on the declared size; chunked requests without the header
-  // still hit the streaming counter below.
-  const declared = request.headers.get("content-length");
-  if (declared !== null) {
-    const declaredBytes = Number(declared);
-    if (Number.isFinite(declaredBytes) && declaredBytes > maxBodyBytes) {
-      throw bodyTooLargeError(maxBodyBytes);
-    }
-  }
-  if (!request.body) {
-    return "";
-  }
+export async function readBoundedBody(
+  request: Request,
+  limit: number,
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declared) && declared > limit) return null;
+  if (!request.body) return new Uint8Array(0);
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
+  let size = 0;
   for (;;) {
     const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-    totalBytes += value.byteLength;
-    if (totalBytes > maxBodyBytes) {
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
       await reader.cancel();
-      throw bodyTooLargeError(maxBodyBytes);
+      return null;
     }
     chunks.push(value);
   }
-  const merged = new Uint8Array(totalBytes);
+  const body = new Uint8Array(size);
   let offset = 0;
   for (const chunk of chunks) {
-    merged.set(chunk, offset);
+    body.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return new TextDecoder().decode(merged);
+  return body;
 }
 
-function bodyTooLargeError(maxBodyBytes: number): Error {
+export function bodyTooLargeError(maxBodyBytes: number): Error {
   return bffError(413, `request body exceeds ${maxBodyBytes} bytes`, {
     details: { max_bytes: maxBodyBytes },
   });
@@ -160,17 +146,17 @@ export function isStringParam(param: unknown): param is string {
 }
 
 /**
- * Returns a required string route param, throwing "Invalid {key} parameter"
- * (→ 500 via handleApiError) when it is missing or not a string. This does not
- * URL-encode the value; use requirePathSegmentParam for path interpolation.
+ * A required, non-empty string route param; anything else is the request's
+ * mistake (400). This does not URL-encode the value; use
+ * requirePathSegmentParam for path interpolation.
  */
 export function requireStringParam(
   params: Record<string, unknown>,
   key = "id",
 ): string {
   const value = params[key];
-  if (!isStringParam(value)) {
-    throw new Error(`Invalid ${key} parameter`);
+  if (!isStringParam(value) || value === "") {
+    throw bffError(400, `Invalid ${key} parameter`);
   }
   return value;
 }
@@ -187,4 +173,16 @@ export function requirePathSegmentParam(
   key = "id",
 ): string {
   return encodePathSegment(requireStringParam(params, key));
+}
+
+/** A required numeric route param (a database ID); anything else is 400. */
+export function requireNumericParam(
+  params: Record<string, unknown>,
+  key = "id",
+): string {
+  const value = params[key];
+  if (!isStringParam(value) || !/^\d+$/.test(value)) {
+    throw bffError(400, `invalid ${key}`);
+  }
+  return value;
 }

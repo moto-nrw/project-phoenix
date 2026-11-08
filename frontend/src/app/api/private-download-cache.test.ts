@@ -39,13 +39,6 @@ vi.mock("~/server/auth/operator", () => ({
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",
 }));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: async () => ({}),
-}));
-vi.mock("~/lib/client-headers.server", () => ({
-  incomingClientForwardHeaders: async () => ({}),
-  clientIdentityHeaders: () => ({}),
-}));
 
 type Route = (
   request: NextRequest,
@@ -200,6 +193,15 @@ describe("private file responses (#5119)", () => {
     "%s: protects backend errors",
     async (_name, method, load) => {
       for (const status of [401, 403, 503]) {
+        // A 401 renews the session first; a refused renewal keeps it a 401.
+        if (status === 401) {
+          mockAuth
+            .mockResolvedValueOnce({ user: { token: "access-token" } })
+            .mockResolvedValueOnce({
+              user: { token: "" },
+              error: "RefreshTokenError",
+            });
+        }
         mockFetch.mockImplementation(() =>
           Promise.resolve(
             new Response("denied", {

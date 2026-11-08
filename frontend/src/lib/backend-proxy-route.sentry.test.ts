@@ -62,7 +62,7 @@ describe("BFF Sentry ownership", () => {
 
     const response = await proxy(request());
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(503);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
       tags: { request_id: requestId },
     });

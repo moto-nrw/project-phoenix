@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { NextRequest } from "next/server";
 import {
   handleDomainApiError,
   isBrowserContext,
@@ -9,7 +8,6 @@ import {
 } from "./api-helpers";
 import { ApiError, errorClassCode, problemTitle } from "./api-error";
 import {
-  extractParams,
   handleApiError,
   apiGet,
   apiPost,
@@ -38,68 +36,6 @@ vi.mock("~/lib/server-api-url", () => ({
 vi.mock("./backend-proxy-metrics", () => ({
   recordBackendProxyMetric: mockRecordBackendProxyMetric,
 }));
-
-// Helper to create mock NextRequest
-function createMockNextRequest(
-  url: string,
-  searchParams: Record<string, string> = {},
-): NextRequest {
-  const urlObj = new URL(url);
-  Object.entries(searchParams).forEach(([key, value]) => {
-    urlObj.searchParams.set(key, value);
-  });
-
-  return {
-    nextUrl: urlObj,
-  } as NextRequest;
-}
-
-describe("extractParams", () => {
-  it("extracts params from URL params object", () => {
-    const request = createMockNextRequest("http://localhost/api/test");
-    const params = { id: "123", name: "test" };
-
-    const result = extractParams(request, params);
-
-    expect(result.id).toBe("123");
-    expect(result.name).toBe("test");
-  });
-
-  it("extracts params from query string", () => {
-    const request = createMockNextRequest("http://localhost/api/test", {
-      page: "1",
-      limit: "10",
-    });
-
-    const result = extractParams(request, {});
-
-    expect(result.page).toBe("1");
-    expect(result.limit).toBe("10");
-  });
-
-  it("combines URL params and query params", () => {
-    const request = createMockNextRequest("http://localhost/api/test", {
-      page: "1",
-    });
-    const params = { id: "123" };
-
-    const result = extractParams(request, params);
-
-    expect(result.id).toBe("123");
-    expect(result.page).toBe("1");
-  });
-
-  it("ignores non-string params", () => {
-    const request = createMockNextRequest("http://localhost/api/test");
-    const params = { id: "123", count: 5, nested: { key: "value" } };
-
-    const result = extractParams(request, params);
-
-    expect(result.id).toBe("123");
-    expect(result.count).toBeUndefined();
-    expect(result.nested).toBeUndefined();
-  });
-});
 
 describe("ApiResponseError", () => {
   it("parses JSON response bodies lazily and memoizes the result", () => {
@@ -1229,7 +1165,6 @@ describe("apiGet (server-side)", () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer token",
-          "Content-Type": "application/json",
           "X-Forwarded-For": "172.20.0.4",
           "User-Agent": "Mozilla/5.0 Test Browser",
         }) as HeadersInit,
@@ -1297,11 +1232,12 @@ describe("apiGet (server-side)", () => {
     await apiGet<{ result: string }>("/api/test", "token", {
       signal: controller.signal,
     });
+    const sent = mockFetch.mock.calls[0]?.[1]?.signal as AbortSignal;
+    expect(sent.aborted).toBe(false);
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://backend.test/api/test",
-      expect.objectContaining({ signal: controller.signal }),
-    );
+    controller.abort();
+
+    expect(sent.aborted).toBe(true);
   });
 
   it("falls back to X-Real-IP when X-Forwarded-For is absent", async () => {
@@ -1323,7 +1259,6 @@ describe("apiGet (server-side)", () => {
       expect.objectContaining({
         headers: {
           Authorization: "Bearer token",
-          "Content-Type": "application/json",
           "X-Forwarded-For": "198.51.100.25",
         },
       }),
@@ -1345,7 +1280,6 @@ describe("apiGet (server-side)", () => {
       expect.objectContaining({
         headers: {
           Authorization: "Bearer token",
-          "Content-Type": "application/json",
         },
       }),
     );
@@ -1393,7 +1327,6 @@ describe("apiGet (server-side)", () => {
       expect.objectContaining({
         headers: {
           Authorization: "Bearer token",
-          "Content-Type": "application/json",
         },
       }),
     );

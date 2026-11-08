@@ -62,6 +62,24 @@ export class ApiResponseError extends Error {
   }
 }
 
+/**
+ * The backend could not be reached or sent no response headers in time: the
+ * service is unavailable (503 general.unavailable), not an internal error.
+ * The cause is reported once where the route answers (handleApiError).
+ */
+export class BackendUnavailableError extends ApiResponseError {
+  constructor(cause: unknown) {
+    super(
+      503,
+      JSON.stringify(
+        problemBody(503, problemTitle(503), { code: "general.unavailable" }),
+      ),
+      { contentType: "application/problem+json", cause },
+    );
+    this.name = "BackendUnavailableError";
+  }
+}
+
 export function isApiResponseError(
   error: unknown,
   status?: number,
@@ -89,16 +107,6 @@ export function bffError(
     JSON.stringify(problemBody(status, publicDetail, extra)),
     { contentType: "application/problem+json" },
   );
-}
-
-/** Preserve a direct fetch's error body for the shared route wrappers. */
-export async function backendResponseError(
-  response: Response,
-): Promise<ApiResponseError> {
-  return new ApiResponseError(response.status, await response.text(), {
-    contentType: response.headers.get("Content-Type"),
-    retryAfter: response.headers.get("Retry-After"),
-  });
 }
 
 /**
@@ -197,6 +205,9 @@ export function handleApiError(
   error: unknown,
   request?: Request,
 ): NextResponse<ProblemBody> {
+  if (error instanceof BackendUnavailableError) {
+    captureBffException(error.cause, request);
+  }
   if (error instanceof ApiResponseError) {
     const parsed = error.body<unknown>();
     const isEnvelope = isProblemEnvelope(parsed, error.status);

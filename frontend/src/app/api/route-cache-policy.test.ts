@@ -34,7 +34,6 @@ const PORTAL_PROXIES = ["proxyGet", "proxyPost", "proxyPut", "proxyPatch"];
  */
 const POLICY_FACTORIES: Record<string, readonly string[]> = {
   "~/lib/portal-login-route.server": ["createPortalLoginRoute"],
-  "~/lib/tenant-login-route.server": ["createTenantLoginRoute"],
   "~/lib/private-no-store": [
     "withPrivateNoStore",
     "withPrivateDownloadNoStore",
@@ -45,6 +44,8 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
   "~/server/auth/school": ["withSchoolAuth"],
   "~/server/auth/caterer": ["withCatererAuth"],
   "~/server/auth/traeger": ["withTraegerAuth"],
+  // `binding.method(…)`: every builder of a portal's handlers runs in the
+  // portal's response wrapper (makePortalHandlers).
   "~/lib/route-wrapper.server": [
     "createGetHandler",
     "createPostHandler",
@@ -52,6 +53,11 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "createPatchHandler",
     "createDeleteHandler",
     "createDeleteWithBodyHandler",
+    "createTenantJsonProxy",
+    "createOptionalTenantJsonProxy",
+    "proxyFile",
+    "tenant.route",
+    "tenant.proxyFile",
   ],
   "~/lib/route-proxy.server": [...PORTAL_PROXIES, "proxyDelete"],
   "~/lib/operator/route-wrapper.server": [
@@ -61,9 +67,8 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "createOperatorPostHandler",
     "createOperatorPutHandler",
     "createOperatorDeleteHandler",
-    "createOperatorProxyPostHandler",
-    "createOperatorPublicProxyPostHandler",
-    "createOperatorProxyMethodHandler",
+    "createOperatorJsonProxy",
+    "operator.proxyFile",
   ],
   "~/lib/parent/route-wrapper.server": [
     ...PORTAL_PROXIES,
@@ -71,16 +76,20 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "createParentDeleteHandler",
     "createParentPutHandler",
     "createParentPatchHandler",
+    "parent.route",
+    "parent.proxyFile",
   ],
   "~/lib/school/route-wrapper.server": [
     ...PORTAL_PROXIES,
     "proxyDelete",
     "createSchoolDeleteHandler",
+    "school.route",
   ],
   "~/lib/caterer/route-wrapper.server": [
     "proxyGet",
     "proxyPost",
     "createCatererJsonProxy",
+    "caterer.proxyFile",
   ],
   "~/lib/traeger/route-wrapper.server": [
     ...PORTAL_PROXIES,
@@ -88,13 +97,8 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "proxyFile",
     "proxyUpload",
   ],
-  "~/lib/backend-proxy-route.server": [
-    "createTenantJsonProxy",
-    "createOptionalTenantJsonProxy",
-    "createPublicJsonProxy",
-    "createOperatorJsonProxy",
-    "createTenantApiAdapter",
-  ],
+  "~/lib/backend-proxy-route.server": ["createPublicJsonProxy"],
+  "~/lib/auth-proxy.server": ["authStepProxy"],
   "~/lib/file-upload-wrapper.server": [
     "createFileUploadHandler",
     "proxyFileUpload",
@@ -194,11 +198,22 @@ function isPolicyFactoryCall(
     );
   }
   if (!ts.isCallExpression(expression)) return false;
-  if (!ts.isIdentifier(expression.expression)) return false;
-  const binding = bindings.get(expression.expression.text);
+  const callee = expression.expression;
+  const member =
+    ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression)
+      ? callee
+      : null;
+  const local = member
+    ? (member.expression as ts.Identifier)
+    : ts.isIdentifier(callee)
+      ? callee
+      : null;
+  if (!local) return false;
+  const binding = bindings.get(local.text);
   if (!binding) return false;
   const [module, name] = binding.split("#") as [string, string];
-  return factories[module]?.includes(name) ?? false;
+  const called = member ? `${name}.${member.name.text}` : name;
+  return factories[module]?.includes(called) ?? false;
 }
 
 function hasExportModifier(node: ts.Node): boolean {
@@ -360,7 +375,7 @@ describe("private download cache policy (#5119)", () => {
       const route = path.relative(API_ROOT, path.dirname(file));
       const text = readFileSync(file, "utf8");
       const fileFactory =
-        /\b(?:createFileExportRoute|createFileDownloadRoute|pdfDownloadResponse|proxyFile|streamIcsDownload)\s*[(<]/.test(
+        /\b(?:createFileExportRoute|createFileDownloadRoute|fileResponse|downloadFile|proxyFile)\s*[(<]/.test(
           text,
         );
       const binaryResponse =

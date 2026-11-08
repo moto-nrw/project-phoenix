@@ -6,7 +6,6 @@ const {
   mockFetch,
   mockGetServerApiUrl,
   mockAuth,
-  mockGetClientForwardHeaders,
   mockIncomingClientForwardHeaders,
   mockRecordBackendProxyMetric,
 } = vi.hoisted(() => ({
@@ -18,11 +17,6 @@ const {
   mockRecordBackendProxyMetric: vi.fn(),
   mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
   mockAuth: vi.fn(),
-  mockGetClientForwardHeaders: vi.fn(() => ({
-    "X-Forwarded-For": "127.0.0.1",
-    "X-Real-IP": "127.0.0.1",
-    "User-Agent": "test-agent",
-  })),
 }));
 
 vi.mock("~/lib/server-api-url", () => ({
@@ -39,8 +33,10 @@ vi.mock("~/server/auth/operator", () => ({
   withOperatorAuth: (handler: unknown) => handler,
 }));
 
-vi.mock("~/lib/client-headers.server", () => ({
-  getClientForwardHeaders: mockGetClientForwardHeaders,
+// Without a browser request at hand, the identity of the request being
+// handled (next/headers outside a request scope here).
+vi.mock("~/lib/client-headers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/client-headers.server")>()),
   incomingClientForwardHeaders: mockIncomingClientForwardHeaders,
 }));
 
@@ -71,12 +67,12 @@ global.fetch = (async (...args: Parameters<typeof fetch>) => {
   });
 }) as typeof fetch;
 
+import { createPublicJsonProxy } from "~/lib/backend-proxy-route.server";
 import {
   operatorApiGet,
   operatorApiPost,
-  createOperatorProxyPostHandler,
-  createOperatorPublicProxyPostHandler,
-  createOperatorProxyMethodHandler,
+  createOperatorJsonProxy,
+  operatorJsonErrors,
   proxyDelete,
   proxyGet,
   proxyPost,
@@ -175,11 +171,13 @@ describe("operatorServerFetch", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it("rethrows a network failure and records it as network_error", async () => {
+  it("throws a network failure as 503 with its cause and records network_error", async () => {
     const failure = new TypeError("fetch failed");
     mockFetch.mockRejectedValue(failure);
 
-    await expect(operatorApiGet("/api/test", "my-token")).rejects.toBe(failure);
+    await expect(operatorApiGet("/api/test", "my-token")).rejects.toMatchObject(
+      { status: 503, cause: failure },
+    );
 
     expect(mockRecordBackendProxyMetric).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: "network_error", status: 0 }),
@@ -449,697 +447,76 @@ describe("operator proxy factories", () => {
   });
 });
 
-describe("createOperatorProxyPostHandler", () => {
-  const mockContext: RouteContext = { params: Promise.resolve({}) };
-
-  function createMockRequest(body: unknown): NextRequest {
-    return new NextRequest(
-      "http://localhost:3000/api/operator/profile/email-change",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    );
-  }
-
+describe("operator JSON proxies", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ user: { token: "operator-token" } });
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValue(null);
-
-    const handler = createOperatorProxyPostHandler(
-      "/operator/profile/email-change",
-    );
-    const request = createMockRequest({ email: "new@test.com" });
-    const response = await handler(request, mockContext);
-
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { detail?: string; code?: string };
-    expect(json.detail).toBe("Unauthorized");
-    expect(json.code).toBe("general.permission");
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it("proxies successful JSON response with status", async () => {
-    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ message: "E-Mail-Änderung eingeleitet" }),
-    });
-
-    const handler = createOperatorProxyPostHandler(
-      "/operator/profile/email-change",
-    );
-    const request = createMockRequest({
-      email: "new@test.com",
-      password: "pass",
-    });
-    const response = await handler(request, mockContext);
-
-    expect(response.status).toBe(200);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("E-Mail-Änderung eingeleitet");
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/operator/profile/email-change",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({
-          Authorization: "Bearer valid-token",
-          "Content-Type": "application/json",
-          "X-Forwarded-For": "127.0.0.1",
-        }) as Record<string, unknown>,
-      }),
-    );
-  });
-
-  it("forwards backend body for 429 non-JSON response", async () => {
-    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 429,
-      headers: new Headers({ "content-type": "text/plain" }),
-      text: async () => "Too Many Requests",
-    });
-
-    const handler = createOperatorProxyPostHandler(
-      "/operator/profile/email-change",
-    );
-    const request = createMockRequest({ email: "new@test.com" });
-    const response = await handler(request, mockContext);
-
-    expect(response.status).toBe(429);
-    expect(await response.text()).toBe("Too Many Requests");
-  });
-
-  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
-    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 502,
-      headers: new Headers({ "content-type": "text/html" }),
-      text: async () => "Bad Gateway",
-    });
-
-    const handler = createOperatorProxyPostHandler(
-      "/operator/profile/email-change",
-    );
-    const request = createMockRequest({ email: "new@test.com" });
-    const response = await handler(request, mockContext);
-
-    expect(response.status).toBe(502);
-    expect(await response.json()).toMatchObject({
-      status: 502,
-      detail: "Bad Gateway",
-      code: "general.unavailable",
-    });
-  });
-
-  it("retries on 401 with refreshed token", async () => {
-    mockAuth
-      .mockResolvedValueOnce({ user: { token: "old-token" } })
-      .mockResolvedValueOnce({ user: { token: "new-token" } });
-
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        headers: new Headers({ "content-type": "application/json" }),
-        json: async () => ({
-          status: 401,
-          detail: "Unauthorized",
-          code: "general.permission",
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: new Headers({ "content-type": "application/json" }),
-        json: async () => ({ message: "Success after retry" }),
-      });
-
-    const handler = createOperatorProxyPostHandler(
-      "/operator/profile/email-change",
-    );
-    const request = createMockRequest({ email: "new@test.com" });
-    const response = await handler(request, mockContext);
-
-    expect(response.status).toBe(200);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Success after retry");
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-  });
-
-  it("returns original 401 response when token refresh yields same token", async () => {
-    mockAuth.mockResolvedValue({ user: { token: "same-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 401,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({
-        status: 401,
-        detail: "Unauthorized",
-        code: "general.permission",
-      }),
-    });
-
-    const handler = createOperatorProxyPostHandler(
-      "/operator/profile/email-change",
-    );
-    const request = createMockRequest({ email: "new@test.com" });
-    const response = await handler(request, mockContext);
-
-    expect(response.status).toBe(401);
-  });
-
-  it("proxies backend error JSON with original status code", async () => {
-    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 400,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ message: "Ungültige E-Mail-Adresse" }),
-    });
-
-    const handler = createOperatorProxyPostHandler(
-      "/operator/profile/email-change",
-    );
-    const request = createMockRequest({ email: "bad" });
-    const response = await handler(request, mockContext);
-
-    expect(response.status).toBe(400);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Ungültige E-Mail-Adresse");
-  });
-
-  it("replaces an empty backend server error with a safe problem envelope", async () => {
-    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 503,
-      statusText: "Service Unavailable",
-      headers: new Headers({ "content-type": "text/plain" }),
-      text: async () => "",
-    });
-
-    const handler = createOperatorProxyPostHandler(
-      "/operator/profile/email-change",
-    );
-    const request = createMockRequest({ email: "new@test.com" });
-    const response = await handler(request, mockContext);
-
-    expect(response.status).toBe(503);
-    expect(await response.json()).toMatchObject({
-      status: 503,
-      detail: "Service Unavailable",
-      code: "general.unavailable",
-    });
-  });
-
-  it("handles fetch error gracefully", async () => {
-    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockRejectedValue(new Error("Network error"));
-
-    const handler = createOperatorProxyPostHandler(
-      "/operator/profile/email-change",
-    );
-    const request = createMockRequest({ email: "new@test.com" });
-    const response = await handler(request, mockContext);
-
-    expect(response.status).toBe(500);
-  });
-
-  it("returns 400 for invalid JSON body", async () => {
-    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-
-    const handler = createOperatorProxyPostHandler(
-      "/operator/profile/email-change",
-    );
-    const request = new NextRequest(
-      "http://localhost:3000/api/operator/profile/email-change",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "not valid json{{{",
-      },
-    );
-    const response = await handler(request, mockContext);
-
-    expect(response.status).toBe(400);
-    const json = (await response.json()) as {
-      status?: number;
-      detail?: string;
-    };
-    expect(json).toMatchObject({
-      status: 400,
-      detail: "Invalid JSON request body",
-      code: "general.input",
-    });
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-});
-
-// =============================================================================
-// createOperatorPublicProxyPostHandler
-// =============================================================================
-//
-// Uses a synthetic endpoint ("/test/public"). Each real invitation route that
-// calls this helper ({validate, accept}) also has a minimal smoke test that
-// pins its actual endpoint string — see
-// app/api/operator/auth/invitations/{validate,accept}/route.test.ts.
-
-describe("createOperatorPublicProxyPostHandler", () => {
-  const handler = createOperatorPublicProxyPostHandler("/test/public");
-
-  function makePublicRequest(body: unknown): NextRequest {
-    return new NextRequest("http://localhost:3000/api/operator/public/test", {
+  const post = (body: string) =>
+    new NextRequest("http://localhost:3000/api/operator/invitations", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  }
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("returns 400 general.input on invalid JSON body", async () => {
-    const request = new NextRequest(
-      "http://localhost:3000/api/operator/public/test",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "not valid json{{{",
+      headers: {
+        "Content-Type": "application/json",
+        "x-forwarded-for": "198.51.100.9",
+        "user-agent": "operator-browser",
       },
+      body,
+    });
+
+  it("forwards the body verbatim with the operator token and client identity", async () => {
+    mockFetch.mockResolvedValue(
+      Response.json({ status: "success", data: { id: 3 } }, { status: 201 }),
     );
 
-    const response = await handler(request);
+    const response = await createOperatorJsonProxy({
+      method: "POST",
+      path: "/operator/invitations",
+    })(post('{"email":"a@b.de"}'), { params: Promise.resolve({}) });
 
-    expect(response.status).toBe(400);
-    const json = (await response.json()) as {
-      status?: number;
-      detail?: string;
-    };
-    expect(json).toMatchObject({
-      status: 400,
-      detail: "Invalid JSON request body",
-      code: "general.input",
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({
+      status: "success",
+      data: { id: 3 },
     });
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it("proxies JSON body to backend with correct method, Content-Type and URL", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ message: "ok" }),
-    });
-
-    const body = { token: "abc", displayName: "Test" };
-    await handler(makePublicRequest(body));
-
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/test/public",
+      "http://localhost:8080/operator/invitations",
       expect.objectContaining({
         method: "POST",
+        body: '{"email":"a@b.de"}',
         headers: expect.objectContaining({
-          "Content-Type": "application/json",
-        }) as Record<string, unknown>,
-        body: JSON.stringify(body),
-      }),
-    );
-  });
-
-  it("forwards client headers (X-Forwarded-For, User-Agent) to backend", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({}),
-    });
-
-    await handler(makePublicRequest({ token: "abc" }));
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          "X-Forwarded-For": "127.0.0.1",
-          "User-Agent": "test-agent",
+          Authorization: "Bearer operator-token",
+          "X-Forwarded-For": "198.51.100.9",
+          "User-Agent": "operator-browser",
         }) as Record<string, unknown>,
       }),
     );
   });
 
-  it("forwards successful JSON response verbatim with status preserved", async () => {
-    const backendBody = { email: "test@example.com", expiresAt: "2026-05-01" };
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => backendBody,
-    });
-
-    const response = await handler(makePublicRequest({ token: "abc" }));
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(backendBody);
-  });
-
-  it("forwards backend JSON error body with original status", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 400,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ message: "Passwort zu schwach" }),
-    });
-
-    const response = await handler(makePublicRequest({ token: "abc" }));
+  it("answers an unreadable body with 400 general.input before any call", async () => {
+    const response = await createPublicJsonProxy({
+      method: "POST",
+      path: "/operator/auth/email-confirm",
+      ...operatorJsonErrors,
+    })(post("not json{"));
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Passwort zu schwach");
-  });
-
-  it("forwards backend rate-limit body for 429 non-JSON response", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 429,
-      headers: new Headers({ "content-type": "text/plain" }),
-      text: async () => "Too Many Requests",
-    });
-
-    const response = await handler(makePublicRequest({ token: "abc" }));
-
-    expect(response.status).toBe(429);
-    expect(await response.text()).toBe("Too Many Requests");
-  });
-
-  it("forwards backend 429 JSON body verbatim (preserves backend-specific messaging)", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 429,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({
-        status: 429,
-        detail: "too many invitations",
-        code: "general.unavailable",
-      }),
-    });
-
-    const response = await handler(makePublicRequest({ token: "abc" }));
-
-    expect(response.status).toBe(429);
-    const json = (await response.json()) as { detail?: string; code?: string };
-    expect(json).toEqual({
-      status: 429,
-      detail: "too many invitations",
-      code: "general.unavailable",
-    });
-  });
-
-  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 502,
-      headers: new Headers({ "content-type": "text/html" }),
-      text: async () => "Bad Gateway",
-    });
-
-    const response = await handler(makePublicRequest({ token: "abc" }));
-
-    expect(response.status).toBe(502);
-    expect(await response.json()).toMatchObject({
-      status: 502,
-      detail: "Bad Gateway",
-      code: "general.unavailable",
-    });
-  });
-
-  it("replaces an empty backend server error with a safe problem envelope", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 503,
-      statusText: "Service Unavailable",
-      headers: new Headers({ "content-type": "text/plain" }),
-      text: async () => "",
-    });
-
-    const response = await handler(makePublicRequest({ token: "abc" }));
-
-    expect(response.status).toBe(503);
-    expect(await response.json()).toMatchObject({
-      status: 503,
-      detail: "Service Unavailable",
-      code: "general.unavailable",
-    });
-  });
-
-  // #2519: the BFF answers with a registered code, never a UI sentence.
-  it("returns 503 general.unavailable on fetch error", async () => {
-    mockFetch.mockRejectedValue(new Error("Network error"));
-
-    const response = await handler(makePublicRequest({ token: "abc" }));
-
-    expect(response.status).toBe(503);
-    const json = (await response.json()) as {
-      status?: number;
-      detail?: string;
-    };
-    expect(json).toMatchObject({
-      status: 503,
-      detail: "Service Unavailable",
-      code: "general.unavailable",
-    });
-  });
-});
-
-// =============================================================================
-// createOperatorProxyMethodHandler
-// =============================================================================
-//
-// Uses synthetic dynamic endpoints and both DELETE + POST variants to exercise
-// the method-agnostic behavior. Each real invitation route that calls this
-// helper ({[id], [id]/resend}) has a minimal smoke test that pins its actual
-// endpoint + method — see
-// app/api/operator/invitations/[id]/{route,resend/route}.test.ts.
-
-describe("createOperatorProxyMethodHandler", () => {
-  const deleteHandler = createOperatorProxyMethodHandler(
-    "DELETE",
-    (params) => `/test/${String(params.id)}`,
-  );
-  const postHandler = createOperatorProxyMethodHandler(
-    "POST",
-    (params) => `/test/${String(params.id)}/action`,
-  );
-
-  const mockSession = { user: { token: "access-token-123" } };
-
-  function makeAuthRequest(method = "DELETE"): NextRequest {
-    return new NextRequest("http://localhost:3000/api/operator/test/42", {
-      method,
-    });
-  }
-
-  function makeContext(id = "42"): RouteContext {
-    return { params: Promise.resolve({ id }) };
-  }
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockAuth.mockResolvedValue(mockSession);
-  });
-
-  it("returns the 401 envelope when no session", async () => {
-    mockAuth.mockResolvedValue(null);
-
-    const response = await deleteHandler(makeAuthRequest(), makeContext());
-
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { detail?: string; code?: string };
-    expect(json.code).toBe("general.permission");
-    expect(json.detail).toBe("Token expired");
+    expect(await response.json()).toMatchObject({ code: "general.input" });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("returns the 401 envelope when session token is null", async () => {
-    mockAuth.mockResolvedValue({ user: { token: null } });
+  it("answers an unreachable backend with 503 general.unavailable", async () => {
+    mockFetch.mockRejectedValue(new TypeError("fetch failed"));
 
-    const response = await deleteHandler(makeAuthRequest(), makeContext());
+    const response = await createPublicJsonProxy({
+      method: "POST",
+      path: "/operator/auth/email-confirm",
+      ...operatorJsonErrors,
+    })(post("{}"));
 
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { code?: string };
-    expect(json.code).toBe("general.permission");
-  });
-
-  it("proxies DELETE with Authorization, Content-Type, and client headers", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 204,
-      headers: new Headers(),
-    });
-
-    await deleteHandler(makeAuthRequest(), makeContext());
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/test/42",
-      expect.objectContaining({
-        method: "DELETE",
-        headers: expect.objectContaining({
-          Authorization: "Bearer access-token-123",
-          "Content-Type": "application/json",
-          "X-Forwarded-For": "127.0.0.1",
-          "User-Agent": "test-agent",
-        }) as Record<string, unknown>,
-      }),
-    );
-  });
-
-  it("proxies POST variant to a different dynamic endpoint", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ ok: true }),
-    });
-
-    await postHandler(makeAuthRequest("POST"), makeContext());
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/test/42/action",
-      expect.objectContaining({ method: "POST" }),
-    );
-  });
-
-  it("resolves route params into the endpoint via the endpoint builder", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 204,
-      headers: new Headers(),
-    });
-
-    await deleteHandler(makeAuthRequest(), makeContext("999"));
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/test/999",
-      expect.anything(),
-    );
-  });
-
-  it("forwards backend JSON error with original status", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 404,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ message: "Einladung nicht gefunden" }),
-    });
-
-    const response = await deleteHandler(makeAuthRequest(), makeContext());
-
-    expect(response.status).toBe(404);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Einladung nicht gefunden");
-  });
-
-  it("retries with refreshed token on 401 and succeeds", async () => {
-    mockAuth
-      .mockResolvedValueOnce(mockSession)
-      .mockResolvedValueOnce({ user: { token: "refreshed-token-456" } });
-
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        headers: new Headers({ "content-type": "application/json" }),
-        json: async () => ({
-          status: 401,
-          detail: "Unauthorized",
-          code: "general.permission",
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 204,
-        headers: new Headers(),
-      });
-
-    const response = await deleteHandler(makeAuthRequest(), makeContext());
-
-    expect(response.status).toBe(204);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenLastCalledWith(
-      "http://localhost:8080/test/42",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer refreshed-token-456",
-        }) as Record<string, unknown>,
-      }),
-    );
-  });
-
-  it("returns the 401 envelope when refresh returns the same token", async () => {
-    mockAuth.mockResolvedValue(mockSession);
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 401,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({
-        status: 401,
-        detail: "Unauthorized",
-        code: "general.permission",
-      }),
-    });
-
-    const response = await deleteHandler(makeAuthRequest(), makeContext());
-
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { detail?: string; code?: string };
-    expect(json.code).toBe("general.permission");
-    expect(json.detail).toBe("Token expired");
-  });
-
-  it("returns empty-body 204 when backend returns 204", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 204,
-      headers: new Headers(),
-    });
-
-    const response = await deleteHandler(makeAuthRequest(), makeContext());
-
-    expect(response.status).toBe(204);
-    expect(response.body).toBeNull();
-  });
-
-  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 502,
-      headers: new Headers({ "content-type": "text/html" }),
-      text: async () => "Bad Gateway",
-    });
-
-    const response = await deleteHandler(makeAuthRequest(), makeContext());
-
-    expect(response.status).toBe(502);
+    expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({
-      status: 502,
-      detail: "Bad Gateway",
       code: "general.unavailable",
     });
-  });
-
-  it("returns 500 on fetch error via handleApiError", async () => {
-    mockFetch.mockRejectedValue(new Error("Network error"));
-
-    const response = await deleteHandler(makeAuthRequest(), makeContext());
-
-    expect(response.status).toBe(500);
   });
 });

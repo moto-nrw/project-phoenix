@@ -3,11 +3,11 @@ import { NextRequest } from "next/server";
 import {
   canonicalForwardedFor,
   clientIdentityHeaders,
-  getClientForwardHeaders,
+  backendIdentityHeaders,
   hostnameFromAuthority,
 } from "./client-headers.server";
 
-describe("getClientForwardHeaders", () => {
+describe("backendIdentityHeaders", () => {
   it("uses the request host for the frontend origin on localhost subdomains", () => {
     const request = new NextRequest(
       "http://localhost:3000/api/auth/passkeys/login/options",
@@ -20,12 +20,12 @@ describe("getClientForwardHeaders", () => {
       },
     );
 
-    expect(getClientForwardHeaders(request)).toMatchObject({
+    expect(backendIdentityHeaders(request)).toMatchObject({
       "X-Moto-Frontend-Origin": "http://school-a.localhost:3000",
       "X-Forwarded-For": "203.0.113.10",
       "User-Agent": "browser",
     });
-    expect(getClientForwardHeaders(request)).not.toHaveProperty("X-Real-IP");
+    expect(backendIdentityHeaders(request)).not.toHaveProperty("X-Real-IP");
   });
 
   it("forwards the browser's analytics session, and only a session UUID", () => {
@@ -41,10 +41,10 @@ describe("getClientForwardHeaders", () => {
       headers: { "x-posthog-session-id": "Mia Müller" },
     });
 
-    expect(getClientForwardHeaders(withSession)).toMatchObject({
+    expect(backendIdentityHeaders(withSession)).toMatchObject({
       "X-POSTHOG-SESSION-ID": "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
     });
-    expect(getClientForwardHeaders(withText)).not.toHaveProperty(
+    expect(backendIdentityHeaders(withText)).not.toHaveProperty(
       "X-POSTHOG-SESSION-ID",
     );
   });
@@ -59,10 +59,10 @@ describe("getClientForwardHeaders", () => {
       },
     );
 
-    expect(getClientForwardHeaders(request)).toMatchObject({
+    expect(backendIdentityHeaders(request)).toMatchObject({
       "X-Forwarded-For": "172.20.0.4",
     });
-    expect(getClientForwardHeaders(request)).not.toHaveProperty("X-Real-IP");
+    expect(backendIdentityHeaders(request)).not.toHaveProperty("X-Real-IP");
   });
 
   it("falls back to x-real-ip when forwarded-for is absent", () => {
@@ -75,7 +75,7 @@ describe("getClientForwardHeaders", () => {
       },
     );
 
-    expect(getClientForwardHeaders(request)).toMatchObject({
+    expect(backendIdentityHeaders(request)).toMatchObject({
       "X-Forwarded-For": "198.51.100.25",
     });
   });
@@ -91,7 +91,7 @@ describe("getClientForwardHeaders", () => {
       },
     );
 
-    expect(getClientForwardHeaders(request)["X-Moto-Frontend-Origin"]).toBe(
+    expect(backendIdentityHeaders(request)["X-Moto-Frontend-Origin"]).toBe(
       "https://school-a.moto-app.de",
     );
   });
