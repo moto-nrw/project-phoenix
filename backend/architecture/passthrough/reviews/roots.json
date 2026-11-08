@@ -3996,6 +3996,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0075",
+      "id": "roots/owners/enrollmentStudentAudit.RecordSystemChanges",
+      "reason": "Consumer-port adapter translates Enrollment students to People Directory snapshots and supplies the explicit System audit identity. It preserves the authenticated-actor binding and adds no unchanged forwarding layer (ADR 0075 consumer-port adapter form)."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/enrollmentStudentAudit.RecordSystemStatusChange",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

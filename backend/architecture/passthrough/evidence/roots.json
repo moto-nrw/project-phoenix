@@ -5595,6 +5595,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (a enrollmentStudentAudit) RecordSystemChanges(ctx context.Context, before, after *enrollmentCompose.Student) error {\n\treturn a.auditor.RecordChanges(ctx, decisionStudentRow(before), decisionStudentRow(after), peopledirectory.StudentAuditSystemActorID, peopledirectory.StudentAuditSystemActorName)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentStudentAudit.RecordSystemChanges",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (a enrollmentStudentAudit) RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error {\n\treturn a.auditor.RecordSystemStatusChange(ctx, studentID, string(before), string(after))\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentStudentAudit.RecordSystemStatusChange",
