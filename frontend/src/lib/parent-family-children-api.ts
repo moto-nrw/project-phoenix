@@ -10,6 +10,7 @@ export interface ParentFamilyChildren {
   /** Instant of the statement, RFC 3339. */
   readonly statedAt: string | null;
   readonly confirmedChildren: number | null;
+  readonly confirmedAt: string | null;
   readonly validFrom: string | null;
   readonly validUntil: string | null;
   /** The account may state a number on this contract. */
@@ -20,6 +21,7 @@ interface BackendFamilyChildren {
   stated_children: number | null;
   stated_at: string | null;
   confirmed_children: number | null;
+  confirmed_at: string | null;
   valid_from: string | null;
   valid_until: string | null;
   can_state: boolean;
@@ -48,6 +50,7 @@ async function request(
     statedChildren: data.stated_children,
     statedAt: data.stated_at,
     confirmedChildren: data.confirmed_children,
+    confirmedAt: data.confirmed_at,
     validFrom: data.valid_from,
     validUntil: data.valid_until,
     canState: data.can_state,

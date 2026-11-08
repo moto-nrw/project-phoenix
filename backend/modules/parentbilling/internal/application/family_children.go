@@ -95,7 +95,7 @@ func (f *FamilyNumbers) FamilyChildren(ctx context.Context, reviewer parentbilli
 	if err != nil {
 		return parentbilling.FamilyChildrenSet{}, err
 	}
-	families := groupFamilies(contracts, recipients, counts, today)
+	families := groupFamilies(versions, recipients, counts, today)
 	if err := f.recordFamilyReads(ctx, reviewer, families); err != nil {
 		return parentbilling.FamilyChildrenSet{}, err
 	}
@@ -115,17 +115,21 @@ func (f *FamilyNumbers) FamilyChildren(ctx context.Context, reviewer parentbilli
 // groupFamilies groups the contracts by the address of their invoice's
 // recipient. A contract without an address is a family of its own and has
 // no number, so it is left out.
-func groupFamilies(contracts []parentbilling.CareEvidenceContract, recipients map[int64]parentbilling.CareRecipient,
+func groupFamilies(versions []parentbilling.CareContractVersion, recipients map[int64]parentbilling.CareRecipient,
 	counts []parentbilling.FamilyChildCount, today calendar.Date,
 ) []parentbilling.FamilyChildren {
+	byContract, contractOrder := versionsByContract(versions)
+	children := childKeys(byContract, contractOrder)
+	seen := map[string]bool{}
 	byKey := map[string]*parentbilling.FamilyChildren{}
 	var order []string
-	for _, contract := range contracts {
+	for _, contract := range evidenceContracts(versions) {
 		recipient := recipients[contract.ContractID]
 		key := familyKey(recipient.Email)
-		if key == "" {
+		if key == "" || seen[key+"|"+children[contract.ContractID]] {
 			continue
 		}
+		seen[key+"|"+children[contract.ContractID]] = true
 		family, ok := byKey[key]
 		if !ok {
 			family = &parentbilling.FamilyChildren{RecipientFirstName: recipient.FirstName, RecipientLastName: recipient.LastName,
@@ -363,6 +367,6 @@ func parentFamily(organizationID int64, reader parentbilling.ParentFamilyReader)
 }
 
 func parentView(count parentbilling.FamilyChildCount) parentbilling.ParentFamilyChildren {
-	return parentbilling.ParentFamilyChildren{StatedChildren: count.StatedChildren, StatedAt: count.StatedAt,
+	return parentbilling.ParentFamilyChildren{ConfirmedAt: count.ConfirmedAt, StatedChildren: count.StatedChildren, StatedAt: count.StatedAt,
 		ConfirmedChildren: count.ConfirmedChildren, ValidFrom: count.ValidFrom, ValidUntil: count.ValidUntil}
 }

@@ -17,15 +17,14 @@ import (
 // hold, none alone is enough:
 //
 //   - The payer: the contract was sent to the account's own address. The
-//     family is that address, so an account only ever reaches its own
-//     family's number.
+//     family key is resolved from the billing recipient after this check.
 //   - The relationship to the contract's child: parent_portal.enrollments.view
 //     reads; parent_portal.enrollment.submit states, the right that binds the
 //     family with an enrollment or a contract.
 //   - The contract is sent or active: an ended contract shows the number
 //     but takes no new one.
 //
-// The Elternabrechnung stores the number, through the port of its inbox,, records every read and statement
+// The Elternabrechnung stores the number, through the port of its inbox, records every read and statement
 // and counts it once its Abrechnung confirmed it.
 
 // ErrFamilyChildrenInvalid reports a number that is no whole number from 1
@@ -43,6 +42,7 @@ type FamilyChildrenReader struct {
 // FamilyChildren is the number of the family as the parents see it, and
 // whether they may state one on this contract.
 type FamilyChildren struct {
+	ConfirmedAt       *time.Time     `json:"confirmed_at"`
 	StatedChildren    *int           `json:"stated_children"`
 	StatedAt          *time.Time     `json:"stated_at"`
 	ConfirmedChildren *int           `json:"confirmed_children"`
@@ -93,7 +93,11 @@ func (s *Service) familyChildren(ctx context.Context, accountID, organizationID,
 		if permission == GuardianPermissionEnrollmentSubmit && !canState {
 			return ErrGuardianPermissionDenied
 		}
-		result, err = step(txCtx, FamilyChildrenReader{AccountID: accountID, Email: inbox.Email, ContractID: contractID})
+		email, err := s.ContractDocuments.FamilyEmail(txCtx, organizationID, contractID)
+		if err != nil {
+			return err
+		}
+		result, err = step(txCtx, FamilyChildrenReader{AccountID: accountID, Email: email, ContractID: contractID})
 		result.CanState = canState
 		return err
 	})

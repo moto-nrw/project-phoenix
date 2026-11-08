@@ -28,26 +28,27 @@ const familyChildCountColumns = "id, organization_id, family_email, care_contrac
 const familyChildContractKey = "fk_family_child_counts_contract"
 
 type familyChildCountRow struct {
-	bun.BaseModel `bun:"table:parent_billing.family_child_counts"`
+	bun.BaseModel `bun:"table:parent_billing.family_child_counts,alias:family_count"`
 
-	ID                int64          `bun:"id,pk,autoincrement"`
-	OrganizationID    int64          `bun:"organization_id"`
-	FamilyEmail       string         `bun:"family_email"`
-	ContractID        int64          `bun:"care_contract_id"`
-	StatedChildren    *int           `bun:"stated_children"`
-	StatedAt          *time.Time     `bun:"stated_at"`
-	ConfirmedChildren *int           `bun:"confirmed_children"`
-	ValidFrom         *calendar.Date `bun:"valid_from,type:date"`
-	ValidUntil        *calendar.Date `bun:"valid_until,type:date"`
-	ConfirmedAt       *time.Time     `bun:"confirmed_at"`
-	UpdatedAt         time.Time      `bun:"updated_at"`
+	ID                int64                                   `bun:"id,pk,autoincrement"`
+	OrganizationID    int64                                   `bun:"organization_id"`
+	FamilyEmail       string                                  `bun:"family_email"`
+	ContractID        int64                                   `bun:"care_contract_id"`
+	StatedChildren    *int                                    `bun:"stated_children"`
+	StatedAt          *time.Time                              `bun:"stated_at"`
+	ConfirmedChildren *int                                    `bun:"confirmed_children"`
+	ValidFrom         *calendar.Date                          `bun:"valid_from,type:date"`
+	ValidUntil        *calendar.Date                          `bun:"valid_until,type:date"`
+	ConfirmedAt       *time.Time                              `bun:"confirmed_at"`
+	UpdatedAt         time.Time                               `bun:"updated_at"`
+	Confirmations     []parentbilling.FamilyChildConfirmation `bun:"confirmations,type:jsonb,scanonly"`
 }
 
 func (r familyChildCountRow) count() parentbilling.FamilyChildCount {
 	return parentbilling.FamilyChildCount{
 		ID: r.ID, ContractID: r.ContractID, StatedChildren: r.StatedChildren, StatedAt: r.StatedAt,
 		ConfirmedChildren: r.ConfirmedChildren, ValidFrom: r.ValidFrom, ValidUntil: r.ValidUntil,
-		ConfirmedAt: r.ConfirmedAt, UpdatedAt: r.UpdatedAt, FamilyEmail: r.FamilyEmail,
+		ConfirmedAt: r.ConfirmedAt, UpdatedAt: r.UpdatedAt, FamilyEmail: r.FamilyEmail, Confirmations: r.Confirmations,
 	}
 }
 
@@ -58,7 +59,12 @@ func (s *Store) FamilyChildCounts(ctx context.Context, organizationID int64) ([]
 		return nil, err
 	}
 	var rows []familyChildCountRow
-	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).
+	if err := db.NewSelect().Model(&rows).ColumnExpr(familyChildCountColumns).ColumnExpr("history.confirmations").
+		Join(`LEFT JOIN (SELECT family_child_count_id, jsonb_agg(jsonb_build_object('children', children,
+			'valid_from', valid_from, 'valid_until', valid_until) ORDER BY id DESC) AS confirmations
+			FROM parent_billing.family_child_count_events WHERE organization_id = ? AND action = 'confirm'
+			GROUP BY family_child_count_id) AS history ON history.family_child_count_id = family_count.id`, organizationID).
+		Where("organization_id = ?", organizationID).
 		OrderExpr("family_email").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read family child counts: %w", err)
 	}

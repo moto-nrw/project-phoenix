@@ -62,3 +62,43 @@ func TestFamilyChildrenInputIsChecked(t *testing.T) {
 		assert.Error(t, validFamilyChildrenInput(input), name)
 	}
 }
+
+// Successive contracts must not turn one child into several siblings.
+func TestFamilyChildrenGroupsDistinctChildren(t *testing.T) {
+	t.Parallel()
+	today := calendar.NewDate(2027, 3, 10)
+	birth := calendar.NewDate(2019, 4, 2)
+	versions := []parentbilling.CareContractVersion{
+		{ContractID: 1, StudentID: ptr(int64(10)), ChildFirstName: "Mia", ChildLastName: "Meier", ChildBirthDate: &birth},
+		{ContractID: 2, StudentID: ptr(int64(10)), ChildFirstName: "Mia", ChildLastName: "Meier", ChildBirthDate: &birth},
+		{ContractID: 3, ChildFirstName: "Mia", ChildLastName: "Meier", ChildBirthDate: &birth},
+		{ContractID: 4, StudentID: ptr(int64(11)), ChildFirstName: "Mia", ChildLastName: "Meier", ChildBirthDate: &birth},
+	}
+	recipients := map[int64]parentbilling.CareRecipient{}
+	for _, version := range versions {
+		recipients[version.ContractID] = parentbilling.CareRecipient{Email: "familie@example.org"}
+	}
+	families := groupFamilies(versions, recipients, nil, today)
+	assert.Len(t, families, 1)
+	if assert.Len(t, families[0].Children, 3) {
+		assert.Equal(t, []int64{1, 3, 4}, []int64{families[0].Children[0].ContractID, families[0].Children[1].ContractID, families[0].Children[2].ContractID})
+	}
+	// Without a second matching record, the unlinked contract joins Mia.
+	families = groupFamilies(versions[:3], recipients, nil, today)
+	assert.Len(t, families[0].Children, 1)
+}
+
+func TestFamilyChildrenRetainsDatedConfirmations(t *testing.T) {
+	t.Parallel()
+	oldStart, futureStart := calendar.NewDate(2027, 1, 1), calendar.NewDate(2027, 4, 1)
+	count := parentbilling.FamilyChildCount{ConfirmedChildren: ptr(2), ValidFrom: &futureStart,
+		Confirmations: []parentbilling.FamilyChildConfirmation{{Children: ptr(3), ValidFrom: &oldStart}}}
+	number, found := count.ConfirmedIn(calendar.NewDate(2027, 3, 1))
+	assert.True(t, found)
+	assert.Equal(t, 3, number)
+	number, found = count.ConfirmedIn(calendar.NewDate(2027, 4, 1))
+	assert.True(t, found)
+	assert.Equal(t, 2, number, "the latest applicable confirmation wins")
+	_, found = count.ConfirmedIn(calendar.NewDate(2026, 12, 1))
+	assert.False(t, found)
+}

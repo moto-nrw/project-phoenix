@@ -74,6 +74,16 @@ func TestFamilyChildrenCountInTheSiblingRuleThroughTheRoutes(t *testing.T) {
 	assert.Equal(t, 3, *invoice.Reductions[0].ChildRank, "Mia is the 3rd child")
 	assert.Equal(t, 3, *invoice.Reductions[0].FamilyChildren, "of three")
 
+	// A future confirmation must not remove the current draft's discount.
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, familyChildrenPath, familyChildren(mia, 2, "2030-02-01"))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	preview = decodeSchoolPortalData[careReductionRunBody](t, traegerJSON(t, f.traeger, f.office.token, http.MethodGet,
+		careRunPath(run.ID, ""), nil).Body.Bytes())
+	require.Len(t, preview.Invoices, 1)
+	assert.Equal(t, int64(3875), preview.Invoices[0].TotalCents, "a future confirmation preserves the draft discount")
+	require.NotEmpty(t, preview.Invoices[0].Reductions)
+	assert.Equal(t, 3, *preview.Invoices[0].Reductions[0].FamilyChildren)
+
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"),
 		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

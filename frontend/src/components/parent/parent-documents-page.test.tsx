@@ -350,6 +350,9 @@ describe("ParentDocumentsPage", () => {
     expect(
       screen.getByText(deMessages.parentDocuments.cancelNotPermitted),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Kinder in Ihrer Familie" }),
+    ).toHaveAttribute("href", "/documents/vertrag/4/75?family=1");
     // Only the replaced version carries the mark.
     expect(screen.getAllByText("Ersetzt")).toHaveLength(1);
   });

@@ -58,6 +58,23 @@ func TestFamilyChildrenFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		require.True(t, found)
 		assert.Equal(t, contracts[own.organization], count.ContractID, "FamilyChildCount answers the own family, not the other Träger's")
 
+		// Even a foreign event carrying this row's ID must stay outside history.
+		for _, event := range []struct {
+			organization int64
+			children     int
+		}{{own.organization, 3}, {other.organization, 9}} {
+			_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.family_child_count_events
+				(organization_id, care_contract_id, family_child_count_id, action, actor, children, valid_from)
+				VALUES (?, ?, ?, 'confirm', 'office', ?, '2029-09-01')`, event.organization, contracts[event.organization], count.ID, event.children)
+			require.NoError(t, err)
+		}
+		counts, err = store.FamilyChildCounts(ctx, own.organization)
+		require.NoError(t, err)
+		require.Len(t, counts, 1)
+		number, valid := counts[0].ConfirmedIn(calendar.NewDate(2029, 9, 1))
+		require.True(t, valid)
+		assert.Equal(t, 3, number, "confirmation history also names its Träger below RLS")
+
 		input := parentbilling.FamilyChildrenInput{ContractID: contracts[other.organization], Children: 3, ValidFrom: calendar.NewDate(2029, 9, 1)}
 		_, err = tx.ExecContext(ctx, "SAVEPOINT foreign_contract")
 		require.NoError(t, err)
@@ -71,6 +88,14 @@ func TestFamilyChildrenFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		assert.Equal(t, contracts[own.organization], removed.ContractID, "DeleteFamilyChildren removes the own family")
 		_, err = store.DeleteFamilyChildren(ctx, own.organization, family)
 		assert.ErrorIs(t, err, parentbilling.ErrFamilyChildrenNotFound, "the other Träger's family is not the own")
+
+		_, err = store.StateFamilyChildren(ctx, own.organization, 0, family, contracts[own.organization], 2)
+		require.NoError(t, err)
+		counts, err = store.FamilyChildCounts(ctx, own.organization)
+		require.NoError(t, err)
+		require.Len(t, counts, 1)
+		_, valid = counts[0].ConfirmedIn(calendar.NewDate(2029, 9, 1))
+		assert.False(t, valid, "a fresh statement does not revive removed confirmations")
 
 		var kept int
 		require.NoError(t, tx.NewRaw(`SELECT count(*) FROM parent_billing.family_child_counts WHERE organization_id = ?`, other.organization).

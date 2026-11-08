@@ -36,7 +36,10 @@ const MAX_CHILDREN = 20;
 function waitsForTraeger(family: ParentFamilyChildren): boolean {
   return (
     family.statedChildren !== null &&
-    family.statedChildren !== family.confirmedChildren
+    family.statedChildren !== family.confirmedChildren &&
+    family.statedAt !== null &&
+    (family.confirmedAt === null ||
+      Date.parse(family.statedAt) > Date.parse(family.confirmedAt))
   );
 }
 

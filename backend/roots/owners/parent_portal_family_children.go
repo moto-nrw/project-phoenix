@@ -27,7 +27,7 @@ func (d parentBillingDocuments) StateFamilyChildren(ctx context.Context, organiz
 }
 
 func parentFamilyChildrenView(children parentbilling.ParentFamilyChildren) parentportal.FamilyChildren {
-	return parentportal.FamilyChildren{StatedChildren: children.StatedChildren, StatedAt: children.StatedAt,
+	return parentportal.FamilyChildren{ConfirmedAt: children.ConfirmedAt, StatedChildren: children.StatedChildren, StatedAt: children.StatedAt,
 		ConfirmedChildren: children.ConfirmedChildren, ValidFrom: children.ValidFrom, ValidUntil: children.ValidUntil}
 }
 
@@ -42,4 +42,18 @@ func parentFamilyChildrenError(err error) error {
 		return fmt.Errorf("%w: %w", parentportal.ErrBillingDocumentNotFound, err)
 	}
 	return err
+}
+
+// FamilyEmail translates the billing recipient into the workflow's family key.
+// The workflow calls it only after authorizing the inbox and child.
+func (d parentContractDocuments) FamilyEmail(ctx context.Context, organizationID, contractID int64) (string, error) {
+	recipients, err := d.billing.BillingRecipients(ctx, organizationID, []int64{contractID})
+	if err != nil {
+		return "", err
+	}
+	recipient, found := recipients[contractID]
+	if !found || recipient.Email == "" {
+		return "", parentportal.ErrBillingDocumentNotFound
+	}
+	return recipient.Email, nil
 }

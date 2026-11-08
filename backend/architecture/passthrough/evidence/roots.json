@@ -6365,6 +6365,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (d parentContractDocuments) FamilyEmail(ctx context.Context, organizationID, contractID int64) (string, error) {\n\trecipients, err := d.billing.BillingRecipients(ctx, organizationID, []int64{contractID})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\trecipient, found := recipients[contractID]\n\tif !found || recipient.Email == \"\" {\n\t\treturn \"\", parentportal.ErrBillingDocumentNotFound\n\t}\n\treturn recipient.Email, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentContractDocuments.FamilyEmail",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (d parentContractDocuments) SignContract(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader, input parentportal.ContractSignatureInput) (parentportal.ContractSigningView, error) {\n\tview, err := d.signing.SignInInbox(ctx, organizationID, contractID, carecontract.InboxReader(reader), carecontract.SignatureInput(input))\n\treturn parentSigningView(view, err)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentContractDocuments.SignContract",

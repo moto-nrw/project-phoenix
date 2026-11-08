@@ -86,13 +86,14 @@ func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organ
 // transaction and records every read.
 type parentContractDocuments struct {
 	inbox   carecontract.Inbox
+	billing carecontract.ContractBilling
 	signing carecontract.InboxSigning
 }
 
 // NewParentContractDocuments binds the inbox's contracts to the
 // Betreuungsvertrag; signing is the signature in the inbox (#4679).
 func NewParentContractDocuments(signing carecontract.InboxSigning) parentportal.ContractDocumentsPort {
-	return parentContractDocuments{inbox: careContractCompose.NewInbox(), signing: signing}
+	return parentContractDocuments{inbox: careContractCompose.NewInbox(), billing: careContractCompose.NewContractVersions(), signing: signing}
 }
 
 func (d parentContractDocuments) ListContractDocuments(ctx context.Context, organizationID int64, reader parentportal.BillingDocumentReader) ([]parentportal.BillingDocument, error) {

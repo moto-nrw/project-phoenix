@@ -17,7 +17,7 @@ import (
 // Parents read and state the children of their family only on a contract
 // sent to their own address (#5918): the inbox right reads, the right
 // parent_portal.enrollment.submit states; another family's contract is not
-// found; the number keys to the account's address, and every read and
+// found; the number keys to the billing recipient, and every read and
 // statement lands in the trail with the account. A stated number waits for
 // the Abrechnung and does not show as confirmed.
 func TestParentsStateTheFamilyChildrenOnlyForTheirOwnFamily(t *testing.T) {
@@ -64,13 +64,27 @@ func TestParentsStateTheFamilyChildrenOnlyForTheirOwnFamily(t *testing.T) {
 	assert.Equal(t, 3, *stated.StatedChildren)
 	assert.Nil(t, stated.ConfirmedChildren, "the statement waits for the Abrechnung")
 
+	// A resend can authorize the inbox at an address other than billing's.
+	billingEmail := "rechnung.familie@example.org"
+	_, err = db.ExecContext(ctx, `UPDATE care_contract.contract_parties SET email = ? WHERE contract_id = ?`, billingEmail, own)
+	require.NoError(t, err)
+	stated, err = portal.StateFamilyChildren(ctx, chain.AccountID, organization, own, 4)
+	require.NoError(t, err)
+	require.NotNil(t, stated.StatedChildren)
+	assert.Equal(t, 4, *stated.StatedChildren)
+
+	read, err = portal.FamilyChildren(ctx, chain.AccountID, organization, own)
+	require.NoError(t, err)
+	require.NotNil(t, read.StatedChildren)
+	assert.Equal(t, 4, *read.StatedChildren, "reads share billing's family key too")
+
 	var family string
-	require.NoError(t, db.NewRaw(`SELECT family_email FROM parent_billing.family_child_counts WHERE organization_id = ?`, organization).
+	require.NoError(t, db.NewRaw(`SELECT family_email FROM parent_billing.family_child_counts WHERE organization_id = ? AND family_email = ?`, organization, billingEmail).
 		Scan(ctx, &family))
-	assert.Equal(t, strings.ToLower(strings.TrimSpace(chain.Email)), family, "the family is the account's own address")
+	assert.Equal(t, strings.ToLower(strings.TrimSpace(billingEmail)), family, "billing and the inbox use the contract recipient")
 	var trail []string
 	require.NoError(t, db.NewRaw(`SELECT action FROM parent_billing.family_child_count_events
 		WHERE organization_id = ? AND care_contract_id = ? AND actor = 'parent' AND actor_account_id = ? ORDER BY id`,
 		organization, own, chain.AccountID).Scan(ctx, &trail))
-	assert.Equal(t, []string{"read", "state"}, trail, "the read and the statement, both with the account")
+	assert.Equal(t, []string{"read", "state", "state", "read"}, trail, "the read and the statement, both with the account")
 }

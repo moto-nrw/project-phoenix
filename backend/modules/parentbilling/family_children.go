@@ -87,19 +87,29 @@ type FamilyChildCount struct {
 	// FamilyEmail is the key of the family; the wire names the recipient
 	// instead.
 	FamilyEmail string `json:"-"`
+	// Confirmations retains earlier confirmations, newest first, for billing months.
+	Confirmations []FamilyChildConfirmation `json:"-"`
 }
 
 // ConfirmedIn answers the confirmed number that holds on a day of the
 // month that starts on first.
 func (c FamilyChildCount) ConfirmedIn(first calendar.Date) (int, bool) {
-	if c.ConfirmedChildren == nil || c.ValidFrom == nil {
-		return 0, false
-	}
+	confirmations := append([]FamilyChildConfirmation{{Children: c.ConfirmedChildren, ValidFrom: c.ValidFrom, ValidUntil: c.ValidUntil}}, c.Confirmations...)
 	end := calendar.NewDate(first.Year(), first.Month()+1, 1).AddDays(-1)
-	if c.ValidFrom.After(end) || (c.ValidUntil != nil && c.ValidUntil.Before(first)) {
-		return 0, false
+	for _, confirmation := range confirmations {
+		if confirmation.Children != nil && confirmation.ValidFrom != nil && !confirmation.ValidFrom.After(end) &&
+			(confirmation.ValidUntil == nil || !confirmation.ValidUntil.Before(first)) {
+			return *confirmation.Children, true
+		}
 	}
-	return *c.ConfirmedChildren, true
+	return 0, false
+}
+
+// FamilyChildConfirmation is a retained confirmation with its effective dates.
+type FamilyChildConfirmation struct {
+	Children   *int           `json:"children"`
+	ValidFrom  *calendar.Date `json:"valid_from"`
+	ValidUntil *calendar.Date `json:"valid_until"`
 }
 
 // FamilyContractChild is a child of a family with a contract in force.
@@ -182,7 +192,8 @@ type FamilyChildTarget struct {
 
 // ParentFamilyReader is the parents' account that reads or states the
 // number on a contract the parents portal checked: sent to the account's
-// address, with a child the relationship lets it act for.
+// address, with a child the relationship lets it act for. Email is the
+// billing recipient resolved after authorization, not the mailing address.
 type ParentFamilyReader struct {
 	AccountID  int64
 	Email      string
@@ -191,6 +202,7 @@ type ParentFamilyReader struct {
 
 // ParentFamilyChildren is the number of the family as the parents see it.
 type ParentFamilyChildren struct {
+	ConfirmedAt       *time.Time     `json:"confirmed_at"`
 	StatedChildren    *int           `json:"stated_children"`
 	StatedAt          *time.Time     `json:"stated_at"`
 	ConfirmedChildren *int           `json:"confirmed_children"`
@@ -200,7 +212,7 @@ type ParentFamilyChildren struct {
 
 // ParentFamilyChildrenStatement serves the parents portal for one Träger.
 // Both operations run in the Träger transaction the caller opens, record the
-// read or the statement, and key the family by the reader's address.
+// read or the statement, and key the family by the resolved billing address.
 type ParentFamilyChildrenStatement interface {
 	ParentFamilyChildren(ctx context.Context, organizationID int64, reader ParentFamilyReader) (ParentFamilyChildren, error)
 	StateFamilyChildren(ctx context.Context, organizationID int64, reader ParentFamilyReader, children int) (ParentFamilyChildren, error)
