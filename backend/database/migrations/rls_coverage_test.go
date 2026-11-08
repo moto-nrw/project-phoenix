@@ -10,6 +10,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type tenantRLSCoverage struct {
@@ -32,7 +33,19 @@ var tenantRLSExceptions = map[string]string{
 	"platform.demo_school_states":                   "Demo control plane, not a school request table; 1.15.402 revokes tenant access, 1.15.403 forces RLS with a phoenix_demo-only policy.",
 }
 
+// schoolKeyedTenantTables are school tables whose RLS policy keys on
+// school_id instead of tenant_id. The column discovery below cannot find
+// them, so they are named here and get the same checks; a listed table that
+// is gone fails TestEveryTenantTableHasRLS.
+var schoolKeyedTenantTables = []string{
+	"active.attendance_retention_marks", // 1.15.811 (#4686): how far the attendance retention deleted
+}
+
 func readTenantRLSCoverage(ctx context.Context, db bun.IDB) ([]tenantRLSCoverage, error) {
+	return readTenantRLSCoverageWith(ctx, db, schoolKeyedTenantTables)
+}
+
+func readTenantRLSCoverageWith(ctx context.Context, db bun.IDB, schoolKeyed []string) ([]tenantRLSCoverage, error) {
 	// This is a coverage guard, not a SQL theorem prover: matching words in
 	// pg_policies.qual/with_check cannot prove isolation (OR true, function
 	// bodies and permissive/restrictive policy composition change semantics).
@@ -55,11 +68,11 @@ func readTenantRLSCoverage(ctx context.Context, db bun.IDB) ([]tenantRLSCoverage
 		JOIN pg_namespace n ON n.oid = c.relnamespace
 		WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition
 		  AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
-		  AND EXISTS (
+		  AND (EXISTS (
 		      SELECT FROM pg_attribute a WHERE a.attrelid = c.oid
 		        AND a.attname = 'tenant_id' AND a.attnum > 0 AND NOT a.attisdropped
-		  )
-		ORDER BY 1`).Scan(ctx, &tables)
+		  ) OR n.nspname || '.' || c.relname = ANY (?::text[]))
+		ORDER BY 1`, pgdialect.Array(schoolKeyed)).Scan(ctx, &tables)
 	return tables, err
 }
 
@@ -114,4 +127,11 @@ func TestEveryTenantTableHasRLS(t *testing.T) {
 	require.NotEmpty(t, tables, "tenant table discovery must not pass vacuously")
 	require.Len(t, tenantRLSExceptions, tenantRLSExceptionBudget, "RLS exceptions may only shrink; lower the budget when removing one")
 	require.Empty(t, tenantRLSProblems(tables, tenantRLSExceptions), "tenant RLS coverage")
+	discovered := make(map[string]bool, len(tables))
+	for _, table := range tables {
+		discovered[table.TableName] = true
+	}
+	for _, name := range schoolKeyedTenantTables {
+		require.True(t, discovered[name], "school-keyed table %s is listed but does not exist", name)
+	}
 }

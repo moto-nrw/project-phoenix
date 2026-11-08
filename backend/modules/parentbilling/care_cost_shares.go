@@ -40,6 +40,31 @@ const (
 // CostShareKinds are the kinds of a share in the order of the chain.
 var CostShareKinds = []string{CostShareEducationParticipation, CostShareYouthOffice, CostShareOtherSubsidy}
 
+// What a share covers (#4686, ADR 0168 point 12): the modules of the care,
+// the Mensa or both. Bildung und Teilhabe usually takes over the lunch, a
+// Jugendamt the care. A share without a scope covers the care, as every
+// share did before the Mensa.
+const (
+	CostShareScopeCare = "care"
+	CostShareScopeMeal = "meal"
+	CostShareScopeBoth = "both"
+)
+
+// CostShareScopes are the scopes a share can have.
+var CostShareScopes = []string{CostShareScopeCare, CostShareScopeMeal, CostShareScopeBoth}
+
+// CostShareCoversCare tells whether a share of the scope takes a part of
+// the modules.
+func CostShareCoversCare(scope string) bool {
+	return scope != CostShareScopeMeal
+}
+
+// CostShareCoversMeal tells whether a share of the scope takes a part of
+// the Mensa.
+func CostShareCoversMeal(scope string) bool {
+	return scope == CostShareScopeMeal || scope == CostShareScopeBoth
+}
+
 // Status of a share as the share page shows it on the day it is read.
 const (
 	CostShareUpcoming = "upcoming"
@@ -77,6 +102,7 @@ type CareCostShare struct {
 	CostBearerName   string        `json:"cost_bearer_name"`
 	ShareBasisPoints *int          `json:"share_basis_points"`
 	ShareCents       *int64        `json:"share_cents"`
+	Scope            string        `json:"scope"`
 	ValidFrom        calendar.Date `json:"valid_from"`
 	ValidUntil       calendar.Date `json:"valid_until"`
 	Reference        string        `json:"reference"`
@@ -92,6 +118,7 @@ type CareCostShareInput struct {
 	CostBearerID     int64         `json:"cost_bearer_id"`
 	ShareBasisPoints *int          `json:"share_basis_points"`
 	ShareCents       *int64        `json:"share_cents"`
+	Scope            string        `json:"scope"`
 	ValidFrom        calendar.Date `json:"valid_from"`
 	ValidUntil       calendar.Date `json:"valid_until"`
 	Reference        string        `json:"reference"`
@@ -128,6 +155,7 @@ type CareInvoiceCostShare struct {
 	CostBearerName   string `json:"cost_bearer_name"`
 	ShareBasisPoints *int   `json:"share_basis_points"`
 	ShareCents       *int64 `json:"share_cents"`
+	Scope            string `json:"scope"`
 	AmountCents      int64  `json:"amount_cents"`
 }
 

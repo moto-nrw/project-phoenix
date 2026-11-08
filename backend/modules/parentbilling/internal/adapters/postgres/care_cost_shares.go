@@ -16,7 +16,8 @@ import (
 
 // The cost bearer shares of the monthly contribution (#4687, 1.15.816):
 // the shares of the contracts with their trail, and the shares of an issued
-// invoice. Every statement names the Träger in its own filter, also below
+// invoice. Since 1.15.817 each names what it covers (#4686): the care, the
+// Mensa or both. Every statement names the Träger in its own filter, also below
 // row level security.
 
 const (
@@ -28,7 +29,7 @@ const (
 
 // careCostShareColumns are the columns a read of the shares answers.
 const careCostShareColumns = `share.id, share.organization_id, share.care_contract_id, share.kind, share.cost_bearer_id,
-	share.share_basis_points, share.share_cents, share.valid_from, share.valid_until, share.reference, share.checked_on,
+	share.share_basis_points, share.share_cents, share.scope, share.valid_from, share.valid_until, share.reference, share.checked_on,
 	share.recorded_by_account_id, share.updated_at`
 
 type careCostShareRow struct {
@@ -41,6 +42,7 @@ type careCostShareRow struct {
 	CostBearerID        int64         `bun:"cost_bearer_id"`
 	ShareBasisPoints    *int          `bun:"share_basis_points"`
 	ShareCents          *int64        `bun:"share_cents"`
+	Scope               string        `bun:"scope"`
 	ValidFrom           calendar.Date `bun:"valid_from,type:date"`
 	ValidUntil          calendar.Date `bun:"valid_until,type:date"`
 	Reference           string        `bun:"reference"`
@@ -53,7 +55,7 @@ type careCostShareRow struct {
 func newCareCostShareRow(organizationID, accountID int64, input parentbilling.CareCostShareInput) *careCostShareRow {
 	return &careCostShareRow{
 		OrganizationID: organizationID, CareContractID: input.ContractID, Kind: input.Kind, CostBearerID: input.CostBearerID,
-		ShareBasisPoints: input.ShareBasisPoints, ShareCents: input.ShareCents, ValidFrom: input.ValidFrom,
+		ShareBasisPoints: input.ShareBasisPoints, ShareCents: input.ShareCents, Scope: storedCostShareScope(input.Scope), ValidFrom: input.ValidFrom,
 		ValidUntil: input.ValidUntil, Reference: input.Reference, CheckedOn: input.CheckedOn, RecordedByAccountID: &accountID,
 	}
 }
@@ -83,7 +85,7 @@ func (s *Store) CareCostShares(ctx context.Context, organizationID int64, contra
 	for i, row := range rows {
 		shares[i] = parentbilling.CareCostShare{
 			ID: row.ID, ContractID: row.CareContractID, Kind: row.Kind, CostBearerID: row.CostBearerID,
-			CostBearerName: row.CostBearerName, ShareBasisPoints: row.ShareBasisPoints, ShareCents: row.ShareCents,
+			CostBearerName: row.CostBearerName, ShareBasisPoints: row.ShareBasisPoints, ShareCents: row.ShareCents, Scope: row.Scope,
 			ValidFrom: row.ValidFrom, ValidUntil: row.ValidUntil, Reference: row.Reference, CheckedOn: row.CheckedOn,
 			UpdatedAt: row.UpdatedAt,
 		}
@@ -113,7 +115,7 @@ func (s *Store) UpdateCareCostShare(ctx context.Context, organizationID, account
 	}
 	row := newCareCostShareRow(organizationID, accountID, input)
 	if err := db.NewUpdate().Model(row).
-		Column("kind", "cost_bearer_id", "share_basis_points", "share_cents", "valid_from", "valid_until", "reference",
+		Column("kind", "cost_bearer_id", "share_basis_points", "share_cents", "scope", "valid_from", "valid_until", "reference",
 			"checked_on", "recorded_by_account_id").
 		Set("updated_at = CURRENT_TIMESTAMP").
 		Where("id = ?", shareID).Where("organization_id = ?", organizationID).Where("care_contract_id = ?", input.ContractID).
@@ -200,6 +202,7 @@ type careInvoiceCostShareRow struct {
 	CostBearerName   string `bun:"cost_bearer_name"`
 	ShareBasisPoints *int   `bun:"share_basis_points"`
 	ShareCents       *int64 `bun:"share_cents"`
+	Scope            string `bun:"scope"`
 	AmountCents      int64  `bun:"amount_cents"`
 }
 
@@ -212,7 +215,7 @@ func insertCareCostShares(ctx context.Context, db bun.IDB, organizationID int64,
 			shares = append(shares, careInvoiceCostShareRow{
 				OrganizationID: organizationID, InvoiceID: rows[i].ID, Position: j + 1, Kind: share.Kind,
 				CostBearerID: share.CostBearerID, CostBearerName: share.CostBearerName,
-				ShareBasisPoints: share.ShareBasisPoints, ShareCents: share.ShareCents, AmountCents: share.AmountCents,
+				ShareBasisPoints: share.ShareBasisPoints, ShareCents: share.ShareCents, Scope: storedCostShareScope(share.Scope), AmountCents: share.AmountCents,
 			})
 		}
 	}
@@ -229,7 +232,17 @@ func insertCareCostShares(ctx context.Context, db bun.IDB, organizationID int64,
 // Träger, by position, as one JSON array beside the invoice row.
 const careInvoiceCostSharesColumn = `COALESCE((SELECT jsonb_agg(jsonb_build_object(
 		'kind', share.kind, 'cost_bearer_id', share.cost_bearer_id, 'cost_bearer_name', share.cost_bearer_name,
-		'share_basis_points', share.share_basis_points, 'share_cents', share.share_cents, 'amount_cents', share.amount_cents)
+		'share_basis_points', share.share_basis_points, 'share_cents', share.share_cents, 'scope', share.scope,
+		'amount_cents', share.amount_cents)
 		ORDER BY share.position)
 	FROM parent_billing.care_invoice_cost_shares AS share
 	WHERE share.organization_id = care_invoice_row.organization_id AND share.invoice_id = care_invoice_row.id), '[]'::jsonb) AS cost_shares`
+
+// storedCostShareScope is the scope a row stores: a share without one covers the
+// care, as every share before 1.15.817.
+func storedCostShareScope(scope string) string {
+	if scope == "" {
+		return parentbilling.CostShareScopeCare
+	}
+	return scope
+}

@@ -3,6 +3,7 @@ package parentbilling
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -138,6 +139,20 @@ func (s TermsSet) Of(service string) ServiceTerms {
 		return terms
 	}
 	return DefaultServiceTerms(service)
+}
+
+// InvoiceService is the service whose invoice carries the positions of
+// service (ADR 0167 point 1): the service it is bundled with, when
+// BillingServices lets it travel with that one, else the service itself on
+// an invoice of its own. The Mensa (#4686) asks it in every run.
+func (s TermsSet) InvoiceService(service string) string {
+	bundle := s.Of(service).BundleWith
+	for _, known := range BillingServices {
+		if known.Service == service && slices.Contains(known.BundleWith, bundle) {
+			return bundle
+		}
+	}
+	return service
 }
 
 // FamilyBilling is the deviation of one family. FamilyEmail is the key, the

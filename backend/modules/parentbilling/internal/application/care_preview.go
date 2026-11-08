@@ -46,6 +46,10 @@ type careMonth struct {
 	duplicates     []parentbilling.CareDuplicate
 	billed         int
 	billedBySchool map[int64]int
+	// mealGaps and mealUnbilled are the Mensa of the run (#4686, care_meals.go).
+	mealGaps     []parentbilling.CareMealGap
+	mealUnbilled []parentbilling.CareMealUnbilled
+	mealChanged  []parentbilling.CareMealChanged
 	// uncounted is the number of families a rule that counts the family
 	// ranked without a confirmed number for the month (#5918), for the
 	// schools of a run; uncountedSchools names per such family the schools
@@ -111,6 +115,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 		}
 		invoice.Recipient = in.recipients[contractID]
 		invoice.FamilyEmail = parentbilling.FamilyKey(invoice.Recipient.Email)
+		invoice.Service = parentbilling.ServiceCare
 		result.invoices = append(result.invoices, invoice)
 		chained = append(chained, &careChainEntry{child: childOf[contractID], birthDate: byContract[contractID][0].ChildBirthDate})
 	}
@@ -358,7 +363,7 @@ func billContract(month calendar.Date, rule string, versions []parentbilling.Car
 	invoice := parentbilling.CareInvoice{
 		ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
 		ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, StudentID: studentOf(versions),
-		Positions: []parentbilling.CarePosition{},
+		Positions: []parentbilling.CarePosition{}, MealPositions: []parentbilling.CareMealPosition{},
 	}
 	daysInMonth := month.DaysUntil(monthEnd(month)) + 1
 	var unpriced []parentbilling.CareUnpriced

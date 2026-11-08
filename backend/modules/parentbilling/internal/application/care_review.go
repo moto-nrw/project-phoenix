@@ -67,7 +67,8 @@ func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run pa
 func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parentbilling.CareExclusion) reviewedMonth {
 	inRun := func(schoolID int64) bool { return slices.Contains(schoolIDs, schoolID) }
 	review := reviewedMonth{careMonth: careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{},
-		duplicates: []parentbilling.CareDuplicate{}, dueDates: month.dueDates, deviations: month.deviations},
+		duplicates: []parentbilling.CareDuplicate{}, mealGaps: []parentbilling.CareMealGap{},
+		mealUnbilled: []parentbilling.CareMealUnbilled{}, mealChanged: []parentbilling.CareMealChanged{}, dueDates: month.dueDates, deviations: month.deviations},
 		excluded: []parentbilling.CareInvoice{}}
 	review.uncounted = uncountedInRun(month.uncountedSchools, inRun)
 	for schoolID, count := range month.billedBySchool {
@@ -91,6 +92,7 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 			review.unpriced = append(review.unpriced, unpriced)
 		}
 	}
+	narrowMeals(&review, month, inRun)
 	for _, duplicate := range month.duplicates {
 		if slices.ContainsFunc(duplicate.Contracts, func(contract parentbilling.CareDuplicateContract) bool {
 			return inRun(contract.SchoolID)
@@ -99,6 +101,27 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 		}
 	}
 	return review
+}
+
+// narrowMeals keeps the Mensa months of the run's schools (#4686): the
+// months without a release, those no longer billable, and the children the
+// run does not bill. The Mensa positions travel on their invoices.
+func narrowMeals(review *reviewedMonth, month careMonth, inRun func(int64) bool) {
+	for _, gap := range month.mealGaps {
+		if inRun(gap.SchoolID) {
+			review.mealGaps = append(review.mealGaps, gap)
+		}
+	}
+	for _, unbilled := range month.mealUnbilled {
+		if inRun(unbilled.SchoolID) {
+			review.mealUnbilled = append(review.mealUnbilled, unbilled)
+		}
+	}
+	for _, changed := range month.mealChanged {
+		if inRun(changed.SchoolID) {
+			review.mealChanged = append(review.mealChanged, changed)
+		}
+	}
 }
 
 // uncountedInRun counts the families without a confirmed number whose
@@ -139,28 +162,31 @@ func fingerprintInvoices(invoices []parentbilling.CareInvoice) []fingerprintInvo
 // every invoice the release issues and every excluded one, each with its
 // recipient, positions and reductions (so a new evidence or rule changes
 // it); the bookings without a price; the children held back for a
-// duplicate contract; the count of contracts already billed; and the due
+// duplicate contract; the count of contracts already billed; the due
 // dates of the run per payment method, which every invoice's payment also
-// carries (#4689). A change
-// of any of them since the review makes the release refuse (#5916).
-// Whatever else a later change adds to the review (the Mensa of #4686)
-// belongs here too.
+// carries (#4689); and the Mensa (#4686): its positions on the invoices,
+// the months without a release, the months no longer billable and the
+// children left out. A change of any of them since the review makes the
+// release refuse (#5916).
 func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedMonth) string {
 	state, err := json.Marshal(struct {
-		Run         int64                         `json:"run"`
-		Schools     []int64                       `json:"schools"`
-		InvoiceDate *calendar.Date                `json:"invoice_date"`
-		Rule        string                        `json:"rule"`
-		Invoices    []fingerprintInvoice          `json:"invoices"`
-		Excluded    []fingerprintInvoice          `json:"excluded"`
-		Unpriced    []parentbilling.CareUnpriced  `json:"unpriced"`
-		Duplicates  []parentbilling.CareDuplicate `json:"duplicates"`
-		Billed      int                           `json:"billed"`
-		DueDates    []parentbilling.RunDueDate    `json:"due_dates"`
-		Uncounted   int                           `json:"uncounted_families"`
+		Run         int64                            `json:"run"`
+		Schools     []int64                          `json:"schools"`
+		InvoiceDate *calendar.Date                   `json:"invoice_date"`
+		Rule        string                           `json:"rule"`
+		Invoices    []fingerprintInvoice             `json:"invoices"`
+		Excluded    []fingerprintInvoice             `json:"excluded"`
+		Unpriced    []parentbilling.CareUnpriced     `json:"unpriced"`
+		Duplicates  []parentbilling.CareDuplicate    `json:"duplicates"`
+		Billed      int                              `json:"billed"`
+		DueDates    []parentbilling.RunDueDate       `json:"due_dates"`
+		Uncounted   int                              `json:"uncounted_families"`
+		MealGaps    []parentbilling.CareMealGap      `json:"meal_gaps"`
+		MealUnbill  []parentbilling.CareMealUnbilled `json:"meal_unbilled"`
+		MealChanged []parentbilling.CareMealChanged  `json:"meal_changed"`
 	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
 		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed,
-		review.dueDates.InPaymentOrder(), review.uncounted})
+		review.dueDates.InPaymentOrder(), review.uncounted, review.mealGaps, review.mealUnbilled, review.mealChanged})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
 		// release could match.
@@ -363,7 +389,8 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	}
 	detail.DueDates = review.dueDates.InPaymentOrder()
 	detail.MonthRule, detail.Unpriced, detail.Billed = rule, review.unpriced, review.billed
-	detail.Duplicates = review.duplicates
+	detail.Duplicates, detail.MealGaps, detail.MealUnbilled = review.duplicates, review.mealGaps, review.mealUnbilled
+	detail.MealChanged = review.mealChanged
 	detail.UncountedFamilies = review.uncounted
 	detail.Invoices = append(review.invoices, review.excluded...)
 	detail.Fingerprint = review.fingerprint

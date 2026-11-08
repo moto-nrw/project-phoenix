@@ -26,6 +26,7 @@ export function traegerCareCostSharesTopic(): HelpTopic {
           "Wählen Sie beim Kind das Menü und dann `Anteil eintragen`.",
           "Wählen Sie bei `Wer zahlt mit?` die Art: `Bildung und Teilhabe`, `Jugendamt` oder `Sonstiger Zuschuss`.",
           "Wählen Sie den `Kostenträger`.",
+          "Wählen Sie bei `Wofür zahlt er?`: `Betreuung`, `Mensa` oder `Betreuung und Mensa`. Bei Bildung und Teilhabe ist `Mensa` schon gewählt.",
           "Wählen Sie `Prozent vom Beitrag` oder `Fester Betrag im Monat`. Tragen Sie die Zahl ein.",
           "Tragen Sie bei `Bescheid` nur das Aktenzeichen oder das Datum ein.",
           "Wählen Sie, ab wann und bis wann der Bescheid gilt.",
@@ -55,9 +56,11 @@ export function traegerCareCostSharesTopic(): HelpTopic {
       },
     ],
     result:
-      "Der Monatslauf rechnet erst alle Ermäßigungen aus. Danach zieht er den Anteil des Kostenträgers ab. Die Rechnung zeigt den Monatsbeitrag, den Anteil und den Rest. Übernimmt der Kostenträger alles, steht auf der Rechnung `Beitragsfrei` und 0 €.",
+      "Der Monatslauf rechnet erst alle Ermäßigungen aus. Danach zieht er den Anteil des Kostenträgers ab. Die Rechnung zeigt den Monatsbeitrag, den Anteil und den Rest. Ein Anteil für die Mensa zieht vom Mensa-Betrag ab. Übernimmt der Kostenträger alles, steht auf der Rechnung `Beitragsfrei` und 0 €.",
     differences: [
       "Gilt ein Bescheid erst ab Mitte des Monats, zählt er für den ganzen Monat.",
+      "Ein fester Betrag für `Betreuung und Mensa` geht erst an die Betreuung. Was übrig bleibt, geht an die Mensa.",
+      "Kommt die Mensa auf eine eigene Rechnung, steht der Anteil für die Mensa auf der Mensa-Rechnung.",
       "Vor der Freigabe ist die Liste eine Vorschau ohne Rechnungsnummern.",
       "Eine Rechnung, die schon ausgestellt ist, bleibt, wie sie ist. Ein geänderter Anteil gilt ab dem nächsten Monatslauf.",
       "Ein stornierter Beitrag steht in der Liste, zählt aber nicht zur Summe.",

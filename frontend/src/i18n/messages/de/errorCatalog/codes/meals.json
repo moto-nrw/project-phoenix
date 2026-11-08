@@ -15,5 +15,12 @@
   "not_supplied": "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
   "order_not_found": "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
   "supply_active": "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung.",
-  "participation_manage_denied": "Sie dürfen die Essensanmeldung ansehen, aber nicht ändern. Bitte wenden Sie sich an die OGS."
+  "participation_manage_denied": "Sie dürfen die Essensanmeldung ansehen, aber nicht ändern. Bitte wenden Sie sich an die OGS.",
+  "billing_month_running": "Der Monat ist noch nicht vorbei. Sie können ihn ab dem 1. des nächsten Monats freigeben.",
+  "billing_month_released": "Dieser Monat ist schon freigegeben. Eine Freigabe lässt sich nicht ändern.",
+  "billing_month_changed": "Seit dem Laden hat sich der Monat geändert. Bitte prüfen Sie ihn noch einmal und geben Sie ihn dann frei.",
+  "billing_month_no_traeger": "Ihre Schule gehört zu keinem Träger. Deshalb rechnet niemand die Mensa ab.",
+  "billing_month_invalid": "Diesen Monat gibt es hier nicht. Wählen Sie einen der letzten 12 Monate.",
+  "billing_month_attendance_expired": "Für diesen Monat können Anwesenheiten bereits gelöscht sein. Eine sichere Freigabe ist deshalb nicht mehr möglich. Wenden Sie sich an Ihren Träger.",
+  "billing_month_reason_required": "Bitte nennen Sie den Grund für die neue Freigabe. Höchstens 500 Zeichen."
 }

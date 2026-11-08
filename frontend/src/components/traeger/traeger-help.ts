@@ -52,6 +52,7 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   ) {
     return HELP_TOPICS.traegerCareMonths;
   }
+  if (onPage(page, "/abrechnung/mensa")) return HELP_TOPICS.traegerCareMeals;
   if (
     onPage(page, "/abrechnung/ermaessigungen") ||
     onPage(page, "/abrechnung/nachweise") ||

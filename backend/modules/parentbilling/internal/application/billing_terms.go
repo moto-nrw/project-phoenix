@@ -418,14 +418,19 @@ func readInvoicePayments(ctx context.Context, store paymentTermsReader, organiza
 }
 
 // careInvoice sets the recipient and the payment of a monthly invoice.
-// The invoice carries the care and every service bundled with it.
+// The invoice carries the care and every service bundled with it, or the
+// Mensa on an invoice of its own with the Mensa's terms (#4686).
 func (p invoicePayments) careInvoice(invoice *parentbilling.CareInvoice, issuedOn calendar.Date) {
 	family := p.family(invoice.FamilyEmail)
 	recipient := parentbilling.ResolveRecipient(parentbilling.BillingRecipient{FirstName: invoice.Recipient.FirstName,
 		LastName: invoice.Recipient.LastName, Email: invoice.Recipient.Email}, family)
 	invoice.Recipient = parentbilling.CareRecipient{FirstName: recipient.FirstName, LastName: recipient.LastName,
 		Email: recipient.Email, Kind: recipient.Kind, SecondName: recipient.SecondName, Address: recipient.Address}
-	payment := parentbilling.ResolvePayment(p.terms.Of(parentbilling.ServiceCare), p.run, family, issuedOn)
+	service := invoice.Service
+	if service == "" {
+		service = parentbilling.ServiceCare
+	}
+	payment := parentbilling.ResolvePayment(p.terms.Of(service), p.run, family, issuedOn)
 	invoice.Payment = &payment
 }
 

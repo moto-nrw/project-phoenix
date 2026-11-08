@@ -18,6 +18,11 @@ import (
 // fixed share is its amount. Each takes at most what is left, so the shares
 // never take more than the contribution and the family's rest is never
 // negative.
+//
+// A share covers the modules, the Mensa or both (#4686, ADR 0168 point 12).
+// The chain runs on the modules only, so it applies the shares that cover
+// the care; applyMealCostShares applies the Mensa part after the Mensa
+// joined the invoices.
 
 // careCostShareInMonth is the share of a kind that holds for a contract in
 // the month.
@@ -61,7 +66,7 @@ func (e *careChainEntry) applyCostShares(in careChainInput) {
 	shares := []parentbilling.CareInvoiceCostShare{}
 	for _, kind := range parentbilling.CostShareKinds {
 		share := careCostShareInMonth(in.costShares, e.invoice.ContractID, kind, in.month)
-		if share == nil {
+		if share == nil || !parentbilling.CostShareCoversCare(share.Scope) {
 			continue
 		}
 		part := min(costShareOf(contribution, share), left)
@@ -70,7 +75,7 @@ func (e *careChainEntry) applyCostShares(in careChainInput) {
 		}
 		shares = append(shares, parentbilling.CareInvoiceCostShare{
 			Kind: share.Kind, CostBearerID: share.CostBearerID, CostBearerName: share.CostBearerName,
-			ShareBasisPoints: share.ShareBasisPoints, ShareCents: share.ShareCents, AmountCents: part,
+			ShareBasisPoints: share.ShareBasisPoints, ShareCents: share.ShareCents, Scope: share.Scope, AmountCents: part,
 		})
 		left -= part
 	}

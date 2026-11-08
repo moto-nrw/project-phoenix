@@ -48,6 +48,7 @@ import {
 import { useTenantRouter } from "~/lib/tenant-router";
 import { MealParticipantList } from "~/components/meal-plan/meal-participant-list";
 import { MealCaterer } from "~/components/meal-plan/meal-caterer";
+import { MealBillingReleaseLink } from "~/components/meal-plan/meal-billing-release-link";
 import { MealOrderWeek } from "~/components/meal-plan/meal-order-week";
 import {
   MealAllergenLegend,
@@ -556,6 +557,7 @@ export default function MealPlanPage() {
   return (
     <TenantPage
       title="Speiseplan"
+      actions={<MealBillingReleaseLink />}
       stats={statusLine}
       statsLoading={initialLoading}
       loading={initialLoading}

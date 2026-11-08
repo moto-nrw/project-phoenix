@@ -18,6 +18,7 @@ export type BillingTab =
   | "laeufe"
   | "monatsbeitraege"
   | "preise"
+  | "mensa"
   | "ermaessigungen"
   | "nachweise"
   | "kinderzahl"
@@ -47,6 +48,11 @@ export function billingTabs(
         value: "preise",
         label: "Preisliste",
         href: traegerPath("/traeger/abrechnung/preise"),
+      },
+      {
+        value: "mensa",
+        label: "Mensa",
+        href: traegerPath("/traeger/abrechnung/mensa"),
       },
       {
         value: "ermaessigungen",

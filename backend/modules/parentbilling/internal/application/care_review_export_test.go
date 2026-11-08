@@ -50,3 +50,21 @@ func TestCareReviewTableNamesThePayment(t *testing.T) {
 	assert.Contains(t, ids, "payment_method")
 	assert.Contains(t, ids, "due_on")
 }
+
+// The review list carries the Mensa months, so a Mensa-only invoice has its
+// rows and the rows of an invoice add up to its total (#4686).
+func TestCareReviewTableListsTheMensaMonths(t *testing.T) {
+	t.Parallel()
+	table := careReviewTable(parentbilling.CareRunDetail{
+		Invoices: []parentbilling.CareInvoice{{
+			Positions: []parentbilling.CarePosition{{ModuleName: "OGS Ganztag", AmountCents: 7750}},
+			MealPositions: []parentbilling.CareMealPosition{{MealMonth: calendar.NewDate(2026, 12, 1), Mode: parentbilling.MealModePerMeal,
+				Quantity: 2, UnitCents: 480, AmountCents: 960}},
+			TotalCents: 7750 + 960,
+		}},
+	})
+	require.Len(t, table.Rows, 3)
+	assert.Equal(t, "2 Mittagessen im Dezember 2026 à 4,80 €", table.Rows[1]["position"])
+	assert.Equal(t, "9,60", table.Rows[1]["amount"])
+	assert.Equal(t, "87,10", table.Rows[2]["amount"])
+}

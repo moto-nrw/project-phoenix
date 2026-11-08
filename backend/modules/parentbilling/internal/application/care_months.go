@@ -77,20 +77,25 @@ type CareBilling struct {
 	settings  parentbilling.CareBillingSettings
 	renderer  TableRenderer
 	today     func() calendar.Date
+	// mealStore and meals bill the Mensa (#4686).
+	mealStore CareMealStore
+	meals     parentbilling.CareMeals
 }
 
 var _ parentbilling.CareBilling = (*CareBilling)(nil)
 
-// NewCareBilling builds the monthly billing. today is the issue date of a
-// release without an invoice date and the start of the price list's look
-// ahead; renderer renders the review list (#5916).
+// NewCareBilling builds the monthly billing with its Mensa (#4686). today
+// is the issue date of a release without an invoice date and the start of
+// the price list's look ahead; renderer renders the review list (#5916).
 func NewCareBilling(store CareStore, contracts parentbilling.CareContracts, schools parentbilling.CareSchools,
-	settings parentbilling.CareBillingSettings, renderer TableRenderer, today func() calendar.Date,
+	settings parentbilling.CareBillingSettings, renderer TableRenderer, mealStore CareMealStore, meals parentbilling.CareMeals,
+	today func() calendar.Date,
 ) *CareBilling {
-	if store == nil || contracts == nil || schools == nil || settings == nil || renderer == nil || today == nil {
-		panic("parent billing: the store, the care contracts, the schools, the settings, the renderer and the clock are required")
+	if store == nil || contracts == nil || schools == nil || settings == nil || renderer == nil || mealStore == nil || meals == nil || today == nil {
+		panic("parent billing: the store, the care contracts, the schools, the settings, the renderer, the Mensa and the clock are required")
 	}
-	return &CareBilling{store: store, contracts: contracts, schools: schools, settings: settings, renderer: renderer, today: today}
+	return &CareBilling{store: store, contracts: contracts, schools: schools, settings: settings, renderer: renderer,
+		mealStore: mealStore, meals: meals, today: today}
 }
 
 // CareTariffs reads the price list with the schools of the Träger and the
@@ -418,7 +423,7 @@ func (c *CareBilling) CareRun(ctx context.Context, reviewer parentbilling.Holida
 		return parentbilling.CareRunDetail{}, err
 	}
 	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRead,
-		map[string]any{"contract_ids": shownContracts(detail)}); err != nil {
+		map[string]any{"contract_ids": shownContracts(detail), "meal_student_ids": shownMealChildren(detail)}); err != nil {
 		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record care run read: %w", err)
 	}
 	return detail, nil
@@ -502,41 +507,11 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	if rule != parentbilling.MonthRuleVersionOnFirst && rule != parentbilling.MonthRuleProRata {
 		return "", careMonth{}, fmt.Errorf("parent billing: unknown month rule %q", rule)
 	}
-	versions, err := c.contracts.VersionsInForce(ctx, organizationID, run.BillingMonth, monthEnd(run.BillingMonth))
-	if err != nil {
-		return "", careMonth{}, fmt.Errorf("parent billing: read the contract versions: %w", err)
-	}
-	tariffs, err := c.store.CareTariffs(ctx, organizationID)
+	in, err := c.careMonthInput(ctx, organizationID, run, rule)
 	if err != nil {
 		return "", careMonth{}, err
 	}
-	invoiced, err := c.store.InvoicedContracts(ctx, organizationID, run.BillingMonth)
-	if err != nil {
-		return "", careMonth{}, err
-	}
-	recipients, err := c.contracts.Recipients(ctx, organizationID, versionContracts(versions))
-	if err != nil {
-		return "", careMonth{}, fmt.Errorf("parent billing: read the contract parties: %w", err)
-	}
-	rules, err := c.store.ListContributionRules(ctx, organizationID, parentbilling.ServiceCare)
-	if err != nil {
-		return "", careMonth{}, fmt.Errorf("parent billing: read the care rules: %w", err)
-	}
-	evidences, err := c.store.CareEvidences(ctx, organizationID, versionContracts(versions))
-	if err != nil {
-		return "", careMonth{}, err
-	}
-	costShares, err := c.store.CareCostShares(ctx, organizationID, versionContracts(versions))
-	if err != nil {
-		return "", careMonth{}, err
-	}
-	familyCounts, err := c.store.FamilyChildCounts(ctx, organizationID)
-	if err != nil {
-		return "", careMonth{}, err
-	}
-	month, err := buildCareMonth(careMonthInput{month: run.BillingMonth, rule: rule, versions: versions, tariffs: tariffs,
-		invoiced: invoiced, recipients: recipients, rules: rules, evidences: evidences, costShares: costShares,
-		familyCounts: familyCounts})
+	month, err := buildCareMonth(in)
 	if err != nil {
 		return rule, month, err
 	}
@@ -546,6 +521,14 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	if err != nil {
 		return rule, month, err
 	}
+	// The Mensa joins after the chain: no rule reduces it (ADR 0168). Its
+	// terms say on whose invoice it travels (ADR 0167). The shares that
+	// cover the Mensa take their part of it there (ADR 0168 point 12).
+	if err := c.addMeals(ctx, organizationID, run, &month, in.versions, in.invoiced, in.recipients,
+		payments.terms.InvoiceService(parentbilling.ServiceMeal)); err != nil {
+		return rule, month, err
+	}
+	applyMealCostShares(&month, in.costShares, run.BillingMonth, in.invoiced)
 	// The payment term counts from the invoice date the release puts on the
 	// invoices (#5916), today without one.
 	issuedOn := c.today()
@@ -559,10 +542,43 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	return rule, month, nil
 }
 
+// careMonthInput reads what the month of a run is computed from: the
+// contract versions in force, prices, issued invoices, parties, rules,
+// evidences, cost bearer shares and the numbers of the families.
+func (c *CareBilling) careMonthInput(ctx context.Context, organizationID int64, run parentbilling.CareRun, rule string) (careMonthInput, error) {
+	in := careMonthInput{month: run.BillingMonth, rule: rule}
+	var err error
+	if in.versions, err = c.contracts.VersionsInForce(ctx, organizationID, run.BillingMonth, monthEnd(run.BillingMonth)); err != nil {
+		return in, fmt.Errorf("parent billing: read the contract versions: %w", err)
+	}
+	contracts := versionContracts(in.versions)
+	if in.tariffs, err = c.store.CareTariffs(ctx, organizationID); err != nil {
+		return in, err
+	}
+	if in.invoiced, err = c.store.InvoicedContracts(ctx, organizationID, run.BillingMonth); err != nil {
+		return in, err
+	}
+	if in.recipients, err = c.contracts.Recipients(ctx, organizationID, contracts); err != nil {
+		return in, fmt.Errorf("parent billing: read the contract parties: %w", err)
+	}
+	if in.rules, err = c.store.ListContributionRules(ctx, organizationID, parentbilling.ServiceCare); err != nil {
+		return in, fmt.Errorf("parent billing: read the care rules: %w", err)
+	}
+	if in.evidences, err = c.store.CareEvidences(ctx, organizationID, contracts); err != nil {
+		return in, err
+	}
+	if in.costShares, err = c.store.CareCostShares(ctx, organizationID, contracts); err != nil {
+		return in, err
+	}
+	in.familyCounts, err = c.store.FamilyChildCounts(ctx, organizationID)
+	return in, err
+}
+
 // detail is the run with its preview or its issued invoices and the number
 // range the release uses.
 func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.CareRun) (parentbilling.CareRunDetail, error) {
-	detail := parentbilling.CareRunDetail{CareRun: run, Unpriced: []parentbilling.CareUnpriced{}, Duplicates: []parentbilling.CareDuplicate{}}
+	detail := parentbilling.CareRunDetail{CareRun: run, Unpriced: []parentbilling.CareUnpriced{}, Duplicates: []parentbilling.CareDuplicate{},
+		MealGaps: []parentbilling.CareMealGap{}, MealUnbilled: []parentbilling.CareMealUnbilled{}, MealChanged: []parentbilling.CareMealChanged{}}
 	if run.Status == parentbilling.RunReleased {
 		invoices, err := c.store.CareRunInvoices(ctx, reviewer.OrganizationID, run.ID)
 		if err != nil {
@@ -595,6 +611,7 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		detail.CostBearers = careCostBearerTotals(detail.Invoices, nil)
 	}
 	detail.DuplicateChildren = duplicateChildren(detail.Duplicates)
+	withMealPositions(detail.Invoices)
 	for _, invoice := range detail.Invoices {
 		if invoice.Exclusion != nil {
 			continue

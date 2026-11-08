@@ -7807,6 +7807,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0168",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.AttendanceCompleteFrom",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.AttendanceCompleteFrom",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf: AttendanceCompleteFrom reports its read through the service's observe hook (function-valued field the scan cannot follow), as ListAttendance does. The read itself only selects active.attendance_retention_marks (ADR 0168).",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0101",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ChangeClassHandover",
       "classification": "unresolved",
@@ -14848,6 +14860,16 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.ApplyStatusDayAbsences",
       "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.ApplyStatusDayAbsences. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.AttendanceDeletedBefore",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.AttendanceDeletedBefore",
+      "reason": "Read-only: how far Student Presence's retention deleted the school's attendance (active.attendance_retention_marks, #4686), read in the caller's school transaction to keep a Mensa month whose attendance may be gone from being counted; no write, lock or scope change.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
       "target_owner": "tenant-runtime"
