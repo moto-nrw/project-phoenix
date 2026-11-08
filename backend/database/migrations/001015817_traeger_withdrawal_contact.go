@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerWithdrawalContactVersion = "1.15.815"
+const traegerWithdrawalContactVersion = "1.15.817"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
