@@ -43,21 +43,23 @@ func TestValidateSessionQueryBudget(t *testing.T) {
 	var organizationID int64
 	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, school).Scan(ctx, &organizationID))
 
-	for kind, assertBudget := range map[string]func(t *testing.T, queries []string){
-		"tenant": func(t *testing.T, q []string) {
+	for kind, assertBudget := range map[string]func(t *testing.T, queries querybudgets.Measurement){
+		"tenant": func(t *testing.T, q querybudgets.Measurement) {
 			querybudgets.AssertQueryBudget(t, "identity.session_validate.tenant", q)
 		},
-		"school": func(t *testing.T, q []string) {
+		"school": func(t *testing.T, q querybudgets.Measurement) {
 			querybudgets.AssertQueryBudget(t, "identity.session_validate.school", q)
 		},
-		"parent": func(t *testing.T, q []string) {
+		"parent": func(t *testing.T, q querybudgets.Measurement) {
 			querybudgets.AssertQueryBudget(t, "identity.session_validate.parent", q)
 		},
-		"caterer": func(t *testing.T, q []string) {
+		"caterer": func(t *testing.T, q querybudgets.Measurement) {
 			querybudgets.AssertQueryBudget(t, "identity.session_validate.caterer", q)
 		},
-		"org": func(t *testing.T, q []string) { querybudgets.AssertQueryBudget(t, "identity.session_validate.org", q) },
-		"traeger_school": func(t *testing.T, q []string) {
+		"org": func(t *testing.T, q querybudgets.Measurement) {
+			querybudgets.AssertQueryBudget(t, "identity.session_validate.org", q)
+		},
+		"traeger_school": func(t *testing.T, q querybudgets.Measurement) {
 			querybudgets.AssertQueryBudget(t, "identity.session_validate.traeger_school", q)
 		},
 	} {
@@ -121,7 +123,7 @@ func TestValidateSessionQueryBudget(t *testing.T) {
 				assert.NotContains(t, upper, "FOR SHARE", "validation takes no row lock")
 				assert.NotContains(t, upper, "FOR UPDATE", "validation takes no row lock")
 			}
-			assertBudget(t, again)
+			assertBudget(t, counter.Measurement(again))
 		})
 	}
 }
