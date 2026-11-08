@@ -493,7 +493,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
           htmlFor={field.name}
           required={field.required}
           invalid={hasError}
-          className="mb-1.5 text-xs"
         >
           {field.label}
         </FieldLabel>
@@ -543,7 +542,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
           htmlFor={field.name}
           required={field.required}
           invalid={hasError}
-          className="mb-1.5 text-xs"
         >
           {field.label}
         </FieldLabel>

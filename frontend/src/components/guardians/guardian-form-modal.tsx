@@ -602,7 +602,7 @@ export default function GuardianFormModal({
                 )}
 
                 {/* Personal Information */}
-                <InsetPanel framed>
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -705,7 +705,7 @@ export default function GuardianFormModal({
                 </InsetPanel>
 
                 {/* Contact Information */}
-                <InsetPanel framed>
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -888,7 +888,7 @@ export default function GuardianFormModal({
                 </InsetPanel>
 
                 {/* Address (optional) */}
-                <InsetPanel framed>
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -964,7 +964,7 @@ export default function GuardianFormModal({
                 </InsetPanel>
 
                 {/* Additional Info */}
-                <InsetPanel framed>
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
