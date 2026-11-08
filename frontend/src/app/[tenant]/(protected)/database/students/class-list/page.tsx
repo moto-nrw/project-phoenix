@@ -9,7 +9,7 @@
 // schon erfasst sind und welche noch fehlen.
 //
 // Design follows the Anmeldungen/Planung surface language: calm content
-// section, uppercase kicker, gray-50 stats, no colored dashboards.
+// section without a kicker, gray-50 stats, no colored dashboards.
 
 import Link from "~/components/ui/navigation-link";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";

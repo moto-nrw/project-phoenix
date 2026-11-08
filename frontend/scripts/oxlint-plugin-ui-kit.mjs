@@ -1510,27 +1510,16 @@ const noWhiteOnWarmFill = {
 const TINY_TEXT_RE = /\btext-\[(?:9|10|11)px\]/g;
 
 const TINY_TEXT_BASELINE_FILES = new Set([
-  "src/app/[tenant]/(protected)/calendar/page.tsx",
-  "src/app/[tenant]/(protected)/meal-plan/page.tsx",
-  "src/app/[tenant]/(protected)/time-tracking/week-chart.tsx",
   "src/app/help/nfc/erste-schritte/page.tsx",
   "src/app/operator/provisioning/soft-delete-shared.tsx",
-  "src/components/auth/role-permission-management-modal.tsx",
   "src/components/dashboard/header/reminders-bell.tsx",
-  "src/components/dashboard/sidebar.tsx",
   "src/components/enrollment/admin-enrollments-list.tsx",
-  "src/components/enrollment/enrollment-form.tsx",
   "src/components/files/files-page.tsx",
   "src/components/guardians/guardian-list.tsx",
   "src/components/parent/calendar/parent-calendar-page.tsx",
-  "src/components/parent/parent-meal-plan-page.tsx",
   "src/components/staff/absence-request-row.tsx",
   "src/components/staff/dienstplan-resource-grid.tsx",
-  "src/components/staff/staff-session-table.tsx",
-  "src/components/students/care-schedule-manager.tsx",
-  "src/components/students/planned-status-days-modal.tsx",
   "src/components/time-tracking/vacation-request-modal.tsx",
-  "src/components/timetable/bulk-substitution-modal.tsx",
   "src/components/timetable/event-form/multi-select-field.tsx",
   "src/components/timetable/event-form/step-termin.tsx",
   "src/components/timetable/gap-jump-list.tsx",
@@ -1548,30 +1537,22 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/ui/planning/coverage-indicator.tsx",
   "src/components/ui/location-badge.tsx",
   "src/components/ui/notification-badge.tsx",
-  "src/components/ui/page-header/OverflowMenu.tsx",
   "src/components/ui/planning/plan-block.tsx",
   "src/components/ui/planning/plan-legend.tsx",
   "src/components/ui/presence-badge.tsx",
 ]);
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@226 text-[11px]@275
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@238
-src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@959
-src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/files/files-page.tsx|text-[11px]@181
 src/components/guardians/guardian-list.tsx|text-[10px]@468
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@717 text-[11px]@783
-src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@489 text-[11px]@585 text-[11px]@594 text-[11px]@601
-src/components/staff/staff-session-table.tsx|text-[11px]@1194
-src/components/students/planned-status-days-modal.tsx|text-[10px]@935 text-[11px]@935
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@372
-src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[11px]@312
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
@@ -1589,7 +1570,6 @@ src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[10px]@282
 src/components/ui/notification-badge.tsx|text-[10px]@18
-src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
 src/components/ui/planning/plan-block.tsx|text-[11px]@154 text-[11px]@175
 src/components/ui/planning/plan-legend.tsx|text-[11px]@106
 src/components/ui/presence-badge.tsx|text-[10px]@200
@@ -4193,14 +4173,16 @@ const noHandRolledFieldLabel = makeRatchetRule({
   }),
 });
 
-// ui-kit/no-hand-rolled-notice (#5591) — ein getönter Hinweiskasten kommt aus
-// `Alert`. Fund: ein Block (`div`, `p`, Liste, `section`, `aside`, `details`)
-// mit Rundung, Innenabstand, getöntem Rand `border-moto-<Ton>/N` und Fläche
-// desselben Tons (`bg-moto-<Ton>-soft` oder `bg-moto-<Ton>/N`). Kein Fund:
-// Pillen (`rounded-full`), Bedienelemente (Knopf, Link, Label), Inline-Text.
-// Amber ist kein Ton von `Alert` (Warnungen sind orange): eine amber-Fläche
-// mit Rundung und Innenabstand ist auch ohne Rand ein Fund. Hard-zero seit
-// dem Abbau der Baseline.
+// ui-kit/no-hand-rolled-notice (#5591, #5609) — ein getönter Hinweiskasten
+// kommt aus `Alert`, eine getönte Innenfläche aus `InsetPanel`. Fund: ein Block
+// (`div`, `p`, Liste, `section`, `aside`, `details`) mit Rundung, Innenabstand
+// und getönter Fläche `bg-moto-<Ton>-soft` oder `bg-moto-<Ton>/N`, mit oder
+// ohne Rand (`border-moto-<Ton>`, `border-moto-<Ton>/N`, grau). Seit #5609
+// zählen auch Kästen ohne Rand und mit vollem Rand: die liefen in Rot, Grün,
+// Blau und Orange an der Regel vorbei. Kein Fund: Pillen (`rounded-full`),
+// Bedienelemente (Knopf, Link, Label), Inline-Text, ein Rand in einem anderen
+// Markenton als die Fläche. Hard-zero; Ausnahmen nur per
+// `oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- <Grund>`.
 const NOTICE_TAGS = new Set([
   "div",
   "p",
@@ -4210,7 +4192,7 @@ const NOTICE_TAGS = new Set([
   "aside",
   "details",
 ]);
-const NOTICE_BORDER_RE = /^border-moto-([a-z]+)\/\d+$/;
+const NOTICE_BORDER_RE = /^border-moto-([a-z]+)(?:-[a-z]+)?(?:\/\d+)?$/;
 const NOTICE_FILL_RE = /^bg-moto-([a-z]+)(?:-soft(?:\/\d+)?|\/\d+)$/;
 const NOTICE_PADDING_RE = /^p[trblxyse]?-\d/;
 const NOTICE_ROUNDED_RE = /^rounded(?:-(?:sm|md|lg|xl|2xl))?$/;
@@ -4223,16 +4205,18 @@ function isHandRolledNotice(utilities) {
   );
   return utilities.some((token) => {
     const hue = token.match(NOTICE_FILL_RE)?.[1];
-    return hue !== undefined && (hue === "amber" || borderHues.has(hue));
+    if (hue === undefined) return false;
+    // Ein Rand in einem anderen Markenton ist keine Hinweisfläche dieses Tons.
+    return borderHues.size === 0 || borderHues.has(hue);
   });
 }
 
 const noHandRolledNotice = makeRatchetRule({
   ruleName: "no-hand-rolled-notice",
   description:
-    "Build tinted notice boxes from Alert instead of styling a bordered, tinted block by hand.",
+    "Build tinted notice boxes from Alert and tinted inner surfaces from InsetPanel instead of styling a tinted block by hand.",
   message:
-    'Kein eigener Hinweiskasten: Alert aus ~/components/ui/alert (`type`, für Hinweise in Feldern `size="compact"`, Standortfarbe über `color`). Warnhinweise sind orange über `type="warning"` (#5591, .claude/rules/frontend-ui-kit.md).',
+    'Kein eigener Hinweiskasten: Alert aus ~/components/ui/alert (`type`, für Hinweise in Feldern `size="compact"`, Standortfarbe über `color`). Warnhinweise sind orange über `type="warning"`. Eine Innenfläche ohne Meldung ist InsetPanel (#5591, #5609, .claude/rules/frontend-ui-kit.md).',
   baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/alert.tsx",

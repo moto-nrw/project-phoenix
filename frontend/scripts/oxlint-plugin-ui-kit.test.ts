@@ -3443,12 +3443,40 @@ describe.concurrent("ui-kit/no-hand-rolled-notice (#5591)", () => {
   it.each([
     '<div className="border-moto-green/40 bg-moto-green/10 rounded-full border px-2 py-0.5">Pille</div>',
     '<div className="border-moto-blue/30 bg-moto-red-soft rounded-lg border p-3">Zwei Töne</div>',
-    '<div className="bg-moto-blue/10 rounded-lg p-3">Ohne Rand</div>',
     '<div className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border">Ohne Abstand</div>',
     '<span className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border px-2">Inline</span>',
   ])("accepts %s", async (element) => {
     const { output } = await lintSource(
       `export const Probe = () => ${element};`,
+      "src/components/probe-notice.tsx",
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  // #5609: Kästen ohne Rand, mit vollem Rand oder mit grauem Rand liefen in
+  // Rot, Grün, Blau und Orange an der Regel vorbei.
+  it.each([
+    '<div className="bg-moto-blue/10 rounded-lg p-3">Ohne Rand</div>',
+    '<div className="bg-moto-red-soft text-moto-red rounded-lg px-3 py-2 text-sm">A</div>',
+    '<p className="bg-moto-green-soft text-moto-green-strong rounded-xl px-4 py-3">A</p>',
+    '<div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">Voller Rand</div>',
+    '<div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">Grauer Rand</div>',
+  ])("fails the tinted box %s (#5609)", async (element) => {
+    const result = await lintProbe(
+      `export const Probe = () => ${element};`,
+      "src/components/probe-notice.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
+  it("accepts a reasoned exception (#5609)", async () => {
+    const { output } = await lintSource(
+      `export const Probe = () => (
+  // oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- Sprechblase, kein Hinweis
+  <div className="bg-moto-blue-soft rounded-xl px-3 py-2">A</div>
+);`,
       "src/components/probe-notice.tsx",
     );
     expect(output).not.toContain(RULE);
