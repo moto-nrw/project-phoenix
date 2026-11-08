@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { clientIdentityHeaders } from "~/lib/client-headers.server";
+import { handleApiError } from "~/lib/api-response-error.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 
@@ -14,10 +14,16 @@ async function GETHandler(
   context: { params: Promise<{ token: string }> },
 ) {
   const { token } = await context.params;
-  const upstream = await fetch(
-    `${getServerApiUrl()}/public/calendar/${encodeURIComponent(token)}`,
-    { headers: clientIdentityHeaders(_request.headers) },
-  );
+  let upstream: Response;
+  try {
+    upstream = await sendBackend(
+      `/public/calendar/${encodeURIComponent(token)}`,
+      null,
+      { request: _request },
+    );
+  } catch (error) {
+    return handleApiError(error, _request);
+  }
   if (!upstream.ok) {
     return forwardBackendResponse(upstream, _request);
   }

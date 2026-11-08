@@ -70,6 +70,10 @@ type BillingDocument struct {
 	// declaration needs; the inbox offers „Verträge hier kündigen“ only then.
 	EndsOn         *calendar.Date
 	CanEndContract bool
+	// CanWithdrawContract tells that CanEndContract holds and the withdrawal
+	// period may still run; the inbox then offers „Vertrag widerrufen“, the
+	// withdrawal function of § 356a BGB (#6105).
+	CanWithdrawContract bool
 }
 
 // BillingDocumentFile is the PDF of one document.

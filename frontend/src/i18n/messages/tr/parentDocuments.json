@@ -36,6 +36,7 @@
   "signNow": "Oku ve imzala",
   "status": "Durum",
   "cancelContract": "Sözleşmeleri burada feshet",
+  "withdrawContract": "Sözleşmeden cay",
   "cancelNotPermitted": "Yalnızca çocuğu kaydettirme hakkı olan veliler iptal edebilir. Lütfen okula sorun.",
   "terminatedOn": "{date} itibarıyla feshedildi",
   "withdrawn": "Cayıldı",

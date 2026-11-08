@@ -36,6 +36,7 @@
   "signNow": "Przeczytaj i podpisz",
   "status": "Status",
   "cancelContract": "Wypowiedz umowy tutaj",
+  "withdrawContract": "Odstąp od umowy",
   "cancelNotPermitted": "Wypowiedzieć mogą tylko rodzice, którzy mogą zapisać dziecko. Proszę zapytać szkołę.",
   "terminatedOn": "Wypowiedziana na {date}",
   "withdrawn": "Odstąpiono",

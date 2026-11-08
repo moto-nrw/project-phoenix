@@ -173,5 +173,5 @@ func TestManualDraftKeepsEarlyStartConsent(t *testing.T) {
 		map[ContractKey]bool{}, calendar.NewDate(2026, 11, 6))
 	require.Empty(t, reason)
 	assert.True(t, draft.EarlyStart, "manual drafts retain the parents' voluntary consent")
-	assert.Contains(t, withdrawalBlocks(ContractRecord{EarlyStart: draft.EarlyStart}, "Träger")[1].Text, "ausdrücklich verlangt")
+	assert.Contains(t, withdrawalBlocks(ContractRecord{EarlyStart: draft.EarlyStart}, withdrawalContact{Partner: "Träger"})[1].Text, "ausdrücklich verlangt")
 }

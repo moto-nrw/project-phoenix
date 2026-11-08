@@ -2426,7 +2426,7 @@ export const enrollmentExportTopic =
  *    Seite raet selbst davon ab, ohne Not eine Vorlage anzulegen. Wer das
  *    nicht weiss, baut eine ueberfluessige Vorlage.
  * 2. `Stammdaten-Vorschläge` schreiben die Antwort in die Daten des Kindes
- *    (FIELD_TARGET_LABELS, enrollment-form-editor.tsx:139), eine
+ *    (TargetSuggestions, form-template-builder-sections.tsx), eine
  *    `Freie Zusatzfrage` bleibt bei der Anmeldung. Gleiche Frage, anderes
  *    Ergebnis -- und im Formular sehen beide gleich aus.
  *
@@ -5853,7 +5853,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Steht beim Vertrag `Abgeschlossen` statt `Unterschrieben`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
-      "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin oder innerhalb der angezeigten Frist `Widerrufen`. Wählen Sie dann `Jetzt kündigen` oder `Jetzt widerrufen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
+      "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin und dann `Jetzt kündigen`. Solange Sie den Vertrag widerrufen können, steht beim Vertrag auch `Vertrag widerrufen`. Wählen Sie dann `Widerruf bestätigen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
       "Haben Sie einen wichtigen Grund, den Vertrag früher zu beenden? Wählen Sie `Außerordentlich kündigen` und schreiben Sie Ihren Grund auf. Der Träger prüft ihn. Erkennt er ihn an, legt er das Vertragsende fest. Erkennt er ihn nicht an, gilt Ihre Kündigung als ordentliche Kündigung zum nächsten möglichen Termin. Die Entscheidung bekommen Sie per Mail. Sie steht auch beim Vertrag unter `Mitteilung des Trägers zum Vertragsende`. Bis dahin findet die Betreuung wie gebucht statt.",
       "Bei einem gekündigten Vertrag steht `Gekündigt zum` und das Datum. Bis dahin findet die Betreuung wie gebucht statt. Mit `Bestätigung ansehen` öffnen Sie Ihre Bestätigung.",
       "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
@@ -10374,6 +10374,7 @@ export const traegerCareContractsTopic =
             "Tragen Sie den Namen des `Vertragspartners` ein, wenn er nicht im Briefkopf steht.",
             "Wählen Sie `Bedingungen speichern`.",
             "Unter `Widerrufsbelehrung für das Anmeldeformular` und `Häkchen „Betreuung vor Ende der Widerrufsfrist“` stehen zwei weitere Texte. Die Schule kopiert beide als eigene Rechtstexte ins Anmeldeformular. Die Belehrung muss bestätigt werden, das Häkchen nicht.",
+            "Die Widerrufsbelehrung ist das gesetzliche Muster. Sie gilt in jedem Bundesland gleich. Dieselbe Belehrung steht im Vertrag, auf der Seite zum Unterschreiben und in der Bestätigung per Mail. Die Anschrift kommt aus Ihrem Briefkopf. Der Text für das Anmeldeformular und das PDF enthalten auch das Muster-Widerrufsformular.",
             "Für `Bei der Annahme`: Tragen Sie den `Vertragspartner` immer ein. Speichern Sie die Bedingungen. Kopieren Sie den Text aus `Gespeicherter Text für das Anmeldeformular` unverändert. Die Schule wählt im Anmeldeformular `Eigene Zustimmung hinzufügen`. Sie trägt ihn unter `Rechtstext / Erklärung` ein. Sie setzt `Muss bestätigt werden` und behält bestehende Rechtstexte bei. Bei mehreren Modulen müssen deren Bedingungen übereinstimmen.",
           ],
         },

@@ -1,42 +1,12 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import type { NextRequest } from "next/server";
-import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
-
-import { catererAuth, uncachedCatererAuth } from "~/server/auth/caterer";
-import { withCatererAuth } from "~/server/auth/caterer-route";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
-import { problemResponse } from "~/lib/api-helpers.server";
+import { caterer } from "~/lib/caterer/route-wrapper.server";
 
 // The caterer's delivery list of every school it supplies (ADR 0077), as
 // PDF, Excel or CSV.
 export const GET = withPrivateDownloadNoStore(
-  withCatererAuth(async (request: NextRequest): Promise<Response> => {
-    const session = await catererAuth();
-    if (!session?.user?.token) {
-      return problemResponse(401, "Unauthorized", request);
-    }
-    const makeRequest = (token: string) =>
-      fetch(
-        `${getServerApiUrl()}/caterer/orders/export${request.nextUrl.search}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-    const response = await sendWithTokenRefresh(
-      session.user.token,
-      makeRequest,
-      () => uncachedCatererAuth(),
-    );
-    if (!response.ok) {
-      return forwardBackendResponse(response, request);
-    }
-    return new Response(await response.arrayBuffer(), {
-      status: response.status,
-      headers: {
-        "Content-Type":
-          response.headers.get("Content-Type") ?? "application/octet-stream",
-        "Content-Disposition":
-          response.headers.get("Content-Disposition") ?? "attachment",
-      },
-    });
+  caterer.proxyFile("/caterer/orders/export", {
+    forwardQuery: true,
+    fallbackType: "application/octet-stream",
+    fallbackDisposition: "attachment",
   }),
 );

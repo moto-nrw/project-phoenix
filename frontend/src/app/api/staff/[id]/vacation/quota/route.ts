@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
-import { createGetHandler } from "~/lib/route-wrapper.server";
-import { proxyPut } from "~/lib/route-proxy.server";
+import { createGetHandler, proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 export const GET = createGetHandler(
@@ -14,7 +13,7 @@ export const GET = createGetHandler(
     const year = request.nextUrl.searchParams.get("year") ?? "";
     const qs = year ? `?year=${year}` : "";
     const response = await apiGet<{ data: unknown }>(
-      `/api/staff/${id}/vacation/quota${qs}`,
+      `/api/staff/${encodeURIComponent(id)}/vacation/quota${qs}`,
       token,
     );
     return response.data;

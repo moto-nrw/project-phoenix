@@ -7,12 +7,11 @@
  */
 
 import type { NextRequest } from "next/server";
-import { parentAuth } from "~/server/auth/parent";
-import { withParentAuth } from "~/server/auth/parent-route";
+import { parentPortal } from "~/server/auth/parent";
 import { ingestClientLogs } from "~/lib/client-log-ingest.server";
 
 async function POSTHandler(request: NextRequest) {
-  return ingestClientLogs(request, await parentAuth(), "parent");
+  return ingestClientLogs(request, await parentPortal.auth(), "parent");
 }
 
-export const POST = withParentAuth(POSTHandler);
+export const POST = parentPortal.withAuth(POSTHandler);

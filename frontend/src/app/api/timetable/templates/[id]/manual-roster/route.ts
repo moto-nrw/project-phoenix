@@ -3,7 +3,7 @@
 // PUT /api/timetable/templates/{id}/manual-roster  { confirmed }
 //   „Liste so lassen“ (#5103): hides the deviation hint for the
 //   series, or shows it again.
-import { proxyPut } from "~/lib/route-proxy.server";
+import { proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 export const PUT = proxyPut(

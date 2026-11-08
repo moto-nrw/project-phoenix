@@ -17,9 +17,11 @@ const { mockAuth, mockApiPost } = vi.hoisted(() => ({
   mockApiPost: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/api-helpers.server", async () => {
   const { mockHandleApiError } =
@@ -75,18 +77,23 @@ describe("POST /api/active/visits/[id]/end", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 500 when id parameter is missing", async () => {
+  it("returns 400 when id parameter is missing", async () => {
     const request = createMockRequest("/api/active/visits//end", {
       method: "POST",
     });
 
     const response = await POST(request, createMockContext({}));
 
-    expect(response.status).toBe(500);
+    // An invalid route param is the request's mistake: a coded 400.
+    expect(response.status).toBe(400);
+    await expect(response.clone().json()).resolves.toMatchObject({
+      status: 400,
+      code: "general.input",
+    });
     expect(mockApiPost).not.toHaveBeenCalled();
   });
 
-  it("returns 500 when id parameter is not a string", async () => {
+  it("returns 400 when id parameter is not a string", async () => {
     const request = createMockRequest("/api/active/visits/123/end", {
       method: "POST",
     });
@@ -96,7 +103,8 @@ describe("POST /api/active/visits/[id]/end", () => {
       createMockContext({ id: ["123", "456"] }),
     );
 
-    expect(response.status).toBe(500);
+    // An invalid route param is the request's mistake: a coded 400.
+    expect(response.status).toBe(400);
     expect(mockApiPost).not.toHaveBeenCalled();
   });
 

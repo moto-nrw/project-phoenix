@@ -29,7 +29,7 @@ export const GET = createGetHandler(
     params: Record<string, unknown>,
   ) => {
     const id = params.id as string;
-    const endpoint = `/api/groups/${id}`;
+    const endpoint = `/api/groups/${encodeURIComponent(id)}`;
 
     // Fetch group from the API
     const response = await apiGet<{
@@ -61,7 +61,7 @@ export const PUT = createPutHandler(
     params: Record<string, unknown>,
   ) => {
     const id = params.id as string;
-    const endpoint = `/api/groups/${id}`;
+    const endpoint = `/api/groups/${encodeURIComponent(id)}`;
 
     // Update group via the API
     return await apiPut<BackendGroup>(endpoint, token, body);
@@ -79,7 +79,7 @@ export const DELETE = createDeleteHandler(
     params: Record<string, unknown>,
   ) => {
     const id = params.id as string;
-    const endpoint = `/api/groups/${id}`;
+    const endpoint = `/api/groups/${encodeURIComponent(id)}`;
 
     // Delete group via the API
     return await apiDelete(endpoint, token);

@@ -5,13 +5,12 @@ const { auth, refresh } = vi.hoisted(() => ({
   auth: vi.fn(),
   refresh: vi.fn(),
 }));
-vi.mock("~/server/auth", () => ({
-  auth,
-  uncachedAuth: refresh,
-}));
-vi.mock("~/server/auth/tenant-route", () => ({
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth,
+    uncachedAuth: refresh,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",
 }));
@@ -59,14 +58,21 @@ describe("school delivery export", () => {
       2,
       "http://localhost:8080/api/meal-caterer/orders/export?format=csv",
       expect.objectContaining({
-        headers: { Authorization: "Bearer renewed" },
+        method: "GET",
+        cache: "no-store",
+        headers: expect.objectContaining({ Authorization: "Bearer renewed" }),
       }),
     );
   });
 
-  it.each([null, { user: { token: "original" } }])(
-    "does not retry without a different token (%j)",
-    async (session) => {
+  // No session left is a refused renewal (401); the old token kept is an
+  // undecided one (503, session left as is).
+  it.each([
+    [null, 401],
+    [{ user: { token: "original" } }, 503],
+  ])(
+    "does not retry without a different token (%j → %i)",
+    async (session, status) => {
       refresh.mockResolvedValue(session);
       const fetchMock = vi
         .fn()
@@ -74,8 +80,7 @@ describe("school delivery export", () => {
       vi.stubGlobal("fetch", fetchMock);
 
       const response = await GET(request(), { params: Promise.resolve({}) });
-
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(status);
       expect(fetchMock).toHaveBeenCalledTimes(1);
     },
   );

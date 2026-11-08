@@ -23,6 +23,7 @@ import {
   transportFetch,
   unavailableApiError,
 } from "./api-error";
+import { parseRetryAfter } from "./retry-after";
 
 // Generic API response interface
 interface ApiResponse<T> {
@@ -36,25 +37,6 @@ interface PasswordResetResponse {
 }
 
 type ApiErrorResponseBody = Record<string, unknown>;
-
-function parseRetryAfter(value: string | null | undefined): number | null {
-  if (!value) {
-    return null;
-  }
-
-  const numeric = Number(value);
-  if (!Number.isNaN(numeric)) {
-    return Math.max(0, Math.round(numeric));
-  }
-
-  const date = Date.parse(value);
-  if (!Number.isNaN(date)) {
-    const diffMs = date - Date.now();
-    return diffMs > 0 ? Math.ceil(diffMs / 1000) : 0;
-  }
-
-  return null;
-}
 
 async function buildFetchApiError(
   response: Response,

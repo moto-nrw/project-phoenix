@@ -1,7 +1,7 @@
 // Cross-staff audit feed (#1417). Gated on time_tracking:manage
 // backend-side: every event names an affected and an acting person plus
 // free-text reasons.
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 import type { BackendAuditLogPage } from "~/lib/staff-audit-log-api";
 
 /**

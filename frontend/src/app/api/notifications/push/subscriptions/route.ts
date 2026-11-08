@@ -1,6 +1,5 @@
 import { apiDelete } from "~/lib/api-helpers.server";
-import { proxyPost } from "~/lib/route-proxy.server";
-import { createDeleteHandler } from "~/lib/route-wrapper.server";
+import { createDeleteHandler, proxyPost } from "~/lib/route-wrapper.server";
 
 interface PushSubscriptionBody {
   endpoint: string;

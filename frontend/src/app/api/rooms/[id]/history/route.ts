@@ -1,15 +1,9 @@
 // app/api/rooms/[id]/history/route.ts
-import type { NextRequest } from "next/server";
 import { wireErrorCode } from "~/lib/api-error";
-import {
-  apiGet,
-  handleApiError,
-  problemResponse,
-} from "~/lib/api-helpers.server";
+import { apiGet, problemResponse } from "~/lib/api-helpers.server";
 import { ApiResponseError } from "~/lib/api-response-error.server";
 import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { isStringParam, tenant } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
 import { ROOM_HISTORY_STATUS_FEATURE_DISABLED } from "~/lib/room-helpers";
 
@@ -58,22 +52,9 @@ function normalizeRangeParam(value: string, boundary: "start" | "end"): string {
   return boundary === "start" ? `${value}T00:00:00Z` : `${value}T23:59:59Z`;
 }
 
-/**
- * Custom handler for GET /api/rooms/[id]/history
- * Returns history of a specific room's usage
- */
-async function GETHandler(request: NextRequest): Promise<NextResponse> {
-  const session = await auth();
-
-  if (!session?.user?.token) {
-    return problemResponse(401, "Unauthorized", request);
-  }
-
-  // Extract roomId from URL path
-  const pathParts = request.nextUrl.pathname.split("/");
-  const roomsIndex = pathParts.indexOf("rooms");
-  const roomId = roomsIndex >= 0 ? pathParts[roomsIndex + 1] : undefined;
-
+/** GET /api/rooms/[id]/history: the room's usage sessions. */
+export const GET = tenant.get(async (request, token, params) => {
+  const roomId = isStringParam(params.id) ? params.id : undefined;
   if (!roomId) {
     return problemResponse(400, "Invalid id parameter", request);
   }
@@ -95,19 +76,18 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
 
   const queryString = queryParams.toString();
   const querySuffix = queryString ? "?" + queryString : "";
-  const endpoint = `/api/rooms/${roomId}/history${querySuffix}`;
+  const endpoint = `/api/rooms/${encodeURIComponent(roomId)}/history${querySuffix}`;
 
   try {
     const backendResponse = await apiGet<BackendResponseEnvelope>(
       endpoint,
-      session.user.token,
+      token,
     );
     return NextResponse.json({
       status: "success",
       data: backendResponse?.data ?? [],
     });
   } catch (apiError) {
-    // 404 means no history exists - return empty array
     if (apiError instanceof ApiResponseError && apiError.status === 404) {
       return NextResponse.json({ status: "success", data: [] });
     }
@@ -128,8 +108,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
       room_id: roomId,
       error: apiError instanceof Error ? apiError.message : String(apiError),
     });
-    return handleApiError(apiError, request);
+    // The handler answers it; a 401 first renews the session and repeats.
+    throw apiError;
   }
-}
-
-export const GET = withTenantAuth(GETHandler);
+});

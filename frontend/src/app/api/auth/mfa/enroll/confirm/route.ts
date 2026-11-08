@@ -1,3 +1,4 @@
-import { createTenantLoginRoute } from "~/lib/tenant-login-route.server";
+import { createPortalLoginRoute } from "~/lib/login-route.server";
+import { tenantPortal } from "~/server/auth";
 
-export const POST = createTenantLoginRoute("/auth/mfa/enroll/confirm");
+export const POST = createPortalLoginRoute(tenantPortal, "mfa/enroll/confirm");

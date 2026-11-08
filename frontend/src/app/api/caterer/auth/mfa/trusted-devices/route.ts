@@ -5,5 +5,4 @@ import { createCatererJsonProxy } from "~/lib/caterer/route-wrapper.server";
 export const GET = createCatererJsonProxy({
   method: "GET",
   path: "/caterer/auth/mfa/trusted-devices",
-  forwardClientHeaders: true,
 });

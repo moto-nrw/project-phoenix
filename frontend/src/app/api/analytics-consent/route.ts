@@ -1,4 +1,4 @@
-import { proxyGet, proxyPut } from "~/lib/route-proxy.server";
+import { proxyGet, proxyPut } from "~/lib/route-wrapper.server";
 
 // Einwilligung des eigenen Kontos zur Nutzungsanalyse (#4901). Die Antwort
 // hängt am Konto aus dem Token, deshalb trägt der Pfad keine Kennung. Der

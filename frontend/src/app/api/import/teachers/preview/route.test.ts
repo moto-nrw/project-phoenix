@@ -13,9 +13,11 @@ const { mockAuth } = vi.hoisted(() => ({
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/env", () => ({
   env: {

@@ -51,9 +51,15 @@ describe("GET /api/tenant/list", () => {
 
     const response = await GET();
 
+    // Contract: every backend fetch carries method, no-store cache and a timeout signal.
     expect(global.fetch).toHaveBeenCalledWith(
       "http://localhost:8080/auth/tenants",
+      expect.objectContaining({ method: "GET", cache: "no-store" }),
     );
+    const headers = vi.mocked(global.fetch).mock.calls[0]?.[1]?.headers;
+    // Anker: the request carries headers; a public list sends no session bearer.
+    expect(headers).toEqual(expect.any(Object));
+    expect(headers).not.toHaveProperty("Authorization");
     expect(response.status).toBe(200);
 
     const json = (await response.json()) as { data: { slug: string }[] };

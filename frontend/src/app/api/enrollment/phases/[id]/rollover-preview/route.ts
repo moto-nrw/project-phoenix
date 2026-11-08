@@ -1,4 +1,4 @@
-import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 
 export const GET = createTenantJsonProxy({
   method: "GET",
@@ -9,7 +9,4 @@ export const GET = createTenantJsonProxy({
         : "true";
     return `/api/enrollment/phases/${encodeURIComponent(String(params.id))}/rollover-preview?bumps_grade=${bumpsGrade}`;
   },
-  cache: "no-store",
-  contentTypeOnGet: false,
-  unauthorizedError: "Unauthenticated",
 });

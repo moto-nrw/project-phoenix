@@ -25,6 +25,7 @@ export NEXT_PUBLIC_CATERER_HOSTNAME=caterer.localhost:3000
 export NEXT_PUBLIC_TRAEGER_HOSTNAME=traeger.localhost:3000
 [[ "${1:-quality}" == fast ]] || quality_step locales pnpm exec node scripts/verify-locales.mjs
 [[ "${1:-quality}" == fast ]] || quality_step help-index pnpm exec node scripts/generate-help-index.mjs --check
+[[ "${1:-quality}" == fast ]] || quality_step portal-pages pnpm exec node scripts/generate-portal-pages.mjs --check
 [[ "${1:-quality}" == fast ]] || quality_step error-catalog pnpm exec node scripts/verify-error-catalog.mjs
 [[ "${1:-quality}" == fast ]] || quality_step frontend-source-contracts pnpm run test:source-contracts
 quality_step frontend-lint pnpm run lint --max-warnings 0

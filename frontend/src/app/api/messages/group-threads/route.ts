@@ -1,4 +1,4 @@
-import { proxyGet, proxyPost } from "~/lib/route-proxy.server";
+import { proxyGet, proxyPost } from "~/lib/route-wrapper.server";
 
 /**
  * Proxy /api/messages/group-threads → backend (#4784). GET lists the

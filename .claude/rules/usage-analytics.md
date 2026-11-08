@@ -142,8 +142,8 @@ Every POST, PUT, PATCH, or DELETE route of the portal routers (`/api`,
    The route guard (`core action classification`) goes red for an
    unclassified writing route and for a table entry whose route is gone.
 4. The Next.js route handler forwards `X-POSTHOG-SESSION-ID`. The shared
-   helpers do (`api-helpers.server`, `getClientForwardHeaders`, the portal
-   route wrappers, `createFileExportRoute`); a handler with its own `fetch`
+   backend client does (`sendBackend` in `lib/backend-client.server.ts`, under
+   every portal's route handlers and `api-helpers.server`); a handler with its own `fetch`
    spreads `incomingAnalyticsSessionHeaders()` into its headers.
 
 The event is sent only for a 2xx response, after the tenant transaction

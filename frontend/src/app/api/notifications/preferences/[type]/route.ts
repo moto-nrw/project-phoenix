@@ -21,6 +21,10 @@ export const PUT = createPutHandler(
     if (!VALID_TYPE_PATTERN.test(type)) {
       throw bffError(400, "Invalid notification type format");
     }
-    return apiPut(`/api/notifications/preferences/${type}`, token, body);
+    return apiPut(
+      `/api/notifications/preferences/${encodeURIComponent(type)}`,
+      token,
+      body,
+    );
   },
 );
