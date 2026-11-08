@@ -177,14 +177,48 @@ func (e *careChainEntry) reduce(rule *parentbilling.ContributionRule, discount i
 			numerators = append(numerators, e.remaining[i]*discount)
 		}
 	}
+	parts := make([]int64, len(e.invoice.Positions))
 	for k, part := range largestRemainder(numerators, left, discount) {
-		e.remaining[indices[k]] -= part
+		parts[indices[k]] = part
+	}
+	e.reduceBy(rule, parts, rank, children)
+}
+
+// reduceBy takes parts[i] from position i and writes the reduction of their
+// sum; a part never exceeds what is left of its position.
+func (e *careChainEntry) reduceBy(rule *parentbilling.ContributionRule, parts []int64, rank, children *int) {
+	if e.issued {
+		return
+	}
+	var discount int64
+	for i, part := range parts {
+		part = min(max(part, 0), e.remaining[i])
+		e.remaining[i] -= part
+		discount += part
+	}
+	if discount <= 0 {
+		return
 	}
 	e.invoice.Reductions = append(e.invoice.Reductions, parentbilling.CareReduction{
 		Kind: rule.Kind, RuleID: rule.ID, Name: rule.Name, ChildRank: rank, FamilyChildren: children,
 		DiscountBasisPoints: rule.DiscountBasisPoints, DiscountCents: rule.DiscountCents, PriceCents: rule.PriceCents,
-		CapCents: rule.CapCents, CareOfferingIDs: slices.Clone(rule.CareOfferingIDs), AmountCents: -discount,
+		CapCents: rule.CapCents, TariffSiblingPrice: rule.TariffSiblingPrice,
+		CareOfferingIDs: slices.Clone(rule.CareOfferingIDs), AmountCents: -discount,
 	})
+}
+
+// reduceToSiblingPrices lowers every position of the rule's modules to its
+// amount at the sibling prices of the price list (#6196): the sibling price
+// is an end price per module and weekday or scale step, so each position is
+// reduced on its own and an earlier income reduction counts towards it.
+func (e *careChainEntry) reduceToSiblingPrices(rule *parentbilling.ContributionRule, rank, children *int) {
+	parts := make([]int64, len(e.invoice.Positions))
+	for i, position := range e.invoice.Positions {
+		if inScope(rule, position.CareOfferingID) {
+			parts[i] = max(e.remaining[i]-position.SiblingCents, 0)
+		}
+	}
+	e.reduceBy(rule, parts, rank, children)
 }
 
 // familyOf is the family of an invoice: the mail address of the contract
@@ -318,6 +352,14 @@ func applyCareCap(entries []*careChainEntry, rule *parentbilling.ContributionRul
 // across eligible draft contracts by largest remainder. Issued contracts
 // consume the fixed price or discount without being changed themselves.
 func reduceCareSiblingChild(child *rankedCareChild, rule *parentbilling.ContributionRule, rank, children int) {
+	if rule.TariffSiblingPrice {
+		for _, entry := range child.entries {
+			if appliesAt(rule.SchoolIDs, entry) {
+				entry.reduceToSiblingPrices(rule, &rank, &children)
+			}
+		}
+		return
+	}
 	var drafts []*careChainEntry
 	var amounts []int64
 	var draftTotal, issuedTotal, issuedDiscount int64

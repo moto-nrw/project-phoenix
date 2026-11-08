@@ -59,6 +59,7 @@ func normalizeCareRule(input parentbilling.CareRuleInput, schools []parentbillin
 func validateCareRuleKind(input *parentbilling.CareRuleInput, errs validation.Errors) {
 	if input.Kind != parentbilling.RuleSibling {
 		input.SiblingFromChild = nil
+		input.TariffSiblingPrice = false
 		if len(input.CountSchoolIDs) > 0 {
 			errs["count_school_ids"] = errors.New("only a sibling rule counts other schools")
 		}
@@ -90,6 +91,11 @@ func validateCareRuleKind(input *parentbilling.CareRuleInput, errs validation.Er
 // allowed, a fixed end price.
 func validateCareDiscount(input *parentbilling.CareRuleInput, errs validation.Errors, priceAllowed bool) {
 	set := 0
+	if input.TariffSiblingPrice {
+		// The sibling prices of the price list (#6196); only a sibling rule
+		// keeps the flag, validateCareRuleKind clears it on the others.
+		set++
+	}
 	if input.DiscountBasisPoints != nil {
 		set++
 		if *input.DiscountBasisPoints < 1 || *input.DiscountBasisPoints > parentbilling.BasisPointsWhole {
@@ -112,7 +118,7 @@ func validateCareDiscount(input *parentbilling.CareRuleInput, errs validation.Er
 		}
 	}
 	if set != 1 {
-		errs["discount_basis_points"] = errors.New("a rule has exactly one of a share, an amount or a price")
+		errs["discount_basis_points"] = errors.New("a rule has exactly one of a share, an amount, a price or the sibling prices of the price list")
 	}
 }
 

@@ -26,6 +26,8 @@ type careMonthInput struct {
 	// invoice is its base price.
 	rules     []parentbilling.ContributionRule
 	evidences []parentbilling.CareEvidence
+	// lists are the heads of the price lists with their free months (#6196).
+	lists []parentbilling.CarePriceListHead
 }
 
 // careMonth is the preview of one month: the draft invoices, the bookings
@@ -41,6 +43,9 @@ type careMonth struct {
 	duplicates     []parentbilling.CareDuplicate
 	billed         int
 	billedBySchool map[int64]int
+	// freeBySchool counts per school the contracts whose price list makes
+	// the month free of charge (#6196).
+	freeBySchool map[int64]int
 }
 
 func (m careMonth) total() int64 {
@@ -77,11 +82,17 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	duplicates, held := childMonthHolds(in.month, in.rule, byContract, order)
 	entries := monthEntries(in.month, byContract, order)
 	prices := newPriceBook(in.tariffs)
-	result := careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{}, duplicates: duplicates}
+	free := newFreeMonths(in.lists)
+	result := careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{}, duplicates: duplicates,
+		freeBySchool: map[int64]int{}}
 	var chained []*careChainEntry
 	childOf := childKeys(byContract, order)
 	for _, contractID := range order {
 		if _, issued := in.invoiced[contractID]; issued || held[contractID] {
+			continue
+		}
+		if free.free(byContract[contractID][0].SchoolID, in.month) {
+			result.freeBySchool[byContract[contractID][0].SchoolID]++
 			continue
 		}
 		invoice, unpriced := billContract(in.month, in.rule, byContract[contractID], entries[contractID], prices)
@@ -330,21 +341,36 @@ func billContract(month calendar.Date, rule string, versions []parentbilling.Car
 	return invoice, unpriced
 }
 
-// missingPrices names every booked weekday of a module without a price.
+// missingPrices names every booked weekday of a module without a price, or
+// for a module priced by a scale every booked number of days per week
+// without a scale step (#6196).
 func missingPrices(head parentbilling.CareContractVersion, track moduleTrack, prices priceBook, month calendar.Date) []parentbilling.CareUnpriced {
 	var missing []parentbilling.CareUnpriced
+	unpriced := func(weekday string, days *int) parentbilling.CareUnpriced {
+		return parentbilling.CareUnpriced{
+			ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
+			ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName,
+			CareOfferingID: track.offeringID, ModuleName: track.name, Weekday: weekday, DaysPerWeek: days,
+		}
+	}
+	form, _, _ := prices.module(head.SchoolID, track.offeringID, month)
 	seen := map[string]bool{}
+	seenDays := map[int]bool{}
 	for _, run := range track.runs {
+		if form == parentbilling.PriceFormDaysPerWeek {
+			days := len(run.weekdays)
+			if _, ok := prices.scale(head.SchoolID, track.offeringID, days, month); !ok && !seenDays[days] {
+				seenDays[days] = true
+				missing = append(missing, unpriced("", &days))
+			}
+			continue
+		}
 		for _, weekday := range run.weekdays {
 			if _, ok := prices.on(head.SchoolID, track.offeringID, weekday, month); ok || seen[weekday] {
 				continue
 			}
 			seen[weekday] = true
-			missing = append(missing, parentbilling.CareUnpriced{
-				ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
-				ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName,
-				CareOfferingID: track.offeringID, ModuleName: track.name, Weekday: weekday,
-			})
+			missing = append(missing, unpriced(weekday, nil))
 		}
 	}
 	return missing
@@ -354,37 +380,87 @@ func missingPrices(head parentbilling.CareContractVersion, track moduleTrack, pr
 // costs its exact share of the month, rounded half up once; the cents go
 // to the runs and within a run to the weekdays by largest remainder, so the
 // parts add up to the module to the cent (Betragsregel 2). A run over the
-// whole month is the full monthly price.
+// whole month is the full monthly price. A module priced by a scale costs
+// the step of the run's number of weekdays, shared evenly over them
+// (#6196). Every position also carries its amount at the sibling prices.
 func trackPositions(schoolID int64, track moduleTrack, prices priceBook, month calendar.Date, daysInMonth int) []parentbilling.CarePosition {
-	// Every weekday of every run with its exact share price*days/daysInMonth.
-	shares := make([][]int64, len(track.runs))
-	runShares := make([]int64, len(track.runs))
-	var total int64
+	_, mealExtra, _ := prices.module(schoolID, track.offeringID, month)
+	monthly := make([][]int64, len(track.runs))
+	sibling := make([][]int64, len(track.runs))
+	tiers := make([]*unitPrice, len(track.runs))
 	for i, run := range track.runs {
-		shares[i] = make([]int64, len(run.weekdays))
+		monthly[i], sibling[i], tiers[i] = runPrices(schoolID, track.offeringID, run, prices, month)
+	}
+	runCents, weekdayCents := shareMonth(track.runs, monthly, daysInMonth)
+	siblingCents, _ := shareMonth(track.runs, sibling, daysInMonth)
+	positions := make([]parentbilling.CarePosition, len(track.runs))
+	for i, run := range track.runs {
+		position := parentbilling.CarePosition{
+			CareOfferingID: track.offeringID, ModuleName: track.name, VersionNumber: run.version,
+			ServiceFrom: run.from, ServiceUntil: run.until, Weekdays: make([]parentbilling.CareWeekdayPrice, len(run.weekdays)),
+			MealExtra: mealExtra, AmountCents: runCents[i], SiblingCents: siblingCents[i],
+		}
+		if tiers[i] != nil {
+			days, cents := len(run.weekdays), tiers[i].monthly
+			position.DaysPerWeek, position.TierMonthlyCents = &days, &cents
+		}
 		for j, weekday := range run.weekdays {
-			price, _ := prices.on(schoolID, track.offeringID, weekday, month)
+			position.Weekdays[j] = parentbilling.CareWeekdayPrice{Weekday: weekday, MonthlyCents: monthly[i][j], AmountCents: weekdayCents[i][j]}
+		}
+		positions[i] = position
+	}
+	return positions
+}
+
+// runPrices is the monthly price of every weekday of a run for the first
+// and for a further child. A scale step is shared evenly over the run's
+// weekdays (largest remainder) and returned as the run's step.
+func runPrices(schoolID, offeringID int64, run moduleRun, prices priceBook, month calendar.Date) (monthly, sibling []int64, tier *unitPrice) {
+	monthly = make([]int64, len(run.weekdays))
+	sibling = make([]int64, len(run.weekdays))
+	if form, _, _ := prices.module(schoolID, offeringID, month); form == parentbilling.PriceFormDaysPerWeek {
+		step, _ := prices.scale(schoolID, offeringID, len(run.weekdays), month)
+		return evenly(step.monthly, len(run.weekdays)), evenly(step.sibling, len(run.weekdays)), &step
+	}
+	for j, weekday := range run.weekdays {
+		price, _ := prices.weekday(schoolID, offeringID, weekday, month)
+		monthly[j], sibling[j] = price.monthly, price.sibling
+	}
+	return monthly, sibling, nil
+}
+
+// evenly shares cents over n parts by largest remainder, the earlier part
+// first.
+func evenly(cents int64, n int) []int64 {
+	numerators := make([]int64, n)
+	for i := range numerators {
+		numerators[i] = cents
+	}
+	return largestRemainder(numerators, int64(n), cents)
+}
+
+// shareMonth shares the monthly prices of the runs over the month: every
+// weekday of every run has the exact share price*days/daysInMonth; the
+// module rounds half up once, the cents go to the runs and within a run to
+// the weekdays by largest remainder.
+func shareMonth(runs []moduleRun, monthly [][]int64, daysInMonth int) ([]int64, [][]int64) {
+	shares := make([][]int64, len(runs))
+	runShares := make([]int64, len(runs))
+	var total int64
+	for i, run := range runs {
+		shares[i] = make([]int64, len(monthly[i]))
+		for j, price := range monthly[i] {
 			shares[i][j] = price * int64(run.days())
 			runShares[i] += shares[i][j]
 		}
 		total += runShares[i]
 	}
 	runCents := largestRemainder(runShares, int64(daysInMonth), roundHalfUp(total, int64(daysInMonth)))
-	positions := make([]parentbilling.CarePosition, len(track.runs))
-	for i, run := range track.runs {
-		weekdayCents := largestRemainder(shares[i], int64(daysInMonth), runCents[i])
-		position := parentbilling.CarePosition{
-			CareOfferingID: track.offeringID, ModuleName: track.name, VersionNumber: run.version,
-			ServiceFrom: run.from, ServiceUntil: run.until, Weekdays: make([]parentbilling.CareWeekdayPrice, len(run.weekdays)),
-			AmountCents: runCents[i],
-		}
-		for j, weekday := range run.weekdays {
-			price, _ := prices.on(schoolID, track.offeringID, weekday, month)
-			position.Weekdays[j] = parentbilling.CareWeekdayPrice{Weekday: weekday, MonthlyCents: price, AmountCents: weekdayCents[j]}
-		}
-		positions[i] = position
+	weekdayCents := make([][]int64, len(runs))
+	for i := range runs {
+		weekdayCents[i] = largestRemainder(shares[i], int64(daysInMonth), runCents[i])
 	}
-	return positions
+	return runCents, weekdayCents
 }
 
 // roundHalfUp divides numerator by denominator, rounding half up.
@@ -414,61 +490,6 @@ func largestRemainder(numerators []int64, denominator, total int64) []int64 {
 		sum++
 	}
 	return cents
-}
-
-// priceKey names the price of one weekday of a module at a school.
-type priceKey struct {
-	schoolID   int64
-	offeringID int64
-	weekday    string
-}
-
-// priceBook holds the prices of every key by start, oldest first.
-type priceBook map[priceKey][]parentbilling.CareTariff
-
-func newPriceBook(tariffs []parentbilling.CareTariff) priceBook {
-	book := priceBook{}
-	for _, tariff := range tariffs {
-		key := priceKey{tariff.SchoolID, tariff.CareOfferingID, tariff.Weekday}
-		book[key] = append(book[key], tariff)
-	}
-	for key := range book {
-		slices.SortFunc(book[key], func(a, b parentbilling.CareTariff) int { return a.ValidFrom.Compare(b.ValidFrom) })
-	}
-	return book
-}
-
-// on is the monthly price that holds on day: the latest that starts on or
-// before it.
-func (b priceBook) on(schoolID, offeringID int64, weekday string, day calendar.Date) (int64, bool) {
-	tariffs := b[priceKey{schoolID, offeringID, weekday}]
-	for i := len(tariffs) - 1; i >= 0; i-- {
-		if !tariffs[i].ValidFrom.After(day) {
-			return tariffs[i].MonthlyCents, true
-		}
-	}
-	return 0, false
-}
-
-// withValidity sets the last day of every price: the day before the next
-// price of the same key.
-func withValidity(tariffs []parentbilling.CareTariff) []parentbilling.CareTariff {
-	book := newPriceBook(tariffs)
-	result := make([]parentbilling.CareTariff, 0, len(tariffs))
-	for _, list := range book {
-		for i := range list {
-			if i+1 < len(list) {
-				until := list[i+1].ValidFrom.AddDays(-1)
-				list[i].ValidUntil = &until
-			}
-			result = append(result, list[i])
-		}
-	}
-	slices.SortFunc(result, func(a, b parentbilling.CareTariff) int {
-		return firstNonZero(compareOrdered(a.SchoolID, b.SchoolID), a.ValidFrom.Compare(b.ValidFrom),
-			compareOrdered(a.ModuleName, b.ModuleName), compareOrdered(weekdayOrder[a.Weekday], weekdayOrder[b.Weekday]))
-	})
-	return result
 }
 
 // isMonthStart reports a first day of a month.

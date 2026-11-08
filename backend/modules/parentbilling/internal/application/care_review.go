@@ -44,6 +44,8 @@ type reviewedMonth struct {
 	careMonth
 	excluded    []parentbilling.CareInvoice
 	fingerprint string
+	// free counts the run's contracts a free month bills nothing for.
+	free int
 }
 
 // reviewed computes the preview of a calculated run with the rule of the
@@ -72,6 +74,11 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 	for schoolID, count := range month.billedBySchool {
 		if inRun(schoolID) {
 			review.billed += count
+		}
+	}
+	for schoolID, count := range month.freeBySchool {
+		if inRun(schoolID) {
+			review.free += count
 		}
 	}
 	for _, invoice := range month.invoices {
@@ -126,7 +133,8 @@ func fingerprintInvoices(invoices []parentbilling.CareInvoice) []fingerprintInvo
 // every invoice the release issues and every excluded one, each with its
 // recipient, positions and reductions (so a new evidence or rule changes
 // it); the bookings without a price; the children held back for a
-// duplicate contract; the count of contracts already billed; and the due
+// duplicate contract; the count of contracts already billed and of those a
+// free month leaves out (#6196); and the due
 // dates of the run per payment method, which every invoice's payment also
 // carries (#4689). A change
 // of any of them since the review makes the release refuse (#5916).
@@ -143,9 +151,10 @@ func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedM
 		Unpriced    []parentbilling.CareUnpriced  `json:"unpriced"`
 		Duplicates  []parentbilling.CareDuplicate `json:"duplicates"`
 		Billed      int                           `json:"billed"`
+		Free        int                           `json:"free"`
 		DueDates    []parentbilling.RunDueDate    `json:"due_dates"`
 	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
-		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed,
+		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed, review.free,
 		review.dueDates.InPaymentOrder()})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
@@ -349,6 +358,7 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	}
 	detail.DueDates = review.dueDates.InPaymentOrder()
 	detail.MonthRule, detail.Unpriced, detail.Billed = rule, review.unpriced, review.billed
+	detail.FreeOfCharge = review.free
 	detail.Duplicates = review.duplicates
 	detail.Invoices = append(review.invoices, review.excluded...)
 	detail.Fingerprint = review.fingerprint

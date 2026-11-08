@@ -75,8 +75,9 @@ var (
 // CareRuleInput is a care rule as the Abrechnung writes it. ValidFrom is the
 // first day of a month, ValidUntil, if set, the last day of one. A rule has
 // either a share (DiscountBasisPoints), an amount (DiscountCents) or, for an
-// income level or a sibling rule, a fixed end price (PriceCents); a cap has
-// CapCents.
+// income level or a sibling rule, a fixed end price (PriceCents); a sibling
+// rule may instead take the sibling prices of the price list
+// (TariffSiblingPrice, #6196); a cap has CapCents.
 type CareRuleInput struct {
 	Kind                string         `json:"kind"`
 	Name                string         `json:"name"`
@@ -90,6 +91,9 @@ type CareRuleInput struct {
 	DiscountCents       *int64         `json:"discount_cents"`
 	PriceCents          *int64         `json:"price_cents"`
 	CapCents            *int64         `json:"cap_cents"`
+	// TariffSiblingPrice is the price-list mode of a sibling rule (#6196):
+	// each further child pays the sibling price of the price list.
+	TariffSiblingPrice bool `json:"tariff_sibling_price"`
 }
 
 // CareRuleSet is what the rule page shows: the care rules by kind and
@@ -160,6 +164,8 @@ type CareReduction struct {
 	DiscountCents       *int64 `json:"discount_cents"`
 	PriceCents          *int64 `json:"price_cents"`
 	CapCents            *int64 `json:"cap_cents"`
+	// TariffSiblingPrice copies the price-list mode of a sibling rule.
+	TariffSiblingPrice bool `json:"tariff_sibling_price"`
 	// CareOfferingIDs are the modules the rule reduced, none for all; a
 	// later run of the month places an earlier reduction by them.
 	CareOfferingIDs []int64 `json:"care_offering_ids"`

@@ -65,6 +65,7 @@ type ruleRow struct {
 	CountSchoolIDs      []int64        `bun:"count_school_ids,array"`
 	PriceCents          *int64         `bun:"price_cents"`
 	CapCents            *int64         `bun:"cap_cents"`
+	TariffSiblingPrice  bool           `bun:"tariff_sibling_price"`
 	UpdatedAt           time.Time      `bun:"updated_at,nullzero,default:current_timestamp"`
 }
 
@@ -73,7 +74,8 @@ func (r ruleRow) rule() parentbilling.ContributionRule {
 		ID: r.ID, Service: r.Service, Kind: r.Kind, ValidFrom: r.ValidFrom, ValidUntil: r.ValidUntil,
 		SiblingFromChild: r.SiblingFromChild, DiscountBasisPoints: r.DiscountBasisPoints, DiscountCents: r.DiscountCents,
 		Note: r.Note, Name: r.Name, SchoolIDs: idsOrEmpty(r.SchoolIDs), CareOfferingIDs: idsOrEmpty(r.CareOfferingIDs),
-		CountSchoolIDs: idsOrEmpty(r.CountSchoolIDs), PriceCents: r.PriceCents, CapCents: r.CapCents, UpdatedAt: r.UpdatedAt,
+		CountSchoolIDs: idsOrEmpty(r.CountSchoolIDs), PriceCents: r.PriceCents, CapCents: r.CapCents,
+		TariffSiblingPrice: r.TariffSiblingPrice, UpdatedAt: r.UpdatedAt,
 	}
 }
 

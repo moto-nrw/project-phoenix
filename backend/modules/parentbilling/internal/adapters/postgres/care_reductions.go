@@ -36,6 +36,7 @@ func newCareRuleRow(organizationID int64, input parentbilling.CareRuleInput) *ru
 		CareOfferingIDs: idsOrEmpty(input.CareOfferingIDs), CountSchoolIDs: idsOrEmpty(input.CountSchoolIDs),
 		SiblingFromChild: input.SiblingFromChild, DiscountBasisPoints: input.DiscountBasisPoints,
 		DiscountCents: input.DiscountCents, PriceCents: input.PriceCents, CapCents: input.CapCents,
+		TariffSiblingPrice: input.TariffSiblingPrice,
 	}
 }
 
@@ -55,6 +56,7 @@ func (s *Store) InsertCareRule(ctx context.Context, organizationID int64, input 
 var careRuleColumns = []string{
 	"kind", "name", "valid_from", "valid_until", "school_ids", "care_offering_ids", "count_school_ids",
 	"sibling_from_child", "discount_basis_points", "discount_cents", "price_cents", "cap_cents",
+	"tariff_sibling_price",
 }
 
 // UpdateCareRule replaces a care rule of the Träger. A holiday rule is no
@@ -287,6 +289,7 @@ type careInvoiceReductionRow struct {
 	DiscountCents       *int64  `bun:"discount_cents"`
 	PriceCents          *int64  `bun:"price_cents"`
 	CapCents            *int64  `bun:"cap_cents"`
+	TariffSiblingPrice  bool    `bun:"tariff_sibling_price"`
 	CareOfferingIDs     []int64 `bun:"care_offering_ids,array"`
 	AmountCents         int64   `bun:"amount_cents"`
 }
@@ -302,7 +305,7 @@ func insertCareReductions(ctx context.Context, db bun.IDB, organizationID int64,
 				RuleID: reduction.RuleID, Name: reduction.Name, ChildRank: reduction.ChildRank,
 				FamilyChildren: reduction.FamilyChildren, DiscountBasisPoints: reduction.DiscountBasisPoints,
 				DiscountCents: reduction.DiscountCents, PriceCents: reduction.PriceCents, CapCents: reduction.CapCents,
-				CareOfferingIDs: idsOrEmpty(reduction.CareOfferingIDs), AmountCents: reduction.AmountCents,
+				TariffSiblingPrice: reduction.TariffSiblingPrice, CareOfferingIDs: idsOrEmpty(reduction.CareOfferingIDs), AmountCents: reduction.AmountCents,
 			})
 		}
 	}
@@ -328,7 +331,7 @@ func careReductionsOf(ctx context.Context, db bun.IDB, organizationID int64, inv
 		byInvoice[row.InvoiceID] = append(byInvoice[row.InvoiceID], parentbilling.CareReduction{
 			Kind: row.Kind, RuleID: row.RuleID, Name: row.Name, ChildRank: row.ChildRank, FamilyChildren: row.FamilyChildren,
 			DiscountBasisPoints: row.DiscountBasisPoints, DiscountCents: row.DiscountCents, PriceCents: row.PriceCents,
-			CapCents: row.CapCents, CareOfferingIDs: idsOrEmpty(row.CareOfferingIDs), AmountCents: row.AmountCents,
+			CapCents: row.CapCents, TariffSiblingPrice: row.TariffSiblingPrice, CareOfferingIDs: idsOrEmpty(row.CareOfferingIDs), AmountCents: row.AmountCents,
 		})
 	}
 	return byInvoice, nil

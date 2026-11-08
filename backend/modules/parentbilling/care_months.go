@@ -81,19 +81,54 @@ type CareModule struct {
 	ContractCount  int      `json:"contract_count"`
 }
 
+// Price forms of a module (#6196). A module of a price list has one form:
+// a price per booked weekday, the sum of the booked weekdays, or a scale by
+// the number of booked days per week.
+const (
+	PriceFormWeekday     = "weekday"
+	PriceFormDaysPerWeek = "days_per_week"
+)
+
+// MaxDaysPerWeek is the highest step of a scale.
+const MaxDaysPerWeek = 7
+
 // CareTariff is the monthly price of one weekday of a module from a month
-// on. ValidUntil is the last day before the next price of the same module
-// and weekday, nil while none follows.
+// on, or with DaysPerWeek set the monthly price of a module booked on that
+// many days per week (#6196). SiblingCents is the price for every further
+// child, which a sibling rule in the price-list mode takes; nil keeps the
+// price of the first child. MealExtra marks a module whose price excludes
+// the meal. ValidUntil is the last day before the next price of the same
+// module and key, nil while none follows.
 type CareTariff struct {
 	ID             int64          `json:"id"`
 	SchoolID       int64          `json:"school_id"`
 	CareOfferingID int64          `json:"care_offering_id"`
 	ModuleName     string         `json:"module_name"`
 	Weekday        string         `json:"weekday"`
+	DaysPerWeek    *int           `json:"days_per_week"`
 	ValidFrom      calendar.Date  `json:"valid_from"`
 	ValidUntil     *calendar.Date `json:"valid_until"`
 	MonthlyCents   int64          `json:"monthly_cents"`
+	SiblingCents   *int64         `json:"sibling_cents"`
+	MealExtra      bool           `json:"meal_extra"`
 	CreatedAt      time.Time      `json:"created_at"`
+}
+
+// PriceForm is the form of the price: per weekday or a scale step.
+func (t CareTariff) PriceForm() string {
+	if t.DaysPerWeek != nil {
+		return PriceFormDaysPerWeek
+	}
+	return PriceFormWeekday
+}
+
+// CarePriceListHead is the head of the price list of a school from a month
+// on: the months of the year the monthly run bills nothing for, e.g.
+// August (#6196). It holds until the next price list of the school.
+type CarePriceListHead struct {
+	SchoolID   int64         `json:"school_id"`
+	ValidFrom  calendar.Date `json:"valid_from"`
+	FreeMonths []int         `json:"free_months"`
 }
 
 // CareSchool is a school of the Träger by its name.
@@ -109,32 +144,41 @@ type CareTariffs struct {
 	Schools     []CareSchool            `json:"schools"`
 	Modules     []CareModule            `json:"modules"`
 	Tariffs     []CareTariff            `json:"tariffs"`
+	Lists       []CarePriceListHead     `json:"lists"`
 	BilledUntil map[int64]calendar.Date `json:"billed_until"`
 }
 
 // CareBilledPrice is a weekday of a module an issued invoice of a school
-// billed in a month; its price there never changes.
+// billed in a month, or with DaysPerWeek the scale step it billed; its
+// price there never changes.
 type CareBilledPrice struct {
 	CareOfferingID int64
 	Weekday        string
+	DaysPerWeek    *int
 	Month          calendar.Date
 }
 
-// CarePrice is one price of a price list a school gets from a month on.
+// CarePrice is one price of a price list a school gets from a month on:
+// for a weekday or, with DaysPerWeek, for a scale step (#6196).
 type CarePrice struct {
 	CareOfferingID int64
 	ModuleName     string
 	Weekday        string
+	DaysPerWeek    *int
 	MonthlyCents   int64
+	SiblingCents   *int64
+	MealExtra      bool
 }
 
 // CarePriceList sets the prices of a school from ValidFrom (the first day
 // of a month) on. It replaces the prices of the school that start on the
-// same day; a weekday without a price keeps the price before.
+// same day; a weekday or scale step without a price keeps the price
+// before. FreeMonths are the months of the year it bills nothing for.
 type CarePriceList struct {
-	SchoolID  int64
-	ValidFrom calendar.Date
-	Prices    []CarePrice
+	SchoolID   int64
+	ValidFrom  calendar.Date
+	FreeMonths []int
+	Prices     []CarePrice
 }
 
 // CareRun is a monthly run as the list shows it. DocumentCount, TotalCents
@@ -178,9 +222,18 @@ type CarePosition struct {
 	ServiceFrom    calendar.Date      `json:"service_from"`
 	ServiceUntil   calendar.Date      `json:"service_until"`
 	Weekdays       []CareWeekdayPrice `json:"weekdays"`
-	AmountCents    int64              `json:"amount_cents"`
+	// DaysPerWeek and TierMonthlyCents are the scale step a module priced
+	// by days per week billed (#6196); nil for a price per weekday.
+	DaysPerWeek      *int   `json:"days_per_week,omitempty"`
+	TierMonthlyCents *int64 `json:"tier_monthly_cents,omitempty"`
+	// MealExtra says the price excludes the meal, which the Mensa bills.
+	MealExtra   bool  `json:"meal_extra,omitempty"`
+	AmountCents int64 `json:"amount_cents"`
 	// PayableCents preserves the rule chain allocation for later runs of the month.
 	PayableCents int64 `json:"-"`
+	// SiblingCents is what the position costs at the sibling prices of the
+	// price list; a sibling rule in the price-list mode charges it (#6196).
+	SiblingCents int64 `json:"-"`
 }
 
 // CareRecipient is who an invoice goes to: the contract party, which the
@@ -239,6 +292,9 @@ type CareUnpriced struct {
 	CareOfferingID int64  `json:"care_offering_id"`
 	ModuleName     string `json:"module_name"`
 	Weekday        string `json:"weekday"`
+	// DaysPerWeek names the missing scale step of a module priced by days
+	// per week (#6196); Weekday is empty then.
+	DaysPerWeek *int `json:"days_per_week,omitempty"`
 }
 
 // CareDuplicateContract is one of the contracts of a duplicate.
@@ -296,12 +352,15 @@ type CareRunDetail struct {
 	Duplicates []CareDuplicate `json:"duplicates"`
 	// DuplicateChildren counts the children of Duplicates: the run, and its
 	// release, bills none of them.
-	DuplicateChildren int    `json:"duplicate_children"`
-	Billed            int    `json:"billed"`
-	PreviewCount      int    `json:"preview_count"`
-	PreviewCents      int64  `json:"preview_cents"`
-	NumberPattern     string `json:"number_pattern"`
-	NumberRangeSet    bool   `json:"number_range_set"`
+	DuplicateChildren int `json:"duplicate_children"`
+	Billed            int `json:"billed"`
+	// FreeOfCharge counts the contracts the run bills nothing for because
+	// the price list of their school makes the month free (#6196).
+	FreeOfCharge   int    `json:"free_of_charge"`
+	PreviewCount   int    `json:"preview_count"`
+	PreviewCents   int64  `json:"preview_cents"`
+	NumberPattern  string `json:"number_pattern"`
+	NumberRangeSet bool   `json:"number_range_set"`
 	// DueDates are the due dates of the run per payment method (#4689).
 	DueDates []RunDueDate `json:"due_dates"`
 	// CareRunReviewState is the review of a calculated run (#5916).
