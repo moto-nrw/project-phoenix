@@ -87,6 +87,9 @@ type Config struct {
 	SchoolTraeger    SchoolTraeger
 	ParentAccounts   ParentAccounts
 	DocumentNotifier BillingDocumentNotifier
+	// DocumentPushPorts serve the pushes of a sent contract and of a
+	// release for parents (#5941).
+	DocumentPushPorts
 
 	// Owner commands. Care Plan records absences, the guardian leg of a
 	// day's pickup exception and the Stammdaten requests; People Directory

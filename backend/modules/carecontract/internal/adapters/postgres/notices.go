@@ -51,7 +51,6 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 		return ports.NoticeState{}, err
 	}
 	var row struct {
-		FirstFrom   *calendar.Date `bun:"first_from,type:date"`
 		ContractEnd *calendar.Date `bun:"contract_end,type:date"`
 		InformedAt  *time.Time     `bun:"withdrawal_informed_at"`
 		EarlyStart  bool           `bun:"early_start_requested"`
@@ -61,9 +60,6 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 	err = db.NewRaw(`SELECT c.withdrawal_informed_at, c.early_start_requested, c.student_id,
 			(SELECT p.account_id FROM care_contract.contract_parties AS p
 				WHERE p.organization_id = c.organization_id AND p.contract_id = c.id ORDER BY p.id LIMIT 1) AS party_account_id,
-			(SELECT MIN(v.effective_from) FROM care_contract.contract_versions AS v
-				WHERE v.organization_id = c.organization_id AND v.contract_id = c.id
-					AND v.status IN `+effectiveStatusSQL+`) AS first_from,
 			(SELECT v.ends_on FROM care_contract.contract_versions AS v
 				WHERE v.organization_id = c.organization_id AND v.contract_id = c.id
 					AND v.status IN `+effectiveStatusSQL+`
@@ -76,7 +72,7 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 	if err != nil {
 		return ports.NoticeState{}, fmt.Errorf("care contract postgres: read notice state: %w", err)
 	}
-	state := ports.NoticeState{FirstFrom: row.FirstFrom, ContractEnd: row.ContractEnd, InformedAt: row.InformedAt, EarlyStart: row.EarlyStart,
+	state := ports.NoticeState{ContractEnd: row.ContractEnd, InformedAt: row.InformedAt, EarlyStart: row.EarlyStart,
 		StudentID: row.StudentID}
 	if row.Party != nil {
 		state.Accounts = append(state.Accounts, *row.Party)

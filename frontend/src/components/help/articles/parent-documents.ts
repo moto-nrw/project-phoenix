@@ -4,7 +4,8 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 /**
  * `/parents/documents` (#4671, #4678, #4679, #4692): Schreiben und Verträge
  * des Trägers, den Betreuungsvertrag unterschreiben, und Dokumente, die der
- * Träger für Eltern freigegeben hat; die Kündigung eines Vertrags (#4682).
+ * Träger für Eltern freigegeben hat; die Kündigung eines Vertrags (#4682);
+ * die Nachricht `Neues Dokument vom Träger` für alle drei Arten (#5941).
  */
 export function parentDocumentsTopic(): HelpTopic {
   return {
@@ -46,13 +47,14 @@ export function parentDocumentsTopic(): HelpTopic {
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Steht beim Vertrag `Abgeschlossen` statt `Unterschrieben`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
-      "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin oder innerhalb der angezeigten Frist `Widerrufen`. Wählen Sie dann `Jetzt kündigen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
+      "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin oder innerhalb der angezeigten Frist `Widerrufen`. Wählen Sie dann `Jetzt kündigen` oder `Jetzt widerrufen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
       "Haben Sie einen wichtigen Grund, den Vertrag früher zu beenden? Wählen Sie `Außerordentlich kündigen` und schreiben Sie Ihren Grund auf. Der Träger prüft ihn. Erkennt er ihn an, legt er das Vertragsende fest. Erkennt er ihn nicht an, gilt Ihre Kündigung als ordentliche Kündigung zum nächsten möglichen Termin. Die Entscheidung bekommen Sie per Mail. Sie steht auch beim Vertrag unter `Mitteilung des Trägers zum Vertragsende`. Bis dahin findet die Betreuung wie gebucht statt.",
       "Bei einem gekündigten Vertrag steht `Gekündigt zum` und das Datum. Bis dahin findet die Betreuung wie gebucht statt. Mit `Bestätigung ansehen` öffnen Sie Ihre Bestätigung.",
       "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
       "Bei einem freigegebenen Dokument steht `Vom Träger für Eltern freigegeben`. Es gilt für alle Eltern, für die der Träger es freigegeben hat, zum Beispiel für eine Gruppe. Diese Dokumente kommen nicht per Mail.",
-      "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein Bestätigungsschreiben kommt? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Einen Betreuungsvertrag bekommen Sie per Mail.",
+      "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein neues Dokument da ist? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Das gilt für Schreiben, Verträge und freigegebene Dokumente.",
+      "Die Nachricht nennt kein Kind und keinen Betrag. Was gekommen ist, sehen Sie unter `Dokumente`.",
     ],
     troubleshootingDetails: [
       "Ein Schreiben fehlt? Hier liegt es nur, wenn es an die Mail-Adresse Ihres Kontos ging. Haben Sie bei der Anmeldung eine andere Adresse angegeben, bekommen Sie es nur per Mail.",
@@ -60,6 +62,7 @@ export function parentDocumentsTopic(): HelpTopic {
       "Der Link in der Mail gilt nicht mehr? Er gilt nur einmal und 30 Tage. Unterschreiben Sie in der Eltern-App unter `Dokumente`. Oder fragen Sie beim Träger nach einem neuen Link.",
       "Beim Vertrag fehlt `Lesen und unterschreiben`? Dann darf Ihr Konto für dieses Kind nicht unterschreiben. Bitte fragen Sie die Schule.",
       "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen oder das Dokument gelöscht.",
+      "Das Dokument ist da, aber es kam keine Nachricht? Prüfen Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger`. Schickt der Träger dasselbe Dokument noch einmal, kommt keine zweite Nachricht.",
       "`Verträge hier kündigen` fehlt? Der Vertrag gilt noch nicht, oder er ist schon beendet. Oder Ihnen fehlt das Recht: Kündigen dürfen nur Eltern, die das Kind auch anmelden dürfen. Dann steht beim Vertrag ein Hinweis. Das Recht vergibt die Schule.",
     ],
     related: [

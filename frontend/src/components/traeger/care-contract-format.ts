@@ -1,10 +1,11 @@
 /**
- * Display helpers of the care contracts in the Träger portal (#4678). The
- * texts of term and notice match the table "Vertragsangaben" of the contract
- * PDF, so the screen says what the parents read.
+ * Display helpers of the care contracts in the Träger portal (#4678). Term,
+ * notice, fee and module texts come from the backend, which prints the same
+ * texts into the contract PDF.
  */
 
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
+import { contractWeekdays } from "~/lib/care-contract-weekdays";
 import {
   formatBerlinDate,
   formatBerlinTime,
@@ -18,7 +19,6 @@ import type {
   ContractMailState,
   ContractNoticeTo,
   ContractService,
-  ContractTerms,
   SendSkipReason,
   TemplateIssue,
   Weekday,
@@ -27,7 +27,6 @@ import type {
 export const CONTRACT_STATUS_LABELS: Record<CareContractStatus, string> = {
   entwurf: "Entwurf",
   versendet: "Versendet",
-  unterschrieben: "Unterschrieben",
   aktiv: "Aktiv",
   gekuendigt: "Gekündigt",
   widerrufen: "Widerrufen",
@@ -40,7 +39,6 @@ export const CONTRACT_STATUS_TONES: Record<
 > = {
   entwurf: "gray",
   versendet: "blue",
-  unterschrieben: "purple",
   aktiv: "green",
   gekuendigt: "orange",
   widerrufen: "red",
@@ -51,7 +49,6 @@ export const CONTRACT_STATUS_TONES: Record<
 export const CONTRACT_STATUS_ORDER: readonly CareContractStatus[] = [
   "entwurf",
   "versendet",
-  "unterschrieben",
   "aktiv",
   "gekuendigt",
   "widerrufen",
@@ -82,16 +79,6 @@ const WEEKDAY_SHORT: Record<Weekday, string> = {
   sun: "So",
 };
 
-const WEEKDAY_ORDER: readonly Weekday[] = [
-  "mon",
-  "tue",
-  "wed",
-  "thu",
-  "fri",
-  "sat",
-  "sun",
-];
-
 const WEEKDAY_LONG: Record<Weekday, string> = {
   mon: "Montag",
   tue: "Dienstag",
@@ -102,30 +89,22 @@ const WEEKDAY_LONG: Record<Weekday, string> = {
   sun: "Sonntag",
 };
 
-/** One weekday of a contract with the modules booked on it. */
 export interface ServiceDay {
   readonly weekday: Weekday;
   readonly label: string;
   readonly services: readonly ContractService[];
 }
 
-/**
- * The weekdays of a contract as the PDF prints them: Monday to Friday
- * always, Saturday and Sunday only when booked or named in `include` (a
- * weekend day another version books). A day without services has no care.
- */
+/** The weekdays of a contract (`contractWeekdays`) with their modules. */
 export function serviceDays(
   services: readonly ContractService[],
   include: readonly Weekday[] = [],
 ): ServiceDay[] {
-  return WEEKDAY_ORDER.map((weekday) => ({
+  return contractWeekdays(services, include).map((weekday) => ({
     weekday,
     label: WEEKDAY_LONG[weekday],
     services: services.filter((service) => service.weekday === weekday),
-  })).filter(
-    (day, index) =>
-      index < 5 || day.services.length > 0 || include.includes(day.weekday),
-  );
+  }));
 }
 
 /** One module of a day: „Kurzbetreuung bis 14:00 Uhr“. */
@@ -136,16 +115,6 @@ export function formatService(service: ContractService): string {
   return service.lastDay
     ? `${text}, gebucht bis ${formatDate(service.lastDay)}`
     : text;
-}
-
-/** The modules of a contract once each: „Frühbetreuung, Ganztag“. */
-export function formatModules(names: readonly string[]): string {
-  return names.length > 0 ? names.join(", ") : "–";
-}
-
-/** The module names of the services once each, in weekday order. */
-export function moduleNames(services: readonly ContractService[]): string[] {
-  return [...new Set(services.map((service) => service.moduleName))];
 }
 
 /**
@@ -168,11 +137,10 @@ export function formatServiceDays(
     .join(" · ");
 }
 
-/** Why a child gets no draft yet, as the create dialog says it. */
 export const TEMPLATE_ISSUE_LABELS: Record<TemplateIssue, string> = {
   template_missing: "Vertragsbedingungen fehlen",
   templates_differ: "Bedingungen der Module weichen ab",
-  conclusion_automatic: "Entsteht bei der Annahme",
+  conclusion_automatic: "Bei der Annahme",
   acceptance_missing: "Zustimmung zum Vertrag fehlt",
   acceptance_changed: "Bedingungen nach der Anmeldung geändert",
   recipient_missing: "E-Mail-Adresse der Eltern fehlt",
@@ -200,38 +168,6 @@ export const NOTICE_TO_LABELS: Record<ContractNoticeTo, string> = {
   school_year_end: "zum Ende des Schuljahres",
 };
 
-/** The term as the contract prints it. */
-export function formatTerm(
-  terms: Pick<ContractTerms, "termKind" | "termMonths">,
-  endsOn?: string | null,
-): string {
-  let text: string;
-  switch (terms.termKind) {
-    case "school_year":
-      text = "Bis zum Ende des Schuljahres";
-      break;
-    case "fixed_months":
-      text =
-        terms.termMonths === 1
-          ? "1 Monat"
-          : `${terms.termMonths ?? "–"} Monate`;
-      break;
-    default:
-      text = "Unbefristet";
-  }
-  return endsOn ? `${text}, endet am ${formatDate(endsOn)}` : text;
-}
-
-/** The notice period as the contract prints it. */
-export function formatNotice(
-  terms: Pick<ContractTerms, "noticeMonths" | "noticeTo">,
-): string {
-  const to = NOTICE_TO_LABELS[terms.noticeTo];
-  if (terms.noticeMonths === 0) return `Ohne Frist ${to}`;
-  if (terms.noticeMonths === 1) return `1 Monat Frist ${to}`;
-  return `${terms.noticeMonths} Monate Frist ${to}`;
-}
-
 export const SEND_SKIP_LABELS: Record<SendSkipReason, string> = {
   recipient_missing: "keine E-Mail-Adresse",
   partner_missing:
@@ -243,7 +179,6 @@ export const SEND_SKIP_LABELS: Record<SendSkipReason, string> = {
   not_sendable: "lässt sich nicht mehr senden",
 };
 
-/** The full name of the child. */
 export function childName(contract: {
   readonly childFirstName: string;
   readonly childLastName: string;
@@ -251,7 +186,6 @@ export function childName(contract: {
   return `${contract.childFirstName} ${contract.childLastName}`.trim();
 }
 
-/** How a contract was concluded, as the office reads it. */
 const CONCLUSION_METHOD_LABELS: Record<ConclusionMethod, string> = {
   mit_anmeldung: "bei der Annahme der Anmeldung",
   einfach_elektronisch: "mit der Unterschrift der Eltern",
@@ -266,13 +200,18 @@ export function formatConclusion(conclusion: ContractConclusion): string {
   return `Am ${formatBerlinDate(conclusion.at)} um ${formatBerlinTime(conclusion.at)} Uhr, ${CONCLUSION_METHOD_LABELS[conclusion.method]}`;
 }
 
-/** How the contracts of a school come about (#4680). */
 export const CONCLUSION_MODE_LABELS: Record<ConclusionMode, string> = {
-  bei_annahme: "Gilt bei der Annahme",
-  nachtraeglich: "Sie verschicken ihn",
+  bei_annahme: "Bei der Annahme",
+  nachtraeglich: "Später verschicken",
 };
 
 export const CONCLUSION_MODE_TONES: Record<ConclusionMode, StatusBadgeTone> = {
   bei_annahme: "green",
   nachtraeglich: "gray",
 };
+
+export const TERMINATION_KIND_LABELS = {
+  ordentlich: "Ordentlich",
+  sonderkuendigung: "Sonderkündigung",
+  ausserordentlich: "Außerordentlich, aus wichtigem Grund",
+} as const;

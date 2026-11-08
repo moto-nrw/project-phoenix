@@ -5788,7 +5788,8 @@ export const parentDepartureTopic = function parentDepartureTopic(): HelpTopic {
 /**
  * `/parents/documents` (#4671, #4678, #4679, #4692): Schreiben und Verträge
  * des Trägers, den Betreuungsvertrag unterschreiben, und Dokumente, die der
- * Träger für Eltern freigegeben hat; die Kündigung eines Vertrags (#4682).
+ * Träger für Eltern freigegeben hat; die Kündigung eines Vertrags (#4682);
+ * die Nachricht `Neues Dokument vom Träger` für alle drei Arten (#5941).
  */
 export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
   return {
@@ -5830,13 +5831,14 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Steht beim Vertrag `Abgeschlossen` statt `Unterschrieben`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
-      "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin oder innerhalb der angezeigten Frist `Widerrufen`. Wählen Sie dann `Jetzt kündigen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
+      "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin oder innerhalb der angezeigten Frist `Widerrufen`. Wählen Sie dann `Jetzt kündigen` oder `Jetzt widerrufen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
       "Haben Sie einen wichtigen Grund, den Vertrag früher zu beenden? Wählen Sie `Außerordentlich kündigen` und schreiben Sie Ihren Grund auf. Der Träger prüft ihn. Erkennt er ihn an, legt er das Vertragsende fest. Erkennt er ihn nicht an, gilt Ihre Kündigung als ordentliche Kündigung zum nächsten möglichen Termin. Die Entscheidung bekommen Sie per Mail. Sie steht auch beim Vertrag unter `Mitteilung des Trägers zum Vertragsende`. Bis dahin findet die Betreuung wie gebucht statt.",
       "Bei einem gekündigten Vertrag steht `Gekündigt zum` und das Datum. Bis dahin findet die Betreuung wie gebucht statt. Mit `Bestätigung ansehen` öffnen Sie Ihre Bestätigung.",
       "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
       "Bei einem freigegebenen Dokument steht `Vom Träger für Eltern freigegeben`. Es gilt für alle Eltern, für die der Träger es freigegeben hat, zum Beispiel für eine Gruppe. Diese Dokumente kommen nicht per Mail.",
-      "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein Bestätigungsschreiben kommt? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Einen Betreuungsvertrag bekommen Sie per Mail.",
+      "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein neues Dokument da ist? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Das gilt für Schreiben, Verträge und freigegebene Dokumente.",
+      "Die Nachricht nennt kein Kind und keinen Betrag. Was gekommen ist, sehen Sie unter `Dokumente`.",
     ],
     troubleshootingDetails: [
       "Ein Schreiben fehlt? Hier liegt es nur, wenn es an die Mail-Adresse Ihres Kontos ging. Haben Sie bei der Anmeldung eine andere Adresse angegeben, bekommen Sie es nur per Mail.",
@@ -5844,6 +5846,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Der Link in der Mail gilt nicht mehr? Er gilt nur einmal und 30 Tage. Unterschreiben Sie in der Eltern-App unter `Dokumente`. Oder fragen Sie beim Träger nach einem neuen Link.",
       "Beim Vertrag fehlt `Lesen und unterschreiben`? Dann darf Ihr Konto für dieses Kind nicht unterschreiben. Bitte fragen Sie die Schule.",
       "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen oder das Dokument gelöscht.",
+      "Das Dokument ist da, aber es kam keine Nachricht? Prüfen Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger`. Schickt der Träger dasselbe Dokument noch einmal, kommt keine zweite Nachricht.",
       "`Verträge hier kündigen` fehlt? Der Vertrag gilt noch nicht, oder er ist schon beendet. Oder Ihnen fehlt das Recht: Kündigen dürfen nur Eltern, die das Kind auch anmelden dürfen. Dann steht beim Vertrag ein Hinweis. Das Recht vergibt die Schule.",
     ],
     related: [
@@ -10359,11 +10362,11 @@ export const traegerCareContractsTopic =
       ],
       steps: [],
       result:
-        "Die Eltern bekommen den Vertrag als PDF per Mail. Haben sie ein Konto in der Eltern-App, liegt er dort auch unter `Dokumente`. Gilt der Vertrag bei der Annahme, ist sein Status `Aktiv`. Sonst wird er `Versendet`: Der Versand ist beauftragt. Ob die Mail gesendet wurde, sehen Sie unter `Versand`.",
+        "Die Eltern bekommen den Vertrag als PDF per Mail. Haben sie ein Konto in der Eltern-App, liegt er dort auch unter `Dokumente`. Wer dort `Neues Dokument vom Träger` eingeschaltet hat, bekommt dazu eine Nachricht aufs Handy. Gilt der Vertrag bei der Annahme, ist sein Status `Aktiv`. Sonst wird er `Versendet`: Der Versand ist beauftragt. Ob die Mail gesendet wurde, sehen Sie unter `Versand`.",
       notes: [
         "Die Suche und die Filter gelten für alle Verträge. Mit `Weitere Verträge laden` zeigen Sie ältere Treffer an.",
         "Beim ersten Senden hält moto das PDF fest. Ändern Sie danach Bedingungen oder Brieftext, bleibt der versendete Vertrag gleich.",
-        "Unter `Versand` sehen Sie, ob die Mail gesendet wurde. Mit `Versand aktualisieren` prüfen Sie den neuen Stand. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern.",
+        "Unter `Versand` sehen Sie, ob die Mail gesendet wurde. Mit `Versand aktualisieren` prüfen Sie den neuen Stand. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern. Eine zweite Nachricht aufs Handy gibt es dabei nicht. Nur eine korrigierte Mail-Adresse bekommt eine eigene Nachricht.",
         "Neben jedem Versand steht, was aus der Mail geworden ist: wie bei der Abrechnung. Der Hinweis oben nennt den Grund und den nächsten Schritt. Bei `Verzögert` warten Sie. Hat die Schule die Mails gestoppt, klären Sie das mit der Schule. Bei `Gesperrt` klärt das der moto-Support. Solange das gilt, ist `Erneut senden` aus.",
         "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
         "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
@@ -11497,9 +11500,10 @@ export const traegerSharedDocumentsTopic =
       ],
       steps: [],
       result:
-        "Eltern finden das Dokument in der Eltern-App unter `Dokumente`. Die OGS-Leitung findet es in moto unter `Dateien` bei `Vom Träger`. Nach dem Zurücknehmen sehen sie es sofort nicht mehr, außer eine andere Freigabe des Dokuments gilt auch für sie. Nach dem Löschen sieht es niemand mehr, auch nicht über einen gespeicherten Link.",
+        "Eltern finden das Dokument in der Eltern-App unter `Dokumente`. Die OGS-Leitung findet es in moto unter `Dateien` bei `Vom Träger`. Nach dem Zurücknehmen sehen sie es sofort nicht mehr, außer eine andere Freigabe des Dokuments gilt auch für sie. Nach dem Löschen sieht es niemand mehr, auch nicht über einen gespeicherten Link. Eltern mit eingeschalteter Nachricht `Neues Dokument vom Träger` bekommen bei der Freigabe eine Nachricht aufs Handy. Sie nennt keinen Titel und kein Kind.",
       notes: [
         "Ein Dokument kann mehrere Freigaben haben. Zum Beispiel für die Eltern einer Gruppe und für alle Schulen.",
+        "Eltern, die ein Dokument schon sehen, bekommen bei einer weiteren Freigabe keine zweite Nachricht. Nehmen Sie die Freigabe zurück, kommt auch keine Nachricht mehr.",
         "Eine Freigabe für Eltern sieht auch die OGS-Leitung der Schule. So weiß sie, was die Eltern bekommen haben.",
         "Bei `Geöffnet` sehen Sie, wie oft Eltern und Schulen das Dokument geöffnet haben.",
         "Auch nach dem Löschen bleibt im Nachweis, wer das Dokument wann freigegeben, geöffnet und gelöscht hat.",

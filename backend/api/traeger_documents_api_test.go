@@ -26,6 +26,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	organizationtenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
@@ -97,7 +99,11 @@ func newTraegerDocumentsFixtureOn(t *testing.T, db *bun.DB) traegerDocumentsFixt
 	require.NoError(t, err)
 	ledger, err := auditCompose.NewObservedCommand(audit.AppendStore, slog.Default(), func(string, time.Duration, int, error) {})
 	require.NoError(t, err)
-	require.NoError(t, mountTraegerDocumentRoutes(router, tenantRouter, testpkg.NewDatabase(t, db), organizations, audit.DataAccessLog, ledger))
+	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
+		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
+	})
+	require.NoError(t, err)
+	require.NoError(t, mountTraegerDocumentRoutes(router, tenantRouter, testpkg.NewDatabase(t, db), organizations, audit.DataAccessLog, ledger, delivery.Module))
 	router.Mount("/api", tenantRouter)
 	f := traegerDocumentsFixture{db: db, portal: portal, router: testpkg.SessionVerifier(router)}
 	f.office = f.newOffice(t, "Träger Dokumente", identityaccess.TraegerRoleDocuments)

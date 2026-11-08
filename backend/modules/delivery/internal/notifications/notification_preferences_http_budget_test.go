@@ -437,7 +437,7 @@ var notificationBudgetCatalogues = map[string]string{
   {
     "key": "parent_billing_document",
     "label": "Neues Dokument vom Träger",
-    "description": "Wenn der Träger Ihnen ein Dokument schickt, zum Beispiel ein Bestätigungsschreiben.",
+    "description": "Wenn der Träger Ihnen ein Dokument schickt oder freigibt, zum Beispiel einen Vertrag.",
     "group": "mitteilungen",
     "enabled": false,
     "available": true
