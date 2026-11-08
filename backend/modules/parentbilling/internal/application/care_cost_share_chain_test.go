@@ -212,6 +212,18 @@ func TestCareCostSharesFollowTheRuleChain(t *testing.T) {
 				contractMia: {8000, []shareOf{}, 8000},
 				contractLea: {3333, []shareOf{{bearerYouthOffice, 3333}}, 0},
 			},
+		}, {
+			// A decision that ends on 15 January is valid on the 1st, so it holds
+			// for the whole of January (ADR 0169 point 2, like an evidence in
+			// ADR 0164 point 6): the Jugendamt takes Noah's 60,00 €. The share
+			// need not last to the end of the month.
+			name: "a share ending mid-month holds for that month", children: []careChainChild{noah}, rules: noRules,
+			shares: func(t *testing.T) []parentbilling.CareCostShare {
+				return []parentbilling.CareCostShare{
+					costShare(t, contractNoah, parentbilling.CostShareYouthOffice, bearerYouthOffice, "2026-08-01", "2027-01-15", basisPoints(10000)),
+				}
+			},
+			want: map[int64]splitOf{contractNoah: {6000, []shareOf{{bearerYouthOffice, 6000}}, 0}},
 		},
 	}
 	for _, tc := range cases {

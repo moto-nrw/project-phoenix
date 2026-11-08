@@ -184,6 +184,59 @@ func TestCareReviewReleaseRefusesACostShareAddedSinceTheReview(t *testing.T) {
 	})
 }
 
+// Only who pays changes between review and release: the share of Mia's
+// contribution moves from Bildung und Teilhabe to the Jugendamt, at the same
+// share. The family's amounts, the count and the sum of the release stay
+// the same, so only the shares in the fingerprint tell the two states apart;
+// the release answers 409 and the reviewed new state releases.
+func TestCareReviewReleaseRefusesAnotherCostBearerAtTheSameAmount(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Prüfphase Kostenträger-Wechsel")
+	school := f.office.schools[0]
+	mia := careContract(t, f.db, f.office.organization, school, "Mia", careReductionStart, sjrServices()...)
+	careContract(t, f.db, f.office.organization, school, "Lea", careReductionStart, sjrServices()...)
+	pricedSchools(t, f)
+	jobcenter := f.costBearer(t, "Jobcenter Wechsel")
+	youthOffice := f.costBearer(t, "Jugendamt Wechsel")
+	set := f.saveCostShare(t, careCostShare(mia, "education_participation", jobcenter, map[string]any{"share_basis_points": 5000}))
+	var shareID int64
+	for _, contract := range set.Contracts {
+		if contract.ContractID == mia {
+			shareID = contract.Shares[0].ID
+		}
+	}
+	require.NotZero(t, shareID)
+	run := f.startRun(t, careMonth)
+	reviewed := f.costShareRun(t, run.ID)
+
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodDelete, careCostSharesPath+"/"+strconv.FormatInt(shareID, 10), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	f.saveCostShare(t, careCostShare(mia, "youth_office", youthOffice, map[string]any{"share_basis_points": 5000}))
+	after := f.costShareRun(t, run.ID)
+	assert.Equal(t, reviewed.PreviewCount, after.PreviewCount, "the invoices to issue stay the same")
+	assert.Equal(t, reviewed.PreviewCents, after.PreviewCents, "what the families pay stays the same")
+	family := func(run careCostShareRunBody) map[int64]int64 {
+		totals := map[int64]int64{}
+		for _, invoice := range run.Invoices {
+			totals[invoice.ContractID] = invoice.TotalCents
+		}
+		return totals
+	}
+	assert.Equal(t, family(reviewed), family(after), "each family pays the same")
+
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(reviewed.careRunBody))
+	assert.Equal(t, http.StatusConflict, rec.Code, "another cost bearer is another reviewed state: %s", rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(after.careRunBody))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	released := decodeSchoolPortalData[careCostShareRunBody](t, rec.Body.Bytes())
+	for _, invoice := range released.Invoices {
+		if invoice.ContractID == mia {
+			require.Len(t, invoice.CostShares, 1)
+			assert.Equal(t, youthOffice, invoice.CostShares[0].CostBearerID, "the release issues the state reviewed last")
+		}
+	}
+}
+
 // The share page and its routes need the right "Abrechnung"; another Träger
 // finds no share and changes none; every read and change stands in the
 // trail of the contract; a cost bearer a share names stays.
