@@ -265,7 +265,7 @@ func (f *localePushFixture) reminderKey(t *testing.T) func(string) string {
 
 // TestLocalePushSeriesKeepsEveryGuardiansLanguageWithOneDeviceRead pins the
 // delivery history of publication and poll reminder for one and for three
-// languages, and that the poll reminder reads the devices once.
+// languages, and that the devices are read once per action.
 func TestLocalePushSeriesKeepsEveryGuardiansLanguageWithOneDeviceRead(t *testing.T) {
 	t.Parallel()
 	for _, locales := range [][]string{{"de"}, seriesLocales} {
@@ -291,6 +291,7 @@ func TestLocalePushSeriesKeepsEveryGuardiansLanguageWithOneDeviceRead(t *testing
 
 			t.Logf("languages=%d publish statements=%d device reads=%d; remind statements=%d device reads=%d",
 				len(locales), len(publish), subscriptionReads(publish), len(remind), subscriptionReads(remind))
+			require.Equal(t, 1, subscriptionReads(publish), "publication reads the devices of all languages once")
 			require.Equal(t, 1, subscriptionReads(remind), "the poll reminder reads the devices of all languages once")
 		})
 	}
@@ -473,6 +474,7 @@ func TestLocalePushSeriesScheduledReminder(t *testing.T) {
 		require.Equal(t, want, after.push)
 		require.Equal(t, 2*len(f.localeOf), after.emails)
 		t.Logf("languages=%d scheduled reminder statements=%d device reads=%d", len(seriesLocales), len(queries), subscriptionReads(queries))
+		require.Equal(t, 1, subscriptionReads(queries), "the scheduled reminder reads the devices of all languages once")
 	})
 	t.Run("second_variant_fails", func(t *testing.T) {
 		testpkg.OwnTenant(t)

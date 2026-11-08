@@ -408,21 +408,17 @@ func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *StaffP
 			},
 		}.Public())
 	}
-	accepted := 0
-	for _, event := range events {
-		count, err := notifyEach(ctx, []communication.NotificationEvent{event})
-		if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
-			s.logger.Info("parent announcement push suppressed by tenant notification gate",
-				slog.Int64("announcement_id", a.ID),
-				slog.Int("recipient_count", len(accountIDs)),
-				slog.String("reason", err.Error()),
-			)
-			return accepted, err
-		}
-		if err != nil {
-			return accepted, fmt.Errorf("notify guardian audience: %w", err)
-		}
-		accepted += count
+	accepted, err := notifyEach(ctx, events)
+	if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
+		s.logger.Info("parent announcement push suppressed by tenant notification gate",
+			slog.Int64("announcement_id", a.ID),
+			slog.Int("recipient_count", len(accountIDs)),
+			slog.String("reason", err.Error()),
+		)
+		return accepted, err
+	}
+	if err != nil {
+		return accepted, fmt.Errorf("notify guardian audience: %w", err)
 	}
 	return accepted, nil
 }
