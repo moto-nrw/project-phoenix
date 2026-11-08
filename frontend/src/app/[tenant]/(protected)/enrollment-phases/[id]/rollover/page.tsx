@@ -8,7 +8,7 @@ import { getPhase, type Phase } from "~/lib/enrollment-phase-api";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { createLogger } from "~/lib/logger";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { useTenantMutate } from "~/lib/swr";
+import { useRefreshPhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 
 const logger = createLogger({ component: "MobileRolloverPage" });
 
@@ -20,7 +20,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
   const { id } = use(params);
   const { isReady } = useRequirePermission("config:manage");
   const router = useTenantRouter();
-  const tenantMutate = useTenantMutate();
+  const refreshPhaseExpiryWarnings = useRefreshPhaseExpiryWarnings();
   const [phase, setPhase] = useState<Phase | null>(null);
   const phaseLoad = useApiLoadError();
   const showLoadError = phaseLoad.show;
@@ -85,7 +85,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
       // would build it again (#5001).
       onCancel={() => router.replace("/home")}
       onSuccess={() => {
-        void tenantMutate("enrollment-phase-expiry-warnings");
+        refreshPhaseExpiryWarnings();
         router.replace("/home");
       }}
     />
