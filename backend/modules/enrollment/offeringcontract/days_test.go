@@ -8,10 +8,10 @@ import (
 
 func TestDayCodesFollowISOWeekdays(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "mon", DayCode(1))
-	assert.Equal(t, "sun", DayCode(7))
-	assert.Empty(t, DayCode(0))
-	assert.Empty(t, DayCode(8))
+	assert.Equal(t, "mon", dayCode(1))
+	assert.Equal(t, "sun", dayCode(7))
+	assert.Empty(t, dayCode(0))
+	assert.Empty(t, dayCode(8))
 	assert.Equal(t, "fri", SchoolDayCode(5))
 	assert.Empty(t, SchoolDayCode(6), "Saturday is no school day")
 	assert.Equal(t, 3, DayNumber("wed"))

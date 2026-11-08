@@ -194,7 +194,7 @@ func TestValidatePhaseEligibility_TrustedPathsBypass(t *testing.T) {
 
 	// Admin manual enrollment and late invites set AllowClosedPhase and
 	// must bypass every eligibility rule.
-	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
+	err := validateTrustedSubmission(svc, phase, SubmitRequest{
 		AllowClosedPhase: true,
 		Children:         []SubmitChild{{FirstName: "Kim", LastName: "Test"}},
 	})
@@ -369,7 +369,7 @@ func TestValidatePhaseEligibility_ExistingStudentsRejectsAnonymous(t *testing.T)
 	require.ErrorIs(t, err, enrollmentNative.ErrPhaseNotEligible)
 
 	// The trusted override paths keep working.
-	err = svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
+	err = validateTrustedSubmission(svc, phase, SubmitRequest{
 		TenantID:         int64(9054),
 		AllowClosedPhase: true,
 		Children:         child,
@@ -674,4 +674,10 @@ func TestAssertGuardianMayReEnrollStudent_EmailProbeErrorPropagates(t *testing.T
 		reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 0)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, enrollmentNative.ErrChildEnrollmentNotPermitted)
+}
+
+// validateTrustedSubmission runs the eligibility a new submission gets from
+// its caller's trust, the gate planSubmissionContract applies.
+func validateTrustedSubmission(svc *Intake, phase *enrollmentNative.Phase, req SubmitRequest) error {
+	return svc.validateEligibility(context.Background(), phase, req, submissionEligibility(req))
 }

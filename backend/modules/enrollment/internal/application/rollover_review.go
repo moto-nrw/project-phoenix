@@ -30,7 +30,7 @@ func (s *Rollovers) PreviewPhaseFromSource(ctx context.Context, sourcePhaseID in
 	if err != nil {
 		return nil, fmt.Errorf("rollover preview: resolve collect grade level: %w", err)
 	}
-	children, err := s.childrenByStatuses(ctx, sourcePhaseID, allChildStatuses)
+	children, err := s.childrenByStatuses(ctx, sourcePhaseID, enrollmentNative.ChildStatuses())
 	if err != nil {
 		return nil, fmt.Errorf("rollover preview: list source children: %w", err)
 	}

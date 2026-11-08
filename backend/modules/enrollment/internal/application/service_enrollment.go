@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
@@ -56,7 +55,7 @@ func (m *Service) BackfillGuardianAccountID(ctx context.Context, accountID int64
 	if accountID <= 0 {
 		return 0, fmt.Errorf("parent: account_id must be positive")
 	}
-	email = strings.ToLower(strings.TrimSpace(email))
+	email = guardianEmailKey(email)
 	if email == "" {
 		return 0, nil
 	}

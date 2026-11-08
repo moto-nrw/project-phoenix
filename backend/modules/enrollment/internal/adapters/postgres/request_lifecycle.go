@@ -118,9 +118,9 @@ func (r *Store) SettledRequestsBefore(ctx context.Context, withdrawnCutoff, reje
 		Having("BOOL_OR(rc.status = ?)", enrollment.ChildStatusWithdrawn).
 		Having("BOOL_AND(rc.created_student_id IS NULL)").
 		Having(`BOOL_AND(CASE rc.status
-			WHEN 'withdrawn' THEN COALESCE(rc.reviewed_at, rc.updated_at) < ?
-			WHEN 'rejected' THEN rc.reviewed_at IS NOT NULL AND rc.reviewed_at < ?
-			ELSE FALSE END)`, withdrawnCutoff, rejectedCutoff).
+			WHEN ? THEN COALESCE(rc.reviewed_at, rc.updated_at) < ?
+			WHEN ? THEN rc.reviewed_at IS NOT NULL AND rc.reviewed_at < ?
+			ELSE FALSE END)`, enrollment.ChildStatusWithdrawn, withdrawnCutoff, enrollment.ChildStatusRejected, rejectedCutoff).
 		OrderExpr("request.id").Scan(ctx, &ids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list settled enrollment requests: %w", err)
