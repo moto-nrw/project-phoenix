@@ -64,16 +64,26 @@ func isParentPin(child *RequestChild) bool {
 // Account-bound pins always require current authority, even if the audience
 // changed since submission or the account was attached later.
 func (d *Decisions) parentPinLapsed(ctx context.Context, request *Request, child *RequestChild) (bool, error) {
-	if !isParentPin(child) || request == nil || request.GuardianAccountID == nil {
+	if !isParentPin(child) {
+		return false, nil
+	}
+	return d.parentStudentAuthorityLapsed(ctx, request, child.ID, *child.MatchedStudentID)
+}
+
+// parentStudentAuthorityLapsed checks both direct parent pins and the student
+// inherited by an approved rollover descendant. Neither a past approval nor
+// a rollover grants authority for new family data after revocation.
+func (d *Decisions) parentStudentAuthorityLapsed(ctx context.Context, request *Request, childID, studentID int64) (bool, error) {
+	if request == nil || request.GuardianAccountID == nil {
 		return false, nil
 	}
 	submitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, d.deps.LateInvites, request)
 	if err != nil {
-		return false, fmt.Errorf("decision: resolve re-enrollment identity of child %d: %w", child.ID, err)
+		return false, fmt.Errorf("decision: resolve re-enrollment identity of child %d: %w", childID, err)
 	}
-	granted, err := submitterMayRenewStudent(ctx, d.deps.GuardianAuthorizer, submitter, *child.MatchedStudentID, request.TenantID)
+	granted, err := submitterMayRenewStudent(ctx, d.deps.GuardianAuthorizer, submitter, studentID, request.TenantID)
 	if err != nil {
-		return false, fmt.Errorf("decision: verify relationship of child %d: %w", child.ID, err)
+		return false, fmt.Errorf("decision: verify relationship of child %d: %w", childID, err)
 	}
 	return !granted, nil
 }

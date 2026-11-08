@@ -150,10 +150,16 @@ func (d *Decisions) approvedChildDataChanged(ctx context.Context, run *approvedC
 var allChildFields = enrollmentNative.ApprovedChildCorrection{Name: true, Birthday: true, Class: true}
 
 // childEnrollmentOnly leaves master data, guardians and form data alone
-// for an office match or an account-bound pin whose authority has lapsed.
+// for an office match or an account-bound pin or rollover whose authority
+// has lapsed.
 func (d *Decisions) childEnrollmentOnly(ctx context.Context, request *Request, child *RequestChild) (bool, error) {
 	if child.MatchedByOffice {
 		return true, nil
+	}
+	if child.RolloverSourceChildID != nil && child.CreatedStudentID != nil {
+		// Approval already resolved the inherited student, across any number
+		// of rollovers. Descendants carry no MatchedStudentID of their own.
+		return d.parentStudentAuthorityLapsed(ctx, request, child.ID, *child.CreatedStudentID)
 	}
 	return d.parentPinLapsed(ctx, request, child)
 }
