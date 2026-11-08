@@ -22,7 +22,9 @@ Methodenmenge umfasst 262 Methoden. Wächst ein solches Interface um eine
 weitere Einbettung, schlägt kein Ratchet an. Das ist auch tatsächlich passiert: Zwischen
 development `e59b3f93cd` und `b474b11a27` hat
 [#6161](https://github.com/moto-nrw/project-phoenix/pull/6161)
-`enrollment.Owner` von 139 auf 140 Methoden vergrößert, unbemerkt. Das Register des bestehenden
+`enrollment.Owner` von 139 auf 140 Methoden vergrößert, unbemerkt. Kurz darauf hat
+[#6216](https://github.com/moto-nrw/project-phoenix/pull/6216) ebenso `parentbilling.CareBilling`
+von 13 auf 14 Methoden vergrößert. Das Register des bestehenden
 Tests ist leer, weil jede Fassade heute höchstens 12 Methoden selbst
 deklariert.
 
@@ -43,7 +45,7 @@ deklariert.
    abhängt. Type-Set-Constraints (`~int`, Unions) sind keine Fassaden und
    bleiben draußen.
 3. **Startwert ist der heutige Stand.** Gemessen am 08.11.2026 auf development
-   `b474b11a27`: 108 Composites über 12 Methoden, zusammen 4.490 Methoden. Die
+   `e20e8013b3`: 108 Composites über 12 Methoden, zusammen 4.491 Methoden. Die
    größten sind `identityaccess.Owner` (262), `careplan.Owner` (159),
    `careplan.Capability` (158), `peopledirectory.Owner` (146),
    `peopledirectory.Capability` (143) und `enrollment.Owner` (140). Diese Zahlen
