@@ -1239,7 +1239,7 @@ function StaffCalendarPageInner() {
                     </div>
 
                     {!editingId ? (
-                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                      <InsetPanel tone="white">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                           <h3 className="text-sm font-semibold text-gray-900">
                             Empfänger auswählen
@@ -1315,7 +1315,7 @@ function StaffCalendarPageInner() {
                             </InsetPanel>
                           ))}
                         </div>
-                      </div>
+                      </InsetPanel>
                     ) : null}
 
                     {targets.length > 0 ? (

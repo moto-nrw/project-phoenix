@@ -9,6 +9,13 @@ import { homeConcept } from "~/lib/concepts/home";
 import { sickConcept } from "~/lib/concepts/sick";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { TILE_CARD_SURFACE, TileCard } from "~/components/ui/tile-card";
+import { cn } from "~/lib/utils";
+
+// Die Schnellaktionen stehen als gleich hohe Kacheln nebeneinander; das
+// Polster ist das Kartenpolster der TileCard (#6135).
+const QUICK_ACTION_TILE =
+  "flex flex-1 flex-col items-center gap-3 active:scale-[0.97] sm:gap-4";
 
 interface StudentCheckoutSectionProps {
   readonly onCheckoutClick: () => void;
@@ -20,11 +27,7 @@ export function StudentCheckoutSection({
   const attendanceWebEnabled = useAttendanceWebEnabled();
   if (!attendanceWebEnabled) return null;
   return (
-    <button
-      type="button"
-      onClick={onCheckoutClick}
-      className="moto-content-surface moto-hover-elevated flex flex-1 flex-col items-center gap-3 rounded-2xl border px-3 py-4 transition-all active:scale-[0.97] sm:gap-4 sm:py-6"
-    >
+    <TileCard onClick={onCheckoutClick} className={QUICK_ACTION_TILE}>
       <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-200 sm:h-14 sm:w-14">
         <MotoConceptIcon concept={homeConcept} size={26} />
       </div>
@@ -34,7 +37,7 @@ export function StudentCheckoutSection({
           Aus der OGS abmelden
         </p>
       </div>
-    </button>
+    </TileCard>
   );
 }
 
@@ -49,11 +52,7 @@ export function StudentCheckinSection({
   const attendanceWebEnabled = useAttendanceWebEnabled();
   if (!attendanceWebEnabled) return null;
   return (
-    <button
-      type="button"
-      onClick={onCheckinClick}
-      className="moto-content-surface moto-hover-elevated flex flex-1 flex-col items-center gap-3 rounded-2xl border px-3 py-4 transition-all active:scale-[0.97] sm:gap-4 sm:py-6"
-    >
+    <TileCard onClick={onCheckinClick} className={QUICK_ACTION_TILE}>
       <div className="border-moto-green text-moto-green flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14">
         <LogIn className="h-5 w-5 sm:h-6 sm:w-6" />
       </div>
@@ -63,7 +62,7 @@ export function StudentCheckinSection({
           Für heute in der OGS anmelden
         </p>
       </div>
-    </button>
+    </TileCard>
   );
 }
 
@@ -98,11 +97,10 @@ export function StudentSickReportSection({
   };
 
   return (
-    <button
-      type="button"
+    <TileCard
       onClick={onToggle}
       disabled={isLoading}
-      className="moto-content-surface moto-hover-elevated flex flex-1 flex-col items-center gap-3 rounded-2xl border px-3 py-4 transition-all active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
+      className={QUICK_ACTION_TILE}
     >
       <div
         className={`flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14 ${
@@ -121,7 +119,7 @@ export function StudentSickReportSection({
             : "Als krank melden"}
         </p>
       </div>
-    </button>
+    </TileCard>
   );
 }
 
@@ -156,11 +154,10 @@ export function StudentExcusedReportSection({
   };
 
   return (
-    <button
-      type="button"
+    <TileCard
       onClick={onToggle}
       disabled={isLoading}
-      className="moto-content-surface moto-hover-elevated flex flex-1 flex-col items-center gap-3 rounded-2xl border px-3 py-4 transition-all active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
+      className={QUICK_ACTION_TILE}
     >
       <div
         className={`flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14 ${
@@ -179,7 +176,7 @@ export function StudentExcusedReportSection({
             : "Als entschuldigt markieren"}
         </p>
       </div>
-    </button>
+    </TileCard>
   );
 }
 
@@ -214,7 +211,12 @@ export function StudentStatusActionsMenu({
       triggerContent={
         // Die Fläche sitzt innen: Ihr Schatten überdeckte sonst den Fokusring
         // des Auslösers.
-        <span className="moto-content-surface flex size-full items-center justify-center rounded-2xl border text-gray-500 transition-colors hover:text-gray-700">
+        <span
+          className={cn(
+            TILE_CARD_SURFACE,
+            "flex size-full items-center justify-center text-gray-500 hover:text-gray-700",
+          )}
+        >
           {isLoading ? (
             <SpinnerIcon className="h-5 w-5" />
           ) : (

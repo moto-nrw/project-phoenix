@@ -9,6 +9,7 @@
 import { useCallback } from "react";
 
 import { SurveyAnswerPanel } from "~/components/surveys/survey-questionnaire";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   fetchParentSurveyForm,
   submitParentSurveyAnswers,
@@ -60,7 +61,7 @@ export function ParentSurveySection({
   }, [announcementId, onUpdated, survey]);
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4">
+    <SectionCard>
       <SurveyAnswerPanel
         load={load}
         submit={submit}
@@ -70,6 +71,6 @@ export function ParentSurveySection({
         onBusyChange={onBusyChange}
         onSubmitted={handleSubmitted}
       />
-    </section>
+    </SectionCard>
   );
 }

@@ -20,6 +20,7 @@ import {
   type OpenCase,
 } from "./case-model";
 import { childrenConcept } from "~/lib/concepts/children";
+import { SectionCard } from "~/components/ui/section-card";
 
 export function caseRowID(caseKey: string): string {
   return `request-case-${caseKey}`;
@@ -141,7 +142,7 @@ export function RequestCaseList({
   onSelect: (childCase: OpenCase) => void;
 }>) {
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       <CaseBucket
         id="request-group-urgent"
         title="Heute wichtig"
@@ -166,6 +167,6 @@ export function RequestCaseList({
         selectedKey={selectedKey}
         onSelect={onSelect}
       />
-    </div>
+    </SectionCard>
   );
 }

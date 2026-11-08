@@ -11,6 +11,7 @@ import {
 } from "~/components/ui/form-error-alert";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { FramedList } from "~/components/ui/framed-list";
 import {
   DataField,
   DataGrid,
@@ -247,7 +248,7 @@ export function GroupTransferModal({
               <p className="text-sm font-medium text-gray-700">
                 Aktuell übergeben an:
               </p>
-              <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border">
+              <FramedList>
                 {existingTransfers.map((transfer) => (
                   <li
                     key={transfer.substitutionId}
@@ -269,7 +270,7 @@ export function GroupTransferModal({
                     </Button>
                   </li>
                 ))}
-              </ul>
+              </FramedList>
             </section>
           )}
 

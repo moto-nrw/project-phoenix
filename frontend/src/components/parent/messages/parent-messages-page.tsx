@@ -6,6 +6,7 @@ import { CaretRightIcon, ChecksIcon } from "@phosphor-icons/react/ssr";
 import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import NavigationLink from "~/components/ui/navigation-link";
+import { SectionCard } from "~/components/ui/section-card";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { SharedParentFeaturesProvider } from "~/components/parent/child-requests-context";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
@@ -215,13 +216,15 @@ export function ParentMessagesPage() {
 
   return (
     <ParentPage header={header}>
-      <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border">
-        {rows.map((row) => (
-          <li key={`${row.studentId}:${row.audience}`}>
-            <ConversationRow row={row} />
-          </li>
-        ))}
-      </ul>
+      <SectionCard padding="none">
+        <ul className="divide-y divide-gray-200">
+          {rows.map((row) => (
+            <li key={`${row.studentId}:${row.audience}`}>
+              <ConversationRow row={row} />
+            </li>
+          ))}
+        </ul>
+      </SectionCard>
       <GroupThreadsSection threads={groupThreads} error={groupThreadsError} />
     </ParentPage>
   );

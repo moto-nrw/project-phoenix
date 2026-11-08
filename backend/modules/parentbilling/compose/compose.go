@@ -40,7 +40,7 @@ func NewBillingLetters(letterheads parentbilling.BillingLetterheads) parentbilli
 }
 
 // NewParentDocuments builds the inbox of the parents portal (#4671, ADR 0126) in the Träger transaction it opens.
-func NewParentDocuments() parentbilling.ParentDocuments {
+func NewParentDocuments() *application.ParentDocuments {
 	return application.NewParentDocuments(postgres.NewStore())
 }
 
