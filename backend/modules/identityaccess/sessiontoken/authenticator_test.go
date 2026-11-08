@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -241,36 +242,36 @@ func TestAuthenticator_InvalidToken(t *testing.T) {
 
 func TestAuthenticator_ExpiredToken(t *testing.T) {
 	t.Parallel()
-	// Set very short expiry
+	synctest.Test(t, func(t *testing.T) {
+		auth, err := newTestTokenAuth(t, testSecret, time.Millisecond, 24*time.Hour)
+		require.NoError(t, err)
 
-	auth, err := newTestTokenAuth(t, testSecret, time.Millisecond, 24*time.Hour)
-	require.NoError(t, err)
+		// Create token
+		claims := sessiontoken.AppClaims{
+			ID:    1,
+			Sub:   "test@test.com",
+			Roles: []string{"user"},
+		}
+		token, err := tokentest.CreateJWT(auth, claims)
+		require.NoError(t, err)
 
-	// Create token
-	claims := sessiontoken.AppClaims{
-		ID:    1,
-		Sub:   "test@test.com",
-		Roles: []string{"user"},
-	}
-	token, err := tokentest.CreateJWT(auth, claims)
-	require.NoError(t, err)
+		// The bubble's clock passes the expiry without waiting.
+		time.Sleep(10 * time.Millisecond)
 
-	// Wait for expiry
-	time.Sleep(10 * time.Millisecond)
+		r := chi.NewRouter()
+		r.Use(auth.Verifier())
+		r.Use(sessiontoken.Authenticator)
+		r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
 
-	r := chi.NewRouter()
-	r.Use(auth.Verifier())
-	r.Use(sessiontoken.Authenticator)
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rr := httptest.NewRecorder()
+
+		r.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
 func TestAuthenticator_WrongSignature(t *testing.T) {
@@ -644,35 +645,35 @@ func TestMiddlewareChain_VerifierThenAuthenticator(t *testing.T) {
 
 func TestAuthenticateRefreshJWT_ExpiredToken(t *testing.T) {
 	t.Parallel()
-	// Set very short expiry for refresh token
+	synctest.Test(t, func(t *testing.T) {
+		auth, err := newTestTokenAuth(t, testSecret, 15*time.Minute, time.Millisecond)
+		require.NoError(t, err)
 
-	auth, err := newTestTokenAuth(t, testSecret, 15*time.Minute, time.Millisecond)
-	require.NoError(t, err)
+		// Create refresh token
+		claims := tokentest.RefreshClaims{
+			ID:    1,
+			Token: "test-token",
+		}
+		token, err := tokentest.CreateRefreshJWT(auth, claims)
+		require.NoError(t, err)
 
-	// Create refresh token
-	claims := tokentest.RefreshClaims{
-		ID:    1,
-		Token: "test-token",
-	}
-	token, err := tokentest.CreateRefreshJWT(auth, claims)
-	require.NoError(t, err)
+		// The bubble's clock passes the expiry without waiting.
+		time.Sleep(10 * time.Millisecond)
 
-	// Wait for token to expire
-	time.Sleep(10 * time.Millisecond)
+		r := chi.NewRouter()
+		r.Use(auth.Verifier())
+		r.Use(sessiontoken.AuthenticateRefreshJWT)
+		r.Post("/refresh", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
 
-	r := chi.NewRouter()
-	r.Use(auth.Verifier())
-	r.Use(sessiontoken.AuthenticateRefreshJWT)
-	r.Post("/refresh", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rr := httptest.NewRecorder()
+
+		r.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	})
-
-	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
 func TestAuthenticator_NilToken(t *testing.T) {

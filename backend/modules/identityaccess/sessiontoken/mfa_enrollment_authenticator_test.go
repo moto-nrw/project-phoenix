@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -159,32 +160,35 @@ func TestMFAEnrollmentAuthenticator_NoToken(t *testing.T) {
 
 func TestMFAEnrollmentAuthenticator_ExpiredToken(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
 
-	auth, err := newTestTokenAuth(t, testSecret)
-	require.NoError(t, err)
+		auth, err := newTestTokenAuth(t, testSecret)
+		require.NoError(t, err)
 
-	tokenString, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
-		AccountID: 4242,
-		Scope:     tokenprimitives.PortalTenant,
-	}, time.Millisecond)
+		tokenString, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
+			AccountID: 4242,
+			Scope:     tokenprimitives.PortalTenant,
+		}, time.Millisecond)
 
-	require.NoError(t, err)
-	time.Sleep(10 * time.Millisecond)
+		require.NoError(t, err)
+		// The bubble's clock passes the expiry without waiting.
+		time.Sleep(10 * time.Millisecond)
 
-	r := chi.NewRouter()
-	r.Use(auth.Verifier())
-	r.Use(sessiontoken.MFAEnrollmentAuthenticator)
-	r.Post("/mfa/enroll/start", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
+		r := chi.NewRouter()
+		r.Use(auth.Verifier())
+		r.Use(sessiontoken.MFAEnrollmentAuthenticator)
+		r.Post("/mfa/enroll/start", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		})
+
+		req := httptest.NewRequest(http.MethodPost, "/mfa/enroll/start", nil)
+		req.Header.Set("Authorization", "Bearer "+tokenString)
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusUnauthorized, rr.Code,
+			"expired enrollment tokens must be rejected, just like expired access tokens")
 	})
-
-	req := httptest.NewRequest(http.MethodPost, "/mfa/enroll/start", nil)
-	req.Header.Set("Authorization", "Bearer "+tokenString)
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code,
-		"expired enrollment tokens must be rejected, just like expired access tokens")
 }
 
 // A route group of one portal admits only that portal's enrollment tokens,
