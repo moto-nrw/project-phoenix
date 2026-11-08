@@ -74,6 +74,17 @@ vi.mock("~/lib/traeger-billing-terms-api", async (importOriginal) => ({
   ...termsApi,
 }));
 vi.mock("~/lib/traeger-api", () => masterApi);
+// The creditor of the SEPA direct debit (#4695) loads with the defaults.
+vi.mock("~/lib/traeger-sepa-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  fetchSepaCreditor: vi.fn().mockResolvedValue({
+    creditorId: "",
+    prenotificationDays: 14,
+    missingMandate: "transfer",
+    updatedAt: null,
+  }),
+  saveSepaCreditor: vi.fn(),
+}));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: { user: { id: "A", permissions: session.permissions } },

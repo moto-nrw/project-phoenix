@@ -368,6 +368,8 @@ import type { traegerSchoolSwitchTopic as authored_traegerSchoolSwitchTopic } fr
 
 import type { traegerSchoolViewTopic as authored_traegerSchoolViewTopic } from "./articles/traeger-school-view";
 
+import type { traegerSepaMandatesTopic as authored_traegerSepaMandatesTopic } from "./articles/traeger-sepa-mandates";
+
 import type { traegerSettingsTopic as authored_traegerSettingsTopic } from "./articles/traeger-settings";
 
 import type { traegerSharedDocumentsTopic as authored_traegerSharedDocumentsTopic } from "./articles/traeger-shared-documents";
@@ -10287,7 +10289,7 @@ export const traegerBillingTermsTopic =
         "Jede Rechnung zeigt den Zahlungsweg und das Datum, an dem sie fällig ist. Steht dahinter `Zahltag der Familie`, kommt das Datum von der Familie. Rechnungen an beide Eltern oder an eine andere Person tragen das Zeichen `Beide Eltern` oder `Abweichender Zahler`.",
       notes: [
         "Die Ferienbetreuung hat immer eine eigene Rechnung. Sie steht nie auf der Rechnung der Betreuung.",
-        "Bei `Lastschrift` buchen Sie den Betrag selbst ab. Dafür braucht die Familie ein SEPA-Mandat bei Ihnen. moto bucht kein Geld ab.",
+        "Bei `Lastschrift` buchen Sie den Betrag selbst ab. Dafür braucht die Familie ein SEPA-Mandat bei Ihnen, und Sie brauchen eine Gläubiger-ID. Ohne Mandat geht die Rechnung als Überweisung. moto bucht kein Geld ab.",
         "Unter `Abrechnung` und `Familien` sehen Sie bei jeder Familie den Zahlungsweg ihrer Rechnungen.",
         "Beim Erstellen der Schreiben stehen die Fälligkeiten bereits fest. Das Feld `Zahlen bis` gilt nur für ältere Rechnungen ohne eigenes Datum.",
         "Welches Datum gilt: zuerst der eigene Zahltag der Familie, dann das Datum des Laufs, sonst das Zahlungsziel der Leistung.",
@@ -10301,7 +10303,11 @@ export const traegerBillingTermsTopic =
         "Änderungen erscheinen nicht auf einer Rechnung? Ausgestellte Rechnungen bleiben, wie sie sind. Die Änderung gilt ab dem nächsten Lauf. Eine falsche Rechnung stornieren Sie und stellen sie neu aus.",
         "`Empfänger und Zahlung` lässt sich nicht speichern, weil eine E-Mail-Adresse fehlt? Im Vertrag steht keine E-Mail-Adresse. Tragen Sie sie im Vertrag ein.",
       ],
-      related: [HELP_TOPICS.traegerCareMonths, HELP_TOPICS.traegerBillingRun],
+      related: [
+        HELP_TOPICS.traegerSepaMandates,
+        HELP_TOPICS.traegerCareMonths,
+        HELP_TOPICS.traegerBillingRun,
+      ],
     };
   } satisfies typeof authored_traegerBillingTermsTopic;
 
@@ -11859,6 +11865,79 @@ export const traegerSchoolViewTopic =
       related: [HELP_TOPICS.traegerSchoolSwitch],
     };
   } satisfies typeof authored_traegerSchoolViewTopic;
+
+export const traegerSepaMandatesTopic =
+  function traegerSepaMandatesTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerSepaMandates,
+      title: "Lastschrift und SEPA-Mandate",
+      question: "Wie buche ich Beiträge per Lastschrift ab?",
+      summary:
+        "Sie tragen Ihre Gläubiger-ID ein und erfassen das SEPA-Mandat jeder Familie. Die Rechnung kündigt die Abbuchung dann an: mit Betrag, Datum, Konto, Gläubiger-ID und Mandatsreferenz. moto bucht kein Geld ab.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Repeat",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Der Zahlungsweg der Leistung oder der Familie ist `Lastschrift`.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Gläubiger-ID eintragen",
+          description:
+            "Die Gläubiger-ID bekommen Sie von der Bundesbank. Ohne sie gibt es keine Lastschrift.",
+          steps: [
+            "Wählen Sie unten in der Navigation `Einstellungen` und dann `Abrechnungsvorgaben`.",
+            "Wählen Sie in der Karte `Lastschrift` den Knopf `Ändern`.",
+            "Tragen Sie die `Gläubiger-ID` ein.",
+            "Bei `Vorabankündigung in Tagen` steht 14. So viele Tage vor der Abbuchung muss die Rechnung bei der Familie sein. Weniger Tage nur, wenn Sie das mit den Familien vereinbart haben.",
+            "Wählen Sie bei `Wenn eine Familie kein gültiges Mandat hat`: `Als Überweisung ausstellen` oder `Freigabe anhalten`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Mandat einer Familie erfassen",
+          description:
+            "Je Familie gilt ein Mandat. Es gilt auch für Geschwister mit derselben E-Mail-Adresse im Vertrag.",
+          steps: [
+            "Öffnen Sie den Vertrag des Kindes unter `Verträge`. Oder öffnen Sie im Monatslauf bei der Rechnung das Menü mit den drei Punkten und dann `Empfänger und Zahlung`.",
+            "Wählen Sie in der Karte `SEPA-Lastschriftmandat` den Knopf `Mandat erfassen`.",
+            "Übernehmen Sie `Kontoinhaber`, `IBAN` und `Unterschrieben am` aus dem unterschriebenen Mandat. Die `BIC` brauchen Sie nur bei Konten außerhalb der EU.",
+            "Tragen Sie die `Mandatsreferenz` ein. Lassen Sie das Feld leer, vergibt moto eine.",
+            "Wählen Sie die `Art`: `Dauermandat` für jeden Monat oder `Einzelmandat` für eine Abbuchung.",
+            "Wählen Sie bei `Wurde mit diesem Mandat schon abgebucht?` die passende Antwort. Bei einem Mandat aus einem anderen Programm meistens `Ja, schon einmal`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Mandat widerrufen",
+          steps: [
+            "Wählen Sie beim Mandat das Menü mit den drei Punkten und dann `Widerrufen`.",
+            "Wählen Sie bei `Widerruf erhalten am` den Tag, an dem der Widerruf kam.",
+            "Wählen Sie `Widerrufen`.",
+          ],
+        },
+      ],
+      result:
+        "Im nächsten Monatslauf steht auf jeder Rechnung mit Lastschrift die Vorabankündigung: Betrag, Tag der Abbuchung, Konto (verdeckt), Gläubiger-ID und Mandatsreferenz. Der Betrag ist das, was die Familie zahlt, also ohne den Anteil eines Kostenträgers.",
+      notes: [
+        "Alle Mandate sehen Sie unter `Abrechnung` im Reiter `Lastschrift`.",
+        "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
+        "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Kontodaten stehen dort nicht.",
+      ],
+      differences: [
+        "Die Familie hat kein gültiges Mandat? Mit `Als Überweisung ausstellen` bekommt sie eine Rechnung zum Überweisen. Die Prüfung des Monatslaufs zeigt sie in der Karte `Lastschrift`.",
+        "Mit `Freigabe anhalten` lässt sich der Lauf erst freigeben, wenn jede Familie mit Lastschrift ein gültiges Mandat hat.",
+        "`Mandat erfassen` fehlt? Die Familie hat schon ein gültiges Mandat. Widerrufen Sie es zuerst.",
+      ],
+      troubleshootingDetails: [
+        "Die IBAN wird nicht angenommen? Prüfen Sie jedes Zeichen. moto prüft die Prüfziffer.",
+        "Die Prüfung meldet `früher als Ihre Vorabankündigung erlaubt`? Die Abbuchung kommt zu früh nach dem Rechnungsdatum. Ändern Sie die Fälligkeit des Laufs oder das Rechnungsdatum.",
+      ],
+      related: [HELP_TOPICS.traegerBillingTerms, HELP_TOPICS.traegerCareMonths],
+    };
+  } satisfies typeof authored_traegerSepaMandatesTopic;
 
 /**
  * `/traeger/einstellungen` (#4652, ADR 0086, #5685): Träger-Werte zwischen Standard

@@ -29,6 +29,7 @@ import { CareRunMealsCard } from "~/components/traeger/care-run-meals";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
 import { invoiceDateLabel } from "~/components/traeger/care-review-format";
 import {
+  CareDebitHintsCard,
   CareExcludedCard,
   CareReviewExport,
   exclusionColumn,
@@ -486,6 +487,9 @@ export default function TraegerCareRunPage() {
               unbilled={run.mealUnbilled}
               changed={run.mealChanged}
             />
+          ) : null}
+          {preview ? (
+            <CareDebitHintsCard runId={run.id} invoices={run.invoices} />
           ) : null}
           {preview ? (
             <CareExcludedCard

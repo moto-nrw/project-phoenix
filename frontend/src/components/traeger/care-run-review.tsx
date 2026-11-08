@@ -9,7 +9,7 @@
 // wenn jemand sie öffnet.
 
 import { useState } from "react";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import {
   type ExportMenuOption,
   ExportMenu,
@@ -27,8 +27,10 @@ import {
   type CareReviewFormat,
   downloadCareRunReview,
 } from "~/lib/traeger-care-review-api";
+import { traegerPath } from "~/lib/traeger-url";
 import { invoiceCountLabel } from "./care-billing-format";
 import { formatEuro } from "./contribution-format";
+import { DEBIT_GAP_LABELS } from "./sepa-format";
 
 const logger = createLogger({ component: "CareRunReview" });
 
@@ -176,6 +178,132 @@ export function CareExcludedCard({
           </li>
         ))}
       </ResponsiveActionList>
+    </SectionCard>
+  );
+}
+
+/** At most this many hints show before „weitere anzeigen“. */
+const DEBIT_HINTS_SHOWN = 5;
+
+interface DebitHint {
+  readonly invoice: CareInvoice;
+  readonly text: string;
+}
+
+/** The SEPA hints of a preview (#4695): direct debits without a valid
+ * mandate or creditor identifier, and debits sooner than the
+ * pre-notification days of the Träger. */
+export function debitHints(invoices: readonly CareInvoice[]): DebitHint[] {
+  const hints: DebitHint[] = [];
+  for (const invoice of invoices) {
+    if (invoice.exclusion) continue;
+    const payment = invoice.payment;
+    if (payment?.debitGap) {
+      hints.push({
+        invoice,
+        text:
+          payment.method === "transfer"
+            ? `${DEBIT_GAP_LABELS[payment.debitGap]}. Geht als Überweisung, fällig am ${formatDate(payment.dueOn)}.`
+            : `${DEBIT_GAP_LABELS[payment.debitGap]}. Die Freigabe ist angehalten.`,
+      });
+    } else if (payment?.mandate?.noticeShort) {
+      hints.push({
+        invoice,
+        text: `Abbuchung schon am ${formatDate(payment.dueOn)}. Das ist früher als Ihre Vorabankündigung erlaubt.`,
+      });
+    }
+  }
+  return hints;
+}
+
+/**
+ * The families that pay by direct debit but cannot be collected as planned,
+ * one row each with the way to their mandate. A creditor identifier that is
+ * missing applies to every row and stands once above the list.
+ */
+export function CareDebitHintsCard({
+  runId,
+  invoices,
+}: Readonly<{ runId: string; invoices: readonly CareInvoice[] }>) {
+  const [expanded, setExpanded] = useState(false);
+  const hints = debitHints(invoices);
+  if (hints.length === 0) return null;
+  const creditorMissing = hints.some(
+    (hint) => hint.invoice.payment?.debitGap === "creditor_missing",
+  );
+  const shown = expanded ? hints : hints.slice(0, DEBIT_HINTS_SHOWN);
+  return (
+    <SectionCard
+      title="Lastschrift"
+      titleBadge={
+        <span className="text-sm font-normal text-gray-600 tabular-nums">
+          {hints.length === 1 ? "1 Familie" : `${hints.length} Familien`}
+        </span>
+      }
+      description={
+        creditorMissing
+          ? "Ohne Gläubiger-ID buchen Sie bei keiner Familie ab. Tragen Sie sie unter Einstellungen → Abrechnung ein."
+          : "Bei diesen Familien klappt die Abbuchung so nicht. Prüfen Sie das Mandat vor der Freigabe."
+      }
+      actions={
+        creditorMissing ? (
+          <ButtonLink
+            href={traegerPath("/traeger/einstellungen/abrechnung")}
+            variant="outline"
+            size="md"
+          >
+            Gläubiger-ID eintragen
+          </ButtonLink>
+        ) : null
+      }
+    >
+      <ResponsiveActionList>
+        {shown.map(({ invoice, text }) => (
+          <li
+            key={`${invoice.contractId}-${invoice.service}`}
+            className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
+          >
+            <div className="min-w-0">
+              <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                <span className="font-semibold text-gray-900">
+                  {childName(invoice)}
+                </span>
+                <span className="text-gray-600">{invoice.schoolName}</span>
+                <span className="text-gray-500 tabular-nums">
+                  {formatEuro(invoice.totalCents)}
+                </span>
+              </p>
+              <p className="mt-0.5 text-sm text-gray-700">{text}</p>
+            </div>
+            <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
+              <ButtonLink
+                href={traegerPath(
+                  `/traeger/abrechnung/monatsbeitraege/${runId}/empfaenger/${invoice.contractId}`,
+                )}
+                variant="surface"
+                size="compact"
+                aria-label={`Mandat prüfen: Familie von ${childName(invoice)}`}
+              >
+                Mandat prüfen
+              </ButtonLink>
+            </div>
+          </li>
+        ))}
+      </ResponsiveActionList>
+      {hints.length > DEBIT_HINTS_SHOWN ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          className="mt-3"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded
+            ? "Weniger anzeigen"
+            : `${hints.length - DEBIT_HINTS_SHOWN} weitere anzeigen`}
+        </Button>
+      ) : null}
     </SectionCard>
   );
 }

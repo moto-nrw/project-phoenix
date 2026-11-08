@@ -27,6 +27,7 @@ import {
   plannedVersion,
 } from "~/components/traeger/care-contract-versions";
 import { CareContractSignatureCard } from "~/components/traeger/care-contract-signature-card";
+import { SepaMandatesCard } from "~/components/traeger/sepa-mandates-card";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -470,6 +471,12 @@ export default function TraegerVertragPage() {
                   </p>
                 )}
               </SectionCard>
+              {party?.email ? (
+                <SepaMandatesCard
+                  contractId={contract.id}
+                  holder={`${party.firstName} ${party.lastName}`.trim()}
+                />
+              ) : null}
               <SectionCard
                 title="Versand"
                 description={

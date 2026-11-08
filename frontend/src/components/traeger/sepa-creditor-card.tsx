@@ -1,0 +1,258 @@
+"use client";
+
+// Die Lastschrift des Trägers (#4695): Gläubiger-ID, wie viele Tage vor der
+// Abbuchung die Vorabankündigung bei der Familie ist, und was eine Rechnung
+// ohne gültiges Mandat tut. Steht bei den Bankverbindungen, weil die
+// Gläubiger-ID auf jeder Vorabankündigung steht.
+
+import { useEffect, useRef, useState } from "react";
+import { Button } from "~/components/ui/button";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { EditActions } from "~/components/ui/edit-actions";
+import { FieldLabel } from "~/components/ui/field-label";
+import { FormModal } from "~/components/ui/form-modal";
+import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { createLogger } from "~/lib/logger";
+import {
+  MAX_PRENOTIFICATION_DAYS,
+  MIN_PRENOTIFICATION_DAYS,
+  type MissingMandate,
+  type SepaCreditor,
+  saveSepaCreditor,
+} from "~/lib/traeger-sepa-api";
+import {
+  MISSING_MANDATE_HINTS,
+  MISSING_MANDATE_LABELS,
+  compactCode,
+  creditorIdLooksValid,
+} from "./sepa-format";
+
+const logger = createLogger({ component: "SepaCreditorCard" });
+
+const MISSING_CHOICES: readonly MissingMandate[] = ["transfer", "block"];
+
+function daysLabel(days: number): string {
+  return days === 1 ? "1 Tag vorher" : `${days} Tage vorher`;
+}
+
+function SepaCreditorModal({
+  open,
+  creditor,
+  onClose,
+  onSaved,
+}: Readonly<{
+  open: boolean;
+  creditor: SepaCreditor;
+  onClose: () => void;
+  onSaved: (creditor: SepaCreditor) => void;
+}>) {
+  const [creditorId, setCreditorId] = useState(creditor.creditorId);
+  const [days, setDays] = useState(String(creditor.prenotificationDays));
+  const [missing, setMissing] = useState<MissingMandate>(
+    creditor.missingMandate,
+  );
+  const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearErrors } = formErrors;
+  const { success } = useToast();
+
+  useEffect(() => {
+    if (!open) return;
+    setCreditorId(creditor.creditorId);
+    setDays(String(creditor.prenotificationDays));
+    setMissing(creditor.missingMandate);
+    clearErrors();
+  }, [open, creditor, clearErrors]);
+
+  const submit = async () => {
+    formErrors.clear();
+    const fields: Record<string, string> = {};
+    const compact = compactCode(creditorId);
+    if (compact !== "" && !creditorIdLooksValid(compact)) {
+      fields.creditor_id =
+        "Diese Gläubiger-ID stimmt nicht. Bitte prüfen Sie jedes Zeichen.";
+    }
+    const parsed = /^\d{1,2}$/.test(days.trim()) ? Number(days.trim()) : NaN;
+    if (!(
+      parsed >= MIN_PRENOTIFICATION_DAYS && parsed <= MAX_PRENOTIFICATION_DAYS
+    )) {
+      fields.prenotification_days = `Bitte eine Zahl von ${MIN_PRENOTIFICATION_DAYS} bis ${MAX_PRENOTIFICATION_DAYS} eingeben.`;
+    }
+    if (Object.keys(fields).length > 0) {
+      formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", fields);
+      return;
+    }
+    setSaving(true);
+    try {
+      const saved = await saveSepaCreditor({
+        creditorId: compact,
+        prenotificationDays: parsed,
+        missingMandate: missing,
+      });
+      success("Die Angaben zur Lastschrift sind gespeichert.");
+      onSaved(saved);
+    } catch (err) {
+      logger.error("sepa_creditor_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void formErrors.show(err, { object: "die Angaben zur Lastschrift" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <FormModal
+      isOpen={open}
+      onClose={onClose}
+      closeDisabled={saving}
+      isBackdropDismissDisabled
+      title="Lastschrift"
+      size="md"
+      error={formErrors.error}
+      footer={
+        <EditActions
+          onCancel={onClose}
+          onSave={() => formRef.current?.requestSubmit()}
+          saving={saving}
+        />
+      }
+    >
+      <form
+        ref={formRef}
+        noValidate
+        className="space-y-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <Input
+          controlSize="compact"
+          id="sepa-creditor-id"
+          name="creditor_id"
+          label="Gläubiger-ID"
+          placeholder="DE98ZZZ09999999999"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={40}
+          value={creditorId}
+          hint="Sie bekommen die Gläubiger-ID von der Bundesbank. Ohne sie gibt es keine Lastschrift."
+          error={formErrors.fieldError("creditor_id") ?? undefined}
+          onChange={(event) => setCreditorId(event.target.value)}
+        />
+        <Input
+          controlSize="compact"
+          id="sepa-prenotification-days"
+          name="prenotification_days"
+          label="Vorabankündigung in Tagen"
+          required
+          inputMode="numeric"
+          maxLength={2}
+          value={days}
+          hint="So viele Tage vor der Abbuchung muss die Rechnung bei der Familie sein. Üblich sind 14 Tage. Weniger nur, wenn Sie das mit den Familien vereinbart haben."
+          error={formErrors.fieldError("prenotification_days") ?? undefined}
+          onChange={(event) => setDays(event.target.value)}
+        />
+        <div className="space-y-2">
+          <FieldLabel>Wenn eine Familie kein gültiges Mandat hat</FieldLabel>
+          <div
+            role="group"
+            aria-label="Wenn eine Familie kein gültiges Mandat hat"
+            className="grid gap-2"
+          >
+            {MISSING_CHOICES.map((value) => (
+              <ChoiceTile
+                key={value}
+                as="button"
+                selected={missing === value}
+                aria-pressed={missing === value}
+                onClick={() => setMissing(value)}
+                className="flex flex-col items-start gap-1 px-4 py-3 text-left"
+              >
+                <span className="font-medium text-gray-900">
+                  {MISSING_MANDATE_LABELS[value]}
+                  {value === "transfer" ? " (empfohlen)" : ""}
+                </span>
+                <span className="text-sm text-gray-600">
+                  {MISSING_MANDATE_HINTS[value]}
+                </span>
+              </ChoiceTile>
+            ))}
+          </div>
+        </div>
+        <p className="text-sm text-gray-600">
+          Das gilt ab dem nächsten Lauf. Ausgestellte Rechnungen bleiben, wie
+          sie sind.
+        </p>
+      </form>
+    </FormModal>
+  );
+}
+
+export function SepaCreditorCard({
+  creditor,
+  onChanged,
+}: Readonly<{
+  creditor: SepaCreditor;
+  onChanged: () => Promise<unknown>;
+}>) {
+  const [editing, setEditing] = useState(false);
+  const missingId = creditor.creditorId === "";
+
+  return (
+    <SectionCard
+      title="Lastschrift"
+      titleBadge={
+        missingId ? (
+          <StatusBadge tone="orange" label="Gläubiger-ID fehlt" />
+        ) : null
+      }
+      description="Damit buchen Sie Beiträge per SEPA-Lastschrift ab. Das Mandat jeder Familie erfassen Sie bei ihrem Vertrag."
+      actions={
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          onClick={() => setEditing(true)}
+        >
+          Ändern
+        </Button>
+      }
+    >
+      <DataGrid columns={2}>
+        <DataField label="Gläubiger-ID">
+          {missingId ? (
+            "–"
+          ) : (
+            <span className="font-mono tracking-wide">
+              {creditor.creditorId}
+            </span>
+          )}
+        </DataField>
+        <DataField label="Vorabankündigung">
+          <span className="tabular-nums">
+            {daysLabel(creditor.prenotificationDays)}
+          </span>
+        </DataField>
+        <DataField label="Ohne gültiges Mandat" fullWidth>
+          {MISSING_MANDATE_LABELS[creditor.missingMandate]}
+        </DataField>
+      </DataGrid>
+      <SepaCreditorModal
+        open={editing}
+        creditor={creditor}
+        onClose={() => setEditing(false)}
+        onSaved={() => {
+          setEditing(false);
+          void onChanged();
+        }}
+      />
+    </SectionCard>
+  );
+}

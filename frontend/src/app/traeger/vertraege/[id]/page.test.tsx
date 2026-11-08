@@ -20,6 +20,14 @@ const { api, mockPush } = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/traeger-care-contracts-api", () => api);
+// The SEPA mandate card of the family (#4695) answers 403 without the right
+// „Abrechnung“; these tests cover the contract and keep it empty.
+vi.mock("~/lib/traeger-sepa-api", () => ({
+  fetchSepaMandates: vi.fn().mockResolvedValue([]),
+  fetchSepaMandateHistory: vi.fn().mockResolvedValue([]),
+  createSepaMandate: vi.fn(),
+  revokeSepaMandate: vi.fn(),
+}));
 vi.mock("~/components/ui/pdf-preview", () => ({
   PdfPreview: ({ url, title }: { url: string | null; title: string }) => (
     <div data-testid="pdf-preview" data-loaded={url !== null}>

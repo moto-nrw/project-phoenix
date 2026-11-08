@@ -7,6 +7,12 @@
  */
 
 import { traegerRequest } from "./traeger-api";
+import {
+  type BackendInvoiceMandate,
+  type DebitGap,
+  type InvoiceMandate,
+  invoiceMandateFromBackend,
+} from "./traeger-sepa-api";
 
 export type PaymentMethod = "transfer" | "direct_debit";
 export type BillingService = "care" | "meal" | "holiday";
@@ -104,6 +110,10 @@ export interface InvoicePayment {
   readonly method: PaymentMethod;
   readonly dueOn: string;
   readonly dueSource: DueSource;
+  /** The SEPA mandate a direct debit is collected with (#4695). */
+  readonly mandate?: InvoiceMandate | null;
+  /** Why a family that pays by direct debit is not collected; null if it is. */
+  readonly debitGap?: DebitGap | null;
 }
 
 interface BackendServiceTerms {
@@ -151,6 +161,8 @@ export interface BackendInvoicePayment {
   method: PaymentMethod;
   due_on: string;
   due_source: DueSource;
+  mandate?: BackendInvoiceMandate | null;
+  debit_gap?: DebitGap | "";
 }
 
 function termsFromBackend(body: BackendBillingTerms): BillingTerms {
@@ -211,6 +223,8 @@ export function invoicePaymentFromBackend(
     method: payment.method,
     dueOn: payment.due_on,
     dueSource: payment.due_source,
+    mandate: invoiceMandateFromBackend(payment.mandate),
+    debitGap: payment.debit_gap ? payment.debit_gap : null,
   };
 }
 
