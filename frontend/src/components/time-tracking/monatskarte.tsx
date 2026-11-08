@@ -173,9 +173,9 @@ export function Monatskarte({
   }
   if (error) {
     return (
-      <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+      <SectionCard>
         <LoadErrorAlert error={error} />
-      </div>
+      </SectionCard>
     );
   }
   if (!summary) return null;

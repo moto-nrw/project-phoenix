@@ -2,5 +2,6 @@
   "scenario": "api.enrollment.growth.admin_changes",
   "max": 16,
   "exact": true,
-  "description": "Positive mounted admin list of terminal change requests, full SQL including tenant transaction. Related requests, children, messages and phases use ID-set reads; fresh case reads remain per row. Initially open cases retain scalar reads. N3=11/N8=16."
+  "description": "Positive mounted admin list of terminal change requests, full SQL including tenant transaction. Related requests, children, messages and phases use ID-set reads; fresh case reads remain per row. Initially open cases retain scalar reads. N3=11/N8=16.",
+  "route": "GET /api/enrollment/admin/change-requests/"
 }

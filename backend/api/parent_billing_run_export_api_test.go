@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -58,7 +59,8 @@ func TestReleasedBillingRunExportsTheOverviewForTheKaemmerei(t *testing.T) {
 	assert.Contains(t, rec.Header().Get("Content-Disposition"), `attachment; filename="abrechnungsanordnung-`)
 	assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
 	lines := strings.Split(strings.TrimSpace(strings.TrimPrefix(rec.Body.String(), "\xEF\xBB\xBF")), "\n")
-	assert.Equal(t, "Rechnungsnummer;Empfänger;Kind;Position;Betrag in Euro", strings.TrimSpace(lines[0]))
+	assert.Equal(t, "Rechnungsnummer;Empfänger;Kind;Position;Betrag in Euro;Zahlungsweg;Fällig am", strings.TrimSpace(lines[0]),
+		"payment method and due date follow the amount (#4689)")
 	positions := 0
 	for _, child := range invoice.Children {
 		positions += len(child.Positions)
@@ -66,8 +68,9 @@ func TestReleasedBillingRunExportsTheOverviewForTheKaemmerei(t *testing.T) {
 	require.Len(t, lines, 1+positions+2, "a line per position, the sum of the invoice and the sum of the run")
 	assert.True(t, strings.HasPrefix(lines[1], "FE-0001;Muster, Eva;Lia "), lines[1])
 	assert.Contains(t, rec.Body.String(), ";Korrektur: Härtefall;", "a correction is a position with its reason")
-	assert.Equal(t, "FE-0001;Muster, Eva;;Summe der Rechnung;"+euroText(invoice.TotalCents), strings.TrimSpace(lines[len(lines)-2]))
-	assert.Equal(t, ";;;Gesamtsumme des Laufs;"+euroText(*released.TotalCents), strings.TrimSpace(lines[len(lines)-1]))
+	assert.Regexp(t, `^FE-0001;Muster, Eva;;Summe der Rechnung;`+regexp.QuoteMeta(euroText(invoice.TotalCents))+`;Überweisung;\d{2}\.\d{2}\.\d{4}$`,
+		strings.TrimSpace(lines[len(lines)-2]), "the invoice names how and by when it is paid")
+	assert.Equal(t, ";;;Gesamtsumme des Laufs;"+euroText(*released.TotalCents)+";;", strings.TrimSpace(lines[len(lines)-1]))
 	assert.NotContains(t, rec.Body.String(), invoice.RecipientEmail)
 	assert.Contains(t, rec.Body.String(), ";Geschwister: 2. Kind, 50 % weniger;-", "a discount is a negative amount")
 	assert.NotContains(t, rec.Body.String(), ";'-", "a negative amount stays a number, not text")

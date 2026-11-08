@@ -21,7 +21,7 @@
     "additionalGuardianLabel": "Ek veli {index}",
     "extraKicker": "Ek sorular",
     "extraTitle": "Ek bilgiler",
-    "extraDescription": "OGS, temel bilgilere ek olarak bu bilgilere ihtiyaç duyar. Zorunlu sorular yıldızla işaretlidir.",
+    "extraDescription": "{careTerm}, temel bilgilere ek olarak bu bilgilere ihtiyaç duyar. Zorunlu sorular yıldızla işaretlidir.",
     "childrenKicker": "2. adım",
     "childrenTitle": "Çocuk veya çocuklar",
     "childrenDescription": "Her çocuğu ayrı ayrı girin. Kardeşler için düğmeye basarak başka çocuk bilgileri ekleyebilirsiniz.",
@@ -103,7 +103,7 @@
     "exactlyOneHint": "Bu çocuk için istediğiniz tam olarak bir teklif seçin.",
     "atLeastOneHint": "Bu çocuk için istediğiniz en az bir teklif seçin.",
     "optionalHint": "Bu çocuk için istediğiniz teklifleri seçin.",
-    "reviewHint": "OGS, gönderdikten sonra boş yerleri kontrol eder. Lütfen dikkat: Tam gün teklifine kayıtla birlikte çocuğunuz, tam gün okul yönetmeliği gereği kayıtlı saatlerde okula gitmek zorundadır.",
+    "reviewHint": "{careTerm}, gönderdikten sonra boş yerleri kontrol eder. Lütfen dikkat: Tam gün teklifine kayıtla birlikte çocuğunuz, tam gün okul yönetmeliği gereği kayıtlı saatlerde okula gitmek zorundadır.",
     "requiredBadge": "Zorunlu",
     "automaticBadge": "otomatik",
     "chooseExactlyOne": "Lütfen tam olarak bir teklif seçin.",
@@ -120,7 +120,7 @@
     "ruleAtMostOnePerDay": "Günde en fazla biri",
     "availabilitySelectionRemoved": "Sınıf düzeyi değiştiği için bazı bakım teklifleri artık mevcut değil. Bunlara ait seçimler, bakım günleri ve otomatik ek kayıtlar kaldırıldı.",
     "chooseGradeFirst": "Önce çocuğunuzun sınıf düzeyini seçin. Ardından uygun bakım tekliflerini burada görürsünüz.",
-    "noOfferingsForGrade": "{grade}. sınıf için uygun bakım teklifi yok. Sorularınız için lütfen OGS ile iletişime geçin."
+    "noOfferingsForGrade": "{grade}. sınıf için uygun bakım teklifi yok. Sorularınız için lütfen {careTerm} ile iletişime geçin."
   },
   "consent": {
     "agb": "Okulun genel şartlarını kabul ediyorum.",
@@ -132,7 +132,7 @@
     "emailTitle": "E-posta İletişimi",
     "photoTitle": "Fotoğraf İzni"
   },
-  "captchaMisconfigured": "Online kayıt şu anda mümkün değil. Bu sizin hatanız değil. Lütfen OGS ile iletişime geçin.",
+  "captchaMisconfigured": "Online kayıt şu anda mümkün değil. Bu sizin hatanız değil. Lütfen {careTerm} ile iletişime geçin.",
   "structured": {
     "yes": "Evet",
     "no": "Hayır",
@@ -231,7 +231,7 @@
     "care": "Seçilen teklifler",
     "noCare": "Seçilen teklif yok.",
     "hint": "{name} için değişiklikler artık veli uygulaması üzerinden yapılır.",
-    "noAccess": "Veli uygulamasına giremiyor musunuz? Lütfen OGS ile iletişime geçin."
+    "noAccess": "Veli uygulamasına giremiyor musunuz? Lütfen {careTerm} ile iletişime geçin."
   },
   "upload": {
     "errorObject": "dosya",
@@ -266,7 +266,7 @@
     "emptyDrawing": "Lütfen alana imza atın.",
     "nameTooShort": "Lütfen adınızı yazın.",
     "title": "İmza",
-    "description": "Lütfen kaydı imzalayın. İmza olmadan kayıt OGS’ye ulaşmaz.",
+    "description": "Lütfen kaydı imzalayın. İmza olmadan kayıt {careTerm}’ye ulaşmaz.",
     "required": "Lütfen kaydı imzalayın."
   }
 }

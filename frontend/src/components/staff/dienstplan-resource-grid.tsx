@@ -58,6 +58,7 @@ import { sickConcept } from "~/lib/concepts/sick";
 import { staffPlanConcept } from "~/lib/concepts/staffPlan";
 import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
+import { SectionCard } from "~/components/ui/section-card";
 
 // Week matrix built on the generic kit ResourceGrid: rows are staff, columns
 // the weekdays Mo–Fr. All domain-to-block mapping lives here in the screen
@@ -485,7 +486,7 @@ export function DienstplanResourceGrid({
           {summary && <WeeklySummaryIndicator summary={summary} />}
           {absenceNote && (
             <span
-              className="mt-0.5 block text-[11px] font-medium"
+              className="mt-0.5 block text-xs font-medium"
               style={{ color: LOCATION_COLORS.SICK }}
             >
               {absenceNote}
@@ -581,7 +582,7 @@ export function DienstplanResourceGrid({
         </div>
         {shift.cancelled ? (
           <p
-            className="text-[11px] font-medium"
+            className="text-xs font-medium"
             style={{ color: LOCATION_COLORS.DANGER }}
           >
             Fällt aus{shift.changeReason ? ` · ${shift.changeReason}` : ""}
@@ -590,14 +591,14 @@ export function DienstplanResourceGrid({
           <>
             {isReplacement && (
               <p
-                className="text-[11px] font-medium"
+                className="text-xs font-medium"
                 style={{ color: LOCATION_COLORS.OTHER_ROOM }}
               >
                 Vertretung{shift.changeReason ? ` · ${shift.changeReason}` : ""}
               </p>
             )}
             {shift.breakMinutes > 0 && (
-              <p className="text-[11px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 Pause {shift.breakMinutes} min
               </p>
             )}
@@ -714,7 +715,7 @@ export function DienstplanResourceGrid({
           die Anlege-Geste identisch. */}
       {isCompact && mobileColumn ? (
         <div>
-          <div className="moto-content-surface overflow-hidden rounded-2xl border">
+          <SectionCard padding="none">
             <div className="flex gap-1 border-b border-gray-200 bg-white p-2">
               {columns.map((column, index) => {
                 const isSelected = index === safeMobileDayIndex;
@@ -771,7 +772,7 @@ export function DienstplanResourceGrid({
                 aria-label="Legende Dienstarten und Zustände"
               />
             </div>
-          </div>
+          </SectionCard>
         </div>
       ) : (
         <div>

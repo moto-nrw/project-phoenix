@@ -2,5 +2,6 @@
   "scenario": "api.calendar.public_feed.staff",
   "max": 26,
   "exact": true,
-  "description": "Real public calendar Resource with runtime middleware, staff-token branch and parent-token miss included. N3/N8 positive VEVENTs on one fixed date and one school; all transaction statements."
+  "description": "Real public calendar Resource with runtime middleware, staff-token branch and parent-token miss included. N3/N8 positive VEVENTs on one fixed date and one school; all transaction statements.",
+  "route": "GET /public/calendar/{token}"
 }

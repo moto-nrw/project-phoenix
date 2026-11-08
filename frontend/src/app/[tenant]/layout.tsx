@@ -23,6 +23,7 @@ import {
 } from "~/lib/tenant-api";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { isValidTenantSlug } from "~/lib/tenant-slug";
+import { normalizeCareFacilityTerm } from "~/lib/care-facility-term-value";
 import { env } from "~/env";
 import { TenantBusyPage } from "~/components/tenant/tenant-busy-page";
 import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
@@ -143,6 +144,7 @@ async function fetchTenantInfo(
     ),
     weekendFollowsFriday: data.weekend_follows_friday === true,
     childSearchOnlyNavigation: data.child_search_only_navigation === true,
+    careFacilityTerm: normalizeCareFacilityTerm(data.care_facility_term),
   };
 }
 

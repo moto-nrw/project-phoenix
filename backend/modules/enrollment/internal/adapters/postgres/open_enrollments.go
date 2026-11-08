@@ -50,7 +50,7 @@ func (OpenEnrollmentStore) OpenEnrollmentChildrenByTenant(ctx context.Context, s
 		return nil, err
 	}
 	var rows []openEnrollmentRow
-	if err := db.NewRaw(openEnrollmentChildrenQuery, pgdialect.Array(schools), bun.List(enrollment.OpenEnrollmentChildStatuses)).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(openEnrollmentChildrenQuery, pgdialect.Array(schools), bun.List(enrollment.OpenEnrollmentChildStatuses())).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: open enrollments: %w", err)
 	}
 	for _, row := range rows {

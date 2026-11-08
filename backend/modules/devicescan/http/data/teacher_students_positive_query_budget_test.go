@@ -50,12 +50,12 @@ func TestTeacherStudentsPositiveQueryBudget(t *testing.T) {
 	_ = testpkg.CreateTestStudent(t, db, "Unassigned", "Budget", "1a")
 	add(3)
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		request := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids="+strings.Join(teacherIDs, ","), nil,
 			testutil.WithDeviceContext(device))
 		request = request.WithContext(counter.Context(request.Context()))
 		counter.Reset()
-		response := testutil.ExecuteRequest(router, request)
+		response := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api/iot", router), request)
 		testutil.AssertSuccessResponse(t, response, 200)
 		var body struct {
 			Data []devicescan.DirectoryStudent `json:"data"`
@@ -73,12 +73,12 @@ func TestTeacherStudentsPositiveQueryBudget(t *testing.T) {
 			require.Empty(t, counter.Operation(operation))
 		}
 		t.Logf("teachers=%d children=%d statements=%d", len(teacherIDs), len(body.Data), counter.Total())
-		querybudgets.AssertQueryBudget(t, "api.iot.teacher_students.positive", counter.Queries())
-		return counter.Queries()
+		querybudgets.AssertQueryBudget(t, "api.iot.teacher_students.positive", counter.Measurement(counter.Queries()))
+		return counter.Measurement(counter.Queries())
 	}
 	small := run()
 	add(5)
 	large := run()
-	require.NotEmpty(t, small)
-	assert.Len(t, large, len(small), "teacher and child growth must not add queries")
+	require.NotEmpty(t, small.Statements)
+	assert.Len(t, large.Statements, len(small.Statements), "teacher and child growth must not add queries")
 }

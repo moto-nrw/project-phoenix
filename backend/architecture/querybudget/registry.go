@@ -17,6 +17,7 @@ type Budget struct {
 	Max         int    `json:"max"`
 	Exact       bool   `json:"exact"`
 	Description string `json:"description"`
+	Route       Routes `json:"route,omitempty"`
 }
 
 // ReadQueryBudgets discovers all fragments. Empty registers, duplicates and malformed files
@@ -73,10 +74,19 @@ func Parse(data []byte) (Budget, error) {
 		return Budget{}, err
 	}
 
-	if len(fields) != 4 {
+	if len(fields) < 4 || len(fields) > 5 {
 		return Budget{}, fmt.Errorf("query budget requires scenario, max, exact, description")
 	}
 	var budget Budget
+	if value, exists := fields["route"]; exists {
+		if err := json.Unmarshal(value, &budget.Route); err != nil {
+			return Budget{}, fmt.Errorf("query budget route: %w", err)
+		}
+		delete(fields, "route")
+	}
+	if len(fields) != 4 {
+		return Budget{}, fmt.Errorf("unknown query budget field")
+	}
 	for name, target := range map[string]any{"scenario": &budget.Scenario, "max": &budget.Max, "exact": &budget.Exact, "description": &budget.Description} {
 		value, exists := fields[name]
 		if !exists || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {

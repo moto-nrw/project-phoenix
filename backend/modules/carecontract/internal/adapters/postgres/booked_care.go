@@ -22,7 +22,6 @@ type BookedCare struct{}
 
 var _ carecontract.BookedCare = BookedCare{}
 
-// NewBookedCare builds the school's read of the booked care.
 func NewBookedCare() BookedCare { return BookedCare{} }
 
 // schoolDB returns the tenant transaction of the reading school. A Träger
@@ -56,8 +55,16 @@ type bookedVersionRow struct {
 // overlaps the window and is neither rejected nor replaced, the newest
 // effective version of a child first. A replaced version holds on no day
 // (#4681), so it never enters the Soll, whatever the order of the versions.
-// A terminated contract ends its versions on its last day, and a withdrawn
-// one books no day at all (#4682), as VersionsInForce answers them.
+//
+// The Soll counts more contracts than VersionsInForce on purpose (ADR 0156
+// point 1, #6107): a sent contract whose version is still beantragt books
+// its days, because only a draft promises nothing. Billing counts a contract
+// from its conclusion on; the school's comparison of booked and actual
+// times starts as soon as the Träger has sent the offer. Like
+// VersionsInForce, a terminated contract ends its versions on its last day,
+// and a withdrawn one books no day at all (#4682). The end of a version
+// needs no cut at the next one here: BookedContract.Day lets the newest
+// version that covers a day decide.
 const bookedCareSQL = `SELECT * FROM (
 	SELECT c.id AS contract_id, c.student_id, v.version_number, v.effective_from,
 		LEAST(v.ends_on, c.ends_on) AS ends_on, ` + servicesSQL + ` AS services

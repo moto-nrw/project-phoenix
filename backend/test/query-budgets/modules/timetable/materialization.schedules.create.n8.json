@@ -1,6 +1,6 @@
 {
   "scenario": "modules.timetable.materialization.schedules.create.n8",
-  "max": 109,
+  "max": 74,
   "exact": true,
-  "description": "Full locked tenant materialization with 8 templates, create run; one shared schedule read, output counts verified."
+  "description": "Full locked tenant materialization with 8 templates, create run; one shared schedule read and one shared roster read, output counts verified."
 }

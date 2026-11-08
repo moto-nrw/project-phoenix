@@ -352,3 +352,42 @@ func (s *Service) storedDeviceUpdate(input devicefleet.UpdateDevice) domain.Upda
 	}
 	return toDomainUpdate(input)
 }
+
+// ApplyDeviceEdit reuses RETURNING only inside an existing tenant unit:
+// its UPDATE lock still protects the stored row during the room projection.
+// Without that unit the old post-commit read remains an independent observation.
+func (s *Service) ApplyDeviceEdit(ctx context.Context, edit devicefleet.DeviceEdit) (devicefleet.Device, error) {
+	input := devicefleet.UpdateDevice{ID: edit.ID, DeviceID: edit.DeviceID, DeviceType: edit.DeviceType, Name: edit.Name, RegisteredByID: edit.RegisteredByID}
+	columns := []string{"device_id", "device_type", "name", "registered_by_id"}
+	if edit.Status != nil {
+		input.Status = *edit.Status
+		columns = append(columns, "status")
+	}
+	if input.ID <= 0 {
+		return devicefleet.Device{}, s.reject("update_device_columns", devicefleet.ErrInvalidDevice)
+	}
+	if _, err := s.deps.Tx.TenantID(ctx); err != nil {
+		affected, err := s.UpdateDeviceColumns(ctx, input, columns)
+		if err != nil {
+			return devicefleet.Device{}, err
+		}
+		if affected == 0 {
+			return devicefleet.Device{}, devicefleet.ErrDeviceNotFound
+		}
+		return s.FindDevice(ctx, input.ID)
+	}
+	var updated devicefleet.Device
+	err := s.runWrite(ctx, "update_device_columns", func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		var err error
+		updated, queryStats, err = s.deps.Devices.UpdateColumnsReturning(txCtx, s.storedDeviceUpdate(input), columns)
+		stats.Add(queryStats)
+		return err
+	})
+	if err != nil {
+		return devicefleet.Device{}, err
+	}
+	return s.findDevice(ctx, "find_device", true, func(context.Context) (devicefleet.Device, bool, domain.OperationStats, error) {
+		return updated, true, domain.OperationStats{}, nil
+	})
+}

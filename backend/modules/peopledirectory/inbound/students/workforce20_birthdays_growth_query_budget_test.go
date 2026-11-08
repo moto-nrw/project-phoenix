@@ -59,7 +59,7 @@ func TestWorkforce20BirthdaysGrowth(t *testing.T) {
 				req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
 				counter := testpkg.CaptureQueries(t, tc.db)
 				rec := httptest.NewRecorder()
-				router.ServeHTTP(rec, req)
+				testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api", router), rec, req)
 				counter.Stop()
 				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 				require.NotContains(t, rec.Body.String(), "Foreign")
@@ -88,16 +88,16 @@ func TestWorkforce20BirthdaysGrowth(t *testing.T) {
 					}
 				}
 				if export {
-					querybudgets.AssertQueryBudget(t, "workforce.workforce20.birthday_staff_export", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "workforce.workforce20.birthday_staff_export", counter.Measurement(counter.Queries()))
 				} else {
-					querybudgets.AssertQueryBudget(t, "workforce.workforce20.birthday_overview", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "workforce.workforce20.birthday_overview", counter.Measurement(counter.Queries()))
 				}
 				counts = append(counts, len(counter.Queries()))
 				denied := httptest.NewRequest(method, path, strings.NewReader(body))
 				claims.Permissions = nil
 				denied.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
 				rr := httptest.NewRecorder()
-				router.ServeHTTP(rr, denied)
+				testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api", router), rr, denied)
 				require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 			}
 			require.Equal(t, counts[0], counts[1])

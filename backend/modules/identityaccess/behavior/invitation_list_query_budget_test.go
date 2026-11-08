@@ -44,7 +44,7 @@ func TestPendingInvitationsQueryBudget(t *testing.T) {
 		add(3, 8)
 		large := run()
 		assert.Equal(t, len(small), len(large), "the listing must not grow a statement per invitation")
-		querybudgets.AssertQueryBudget(t, "services.auth.pending_invitations.reads", large)
+		querybudgets.AssertQueryBudget(t, "services.auth.pending_invitations.reads", counter.Measurement(large))
 		return nil
 	}))
 }

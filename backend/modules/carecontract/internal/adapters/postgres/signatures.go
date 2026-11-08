@@ -81,7 +81,6 @@ func (Store) SigningLink(ctx context.Context, organizationID int64, tokenSHA256 
 	return rows[0].record(), nil
 }
 
-// LatestSigningLink reads the newest link of a contract.
 func (Store) LatestSigningLink(ctx context.Context, organizationID, contractID int64) (ports.SigningLinkRecord, bool, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -187,13 +186,12 @@ func (Store) Signature(ctx context.Context, organizationID, contractID, versionI
 		WithdrawalNoticeAt  *time.Time    `bun:"withdrawal_notice_at"`
 		EarlyStartRequested bool          `bun:"early_start_requested"`
 		PaperFilename       *string       `bun:"paper_filename"`
-		PaperSHA256         *string       `bun:"paper_pdf_sha256"`
 		PaperIntact         bool          `bun:"paper_intact"`
 		SignedOn            calendar.Date `bun:"signed_on,type:date"`
 		SignedAt            time.Time     `bun:"signed_at"`
 	}
 	if err := db.NewRaw(`SELECT contract_version_id, contract_document_id, method, channel, audit_signature_id, signer_name,
-			version_sha256, document_sha256, withdrawal_notice_at, early_start_requested, paper_filename, paper_pdf_sha256,
+			version_sha256, document_sha256, withdrawal_notice_at, early_start_requested, paper_filename,
 			COALESCE(paper_pdf_sha256 = encode(sha256(paper_pdf), 'hex'), false) AS paper_intact,
 			signed_on, signed_at
 		FROM care_contract.contract_signatures WHERE organization_id = ? AND contract_id = ? AND (? = 0 OR contract_version_id = ?)
@@ -213,9 +211,6 @@ func (Store) Signature(ctx context.Context, organizationID, contractID, versionI
 	}
 	if row.PaperFilename != nil {
 		stored.PaperFilename = *row.PaperFilename
-	}
-	if row.PaperSHA256 != nil {
-		stored.PaperSHA256 = *row.PaperSHA256
 	}
 	return stored, nil
 }
@@ -288,7 +283,6 @@ func (Store) DueReminders(ctx context.Context, organizationID, contractID int64,
 	return candidates, nil
 }
 
-// InsertReminder records a reminder mail.
 func (Store) InsertReminder(ctx context.Context, organizationID, contractID int64, number int, outboxID int64, recipient string) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {

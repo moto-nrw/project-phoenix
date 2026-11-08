@@ -38,12 +38,6 @@ func concludeContract(ctx context.Context, store Store, organizationID, accountI
 	if err := store.MarkConcluded(ctx, organizationID, record.Summary.ID, record.Version.ID, conclusion); err != nil {
 		return err
 	}
-	contractID, schoolID := record.Summary.ID, record.Summary.SchoolID
-	if err := store.InsertEvents(ctx, organizationID, []Event{{
-		ContractID: &contractID, SchoolID: &schoolID, AccountID: accountID, Action: ActionConclude,
-		Details: map[string]any{"method": conclusion.Method, "version_id": record.Version.ID, "document_id": *record.DocumentID},
-	}}); err != nil {
-		return fmt.Errorf("care contract: record conclusion: %w", err)
-	}
-	return nil
+	return trailContract(ctx, store, organizationID, accountID, record, ActionConclude,
+		map[string]any{"method": conclusion.Method, "version_id": record.Version.ID, "document_id": *record.DocumentID})
 }

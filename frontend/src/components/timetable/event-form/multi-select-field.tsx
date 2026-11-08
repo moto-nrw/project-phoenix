@@ -144,9 +144,7 @@ export function MultiSelectField({
     <InsetPanel framed className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-semibold text-gray-700">{label}</span>
-        <span className="text-[11px] text-gray-500">
-          {value.length} ausgewählt
-        </span>
+        <span className="text-xs text-gray-500">{value.length} ausgewählt</span>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto]">
@@ -309,7 +307,7 @@ export function MultiSelectField({
                       )}
                     </span>
                     {(option.schoolClass || option.groupName) && (
-                      <span className="block truncate text-[11px] text-gray-400">
+                      <span className="block truncate text-xs text-gray-400">
                         {[option.schoolClass, option.groupName]
                           .filter(Boolean)
                           .join(" · ")}

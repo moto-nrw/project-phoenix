@@ -2,5 +2,6 @@
   "scenario": "api.auth.tenants.positive_growth",
   "max": 8,
   "exact": true,
-  "description": "Public GET /auth/tenants through the production directory binding: exactly 3/8 persisted public operational schools, distinct organization enrichment and hidden/inactive/deleted decoys; complete ordered DTOs and no row/sequence writes. Eight statements are two existing admin read transactions."
+  "description": "Public GET /auth/tenants through the production directory binding: exactly 3/8 persisted public operational schools, distinct organization enrichment and hidden/inactive/deleted decoys; complete ordered DTOs and no row/sequence writes. Eight statements are two existing admin read transactions.",
+  "route": "GET /auth/tenants"
 }

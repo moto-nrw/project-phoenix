@@ -38,7 +38,7 @@ func stayInOtherRoom(t *testing.T, k *kiosk, studentID, _ int64) {
 // measureScan runs the scan at a kiosk with three and then eight children
 // present, asserts that the statement count does not grow, and returns the
 // statements of the larger run.
-func measureScan(t *testing.T, before stayBefore, action string, requestMemo ...bool) []string {
+func measureScan(t *testing.T, before stayBefore, action string, requestMemo ...bool) testpkg.QueryMeasurement {
 	t.Helper()
 	k := setupCheckinRoute(t)
 	device, deviceID := k.deviceRow(t, "budget-"+action)
@@ -54,7 +54,7 @@ func measureScan(t *testing.T, before stayBefore, action string, requestMemo ...
 		}
 	}
 	counter := testpkg.CaptureQueriesForContext(t, k.db)
-	scan := func() []string {
+	scan := func() testpkg.QueryMeasurement {
 		tag, studentID, _ := k.studentCard(t, fmt.Sprintf("Scan%d", present), "Budget", "1a")
 		before(t, k, studentID, sessionID)
 		router := testutil.NewTenantRouter(k.db)
@@ -64,18 +64,18 @@ func measureScan(t *testing.T, before stayBefore, action string, requestMemo ...
 			req = req.WithContext(settings.WithSettingsRequestCache(req.Context()))
 		}
 		counter.Reset()
-		rr := testutil.ExecuteRequest(router, req.WithContext(counter.Context(req.Context())))
+		rr := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api/iot", router), req.WithContext(counter.Context(req.Context())))
 		testutil.AssertSuccessResponse(t, rr, 200)
 		assert.Equal(t, action, responseData(t, rr.Body.Bytes())["action"])
-		return counter.Queries()
+		return counter.Measurement(counter.Queries())
 	}
 
 	addPresent(3)
 	small := scan()
 	addPresent(5)
 	large := scan()
-	t.Logf("scan=%s N3=%d N8=%d request_memo=%v", action, len(small), len(large), requestMemo)
-	assert.Equal(t, len(small), len(large), "the scan must not grow with the children present")
+	t.Logf("scan=%s N3=%d N8=%d request_memo=%v", action, len(small.Statements), len(large.Statements), requestMemo)
+	assert.Equal(t, len(small.Statements), len(large.Statements), "the scan must not grow with the children present")
 	return large
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
@@ -55,7 +56,7 @@ func versionChecksum(fingerprint func([]byte) string, version carecontract.Versi
 // day (§ 193 BGB), the day the withdrawal and termination page names too
 // (#4682).
 func withdrawalEnd(signedAt time.Time) calendar.Date {
-	return nextWorkingDay(calendar.DateFromTime(signedAt).AddDays(carecontract.WithdrawalDays))
+	return *withdrawalUntil(&carecontract.Concluded{Method: carecontract.MethodElectronic, At: signedAt}, &signedAt)
 }
 
 // withdrawalNotice is the notice of the right of withdrawal (Art. 246a § 1
@@ -64,24 +65,13 @@ func withdrawalEnd(signedAt time.Time) calendar.Date {
 func withdrawalNotice(partner, letterhead string) []string {
 	address := ""
 	if lines := textLines(letterhead); len(lines) > 0 {
-		address = " Die Anschrift: " + joinLines(lines) + "."
+		address = " Die Anschrift: " + strings.Join(lines, ", ") + "."
 	}
 	return []string{
-		"Widerrufsrecht: Sie können diesen Vertrag innerhalb von 14 Tagen ohne Angabe von Gründen widerrufen. Die Frist beginnt an dem Tag, an dem Sie den Vertrag unterschreiben.",
+		"Widerrufsrecht: Sie können diesen Vertrag innerhalb von " + withdrawalDays + " Tagen ohne Angabe von Gründen widerrufen. Die Frist beginnt an dem Tag, an dem Sie den Vertrag unterschreiben.",
 		"So widerrufen Sie: Teilen Sie " + partner + " eindeutig mit, dass Sie den Vertrag widerrufen. Das geht zum Beispiel per Brief oder E-Mail." + address +
 			" Es reicht, wenn Sie die Mitteilung vor dem Ende der Frist absenden.",
 		"Folgen des Widerrufs: Sie bekommen alle Zahlungen spätestens 14 Tage nach Ihrem Widerruf zurück, auf demselben Weg, auf dem Sie gezahlt haben. Dafür entstehen Ihnen keine Kosten.",
 		"Haben Sie verlangt, dass die Betreuung schon in der Widerrufsfrist beginnt? Dann zahlen Sie für die Betreuung bis zu Ihrem Widerruf einen angemessenen Teil des Beitrags.",
 	}
-}
-
-func joinLines(lines []string) string {
-	result := ""
-	for i, line := range lines {
-		if i > 0 {
-			result += ", "
-		}
-		result += line
-	}
-	return result
 }

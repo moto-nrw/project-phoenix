@@ -30,7 +30,6 @@ type Resource struct {
 	requireContract common.Middleware
 }
 
-// NewResource binds the routes to the owner and the right check.
 func NewResource(contracts carecontract.Contracts, intake carecontract.Intake, paper carecontract.PaperSignatures, requireContract common.Middleware) *Resource {
 	if contracts == nil || intake == nil || paper == nil || requireContract == nil {
 		panic("care contract http: the contracts, the intake, the paper signature and the right check are required")
@@ -95,7 +94,6 @@ func contractKey(w http.ResponseWriter, r *http.Request) (carecontract.Reviewer,
 	return reviewer, id, true
 }
 
-// optionalID reads an optional positive ID from the query.
 func optionalID(r *http.Request, name string) (int64, error) {
 	raw := r.URL.Query().Get(name)
 	if raw == "" {
@@ -134,7 +132,6 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 		Status: query.Get("status"), SchoolID: schoolID, Search: query.Get("search"), Offset: offset, Limit: limit,
 	})
 	if err != nil {
-		tenant.MarkRollback(r.Context())
 		renderError(w, r, err)
 		return
 	}
@@ -201,7 +198,6 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, result, "Care contracts created successfully")
 }
 
-// SendRequest names the contracts to send.
 type SendRequest struct {
 	ContractIDs    []int64 `json:"contract_ids"`
 	RecipientEmail *string `json:"recipient_email"`
@@ -244,7 +240,6 @@ func (rs *Resource) detail(w http.ResponseWriter, r *http.Request) {
 	}
 	detail, err := rs.contracts.Contract(r.Context(), reviewer, id)
 	if err != nil {
-		tenant.MarkRollback(r.Context())
 		renderError(w, r, err)
 		return
 	}
@@ -258,7 +253,6 @@ func (rs *Resource) document(w http.ResponseWriter, r *http.Request) {
 	}
 	file, err := rs.contracts.ContractDocument(r.Context(), reviewer, id)
 	if err != nil {
-		tenant.MarkRollback(r.Context())
 		renderError(w, r, err)
 		return
 	}
@@ -278,7 +272,6 @@ func (rs *Resource) versionDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	file, err := rs.contracts.VersionDocument(r.Context(), reviewer, id, number)
 	if err != nil {
-		tenant.MarkRollback(r.Context())
 		renderError(w, r, err)
 		return
 	}
@@ -311,7 +304,6 @@ func (rs *Resource) templates(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, templates, "Contract templates retrieved successfully")
 }
 
-// TemplateRequest is the body of a template.
 type TemplateRequest struct {
 	carecontract.TemplateInput
 }
@@ -384,7 +376,6 @@ var errorRules = []struct {
 	}},
 }
 
-// renderError answers an owner error with its registered code.
 func renderError(w http.ResponseWriter, r *http.Request, err error) {
 	var invalid *carecontract.ValidationError
 	if errors.As(err, &invalid) {
@@ -404,19 +395,25 @@ func renderError(w http.ResponseWriter, r *http.Request, err error) {
 // a list or a batch names the input as a whole.
 func validationError(invalid *carecontract.ValidationError) render.Renderer {
 	code := common.CodeCareContractTemplateInvalid
-	names := make([]string, 0, len(invalid.Fields))
 	for name := range invalid.Fields {
-		names = append(names, name)
 		if name == "status" || name == "contracts" || name == "contract_ids" || name == "recipient_email" {
 			code = common.CodeCareContractContractInputInvalid
 		}
+	}
+	return fieldsInvalid(invalid.Error(), invalid, code)
+}
+
+func fieldsInvalid(message string, invalid *carecontract.ValidationError, code string) render.Renderer {
+	names := make([]string, 0, len(invalid.Fields))
+	for name := range invalid.Fields {
+		names = append(names, name)
 	}
 	sort.Strings(names)
 	fields := make([]common.FieldError, len(names))
 	for i, name := range names {
 		fields[i] = common.FieldError{Field: name, Reason: invalid.Fields[name]}
 	}
-	response := common.ErrorValidation(invalid.Error(), fields).(*common.ErrResponse)
+	response := common.ErrorValidation(message, fields).(*common.ErrResponse)
 	response.Code = code
 	return response
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
 import { schoolClassLabel, schoolClassName } from "~/lib/school-class-label";
 import {
@@ -778,7 +779,7 @@ function TimetableRosterHeader({
   );
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       {/* Auf dem Telefon steht der Einklapp-Pfeil neben dem Titel und die
           Knöpfe darunter; ab sm steht der Pfeil hinter den Knöpfen, wie in
           der eingeklappten Karte. */}
@@ -788,25 +789,25 @@ function TimetableRosterHeader({
         <div className="flex min-w-0 items-center gap-3 sm:min-w-64">
           <ConceptIconTile concept={presentConcept} size="sm" />
           <div className="min-w-0">
-            {/* Der Kicker folgt dem Zustand des Blocks. Fest "Aktiv" war
+            {/* Das Abzeichen folgt dem Zustand des Blocks. Fest "Aktiv" war
                 gelogen, sobald der Roster eines beendeten Termins offen ist —
                 im Reopen-Fenster der OGS ebenso wie in der Aufsicht einer
-                Lehrkraft (#2527). Er heißt wie das Abzeichen im Seitenkopf
-                („Aktiv“ / „Beendet“, #4354). */}
-            {showStatus ? (
-              <p
-                className={`text-xs font-semibold tracking-wide uppercase ${
-                  roster.instance.status === "completed"
-                    ? "text-gray-500"
-                    : "text-moto-green-strong"
-                }`}
-              >
-                {rosterRunState(roster.instance.status).label}
-              </p>
-            ) : null}
-            <h2 className="truncate text-base font-semibold text-gray-900">
-              {roster.instance.title}
-            </h2>
+                Lehrkraft (#2527). Es heißt wie das Abzeichen im Seitenkopf
+                („Aktiv“ / „Beendet“, #4354) und steht neben dem Titel, nicht
+                als Kicker darüber (#5607). */}
+            <div className="flex min-w-0 items-center gap-2">
+              <h2 className="truncate text-base font-semibold text-gray-900">
+                {roster.instance.title}
+              </h2>
+              {showStatus ? (
+                <StatusBadge
+                  size="xs"
+                  label={rosterRunState(roster.instance.status).label}
+                  tone={rosterRunState(roster.instance.status).tone}
+                  className="shrink-0"
+                />
+              ) : null}
+            </div>
             <p className="truncate text-sm text-gray-600">
               {showRoom
                 ? `${roster.instance.roomName ?? `Raum ${roster.instance.roomId}`} · `
@@ -929,7 +930,7 @@ function TimetableRosterHeader({
           />
         </div>
       ) : null}
-    </div>
+    </SectionCard>
   );
 }
 

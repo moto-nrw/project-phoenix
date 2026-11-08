@@ -74,10 +74,13 @@ type CareExitEnrollment interface {
 }
 
 // CareExitPresence is the Student Presence half: school attendance and room
-// visits stay owned there.
+// visits stay owned there. PresenceDaysBetween is the dated evidence of care
+// the historical participation honors (#6041): per day, the children
+// recorded as present.
 type CareExitPresence interface {
 	ListOpenPresence(ctx context.Context, studentIDs []int64) ([]int64, error)
 	LatestPresenceDate(ctx context.Context, studentID int64) (*calendar.Date, error)
+	PresenceDaysBetween(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error)
 	LockOpenPresence(ctx context.Context, studentIDs []int64) error
 	CloseOpenPresence(ctx context.Context, studentIDs []int64, at time.Time) (int64, error)
 }

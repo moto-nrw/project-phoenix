@@ -201,14 +201,14 @@ func TestIssuedInvoicesAreCancelledCreditedAndIssuedAgainAsDocumentsOfTheirOwn(t
 	// their own with their minus and the invoice they belong to.
 	csv := exportCSV(t, f, billing, run.ID)
 	lines := strings.Split(strings.TrimSpace(csv), "\n")
-	assert.Equal(t, "Nummer;Art;Bezug;Empfänger;Kind;Position;Betrag in Euro", strings.TrimSpace(lines[0]))
+	assert.Equal(t, "Nummer;Art;Bezug;Empfänger;Kind;Position;Betrag in Euro;Zahlungsweg;Fällig am", strings.TrimSpace(lines[0]))
 	assert.Contains(t, csv, "FE-0001;Rechnung;;")
 	assert.Contains(t, csv, "FE-0003;Storno;zu FE-0001;")
 	assert.Contains(t, csv, ";Summe des Stornos;-"+euroText(first.TotalCents))
 	assert.Contains(t, csv, "FE-0004;Gutschrift;zu FE-0002;")
 	assert.Contains(t, csv, ";Gutschrift: Erster Tag krank;-5,00")
 	assert.Contains(t, csv, ";Summe der Gutschrift;-5,00")
-	assert.Equal(t, ";;;;;Gesamtsumme des Laufs;"+euroText(detail.PreviewCents), strings.TrimSpace(lines[len(lines)-1]))
+	assert.Equal(t, ";;;;;Gesamtsumme des Laufs;"+euroText(detail.PreviewCents)+";;", strings.TrimSpace(lines[len(lines)-1]))
 
 	// The cancelled invoice no longer bills its registration: the next run
 	// of the period issues it again with a new number and names the invoice

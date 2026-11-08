@@ -42,7 +42,7 @@ func TestSchoolDayAPI(t *testing.T) {
 	}
 	first, second := addClass(1), addClass(2)
 	get := func(path string, granted ...string) *httptest.ResponseRecorder {
-		return testutil.ExecuteWithAuthPermissions(t, router, httptest.NewRequest(http.MethodGet, path, nil), claims, granted)
+		return testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/school/class-day", router), httptest.NewRequest(http.MethodGet, path, nil), claims, granted)
 	}
 
 	// A Lehrkraft holds class_day:read only: the overview stays closed and
@@ -73,7 +73,7 @@ func TestSchoolDayAPI(t *testing.T) {
 	addClass(4)
 	large := overview("2026-08-06", 4)
 	assert.Equal(t, small, large, "the overview must not grow with the number of classes")
-	querybudgets.AssertQueryBudget(t, "modules.classday.school_day", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.classday.school_day", counter.Measurement(counter.Queries()))
 
 	rec = get("/school-day?date=2026-08-05", classDayReadPermission, classDayAllClassesPermission)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

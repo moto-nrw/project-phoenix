@@ -266,7 +266,7 @@ func TestListStudentsCareOfferingFilterQueryBudget(t *testing.T) {
 	large := run()
 
 	assert.Equal(t, small, large, "query count must not grow with the number of children")
-	querybudgets.AssertQueryBudget(t, "api.students.list.care_offering", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.students.list.care_offering", counter.Measurement(counter.Queries()))
 }
 
 // TestCareOfferingOptionsQueryBudget keeps the offering selection a single
@@ -294,5 +294,5 @@ func TestCareOfferingOptionsQueryBudget(t *testing.T) {
 	large := run()
 
 	assert.Equal(t, small, large, "query count must not grow with the number of offerings")
-	querybudgets.AssertQueryBudget(t, "api.students.care_offerings.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.students.care_offerings.list", counter.Measurement(counter.Queries()))
 }

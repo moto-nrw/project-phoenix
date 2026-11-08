@@ -13,16 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 )
 
-// Rate-limit thresholds. They work for "small school with families of three
-// children submitting once" without tuning; a school needing others would
-// promote them to settings.
-const (
-	rateLimitWindowIP        = time.Hour
-	rateLimitWindowEmail     = 24 * time.Hour
-	rateLimitMaxAttemptsIP   = 10
-	rateLimitMaxAttemptsMail = 5
-)
-
 func (s *Intake) newStatusToken() (string, error) {
 	if s.deps.Random == nil {
 		return "", errors.New("status token entropy source is not configured")
@@ -163,21 +153,20 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 	}, nil
 }
 
-// enforceRateLimit counts the attempt in the per-IP and per-email buckets of
-// the submission's tenant, in a transaction of its own so the count survives
-// a refused submission, and refuses once either crosses its threshold.
+// enforceRateLimit runs count in the tenant's transaction of its own, so the
+// count survives a refused submission or upload, and passes on its refusal.
 // Without a limiter the check is skipped.
-func (s *Intake) enforceRateLimit(ctx context.Context, req SubmitRequest) error {
-	if s.deps.RateLimits == nil || req.TenantID <= 0 {
+func (s *Intake) enforceRateLimit(ctx context.Context, tenantID int64, count func(context.Context) error) error {
+	if s.deps.RateLimits == nil || tenantID <= 0 {
 		return nil
 	}
 	if s.deps.Runtime.TenantTx == nil {
-		return s.enforceRateLimitBuckets(ctx, req)
+		return count(ctx)
 	}
 	var limitErr error
 	rateCtx := s.deps.Runtime.WithoutTransaction(ctx)
-	err := s.deps.Runtime.TenantTx(rateCtx, req.TenantID, func(txCtx context.Context) error {
-		limitErr = s.enforceRateLimitBuckets(txCtx, req)
+	err := s.deps.Runtime.TenantTx(rateCtx, tenantID, func(txCtx context.Context) error {
+		limitErr = count(txCtx)
 		if errors.Is(limitErr, enrollment.ErrRateLimited) {
 			return nil
 		}
@@ -192,34 +181,20 @@ func (s *Intake) enforceRateLimit(ctx context.Context, req SubmitRequest) error 
 	return nil
 }
 
-func (s *Intake) enforceRateLimitBuckets(ctx context.Context, req SubmitRequest) error {
-	if req.uploadAttempt {
-		return s.countUploadAttempt(ctx, req)
-	}
+// countSubmissionAttempt counts the submission in the per-IP and per-email
+// buckets and refuses once either crosses its threshold.
+func (s *Intake) countSubmissionAttempt(ctx context.Context, req SubmitRequest) error {
 	ip := strings.TrimSpace(req.RemoteIP)
 	email := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
 	if ip != "" {
-		if err := s.countRateLimitAttempt(ctx, req.TenantID, rateLimitBucket{
-			keyType: enrollment.SubmissionRateLimitKeyTypeIP, label: "IP", window: rateLimitWindowIP, maxAttempts: rateLimitMaxAttemptsIP,
-		}, ip); err != nil {
+		if err := s.countRateLimitAttempt(ctx, req.TenantID, ipRateLimit, ip); err != nil {
 			return err
 		}
 	}
 	if email != "" {
-		return s.countRateLimitAttempt(ctx, req.TenantID, rateLimitBucket{
-			keyType: enrollment.SubmissionRateLimitKeyTypeEmail, label: "email", window: rateLimitWindowEmail, maxAttempts: rateLimitMaxAttemptsMail,
-		}, email)
+		return s.countRateLimitAttempt(ctx, req.TenantID, emailRateLimit, email)
 	}
 	return nil
-}
-
-// rateLimitBucket is one submission counter: its key type, the label its
-// error names, its window and its threshold.
-type rateLimitBucket struct {
-	keyType     string
-	label       string
-	window      time.Duration
-	maxAttempts int
 }
 
 func (s *Intake) countRateLimitAttempt(ctx context.Context, tenantID int64, bucket rateLimitBucket, keyValue string) error {
@@ -239,6 +214,7 @@ func (s *Intake) countRateLimitAttempt(ctx context.Context, tenantID int64, buck
 }
 
 // cloneSourceMetadata copies a metadata map so the submission can add to it.
+// Unlike maps.Clone it never returns nil: the callers write into the copy.
 func cloneSourceMetadata(src map[string]any) map[string]any {
 	out := make(map[string]any, len(src))
 	for k, v := range src {

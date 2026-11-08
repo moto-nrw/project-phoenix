@@ -105,21 +105,21 @@ func TestDeviceListQueryBudgets(t *testing.T) {
 				success(w, r, code, data, message)
 			}
 			router := testutil.NewTenantRouter(db)
-			router.Mount("/devices", NewResource(devicefleet.NewAdministration(fleet), runtime).Router())
-			message, path := "Devices retrieved successfully", "/devices/"
+			router.Mount("/", NewResource(devicefleet.NewAdministration(fleet), runtime).Router())
+			message, path := "Devices retrieved successfully", "/"
 			switch route {
 			case "type":
-				path = "/devices/type/terminal"
+				path = "/type/terminal"
 			case "status":
-				path = "/devices/status/active"
+				path = "/status/active"
 			case "registered-by":
-				path = fmt.Sprintf("/devices/registered-by/%d", registrar.ID)
+				path = fmt.Sprintf("/registered-by/%d", registrar.ID)
 			case "active":
-				path, message = "/devices/active", "Active devices retrieved successfully"
+				path, message = "/active", "Active devices retrieved successfully"
 			case "maintenance":
-				path, message = "/devices/maintenance", "Devices requiring maintenance retrieved successfully"
+				path, message = "/maintenance", "Devices requiring maintenance retrieved successfully"
 			case "offline":
-				path, message = "/devices/offline?duration=24h", "Offline devices retrieved successfully"
+				path, message = "/offline?duration=24h", "Offline devices retrieved successfully"
 			}
 			want := make(map[int64]deviceListBudgetWire)
 			controlStatus := devicefleet.DeviceStatusInactive
@@ -156,7 +156,7 @@ func TestDeviceListQueryBudgets(t *testing.T) {
 				defer cancel()
 				counter := testpkg.CaptureQueriesForContext(t, db)
 				counter.Reset()
-				response := testutil.ExecuteRequest(router, req.WithContext(counter.Context(ctx)))
+				response := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api/iot", router), req.WithContext(counter.Context(ctx)))
 				counter.Stop()
 				require.Equal(t, http.StatusOK, response.Code)
 				require.Contains(t, response.Header().Get("Content-Type"), "application/json")
@@ -209,7 +209,7 @@ func TestDeviceListQueryBudgets(t *testing.T) {
 						rooms = 0
 					}
 					require.Len(t, counter.Selects("facilities.rooms"), rooms, "room ID-set read, never one read per device")
-					queries := counter.Queries()
+					queries := counter.Measurement(counter.Queries())
 					switch route {
 					case "root":
 						querybudgets.AssertQueryBudget(t, "api.iot.devices.list", queries)
@@ -236,10 +236,10 @@ func TestDeviceListQueryBudgets(t *testing.T) {
 						continue
 					}
 					query := url.Values{"device_type": {row.DeviceType}, "status": {row.Status}, "registered_by_id": {fmt.Sprint(*row.RegisteredByID)}, "search": {"TARGET-"}}
-					request(t, "/devices/?"+query.Encode(), map[int64]deviceListBudgetWire{id: row})
+					request(t, "/?"+query.Encode(), map[int64]deviceListBudgetWire{id: row})
 					break
 				}
-				request(t, "/devices/?device_type=virtual", map[int64]deviceListBudgetWire{manual.ID: expectedDeviceListWire(manual, nil, false)})
+				request(t, "/?device_type=virtual", map[int64]deviceListBudgetWire{manual.ID: expectedDeviceListWire(manual, nil, false)})
 			}
 		})
 	}

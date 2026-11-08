@@ -16,6 +16,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (t *BillingTerms) ServiceTerms(ctx context.Context, organizationID int64) ([]parentbilling.ServiceTerms, error) {\n\tif organizationID \u003c= 0 {\n\t\treturn nil, errTraegerRequired\n\t}\n\tstored, err := t.store.ServiceTerms(ctx, organizationID)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"parent billing: read the service terms: %w\", err)\n\t}\n\treturn termsList(stored), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/parentbilling/internal/application/BillingTerms.ServiceTerms",
+      "owner": "modules/parentbilling"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c *CareBilling) ListCareRuns(ctx context.Context, organizationID int64) (parentbilling.CareRunList, error) {\n\tif organizationID \u003c= 0 {\n\t\treturn parentbilling.CareRunList{}, errTraegerRequired\n\t}\n\truns, err := c.store.ListCareRuns(ctx, organizationID)\n\tif err != nil {\n\t\treturn parentbilling.CareRunList{}, fmt.Errorf(\"parent billing: list care runs: %w\", err)\n\t}\n\treturn parentbilling.CareRunList{Runs: runs, SuggestedMonth: suggestedMonth(c.today(), runs)}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/parentbilling/internal/application/CareBilling.ListCareRuns",
+      "owner": "modules/parentbilling"
+    },
+    {
+      "build": "production",
       "evidence": "func (h *HolidayContributions) ResolveHolidayLink(ctx context.Context, token string) (parentbilling.HolidayLink, error) {\n\ttoken = strings.TrimSpace(token)\n\tif token == \"\" {\n\t\treturn parentbilling.HolidayLink{}, parentbilling.ErrHolidayLinkNotFound\n\t}\n\tlink, err := h.registrations.ResolveHolidayLink(ctx, token)\n\tif err != nil {\n\t\treturn parentbilling.HolidayLink{}, err\n\t}\n\tif link.OrganizationID \u003c= 0 || link.PeriodID \u003c= 0 {\n\t\treturn parentbilling.HolidayLink{}, parentbilling.ErrHolidayLinkNotFound\n\t}\n\treturn link, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/parentbilling/internal/application/HolidayContributions.ResolveHolidayLink",

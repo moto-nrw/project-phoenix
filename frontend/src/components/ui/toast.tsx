@@ -64,14 +64,14 @@ export function Toast({
         {action ? (
           <Button
             type="button"
-            variant="ghost_tone"
-            size="compact"
+            variant="link_tone"
+            // Auf schmalen Ansichten in normaler Textgröße und 44 px hoch,
+            // unabhängig vom Zeiger (#5531).
+            size={touchFriendly ? "md" : "compact"}
+            touchTarget={touchFriendly}
             aria-label={action.accessibleLabel}
             onClick={action.onClick}
-            className={cn(
-              "shrink-0 self-center underline underline-offset-2",
-              touchFriendly ? "h-11 px-3 text-sm" : "",
-            )}
+            className="shrink-0 self-center"
           >
             {action.label}
           </Button>

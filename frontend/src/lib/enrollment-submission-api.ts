@@ -181,6 +181,8 @@ export interface EnrollmentEditBootstrap {
   care_offerings_enabled: boolean;
   /** Server-authoritative tenant cap (`enrollment.grade_level_max`). */
   grade_level_max: number;
+  /** The school's term for its care in the form's fixed texts (#6042). */
+  care_facility_term?: string;
   legal_texts: PublicLegalTexts;
   draft: EnrollmentEditDraft;
 }
@@ -663,6 +665,11 @@ export interface StatusResponse {
   signature_required?: boolean;
   /** The signature of the current version, without the image. */
   signature?: EnrollmentSignature;
+  /**
+   * The school's term for its care (#6042); the token page on the parents
+   * host has no school context of its own.
+   */
+  care_facility_term?: string;
 }
 
 /**

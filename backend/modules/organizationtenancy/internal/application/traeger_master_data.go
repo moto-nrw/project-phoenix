@@ -48,17 +48,19 @@ func (m *TraegerMasterData) Profile(ctx context.Context, organizationID, account
 	if organizationID <= 0 {
 		return organizationtenancy.TraegerProfile{}, errTraegerRequired
 	}
-	contact, logo, err := m.store.FindProfile(ctx, organizationID)
+	contact, logo, accounts, err := m.store.FindMasterData(ctx, organizationID)
 	if err != nil {
 		return organizationtenancy.TraegerProfile{}, err
 	}
-	accounts, err := m.store.ListBankAccounts(ctx, organizationID)
-	if err != nil {
-		return organizationtenancy.TraegerProfile{}, err
-	}
+	// The read log counts the bank accounts of the same snapshot the
+	// response shows (#5571).
 	read, _ := json.Marshal(map[string]int{"bank_accounts": len(accounts)})
-	if err := m.audit(ctx, organizationID, accountID, domain.TraegerAuditSubjectMasterData, 0, domain.TraegerAuditActionRead, nil, read); err != nil {
-		return organizationtenancy.TraegerProfile{}, err
+	if err := m.store.AppendAudit(ctx, domain.TraegerMasterDataAuditEntry{
+		OrganizationID: organizationID, Subject: domain.TraegerAuditSubjectMasterData,
+		Action: domain.TraegerAuditActionRead, NewValue: read, ActorAccountID: accountID,
+	}); err != nil {
+		return organizationtenancy.TraegerProfile{}, fmt.Errorf("organization tenancy: log Träger master data %s %s: %w",
+			domain.TraegerAuditSubjectMasterData, domain.TraegerAuditActionRead, err)
 	}
 	return organizationtenancy.TraegerProfile{Contact: contact, Logo: logo, BankAccounts: accounts}, nil
 }

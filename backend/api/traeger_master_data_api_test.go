@@ -399,19 +399,19 @@ func TestTraegerMasterDataQueryBudget(t *testing.T) {
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	}
 	addAccount("Elternbeiträge", traegerTestIBAN)
-	read := func() []string {
+	read := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		req := httptest.NewRequest(http.MethodGet, "/traeger/master-data/", nil)
 		req.Header.Set("Authorization", "Bearer "+office.token)
 		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	one := read()
 	addAccount("Ferien", traegerOtherIBAN)
 	addAccount("Mensa", "GB82WEST12345698765432")
-	assert.Len(t, read(), len(one), "the master data reads the same statements for any number of bank accounts")
+	assert.Len(t, read().Statements, len(one.Statements), "the master data reads the same statements for any number of bank accounts")
 	querybudgets.AssertQueryBudget(t, "api.traeger.master_data", one)
 }
 

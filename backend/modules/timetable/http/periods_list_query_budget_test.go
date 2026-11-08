@@ -42,7 +42,7 @@ func TestListPeriodsQueryBudget(t *testing.T) {
 	// Production wraps the list in the tenant transaction; the owner queries
 	// join that transaction instead of opening their own.
 	router.Use(testpkg.TenantTxMiddleware(db))
-	router.Get("/periods", res.listPeriods)
+	router.Route("/periods", func(r chi.Router) { r.Get("/", res.listPeriods) })
 
 	created := 0
 	addPeriods := func(n int) {
@@ -64,7 +64,7 @@ func TestListPeriodsQueryBudget(t *testing.T) {
 	counter := testpkg.CaptureQueries(t, db)
 	run := func() int {
 		counter.Reset()
-		w := executeRequest(router, http.MethodGet, "/periods", nil)
+		w := executeRequest(testpkg.MountedQueryBudgetRouter("/api/timetable", router), http.MethodGet, "/periods", nil)
 		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 		periods := decodeTemplateData[[]CalendarPeriodResponse](t, w)
 		require.Len(t, periods, created)
@@ -84,5 +84,5 @@ func TestListPeriodsQueryBudget(t *testing.T) {
 	t.Logf("query budget: 3 periods → %d queries, 6 periods → %d queries", smallCount, largeCount)
 	assert.Equal(t, smallCount, largeCount,
 		"query count must be independent of the period count (no per-period N+1)")
-	querybudgets.AssertQueryBudget(t, "api.timetable.periods.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.periods.list", counter.Measurement(counter.Queries()))
 }

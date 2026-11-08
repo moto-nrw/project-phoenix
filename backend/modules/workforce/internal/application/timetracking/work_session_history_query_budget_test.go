@@ -48,7 +48,7 @@ func TestWorkSessionHistoryQueryBudget(t *testing.T) {
 		add(2, 7)
 		large := run()
 		assert.Equal(t, len(small), len(large))
-		querybudgets.AssertQueryBudget(t, "services.active.work_session_history.reads", large)
+		querybudgets.AssertQueryBudget(t, "services.active.work_session_history.reads", counter.Measurement(large))
 		return nil
 	}))
 }

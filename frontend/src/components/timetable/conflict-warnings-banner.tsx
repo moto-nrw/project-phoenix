@@ -33,6 +33,7 @@ import {
 
 import { Button } from "~/components/ui/button";
 import { formatDate } from "~/lib/date-helpers";
+import { SectionCard } from "~/components/ui/section-card";
 
 /** One aggregated conflict (both involved blocks share the fingerprint). */
 export interface ConflictBannerEntry {
@@ -173,7 +174,7 @@ export function ConflictWarningsBanner({
       return null;
     }
     return (
-      <div className="moto-content-surface rounded-2xl border px-3 py-2">
+      <SectionCard>
         <div role="status" className="flex items-center gap-2.5">
           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100">
             <TriangleAlert className="h-3.5 w-3.5 text-gray-400" aria-hidden />
@@ -206,12 +207,12 @@ export function ConflictWarningsBanner({
             />
           ))}
         </ul>
-      </div>
+      </SectionCard>
     );
   }
 
   return (
-    <div className="moto-content-surface rounded-2xl border px-3 py-2">
+    <SectionCard>
       <div role="status" className="flex items-center gap-2.5">
         <span className="bg-moto-amber/10 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
           <TriangleAlert className="text-moto-amber h-3.5 w-3.5" aria-hidden />
@@ -306,6 +307,6 @@ export function ConflictWarningsBanner({
           )}
         </div>
       )}
-    </div>
+    </SectionCard>
   );
 }

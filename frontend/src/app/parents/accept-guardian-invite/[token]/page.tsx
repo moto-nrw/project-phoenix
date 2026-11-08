@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { AuthShell } from "~/components/auth/auth-shell";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
 import {
   GuardianInvitationAcceptForm,
@@ -148,7 +149,6 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
   return (
     <AuthShell
       eyebrow={t("eyebrow")}
-      eyebrowClassName="text-moto-green"
       title={t("title")}
       subtitle={t("subtitle", { school: schoolName })}
       variant="parents"
@@ -202,7 +202,11 @@ function SchoolBrandMark({
     .join("");
 
   return (
-    <div className="moto-content-surface flex h-20 min-w-20 items-center justify-center overflow-hidden rounded-2xl border px-4">
+    <InsetPanel
+      tone="white"
+      padding="compact"
+      className="flex h-20 min-w-20 items-center justify-center overflow-hidden"
+    >
       {schoolLogoUrl ? (
         <Image
           src={schoolLogoUrl}
@@ -218,7 +222,7 @@ function SchoolBrandMark({
           {initials || "OGS"}
         </span>
       )}
-    </div>
+    </InsetPanel>
   );
 }
 

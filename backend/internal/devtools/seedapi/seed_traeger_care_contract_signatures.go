@@ -85,16 +85,22 @@ func seedPaperContract(client *Client, auth AuthRef) (int, error) {
 		return 0, nil
 	}
 	draft := drafts.Data.Contracts[len(drafts.Data.Contracts)-1]
-	signer := draft.PartyName
+	if err := seedPaperContractSignature(client, auth, draft.ID, draft.PartyName); err != nil {
+		return 0, err
+	}
+	return 1, nil
+}
+
+func seedPaperContractSignature(client *Client, auth AuthRef, id int64, signer string) error {
 	if signer == "" {
 		signer = "Erika Muster"
 	}
-	path := fmt.Sprintf("/traeger/contracts/%d/paper-signature", draft.ID)
+	path := fmt.Sprintf("/traeger/contracts/%d/paper-signature", id)
 	if _, err := client.PostFileWithAuthAndFields(auth, path, "file", "vertrag-unterschrieben.pdf", seedPaperContractPDF,
 		map[string]string{"signer_name": signer, "signed_on": calendar.TodayDate().String()}); err != nil {
-		return 0, fmt.Errorf("record the paper contract %d: %w", draft.ID, err)
+		return fmt.Errorf("record the paper contract %d: %w", id, err)
 	}
-	return 1, nil
+	return nil
 }
 
 // seedParentContractSignatures lets the first parent whose inbox holds a

@@ -8,6 +8,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import type { WorkSessionEdit } from "~/lib/time-tracking-helpers";
 import { formatTime } from "~/lib/time-tracking-helpers";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Renders the audit trail for a single work session. Used by both the
 // MA self-service /time-tracking page and the admin staff detail view —
@@ -185,10 +186,7 @@ export function EditHistoryAccordion({
       {/* Mobile: Compact card layout */}
       <div className="space-y-2 md:hidden">
         {rows.map(({ timestamp, dateStr, fieldEdits, notes, editorLabel }) => (
-          <div
-            key={timestamp}
-            className="rounded-lg border border-gray-100 bg-white p-2.5"
-          >
+          <InsetPanel key={timestamp} tone="white">
             <div className="mb-1.5 flex items-center justify-between text-xs text-gray-400">
               <span>{dateStr}</span>
               <span className="font-medium">{editorLabel}</span>
@@ -214,7 +212,7 @@ export function EditHistoryAccordion({
                 &ldquo;{notes}&rdquo;
               </p>
             )}
-          </div>
+          </InsetPanel>
         ))}
       </div>
 
