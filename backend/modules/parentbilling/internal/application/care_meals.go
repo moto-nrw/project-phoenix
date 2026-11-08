@@ -395,6 +395,16 @@ func placeMeal(month *careMonth, in careMealInput, position parentbilling.CareMe
 		month.mealUnbilled = append(month.mealUnbilled, unbilled)
 		return
 	}
+	// First the invoice that would carry the Mensa: issued already, the
+	// Mensa waits for next month even when the care has a new draft (a
+	// Mensa invoice of its own stays issued after a Storno of the care).
+	for _, contractID := range contracts {
+		if mealInvoiceIssued(in, contractID) {
+			unbilled.Reason = parentbilling.MealUnbilledContractBilled
+			month.mealUnbilled = append(month.mealUnbilled, unbilled)
+			return
+		}
+	}
 	for _, contractID := range contracts {
 		for i := range month.invoices {
 			if month.invoices[i].ContractID == contractID {
@@ -407,13 +417,6 @@ func placeMeal(month *careMonth, in careMealInput, position parentbilling.CareMe
 	skipped := heldOrUnpriced(month)
 	for _, contractID := range contracts {
 		if skipped[contractID] {
-			return
-		}
-	}
-	for _, contractID := range contracts {
-		if mealInvoiceIssued(in, contractID) {
-			unbilled.Reason = parentbilling.MealUnbilledContractBilled
-			month.mealUnbilled = append(month.mealUnbilled, unbilled)
 			return
 		}
 	}

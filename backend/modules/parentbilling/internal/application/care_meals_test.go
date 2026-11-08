@@ -399,3 +399,22 @@ func TestSplitMealInvoicesPutsTheMensaOnAnInvoiceOfItsOwn(t *testing.T) {
 	assert.Equal(t, int64(2), month.invoices[2].ContractID, "the Mensa-only invoice is the Mensa invoice")
 	assert.Equal(t, int64(3200), month.invoices[3].TotalCents)
 }
+
+// Billed apart, a contract whose Mensa invoice of the month is issued keeps
+// its new Mensa months for the next month, even when a Storno of its care
+// brings the care back as a draft: no second Mensa invoice of the month.
+func TestCareMealsOfAnIssuedMensaInvoiceWaitEvenWithACareDraft(t *testing.T) {
+	t.Parallel()
+	month, versions := mealMonth(t)
+	// The care's draft after its Storno: a new care invoice of the month.
+	month.invoices = []parentbilling.CareInvoice{{ContractID: contractMia, Service: parentbilling.ServiceCare,
+		Positions: []parentbilling.CarePosition{{AmountCents: 3200}}, TotalCents: 3200}}
+	billMeals(&month, careMealInput{month: day(t, mealRunMonth), today: day(t, mealToday),
+		schools:  map[int64]string{schoolIspringen: "Ispringen"},
+		tariffs:  []parentbilling.CareMealTariff{mealTariff(t, parentbilling.MealModePerMeal, "2026-03-01", 480)},
+		releases: []parentbilling.CareMealRelease{mealRelease(t, "2026-03-01", mia(2))},
+		versions: versions, ownInvoice: true, mealInvoiced: map[int64]bool{contractMia: true}})
+	assert.Empty(t, month.invoices[0].MealPositions, "the Mensa does not join the care's draft")
+	require.Len(t, month.mealUnbilled, 1)
+	assert.Equal(t, parentbilling.MealUnbilledContractBilled, month.mealUnbilled[0].Reason)
+}
