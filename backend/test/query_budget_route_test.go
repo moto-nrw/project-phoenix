@@ -87,3 +87,23 @@ func TestQueryBudgetMeasurementStopsAtTheRegisteredLeaf(t *testing.T) {
 		t.Fatalf("opaque delegation repeated its leaf: %q", got.Route)
 	}
 }
+
+func TestMountedQueryBudgetRouterPreservesFixtureRequest(t *testing.T) {
+	t.Parallel()
+	counter := NewQueryCounter()
+	resource := chi.NewRouter()
+	resource.Get("/students/{id}", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	request := httptest.NewRequest(http.MethodGet, "/students/42?limit=3", nil)
+	response := httptest.NewRecorder()
+	MeasuredHTTPRequest(counter, MountedQueryBudgetRouter("/api", resource), response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", response.Code)
+	}
+	if request.URL.Path != "/students/42" || request.RequestURI != "/students/42?limit=3" || chi.RouteContext(request.Context()) != nil {
+		t.Fatal("mounted fixture mutated the original request")
+	}
+	got := counter.Measurement(nil)
+	if len(got.Route) != 1 || got.Route[0] != "GET /api/students/{id}" {
+		t.Fatalf("mounted route = %q", got.Route)
+	}
+}
