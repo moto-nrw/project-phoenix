@@ -71,7 +71,7 @@ func TestValidateSessionTokensPreservesLookupErrors(t *testing.T) {
 				case "mapping":
 					f.store.lockMappingErr = errDB
 				case "membership":
-					portal, claims.Scope, claims.TenantID, claims.OrgID = domain.ScopeOrg, domain.ScopeOrg, 0, 7
+					portal, claims.Scope, claims.TenantID, claims.OrgID = domain.PortalOrg.Claim, domain.PortalOrg.Claim, 0, 7
 					f.auth.traeger = validationMemberships{err: errDB}
 				case "switch-membership", "switch-roles", "school":
 					claims.ViaTraeger, claims.OrgID = true, 7
@@ -123,7 +123,7 @@ func TestValidateSessionTokensRefusesMissingAccess(t *testing.T) {
 			case "mapping":
 				f.store.inactive[mappingKey{1, 10}] = true
 			case "membership":
-				portal, claims.Scope, claims.TenantID, claims.OrgID = domain.ScopeOrg, domain.ScopeOrg, 0, 7
+				portal, claims.Scope, claims.TenantID, claims.OrgID = domain.PortalOrg.Claim, domain.PortalOrg.Claim, 0, 7
 				f.auth.traeger = validationMemberships{absent: true}
 			case "switch-membership", "school":
 				claims.ViaTraeger, claims.OrgID = true, 7

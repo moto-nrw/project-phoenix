@@ -135,7 +135,7 @@ func normalizeAdditionalGuardians(req *SubmitRequest) error {
 func normalizeAdditionalGuardian(index int, g SubmitGuardian) (SubmitGuardian, bool, error) {
 	first := textnorm.Name(g.FirstName)
 	last := textnorm.Name(g.LastName)
-	email := strings.ToLower(strings.TrimSpace(optionalString(g.Email)))
+	email := guardianEmailKey(optionalString(g.Email))
 	phone := strings.TrimSpace(optionalString(g.Phone))
 	if first == "" && last == "" && email == "" && phone == "" {
 		return SubmitGuardian{}, false, nil
@@ -180,7 +180,7 @@ func optionalString(value *string) string {
 // same-name co-guardians with different phones stay distinct. "" only when
 // every input is empty.
 func guardianDedupKey(email, phone, first, last string) string {
-	if e := strings.ToLower(strings.TrimSpace(email)); e != "" {
+	if e := guardianEmailKey(email); e != "" {
 		return "e:" + e
 	}
 	f := strings.ToLower(strings.TrimSpace(first))

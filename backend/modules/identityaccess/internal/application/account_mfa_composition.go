@@ -44,26 +44,28 @@ func MFAError(err error) error { return authenticationError(err) }
 
 var errAccountMFAUnavailable = identityaccess.ErrAccountMFAUnavailable
 
-// accountMFACapability serves the account second factor: the composed flows
+// AccountMFACapability serves the account second factor: the composed flows
 // or the one a root supplied. The operator's school-scoped admin writes run
 // under the school they name, and a composition without the second factor
 // reports ErrAccountMFAUnavailable.
-type accountMFACapability struct {
+type AccountMFACapability struct {
 	identityaccess.AccountMFA
 }
 
-func newAccountMFACapability(capability identityaccess.AccountMFA) accountMFACapability {
+// NewAccountMFACapability serves the account second factor, or reports it
+// unavailable without one.
+func NewAccountMFACapability(capability identityaccess.AccountMFA) AccountMFACapability {
 	if capability == nil {
-		return accountMFACapability{AccountMFA: unavailableAccountMFA{}}
+		return AccountMFACapability{AccountMFA: unavailableAccountMFA{}}
 	}
-	return accountMFACapability{AccountMFA: capability}
+	return AccountMFACapability{AccountMFA: capability}
 }
 
-func (c accountMFACapability) OperatorDisableMFA(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error {
+func (c AccountMFACapability) OperatorDisableMFA(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error {
 	return c.AccountMFA.OperatorDisableMFA(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, reason)
 }
 
-func (c accountMFACapability) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {
+func (c AccountMFACapability) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {
 	return c.AccountMFA.OperatorSetMFAOverride(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, override, reason)
 }
 
@@ -112,10 +114,6 @@ func (unavailableAccountMFA) VerifyMFAChallengeForOwner(context.Context, string,
 }
 
 func (unavailableAccountMFA) ResendMFAChallengeForScope(context.Context, string, net.IP, string) (string, error) {
-	return "", errAccountMFAUnavailable
-}
-
-func (unavailableAccountMFA) ResendMFAChallenge(context.Context, string, net.IP) (string, error) {
 	return "", errAccountMFAUnavailable
 }
 

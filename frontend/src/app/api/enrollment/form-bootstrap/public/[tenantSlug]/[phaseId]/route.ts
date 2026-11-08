@@ -6,6 +6,10 @@ import { sendBackend } from "~/lib/backend-client.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
+import {
+  LATE_INVITE_QUERY_PARAM,
+  withLateInviteQuery,
+} from "~/lib/enrollment-http";
 
 const logger = createLogger({ component: "EnrollmentFormBootstrapRoute" });
 
@@ -16,14 +20,13 @@ interface RouteContext {
 async function GETHandler(request: NextRequest, context: RouteContext) {
   const { tenantSlug, phaseId } = await context.params;
   try {
-    const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();
-    const query = lateInvite
-      ? `?${new URLSearchParams({ late_invite: lateInvite })}`
-      : "";
     const response = await sendBackend(
-      `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
-        tenantSlug,
-      )}/${encodeURIComponent(phaseId)}${query}`,
+      withLateInviteQuery(
+        `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
+          tenantSlug,
+        )}/${encodeURIComponent(phaseId)}`,
+        request.nextUrl.searchParams.get(LATE_INVITE_QUERY_PARAM),
+      ),
       null,
       { request },
     );

@@ -7,6 +7,7 @@ import {
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import {
+  DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY,
   buildEnrollmentChangeRequestDiffGroups,
   formatEnrollmentChangeRequestValue,
   type EnrollmentChangeRequestDiffCopy,
@@ -21,7 +22,6 @@ interface EnrollmentChangeRequestDiffProps {
   readonly diff: Record<string, unknown>;
   readonly beforeLabel?: string;
   readonly afterLabel?: string;
-  readonly emptyLabel?: string;
   readonly emptyMessage?: string;
   readonly copy?: EnrollmentChangeRequestDiffCopy;
   readonly className?: string;
@@ -33,7 +33,6 @@ export function EnrollmentChangeRequestDiff({
   diff,
   beforeLabel = "Bisher",
   afterLabel = "Neu",
-  emptyLabel = "Nicht gesetzt",
   emptyMessage = "Die Anfrage enthält keine erkennbaren Feldänderungen.",
   copy,
   className,
@@ -61,7 +60,9 @@ export function EnrollmentChangeRequestDiff({
           group={group}
           beforeLabel={beforeLabel}
           afterLabel={afterLabel}
-          emptyLabel={emptyLabel}
+          emptyLabel={
+            (copy ?? DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY).emptyLabel
+          }
           copy={copy}
         />
       ))}

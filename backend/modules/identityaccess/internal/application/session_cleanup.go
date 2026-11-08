@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // CountExpiredTokens reports how many refresh sessions a cleanup would
@@ -68,17 +69,23 @@ func (s *AccountAuthentication) reconcileRevokedSessions(ctx context.Context) er
 
 // ListActiveSessions returns the account's live refresh sessions in the
 // caller's tenant scope.
-func (s *AccountAuthentication) ListActiveSessions(ctx context.Context, accountID int64) (_ []identityaccess.AccountSession, err error) {
+func (s *AccountAuthentication) ListActiveSessions(ctx context.Context, accountID int64) (_ []identityaccess.ActiveSession, err error) {
 	if s == nil {
 		return nil, errAccountAuthenticationUnavailable
 	}
 	defer func() { err = authenticationError(err) }()
 	ctx = bindRuntime(s.attach, ctx)
-	sessions, err := s.sessions.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: accountID, Liveness: identityaccess.AccountSessionsLive})
+	sessions, err := s.sessions.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: accountID, Liveness: ports.AccountSessionsLive})
 	if err != nil {
 		return nil, failed("get active tokens", err)
 	}
-	return sessions, nil
+	active := make([]identityaccess.ActiveSession, 0, len(sessions))
+	for _, session := range sessions {
+		active = append(active, identityaccess.ActiveSession{
+			ID: session.ID, Expiry: session.Expiry, Mobile: session.Mobile, Identifier: session.Identifier, CreatedAt: session.CreatedAt,
+		})
+	}
+	return active, nil
 }
 
 // ListSessionIDs returns the identifiers of every session of the account in
@@ -89,7 +96,7 @@ func (s *AccountAuthentication) ListSessionIDs(ctx context.Context, accountID in
 	}
 	defer func() { err = authenticationError(err) }()
 	ctx = bindRuntime(s.attach, ctx)
-	sessions, err := s.sessions.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: accountID})
+	sessions, err := s.sessions.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: accountID})
 	if err != nil {
 		return nil, err
 	}

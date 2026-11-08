@@ -83,7 +83,7 @@ type fakePasskeySessions struct {
 	askedForID int64
 }
 
-func (s *fakePasskeySessions) IssueTokensForAuthenticatedAccount(_ context.Context, _, _ int64, _, _ string) (string, string, error) {
+func (s *fakePasskeySessions) IssueTokensForPasskey(_ context.Context, _, _ int64, _, _ string) (string, string, error) {
 	return s.access, s.refresh, s.issueErr
 }
 
@@ -239,7 +239,7 @@ func TestAccountPasskeyEnrollmentChallenge(t *testing.T) {
 	assert.NotContains(t, challenge.MaskedEmail, "teacher@", "the mailbox stays masked")
 	assert.Equal(t, account.ID, gate.startedAccountID)
 	assert.Equal(t, int64(42), gate.startedTenantID)
-	assert.Equal(t, domain.MFAChallengeScopeTenant, gate.startedScope)
+	assert.Equal(t, domain.PortalTenant.Name, gate.startedScope)
 }
 
 func TestAccountPasskeyEnrollmentChallengeErrors(t *testing.T) {

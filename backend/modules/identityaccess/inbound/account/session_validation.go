@@ -50,6 +50,6 @@ func sessionClaimsResponse(claims identityaccess.SessionClaims) *sessiontoken.Ap
 		Roles: claims.Roles, Permissions: claims.Permissions, IsAdmin: claims.IsAdmin, Scope: claims.Scope,
 		TenantID: claims.TenantID, OrgID: claims.OrgID, FamilyID: claims.FamilyID,
 		ReadOnly: claims.ReadOnly, ActingAdminID: claims.ActingAdminID, PreviewID: claims.PreviewID, ViaTraeger: claims.ViaTraeger,
-		CommonClaims: sessiontoken.CommonClaims{ExpiresAt: claims.ExpiresAt, IssuedAt: claims.IssuedAt},
+		CommonClaims: sessiontoken.CommonClaims{ExpiresAt: claims.ExpiresAt},
 	}
 }

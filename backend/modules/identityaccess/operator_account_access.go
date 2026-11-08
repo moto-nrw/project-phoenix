@@ -13,11 +13,11 @@ import (
 var (
 	// ErrAccountTenantAccessNotFound reports an account without an active
 	// mapping to the school an operation targets.
-	ErrAccountTenantAccessNotFound = errors.New("account has no active access to this school")
+	ErrAccountTenantAccessNotFound = notFoundError("account has no active access to this school")
 	// ErrAccountTenantAccessExists refuses a grant for a school the account
 	// already reaches.
-	ErrAccountTenantAccessExists = errors.New("account already has access to this school")
-	ErrSchoolNotFound            = errors.New("school not found")
+	ErrAccountTenantAccessExists = conflictError("account already has access to this school")
+	ErrSchoolNotFound            = notFoundError("school not found")
 	ErrSchoolDeleted             = errors.New("school is soft-deleted")
 )
 

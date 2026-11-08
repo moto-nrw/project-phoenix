@@ -348,7 +348,7 @@ func TestAuthenticateRefreshJWT_ValidToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a valid refresh token
-	claims := sessiontoken.RefreshClaims{
+	claims := tokentest.RefreshClaims{
 		ID:    42,
 		Token: "unique-token-id",
 	}
@@ -478,7 +478,7 @@ func TestFullRequestLifecycle_AccessToken(t *testing.T) {
 		IsAdmin:     true,
 	}
 
-	refreshClaims := sessiontoken.RefreshClaims{
+	refreshClaims := tokentest.RefreshClaims{
 		ID:    123,
 		Token: "refresh-token-id",
 	}
@@ -650,7 +650,7 @@ func TestAuthenticateRefreshJWT_ExpiredToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create refresh token
-	claims := sessiontoken.RefreshClaims{
+	claims := tokentest.RefreshClaims{
 		ID:    1,
 		Token: "test-token",
 	}
@@ -709,6 +709,30 @@ func TestAuthenticateRefreshJWT_NilToken(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer some-token")
 	rr := httptest.NewRecorder()
 
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+// A signed refresh token whose token claim is not a string is refused with
+// 401; it must not panic the middleware.
+func TestAuthenticateRefreshJWT_NonStringTokenClaimIsRefused(t *testing.T) {
+	t.Parallel()
+
+	auth, err := newTestTokenAuth(t, testSecret)
+	require.NoError(t, err)
+	_, token, err := auth.JwtAuth.Encode(map[string]any{
+		"id": 42, "token": 7, "exp": time.Now().Add(time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	r := chi.NewRouter()
+	r.Use(auth.Verifier())
+	r.Use(sessiontoken.AuthenticateRefreshJWT)
+	r.Post("/refresh", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }

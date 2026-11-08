@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // TestOperatorMFAVerifyRequest_BindRejectsBadInputs covers the request-binding
@@ -114,12 +116,12 @@ func TestMapOperatorMFAError_StatusCodes(t *testing.T) {
 		err    error
 		status int
 	}{
-		{ErrMFAChallengeTokenInvalid, http.StatusUnauthorized},
-		{ErrMFACodeInvalid, http.StatusUnauthorized},
-		{ErrMFALocked, http.StatusTooManyRequests},
-		{ErrMFARateLimited, http.StatusTooManyRequests},
-		{ErrMFANotEnrolled, http.StatusForbidden},
-		{ErrMFAAlreadyEnrolled, http.StatusConflict},
+		{identityaccess.ErrMFAChallengeTokenInvalid, http.StatusUnauthorized},
+		{identityaccess.ErrMFACodeInvalid, http.StatusUnauthorized},
+		{identityaccess.ErrMFALocked, http.StatusTooManyRequests},
+		{identityaccess.ErrMFARateLimited, http.StatusTooManyRequests},
+		{identityaccess.ErrMFANotEnrolled, http.StatusForbidden},
+		{identityaccess.ErrMFAAlreadyEnrolled, http.StatusConflict},
 	}
 	for _, tc := range cases {
 		t.Run(tc.err.Error(), func(t *testing.T) {

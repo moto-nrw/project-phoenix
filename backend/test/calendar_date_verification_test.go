@@ -39,6 +39,11 @@ var legacyTimeTimeDateColumns = map[string]string{}
 // field (raw-SQL-only access or superseded tables). Every newly discovered
 // unmapped column must be classified here with a reason.
 var unmappedDateColumns = map[string]string{
+	// The trail of the children of a family (#5918) is written in one
+	// INSERT ... SELECT FROM unnest with *calendar.Date parameters and never
+	// read back into a model; no time.Time reaches the columns.
+	"parent_billing.family_child_count_events.valid_from":  "family trail binds *calendar.Date in raw SQL, never time.Time",
+	"parent_billing.family_child_count_events.valid_until": "family trail binds *calendar.Date in raw SQL, never time.Time",
 	// The Betreuungsvertrag (ADR 0153) binds the last day of a booked module
 	// as "YYYY-MM-DD" text cast to DATE and reads it back with to_char inside
 	// a JSON aggregate; carecontract.Service.LastDay is *calendar.Date and no

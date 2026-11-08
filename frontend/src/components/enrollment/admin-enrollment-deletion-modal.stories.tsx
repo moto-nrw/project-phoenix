@@ -70,8 +70,7 @@ export const ExistingStudentBlocked: Story = {
 
 export const LastChildDeletesRequest: Story = {
   args: {
-    childId: "901",
-    childLabel: "Zurückgezogenes Kind",
+    child: { id: "901", label: "Zurückgezogenes Kind" },
   },
   beforeEach: () =>
     withDeletionImpact({

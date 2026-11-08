@@ -3,8 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 var errPortalBookingChanged = errors.New("module booking changed during the check, please retry")
@@ -47,16 +45,16 @@ func (s *AccountAuthentication) bookedGuardianSchools(ctx context.Context, op st
 	return nil, failed(op, refusal)
 }
 
-// requireParentPortalForAccount refuses a parents-portal session renewal
-// once none of the account's guardian schools books Eltern-App. An account
-// without any guardian school keeps the refresh behaviour it had before.
-func (s *AccountAuthentication) requireParentPortalForAccount(ctx context.Context, op string, accountID int64) error {
+// requireParentPortalForAccount returns the account's guardian schools
+// that book Eltern-App for a parents-portal session renewal, and refuses it
+// once none of them does. The guard then needs a guardian role at one of
+// them.
+func (s *AccountAuthentication) requireParentPortalForAccount(ctx context.Context, op string, accountID int64) ([]int64, error) {
 	guardianTenantIDs, err := s.findGuardianTenantForAccount(ctx, accountID)
 	if err != nil {
-		return failed(op+": enumerate tenants", err)
+		return nil, failed(op+": enumerate tenants", err)
 	}
-	_, err = s.bookedGuardianSchools(ctx, op, accountID, guardianTenantIDs)
-	return err
+	return s.bookedGuardianSchools(ctx, op, accountID, guardianTenantIDs)
 }
 
 func (s *AccountAuthentication) logPortalRefusal(op string, accountID, tenantID int64, err error) {
@@ -66,17 +64,4 @@ func (s *AccountAuthentication) logPortalRefusal(op string, accountID, tenantID 
 		"tenant_id", tenantID,
 		"reason", err.Error(),
 	)
-}
-
-// requirePortalBookedForRefresh applies the portal lock to a refresh of a
-// parents- or school-portal session; tenant and Träger sessions pass.
-func (s *AccountAuthentication) requirePortalBookedForRefresh(ctx context.Context, claims domain.RefreshClaims) error {
-	switch claims.Scope {
-	case domain.ScopeSchool:
-		return s.requireSchoolPortal(ctx, "refresh school session", claims.AccountID, claims.TenantID)
-	case domain.ScopeParent:
-		return s.requireParentPortalForAccount(ctx, "refresh parent session", claims.AccountID)
-	default:
-		return nil
-	}
 }

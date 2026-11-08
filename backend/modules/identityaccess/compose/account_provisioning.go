@@ -17,6 +17,7 @@ func newAccountProvisioning(
 	lifecycle *application.AccountLifecycle,
 	sessions *identityBindingPorts.SessionDependencies,
 	deps *LifecycleDependencies,
+	runtime tenantRuntime,
 ) (*application.AccountProvisioning, error) {
 	if deps == nil {
 		return nil, nil
@@ -33,7 +34,7 @@ func newAccountProvisioning(
 		Identity:  lifecycle,
 		Profiles:  application.StaffDirectory{StaffDirectory: deps.Staff},
 		Passwords: deps.Passwords,
-		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: application.NewTransactionRunner()},
+		Runtime:   runtime,
 		Attach:    sessions.TenantRuntime,
 		Logger:    deps.Logger,
 	})

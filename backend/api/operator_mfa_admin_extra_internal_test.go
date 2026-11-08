@@ -9,13 +9,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
 // newStubTenantMFAService returns an MFAServiceMock pre-seeded
@@ -23,7 +23,7 @@ import (
 // (HasEnrollment, GetTenantMFAOverride, OperatorAdminDisable,
 // OperatorSetMFAOverride, etc.) have always relied on when they don't
 // override a specific Fn — e.g. AccountBelongsToTenant defaulting to true
-// and the MFA overrides defaulting to identityoperator.MFAAdminOverrideNone rather
+// and the MFA overrides defaulting to identityaccess.MFAAdminOverrideNone rather
 // than an empty string. Tests mutate the returned Fn fields directly.
 func newStubTenantMFAService() *MFAServiceMock {
 	return &MFAServiceMock{
@@ -31,10 +31,10 @@ func newStubTenantMFAService() *MFAServiceMock {
 		IsTrustedDeviceEnabledFn: func(context.Context, int64) bool { return true },
 		TrustedDeviceDaysFn:      func(context.Context, int64) int { return 90 },
 		GetTenantMFAOverrideFn: func(context.Context, int64, int64) (string, error) {
-			return identityoperator.MFAAdminOverrideNone, nil
+			return identityaccess.MFAAdminOverrideNone, nil
 		},
 		GetGlobalMFAOverrideFn: func(context.Context, int64) (string, error) {
-			return identityoperator.MFAAdminOverrideNone, nil
+			return identityaccess.MFAAdminOverrideNone, nil
 		},
 	}
 }
@@ -64,7 +64,7 @@ func reqWithSchoolAccount(t *testing.T, method, schoolID, accountID string, body
 	return r.WithContext(ctx)
 }
 
-func mfaAdminResourceFor(mfa identityoperator.AccountMFA) *identityoperator.SchoolAccountMFAResource {
+func mfaAdminResourceFor(mfa identityaccess.AccountMFA) *identityoperator.SchoolAccountMFAResource {
 	return &identityoperator.SchoolAccountMFAResource{
 		TenantMFAService: mfa,
 	}
@@ -78,7 +78,7 @@ func TestGetSchoolAccountMFAState_HappyPath(t *testing.T) {
 	mfa := newStubTenantMFAService()
 	mfa.HasMFAEnrollmentFn = func(context.Context, int64) (bool, error) { return true, nil }
 	mfa.GetTenantMFAOverrideFn = func(context.Context, int64, int64) (string, error) {
-		return identityoperator.MFAAdminOverrideForceOn, nil
+		return identityaccess.MFAAdminOverrideForceOn, nil
 	}
 	mfa.AccountBelongsToSchoolFn = func(context.Context, int64, int64) (bool, error) { return true, nil }
 	rs := mfaAdminResourceFor(mfa)
@@ -173,7 +173,7 @@ func TestResetSchoolAccountMFA_PermissionDenied_Returns403(t *testing.T) {
 
 	mfa := newStubTenantMFAService()
 	mfa.OperatorDisableMFAFn = func(context.Context, int64, int64, int64, string) error {
-		return identityoperator.ErrMFAPermissionDenied
+		return identityaccess.ErrMFAPermissionDenied
 	}
 	rs := mfaAdminResourceFor(mfa)
 
@@ -198,14 +198,14 @@ func TestSetSchoolAccountMFAOverride_HappyPath(t *testing.T) {
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
 		identityoperator.MFAAdminOverrideSetRequest{
-			Override: identityoperator.MFAAdminOverrideForceOff,
+			Override: identityaccess.MFAAdminOverrideForceOff,
 			Reason:   "Compromise reported",
 		}, 7)
 	rr := httptest.NewRecorder()
 	rs.SetSchoolAccountMFAOverride(rr, r)
 
 	assert.Equal(t, http.StatusNoContent, rr.Code)
-	assert.Equal(t, identityoperator.MFAAdminOverrideForceOff, capturedOverride)
+	assert.Equal(t, identityaccess.MFAAdminOverrideForceOff, capturedOverride)
 }
 
 func TestSetSchoolAccountMFAOverride_RejectsBadOverride(t *testing.T) {
@@ -227,12 +227,12 @@ func TestSetSchoolAccountMFAOverride_InvalidOverrideFromService(t *testing.T) {
 
 	mfa := newStubTenantMFAService()
 	mfa.OperatorSetMFAOverrideFn = func(context.Context, int64, int64, int64, string, string) error {
-		return identityoperator.ErrMFAInvalidOverride
+		return identityaccess.ErrMFAInvalidOverride
 	}
 	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
-		identityoperator.MFAAdminOverrideSetRequest{Override: identityoperator.MFAAdminOverrideForceOff, Reason: "ok ok"}, 7)
+		identityoperator.MFAAdminOverrideSetRequest{Override: identityaccess.MFAAdminOverrideForceOff, Reason: "ok ok"}, 7)
 	rr := httptest.NewRecorder()
 	rs.SetSchoolAccountMFAOverride(rr, r)
 
@@ -244,12 +244,12 @@ func TestSetSchoolAccountMFAOverride_PermissionDenied(t *testing.T) {
 
 	mfa := newStubTenantMFAService()
 	mfa.OperatorSetMFAOverrideFn = func(context.Context, int64, int64, int64, string, string) error {
-		return identityoperator.ErrMFAPermissionDenied
+		return identityaccess.ErrMFAPermissionDenied
 	}
 	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
-		identityoperator.MFAAdminOverrideSetRequest{Override: identityoperator.MFAAdminOverrideForceOn, Reason: "ok ok"}, 7)
+		identityoperator.MFAAdminOverrideSetRequest{Override: identityaccess.MFAAdminOverrideForceOn, Reason: "ok ok"}, 7)
 	rr := httptest.NewRecorder()
 	rs.SetSchoolAccountMFAOverride(rr, r)
 

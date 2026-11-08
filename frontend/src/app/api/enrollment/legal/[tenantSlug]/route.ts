@@ -1,5 +1,9 @@
 import { createPublicJsonProxy } from "~/lib/backend-proxy-route.server";
 import { problemResponse } from "~/lib/api-helpers.server";
+import {
+  LATE_INVITE_QUERY_PARAM,
+  withLateInviteQuery,
+} from "~/lib/enrollment-http";
 
 export const GET = createPublicJsonProxy({
   method: "GET",
@@ -9,12 +13,12 @@ export const GET = createPublicJsonProxy({
       return problemResponse(400, "tenant slug is required", request);
     }
     const phaseId = request.nextUrl.searchParams.get("phaseId");
-    const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();
     const path = phaseId
       ? `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(phaseId)}`
       : `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`;
-    return lateInvite
-      ? `${path}?late_invite=${encodeURIComponent(lateInvite)}`
-      : path;
+    return withLateInviteQuery(
+      path,
+      request.nextUrl.searchParams.get(LATE_INVITE_QUERY_PARAM),
+    );
   },
 });

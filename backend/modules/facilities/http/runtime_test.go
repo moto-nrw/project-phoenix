@@ -53,7 +53,7 @@ var ComposeRooms func(t *testing.T) (*bun.DB, RoomsComposition, func(chi.Router,
 
 // setupRoomsRoute initializes the test environment. The router serves the
 // resource through the production middleware chain (Verifier → Authenticator →
-// TenantMiddleware → RequiresPermission → TenantTxMiddleware) exactly as the
+// TenantScopeMiddleware → RequiresPermission → TenantTxMiddleware) exactly as the
 // real server does.
 func setupRoomsRoute(t *testing.T) *testContext {
 	t.Helper()

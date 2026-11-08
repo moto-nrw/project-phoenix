@@ -1,6 +1,6 @@
 // School-scope negative matrix (#2207): a school-portal token must be
 // rejected on EVERY /api route — the acceptance criterion says "beliebige
-// /api-Route", not "every route that happens to sit behind TenantMiddleware".
+// /api-Route", not "every route that happens to sit behind TenantScopeMiddleware".
 // This sweep walks the fully-assembled production router (same constructor as
 // the route-table golden) and fires a school-scope JWT at each /api route.
 //

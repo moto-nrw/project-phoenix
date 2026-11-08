@@ -87,7 +87,7 @@ func TestDemoRoleSwitchChangesTheVisitorsRoleAndIssuesANewSession(t *testing.T) 
 	token, slug := env.requestOwnSchool(t, env.address())
 	seedDemoSchool(t, env.db, slug, testpkg.Tenant(t), visitor.ID)
 	var accessID string
-	require.NoError(t, env.db.NewRaw(`SELECT id::text FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Scan(context.Background(), &accessID))
+	require.NoError(t, env.db.NewRaw(`SELECT id::text FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token).Scan(context.Background(), &accessID))
 
 	lead := env.enterAs(t, token, "lead")
 	assert.Equal(t, accessID, lead.Demo.AccessID, "the banner's analytics identify the demo access, not the person")

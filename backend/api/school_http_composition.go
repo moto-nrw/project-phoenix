@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/moto-nrw/project-phoenix/api/common"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	notificationsHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	calendarHTTP "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
@@ -15,7 +16,7 @@ import (
 func NewSchoolPortalHTTP(
 	auth schoolportal.AuthRuntime,
 	mfa schoolportal.MFARuntime,
-	resets schoolportal.PasswordResetRuntime,
+	resets common.PasswordResetRoutes,
 	classDay *classdayHTTP.Resource,
 	timetable *timetableHTTP.Resource,
 	staffMessaging schoolportal.StaffMessagingRouter,

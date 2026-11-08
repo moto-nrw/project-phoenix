@@ -17,7 +17,7 @@ func normalizeHolidaySecondGuardian(value *enrollment.HolidayGuardianInput) *enr
 	}
 	guardian := enrollment.HolidayGuardianInput{
 		FirstName: strings.TrimSpace(value.FirstName), LastName: strings.TrimSpace(value.LastName),
-		Email: strings.ToLower(strings.TrimSpace(value.Email)), Phone: strings.TrimSpace(value.Phone),
+		Email: guardianEmailKey(value.Email), Phone: strings.TrimSpace(value.Phone),
 	}
 	if guardian.FirstName == "" && guardian.LastName == "" && guardian.Email == "" && guardian.Phone == "" {
 		return nil

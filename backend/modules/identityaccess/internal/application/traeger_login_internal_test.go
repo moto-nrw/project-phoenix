@@ -23,8 +23,8 @@ func (s traegerMembershipsStub) ListAccountTraegerOrganizations(context.Context,
 	return s.organizations, nil
 }
 
-// runTraegerMintGuard runs the guard of an authentication built over the
-// fixture's store, with one Träger membership of the account.
+// runTraegerMintGuard mints the Träger session of an authentication built
+// over the fixture's store, with one Träger membership of the account.
 func runTraegerMintGuard(t *testing.T, f *authFixture, presented domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
 	t.Helper()
 	auth, err := NewAccountAuthentication(f.sessions, AccountAuthenticationDependencies{
@@ -34,11 +34,10 @@ func runTraegerMintGuard(t *testing.T, f *authFixture, presented domain.LoginAcc
 		Logger:  slog.New(slog.NewTextHandler(testWriter{t}, nil)),
 	})
 	require.NoError(t, err)
-	var claims *domain.AccountClaimsPayload
-	err = f.runtime.WithAdminTx(context.Background(), func(txCtx context.Context) error {
-		return auth.traegerMintGuard(7, &claims)(txCtx, presented)
+	minted, err := auth.mintAccountSession(context.Background(), mintRequest{
+		portal: domain.PortalOrg, account: presented, orgID: 7, eligible: auth.traegerEligibility(7),
 	})
-	return claims, err
+	return minted.claims, err
 }
 
 func TestTraegerMintGuard_MintsForALiveMember(t *testing.T) {
@@ -49,9 +48,9 @@ func TestTraegerMintGuard_MintsForALiveMember(t *testing.T) {
 	claims, err := runTraegerMintGuard(t, f, f.store.accounts[1])
 	require.NoError(t, err)
 	require.NotNil(t, claims)
-	assert.Equal(t, domain.ScopeOrg, claims.Scope)
+	assert.Equal(t, domain.PortalOrg.Claim, claims.Scope)
 	assert.Equal(t, int64(7), claims.OrgID)
-	assert.Contains(t, f.store.recorded(), "FindLoginAccount(forUpdate)", "the guard locks the account row")
+	assert.Contains(t, f.store.recorded(), "FindLoginAccount(forUpdate)", "the mint locks the account row")
 }
 
 func TestTraegerMintGuard_RefusesAnAccountSwitchedOffAfterTheCredentialCheck(t *testing.T) {

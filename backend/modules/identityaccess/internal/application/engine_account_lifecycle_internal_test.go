@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // Every lifecycle sentinel reaches consumers as its public twin with the same
@@ -41,7 +42,7 @@ func TestLifecycleErrorFallsThroughToTheSessionMapping(t *testing.T) {
 func TestModuleWithoutLifecycleReportsUnavailable(t *testing.T) {
 	t.Parallel()
 
-	var module identityaccess.Owner = engine{}
+	var module identityaccess.Owner = Engine{}
 	_, err := module.StartStaffPreview(t.Context(), 7, 8, 9, "", "", "", "")
 	require.ErrorIs(t, err, identityaccess.ErrAccountLifecycleUnavailable)
 	require.ErrorIs(t, module.RevokeAccess(t.Context(), identityaccess.RevokeAccessRequest{}), identityaccess.ErrAccountLifecycleUnavailable)

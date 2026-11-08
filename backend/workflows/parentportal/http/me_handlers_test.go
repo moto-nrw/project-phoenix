@@ -35,6 +35,8 @@ type fakeParentService struct {
 	documentFile            parentService.BillingDocumentFile
 	noticeOptions           parentService.ContractNoticeOptions
 	gotNoticeInput          parentService.ContractNoticeInput
+	familyChildren          parentService.FamilyChildren
+	gotFamilyChildren       int
 	sharedDocuments         []parentService.SharedDocument
 	documentsErr            error
 	signingView             parentService.ContractSigningView
