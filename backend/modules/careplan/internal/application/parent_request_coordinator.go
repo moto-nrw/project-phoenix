@@ -280,42 +280,47 @@ func validateBulkParentRequestInput(input parentrequests.BulkApproveInput) error
 	return nil
 }
 
+// loadBulkParentRequests reads every candidate before any lock (#5804): one
+// batch per request kind, absences first as the kinds sort. Refusals keep
+// their order: a Stammdaten request that is gone refuses here, before any
+// version is compared; a missing absence refuses in the version check.
 func (c *ParentRequestCoordinator) loadBulkParentRequests(
 	ctx context.Context, refs []parentrequests.Ref,
 ) (map[int64]*careplan.MasterDataReviewItem, map[int64]ports.ExcusedBulkCandidate, error) {
-	masters := make(map[int64]*careplan.MasterDataReviewItem)
-	excused := make(map[int64]ports.ExcusedBulkCandidate)
-	for _, ref := range refs {
-		if err := c.loadBulkParentRequest(ctx, ref, masters, excused); err != nil {
-			return nil, nil, err
+	excusedIDs, masterIDs := bulkRequestIDsByKind(refs)
+	excused := map[int64]ports.ExcusedBulkCandidate{}
+	if len(excusedIDs) > 0 {
+		rows, err := c.excused.GetExcusedBulkCandidate(ctx, excusedIDs)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parent requests: load absence candidates: %w", err)
 		}
+		excused = rows
+	}
+	masters := map[int64]*careplan.MasterDataReviewItem{}
+	if len(masterIDs) > 0 {
+		rows, err := c.masterData.GetBulkCandidate(ctx, masterIDs)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parent requests: load master data candidates: %w", err)
+		}
+		for _, id := range masterIDs {
+			if rows[id] == nil {
+				return nil, nil, parentrequests.ErrNotFound
+			}
+		}
+		masters = rows
 	}
 	return masters, excused, nil
 }
 
-func (c *ParentRequestCoordinator) loadBulkParentRequest(
-	ctx context.Context, ref parentrequests.Ref,
-	masters map[int64]*careplan.MasterDataReviewItem, excused map[int64]ports.ExcusedBulkCandidate,
-) error {
-	if ref.Kind == parentrequests.KindMasterData {
-		row, err := c.masterData.GetBulkCandidate(ctx, ref.ID)
-		if errors.Is(err, masterdatarequests.ErrReviewNotFound) {
-			return parentrequests.ErrNotFound
+func bulkRequestIDsByKind(refs []parentrequests.Ref) (excused, masters []int64) {
+	for _, ref := range refs {
+		if ref.Kind == parentrequests.KindMasterData {
+			masters = append(masters, ref.ID)
+		} else {
+			excused = append(excused, ref.ID)
 		}
-		if err != nil {
-			return fmt.Errorf("parent requests: load master data candidate: %w", err)
-		}
-		masters[ref.ID] = row
-		return nil
 	}
-	row, err := c.excused.GetExcusedBulkCandidate(ctx, ref.ID)
-	if err != nil {
-		return fmt.Errorf("parent requests: load absence candidate: %w", err)
-	}
-	if row != nil {
-		excused[ref.ID] = *row
-	}
-	return nil
+	return excused, masters
 }
 
 func validateBulkParentRequestVersions(refs []parentrequests.Ref, masters map[int64]*careplan.MasterDataReviewItem, excused map[int64]ports.ExcusedBulkCandidate) error {

@@ -365,7 +365,9 @@ type Review interface {
 
 // BulkApproval is the excused-request part of the cross-kind bulk approval.
 type BulkApproval interface {
-	GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*BulkCandidate, error)
+	// GetExcusedBulkCandidate reads every named request before any lock. A
+	// request that is gone, decided or hidden from the caller is absent.
+	GetExcusedBulkCandidate(ctx context.Context, requestIDs []int64) (map[int64]BulkCandidate, error)
 	LockExcusedBulkRequest(ctx context.Context, requestID int64) error
 	ApproveExcusedBulk(ctx context.Context, requestID int64, reason string, reviewerID int64, expectedVersion string) error
 }

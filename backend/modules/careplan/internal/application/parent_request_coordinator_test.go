@@ -35,13 +35,16 @@ func (s *masterDataBulkStub) LockBulkStudents(_ context.Context, studentIDs []in
 	return nil
 }
 
-func (s *masterDataBulkStub) GetBulkCandidate(_ context.Context, id int64) (*careplan.MasterDataReviewItem, error) {
-	for _, row := range s.rows {
-		if row.Request.ID == id {
-			return row, nil
+func (s *masterDataBulkStub) GetBulkCandidate(_ context.Context, ids []int64) (map[int64]*careplan.MasterDataReviewItem, error) {
+	found := map[int64]*careplan.MasterDataReviewItem{}
+	for _, id := range ids {
+		for _, row := range s.rows {
+			if row.Request.ID == id {
+				found[id] = row
+			}
 		}
 	}
-	return nil, masterdatarequests.ErrReviewNotFound
+	return found, nil
 }
 
 func (s *masterDataBulkStub) Decide(_ context.Context, input masterdatarequests.DecideInput) (*careplan.MasterDataReviewItem, error) {
@@ -67,13 +70,16 @@ func (s *excusedBulkStub) LockExcusedBulkRequest(_ context.Context, requestID in
 	return s.lockErr
 }
 
-func (s *excusedBulkStub) GetExcusedBulkCandidate(_ context.Context, id int64) (*ports.ExcusedBulkCandidate, error) {
-	for i := range s.rows {
-		if s.rows[i].ID == id {
-			return &s.rows[i], nil
+func (s *excusedBulkStub) GetExcusedBulkCandidate(_ context.Context, ids []int64) (map[int64]ports.ExcusedBulkCandidate, error) {
+	found := map[int64]ports.ExcusedBulkCandidate{}
+	for _, id := range ids {
+		for i := range s.rows {
+			if s.rows[i].ID == id {
+				found[id] = s.rows[i]
+			}
 		}
 	}
-	return nil, nil
+	return found, nil
 }
 
 func (s *excusedBulkStub) ApproveExcusedBulk(_ context.Context, id int64, _ string, _ int64, _ string) error {
