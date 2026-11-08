@@ -577,6 +577,10 @@ func (s *requestStore) ListStudentDataRequests(ctx context.Context, filter carep
 	rows := []studentDataRequestRow{}
 	query := withTenant(db.NewSelect().Model(&rows).
 		ModelTableExpr(`users.student_data_change_requests AS "student_data_change_request"`), "student_data_change_request", tenantID)
+	query, none := whereRequestIDs(query, "student_data_change_request", filter.IDs)
+	if none {
+		return []careplan.StudentDataChangeRequest{}, carePlanCompose.RequestStoreStats{}, nil
+	}
 	if filter.StudentID > 0 {
 		query = query.Where(`"student_data_change_request".student_id = ?`, filter.StudentID)
 	}
@@ -606,6 +610,18 @@ func (s *requestStore) ListStudentDataRequests(ctx context.Context, filter carep
 		return nil, stats, requestDBError("list student data change requests", err)
 	}
 	return studentDataRequestsToPublic(rows), stats, nil
+}
+
+// whereRequestIDs restricts a request listing to exact rows. A nil filter
+// leaves the query unchanged; an empty one matches no row, reported as none.
+func whereRequestIDs(query *bun.SelectQuery, alias string, ids []int64) (*bun.SelectQuery, bool) {
+	if ids == nil {
+		return query, false
+	}
+	if len(ids) == 0 {
+		return query, true
+	}
+	return query.Where("?.id IN (?)", bun.Ident(alias), bun.List(ids)), false
 }
 
 func (s *requestStore) HasPendingStudentDataRequest(ctx context.Context, studentID int64, target, field string) (bool, carePlanCompose.RequestStoreStats, error) {

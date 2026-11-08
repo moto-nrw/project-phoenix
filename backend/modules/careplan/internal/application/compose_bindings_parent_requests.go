@@ -24,12 +24,16 @@ type ExcusedParentRequests struct {
 	Requests ExcusedCrossKindRequests
 }
 
-func (p ExcusedParentRequests) GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*ports.ExcusedBulkCandidate, error) {
-	candidate, err := p.Requests.GetExcusedBulkCandidate(ctx, requestID)
-	if err != nil || candidate == nil {
+func (p ExcusedParentRequests) GetExcusedBulkCandidate(ctx context.Context, requestIDs []int64) (map[int64]ports.ExcusedBulkCandidate, error) {
+	candidates, err := p.Requests.GetExcusedBulkCandidate(ctx, requestIDs)
+	if err != nil {
 		return nil, ExcusedParentRequestError(err)
 	}
-	return &ports.ExcusedBulkCandidate{ID: candidate.ID, StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt, Eligible: candidate.Eligible}, nil
+	result := make(map[int64]ports.ExcusedBulkCandidate, len(candidates))
+	for id, candidate := range candidates {
+		result[id] = ports.ExcusedBulkCandidate{ID: candidate.ID, StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt, Eligible: candidate.Eligible}
+	}
+	return result, nil
 }
 func (p ExcusedParentRequests) LockExcusedBulkRequest(ctx context.Context, requestID int64) error {
 	return ExcusedParentRequestError(p.Requests.LockExcusedBulkRequest(ctx, requestID))
