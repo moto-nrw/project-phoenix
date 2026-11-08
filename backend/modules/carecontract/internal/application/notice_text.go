@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// noticeMailTemplate is the mail that confirms a declaration.
 const noticeMailTemplate = "care-contract-notice.html"
 
 // confirmationValues are the values of the placeholders of the Träger's

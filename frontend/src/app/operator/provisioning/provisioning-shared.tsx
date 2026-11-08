@@ -1,4 +1,5 @@
 import { Children, cloneElement, isValidElement } from "react";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Inbox, Plus } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -207,9 +208,7 @@ export function VisibilityToggle({
 }) {
   return (
     <div className="border-t border-gray-100 pt-4">
-      <p className="mb-3 text-xs font-medium text-gray-500 uppercase">
-        Sichtbarkeit
-      </p>
+      <SectionLabel className="mb-3">Sichtbarkeit</SectionLabel>
       <SwitchRow
         label={hidden ? "Verborgen" : "Sichtbar"}
         description={

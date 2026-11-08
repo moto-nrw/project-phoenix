@@ -43,6 +43,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { TERMINATION_KIND_LABELS } from "./care-contract-format";
 
 const logger = createLogger({ component: "CareContractNoticeModal" });
 
@@ -331,7 +332,7 @@ export function RecordNoticeModal({
                   />
                   <span className="min-w-0">
                     <span className="block text-gray-900">
-                      Außerordentlich, aus wichtigem Grund
+                      {TERMINATION_KIND_LABELS.ausserordentlich}
                     </span>
                     <span className="block font-normal text-gray-500">
                       Das Vertragsende legen Sie nach der Prüfung fest.

@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 )
 
-// contractMailTemplate is the mail that carries a contract.
 const contractMailTemplate = "care-contract.html"
 
 // RenderContractMail turns the payload of a claimed contract mail into the

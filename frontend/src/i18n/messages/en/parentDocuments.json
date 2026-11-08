@@ -32,7 +32,6 @@
   "signed": "Signed",
   "concluded": "Concluded",
   "signNow": "Read and sign",
-  "signedAt": "Signed on",
   "status": "Status",
   "cancelContract": "Cancel contracts here",
   "cancelNotPermitted": "Only parents who may enrol the child can cancel. Please ask the school.",

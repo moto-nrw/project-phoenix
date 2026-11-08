@@ -13,12 +13,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The signature of a contract (#4679): the paper contract of the
 // Träger-Büro and the public one-time link of a contract mail.
 
-// signatureErrorRules map the errors of the signature onto their codes.
 var signatureErrorRules = []struct {
 	err    error
 	render func(error) render.Renderer
@@ -87,13 +87,13 @@ func (rs *Resource) recordPaper(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := rs.paper.RecordPaperSignature(r.Context(), reviewer, id, input); err != nil {
+		tenant.MarkRollback(r.Context())
 		renderSignatureError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// paperDocument answers the uploaded PDF of a paper contract.
 func (rs *Resource) paperDocument(w http.ResponseWriter, r *http.Request) {
 	reviewer, id, ok := contractKey(w, r)
 	if !ok {
@@ -114,7 +114,6 @@ type SigningResource struct {
 	signing carecontract.Signing
 }
 
-// NewSigningResource binds the public link to the owner.
 func NewSigningResource(signing carecontract.Signing) *SigningResource {
 	if signing == nil {
 		panic("care contract http: the signing is required")
