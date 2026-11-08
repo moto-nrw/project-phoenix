@@ -82,7 +82,7 @@ export function SchoolAuthGuard({
         <ShellIntlProvider>
           <SchoolRealtimeBridge />
           <SchoolShell>
-            {notBooked ? (
+            {notBooked || session?.notBooked ? (
               <Alert
                 type="info"
                 message={portalNotBookedExplanation("school", "de")}

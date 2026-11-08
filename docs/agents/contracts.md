@@ -681,7 +681,15 @@ old session back; the browser only saves requests.
    only a live family. A 403 `module.not_booked` counts as live for both
    gates (`familyBacksSession`): the snapshot hydrates and carries
    `notBooked`, and the parents and school guards show
-   `portalNotBookedExplanation` instead of the page. A family that cannot be
+   `portalNotBookedExplanation` instead of the page. The refresh answers the
+   same 403 and keeps the presented refresh token valid: the JWT callback
+   keeps the session unchanged, marks it `notBooked` (the session route
+   carries the mark, the guards read it), asks again after a minute and
+   clears the mark with the next rotation or a live family answer
+   (`token-refresh.ts`). Every other 401/403 of the refresh ends the session
+   and is remembered per process (#2952); a snapshot of a session whose
+   refresh is remembered as refused does not hydrate, so the login page
+   cannot send the browser back to a portal whose requests end it. A family that cannot be
    read (503) and an expired
    access token, which the backend refuses before it reads the family, leave
    the shown session as it is; its own refresh decides.

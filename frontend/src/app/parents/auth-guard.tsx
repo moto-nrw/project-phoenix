@@ -105,7 +105,9 @@ export function ParentAuthGuard({
         <ParentShell>
           {sessionLoading ? (
             <ParentPageSkeleton rows={2} />
-          ) : notBooked || notBookedModuleOf(profileError) ? (
+          ) : notBooked ||
+            session.notBooked ||
+            notBookedModuleOf(profileError) ? (
             // Keine Schule des Kontos nutzt das Elternportal mehr (#4895):
             // ein Hinweis statt einer Fehlerkarte je Bereich der Seite.
             <Alert
