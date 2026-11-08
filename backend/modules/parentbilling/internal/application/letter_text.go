@@ -343,11 +343,18 @@ func paymentText(content letterContent) string {
 	}
 	due := dueOnOf(content.document.Payment, content.input.PaymentDueOn)
 	reference := "die Rechnungsnummer " + content.document.Number
+	if content.document.DocumentKind == parentbilling.DocumentKindFeeNotice {
+		// A fee notice names its number and Buchungszeichen as such (#4688).
+		reference = "die Bescheidnummer " + content.document.Number
+	}
 	if number := strings.TrimSpace(content.document.DebtorNumber); number != "" {
 		reference = "Ihre Debitorennummer " + number
+		if content.document.DocumentKind == parentbilling.DocumentKindFeeNotice {
+			reference = "Ihr Buchungszeichen " + number
+		}
 	}
 	if isDirectDebit(content.document.Payment) {
-		return directDebitText(content.document.TotalCents, due, strings.TrimPrefix(strings.TrimPrefix(reference, "die "), "Ihre "))
+		return directDebitText(content.document.TotalCents, due, strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(reference, "die "), "Ihre "), "Ihr "))
 	}
 	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" {
 		return strings.NewReplacer(

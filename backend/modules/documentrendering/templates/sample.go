@@ -56,6 +56,10 @@ func SampleValues(kind Kind, layout InvoiceLayout) map[string]Value {
 	if HasInvoice(kind) {
 		values[pPositions.Name] = Value{Rows: InvoiceRows(layout, sampleChildren, sampleTotal)}
 	}
+	if kind == KindFeeNotice {
+		// A notice names its number and its Buchungszeichen (#4688).
+		values[pPaymentNote.Name] = Value{Text: "Bitte überweisen Sie 92,50 € bis zum 16.11.2026 auf das Konto unten. Geben Sie als Verwendungszweck Ihr Buchungszeichen " + sampleDebtorNumber + " an."}
+	}
 	return values
 }
 

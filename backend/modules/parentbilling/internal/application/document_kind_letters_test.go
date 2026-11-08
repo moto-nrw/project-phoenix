@@ -84,6 +84,7 @@ func TestFeeNoticeFollowsPageOneOfTheHardtNotice(t *testing.T) {
 		"für die Betreuung von Lina und Ben setzen wir für Winterferien 2027 folgende Gebühren fest:",
 		"Gesamtbetrag: 92,50 €",
 		"Bitte geben Sie bei allen Zahlungen das Buchungszeichen 5.0311.000123.4 an.",
+		"Geben Sie als Verwendungszweck Ihr Buchungszeichen 5.0311.000123.4 an.",
 	} {
 		assert.Contains(t, text, want)
 	}
@@ -185,6 +186,7 @@ func TestCareFeeNoticeFillsTheTemplateAndItsLegalRemedy(t *testing.T) {
 		"Gesamtbetrag: 54,01 €",
 		"# Rechtsbehelfsbelehrung",
 		"Der Widerspruch ist bei SJR Pforzheim einzulegen.",
+		"Verwendungszweck die Bescheidnummer MB-2027-0001",
 	} {
 		assert.Contains(t, text, want)
 	}
