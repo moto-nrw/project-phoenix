@@ -422,17 +422,23 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		AmountCents    int64
 		PayableCents   int64
 		Reductions     []parentbilling.CareReduction `bun:",type:jsonb"`
+		NoticeNumber   string
 	}
 	// A Mensa-only invoice (#4686) has no module position; it still bills
 	// its contract, so the positions join from the left for an invoice with
-	// Mensa months.
-	if err := db.NewRaw(`SELECT i.care_contract_id AS contract_id, i.school_id, i.recipient_email,
+	// Mensa months. A month a Jahresbescheid nobody amended assesses bills
+	// its contract too (#6219, ADR 0175): it comes from the snapshot of the
+	// month with the cents the rule chain allocated, and names the notice.
+	if err := db.NewRaw(`SELECT contract_id, school_id, recipient_email, family_email, total_cents, care_offering_id,
+		amount_cents, payable_cents, reductions, notice_number FROM (
+		SELECT i.care_contract_id AS contract_id, i.school_id, i.recipient_email,
 		COALESCE(i.family_email, '') AS family_email, i.total_cents,
 		COALESCE(p.care_offering_id, 0) AS care_offering_id, COALESCE(p.amount_cents, 0) AS amount_cents,
 		COALESCE(p.payable_cents, p.amount_cents, 0) AS payable_cents,
 		COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.position)
 			FROM parent_billing.care_invoice_reductions r
-			WHERE r.invoice_id = i.id), '[]'::jsonb) AS reductions
+			WHERE r.invoice_id = i.id), '[]'::jsonb) AS reductions,
+		'' AS notice_number, COALESCE(p.position, 0)::bigint AS ord
 		FROM parent_billing.care_invoices i
 		LEFT JOIN parent_billing.care_invoice_positions p ON p.invoice_id = i.id
 		WHERE i.organization_id = ? AND i.billing_month = ?
@@ -445,7 +451,21 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 			-- a later run of the month bills its contract again.
 			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoice_cancellations AS cancellation
 				WHERE cancellation.organization_id = i.organization_id AND cancellation.invoice_id = i.id)
-		ORDER BY i.care_contract_id, p.position`, organizationID, month).Scan(ctx, &rows); err != nil {
+		UNION ALL
+		SELECT m.care_contract_id, n.school_id, n.recipient_email, n.family_email, m.amount_cents,
+		COALESCE((p.position->>'care_offering_id')::bigint, 0), COALESCE((p.position->>'amount_cents')::bigint, 0),
+		COALESCE((m.snapshot->'payable'->>(p.ord - 1)::int)::bigint, (p.position->>'amount_cents')::bigint, 0),
+		COALESCE(NULLIF(m.snapshot->'invoice'->'reductions', 'null'::jsonb), '[]'::jsonb),
+		n.number, COALESCE(p.ord, 0)
+		FROM parent_billing.care_notice_months AS m
+		JOIN parent_billing.care_notices AS n ON n.organization_id = m.organization_id AND n.id = m.notice_id
+		LEFT JOIN LATERAL jsonb_array_elements(COALESCE(NULLIF(m.snapshot->'invoice'->'positions', 'null'::jsonb), '[]'::jsonb))
+			WITH ORDINALITY AS p(position, ord) ON true
+		WHERE m.organization_id = ? AND m.billing_month = ?
+			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_notices AS amendment
+				WHERE amendment.organization_id = n.organization_id AND amendment.amends_notice_id = n.id)
+		) AS billed
+		ORDER BY contract_id, ord`, organizationID, month, organizationID, month).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read invoiced contracts: %w", err)
 	}
 	invoiced := make(map[int64]parentbilling.CareInvoice)
@@ -455,6 +475,9 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		invoice.Recipient.Email, invoice.TotalCents = row.RecipientEmail, row.TotalCents
 		invoice.FamilyEmail = row.FamilyEmail
 		invoice.Reductions = row.Reductions
+		if row.NoticeNumber != "" {
+			invoice.Number, invoice.DocumentKind = row.NoticeNumber, parentbilling.DocumentKindFeeNotice
+		}
 		if row.CareOfferingID != 0 {
 			invoice.Positions = append(invoice.Positions, parentbilling.CarePosition{
 				CareOfferingID: row.CareOfferingID, AmountCents: row.AmountCents, PayableCents: row.PayableCents,
@@ -501,7 +524,7 @@ func claimInvoiceNumbers(ctx context.Context, db bun.IDB, organizationID int64, 
 		organizationID).Exec(ctx); err != nil {
 		return fmt.Errorf("hold the invoice numbers: %w", err)
 	}
-	for _, table := range []string{otherTable, careCancellationNumbersTable} {
+	for _, table := range []string{otherTable, careCancellationNumbersTable, careNoticeNumbersTable} {
 		var taken bool
 		if err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM ? WHERE organization_id = ? AND number = ANY(?))`,
 			bun.Safe(table), organizationID, pgdialect.Array(numbers)).Scan(ctx, &taken); err != nil {

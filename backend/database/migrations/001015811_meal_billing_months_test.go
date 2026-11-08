@@ -12,16 +12,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// mealBillingErasureStatement is what 1.15.811 adds to the erasure of 1.15.809.
-const mealBillingErasureStatement = `					-- A Mensa month a school released keeps its children with
-					-- their meals (#4686); it goes with the school.
-					DELETE FROM schedule.meal_billing_months
-					WHERE school_id = ANY (hidden_schools);
-					-- How far the retention deleted its attendance (#4686).
-					DELETE FROM active.attendance_retention_marks
-					WHERE school_id = ANY (hidden_schools);
-`
-
 // TestMealBillingErasureExtendsTheErasureOf809 keeps the erasure of 1.15.811
 // the erasure of 1.15.809 with the statements for the Mensa months and the
 // attendance retention marks.

@@ -48,6 +48,11 @@ type careMonth struct {
 	duplicates     []parentbilling.CareDuplicate
 	billed         int
 	billedBySchool map[int64]int
+	// feeNoticesBySchool names per school the Jahresbescheide that assess
+	// the month of a contract (#6219); the month counts as billed there.
+	// feeNotices are those of the schools of a run, sorted.
+	feeNoticesBySchool map[int64][]string
+	feeNotices         []string
 	// freeBySchool counts per school the contracts whose price list makes
 	// the month free of charge (#6196).
 	freeBySchool map[int64]int
@@ -145,8 +150,12 @@ func chainCareMonth(result *careMonth, in careMonthInput, chained []*careChainEn
 	chained = append(chained, issuedCareEntries(in.invoiced, childOf, byContract)...)
 	result.billed = len(in.invoiced)
 	result.billedBySchool = make(map[int64]int)
+	result.feeNoticesBySchool = make(map[int64][]string)
 	for _, invoice := range in.invoiced {
 		result.billedBySchool[invoice.SchoolID]++
+		if invoice.DocumentKind == parentbilling.DocumentKindFeeNotice && invoice.Number != "" {
+			result.feeNoticesBySchool[invoice.SchoolID] = append(result.feeNoticesBySchool[invoice.SchoolID], invoice.Number)
+		}
 	}
 	uncounted := map[string][]int64{}
 	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences,
