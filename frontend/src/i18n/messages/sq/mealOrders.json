@@ -6,7 +6,7 @@
   "meals": "Drekat",
   "byClass": "Sipas klasës",
   "changes": "Ndryshime pas afatit",
-  "closed": "OGS e mbyllur",
+  "closed": "{careTerm} e mbyllur",
   "open": "E hapur",
   "deadline": "Afati",
   "ordered": "E porositur",

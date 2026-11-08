@@ -1,9 +1,9 @@
 {
   "button": "Udostępnij prośbę",
   "title": "Udostępnij prośbę innym",
-  "privacyHint": "Tylko wybrani opiekunowie widzą Państwa prośbę i odpowiedź OGS.",
+  "privacyHint": "Tylko wybrani opiekunowie widzą Państwa prośbę i odpowiedź {careTerm}.",
   "recipientLegend": "Udostępnij prośbę (opcjonalnie)",
-  "protected": "Ta prośba pozostaje prywatna. OGS włączyła ochronę rodziny.",
+  "protected": "Ta prośba pozostaje prywatna. {careTerm} włączyła ochronę rodziny.",
   "noRecipients": "Nie ma innych opiekunów z dostępem do aplikacji dla rodziców.",
   "loading": "Wczytywanie odbiorców …",
   "save": "Zapisz wybór",

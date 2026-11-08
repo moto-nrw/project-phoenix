@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { ChildToday } from "~/lib/parent-api";
 import type { MotoConcept } from "~/lib/moto-concepts";
@@ -11,6 +10,8 @@ import { childrenConcept } from "~/lib/concepts/children";
 import { homeConcept } from "~/lib/concepts/home";
 import { unknownConcept } from "~/lib/concepts/unknown";
 import { presentConcept } from "~/lib/concepts/present";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { useParentCareTerms } from "~/lib/parent-care-term";
 
 /**
  * Die Auswahlseite fuer mehrere Kinder.
@@ -38,7 +39,8 @@ export function ChildSwitcher({
 }: Readonly<{
   items: readonly ChildSwitcherItem[];
 }>) {
-  const t = useTranslations("parentToday");
+  const t = useCareTermTranslations("parentToday");
+  const { termOf } = useParentCareTerms();
   if (items.length < 2) return null;
 
   return (
@@ -95,8 +97,8 @@ export function ChildSwitcher({
                     {item.today.at_ogs === null
                       ? t("state.unknown")
                       : item.today.at_ogs
-                        ? t("atOgs")
-                        : t("notAtOgs")}
+                        ? t("atOgs", { careTerm: termOf(item.studentId) })
+                        : t("notAtOgs", { careTerm: termOf(item.studentId) })}
                   </span>
                 </span>
               </span>

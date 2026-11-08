@@ -22,13 +22,17 @@ vi.mock("~/lib/notification-preferences-api", () => api);
 vi.mock("next-intl", () => ({
   useTranslations: (namespace: keyof typeof en) => {
     const messages = en[namespace] as Record<string, unknown>;
-    return (key: string) =>
-      key.split(".").reduce<unknown>((value, part) => {
-        if (value && typeof value === "object") {
-          return (value as Record<string, unknown>)[part];
-        }
-        return undefined;
-      }, messages) as string;
+    return (key: string, values?: Record<string, unknown>) =>
+      (
+        key.split(".").reduce<unknown>((value, part) => {
+          if (value && typeof value === "object") {
+            return (value as Record<string, unknown>)[part];
+          }
+          return undefined;
+        }, messages) as string
+      ).replace(/\{(\w+)\}/g, (match, name: string) =>
+        values && name in values ? String(values[name]) : match,
+      );
   },
 }));
 

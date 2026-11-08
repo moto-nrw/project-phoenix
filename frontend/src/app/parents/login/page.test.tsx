@@ -133,7 +133,9 @@ describe("ParentLoginPage i18n", () => {
     expect(screen.getByText("Made for after-school care")).toBeInTheDocument();
     expect(screen.getByText("Hosted in Germany")).toBeInTheDocument();
     expect(
-      screen.getByText(/I can find the most important OGS information/),
+      screen.getByText(
+        /I can find the most important information about childcare/,
+      ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Parent")).toHaveLength(4);
     expect(screen.getByText("Everything in one place")).toBeInTheDocument();

@@ -6,7 +6,7 @@
   "meals": "Meals",
   "byClass": "By class",
   "changes": "Late changes",
-  "closed": "OGS closed",
+  "closed": "{careTerm} closed",
   "open": "Open",
   "deadline": "Deadline",
   "ordered": "Ordered",

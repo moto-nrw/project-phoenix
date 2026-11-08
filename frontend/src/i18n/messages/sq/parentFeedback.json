@@ -1,7 +1,7 @@
 {
   "kicker": "Reagim",
   "title": "Reagime",
-  "productTeamNotice": "Reagimi yt shkon drejtpërdrejt te ekipi i moto-s që zhvillon aplikacionin. Kujdesi passhkollor i fëmijës tënd nuk i sheh këto shënime.",
+  "productTeamNotice": "Reagimi yt shkon drejtpërdrejt te ekipi i moto-s që zhvillon aplikacionin. {careTerm}-ja e fëmijës tënd nuk i sheh këto shënime.",
   "pseudonymNotice": "Për të gjithë, edhe për ekipin e produktit, ti shfaqesh vetëm si „Prind“.",
   "schoolLabel": "Shkolla",
   "sortLabel": "Renditja",
@@ -17,7 +17,7 @@
   "noSchoolsDescription": "Sapo fëmija yt të regjistrohet në një shkollë, mund të lësh reagime këtu.",
   "loadError": "Reagimet nuk mund të ngarkoheshin.",
   "retry": "Provo përsëri",
-  "formHint": "Ky shënim shkon te ekipi i moto-s, jo te kujdesi passhkollor. Prindërit e tjerë të shkollës sate mund ta lexojnë dhe ta vlerësojnë.",
+  "formHint": "Ky shënim shkon te ekipi i moto-s, jo te {careTerm}-ja. Prindërit e tjerë të shkollës sate mund ta lexojnë dhe ta vlerësojnë.",
   "deleteTitle": "Të fshihet shënimi?",
   "deleteBody": "Ky shënim dhe të gjitha votat fshihen përgjithmonë.",
   "deleteSuccess": "Shënimi u fshi.",

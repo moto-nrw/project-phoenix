@@ -7655,7 +7655,7 @@ export const settingsGuideTopic = function settingsGuideTopic(): HelpTopic {
         ordered: false,
         steps: [
           "`Online-Anmeldung`: Eltern melden ihr Kind über ein Formular im Internet an.",
-          "`Name der Betreuung in Texten für Eltern`: So heißt Ihre Betreuung in den festen Texten der Anmeldung und in den E-Mails dazu. Wählen Sie `OGS`, `GTS` oder `Eigener Name`. Ihre eigenen Texte im Formular ändern sich nicht.",
+          "`Name der Betreuung in Texten für Eltern`: So heißt Ihre Betreuung in den festen Texten der Anmeldung, der Eltern-App und in den E-Mails dazu. Wählen Sie `OGS`, `GTS` oder `Eigener Name`. Ihre eigenen Texte im Formular ändern sich nicht.",
           "`Empfänger für neue Anmeldungen`: Diese Adressen bekommen bei jeder neuen Anmeldung eine E-Mail.",
           "`Rechtstexte`: Was Eltern im Formular lesen und bestätigen, zum Beispiel die Datenschutzinformation.",
         ],

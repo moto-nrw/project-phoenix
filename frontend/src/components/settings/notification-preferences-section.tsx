@@ -9,7 +9,6 @@ import {
 } from "react";
 import { SectionLabel } from "~/components/ui/section-label";
 import { Check } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -27,6 +26,7 @@ import {
   type PreferencePortal,
 } from "~/lib/notification-preferences-api";
 import { notificationsConcept } from "~/lib/concepts/notifications";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "NotificationPreferencesSection" });
 
@@ -87,7 +87,7 @@ export function NotificationPreferencesSection({
 }
 
 function ParentNotificationPreferencesSection() {
-  const t = useTranslations("notificationPreferences");
+  const t = useCareTermTranslations("notificationPreferences");
   return (
     <NotificationPreferencesSectionContent
       portal="parent"

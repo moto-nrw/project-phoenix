@@ -864,6 +864,24 @@ func TestGetChildFeatures_ReportsPickupChangeCutoff(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"pickup_change_today_closed":true`)
 }
 
+// The portal names each child's care with its school's term (#6082).
+func TestGetChildFeatures_ReportsCareFacilityTerm(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{childFeatures: parentService.ChildFeatureFlags{CareFacilityTerm: "GTS"}}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/children/77/features", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+
+	rs.getChildFeatures(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"care_facility_term":"GTS"`)
+}
+
 func TestGetMyProfile_Unauthorized_WhenNoClaims(t *testing.T) {
 	t.Parallel()
 

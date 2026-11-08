@@ -107,7 +107,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/components/parent/calendar/parent-calendar-page.tsx",
-    lines: [521, 773],
+    lines: [524, 776],
     reason:
       "Termin-Zeilen und Monats-Chips im Elternkalender, optisch Listeneinträge (#5529: nicht angleichen)",
   },
@@ -177,7 +177,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/parent/child/child-switcher.tsx",
-    lines: [53],
+    lines: [55],
     reason:
       "Kinderkarte im Elternportal (Ausnahme des Epics #5576, nicht anfassen): Kachel",
   },

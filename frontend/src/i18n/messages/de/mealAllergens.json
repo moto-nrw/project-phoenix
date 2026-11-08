@@ -4,7 +4,7 @@
   "marksShort": "Allergene: {letters}",
   "marksLabel": "Enthält: {names}",
   "noneThisWeek": "Für diese Woche sind keine Allergene angegeben.",
-  "source": "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Bei Fragen hilft Ihnen die OGS.",
+  "source": "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Bei Fragen hilft Ihnen die {careTerm}.",
   "names": {
     "gluten": "Glutenhaltiges Getreide",
     "crustaceans": "Krebstiere",

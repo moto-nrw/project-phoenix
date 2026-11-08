@@ -9,6 +9,7 @@ import {
 import { parentPath } from "~/lib/parent-url";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
 import { ParentPageSkeleton } from "~/components/parent/parent-page";
+import { ParentChildCareTermScope } from "~/lib/parent-care-term";
 
 export default function ParentChildConversationPage({
   params,
@@ -36,14 +37,16 @@ function ParentChildConversationContent({
   // Reached only by multi-child parents picking a child from the list, so show
   // the back link and the child (to disambiguate which conversation this is).
   return (
-    <OgsConversation
-      studentId={studentId}
-      showBack
-      showChild
-      audience={audience}
-      onAudienceChange={(next) =>
-        router.replace(parentPath(childConversationPath(studentId, next)))
-      }
-    />
+    <ParentChildCareTermScope studentId={studentId}>
+      <OgsConversation
+        studentId={studentId}
+        showBack
+        showChild
+        audience={audience}
+        onAudienceChange={(next) =>
+          router.replace(parentPath(childConversationPath(studentId, next)))
+        }
+      />
+    </ParentChildCareTermScope>
   );
 }

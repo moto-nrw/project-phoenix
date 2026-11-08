@@ -22,7 +22,7 @@
   "declined": "Termin abgesagt.",
   "answeredAccepted": "Zugesagt",
   "answeredDeclined": "Abgesagt",
-  "cancelledByOgs": "Von der OGS abgesagt",
+  "cancelledByOgs": "Von der {careTerm} abgesagt",
   "previousMonth": "Vorheriger Monat",
   "nextMonth": "Nächster Monat",
   "close": "Schließen",

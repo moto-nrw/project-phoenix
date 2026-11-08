@@ -314,6 +314,9 @@ export interface ChildFeatures {
   // Neuigkeiten feed is empty, so the parents-portal nav/panel entries gate on
   // this to avoid dead-ending on an empty page.
   readonly parent_news_enabled: boolean;
+  // The school's term for its care („OGS“, „GTS“; #6082). Every parent text
+  // that names the care of this child uses it.
+  readonly care_facility_term?: string;
 }
 
 // One dish of the read-only meal plan (Essensplan) for a child's school.

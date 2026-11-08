@@ -3,8 +3,8 @@
   "sectionTitle": "Сегодня",
   "sectionDescription": "Статус на сегодня и важные действия с первого взгляда.",
   "statusLabel": "Текущий статус",
-  "atOgs": "В продлёнке",
-  "notAtOgs": "Не в продлёнке",
+  "atOgs": "В {careTerm}",
+  "notAtOgs": "Не в {careTerm}",
   "state": {
     "present": "Здесь с {time}",
     "presentNoTime": "Сегодня здесь",
@@ -30,7 +30,7 @@
     "pickupHint": "Изменить время ухода на один день",
     "message": "Написать сообщение",
     "messageCompact": "Написать сообщение",
-    "messageHint": "Связаться с продлёнкой по поводу {name}",
+    "messageHint": "Связаться с {careTerm} по поводу {name}",
     "pickupWithMode": "Изменить уход домой для {name}",
     "pickupCompactWithMode": "Изменить уход домой",
     "pickupHintWithMode": "Изменить время или способ ухода на один день"

@@ -9,7 +9,10 @@ vi.mock("next-auth/react", () => ({
     },
   }),
 }));
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantSafe: () => null,
+}));
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
