@@ -18810,19 +18810,19 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareStudentDirectory.FindCareStudents",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.FindByIDs; modules/peopledirectory/ports/repository_contracts.go:87. Also maps School Membership's first-care fact (ADR 0166) and care gap (ADR 0177). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.FindByIDs; modules/peopledirectory/ports/repository_contracts.go:87. Also maps School Membership's first-care fact (ADR 0166) and care gap (ADR 0178). May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDs",
       "target_owner": "people-directory"
     },
     {
       "adr": "0067",
-      "approval_adr": "0177",
+      "approval_adr": "0178",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareStudents.FindCareStudents",
       "classification": "E2",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareStudentDirectory.FindCareStudents",
-      "reason": "E2 named care confirm/cancel/due-effects protocol: class(shared), recurrence, sorted children, locked preview/removal ledger and conditional membership command; preserve current transaction and failures. Hand row 6 and ADR 0067 E2. Target modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate; modules/peopledirectory/ports/repository_contracts.go:213. The binding also maps School Membership's first-care fact (ADR 0166) and care gap; lock order and transaction unchanged (ADR 0177).",
+      "reason": "E2 named care confirm/cancel/due-effects protocol: class(shared), recurrence, sorted children, locked preview/removal ledger and conditional membership command; preserve current transaction and failures. Hand row 6 and ADR 0067 E2. Target modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate; modules/peopledirectory/ports/repository_contracts.go:213. The binding also maps School Membership's first-care fact (ADR 0166) and care gap; lock order and transaction unchanged (ADR 0178).",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",
       "target_owner": "people-directory"

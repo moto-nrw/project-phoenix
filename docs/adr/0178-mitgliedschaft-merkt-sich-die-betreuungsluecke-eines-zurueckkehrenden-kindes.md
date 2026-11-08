@@ -27,7 +27,7 @@ Jeder weitere Tag bis Februar wäre nach seinem Ablauf ebenso zurückgekehrt.
 ## Entscheidung
 
 - `users.student_school_memberships.care_paused_after` und
-  `care_resumed_from` (School Membership, Migration 1.15.821): der letzte
+  `care_resumed_from` (School Membership, Migration 1.15.822): der letzte
   Betreuungstag vor dem Neustart und der früheste Tag, an dem das Kind wieder
   betreut worden sein kann. Die Tage echt dazwischen sind keine
   Betreuungstage. Beide `NULL` heißt: keine Lücke bekannt.

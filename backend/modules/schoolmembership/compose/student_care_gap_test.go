@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// School Membership keeps the care gap of a returning child (#6073, ADR 0177):
+// School Membership keeps the care gap of a returning child (#6073, ADR 0178):
 // a resumption or a renewal that restarts a care whose end has passed records
 // the last care day before it and the day care resumes. The end of
 // the gap moves like the first-care bound; saving the child again keeps it.

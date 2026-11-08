@@ -24,7 +24,7 @@ type CareStudent struct {
 	// school, nil when unknown. It survives the activation.
 	FirstCareFrom *calendar.Date
 	// CarePausedAfter and CareResumedFrom are School Membership's care gap
-	// of a returning child (#6073, ADR 0177): days strictly between the last
+	// of a returning child (#6073, ADR 0178): days strictly between the last
 	// care day before the restart and the earliest day of care again are no
 	// care days, in every status. Both nil when no gap is known.
 	CarePausedAfter *calendar.Date

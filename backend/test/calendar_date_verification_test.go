@@ -73,9 +73,9 @@ var unmappedDateColumns = map[string]string{
 	// from calendar.Date values; People Directory's projection row reads it
 	// as *calendar.Date. No table-bound model maps the column.
 	"users.student_school_memberships.first_care_from": "ADR 0166: written from calendar.Date, read by the People Directory projection as *calendar.Date",
-	// ADR 0177: the care gap of a returning child, kept the same way.
-	"users.student_school_memberships.care_paused_after": "ADR 0177: written from calendar.Date, read by the People Directory projection as *calendar.Date",
-	"users.student_school_memberships.care_resumed_from": "ADR 0177: written from calendar.Date, read by the People Directory projection as *calendar.Date",
+	// ADR 0178: the care gap of a returning child, kept the same way.
+	"users.student_school_memberships.care_paused_after": "ADR 0178: written from calendar.Date, read by the People Directory projection as *calendar.Date",
+	"users.student_school_memberships.care_resumed_from": "ADR 0178: written from calendar.Date, read by the People Directory projection as *calendar.Date",
 	// The child note card (#3632) has no table-bound model either: the day an
 	// entry describes is carried by the adapter-local studentNoteRow as a
 	// *calendar.Date and travels through the capability as the same type.
