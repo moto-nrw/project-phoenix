@@ -249,7 +249,7 @@ func TestPlannedSupervisorListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{StaffID: &staff.ID})
 		require.NoError(t, err)
-		querybudgets.AssertQueryBudget(t, "modules.timetable.supervisors.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.supervisors.list", counter.Measurement(counter.Queries()))
 
 		return nil
 	}))

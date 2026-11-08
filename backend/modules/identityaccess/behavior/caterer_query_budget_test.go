@@ -40,7 +40,7 @@ func TestCatererInvitationsQueryBudget(t *testing.T) {
 		add(4)
 		large := run()
 		assert.Equal(t, len(small), len(large), "the list must not grow a statement per invitation")
-		querybudgets.AssertQueryBudget(t, "modules.identityaccess.caterer_invitations.reads", large)
+		querybudgets.AssertQueryBudget(t, "modules.identityaccess.caterer_invitations.reads", counter.Measurement(large))
 		return nil
 	}))
 }
@@ -74,7 +74,7 @@ func TestCatererSchoolsQueryBudget(t *testing.T) {
 	}
 	large := run()
 	assert.Equal(t, len(small), len(large), "the read must not grow a statement per school")
-	querybudgets.AssertQueryBudget(t, "modules.identityaccess.caterer_schools.reads", large)
+	querybudgets.AssertQueryBudget(t, "modules.identityaccess.caterer_schools.reads", counter.Measurement(large))
 }
 
 // The operator lists the caterer accounts and their second factor in a
@@ -105,5 +105,5 @@ func TestCatererOperatorListQueryBudget(t *testing.T) {
 	add()
 	large := run()
 	assert.Equal(t, len(small), len(large), "the list must not grow a statement per caterer")
-	querybudgets.AssertQueryBudget(t, "modules.identityaccess.caterers.operator_list", large)
+	querybudgets.AssertQueryBudget(t, "modules.identityaccess.caterers.operator_list", counter.Measurement(large))
 }

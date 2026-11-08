@@ -62,14 +62,22 @@ func loadQueryBudgets() map[string]queryBudget {
 }
 
 // AssertQueryBudget checks the statements a scenario issued against the
-// register. Pass the matched statements (counter.Queries(), counter.Selects(...)
-// or a Matching(...) bucket), never a bare number, so a failure can print them.
-func AssertQueryBudget(tb testing.TB, scenario string, observed any) {
-	queries, route := measurementStatements(observed)
+// register. Pass counter.Measurement with the matched SQL bucket, including
+// for non-HTTP use cases. Bare SQL slices would discard HTTP route provenance.
+func AssertQueryBudget(tb testing.TB, scenario string, observed Measurement) {
 	tb.Helper()
 	budget, ok := queryBudgets[scenario]
 	if !ok {
 		tb.Fatalf("query budget %q is not registered in backend/test/query-budgets/", scenario)
+	}
+	assertQueryBudget(tb, scenario, budget, observed)
+}
+
+func assertQueryBudget(tb testing.TB, scenario string, budget queryBudget, observed Measurement) {
+	tb.Helper()
+	queries, route := observed.Statements, observed.Route
+	if observed.HTTPRequest && len(route) == 0 {
+		tb.Errorf("query budget %q: measured HTTP request has no resolved route", scenario)
 	}
 	if err := measuredRouteError(budget.route, route); err != nil && (len(budget.route) != 0 || os.Getenv("PHX_QUERY_BUDGET_CAPTURE_ROUTES") == "") {
 		tb.Errorf("query budget %q: %v", scenario, err)
@@ -127,17 +135,6 @@ func QueryBudgetScenarios() []string {
 
 // Measurement is the request-aware SQL snapshot returned by QueryCounter.Measurement.
 type Measurement = querybudget.Measurement
-
-func measurementStatements(observed any) ([]string, querybudget.Routes) {
-	switch value := observed.(type) {
-	case []string:
-		return value, nil
-	case Measurement:
-		return value.Statements, value.Route
-	default:
-		panic(fmt.Sprintf("unsupported query budget measurement %T", observed))
-	}
-}
 
 func measuredRouteError(stored, measured querybudget.Routes) error {
 	if !slices.Equal(stored, measured) {

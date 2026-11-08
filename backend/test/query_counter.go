@@ -243,12 +243,13 @@ func (c *QueryCounter) Measurement(queries []string) querybudget.Measurement {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	routes := map[string]bool{}
+	result := querybudget.Measurement{Statements: queries}
 	for route := range c.routeContexts {
+		result.HTTPRequest = result.HTTPRequest || route.RouteMethod != ""
 		if pattern := completedQueryBudgetRoute(route); pattern != "" {
 			routes[route.RouteMethod+" "+pattern] = true
 		}
 	}
-	result := querybudget.Measurement{Statements: queries}
 	for route := range routes {
 		result.Route = append(result.Route, route)
 	}

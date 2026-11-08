@@ -26,7 +26,11 @@ Every `api.*` scenario needs a nonempty route in the golden, except an explicitl
 reasoned non-HTTP scenario in `architecture/query-budget-non-http.json`.
 That exception register must remain present and can only lose exact
 scenario/reason pairs after introduction. Do not add an exception for an HTTP
-test. Plain SQL slices remain supported for repository and use-case budgets.
+test. Every assertion, regardless of scenario prefix, accepts only a complete
+`Measurement`; bare `[]string` arguments are rejected at compile time. Repository
+and use-case tests also use `counter.Measurement(statements)`, preserving the
+empty route set only when no HTTP request was measured. A measured HTTP route
+cannot be passed off as a routeless non-HTTP budget.
 
 A contract disappears only with its own explicit route at the immutable Git
 base: add a record to `architecture/query-budget-retirements.json` and remove

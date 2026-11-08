@@ -39,6 +39,9 @@ Freigegeben von Yannick Wenger am 07.11.2026 (Option A in #5972).
    von `chi.Walk` werden für den Vergleich normalisiert; echte abschließende
    Wildcards und Blatt-Slashes bleiben erhalten. Beschreibung, Szenarioname
    und konkrete URL sind keine Quelle.
+   Diese Laufzeitpflicht gilt unabhängig vom Szenariopräfix. Jede Assertion
+   erhält einen vollständigen Counter-Snapshot statt eines nackten SQL-Slices;
+   gemessene HTTP-Requests ohne aufgelöstes Muster sind ebenfalls Fehler.
    Eine normale Prüfung vergleicht gespeicherte und gemessene Route und
    überschreibt nichts. Die initiale Erfassung ist ein ausdrücklicher Lauf
    nach der Anleitung in `backend/test/query-budgets/README.md` (#6057,

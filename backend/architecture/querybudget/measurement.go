@@ -1,8 +1,9 @@
 package querybudget
 
 // Measurement keeps a SQL bucket and the final chi route of its request together.
-// Empty Route denotes a measurement without an HTTP request.
+// HTTPRequest also records unmatched requests, which cannot bind a budget.
 type Measurement struct {
-	Statements []string
-	Route      Routes
+	Statements  []string
+	Route       Routes
+	HTTPRequest bool
 }

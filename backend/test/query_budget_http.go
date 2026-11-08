@@ -31,7 +31,11 @@ func MeasuredTenantRequest(tb testing.TB, db *bun.DB, tenantID int64, counter *Q
 // MeasuredHTTPRequest owns chi's context for this request so its completed
 // pattern remains available after chi returns pooled contexts to its pool.
 func MeasuredHTTPRequest(counter *QueryCounter, next http.Handler, w http.ResponseWriter, r *http.Request) {
-	next.ServeHTTP(w, r.WithContext(counter.Context(r.Context())))
+	ctx := counter.Context(r.Context())
+	if route := chi.RouteContext(ctx); route.RouteMethod == "" {
+		route.RouteMethod = r.Method
+	}
+	next.ServeHTTP(w, r.WithContext(ctx))
 }
 
 // MountedQueryBudgetRouter runs a resource-sized fixture at its production
