@@ -73,17 +73,20 @@ type letterContent struct {
 	leftCents  int64
 }
 
-// confirmationLetter writes the letter of one issued invoice: the
-// address field, the facts and the footer come from the invoice and the
-// letterhead; subject, salutation, body and closing come from the Träger's
-// template of the confirmation letter, filled with the values of this
-// invoice (#4677, ADR 0152). Without a template of its own the Träger
-// writes with the standard template, the letter of ADR 0121.
+// confirmationLetter writes the letter of one issued invoice in the kind of
+// document its release froze (#4688): the address field, the facts and the
+// footer come from the invoice and the letterhead; subject, salutation, body
+// and closing come from the Träger's template of that kind, filled with the
+// values of this invoice (#4677, ADR 0152). Without a template of its own
+// the Träger writes with the standard template; the standard confirmation
+// letter is the letter of ADR 0121. A fee notice prints the legal remedy of
+// its template after the body, so no text of the template leaves it out.
 func confirmationLetter(content letterContent) Letter {
 	document, head := content.document, content.letterhead
-	filled := templates.Fill(letterTemplate(head.Template), letterValues(content))
+	kind := templateKindOf(document.DocumentKind)
+	filled := templates.Fill(letterTemplate(head.Template, kind), letterValues(content))
 	return Letter{
-		Title:       "Bestätigung und Rechnung " + document.Number,
+		Title:       documentTitle(document.DocumentKind) + " " + document.Number,
 		AccentColor: head.AccentColor,
 		Logo:        head.Logo,
 		Sender:      textLines(head.SenderText),
@@ -91,21 +94,60 @@ func confirmationLetter(content letterContent) Letter {
 		Facts:       letterFacts(content),
 		Subject:     filled.Subject,
 		Salutation:  filled.Salutation,
-		Blocks:      letterBlocks(filled.Blocks),
+		Blocks:      append(letterBlocks(filled.Blocks), legalRemedyBlocks(filled.LegalRemedy)...),
 		Closing:     filled.Closing,
 		Footer:      nonBlank(append(textLines(head.FooterText), bankLine(head.BankAccount))...),
 	}
 }
 
-// letterTemplate is the Träger's template, or the standard one while the
-// letterhead carries none.
-func letterTemplate(template parentbilling.LetterTemplate) templates.Template {
+// templateKindOf is the kind of template a kind of document is written
+// with; an invoice issued before #4688 is a confirmation letter.
+func templateKindOf(documentKind string) templates.Kind {
+	switch documentKind {
+	case parentbilling.DocumentKindInvoice:
+		return templates.KindInvoice
+	case parentbilling.DocumentKindFeeNotice:
+		return templates.KindFeeNotice
+	}
+	return templates.KindConfirmation
+}
+
+// documentTitle names a kind of document in the title of its letter.
+func documentTitle(documentKind string) string {
+	switch documentKind {
+	case parentbilling.DocumentKindInvoice:
+		return "Rechnung"
+	case parentbilling.DocumentKindFeeNotice:
+		return "Gebührenbescheid"
+	}
+	return "Bestätigung und Rechnung"
+}
+
+// legalRemedyHeading heads the legal remedy when the Träger's text starts
+// without a heading of its own.
+const legalRemedyHeading = "Rechtsbehelfsbelehrung"
+
+// legalRemedyBlocks prints the legal remedy of a fee notice under its
+// heading (#4688).
+func legalRemedyBlocks(blocks []templates.Block) []LetterBlock {
+	result := letterBlocks(blocks)
+	if len(result) > 0 && strings.TrimSpace(result[0].Heading) == "" {
+		result[0].Heading = legalRemedyHeading
+	}
+	return result
+}
+
+// letterTemplate is the Träger's template, or the standard one of kind
+// while the letterhead carries none.
+func letterTemplate(template parentbilling.LetterTemplate, kind templates.Kind) templates.Template {
 	if strings.TrimSpace(template.Body) == "" {
-		return templates.Default(templates.KindConfirmation)
+		standard := templates.Default(kind)
+		standard.LegalRemedy = template.LegalRemedy
+		return standard
 	}
 	return templates.Template{
 		Subject: template.Subject, Salutation: template.Salutation, Body: template.Body, Closing: template.Closing,
-		Invoice: invoiceLayout(template),
+		Invoice: invoiceLayout(template), LegalRemedy: template.LegalRemedy,
 	}
 }
 
@@ -118,7 +160,7 @@ func invoiceLayout(template parentbilling.LetterTemplate) templates.InvoiceLayou
 // Träger's template (#5691).
 func letterValues(content letterContent) map[string]templates.Value {
 	document, head := content.document, content.letterhead
-	layout := letterTemplate(head.Template).Invoice
+	layout := invoiceLayout(head.Template)
 	text := func(value string) templates.Value { return templates.Value{Text: strings.TrimSpace(value)} }
 	values := map[string]templates.Value{
 		"familienname":    text(document.RecipientLastName),
@@ -129,6 +171,7 @@ func letterValues(content letterContent) map[string]templates.Value {
 		"rueckfragen":     text(questionText(head)),
 		"zeitraum":        text(content.run.PeriodName),
 		"rechnungsnummer": text(document.Number),
+		"bescheidnummer":  text(document.Number),
 		"debitorennummer": text(document.DebtorNumber),
 		"positionen":      {Rows: templates.InvoiceRows(layout, invoiceChildren(document), formatEuro(document.TotalCents))},
 		"summe":           text(formatEuro(document.TotalCents)),
@@ -151,8 +194,14 @@ func letterValues(content letterContent) map[string]templates.Value {
 // must have one, even an empty one, or a paragraph of the Träger's template
 // would vanish without a reason.
 func missingLetterValues(values map[string]templates.Value) []string {
+	return missingLetterValuesOf(templates.KindConfirmation, values)
+}
+
+// missingLetterValuesOf names the placeholders of a kind of template the
+// letter writes no value for (#4688).
+func missingLetterValuesOf(kind templates.Kind, values map[string]templates.Value) []string {
 	var missing []string
-	for _, placeholder := range templates.Placeholders(templates.KindConfirmation) {
+	for _, placeholder := range templates.Placeholders(kind) {
 		if _, ok := values[placeholder.Name]; !ok {
 			missing = append(missing, placeholder.Name)
 		}
@@ -192,9 +241,10 @@ func recipientLines(document parentbilling.BillingDocument) []string {
 }
 
 func letterFacts(content letterContent) []LetterFact {
-	facts := []LetterFact{{Label: "Rechnungsnummer", Value: content.document.Number}}
+	kind := templateKindOf(content.document.DocumentKind)
+	facts := []LetterFact{{Label: numberLabel(content.document.DocumentKind), Value: content.document.Number}}
 	if number := strings.TrimSpace(content.document.DebtorNumber); number != "" {
-		facts = append(facts, LetterFact{Label: "Debitorennummer", Value: number})
+		facts = append(facts, LetterFact{Label: templates.DebtorNumberLabel(kind), Value: number})
 	}
 	if content.document.IssuedOn != nil {
 		facts = append(facts, LetterFact{Label: "Datum", Value: germanDate(*content.document.IssuedOn)})
@@ -213,6 +263,14 @@ func letterFacts(content letterContent) []LetterFact {
 		}
 	}
 	return facts
+}
+
+// numberLabel names the number of a document beside the address field.
+func numberLabel(documentKind string) string {
+	if documentKind == parentbilling.DocumentKindFeeNotice {
+		return "Bescheidnummer"
+	}
+	return "Rechnungsnummer"
 }
 
 // invoiceChildren are the positions of the invoice by child with the

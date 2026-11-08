@@ -19,9 +19,9 @@ func NewHolidayContributions(registrations parentbilling.HolidayRegistrations, s
 	return application.NewHolidayContributions(postgres.NewStore(), registrations, settings)
 }
 
-// NewBillingRuns builds the billing runs (#4668, ADR 0119, ADR 0122) over the registrations the root binds.
-func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations, settings parentbilling.HolidayBillingSettings) parentbilling.BillingRuns {
-	return application.NewBillingRuns(postgres.NewStore(), registrations, settings, rendering.NewRenderer(), calendar.TodayDate)
+// NewBillingRuns builds the billing runs (#4668, ADR 0119, ADR 0122) and the kind of document per service (#4688) over the registrations and document templates the root binds.
+func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations, settings parentbilling.HolidayBillingSettings, templates parentbilling.BillingDocumentTemplates) (parentbilling.BillingRuns, parentbilling.BillingDocumentKinds) {
+	return application.NewBillingRuns(postgres.NewStore(), registrations, settings, rendering.NewRenderer(), templates, calendar.TodayDate), application.NewDocumentKinds(postgres.NewStore(), templates)
 }
 
 // NewBillingLetterMail builds the mail and print of the letters (#4670, ADR 0123) over the post the root binds.
@@ -50,8 +50,8 @@ func NewBillingFamilies() parentbilling.BillingFamilies {
 }
 
 // NewCareBilling builds the monthly contribution of the care contract (#4684) and its rule chain (#4685) over the contracts, schools and settings the root binds.
-func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings) (parentbilling.CareBilling, parentbilling.CareReductions) {
-	return application.NewCareBilling(postgres.NewStore(), contracts, schools, settings, rendering.NewRenderer(), calendar.TodayDate), application.NewCareReductions(postgres.NewStore(), contracts, schools, calendar.TodayDate)
+func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings, templates parentbilling.BillingDocumentTemplates) (parentbilling.CareBilling, parentbilling.CareReductions) {
+	return application.NewCareBilling(postgres.NewStore(), contracts, schools, settings, rendering.NewRenderer(), templates, calendar.TodayDate), application.NewCareReductions(postgres.NewStore(), contracts, schools, calendar.TodayDate)
 }
 
 // NewCareLetters builds the letters, mail, print and Storno of the monthly runs (#4684, ADR 0165) over the ports the root binds.

@@ -225,7 +225,7 @@ func creditOf(invoice parentbilling.BillingDocument, child parentbilling.Billing
 func correctionOf(invoice parentbilling.BillingDocument, kind, reason string) parentbilling.BillingDocument {
 	reference := invoice.ID
 	return parentbilling.BillingDocument{
-		Kind: kind, ReferenceDocumentID: &reference, ReferenceNumber: invoice.Number, Reason: reason,
+		Kind: kind, DocumentKind: invoice.DocumentKind, ReferenceDocumentID: &reference, ReferenceNumber: invoice.Number, Reason: reason,
 		RegistrationID: invoice.RegistrationID, RecipientFirstName: invoice.RecipientFirstName,
 		RecipientLastName: invoice.RecipientLastName, RecipientEmail: invoice.RecipientEmail,
 		RecipientAddress: invoice.RecipientAddress, DebtorNumber: invoice.DebtorNumber,

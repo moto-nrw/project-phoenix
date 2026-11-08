@@ -73,11 +73,21 @@ func sampleFacts(kind Kind, values map[string]Value) []Row {
 		}
 	}
 	if len(facts) > 0 {
-		facts = append(facts, Row{Label: "Debitorennummer", Value: sampleDebtorNumber})
+		facts = append(facts, Row{Label: DebtorNumberLabel(kind), Value: sampleDebtorNumber})
 	}
 	facts = append(facts, Row{Label: "Datum", Value: samples[pDate.Name].Text})
 	if _, ok := values[pDue.Name]; ok {
 		facts = append(facts, Row{Label: "Zahlen bis", Value: samples[pDue.Name].Text})
 	}
 	return facts
+}
+
+// DebtorNumberLabel names the debtor number beside the address field: a fee
+// notice calls it Buchungszeichen, as the notices of a municipality do
+// (Hardt, MK-007, #4688).
+func DebtorNumberLabel(kind Kind) string {
+	if kind == KindFeeNotice {
+		return "Buchungszeichen"
+	}
+	return "Debitorennummer"
 }

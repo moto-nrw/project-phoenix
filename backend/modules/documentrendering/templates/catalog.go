@@ -102,7 +102,10 @@ var catalog = map[Kind]kindCatalog{
 		},
 	},
 	KindFeeNotice: {
-		placeholders: with(pNoticeNumber, pPeriod, pPositions, pTotal, pDue, pPaymentNote),
+		// The debtor number is the Buchungszeichen of a notice (Hardt,
+		// MK-007, #4688). The legal remedy is a part of the template of its
+		// own, which the Träger writes (Template.LegalRemedy).
+		placeholders: with(pNoticeNumber, pPeriod, pDebtorNumber, pPositions, pTotal, pDue, pPaymentNote),
 		standard: Template{
 			Subject:    "Bescheid über den Elternbeitrag {{bescheidnummer}}",
 			Salutation: standardSalutation,

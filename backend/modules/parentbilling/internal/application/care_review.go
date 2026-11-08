@@ -39,10 +39,12 @@ type CareReviewStore interface {
 }
 
 // reviewedMonth is the preview of a calculated run: the invoices the
-// release issues, those it leaves out, and the state the reviewer checks.
+// release issues, those it leaves out, the kind of document they would be
+// issued as (#4688) and the state the reviewer checks.
 type reviewedMonth struct {
 	careMonth
 	excluded    []parentbilling.CareInvoice
+	kind        parentbilling.DocumentKindState
 	fingerprint string
 }
 
@@ -58,6 +60,17 @@ func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run pa
 		return "", reviewedMonth{}, err
 	}
 	review := narrowMonth(month, run.SchoolIDs, exclusions)
+	// Every draft carries the kind of document the release would freeze,
+	// so the fingerprint changes when the Abrechnung chooses another kind
+	// after the review (#4688).
+	if review.kind, err = c.kinds.current(ctx, organizationID, parentbilling.ServiceCare); err != nil {
+		return "", reviewedMonth{}, err
+	}
+	for _, drafts := range [][]parentbilling.CareInvoice{review.invoices, review.excluded} {
+		for i := range drafts {
+			drafts[i].DocumentKind = review.kind.DocumentKind
+		}
+	}
 	review.fingerprint = previewFingerprint(run, rule, review)
 	return rule, review, nil
 }
@@ -340,6 +353,7 @@ func (c *CareBilling) reviewDetail(ctx context.Context, organizationID int64, de
 	detail.Duplicates = review.duplicates
 	detail.Invoices = append(review.invoices, review.excluded...)
 	detail.Fingerprint = review.fingerprint
+	detail.DocumentKindState = review.kind
 	for _, invoice := range review.excluded {
 		detail.ExcludedCount++
 		detail.ExcludedCents += invoice.TotalCents
@@ -390,6 +404,11 @@ func (c *CareBilling) issueReviewed(ctx context.Context, organizationID int64, r
 	}
 	if len(month.invoices) == 0 {
 		return rule, month, issuedOn, nil
+	}
+	// No fee notice without its legal remedy (#4688); the drafts already
+	// carry the kind the fingerprint covers.
+	if month.kind.LegalRemedyMissing {
+		return "", reviewedMonth{}, "", parentbilling.ErrLegalRemedyMissing
 	}
 	pattern, err := numberPatternOf(ctx, c.store, organizationID, parentbilling.ServiceCare)
 	if err != nil {

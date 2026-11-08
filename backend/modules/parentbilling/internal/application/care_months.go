@@ -52,6 +52,8 @@ type CareStore interface {
 	ReserveNumbers(ctx context.Context, organizationID int64, service string, year, count int) (int64, error)
 	// CareReviewStore keeps the review of a run (#5916).
 	CareReviewStore
+	// DocumentKindStore keeps the kind of document of each service (#4688).
+	DocumentKindStore
 }
 
 // CareBilling serves parentbilling.CareBilling. The contract versions and
@@ -64,6 +66,7 @@ type CareBilling struct {
 	schools   parentbilling.CareSchools
 	settings  parentbilling.CareBillingSettings
 	renderer  TableRenderer
+	kinds     documentKindGate
 	today     func() calendar.Date
 }
 
@@ -71,14 +74,17 @@ var _ parentbilling.CareBilling = (*CareBilling)(nil)
 
 // NewCareBilling builds the monthly billing. today is the issue date of a
 // release without an invoice date and the start of the price list's look
-// ahead; renderer renders the review list (#5916).
+// ahead; renderer renders the review list (#5916); templates tell whether
+// a fee notice has its legal remedy (#4688).
 func NewCareBilling(store CareStore, contracts parentbilling.CareContracts, schools parentbilling.CareSchools,
-	settings parentbilling.CareBillingSettings, renderer TableRenderer, today func() calendar.Date,
+	settings parentbilling.CareBillingSettings, renderer TableRenderer, templates parentbilling.BillingDocumentTemplates,
+	today func() calendar.Date,
 ) *CareBilling {
 	if store == nil || contracts == nil || schools == nil || settings == nil || renderer == nil || today == nil {
 		panic("parent billing: the store, the care contracts, the schools, the settings, the renderer and the clock are required")
 	}
-	return &CareBilling{store: store, contracts: contracts, schools: schools, settings: settings, renderer: renderer, today: today}
+	return &CareBilling{store: store, contracts: contracts, schools: schools, settings: settings, renderer: renderer,
+		kinds: newDocumentKindGate(store, templates), today: today}
 }
 
 // CareTariffs reads the price list with the schools of the Träger and the
@@ -538,6 +544,9 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.CareRunDetail{}, err
 		}
 		detail.Duplicates = holdView(holds)
+		if len(invoices) > 0 {
+			detail.DocumentKind = invoices[0].DocumentKind
+		}
 	} else if err := c.reviewDetail(ctx, reviewer.OrganizationID, &detail); err != nil {
 		return parentbilling.CareRunDetail{}, err
 	}

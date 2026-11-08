@@ -153,6 +153,9 @@ func (l *CareLetters) CreateCareLetters(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.CareLetters{}, err
 	}
+	if head, err = withNoticeTemplate(ctx, l.letterheads, reviewer.OrganizationID, head, invoices[0].DocumentKind, true); err != nil {
+		return parentbilling.CareLetters{}, err
+	}
 	set, err := l.store.InsertCareRunLetters(ctx, reviewer.OrganizationID, current.run.ID, reviewer.AccountID, input)
 	if err != nil {
 		return parentbilling.CareLetters{}, err
@@ -188,6 +191,9 @@ func (l *CareLetters) PreviewCareLetter(ctx context.Context, reviewer parentbill
 	}
 	head, err := l.letterhead(ctx, reviewer)
 	if err != nil {
+		return parentbilling.BillingLetterFile{}, err
+	}
+	if head, err = withNoticeTemplate(ctx, l.letterheads, reviewer.OrganizationID, head, invoices[0].DocumentKind, true); err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
 	file, err := l.render(careLetterContent{run: current.run, invoice: invoices[0], input: input, letterhead: head})
@@ -327,6 +333,9 @@ func (l *CareLetters) cancellationLetter(ctx context.Context, reviewer parentbil
 	if err != nil {
 		return sent, printed, err
 	}
+	if head, err = withNoticeTemplate(ctx, l.letterheads, reviewer.OrganizationID, head, invoice.DocumentKind, false); err != nil {
+		return sent, printed, err
+	}
 	content := careLetterContent{run: current.run, invoice: invoice, cancellation: &cancellation,
 		input: parentbilling.CareLetterInput{PaymentDueOn: current.letters.PaymentDueOn, Notes: current.letters.Notes}, letterhead: head}
 	return sent, printed, l.storeLetter(ctx, reviewer, current, content)
@@ -375,15 +384,36 @@ func (l *CareLetters) storeLetter(ctx context.Context, reviewer parentbilling.Ho
 }
 
 func (l *CareLetters) render(content careLetterContent) (parentbilling.BillingLetterFile, error) {
-	letter, filename := careInvoiceLetter(content), "rechnung-"+content.invoice.Number
-	if content.cancellation != nil {
+	notice := content.invoice.DocumentKind == parentbilling.DocumentKindFeeNotice
+	var letter Letter
+	var filename string
+	switch {
+	case content.cancellation != nil && notice:
+		letter, filename = careNoticeCancellationLetter(content), "aufhebungsbescheid-"+content.cancellation.Number
+	case content.cancellation != nil:
 		letter, filename = careCancellationLetter(content), "storno-"+content.cancellation.Number
+	case notice:
+		letter, filename = careNoticeLetter(content), "gebuehrenbescheid-"+content.invoice.Number
+	default:
+		letter, filename = careInvoiceLetter(content), "rechnung-"+content.invoice.Number
 	}
 	file, err := l.renderer.RenderLetter(letter, filename)
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, fmt.Errorf("parent billing: render care letter: %w", err)
 	}
 	return file, nil
+}
+
+// withNoticeTemplate puts the Träger's template of the fee notice on the
+// letterhead of a monthly fee notice (#4688). A monthly invoice keeps its
+// built-in text and reads no template.
+func withNoticeTemplate(ctx context.Context, templates parentbilling.BillingDocumentTemplates, organizationID int64,
+	head parentbilling.Letterhead, documentKind string, required bool,
+) (parentbilling.Letterhead, error) {
+	if documentKind != parentbilling.DocumentKindFeeNotice {
+		return head, nil
+	}
+	return withDocumentTemplate(ctx, templates, organizationID, head, documentKind, required)
 }
 
 // letterhead reads the layout of the Träger; a letter asks for payment, so

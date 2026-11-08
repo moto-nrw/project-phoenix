@@ -58,5 +58,7 @@
   "care_rule_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "care_evidence_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "care_evidence_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "care_evidence_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "care_evidence_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "document_kind_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "legal_remedy_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

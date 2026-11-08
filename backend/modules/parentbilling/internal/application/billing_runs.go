@@ -79,6 +79,8 @@ type RunStore interface {
 	// RegistrationConfirmations names when each registration of the period
 	// with a frozen contribution was confirmed (#5627).
 	RegistrationConfirmations(ctx context.Context, organizationID, periodID int64) (map[int64]time.Time, error)
+	// DocumentKindStore keeps the kind of document of each service (#4688).
+	DocumentKindStore
 }
 
 // BillingRuns serves parentbilling.BillingRuns. The period and its confirmed
@@ -90,20 +92,23 @@ type BillingRuns struct {
 	registrations parentbilling.HolidayBillingRegistrations
 	settings      parentbilling.HolidayBillingSettings
 	renderer      TableRenderer
+	kinds         documentKindGate
 	today         func() calendar.Date
 }
 
 var _ parentbilling.BillingRuns = (*BillingRuns)(nil)
 
 // NewBillingRuns builds the billing runs. renderer renders the overview of
-// a released run; today is the issue date of a release.
+// a released run; templates tell whether a fee notice has its legal remedy
+// (#4688); today is the issue date of a release.
 func NewBillingRuns(store RunStore, registrations parentbilling.HolidayBillingRegistrations, settings parentbilling.HolidayBillingSettings,
-	renderer TableRenderer, today func() calendar.Date,
+	renderer TableRenderer, templates parentbilling.BillingDocumentTemplates, today func() calendar.Date,
 ) *BillingRuns {
 	if store == nil || registrations == nil || settings == nil || renderer == nil || today == nil {
 		panic("parent billing: the store, the holiday registrations, the settings, the renderer and the clock are required")
 	}
-	return &BillingRuns{store: store, registrations: registrations, settings: settings, renderer: renderer, today: today}
+	return &BillingRuns{store: store, registrations: registrations, settings: settings, renderer: renderer,
+		kinds: newDocumentKindGate(store, templates), today: today}
 }
 
 func validReviewer(reviewer parentbilling.HolidayReviewer) error {
@@ -266,6 +271,10 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 	if len(current.documents) != release.DocumentCount || current.total() != release.TotalCents {
 		return parentbilling.BillingRunDetail{}, parentbilling.ErrBillingRunChanged
 	}
+	documentKind, err := b.releasedKind(ctx, reviewer.OrganizationID, run.Service, release)
+	if err != nil {
+		return parentbilling.BillingRunDetail{}, err
+	}
 	issuedOn := b.today()
 	year := numberYear(pattern, issuedOn.Year())
 	first, err := b.store.ReserveNumbers(ctx, reviewer.OrganizationID, run.Service, year, len(current.documents))
@@ -276,6 +285,7 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 	for i := range documents {
 		documents[i].Number = formatInvoiceNumber(pattern, issuedOn.Year(), first+int64(i))
 		documents[i].IssuedOn = &issuedOn
+		documents[i].DocumentKind = documentKind
 	}
 	if err := b.store.IssueDocuments(ctx, reviewer.OrganizationID, run, year, first, documents); err != nil {
 		return parentbilling.BillingRunDetail{}, err
@@ -289,10 +299,24 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 		return parentbilling.BillingRunDetail{}, err
 	}
 	if err := b.store.InsertRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRelease,
-		map[string]any{"document_count": len(documents), "total_cents": current.total(), "carried_corrections": carried}); err != nil {
+		map[string]any{"document_count": len(documents), "total_cents": current.total(), "carried_corrections": carried, "document_kind": documentKind}); err != nil {
 		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: record release: %w", err)
 	}
 	return b.detail(ctx, reviewer, released)
+}
+
+// releasedKind is the kind of document the release freezes: the kind the
+// service issues now, never a fee notice without its legal remedy, and only
+// the kind the Abrechnung saw (#4688).
+func (b *BillingRuns) releasedKind(ctx context.Context, organizationID int64, service string, release parentbilling.BillingRelease) (string, error) {
+	documentKind, err := b.kinds.issuable(ctx, organizationID, service)
+	if err != nil {
+		return "", err
+	}
+	if release.DocumentKind != "" && release.DocumentKind != documentKind {
+		return "", parentbilling.ErrBillingRunChanged
+	}
+	return documentKind, nil
 }
 
 // ListNumberRanges lists the number range of every service, with the
@@ -427,12 +451,16 @@ func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.Holiday
 		if detail.Documents, detail.Letters, err = b.issued(ctx, reviewer.OrganizationID, run.ID); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
+		detail.DocumentKind = issuedDocumentKind(detail.Documents)
 	} else {
 		current, err := b.preview(ctx, reviewer, run)
 		if err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
 		detail.Documents, detail.Unbilled = current.documents, current.unbilled
+		if err := b.previewKind(ctx, reviewer.OrganizationID, &detail); err != nil {
+			return parentbilling.BillingRunDetail{}, err
+		}
 		if detail.MissingDebtorNumbers, detail.PaymentTextMissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
@@ -553,4 +581,29 @@ func (b *BillingRuns) missingDebtorNumbers(ctx context.Context, organizationID i
 		}
 	}
 	return asked, forPaymentText, nil
+}
+
+// previewKind names on the preview the kind of document the release would
+// freeze now and whether it lacks the legal remedy (#4688).
+func (b *BillingRuns) previewKind(ctx context.Context, organizationID int64, detail *parentbilling.BillingRunDetail) error {
+	state, err := b.kinds.current(ctx, organizationID, detail.Service)
+	if err != nil {
+		return err
+	}
+	detail.DocumentKindState = state
+	for i := range detail.Documents {
+		detail.Documents[i].DocumentKind = state.DocumentKind
+	}
+	return nil
+}
+
+// issuedDocumentKind is the kind a released run froze: the kind of its
+// invoices, which one release issued together (#4688).
+func issuedDocumentKind(documents []parentbilling.BillingDocument) string {
+	for _, document := range documents {
+		if document.Kind == parentbilling.DocumentInvoice {
+			return document.DocumentKind
+		}
+	}
+	return ""
 }

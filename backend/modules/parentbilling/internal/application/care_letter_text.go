@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -221,4 +222,89 @@ func careRuleEffect(reduction parentbilling.CareReduction) string {
 		return formatEuro(*reduction.DiscountCents) + " weniger"
 	}
 	return ""
+}
+
+// careNoticeLetter writes the fee notice of one issued monthly invoice
+// (#4688): the Träger's template of the fee notice, filled with the values
+// of the invoice, and its legal remedy after the body. Address field,
+// facts and footer stay those of the monthly letters.
+func careNoticeLetter(content careLetterContent) Letter {
+	invoice, head := content.invoice, content.letterhead
+	values := careNoticeValues(content)
+	filled := templates.Fill(letterTemplate(head.Template, templates.KindFeeNotice), values)
+	letter := careLetterFrame(content, "Gebührenbescheid "+invoice.Number, filled.Subject)
+	letter.Facts = careLetterFacts(content, []LetterFact{{Label: "Bescheidnummer", Value: invoice.Number}})
+	if filled.Salutation != "" {
+		letter.Salutation = filled.Salutation
+	}
+	if len(filled.Closing) > 0 {
+		letter.Closing = filled.Closing
+	}
+	letter.Blocks = append(letterBlocks(filled.Blocks), legalRemedyBlocks(filled.LegalRemedy)...)
+	return letter
+}
+
+// careNoticeValues are the values of every placeholder of the fee notice for
+// one monthly invoice. A monthly invoice has no debtor number yet (#4689).
+func careNoticeValues(content careLetterContent) map[string]templates.Value {
+	invoice, head := content.invoice, content.letterhead
+	text := func(value string) templates.Value { return templates.Value{Text: strings.TrimSpace(value)} }
+	rows := []templates.Row{}
+	for _, fact := range append(carePositionFacts(invoice.Positions, 1), careReductionFacts(invoice.Reductions, 1)...) {
+		rows = append(rows, templates.Row{Label: fact.Label, Value: fact.Value})
+	}
+	rows = append(rows, templates.Row{Label: "Gesamtbetrag", Value: formatEuro(invoice.TotalCents), Bold: true})
+	values := map[string]templates.Value{
+		"familienname":    text(invoice.Recipient.LastName),
+		"kinder":          text(fullName(invoice.ChildFirstName, invoice.ChildLastName)),
+		"traeger":         text(firstLine(textLines(head.SenderText))),
+		"ansprechperson":  text(head.ContactName),
+		"rueckfragen":     text(questionText(head)),
+		"zeitraum":        text(careMonthName(content.run.BillingMonth)),
+		"bescheidnummer":  text(invoice.Number),
+		"debitorennummer": {},
+		"positionen":      {Rows: rows},
+		"summe":           text(formatEuro(invoice.TotalCents)),
+		"zahlungshinweis": text(carePaymentText(content)),
+		"datum":           {},
+		"zahlen_bis":      {},
+	}
+	if invoice.IssuedOn != nil {
+		values["datum"] = text(germanDate(*invoice.IssuedOn))
+	}
+	if invoice.TotalCents > 0 {
+		values["zahlen_bis"] = text(germanDate(content.input.PaymentDueOn))
+	}
+	return values
+}
+
+// careNoticeCancellationLetter writes the Aufhebungsbescheid of a monthly
+// fee notice (#4688): the Storno lifts the notice as a whole and prints the
+// legal remedy when the template has one.
+func careNoticeCancellationLetter(content careLetterContent) Letter {
+	invoice, cancellation, head := content.invoice, *content.cancellation, content.letterhead
+	letter := careLetterFrame(content, "Aufhebungsbescheid "+cancellation.Number+" zum Bescheid "+invoice.Number,
+		"Aufhebungsbescheid zum Bescheid "+invoice.Number+": "+carePeriodName(content.run.BillingMonth))
+	letter.Facts = careLetterFacts(content, []LetterFact{
+		{Label: "Aufhebungsbescheid-Nummer", Value: cancellation.Number}, {Label: "Zum Bescheid", Value: invoice.Number},
+	})
+	reference := invoice.Number
+	if invoice.IssuedOn != nil {
+		reference += " vom " + germanDate(*invoice.IssuedOn)
+	}
+	letter.Blocks = []LetterBlock{
+		{Text: fmt.Sprintf("wir heben den Gebührenbescheid %s für %s auf. Grund: %s",
+			reference, carePeriodName(content.run.BillingMonth), sentence(cancellation.Reason))},
+		{Facts: append(append(carePositionFacts(invoice.Positions, -1), careReductionFacts(invoice.Reductions, -1)...),
+			LetterFact{Label: "Aufgehoben gesamt", Value: formatEuro(cancellation.TotalCents), Bold: true})},
+		{Text: "Der Bescheid gilt nicht mehr. Sie müssen den Betrag nicht bezahlen. Haben Sie schon bezahlt? Dann melden Sie sich bitte bei uns.", Bold: true},
+	}
+	if question := questionText(head); question != "" {
+		letter.Blocks = append(letter.Blocks, LetterBlock{Text: question})
+	}
+	if remedy := strings.TrimSpace(head.Template.LegalRemedy); remedy != "" {
+		filled := templates.Fill(templates.Template{LegalRemedy: remedy}, careNoticeValues(content))
+		letter.Blocks = append(letter.Blocks, legalRemedyBlocks(filled.LegalRemedy)...)
+	}
+	return letter
 }

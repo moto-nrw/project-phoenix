@@ -120,6 +120,7 @@ type documentRow struct {
 	ServiceUntil          calendar.Date `bun:"service_until,type:date"`
 	TotalCents            int64         `bun:"total_cents"`
 	Kind                  string        `bun:"kind"`
+	DocumentKind          string        `bun:"document_kind"`
 	ReferenceDocumentID   *int64        `bun:"reference_document_id"`
 	Reason                string        `bun:"reason"`
 	// ReferenceNumber is the number of the referenced document, read with
@@ -580,7 +581,7 @@ func (s *Store) selectDocuments(ctx context.Context, organizationID int64, where
 			RecipientFirstName: row.RecipientFirstName, RecipientLastName: row.RecipientLastName, RecipientEmail: row.RecipientEmail,
 			ServiceFrom: row.ServiceFrom, ServiceUntil: row.ServiceUntil, Children: issuedChildren(byDocument[row.ID]),
 			TotalCents: row.TotalCents, RecipientAddress: row.recipientAddress(),
-			Kind: row.Kind, ReferenceDocumentID: row.ReferenceDocumentID, ReferenceNumber: row.ReferenceNumber, Reason: row.Reason,
+			Kind: row.Kind, DocumentKind: row.DocumentKind, ReferenceDocumentID: row.ReferenceDocumentID, ReferenceNumber: row.ReferenceNumber, Reason: row.Reason,
 		}
 		if row.DebtorNumber != nil {
 			documents[i].DebtorNumber = *row.DebtorNumber
@@ -603,6 +604,11 @@ func issuedDocumentRow(organizationID int64, run parentbilling.BillingRun, year 
 	}
 	if row.Kind == "" {
 		row.Kind = parentbilling.DocumentInvoice
+	}
+	// A document without a kind of document is issued as before #4688.
+	row.DocumentKind = document.DocumentKind
+	if row.DocumentKind == "" {
+		row.DocumentKind = parentbilling.DocumentKindConfirmation
 	}
 	if address := document.RecipientAddress; address != nil {
 		row.RecipientStreet, row.RecipientPostalCode, row.RecipientCity = &address.Street, &address.PostalCode, &address.City

@@ -58,5 +58,7 @@
   "care_rule_in_use": "{object} could not be changed. Please check its current status.",
   "care_evidence_invalid": "{object} could not be saved. Please check your entries.",
   "care_evidence_not_found": "{object} could not be changed. Please check its current status.",
-  "care_evidence_overlap": "{object} could not be changed. Please check its current status."
+  "care_evidence_overlap": "{object} could not be changed. Please check its current status.",
+  "document_kind_invalid": "{object} could not be saved. Please check your entries.",
+  "legal_remedy_missing": "{object} could not be changed. Please check its current status."
 }

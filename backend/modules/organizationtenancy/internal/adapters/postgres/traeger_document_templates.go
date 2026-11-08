@@ -24,6 +24,8 @@ type traegerTemplateRow struct {
 	// The layout of the table of amounts (#5691).
 	GroupByChild   bool `bun:"invoice_group_by_child"`
 	HideTimeModels bool `bun:"invoice_hide_time_models"`
+	// The legal remedy of a fee notice (#4688).
+	LegalRemedy string `bun:"legal_remedy"`
 }
 
 func (r traegerTemplateRow) toDomain() organizationtenancy.TraegerDocumentTemplate {
@@ -32,14 +34,15 @@ func (r traegerTemplateRow) toDomain() organizationtenancy.TraegerDocumentTempla
 		Kind: templates.Kind(r.Kind), Version: r.Version, CreatedAt: &createdAt,
 		Template: templates.Template{
 			Subject: r.Subject, Salutation: r.Salutation, Body: r.Body, Closing: r.Closing,
-			Invoice: templates.InvoiceLayout{GroupByChild: r.GroupByChild, HideTimeModels: r.HideTimeModels},
+			Invoice:     templates.InvoiceLayout{GroupByChild: r.GroupByChild, HideTimeModels: r.HideTimeModels},
+			LegalRemedy: r.LegalRemedy,
 		},
 	}
 }
 
 const (
 	traegerTemplateColumns = `kind, version, subject, salutation, body, closing, created_at,
-		invoice_group_by_child, invoice_hide_time_models`
+		invoice_group_by_child, invoice_hide_time_models, legal_remedy`
 	latestTraegerTemplateQuery = `SELECT DISTINCT ON (kind) ` + traegerTemplateColumns + `
 		FROM platform.traeger_document_templates
 		WHERE organization_id = ?
@@ -50,8 +53,8 @@ const (
 		ORDER BY version DESC`
 	insertTraegerTemplateQuery = `INSERT INTO platform.traeger_document_templates
 		(organization_id, kind, version, subject, salutation, body, closing, created_by,
-			invoice_group_by_child, invoice_hide_time_models)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			invoice_group_by_child, invoice_hide_time_models, legal_remedy)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING ` + traegerTemplateColumns
 )
 
@@ -96,7 +99,7 @@ func (s *TraegerMasterDataStore) InsertTemplateVersion(ctx context.Context, orga
 	var rows []traegerTemplateRow
 	if err := db.NewRaw(insertTraegerTemplateQuery, organizationID, string(kind), version,
 		template.Subject, template.Salutation, template.Body, template.Closing, traegerActor(accountID),
-		template.Invoice.GroupByChild, template.Invoice.HideTimeModels).Scan(ctx, &rows); err != nil {
+		template.Invoice.GroupByChild, template.Invoice.HideTimeModels, template.LegalRemedy).Scan(ctx, &rows); err != nil {
 		return organizationtenancy.TraegerDocumentTemplate{}, fmt.Errorf("organization tenancy postgres: insert document template: %w", err)
 	}
 	if len(rows) != 1 {

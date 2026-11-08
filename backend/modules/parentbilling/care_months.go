@@ -208,7 +208,11 @@ type CareInvoice struct {
 	// (#5916).
 	Exclusion *CareExclusion `json:"exclusion,omitempty"`
 	Recipient CareRecipient  `json:"recipient"`
-	Positions []CarePosition `json:"positions"`
+	// DocumentKind is the kind of document the release froze (#4688); a
+	// draft carries the kind its release would freeze now, so the
+	// fingerprint of the review covers it.
+	DocumentKind string         `json:"document_kind,omitempty"`
+	Positions    []CarePosition `json:"positions"`
 	// Reductions are the rules of the chain in their order (#4685); the
 	// total is the positions less the reductions.
 	Reductions []CareReduction `json:"reductions"`
@@ -291,6 +295,8 @@ type CareRunDetail struct {
 	NumberRangeSet    bool   `json:"number_range_set"`
 	// CareRunReviewState is the review of a calculated run (#5916).
 	CareRunReviewState
+	// DocumentKindState is the kind the run issues (#4688).
+	DocumentKindState
 }
 
 // CareContractService is a booked module of a contract version on a

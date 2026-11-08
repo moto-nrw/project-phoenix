@@ -116,6 +116,7 @@ type careInvoiceRow struct {
 	TotalCents         int64         `bun:"total_cents"`
 	ReplacesInvoiceID  *int64        `bun:"replaces_invoice_id"`
 	StudentID          *int64        `bun:"student_id"`
+	DocumentKind       string        `bun:"document_kind"`
 }
 
 type careInvoicePositionRow struct {
@@ -446,7 +447,11 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 			ChildLastName: invoice.ChildLastName, RecipientFirstName: invoice.Recipient.FirstName,
 			RecipientLastName: invoice.Recipient.LastName, RecipientEmail: invoice.Recipient.Email,
 			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[invoice.ContractID],
-			StudentID: invoice.StudentID,
+			StudentID: invoice.StudentID, DocumentKind: invoice.DocumentKind,
+		}
+		// An invoice without a kind of document is issued as before #4688.
+		if rows[i].DocumentKind == "" {
+			rows[i].DocumentKind = parentbilling.DocumentKindInvoice
 		}
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
@@ -561,6 +566,7 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 			SchoolName: row.SchoolName, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName, StudentID: row.StudentID,
 			Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail},
 			Positions: byInvoice[row.ID], Reductions: reductions[row.ID], TotalCents: row.TotalCents,
+			DocumentKind: row.DocumentKind,
 		}
 		if invoices[i].Reductions == nil {
 			invoices[i].Reductions = []parentbilling.CareReduction{}

@@ -151,3 +151,47 @@ func TestFillPreservesStandaloneTablesAnywhereInAParagraph(t *testing.T) {
 		})
 	}
 }
+
+func TestOnlyTheFeeNoticeCarriesALegalRemedyAndItsFillKeepsParagraphs(t *testing.T) {
+	t.Parallel()
+	for _, kind := range templates.Kinds() {
+		assert.Equal(t, kind == templates.KindFeeNotice, templates.HasLegalRemedy(kind), kind)
+	}
+	// moto writes no legal text: the standard fee notice has none and so
+	// cannot be issued until the Träger writes one.
+	assert.True(t, templates.LacksLegalRemedy(templates.KindFeeNotice, templates.Default(templates.KindFeeNotice)))
+	assert.False(t, templates.LacksLegalRemedy(templates.KindInvoice, templates.Default(templates.KindInvoice)))
+
+	err := templates.Check(templates.KindInvoice, templates.Template{Subject: "x", Body: "x", LegalRemedy: "Widerspruch"})
+	var invalid *templates.InvalidError
+	require.ErrorAs(t, err, &invalid)
+	assert.Equal(t, map[string]string{"legal_remedy": "has no legal remedy"}, invalid.Fields)
+
+	err = templates.Check(templates.KindFeeNotice, templates.Template{Subject: "x", Body: "x",
+		LegalRemedy: strings.Repeat("a", templates.MaxLegalRemedyLength+1)})
+	require.ErrorAs(t, err, &invalid)
+	assert.Equal(t, map[string]string{"legal_remedy": "is too long"}, invalid.Fields)
+
+	err = templates.Check(templates.KindFeeNotice, templates.Template{Subject: "x", Body: "x", LegalRemedy: "Beim {{gericht}}"})
+	var unknown *templates.UnknownPlaceholdersError
+	require.ErrorAs(t, err, &unknown)
+	assert.Equal(t, []string{"gericht"}, unknown.Names)
+
+	remedy := templates.Template{Subject: "x", Body: "x",
+		LegalRemedy: "# Rechtsbehelfsbelehrung\r\nGegen diesen Bescheid ist Widerspruch möglich.\r\n\r\nDer Widerspruch ist bei {{traeger}} einzulegen."}
+	normalized := templates.Normalize(remedy)
+	require.NoError(t, templates.Check(templates.KindFeeNotice, normalized))
+	assert.False(t, templates.LacksLegalRemedy(templates.KindFeeNotice, normalized))
+	filled := templates.Fill(normalized, map[string]templates.Value{"traeger": {Text: "Gemeinde Hardt"}})
+	assert.Equal(t, []templates.Block{
+		{Heading: "Rechtsbehelfsbelehrung", Text: "Gegen diesen Bescheid ist Widerspruch möglich."},
+		{Text: "Der Widerspruch ist bei Gemeinde Hardt einzulegen."},
+	}, filled.LegalRemedy)
+}
+
+func TestTheFeeNoticeNamesTheDebtorNumberBuchungszeichen(t *testing.T) {
+	t.Parallel()
+	letter := templates.FillSample(templates.KindFeeNotice, templates.Default(templates.KindFeeNotice))
+	assert.Contains(t, letter.Facts, templates.Row{Label: "Buchungszeichen", Value: "10234"})
+	assert.Equal(t, "Debitorennummer", templates.DebtorNumberLabel(templates.KindInvoice))
+}
