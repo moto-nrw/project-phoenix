@@ -1396,7 +1396,11 @@ function EnrollmentFormsOverview({
       {/* Karte als Flex-Spalte und das Raster darin `flex-1`: wächst die
           Karte bis zur Unterkante, läuft die graue Seitenspalte mit bis
           dorthin, statt über dem Kartenrand zu enden. */}
-      <SectionCard padding="none" className="flex flex-col">
+      <SectionCard
+        padding="none"
+        className="flex flex-col"
+        bodyClassName="flex min-h-0 flex-1 flex-col"
+      >
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div className="compact:p-4 space-y-6 p-5 max-sm:p-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1728,7 +1732,11 @@ function FormTemplateDetail({
   return (
     // Flex-Spalte, siehe die Übersicht derselben Seite.
     <div className="flex flex-col space-y-5">
-      <SectionCard padding="none" className="flex flex-col">
+      <SectionCard
+        padding="none"
+        className="flex flex-col"
+        bodyClassName="flex min-h-0 flex-1 flex-col"
+      >
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div>
             <div className="compact:px-4 border-b border-gray-100 px-5 py-3 max-sm:px-4">
