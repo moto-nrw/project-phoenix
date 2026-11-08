@@ -23,7 +23,9 @@ import (
 // widerrufen“ (§ 356a Abs. 1 Satz 2 BGB), not by a screen path, so a renamed
 // menu never makes a frozen PDF wrong.
 
-var withdrawalDays = strconv.Itoa(carecontract.WithdrawalDays)
+// withdrawalDays is carecontract.WithdrawalDays as the model spells it;
+// TestWithdrawalDaysMatchTheModelWording ties both together.
+const withdrawalDays = "vierzehn"
 
 // EarlyStartText is the block the parents tick in the enrollment form when
 // care shall begin within the withdrawal period. The conclusion at the
@@ -91,6 +93,8 @@ func withdrawalNoticeParagraphs(contact withdrawalContact) []string {
 			"unverzüglich eine Eingangsbestätigung mit Informationen zum Inhalt der Widerrufserklärung sowie dem Datum und der Uhrzeit ihres Eingangs.",
 		"Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.",
 		"Folgen des Widerrufs: Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, " +
+			"einschließlich der Lieferkosten (mit Ausnahme der zusätzlichen Kosten, die sich daraus ergeben, dass Sie eine andere Art der " +
+			"Lieferung als die von uns angebotene, günstigste Standardlieferung gewählt haben), " +
 			"unverzüglich und spätestens binnen " + withdrawalDays + " Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf " +
 			"dieses Vertrags bei uns eingegangen ist. Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen " +
 			"Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart; in keinem Fall werden Ihnen " +
@@ -100,12 +104,6 @@ func withdrawalNoticeParagraphs(contact withdrawalContact) []string {
 			"dieses Vertrags unterrichten, bereits erbrachten Dienstleistungen im Vergleich zum Gesamtumfang der im Vertrag vorgesehenen " +
 			"Dienstleistungen entspricht.",
 	}
-}
-
-// WithdrawalNoticeText is the withdrawal notice of a contract with the
-// Träger named partner, as the enrollment form shows it.
-func WithdrawalNoticeText(partner string) string {
-	return "Widerrufsbelehrung\n\n" + strings.Join(withdrawalNoticeParagraphs(withdrawalContact{Partner: strings.TrimSpace(partner)}), "\n\n")
 }
 
 // withdrawalBlocks are the withdrawal notice, the parents' choice on an
@@ -119,18 +117,17 @@ func withdrawalBlocks(record ContractRecord, contact withdrawalContact) []Letter
 	return []LetterBlock{
 		{Heading: "Widerrufsbelehrung", Text: strings.Join(withdrawalNoticeParagraphs(contact), "\n\n")},
 		{Heading: "Beginn vor Ende der Widerrufsfrist", Text: early},
-		{Heading: "Muster-Widerrufsformular", Text: withdrawalForm(record, contact)},
+		{Heading: "Muster-Widerrufsformular", Text: withdrawalForm("Betreuungsvertrag Nr. "+strconv.FormatInt(record.Summary.ID, 10), contact)},
 	}
 }
 
 // withdrawalForm is the model form of Anlage 2 for a service, with the
-// addressee and the contract filled in.
-func withdrawalForm(record ContractRecord, contact withdrawalContact) string {
+// addressee and the service filled in.
+func withdrawalForm(service string, contact withdrawalContact) string {
 	return strings.Join([]string{
 		"(Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.)",
 		"– An " + contact.details(false) + ":",
-		"– Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über die Erbringung der folgenden Dienstleistung (*): " +
-			"Betreuungsvertrag Nr. " + strconv.FormatInt(record.Summary.ID, 10),
+		"– Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über die Erbringung der folgenden Dienstleistung (*): " + service,
 		"– Bestellt am (*)/erhalten am (*):",
 		"– Name des/der Verbraucher(s):",
 		"– Anschrift des/der Verbraucher(s):",
@@ -151,10 +148,15 @@ func earlyStartRequested(draft NewContract) bool {
 	return false
 }
 
-// withdrawalTexts are the texts the school copies into the enrollment form.
-func withdrawalTexts(terms carecontract.TemplateInput) (string, string) {
+// withdrawalTexts are the texts the school copies into the enrollment form:
+// the notice with the Träger's address from its letterhead and the model
+// form it calls attached, and the early start.
+func withdrawalTexts(terms carecontract.TemplateInput, head carecontract.Letterhead, offering string) (string, string) {
 	if strings.TrimSpace(terms.ContractPartner) == "" {
 		return "", ""
 	}
-	return WithdrawalNoticeText(terms.ContractPartner), EarlyStartText
+	contact := letterContact(terms, head)
+	notice := "Widerrufsbelehrung\n\n" + strings.Join(withdrawalNoticeParagraphs(contact), "\n\n") +
+		"\n\nMuster-Widerrufsformular\n\n" + withdrawalForm("Betreuung im Angebot „"+strings.TrimSpace(offering)+"“", contact)
+	return notice, EarlyStartText
 }

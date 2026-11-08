@@ -10361,7 +10361,7 @@ export const traegerCareContractsTopic =
             "Tragen Sie den Namen des `Vertragspartners` ein, wenn er nicht im Briefkopf steht.",
             "Wählen Sie `Bedingungen speichern`.",
             "Unter `Widerrufsbelehrung für das Anmeldeformular` und `Häkchen „Betreuung vor Ende der Widerrufsfrist“` stehen zwei weitere Texte. Die Schule kopiert beide als eigene Rechtstexte ins Anmeldeformular. Die Belehrung muss bestätigt werden, das Häkchen nicht.",
-            "Die Widerrufsbelehrung ist das gesetzliche Muster. Sie gilt in jedem Bundesland gleich. Dieselbe Belehrung steht im Vertrag, auf der Seite zum Unterschreiben und in der Bestätigung per Mail. Das PDF enthält auch das Muster-Widerrufsformular.",
+            "Die Widerrufsbelehrung ist das gesetzliche Muster. Sie gilt in jedem Bundesland gleich. Dieselbe Belehrung steht im Vertrag, auf der Seite zum Unterschreiben und in der Bestätigung per Mail. Die Anschrift kommt aus Ihrem Briefkopf. Der Text für das Anmeldeformular und das PDF enthalten auch das Muster-Widerrufsformular.",
             "Für `Bei der Annahme`: Tragen Sie den `Vertragspartner` immer ein. Speichern Sie die Bedingungen. Kopieren Sie den Text aus `Gespeicherter Text für das Anmeldeformular` unverändert. Die Schule wählt im Anmeldeformular `Eigene Zustimmung hinzufügen`. Sie trägt ihn unter `Rechtstext / Erklärung` ein. Sie setzt `Muss bestätigt werden` und behält bestehende Rechtstexte bei. Bei mehreren Modulen müssen deren Bedingungen übereinstimmen.",
           ],
         },
