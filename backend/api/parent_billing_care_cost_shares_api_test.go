@@ -230,7 +230,16 @@ func TestCareCostSharesNeedTheRightStayWithTheTraegerAndAreRecorded(t *testing.T
 		assert.Contains(t, []int{http.StatusNotFound, http.StatusBadRequest}, rec.Code,
 			"%s %s of another Träger: %s", request.method, request.path, rec.Body.String())
 	}
-	rec := traegerJSON(t, f.traeger, foreign.token, http.MethodGet, careCostSharesPath, nil)
+	rec := traegerJSON(t, f.traeger, foreign.token, http.MethodPost, "/traeger/cost-bearers",
+		map[string]any{"name": "Fremdes Jugendamt", "active": true})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	foreignBearer := decodeSchoolPortalData[struct {
+		ID int64 `json:"id"`
+	}](t, rec.Body.Bytes()).ID
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careCostSharesPath,
+		careCostShare(contract, "other_subsidy", foreignBearer, map[string]any{"share_cents": 100}))
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "a share never names another Träger's cost bearer: %s", rec.Body.String())
+	rec = traegerJSON(t, f.traeger, foreign.token, http.MethodGet, careCostSharesPath, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.NotContains(t, rec.Body.String(), "Bescheid 51-2030-17", "no share of another Träger")
 	var kept int

@@ -22,8 +22,6 @@ import (
 const (
 	// careCostShareContractKey keeps a share to a contract of its Träger.
 	careCostShareContractKey = "fk_care_cost_shares_contract"
-	// careCostShareBearerKey keeps a share to a cost bearer of its Träger.
-	careCostShareBearerKey = "fk_care_cost_shares_bearer"
 	// careCostShareOverlap keeps one share of a kind per contract and day.
 	careCostShareOverlap = "excl_care_cost_shares_overlap"
 )
@@ -147,14 +145,11 @@ func (s *Store) DeleteCareCostShare(ctx context.Context, organizationID, shareID
 	return contractID, nil
 }
 
-// costShareWriteError names a contract or a cost bearer of another Träger
-// and an overlap.
+// costShareWriteError names a contract of another Träger and an overlap.
 func costShareWriteError(err error) error {
 	switch constraintOf(err) {
 	case careCostShareContractKey:
 		return validation.Errors{"contract_id": errors.New("is no contract of the Träger")}
-	case careCostShareBearerKey:
-		return validation.Errors{"cost_bearer_id": errors.New("must name a cost bearer of the Träger")}
 	case careCostShareOverlap:
 		return parentbilling.ErrCareCostShareOverlap
 	}
@@ -230,20 +225,11 @@ func insertCareCostShares(ctx context.Context, db bun.IDB, organizationID int64,
 	return nil
 }
 
-// careCostSharesOf reads the shares of the invoices just read under the
-// Träger's filter, by invoice and position.
-func careCostSharesOf(ctx context.Context, db bun.IDB, organizationID int64, invoiceIDs []int64) (map[int64][]parentbilling.CareInvoiceCostShare, error) {
-	var rows []careInvoiceCostShareRow
-	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).
-		Where("invoice_id = ANY(?)", pgdialect.Array(invoiceIDs)).OrderExpr("invoice_id, position").Scan(ctx); err != nil {
-		return nil, fmt.Errorf("read care invoice cost shares: %w", err)
-	}
-	byInvoice := map[int64][]parentbilling.CareInvoiceCostShare{}
-	for _, row := range rows {
-		byInvoice[row.InvoiceID] = append(byInvoice[row.InvoiceID], parentbilling.CareInvoiceCostShare{
-			Kind: row.Kind, CostBearerID: row.CostBearerID, CostBearerName: row.CostBearerName,
-			ShareBasisPoints: row.ShareBasisPoints, ShareCents: row.ShareCents, AmountCents: row.AmountCents,
-		})
-	}
-	return byInvoice, nil
-}
+// careInvoiceCostSharesColumn reads the shares of each invoice under its own
+// Träger, by position, as one JSON array beside the invoice row.
+const careInvoiceCostSharesColumn = `COALESCE((SELECT jsonb_agg(jsonb_build_object(
+		'kind', share.kind, 'cost_bearer_id', share.cost_bearer_id, 'cost_bearer_name', share.cost_bearer_name,
+		'share_basis_points', share.share_basis_points, 'share_cents', share.share_cents, 'amount_cents', share.amount_cents)
+		ORDER BY share.position)
+	FROM parent_billing.care_invoice_cost_shares AS share
+	WHERE share.organization_id = care_invoice_row.organization_id AND share.invoice_id = care_invoice_row.id), '[]'::jsonb) AS cost_shares`

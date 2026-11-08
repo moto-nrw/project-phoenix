@@ -127,6 +127,9 @@ type careInvoiceRow struct {
 	PaymentMethod       *string        `bun:"payment_method"`
 	DueOn               *calendar.Date `bun:"due_on,type:date"`
 	DueSource           *string        `bun:"due_source"`
+	// CostShares are the issued cost bearer shares (#4687), read in the same
+	// statement as the invoice.
+	CostShares []parentbilling.CareInvoiceCostShare `bun:"cost_shares,type:jsonb,scanonly"`
 }
 
 // invoice is the issued invoice of the row with its positions and reductions
@@ -568,8 +571,9 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 		return nil, err
 	}
 	var rows []careInvoiceRow
-	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).Where("run_id = ?", runID).
-		OrderExpr("number_sequence").Scan(ctx); err != nil {
+	if err := db.NewSelect().Model(&rows).ColumnExpr("?TableColumns").ColumnExpr(careInvoiceCostSharesColumn).
+		Where("care_invoice_row.organization_id = ?", organizationID).Where("care_invoice_row.run_id = ?", runID).
+		OrderExpr("care_invoice_row.number_sequence").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read care invoices: %w", err)
 	}
 	if len(rows) == 0 {
@@ -590,10 +594,6 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	if err != nil {
 		return nil, err
 	}
-	shares, err := careCostSharesOf(ctx, db, organizationID, ids)
-	if err != nil {
-		return nil, err
-	}
 	byInvoice := map[int64][]parentbilling.CarePosition{}
 	for _, row := range positions {
 		position := parentbilling.CarePosition{
@@ -608,8 +608,8 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	invoices := make([]parentbilling.CareInvoice, len(rows))
 	for i, row := range rows {
 		invoices[i] = row.invoice(byInvoice[row.ID], reductions[row.ID])
-		if list, ok := shares[row.ID]; ok {
-			invoices[i].CostShares = list
+		if len(row.CostShares) > 0 {
+			invoices[i].CostShares = row.CostShares
 		}
 	}
 	return invoices, nil

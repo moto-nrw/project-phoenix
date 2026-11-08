@@ -36,6 +36,9 @@ type CareCostShareStore interface {
 	// contract.
 	InsertCareCostShareEvents(ctx context.Context, organizationID, accountID int64, action string, shareID *int64, contractIDs []int64) error
 	ListCostBearers(ctx context.Context, organizationID int64) ([]parentbilling.CostBearer, error)
+	// LockCostBearer reads a cost bearer of the Träger and holds its row
+	// until the transaction ends; ErrCostBearerNotFound for another Träger's.
+	LockCostBearer(ctx context.Context, organizationID, costBearerID int64, exclusive bool) (parentbilling.CostBearer, error)
 }
 
 // CareCostShares lists the contracts in force with their shares and the
@@ -147,20 +150,22 @@ func (c *CareReductions) SaveCareCostShare(ctx context.Context, reviewer parentb
 	return c.CareCostShares(ctx, reviewer)
 }
 
-// bearerOffered refuses a cost bearer the Träger switched off, unless the
-// share already names it: a switched-off cost bearer stays on the shares
-// that have it but is offered for no new one (#5627).
+// bearerOffered holds the cost bearer of the Träger the share names under a
+// shared row lock until the transaction ends, so a deletion of the cost
+// bearer waits and then sees the share (#5627: the share names it without a
+// foreign key). It refuses a cost bearer of another Träger and one the
+// Träger switched off, unless the share already names it: a switched-off
+// cost bearer stays on the shares that have it but is offered for no new one.
 func (c *CareReductions) bearerOffered(ctx context.Context, organizationID, shareID int64, input parentbilling.CareCostShareInput) error {
-	bearers, err := c.store.ListCostBearers(ctx, organizationID)
-	if err != nil {
-		return fmt.Errorf("parent billing: list cost bearers: %w", err)
-	}
-	index := slices.IndexFunc(bearers, func(bearer parentbilling.CostBearer) bool { return bearer.ID == input.CostBearerID })
-	if index < 0 {
+	bearer, err := c.store.LockCostBearer(ctx, organizationID, input.CostBearerID, false)
+	if errors.Is(err, parentbilling.ErrCostBearerNotFound) {
 		return validation.Errors{"cost_bearer_id": errors.New("must name a cost bearer of the Träger")}
 	}
+	if err != nil {
+		return fmt.Errorf("parent billing: hold the cost bearer: %w", err)
+	}
 	switchedOff := validation.Errors{"cost_bearer_id": errors.New("the cost bearer is switched off")}
-	if bearers[index].Active {
+	if bearer.Active {
 		return nil
 	}
 	if shareID == 0 {

@@ -30,9 +30,10 @@ func init() {
 //     or another subsidy), as basis points or a monthly amount, with its
 //     validity, the reference to the proof and the day the Abrechnung checked
 //     it. No document and nothing of the decision is stored (data
-//     minimisation). It goes with its contract. The cost bearer key has no
-//     action of its own: the application refuses to delete a cost bearer a
-//     share names, and the erasure of a Träger removes both in one cascade.
+//     minimisation). It goes with its contract. Like the lines and positions
+//     of #5627 it names its cost bearer without a foreign key: the erasure of
+//     a Träger removes both in one cascade, and the owner checks the cost
+//     bearer of the Träger under its row lock, which a deletion takes too.
 //   - parent_billing.care_cost_share_events: the trail of every read and
 //     change of the shares, one row per contract; it goes with its contract.
 //   - parent_billing.care_invoice_cost_shares: the shares of an issued
@@ -40,8 +41,6 @@ func init() {
 //     the share. It names no person and never changes; it goes with its
 //     invoice.
 const parentBillingCareCostSharesUpSQL = `
-CREATE UNIQUE INDEX IF NOT EXISTS uq_cost_bearers_organization ON parent_billing.cost_bearers (organization_id, id);
-
 CREATE TABLE IF NOT EXISTS parent_billing.care_cost_shares (
 	id BIGSERIAL PRIMARY KEY,
 	organization_id BIGINT NOT NULL,
@@ -59,8 +58,6 @@ CREATE TABLE IF NOT EXISTS parent_billing.care_cost_shares (
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT fk_care_cost_shares_contract FOREIGN KEY (organization_id, care_contract_id)
 		REFERENCES care_contract.contracts (organization_id, id) ON DELETE CASCADE,
-	CONSTRAINT fk_care_cost_shares_bearer FOREIGN KEY (organization_id, cost_bearer_id)
-		REFERENCES parent_billing.cost_bearers (organization_id, id),
 	CONSTRAINT chk_care_cost_shares_kind CHECK (kind IN ('education_participation', 'youth_office', 'other_subsidy')),
 	CONSTRAINT chk_care_cost_shares_share CHECK (
 		(share_basis_points BETWEEN 1 AND 10000 AND share_cents IS NULL)
@@ -150,7 +147,6 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA parent_billing TO phoenix_admin;
 const parentBillingCareCostSharesDownSQL = `
 DROP TABLE IF EXISTS parent_billing.care_invoice_cost_shares, parent_billing.care_cost_share_events,
 	parent_billing.care_cost_shares;
-DROP INDEX IF EXISTS parent_billing.uq_cost_bearers_organization;
 `
 
 func parentBillingCareCostSharesUp(ctx context.Context, db *bun.DB) error {

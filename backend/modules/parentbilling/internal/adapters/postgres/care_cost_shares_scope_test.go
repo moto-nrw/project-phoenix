@@ -105,14 +105,6 @@ func TestCareCostShareFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		})
 		require.ErrorAs(t, err, &fields, "a share for another Träger's contract")
 		assert.Contains(t, fields, "contract_id")
-		err = refused(t, ctx, tx, func() error {
-			foreign := costShareInput(own.contract, other.bearer)
-			foreign.Kind = parentbilling.CostShareOtherSubsidy
-			_, err := store.InsertCareCostShare(ctx, own.organization, 1, foreign)
-			return err
-		})
-		require.ErrorAs(t, err, &fields, "a share naming another Träger's cost bearer")
-		assert.Contains(t, fields, "cost_bearer_id")
 		later := costShareInput(own.contract, own.bearer)
 		later.ValidFrom = calendar.NewDate(2030, 1, 1)
 		err = refused(t, ctx, tx, func() error {
@@ -123,12 +115,12 @@ func TestCareCostShareFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 
 		require.NoError(t, store.InsertCareCostShareEvents(ctx, own.organization, 1, "read", nil, []int64{own.contract}))
 
-		var invoices []int64
-		require.NoError(t, tx.NewRaw(`SELECT invoice_id FROM parent_billing.care_invoice_cost_shares ORDER BY organization_id = ? DESC`,
-			own.organization).Scan(ctx, &invoices))
-		issued, err := careCostSharesOf(ctx, tx, own.organization, invoices)
+		issued, err := store.CareRunInvoices(ctx, own.organization, own.released)
 		require.NoError(t, err)
-		assert.Len(t, issued, 1, "careCostSharesOf of the Träger")
+		require.Len(t, issued, 1, "CareRunInvoices of the Träger")
+		require.Len(t, issued[0].CostShares, 1, "the issued invoice reads its share in the same statement")
+		assert.Equal(t, own.bearer, issued[0].CostShares[0].CostBearerID)
+		assert.Equal(t, int64(3200), issued[0].CostShares[0].AmountCents)
 
 		inUse, err := store.CostBearersInUse(ctx, own.organization)
 		require.NoError(t, err)

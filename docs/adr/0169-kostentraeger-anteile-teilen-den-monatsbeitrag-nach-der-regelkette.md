@@ -21,10 +21,13 @@ ADR 0070).
 
 1. **Ein Kostenträger, eine Liste.** Ein Anteil nennt einen Kostenträger aus
    `parent_billing.cost_bearers` (#5627), den die Ferienabrechnung schon
-   kennt. Es gibt keine zweite Liste von Stellen. Der Fremdschlüssel
-   `(organization_id, cost_bearer_id)` hält den Anteil beim eigenen Träger;
-   ein Kostenträger, den ein Anteil oder eine ausgestellte Rechnung nennt,
-   lässt sich nicht löschen, nur ausschalten. Ein ausgeschalteter
+   kennt. Es gibt keine zweite Liste von Stellen. Wie Zeile und Position aus
+   #5627 nennt der Anteil seinen Kostenträger ohne Fremdschlüssel: Die
+   Löschung eines Trägers entfernt beide in einer Kaskade, und das Down von
+   1.15.745 bleibt möglich. Das Speichern hält den Kostenträger des eigenen
+   Trägers unter seiner Zeilensperre (`LockCostBearer`, geteilt), die das
+   Löschen exklusiv nimmt; ein Kostenträger, den ein Anteil oder eine
+   ausgestellte Rechnung nennt, lässt sich nicht löschen, nur ausschalten. Ein ausgeschalteter
    Kostenträger bleibt am Anteil, der ihn nennt, steht aber für keinen neuen
    Anteil zur Wahl.
 2. **Anteil je Vertrag.** `parent_billing.care_cost_shares` hält je Vertrag
