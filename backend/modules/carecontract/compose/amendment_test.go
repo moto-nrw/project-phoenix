@@ -99,7 +99,7 @@ func TestPublicContractFollowsAnApprovedChangeWithANewVersionAndAnswersOneVersio
 	contractPorts := compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtimeDouble{}, Access: school,
 		Ledger: ledgerDouble{}, Links: testSigningLinks()}
 	amendments := compose.NewConclusion(contractPorts, compose.IntakePorts{Schools: school, Applications: school,
-		Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: modesDouble{}, Mail: noMailBlocks{}})
+		Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: modesDouble{}, Mail: noMailBlocks{}, Letterheads: letterheadDouble{}})
 
 	run, err := amendments.AmendFromBookings(ctx, organization)
 	require.NoError(t, err)

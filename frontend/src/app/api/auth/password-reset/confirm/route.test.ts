@@ -88,10 +88,11 @@ describe("POST /api/auth/password-reset/confirm", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "unknown",
       },
       body: JSON.stringify(requestBody),
     });
+    // Contract: identity headers travel only when the browser request carries them (no "unknown" User-Agent).
+    expect(requestInit.headers).not.toHaveProperty("User-Agent");
 
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<typeof backendResponse>(response);

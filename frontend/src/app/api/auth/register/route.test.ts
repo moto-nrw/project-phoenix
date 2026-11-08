@@ -10,9 +10,11 @@ const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/env", () => ({
   env: {
@@ -29,14 +31,18 @@ const { POST } = await import("./route");
 
 function createMockRequest(path: string, body?: unknown): NextRequest {
   const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: "POST",
-    };
+  const requestInit: {
+    method: string;
+    body?: string;
+    headers: Record<string, string>;
+  } = {
+    method: "POST",
+    headers: { "User-Agent": "test-browser" },
+  };
 
   if (body) {
     requestInit.body = JSON.stringify(body);
-    requestInit.headers = { "Content-Type": "application/json" };
+    requestInit.headers["Content-Type"] = "application/json";
   }
 
   return new NextRequest(url, requestInit);
@@ -106,7 +112,8 @@ describe("POST /api/auth/register", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "unknown",
+        // Contract change: the browser's User-Agent travels, no "unknown" default.
+        "User-Agent": "test-browser",
       },
       body: JSON.stringify(registrationPayload),
     });
@@ -155,7 +162,8 @@ describe("POST /api/auth/register", () => {
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer admin-token",
-        "User-Agent": "unknown",
+        // Contract change: the browser's User-Agent travels, no "unknown" default.
+        "User-Agent": "test-browser",
       },
       body: JSON.stringify(registrationPayload),
     });
@@ -191,10 +199,13 @@ describe("POST /api/auth/register", () => {
       RequestInit,
     ];
 
+    expect(requestInit.headers).toMatchObject({
+      "Content-Type": "application/json",
+    });
     expect(requestInit.headers).not.toHaveProperty("Authorization");
   });
 
-  it("returns 500 on fetch failure", async () => {
+  it("returns 503 on fetch failure", async () => {
     const registrationPayload = {
       email: "test@example.com",
       password: "Test1234!",
@@ -208,13 +219,13 @@ describe("POST /api/auth/register", () => {
     );
     const response = await POST(request);
 
-    expect(response.status).toBe(500);
+    // Contract change: an unreachable backend answers 503 general.unavailable.
+    expect(response.status).toBe(503);
     const json = await parseJsonResponse<{ detail: string; code: string }>(
       response,
     );
-    expect(json.detail).toBe("Internal Server Error");
+    expect(json.code).toBe("general.unavailable");
     expect(JSON.stringify(json)).not.toContain("Network error");
-    expect(json.code).toBe("general.server");
   });
 
   it("handles backend validation error", async () => {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import type { ServerSession } from "./shared";
+import type { ServerSession } from "./session-types";
 
 const { mockResolve } = vi.hoisted(() => ({ mockResolve: vi.fn() }));
 

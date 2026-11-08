@@ -21,3 +21,23 @@ export interface JwtPayload {
   /** An OGS session the Träger-Büro opened through the Absprung (#4654). */
   via_traeger?: boolean;
 }
+
+/**
+ * The claims of a JWT, read without verifying it: for logging, metrics and
+ * expiry checks only. Null when the token is not three parts or its payload
+ * is no JSON object.
+ */
+export function decodeJwtPayload(token: string): JwtPayload | null {
+  const parts = token.split(".");
+  if (parts.length !== 3 || !parts[1]) return null;
+  try {
+    const payload: unknown = JSON.parse(
+      Buffer.from(parts[1], "base64url").toString(),
+    );
+    return typeof payload === "object" && payload !== null
+      ? (payload as JwtPayload)
+      : null;
+  } catch {
+    return null;
+  }
+}

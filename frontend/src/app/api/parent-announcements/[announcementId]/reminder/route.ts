@@ -19,7 +19,7 @@ export const PUT = createPutHandler(
     const id = params.announcementId as string;
     if (!id) throw new Error("Announcement ID is required");
     const response = await apiPut<{ data: unknown }>(
-      `/api/parent-announcements/${id}/reminder`,
+      `/api/parent-announcements/${encodeURIComponent(id)}/reminder`,
       token,
       body,
     );

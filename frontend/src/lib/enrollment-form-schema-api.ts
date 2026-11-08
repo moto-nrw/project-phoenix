@@ -1,12 +1,12 @@
-import {
-  ApiError,
-  apiErrorFromResponse,
-  unavailableApiError,
-} from "~/lib/api-error";
+import { ApiError, apiErrorFromResponse } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type { Translations } from "~/lib/enrollment-translations";
 import type { FileFieldOptions } from "~/lib/enrollment-uploads";
+import {
+  readEnrollmentJSON,
+  sendEnrollmentRequest,
+} from "~/lib/enrollment-http";
 
 const logger = createLogger({ component: "EnrollmentFormSchemaAPI" });
 
@@ -29,7 +29,8 @@ export type FormFieldType =
 
 /**
  * Source of a field's visibility condition. Mirrors the backend
- * ConditionSource* constants in models/enrollment/form_schema.go.
+ * ConditionSource* constants in
+ * backend/modules/enrollment/form_schema_types.go.
  * - "field": another custom boolean/select field in the same schema
  * - "grade_level": the per-child core field target_grade_level
  * - "care_offering": the child's selected care offering IDs
@@ -56,7 +57,7 @@ export interface VisibilityCondition {
  * Reserved targets that link a form field to a downstream Stammdaten
  * column / association table. Empty string (or absent) keeps the
  * field as free custom_data only. Keep in sync with
- * backend/models/enrollment/form_schema.go ReservedTargets.
+ * backend/modules/enrollment/form_schema.go ReservedTargets.
  *
  * Photo consent and guardian phone number are NOT picker options:
  * the public base form already collects them (consent_flags.photo
@@ -156,7 +157,26 @@ interface FormFieldValidation {
   pattern?: string | null;
 }
 
-export const MAX_ENROLLMENT_DOCUMENT_BYTES = 10 * 1024 * 1024;
+const MAX_ENROLLMENT_DOCUMENT_BYTES = 10 * 1024 * 1024;
+/** The document limit as the editor names it ("10 MB"). */
+export const MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL = `${MAX_ENROLLMENT_DOCUMENT_BYTES / (1024 * 1024)} MB`;
+
+/**
+ * Why a chosen file cannot become a form document (legal PDF or PDF
+ * attachment), or null. The backend checks the content again on upload.
+ */
+export function enrollmentDocumentProblem(
+  file: File,
+): "not_pdf" | "too_large" | null {
+  if (
+    file.type !== "application/pdf" &&
+    !file.name.toLowerCase().endsWith(".pdf")
+  ) {
+    return "not_pdf";
+  }
+  if (file.size > MAX_ENROLLMENT_DOCUMENT_BYTES) return "too_large";
+  return null;
+}
 
 export interface FormAttachment {
   label: string;
@@ -264,36 +284,7 @@ export interface FormSchema {
   created_at: string;
 }
 
-interface BackendEnvelope<T> {
-  status?: string;
-  data?: T;
-  message?: string;
-  code?: string;
-}
-
 const SCHEMA_PATH = "/api/enrollment/schema";
-
-/** A request that never reached the API counts as unavailable (#2515). */
-async function send(input: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(input, init);
-  } catch (cause) {
-    throw unavailableApiError(cause);
-  }
-}
-
-async function readJSON<T>(response: Response): Promise<T> {
-  const raw = (await response.json()) as BackendEnvelope<T>;
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "data" in raw &&
-    raw.data !== undefined
-  ) {
-    return raw.data as T;
-  }
-  return raw as unknown as T;
-}
 
 /**
  * Lists every schema version for the current tenant (newest first).
@@ -301,7 +292,7 @@ async function readJSON<T>(response: Response): Promise<T> {
  * this phase" dropdown.
  */
 export async function listSchemas(): Promise<FormSchema[]> {
-  const response = await send(`${SCHEMA_PATH}/versions`, {
+  const response = await sendEnrollmentRequest(`${SCHEMA_PATH}/versions`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -312,7 +303,7 @@ export async function listSchemas(): Promise<FormSchema[]> {
       "schema_list_failed",
     );
   }
-  const list = await readJSON<FormSchema[]>(response);
+  const list = await readEnrollmentJSON<FormSchema[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
@@ -386,9 +377,12 @@ export async function fetchEnrollmentPreviewBootstrap(params: {
   if (params.schemaId) search.set("schemaId", params.schemaId);
   if (params.phaseId) search.set("phaseId", params.phaseId);
   if (params.base) search.set("base", "1");
-  const response = await send(`${SCHEMA_PATH}/preview?${search.toString()}`, {
-    cache: "no-store",
-  });
+  const response = await sendEnrollmentRequest(
+    `${SCHEMA_PATH}/preview?${search.toString()}`,
+    {
+      cache: "no-store",
+    },
+  );
   if (!response.ok) {
     throw await readEnrollmentError(
       response,
@@ -397,7 +391,7 @@ export async function fetchEnrollmentPreviewBootstrap(params: {
       "schema_preview_bootstrap_failed",
     );
   }
-  return readJSON<EnrollmentPreviewBootstrap>(response);
+  return readEnrollmentJSON<EnrollmentPreviewBootstrap>(response);
 }
 
 /**
@@ -415,7 +409,7 @@ export interface PublicCaptchaConfig {
 export async function fetchPublicCaptchaConfig(
   tenantSlug: string,
 ): Promise<PublicCaptchaConfig | null> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/captcha-config/${encodeURIComponent(tenantSlug)}`,
     { cache: "no-store" },
   );
@@ -425,7 +419,7 @@ export async function fetchPublicCaptchaConfig(
     });
     return null;
   }
-  return readJSON<PublicCaptchaConfig>(response);
+  return readEnrollmentJSON<PublicCaptchaConfig>(response);
 }
 
 export interface PublicLegalBlock {
@@ -480,7 +474,7 @@ export async function fetchPublicLegalTexts(
   }
   const query = params.toString();
   const url = query ? `${path}?${query}` : path;
-  const response = await send(url, { cache: "no-store" });
+  const response = await sendEnrollmentRequest(url, { cache: "no-store" });
   if (!response.ok) {
     throw await readEnrollmentError(
       response,
@@ -489,7 +483,7 @@ export async function fetchPublicLegalTexts(
       "public_legal_texts_failed",
     );
   }
-  return readJSON<PublicLegalTexts>(response);
+  return readEnrollmentJSON<PublicLegalTexts>(response);
 }
 
 export async function fetchPublicActiveSchema(
@@ -504,7 +498,7 @@ export async function fetchPublicActiveSchema(
   const url = trimmedToken
     ? `${path}?late_invite=${encodeURIComponent(trimmedToken)}`
     : path;
-  const response = await send(url, { cache: "no-store" });
+  const response = await sendEnrollmentRequest(url, { cache: "no-store" });
   if (response.status === 404) {
     return null;
   }
@@ -516,7 +510,7 @@ export async function fetchPublicActiveSchema(
       "public_schema_fetch_failed",
     );
   }
-  return readJSON<PublicFormSchema>(response);
+  return readEnrollmentJSON<PublicFormSchema>(response);
 }
 
 /**
@@ -539,7 +533,7 @@ export async function createSchema(
           core_requirements: coreRequirements,
           legal_blocks: legalBlocks,
         };
-  const response = await send(SCHEMA_PATH, {
+  const response = await sendEnrollmentRequest(SCHEMA_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -552,7 +546,7 @@ export async function createSchema(
       "schema_create_failed",
     );
   }
-  return readJSON<FormSchema>(response);
+  return readEnrollmentJSON<FormSchema>(response);
 }
 
 /**
@@ -584,11 +578,14 @@ export async function updateSchema(
   if (newName !== undefined) body.name = newName;
   if (coreRequirements !== undefined) body.core_requirements = coreRequirements;
   if (legalBlocks !== undefined) body.legal_blocks = legalBlocks;
-  const response = await send(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const response = await sendEnrollmentRequest(
+    `${SCHEMA_PATH}/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
   if (!response.ok) {
     throw await readEnrollmentError(
       response,
@@ -597,7 +594,7 @@ export async function updateSchema(
       "schema_update_failed",
     );
   }
-  return readJSON<FormSchema>(response);
+  return readEnrollmentJSON<FormSchema>(response);
 }
 
 export async function uploadEnrollmentLegalDocument(
@@ -606,10 +603,13 @@ export async function uploadEnrollmentLegalDocument(
   const formData = new FormData();
   formData.append("document", file);
 
-  const response = await send("/api/enrollment/legal-documents", {
-    method: "POST",
-    body: formData,
-  });
+  const response = await sendEnrollmentRequest(
+    "/api/enrollment/legal-documents",
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
 
   if (!response.ok) {
     throw await readEnrollmentError(
@@ -638,7 +638,7 @@ export async function deleteEnrollmentLegalDocument(
   const filename = documentURL.trim().split("/").pop();
   if (!filename) return;
 
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/legal-documents/${encodeURIComponent(filename)}`,
     { keepalive: options.keepalive, method: "DELETE" },
   );
@@ -661,11 +661,14 @@ export async function renameSchema(
   id: string,
   name: string,
 ): Promise<FormSchema> {
-  const response = await send(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
+  const response = await sendEnrollmentRequest(
+    `${SCHEMA_PATH}/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    },
+  );
   if (!response.ok) {
     throw await readEnrollmentError(
       response,
@@ -674,13 +677,16 @@ export async function renameSchema(
       "schema_rename_failed",
     );
   }
-  return readJSON<FormSchema>(response);
+  return readEnrollmentJSON<FormSchema>(response);
 }
 
 export async function deleteSchema(id: string): Promise<void> {
-  const response = await send(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-  });
+  const response = await sendEnrollmentRequest(
+    `${SCHEMA_PATH}/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+    },
+  );
   if (response.status === 204) return;
   if (!response.ok) {
     throw await readEnrollmentError(

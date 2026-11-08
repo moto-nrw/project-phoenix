@@ -1,13 +1,17 @@
-import { unavailableApiError, type ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { readEnrollmentError } from "~/lib/enrollment-api-error";
-import type { ChildStatus } from "~/lib/enrollment-admin-api";
+import type { ChildStatus } from "~/lib/enrollment-status";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
+import {
+  enrollmentErrorReader,
+  readEnrollmentJSON,
+  sendEnrollmentRequest,
+} from "~/lib/enrollment-http";
 
 const logger = createLogger({ component: "EnrollmentReportAPI" });
 
 export type EnrollmentReportStatus = ChildStatus | "all";
-export type EnrollmentReportFormat = "pdf" | "docx" | "xlsx";
+/** Download formats every enrollment export offers. */
+export type EnrollmentExportFormat = "pdf" | "docx" | "xlsx";
 /**
  * Export layout for the filtered care-usage report (#2215): "detailed" keeps
  * the one-block-per-child output, "compact" renders the class-roster-style
@@ -99,45 +103,10 @@ interface CareUsageRowOffering {
   automatic_selected_days?: string[];
 }
 
-interface BackendEnvelope<T> {
-  status?: string;
-  data?: T;
-  message?: string;
-}
-
-async function readJSON<T>(response: Response): Promise<T> {
-  const raw = (await response.json()) as BackendEnvelope<T>;
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "data" in raw &&
-    raw.data !== undefined
-  ) {
-    return raw.data as T;
-  }
-  return raw as unknown as T;
-}
-
-/** A request that never reached the API counts as unavailable (#2515). */
-async function send(input: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(input, init);
-  } catch (error) {
-    throw unavailableApiError(error);
-  }
-}
-
-async function readError(
-  response: Response,
-  fallback: string,
-): Promise<ApiError> {
-  return readEnrollmentError(
-    response,
-    fallback,
-    logger,
-    "enrollment_report_request_failed",
-  );
-}
+const readError = enrollmentErrorReader(
+  logger,
+  "enrollment_report_request_failed",
+);
 
 export async function getCareUsageReport(
   filters: CareUsageFilters,
@@ -147,21 +116,21 @@ export async function getCareUsageReport(
     globalThis.window?.location.origin ?? "http://localhost",
   );
   appendCareUsageParams(url, filters);
-  const response = await send(`${url.pathname}${url.search}`, {
+  const response = await sendEnrollmentRequest(`${url.pathname}${url.search}`, {
     cache: "no-store",
   });
   if (!response.ok) {
     throw await readError(response, "Auswertung konnte nicht geladen werden");
   }
-  return readJSON<CareUsageReport>(response);
+  return readEnrollmentJSON<CareUsageReport>(response);
 }
 
 export async function exportCareUsageReport(
   filters: CareUsageFilters,
-  format: EnrollmentReportFormat,
+  format: EnrollmentExportFormat,
   layout: EnrollmentReportLayout = "detailed",
 ): Promise<void> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     "/api/enrollment/admin/reports/care-usage/export",
     {
       method: "POST",
@@ -190,9 +159,9 @@ export async function exportCareUsageReport(
 export async function exportPhaseClassRoster(
   phaseId: string,
   schoolClass: string | null,
-  format: EnrollmentReportFormat,
+  format: EnrollmentExportFormat,
 ): Promise<void> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     "/api/enrollment/admin/reports/class-roster/export",
     {
       method: "POST",
@@ -248,4 +217,33 @@ function appendCareUsageParams(url: URL, filters: CareUsageFilters) {
   if (filters.search?.trim()) {
     url.searchParams.set("search", filters.search.trim());
   }
+}
+
+/**
+ * A phase's registrations: PDF = one block per submission, DOCX/XLSX = one
+ * row per child. `childStatus` limits the export like the list's status
+ * filter; omit it to export all.
+ */
+export async function exportPhaseRegistrations(
+  phaseId: string,
+  format: EnrollmentExportFormat,
+  childStatus?: string,
+): Promise<void> {
+  const response = await sendEnrollmentRequest(
+    `/api/enrollment/phases/${encodeURIComponent(phaseId)}/export`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        childStatus ? { format, child_status: childStatus } : { format },
+      ),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Export konnte nicht erstellt werden");
+  }
+  downloadBlob(
+    await response.blob(),
+    filenameFromDisposition(response) ?? `anmeldungen.${format}`,
+  );
 }

@@ -1,4 +1,4 @@
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 export const GET = proxyGet(
   () => "/api/staff/time-tracking/export/datev-report",

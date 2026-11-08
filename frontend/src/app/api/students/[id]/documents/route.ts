@@ -2,7 +2,7 @@ import {
   DOCUMENT_UPLOAD,
   proxyFileUpload,
 } from "~/lib/file-upload-wrapper.server";
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 // Child documents (#777). The backend checks the content and the permission of

@@ -13,11 +13,11 @@ import {
   problemResponse,
 } from "~/lib/api-response-error.server";
 import { parseRequestBody } from "~/lib/route-wrapper-utils.server";
-import type { ServerSession } from "~/server/auth/shared";
+import type { PortalKey } from "~/lib/portal-paths";
+import { PORTALS } from "~/server/auth/portals";
+import type { ServerSession } from "~/server/auth/session-types";
 import { validateSessionToken } from "~/server/auth/token-validation";
 import { redactSensitiveLogData } from "~/lib/log-redaction";
-
-export type ClientLogPortal = "tenant" | "parent" | "caterer";
 
 // Per-process limits are bounded independently of caller-controlled identities.
 // The global budget is shared by all portals on purpose.
@@ -69,13 +69,16 @@ function validEntry(entry: unknown): entry is Record<string, unknown> {
 export async function ingestClientLogs(
   request: NextRequest,
   session: ServerSession | null,
-  portal: ClientLogPortal,
+  portal: PortalKey,
 ): Promise<NextResponse> {
   if (!session?.user?.token || session.error) {
     return problemResponse(401, "Unauthorized", request);
   }
   if (!takeBudget("global", 1000)) return rateLimited(request);
-  const identity = await validateSessionToken(session.user.token, portal);
+  const identity = await validateSessionToken(
+    session.user.token,
+    PORTALS[portal].validation,
+  );
   if (
     !identity ||
     identity.read_only ||

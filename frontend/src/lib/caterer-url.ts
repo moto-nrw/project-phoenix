@@ -4,6 +4,8 @@
  * school-url.ts.
  */
 
+import { requiredPortalHostname } from "~/lib/portal-paths";
+
 let isCatererHost: boolean | undefined;
 
 function onCatererHost(): boolean {
@@ -13,13 +15,7 @@ function onCatererHost(): boolean {
   // layout renders the signed-in portal on the server (#4991).
   if (typeof window === "undefined") return true;
   if (isCatererHost !== undefined) return isCatererHost;
-  const hostname = process.env.NEXT_PUBLIC_CATERER_HOSTNAME;
-  if (!hostname) {
-    throw new Error(
-      "NEXT_PUBLIC_CATERER_HOSTNAME is not set. " +
-        "Add it to your .env.local or docker-compose environment.",
-    );
-  }
+  const hostname = requiredPortalHostname("caterer");
   isCatererHost = window.location.host === hostname;
   return isCatererHost;
 }

@@ -12,12 +12,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FieldEditorRow,
   FieldErrorContext,
-  FormPreview,
+} from "~/components/enrollment/form-field-builder";
+import {
+  FormPreviewFrame as FormPreview,
   FormPreviewHeading,
   PreviewFieldsSection,
   PreviewSection,
-} from "~/components/enrollment/form-field-builder";
-import { LegalBlocksSection } from "~/components/enrollment/enrollment-form-editor";
+} from "~/components/enrollment/form-preview";
+import { LegalBlocksSection } from "~/components/enrollment/legal-blocks-section";
 import { AttachmentUploadContext } from "~/components/enrollment/attachment-editor";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";

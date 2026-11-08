@@ -1,6 +1,13 @@
 "use client";
 
 import {
+  SCHOOL_WEEKDAY_CODES,
+  isSchoolWeekday,
+  isoWeekdayShortLabel,
+  weekdayISONumber,
+  weekdayShortLabel,
+} from "~/lib/weekdays";
+import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -72,7 +79,10 @@ import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
 import { timetableService } from "~/lib/timetable-api";
 import type { TimetableTemplate } from "~/lib/timetable-types";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import {
+  isSupportedGradeLevel,
+  supportedGradeLevelMax,
+} from "~/lib/grade-level";
 import { useTenant } from "~/lib/tenant-context";
 import {
   useApiFormError,
@@ -101,37 +111,6 @@ import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
-const DAY_LABELS: Record<string, string> = {
-  mon: "Mo",
-  tue: "Di",
-  wed: "Mi",
-  thu: "Do",
-  fri: "Fr",
-  sat: "Sa",
-  sun: "So",
-};
-
-const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri"];
-const CARE_DAY_TO_ISO: Record<string, number> = {
-  mon: 1,
-  tue: 2,
-  wed: 3,
-  thu: 4,
-  fri: 5,
-  sat: 6,
-  sun: 7,
-};
-
-const ISO_WEEKDAY_LABELS: Record<number, string> = {
-  1: "Mo",
-  2: "Di",
-  3: "Mi",
-  4: "Do",
-  5: "Fr",
-  6: "Sa",
-  7: "So",
-};
-
 const KIND_LABELS: Record<Phase["kind"], string> = {
   school_year: "Schuljahr",
   holiday: "Ferienbetreuung",
@@ -159,12 +138,12 @@ function missingRequiredPickupDays(offering: {
 }): string[] {
   if (!offering.is_active || offering.counts_as_care === false) return [];
   return offering.available_days.filter(
-    (day) => WEEKDAY_KEYS.includes(day) && !offering.pickup_times?.[day],
+    (day) => isSchoolWeekday(day) && !offering.pickup_times?.[day],
   );
 }
 
 function missingPickupTimesMessage(days: string[]): string {
-  const labels = days.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  const labels = days.map((day) => weekdayShortLabel(day)).join(", ");
   return `Bitte tragen Sie für jeden Betreuungstag eine Gehzeit ein: ${labels}.`;
 }
 
@@ -234,16 +213,16 @@ function formatPrice(cents?: number | null): string {
 }
 
 function formatDays(days: string[]): string {
-  const visibleDays = days.filter((day) => WEEKDAY_KEYS.includes(day));
+  const visibleDays = days.filter((day) => isSchoolWeekday(day));
   if (visibleDays.length === 0) return "Keine Wochentage";
-  return visibleDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  return visibleDays.map((day) => weekdayShortLabel(day)).join(", ");
 }
 
 function templateLabel(template: TimetableTemplate): string {
   const days = template.schedules
     .map((schedule) => schedule.weekday)
     .sort((a, b) => a - b)
-    .map((weekday) => ISO_WEEKDAY_LABELS[weekday] ?? `Tag ${weekday}`)
+    .map((weekday) => isoWeekdayShortLabel(weekday) ?? `Tag ${weekday}`)
     .join(", ");
   const time = template.schedules[0]
     ? `${template.schedules[0].startTime}-${template.schedules[0].endTime}`
@@ -335,12 +314,12 @@ function linkedTemplateWeekdayError(
     template.schedules.map((schedule) => schedule.weekday),
   );
   const missingDays = draft.available_days.filter((day) => {
-    const isoWeekday = CARE_DAY_TO_ISO[day];
+    const isoWeekday = weekdayISONumber(day);
     return isoWeekday !== undefined && !templateDays.has(isoWeekday);
   });
   if (missingDays.length === 0) return null;
 
-  const labels = missingDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  const labels = missingDays.map((day) => weekdayShortLabel(day)).join(", ");
   return `Der Regeltermin deckt die Angebotstage ${labels} nicht ab. Bitte entfernen Sie die Verknüpfung oder ergänzen Sie diese Tage im Regeltermin.`;
 }
 
@@ -367,7 +346,7 @@ function nameWeekdayMismatchWarning(draft: CareOfferingInput): string | null {
   if (!namedDay) return null;
   const extraDays = draft.available_days.filter((day) => day !== namedDay);
   if (extraDays.length === 0) return null;
-  const labels = extraDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  const labels = extraDays.map((day) => weekdayShortLabel(day)).join(", ");
   return `Der Name nennt nur einen Wochentag, ausgewählt sind zusätzlich ${labels}. Bitte prüfen, ob das Angebot wirklich an diesen Tagen stattfindet.`;
 }
 
@@ -402,7 +381,7 @@ function linkedTemplateWarnings(
   );
   const offeringDays = new Set(
     draft.available_days
-      .map((day) => CARE_DAY_TO_ISO[day])
+      .map((day) => weekdayISONumber(day))
       .filter((day): day is number => day !== undefined),
   );
   if ([...templateDays].some((day) => !offeringDays.has(day))) {
@@ -432,9 +411,7 @@ export function CareOfferingsEditor({
   ) => void;
 } = {}) {
   const { tenant } = useTenant();
-  const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
-    ? tenant.gradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(tenant?.gradeLevelMax);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [selectedPhaseId, setSelectedPhaseId] = useState<string>("");
   const selectedPhaseIdRef = useRef("");
@@ -1441,15 +1418,11 @@ function toggleSetValue<T>(values: Iterable<T>, value: T): Set<T> {
   return next;
 }
 
-function isSupportedAutoAddGrade(value: number): boolean {
-  return isSupportedGradeLevelMax(value);
-}
-
 function careOfferingGradeOptions(
   gradeLevelMax: number | null,
   selectedGrades: readonly number[],
 ): number[] {
-  const options = new Set(selectedGrades.filter(isSupportedAutoAddGrade));
+  const options = new Set(selectedGrades.filter(isSupportedGradeLevel));
   if (gradeLevelMax !== null) {
     for (let grade = 1; grade <= gradeLevelMax; grade++) options.add(grade);
   }
@@ -1637,7 +1610,9 @@ function CareOfferingWeekdayFields({
   const toggleDay = (day: string) => {
     const nextDays = toggleSetValue(draft.available_days, day);
     const patch: Partial<CareOfferingInput> = {
-      available_days: WEEKDAY_KEYS.filter((dayKey) => nextDays.has(dayKey)),
+      available_days: SCHOOL_WEEKDAY_CODES.filter((dayKey) =>
+        nextDays.has(dayKey),
+      ),
     };
     // Ein abgewählter Tag nimmt seine Gehzeit mit.
     if (!nextDays.has(day) && draft.pickup_times?.[day]) {
@@ -1662,7 +1637,7 @@ function CareOfferingWeekdayFields({
   return (
     <FormFieldset legend="Wochentage">
       <div className="flex flex-wrap gap-2">
-        {WEEKDAY_KEYS.map((day) => {
+        {SCHOOL_WEEKDAY_CODES.map((day) => {
           const active = draft.available_days.includes(day);
           return (
             <ToggleChip
@@ -1670,7 +1645,7 @@ function CareOfferingWeekdayFields({
               pressed={active}
               onPressedChange={() => toggleDay(day)}
             >
-              {DAY_LABELS[day]}
+              {weekdayShortLabel(day)}
             </ToggleChip>
           );
         })}
@@ -1698,12 +1673,14 @@ function CareOfferingWeekdayFields({
           <div className="mt-2 flex flex-wrap gap-3">
             {draft.available_days.map((day) => (
               <label key={day} className="flex items-center gap-2 text-xs">
-                <span className="w-6 text-gray-700">{DAY_LABELS[day]}</span>
+                <span className="w-6 text-gray-700">
+                  {weekdayShortLabel(day)}
+                </span>
                 <Input
                   type="time"
                   controlSize="compact"
                   required={pickupTimesRequired}
-                  aria-label={`${DAY_LABELS[day]} Gehzeit`}
+                  aria-label={`${weekdayShortLabel(day)} Gehzeit`}
                   value={draft.pickup_times?.[day] ?? ""}
                   onChange={(event) => setPickupTime(day, event.target.value)}
                 />
@@ -1759,14 +1736,14 @@ function CareOfferingAutomationFields({
     });
   };
   const selectedGrades = (draft.auto_add_grade_levels ?? [])
-    .filter(isSupportedAutoAddGrade)
+    .filter(isSupportedGradeLevel)
     .sort((a, b) => a - b);
   const gradeOptions = careOfferingGradeOptions(gradeLevelMax, selectedGrades);
   const toggleAutoAddGrade = (grade: number) => {
     const next = toggleSetValue(selectedGrades, grade);
     onChange({
       auto_add_grade_levels: [...next]
-        .filter(isSupportedAutoAddGrade)
+        .filter(isSupportedGradeLevel)
         .sort((a, b) => a - b),
     });
   };

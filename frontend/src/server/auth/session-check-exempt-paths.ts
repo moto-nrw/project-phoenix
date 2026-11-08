@@ -1,4 +1,6 @@
 import "server-only";
+import { portalAuthPath, portalLogPath } from "~/lib/portal-paths";
+import { ALL_PORTALS } from "./portals";
 
 /**
  * Routes that must work while the cookie belongs to another school: the
@@ -6,14 +8,15 @@ import "server-only";
  * logout, the audit call that ends a staff preview before the switch, and
  * the tab's own log lines about all of that. Accepting an invitation with an
  * existing account acts for the school the invitation names, not for the
- * session's; the bare domain's invitation page calls it.
+ * session's; the bare domain's invitation page calls it. It runs inside
+ * `tenantPortal.withAuth` (`withInvitationOwnerSession`), so without this
+ * entry the school check would refuse it from another school's tab.
  */
 export const MISMATCH_EXEMPT_PATHS: ReadonlySet<string> = new Set([
-  "/api/auth/switch-tenant",
-  "/api/auth/token",
-  "/api/auth/logout",
-  "/api/auth/staff-preview/end",
-  "/api/logs",
+  ...["switch-tenant", "token", "logout", "staff-preview/end"].map((step) =>
+    portalAuthPath("tenant", step),
+  ),
+  portalLogPath("tenant"),
   "/api/invitations/accept",
 ]);
 
@@ -21,19 +24,17 @@ export const MISMATCH_EXEMPT_PATHS: ReadonlySet<string> = new Set([
  * Account exemptions are deliberately independent of school exemptions.
  * Logout is an intentional exit from the browser's current cookie session,
  * even when another tab replaced it. Logs must still record reconciliation
- * failures, but do not read or mutate account data. Token renewal only
+ * failures, but do not read or mutate account data; that holds for every
+ * portal's log route. Token renewal only
  * persists the current cookie and returns no token or account data; it must
  * remain reachable for the existing 401 recovery path. Tenant switching
  * and preview-end act on the cookie's account and must match the
- * tab; invitation acceptance does not use the response-aware auth wrapper.
+ * tab. Invitation acceptance runs inside the wrapper and is not exempt: it
+ * acts for the cookie's account, which must be the one the tab shows.
  */
 export const ACCOUNT_CHECK_EXEMPT_PATHS: ReadonlySet<string> = new Set([
-  "/api/logs",
-  "/api/auth/token",
-  "/api/auth/logout",
-  "/api/operator/auth/logout",
-  "/api/parent/auth/logout",
-  "/api/school/auth/logout",
-  "/api/caterer/auth/logout",
-  "/api/traeger/auth/logout",
+  ...ALL_PORTALS.map((portal) => portalLogPath(portal.key)),
+  portalAuthPath("tenant", "token"),
+  // Each portal's BFF logout route, app/api/…/auth/logout/route.ts.
+  ...ALL_PORTALS.map((portal) => portalAuthPath(portal.key, "logout")),
 ]);

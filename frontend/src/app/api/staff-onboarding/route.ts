@@ -1,4 +1,4 @@
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 // Erste Schritte der Betreuungskräfte (#3748). Der Stand gilt für das Konto
 // aus dem Token.

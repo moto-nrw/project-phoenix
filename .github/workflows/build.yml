@@ -358,7 +358,7 @@ jobs:
           METRICS_BEARER_TOKEN: "ci-guide-render-throwaway-token"
           API_URL: "http://server:8080"
           AUTH_JWT_EXPIRY: "15m"
-          AUTH_JWT_REFRESH_EXPIRY: "7d"
+          AUTH_JWT_REFRESH_EXPIRY: "168h"
           NEXTAUTH_URL: "http://localhost:3000"
           NEXTAUTH_SECRET: "ci-guide-render-throwaway-secret"
           NEXT_PUBLIC_API_URL: ${{ steps.api_url.outputs.url }}

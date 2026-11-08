@@ -8,7 +8,7 @@
 //
 // proxyGet forwards the ?from=&to= query string and strips the backend
 // { status, data, message } envelope so route-wrapper does not double-wrap.
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 export const GET = proxyGet(

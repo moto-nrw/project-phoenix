@@ -1,6 +1,9 @@
 import { withServerSessionMutation } from "./session-mutation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { User } from "next-auth";
+import type { NextAuthConfig, User } from "next-auth";
+import { createPortalAuthConfig } from "./portal-config";
+import { PORTALS } from "./portals";
+const traegerAuthConfig = createPortalAuthConfig(PORTALS.traeger);
 
 const { mockValidate } = vi.hoisted(() => ({ mockValidate: vi.fn() }));
 vi.mock("./token-validation", () => ({ validateSessionToken: mockValidate }));
@@ -12,8 +15,6 @@ vi.mock("~/env", () => ({
     NEXTAUTH_SECRET: "test-auth-secret-with-sufficient-entropy",
   },
 }));
-
-import { traegerAuthConfig } from "./traeger-config";
 
 type Authorize = (
   credentials: Record<string, string>,
@@ -33,7 +34,9 @@ describe("traegerAuthConfig", () => {
   });
 
   it("keeps the Träger session in its own host-only cookies", () => {
-    const { cookies } = traegerAuthConfig;
+    const cookies = traegerAuthConfig.cookies as Required<
+      NonNullable<NextAuthConfig["cookies"]>
+    >;
     expect(cookies.sessionToken.name).toBe("traeger.session-token");
     expect(cookies.callbackUrl.name).toBe("traeger.callback-url");
     expect(cookies.csrfToken.name).toBe("traeger.csrf-token");
@@ -44,8 +47,8 @@ describe("traegerAuthConfig", () => {
     ]) {
       expect(cookie.options).not.toHaveProperty("domain");
     }
-    expect(cookies.sessionToken.options.sameSite).toBe("strict");
-    expect(cookies.sessionToken.options.httpOnly).toBe(true);
+    expect(cookies.sessionToken.options?.sameSite).toBe("strict");
+    expect(cookies.sessionToken.options?.httpOnly).toBe(true);
   });
 
   it("serves its own auth base path and login page", () => {

@@ -53,7 +53,7 @@ const schoolDateTestFiles = [
   "src/app/school/kalender/page.test.tsx",
   "src/components/time-tracking/vacation-request-modal.test.tsx",
   "src/components/ui/date-picker.test.tsx",
-  "src/components/enrollment/enrollment-admin-editors.test.tsx",
+  "src/components/enrollment/phases-editor.test.tsx",
   "src/components/time-tracking/leave-requests-card.test.tsx",
   "src/components/staff/stammdaten-tab.test.tsx",
   "src/app/[tenant]/(protected)/students/[id]/room-history/page.test.tsx",

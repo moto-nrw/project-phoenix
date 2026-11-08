@@ -1,4 +1,4 @@
-import { proxyDelete } from "@/lib/route-proxy.server";
+import { proxyDelete } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // DELETE frees an address someone checked (#5934). The backend reads the address

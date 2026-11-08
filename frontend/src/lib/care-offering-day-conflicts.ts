@@ -6,6 +6,8 @@
  * every write; this copy only tells the family in advance.
  */
 
+import { WEEKDAY_CODES } from "~/lib/weekdays";
+
 export const AT_MOST_ONE_PER_DAY = "at_most_one_per_day";
 
 export interface DayRuleOffering {
@@ -22,8 +24,6 @@ export interface CareOfferingDayConflict {
   /** The conflicting offerings in catalog order. */
   readonly offeringIds: readonly string[];
 }
-
-const WEEKDAY_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 /**
  * Every weekday on which the selection holds more than one offering of a
@@ -67,7 +67,7 @@ export function careOfferingDayConflicts(
   }
   const conflicts: CareOfferingDayConflict[] = [];
   for (const [group, byDay] of holders) {
-    for (const day of WEEKDAY_ORDER) {
+    for (const day of WEEKDAY_CODES) {
       const ids = byDay.get(day);
       if (ids && ids.length > 1) {
         conflicts.push({ group, day, offeringIds: ids });

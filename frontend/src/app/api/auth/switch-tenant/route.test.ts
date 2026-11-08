@@ -9,11 +9,13 @@ const { mockAuth, setTenantSession, setStaffPreviewSession } = vi.hoisted(
     setStaffPreviewSession: vi.fn(),
   }),
 );
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  setTenantSession,
-  setStaffPreviewSession,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    setSession: setTenantSession,
+    setStaffPreviewSession,
+  }),
+);
 const { POST: switchTenant } = await import("./route");
 const { POST: startPreview } = await import("../staff-preview/route");
 const backend = vi.fn();

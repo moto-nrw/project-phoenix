@@ -1,4 +1,4 @@
-import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 
 const readPath = (
   _request: unknown,
@@ -11,7 +11,6 @@ export const PUT = createTenantJsonProxy({
   method: "PUT",
   path: readPath,
   body: "none",
-  unauthorizedError: "Unauthenticated",
 });
 
 /** Eine Anmeldung für die Person wieder als ungelesen markieren (#3778). */
@@ -19,5 +18,4 @@ export const DELETE = createTenantJsonProxy({
   method: "DELETE",
   path: readPath,
   body: "none",
-  unauthorizedError: "Unauthenticated",
 });

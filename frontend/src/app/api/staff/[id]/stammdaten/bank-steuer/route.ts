@@ -1,4 +1,4 @@
-import { proxyGet, proxyPut } from "~/lib/route-proxy.server";
+import { proxyGet, proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 // Bank & tax section (#1423): staff:financial only; the backend serves

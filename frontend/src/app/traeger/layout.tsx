@@ -1,6 +1,6 @@
 import { TraegerProviders } from "./providers";
 import { TraegerAuthGuard } from "./auth-guard";
-import { readTraegerSessionSnapshot } from "~/lib/traeger-session-snapshot.server";
+import { readPortalSessionSnapshot } from "~/lib/portal-session-snapshot.server";
 
 /**
  * Server layout for Träger routes ("moto träger", #4649). German-only like
@@ -17,7 +17,7 @@ export default async function TraegerLayout({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const session = await readTraegerSessionSnapshot();
+  const session = (await readPortalSessionSnapshot("traeger"))?.session ?? null;
   return (
     <TraegerProviders session={session}>
       <TraegerAuthGuard>{children}</TraegerAuthGuard>

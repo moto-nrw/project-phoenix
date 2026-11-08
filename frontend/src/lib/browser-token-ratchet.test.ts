@@ -572,9 +572,9 @@ describe("browser token ratchet (#5005)", () => {
     [
       "server-only modules",
       `import { auth } from "~/server/auth";
-       import type { ServerSession } from "~/server/auth/shared";
+       import type { ServerSession } from "~/server/auth/session-types";
        import { getToken } from "next-auth/jwt";
-       const mod = await import("~/server/auth/tenant-route");
+       const mod = await import("~/server/auth/parent");
        import { limit } from "@/server/node-header-limit";`,
       [
         "server-only import",
@@ -587,7 +587,7 @@ describe("browser token ratchet (#5005)", () => {
     // Reported in review round 2: a relative type import and a type alias.
     [
       "a relative server type import behind a type alias",
-      `import type { ServerSession } from "../server/auth/shared";
+      `import type { ServerSession } from "../server/auth/session-types";
        import { getCachedSession } from "./session-cache";
        type TokenSession = ServerSession;
        function read({ user }: TokenSession) { return user.token; }

@@ -306,7 +306,9 @@ function ParentDocumentCard({
 
 /**
  * The way to end a care contract (#4682, § 312k BGB): the button „Verträge
- * hier kündigen“ on an active contract, or the end and the confirmation of
+ * hier kündigen“ on an active contract and, while the withdrawal period may
+ * run, the withdrawal function „Vertrag widerrufen“ of § 356a BGB (#6105),
+ * the label the withdrawal notice names; or the end and the confirmation of
  * one the parents or the Träger ended.
  */
 function ContractNoticeRow({
@@ -322,9 +324,20 @@ function ContractNoticeRow({
     return (
       <div className="mt-4 border-t border-gray-100 pt-4">
         {document.can_end_contract ? (
-          <ButtonLink href={href} variant="outline" size="md">
-            {t("cancelContract")}
-          </ButtonLink>
+          <div className="flex flex-wrap gap-3">
+            <ButtonLink href={href} variant="outline" size="md">
+              {t("cancelContract")}
+            </ButtonLink>
+            {document.can_withdraw_contract ? (
+              <ButtonLink
+                href={`${href}?widerruf=1`}
+                variant="outline"
+                size="md"
+              >
+                {t("withdrawContract")}
+              </ButtonLink>
+            ) : null}
+          </div>
         ) : (
           <p className="text-sm text-gray-500">{t("cancelNotPermitted")}</p>
         )}

@@ -4,10 +4,6 @@ import { NextRequest } from "next/server";
 
 // Every portal's route wrapper runs through its real response-aware Auth.js
 // handler here, so a wrapper that bypasses it loses the cache policy (#4999).
-vi.unmock("~/server/auth/tenant-route");
-vi.unmock("~/server/auth/operator-route");
-vi.unmock("~/server/auth/parent-route");
-vi.unmock("~/server/auth/traeger-route");
 
 const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }));
 
@@ -78,12 +74,12 @@ function backendJson(status: number, body: unknown): Response {
 const routes: Array<[string, () => Promise<Route>]> = [
   [
     "tenant",
-    async () => (await import("~/lib/route-proxy.server")).proxyGet("/api/x"),
+    async () => (await import("~/lib/route-wrapper.server")).proxyGet("/api/x"),
   ],
   [
     "tenant pass-through",
     async () =>
-      (await import("~/lib/backend-proxy-route.server")).createTenantJsonProxy({
+      (await import("~/lib/route-wrapper.server")).createTenantJsonProxy({
         method: "GET",
         path: "/api/x",
       }),
@@ -97,7 +93,7 @@ const routes: Array<[string, () => Promise<Route>]> = [
     "operator pass-through",
     async () =>
       (
-        await import("~/lib/backend-proxy-route.server")
+        await import("~/lib/operator/route-wrapper.server")
       ).createOperatorJsonProxy({ method: "GET", path: "/api/x" }),
   ],
   [
@@ -129,11 +125,12 @@ const routes: Array<[string, () => Promise<Route>]> = [
       }),
   ],
   [
-    "operator public login step",
+    "public login step",
     async () =>
-      (
-        await import("~/lib/operator/route-wrapper.server")
-      ).createOperatorPublicProxyPostHandler("/api/x") as Route,
+      (await import("~/lib/auth-proxy.server")).authStepProxy(
+        "/api/x",
+        "optional-json",
+      ) as Route,
   ],
 ];
 

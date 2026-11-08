@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { tenantAuthConfig as authConfig } from "./tenant-config";
-import { _resetRefreshState } from "./shared";
+import { _resetRefreshState } from "./token-refresh";
 import type { User } from "next-auth";
+import { createPortalAuthConfig } from "./portal-config";
+import { PORTALS } from "./portals";
+const authConfig = createPortalAuthConfig(PORTALS.tenant);
 
 // Mock ~/env
 vi.mock("~/env", () => ({
@@ -362,6 +364,33 @@ describe("JWT callback — refresh scenarios", () => {
     expect(mockFetch).not.toHaveBeenCalled();
     expect(result?.token).toBe("access-ok");
     expect(result?.error).toBeUndefined();
+  });
+
+  // The backend sets the access lifetime; a frontend lifetime that differs
+  // (15m here) must not move the next renewal.
+  it("takes the renewed access token's expiry from its exp claim", async () => {
+    const exp = Math.floor(Date.now() / 1000) + 40 * 60;
+    const accessToken = `${Buffer.from("{}").toString("base64url")}.${Buffer.from(
+      JSON.stringify({ id: 7, exp }),
+    ).toString("base64url")}.sig`;
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        access_token: accessToken,
+        refresh_token: refreshJwt("next-refresh"),
+      }),
+    });
+
+    const result = await callJwt({
+      id: "7",
+      token: "old-access",
+      refreshToken: "old-refresh",
+      tokenExpiry: Date.now() + 3 * 60 * 1000,
+      refreshTokenExpiry: Date.now() + 60 * 60 * 1000,
+    });
+
+    expect(result?.token).toBe(accessToken);
+    expect(result?.tokenExpiry).toBe(exp * 1000);
   });
 
   // ── Scenario 12: Missing tokenExpiry field ────────────────────────
