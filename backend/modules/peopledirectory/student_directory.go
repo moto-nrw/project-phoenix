@@ -169,8 +169,6 @@ type StudentDirectoryQuery interface {
 type StudentDirectorySelection interface {
 	ListStudentDirectory(context.Context, StudentDirectoryFilter) ([]StudentRecord, error)
 	CountStudentDirectory(context.Context, StudentDirectoryFilter) (int, error)
-	// ListStudentDirectoryIDs returns the ids of every non-alumni child.
-	ListStudentDirectoryIDs(context.Context) ([]int64, error)
 	// ListStudentRecordsByID reads the owned rows of the given children,
 	// alumni included, ordered by id.
 	ListStudentRecordsByID(context.Context, []int64) ([]StudentRecord, error)

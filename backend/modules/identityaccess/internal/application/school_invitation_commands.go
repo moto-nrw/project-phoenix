@@ -91,109 +91,100 @@ func invitationAddress(raw string) (string, error) {
 }
 
 func (s *SchoolInvitation) CreateSchoolInvitation(ctx context.Context, request identityaccess.SchoolInvitationRequest) (identityaccess.SchoolInvitation, error) {
-	if s == nil {
-		return identityaccess.SchoolInvitation{}, errSchoolInvitationUnavailable
-	}
-	invitation, err := s.CreateInvitation(bindRuntime(s.attach, ctx), domain.SchoolInvitationRequest{
-		Email: request.Email, RoleID: request.RoleID, TenantID: request.TenantID, FirstName: request.FirstName,
-		LastName: request.LastName, Position: request.Position, CaregiverEnabled: request.CaregiverEnabled,
-		EmploymentAction: domain.EmploymentAction(request.EmploymentAction),
-		ResetMasterData:  request.ResetMasterData, ResetQualifications: request.ResetQualifications, ResetWorkTime: request.ResetWorkTime,
-		PersonID: request.PersonID, CreatedBy: request.CreatedBy, SchoolName: request.SchoolName,
-		ActorPermissions: request.ActorPermissions, OperatorGrant: request.OperatorGrant,
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (identityaccess.SchoolInvitation, error) {
+		invitation, err := s.CreateInvitation(ctx, domain.SchoolInvitationRequest{
+			Email: request.Email, RoleID: request.RoleID, TenantID: request.TenantID, FirstName: request.FirstName,
+			LastName: request.LastName, Position: request.Position, CaregiverEnabled: request.CaregiverEnabled,
+			EmploymentAction: domain.EmploymentAction(request.EmploymentAction),
+			ResetMasterData:  request.ResetMasterData, ResetQualifications: request.ResetQualifications, ResetWorkTime: request.ResetWorkTime,
+			PersonID: request.PersonID, CreatedBy: request.CreatedBy, SchoolName: request.SchoolName,
+			ActorPermissions: request.ActorPermissions, OperatorGrant: request.OperatorGrant,
+		})
+		return PublicSchoolInvitation(invitation), err
 	})
-	return PublicSchoolInvitation(invitation), invitationError(err)
 }
 
 func (s *SchoolInvitation) ValidateSchoolInvitation(ctx context.Context, token string) (identityaccess.InvitationPreview, error) {
-	if s == nil {
-		return identityaccess.InvitationPreview{}, errSchoolInvitationUnavailable
-	}
-	preview, err := s.ValidateInvitation(bindRuntime(s.attach, ctx), token)
-	return identityaccess.InvitationPreview{
-		Portal: identityaccess.InvitationPortal(preview.Portal), RequiresAccountLogin: preview.RequiresAccountLogin,
-		Email: preview.Email, RoleName: preview.RoleName, FirstName: preview.FirstName, LastName: preview.LastName,
-		Position: preview.Position, CaregiverEnabled: preview.CaregiverEnabled, ExpiresAt: preview.ExpiresAt,
-	}, invitationError(err)
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (identityaccess.InvitationPreview, error) {
+		preview, err := s.ValidateInvitation(ctx, token)
+		return identityaccess.InvitationPreview{
+			Portal: identityaccess.InvitationPortal(preview.Portal), RequiresAccountLogin: preview.RequiresAccountLogin,
+			Email: preview.Email, RoleName: preview.RoleName, FirstName: preview.FirstName, LastName: preview.LastName,
+			Position: preview.Position, CaregiverEnabled: preview.CaregiverEnabled, ExpiresAt: preview.ExpiresAt,
+		}, err
+	})
 }
 
 func (s *SchoolInvitation) FindFormerEmployment(ctx context.Context, email string) (identityaccess.FormerEmployment, bool, error) {
-	if s == nil {
-		return identityaccess.FormerEmployment{}, false, errSchoolInvitationUnavailable
-	}
-	former, found, err := s.findFormerEmployment(bindRuntime(s.attach, ctx), email)
-	if err != nil || !found {
-		return identityaccess.FormerEmployment{}, false, invitationError(err)
-	}
-	return identityaccess.FormerEmployment{
-		StartedOn: former.StartedOn, EndedOn: former.EndedOn,
-		Resumes: []identityaccess.FormerEmploymentPart{
-			identityaccess.FormerEmploymentMasterData,
-			identityaccess.FormerEmploymentQualifications,
-			identityaccess.FormerEmploymentWorkTime,
-			identityaccess.FormerEmploymentPastShiftsAndAbsences,
-		},
-		NotReturning: []identityaccess.FormerEmploymentPart{
-			identityaccess.FormerEmploymentStaffDocuments,
-			identityaccess.FormerEmploymentFutureShiftsAndAbsences,
-			identityaccess.FormerEmploymentGroupsClassesSubstitutions,
-		},
-	}, true, nil
+	return runFlow2(ctx, s.flow(), func(ctx context.Context) (identityaccess.FormerEmployment, bool, error) {
+		former, found, err := s.findFormerEmployment(ctx, email)
+		if err != nil || !found {
+			return identityaccess.FormerEmployment{}, false, err
+		}
+		return identityaccess.FormerEmployment{
+			StartedOn: former.StartedOn, EndedOn: former.EndedOn,
+			Resumes: []identityaccess.FormerEmploymentPart{
+				identityaccess.FormerEmploymentMasterData,
+				identityaccess.FormerEmploymentQualifications,
+				identityaccess.FormerEmploymentWorkTime,
+				identityaccess.FormerEmploymentPastShiftsAndAbsences,
+			},
+			NotReturning: []identityaccess.FormerEmploymentPart{
+				identityaccess.FormerEmploymentStaffDocuments,
+				identityaccess.FormerEmploymentFutureShiftsAndAbsences,
+				identityaccess.FormerEmploymentGroupsClassesSubstitutions,
+			},
+		}, true, nil
+	})
 }
 
 func (s *SchoolInvitation) AcceptSchoolInvitation(ctx context.Context, token string, registration identityaccess.InvitationRegistration) (identityaccess.Account, error) {
-	if s == nil {
-		return identityaccess.Account{}, errSchoolInvitationUnavailable
-	}
-	account, err := s.AcceptInvitation(bindRuntime(s.attach, ctx), token, domain.InvitationRegistration{
-		OwnerAccessToken: registration.OwnerAccessToken, FirstName: registration.FirstName, LastName: registration.LastName,
-		Password: registration.Password, ConfirmPassword: registration.ConfirmPassword,
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (identityaccess.Account, error) {
+		account, err := s.AcceptInvitation(ctx, token, domain.InvitationRegistration{
+			OwnerAccessToken: registration.OwnerAccessToken, FirstName: registration.FirstName, LastName: registration.LastName,
+			Password: registration.Password, ConfirmPassword: registration.ConfirmPassword,
+		})
+		return identityaccess.Account{ID: account.ID, Email: account.Email}, err
 	})
-	return identityaccess.Account{ID: account.ID, Email: account.Email}, invitationError(err)
 }
 
 func (s *SchoolInvitation) ResendSchoolInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
-	if s == nil {
-		return errSchoolInvitationUnavailable
-	}
-	return invitationError(s.ResendInvitation(bindRuntime(s.attach, ctx), invitationID, actorAccountID))
+	return runFlowErr(ctx, s.flow(), func(ctx context.Context) error {
+		return s.ResendInvitation(ctx, invitationID, actorAccountID)
+	})
 }
 
 func (s *SchoolInvitation) RevokeSchoolInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
-	if s == nil {
-		return errSchoolInvitationUnavailable
-	}
-	return invitationError(s.RevokeInvitation(bindRuntime(s.attach, ctx), invitationID, actorAccountID))
+	return runFlowErr(ctx, s.flow(), func(ctx context.Context) error {
+		return s.RevokeInvitation(ctx, invitationID, actorAccountID)
+	})
 }
 
 func (s *SchoolInvitation) ListPendingSchoolInvitations(ctx context.Context) ([]identityaccess.SchoolInvitation, error) {
-	if s == nil {
-		return nil, errSchoolInvitationUnavailable
-	}
-	invitations, err := s.ListPendingInvitations(bindRuntime(s.attach, ctx))
-	if err != nil {
-		return nil, invitationError(err)
-	}
-	result := make([]identityaccess.SchoolInvitation, 0, len(invitations))
-	for _, invitation := range invitations {
-		result = append(result, PublicSchoolInvitation(invitation))
-	}
-	return result, nil
+	return runFlow(ctx, s.flow(), func(ctx context.Context) ([]identityaccess.SchoolInvitation, error) {
+		invitations, err := s.ListPendingInvitations(ctx)
+		if err != nil {
+			return nil, err
+		}
+		result := make([]identityaccess.SchoolInvitation, 0, len(invitations))
+		for _, invitation := range invitations {
+			result = append(result, PublicSchoolInvitation(invitation))
+		}
+		return result, nil
+	})
 }
 
 func (s *SchoolInvitation) RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error {
-	if s == nil {
-		return errSchoolInvitationUnavailable
-	}
-	return invitationError(s.RecordInvitationDelivery(bindRuntime(s.attach, ctx), id, domain.TokenDelivery(delivery)))
+	return runFlowErr(ctx, s.flow(), func(ctx context.Context) error {
+		return s.RecordInvitationDelivery(ctx, id, domain.TokenDelivery(delivery))
+	})
 }
 
 func (s *SchoolInvitation) SchoolInvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
-	if s == nil {
-		return false, errSchoolInvitationUnavailable
-	}
-	sent, err := s.InvitationDeliverySent(bindRuntime(s.attach, ctx), id)
-	return sent, invitationError(err)
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (bool, error) {
+		sent, err := s.InvitationDeliverySent(ctx, id)
+		return sent, err
+	})
 }
 
 func (s *SchoolInvitation) SchoolInvitationSubdomain(ctx context.Context, token string) string {

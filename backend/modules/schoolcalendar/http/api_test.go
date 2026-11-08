@@ -139,6 +139,10 @@ func (f *fakeCalendarService) StaffCalendarFeedByToken(context.Context, string) 
 	return "", "", nil
 }
 
+func (f *fakeCalendarService) CalendarFeedByToken(context.Context, string) (string, string, error) {
+	return "", "", nil
+}
+
 func (f *fakeCalendarService) StaffCalendarAccess(context.Context) (calendarSvc.StaffCalendarAccessInfo, error) {
 	return calendarSvc.StaffCalendarAccessInfo{URL: f.staffFeedURL, WebcalURL: f.staffFeedWebcal, CalDAV: f.staffCalDAV}, f.staffFeedErr
 }

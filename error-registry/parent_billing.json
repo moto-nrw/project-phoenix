@@ -315,6 +315,30 @@
       "legacy": "parent_billing.care_tariff_not_found"
     },
     {
+      "code": "parent_billing.care_amendment_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.care_amendment_invalid"
+    },
+    {
+      "code": "parent_billing.care_amendment_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_amendment_conflict"
+    },
+    {
+      "code": "parent_billing.care_amendment_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "parent_billing.care_amendment_disabled"
+    },
+    {
+      "code": "parent_billing.care_amendments_unresolved",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_amendments_unresolved"
+    },
+    {
       "code": "parent_billing.care_exclusion_conflict",
       "class": "business_rejection",
       "parameters": [],

@@ -24,7 +24,8 @@ const mealBillingErasureStatement = `					-- A Mensa month a school released kee
 const careNoticeErasureAnchor = mealBillingErasureAnchor + mealBillingErasureStatement
 
 // careNoticeErasureStatement is what 1.15.823 adds to the erasure of
-// 1.15.811 (#6219). A Jahresbescheid copies child, recipient and mail
+// 1.15.821 (#6219), which is the erasure of 1.15.811 with the changes of the
+// review (#6197). A Jahresbescheid copies child, recipient and mail
 // address and outlives its contract; nothing removes it with the school,
 // because it belongs to the Träger. The notices of the school go, their
 // months with the mail addresses of the snapshot by cascade, also a notice
@@ -45,14 +46,14 @@ const careNoticeErasureStatement = `					-- A Jahresbescheid of the school copie
 `
 
 // demoVisitorErasureCareNoticesSQL is platform.erase_closed_demo_visitors
-// of 1.15.811 with the fee notices of the demo schools.
-var demoVisitorErasureCareNoticesSQL = strings.Replace(demoVisitorErasureMealBillingSQL, careNoticeErasureAnchor,
+// of 1.15.821 with the fee notices of the demo schools.
+var demoVisitorErasureCareNoticesSQL = strings.Replace(demoVisitorErasureCareAmendmentsSQL, careNoticeErasureAnchor,
 	careNoticeErasureAnchor+careNoticeErasureStatement, 1)
 
 // installCareNoticeErasure installs the erasure of 1.15.823.
 func installCareNoticeErasure(ctx context.Context, db *bun.DB) error {
-	if strings.Count(demoVisitorErasureMealBillingSQL, careNoticeErasureAnchor) != 1 {
-		return fmt.Errorf("erase the fee notices of retired demo schools: the erasure of 1.15.811 lost its anchor")
+	if strings.Count(demoVisitorErasureCareAmendmentsSQL, careNoticeErasureAnchor) != 1 {
+		return fmt.Errorf("erase the fee notices of retired demo schools: the erasure of 1.15.821 lost its anchor")
 	}
 	if _, err := db.ExecContext(ctx, demoVisitorErasureCareNoticesSQL); err != nil {
 		return fmt.Errorf("erase the fee notices of retired demo schools: %w", err)

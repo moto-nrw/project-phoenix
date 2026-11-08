@@ -10724,7 +10724,7 @@ export const traegerCareMonthsTopic =
       title: "Monatsbeiträge abrechnen",
       question: "Wie rechne ich die Betreuung jeden Monat ab?",
       summary:
-        "Ein Monatslauf rechnet einen Monat für die gewählten Schulen nach den gültigen Verträgen ab. Der Beitrag eines Kindes kommt aus der Preisliste: als Summe der gebuchten Wochentage oder als Staffel nach Tagen je Woche. Es zählt der Vertrag, nicht die Anwesenheit. Vor der Freigabe prüfen Sie die Vorschau und schließen Rechnungen aus, die noch nicht stimmen. Nach der Freigabe erstellen Sie die Schreiben, senden sie an die Familien und stornieren eine falsche Rechnung.",
+        "Ein Monatslauf rechnet einen Monat für die gewählten Schulen nach den gültigen Verträgen ab. Der Beitrag eines Kindes kommt aus der Preisliste: als Summe der gebuchten Wochentage oder als Staffel nach Tagen je Woche. Es zählt der Vertrag, nicht die Anwesenheit. Vor der Freigabe prüfen Sie die Vorschau, ändern einzelne Rechnungen und schließen Rechnungen aus, die noch nicht stimmen. Nach der Freigabe erstellen Sie die Schreiben, senden sie an die Familien und stornieren eine falsche Rechnung.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "CalendarCheck",
@@ -10778,7 +10778,7 @@ export const traegerCareMonthsTopic =
         {
           title: "Vorschau prüfen und Rechnungen ausschließen",
           description:
-            "Vor der Freigabe ändert sich nichts an einer Rechnung. Sie können aber eine Rechnung aus diesem Lauf nehmen. Das Kind kommt im nächsten Lauf dieses Monats wieder.",
+            "Sie können eine Rechnung aus diesem Lauf nehmen. Das Kind kommt im nächsten Lauf dieses Monats wieder.",
           steps: [
             "Wählen Sie bei `Monatslauf` den Knopf `Prüfliste` und dann `Excel` oder `CSV`. Die Liste hat je Position eine Zeile. Rechnungsnummern stehen noch nicht darin.",
             "Stimmt eine Rechnung noch nicht, wählen Sie in ihrer Zeile das Menü mit den drei Punkten und dann `Ausschließen`.",
@@ -10790,12 +10790,27 @@ export const traegerCareMonthsTopic =
           ],
         },
         {
+          title: "Eine Rechnung vor der Freigabe ändern",
+          description:
+            "Sie ändern nur diese eine Rechnung in diesem Lauf. Die Familie und andere Rechnungen bleiben, wie sie sind. Jede Änderung braucht einen Grund und steht im Verlauf der Rechnung.",
+          steps: [
+            "Wählen Sie in der Zeile der Rechnung das Menü mit den drei Punkten und dann `Rechnung ändern`. Die Seite der Rechnung öffnet sich.",
+            "Wählen Sie oben `Ändern` und dann `Betrag ändern`, `Position hinzufügen`, `Empfänger ändern` oder `Anschrift ändern`.",
+            "Tragen Sie den neuen Wert ein und schreiben Sie bei `Grund`, warum. Wählen Sie den Knopf unten im Fenster.",
+            "Einen neuen Betrag zeigt die Rechnung als eigene Zeile `Korrektur` mit dem Unterschied. Die berechneten Zeilen bleiben stehen.",
+            "Eine Position nehmen Sie heraus: Wählen Sie bei der Position das Menü mit den drei Punkten und dann `Position entfernen`. Die Position bleibt durchgestrichen sichtbar, die Rechnung bekommt eine Zeile mit Minus.",
+            "Eine Änderung nehmen Sie zurück: Wählen Sie im `Verlauf der Änderungen` bei der Änderung `Zurücknehmen` und schreiben Sie einen Grund. Der Eintrag bleibt im Verlauf.",
+            "Prüfen Sie danach die Vorschau. Haben Sie die Seite vorher geprüft, prüfen Sie sie noch einmal. Erst dann geben Sie frei.",
+          ],
+        },
+        {
           title: "Monatslauf freigeben",
           steps: [
             "Wählen Sie `Lauf freigeben`.",
             "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
             "Jede Rechnung bekommt ihre Nummer und das Rechnungsdatum. Danach ändert sie sich nicht mehr.",
-            "Hat sich seit Ihrer Prüfung etwas geändert, zum Beispiel ein Vertrag oder ein Preis, gibt moto nicht frei. Die Seite zeigt den neuen Stand. Prüfen Sie ihn und geben Sie dann frei.",
+            "Hat sich seit Ihrer Prüfung etwas geändert, zum Beispiel ein Vertrag, ein Preis oder eine Änderung einer Rechnung, gibt moto nicht frei. Die Seite zeigt den neuen Stand. Prüfen Sie ihn und geben Sie dann frei.",
+            "Passt eine Änderung einer Rechnung nicht mehr, zum Beispiel weil sich der Preis geändert hat, gibt moto nicht frei. Wählen Sie in der Meldung `Rechnung öffnen` und nehmen Sie die Änderung zurück.",
             "Die Familien sehen davon noch nichts. Sie bekommen erst das Schreiben, das Sie senden.",
           ],
         },
@@ -10838,6 +10853,7 @@ export const traegerCareMonthsTopic =
             "Haben Sie die Rechnung zum Drucken heruntergeladen, bekommt der Storno auch ein Schreiben. Laden Sie es über `Drucken` und `Alle Schreiben drucken` herunter. Geben Sie es der Familie auf Papier.",
             "Wurde die Rechnung weder gesendet noch zum Drucken heruntergeladen, bekommt die Familie kein Storno. Sie sieht nichts davon.",
             "Wählen Sie in der Meldung über den Rechnungen `Neu ausstellen`. Ein passender Prüflauf öffnet sich, sonst ein neuer Lauf. Ein neuer Lauf enthält nur Schulen mit noch offenen Stornos. Geben Sie ihn frei und senden Sie das neue Schreiben. Verteilen sich die Stornos auf mehrere Prüfläufe, wiederholen Sie `Neu ausstellen`. Sind alle Rechnungen neu ausgestellt, verschwindet die Meldung im alten Lauf.",
+            "Die neue Rechnung übernimmt die Änderungen der stornierten Rechnung, zum Beispiel einen geänderten Betrag oder Empfänger. Im Verlauf steht dann `Übernommen aus` mit der alten Nummer. Passt eine Änderung nicht mehr, nehmen Sie sie dort zurück.",
           ],
         },
       ],
@@ -10848,6 +10864,7 @@ export const traegerCareMonthsTopic =
         "Mit einem Preis, für den es schon eine Rechnung gibt, rechnet der Monat weiter ab. Ändern Sie ihn ab einem späteren Monat. Fehlende Preise ergänzen Sie auch für einen schon abgerechneten Monat. Der nächste Lauf dieses Monats rechnet die Kinder dann ab.",
       ],
       notes: [
+        "Welche Änderungen einer Rechnung möglich sind, stellt Ihr Träger unter `Einstellungen`, `Allgemein`, Bereich `Monatsbeitrag` ein. Standardmäßig sind alle vier an.",
         "Ferienpreise legen Sie im Ferienzeitraum fest. Die Preisliste gilt nur für die Monatsbeiträge.",
         "Die Preise für weitere Kinder gelten erst mit einer Geschwister-Regel mit der Wirkung `Preis laut Preisliste`. Die Regel legen Sie unter `Ermäßigungen` an.",
         "In einem beitragsfreien Monat steht im Monatslauf bei `Beitragsfreier Monat`, wie viele Verträge keine Rechnung bekommen.",

@@ -92,7 +92,7 @@ Reihenfolge nicht auseinanderläuft: `Decisions.LockApprovalGates`. Die
 
 | Weg | Einstieg | Reihenfolge |
 | --- | --- | --- |
-| Bestätigung `Decide(approved)` | `decide.go`, `LockApprovalGates` vor `lockDecisionTarget` und dem Lesen der Phase | Klasse, Wiederholung, Anmeldung, Kinder, Kind |
+| Bestätigung `Decide(approved)` | `decide.go`, `LockApprovalGates` vor `lockDecisionTarget` und dem Lesen der Phase | Klasse, Wiederholung, Anmeldung, Kinder, Kind; vor der Suche nach einem schon angemeldeten Kind zuletzt die Identitätssperre (Schule, Name, Geburtsdatum, #6170) |
 | Andere Entscheidungen (Ablehnung, Warteliste, Rückzug) | `decide.go` | keine Sperre; sie schreiben nur den Status |
 | Bestätigung bestehendes Kind, Klassenwechsel-Resync | `attachApprovalToExistingStudent` | Sperren schon von `Decide` gehalten |
 | Änderungsanfrage bestätigen | `ChangeRequests.Approve` → `withLockedChangeRequest` mit `lockApprovalGates` vor der Anmeldung | Klasse, Wiederholung, Anmeldung, Änderungsanfrage, Kinder, Kind |
@@ -104,7 +104,7 @@ Reihenfolge nicht auseinanderläuft: `Decisions.LockApprovalGates`. Die
 | Fällige Wochenpläne | `ApplyDueWeeklyPlans`, `LockApprovalGates` vor dem Lesen der Pläne | Klasse, Wiederholung, Pläne, Laufgemeinschaft, Kinder |
 | Phasenänderung (Start verschieben) | `Phases.update` → `validateCareOfferingPhaseUpdate` | Wiederholung, Phase, offene Pläne |
 | Phase löschen | `Phases.Delete` → `detachPhaseSourcedTemplates` | Wiederholung, Vorlagen, Phase |
-| Rollover anlegen | `runCreate` → Katalogkopie | neue Phase, dabei `KEY SHARE` auf die Quellphase, dann Wiederholung; gegen „Phase löschen“ ein Zyklus, der schon vor dieser ADR bestand (#6168) |
+| Rollover anlegen | `createRolloverPhase`, `LockApprovalGates` nach der Eignungsprüfung, vor dem Einfügen der neuen Phase | Klassenabfrage-Sperre (nur bei Klassenbeschränkung), Klasse, Wiederholung, Quellphase erneut, neue Phase (`KEY SHARE` auf die Quellphase), Katalogkopie ([ADR 0179](0179-rollover-anlegen-nimmt-die-wiederholungssperre-vor-der-neuen-phase.md)) |
 | Angebote anpassen | `UpdateChildOfferings` → Care Plan `AdjustOfferings` | Klasse, Wiederholung, Kind; die Anmeldung wird ungesperrt gelesen |
 | Angebotsverwaltung | Care Plan `CareOfferingCatalog` | Wiederholung, Angebote; keine Klassensperre danach |
 | Kind bearbeiten mit Klasse (Care Plan PUT) | `student_update_handlers.go` | Klasse, Wiederholung, Kind |
@@ -116,7 +116,10 @@ Reihenfolge nicht auseinanderläuft: `Decisions.LockApprovalGates`. Die
 
 Vorher nahmen die Änderungsanfrage die Anmeldung und der Rollover-Lauf die
 Kinder vor der Wiederholungssperre. Gegen eine Bestätigung, die beide Sperren
-hält und auf diese Zeilen wartet, schloss das einen Zyklus (40P01).
+hält und auf diese Zeilen wartet, schloss das einen Zyklus (40P01). „Rollover
+anlegen“ fügte die neue Phase vor der Wiederholungssperre ein; gegen „Phase
+löschen“, das die Sperre hält und auf die Quellphase wartet, schloss das
+ebenfalls einen Zyklus (#6168).
 
 Abgelehnt: Wochenzeilen mit Gültigkeitszeitraum in Care Plan. Das wäre eine
 Migration der beiden Wochentabellen und eine Änderung aller ihrer Leser

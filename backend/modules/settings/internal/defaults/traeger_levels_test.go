@@ -41,7 +41,11 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 		// The reminder of an unsigned care contract (#4679).
 		config.KeyCareContractSignatureReminderDays,
 		config.KeyCareContractTerminationConfirmation, config.KeyCareContractWithdrawalConfirmation,
-		config.KeyParentBillingCareMonthChange, config.KeyParentBillingCostTakeoverOrder, config.KeyParentBillingDebtorNumberOnConfirm,
+		config.KeyParentBillingCareMonthChange,
+		// The changes of a single invoice the review allows (#6197).
+		config.KeyParentBillingCareReviewAddress, config.KeyParentBillingCareReviewAmount,
+		config.KeyParentBillingCareReviewPositions, config.KeyParentBillingCareReviewRecipient,
+		config.KeyParentBillingCostTakeoverOrder, config.KeyParentBillingDebtorNumberOnConfirm,
 		config.KeyParentBillingPaymentText, config.KeyParentBillingSiblingRank,
 		config.KeyTraegerAlertChildrenPerStaff, config.KeyTraegerAlertOpenEnrollments, config.KeyTraegerAlertSickPercent,
 	}

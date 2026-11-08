@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -32,6 +33,14 @@ func isValidTimeFormat(s string) bool {
 type StudentImportConfig struct {
 	ports.RelationshipResolver
 	ports.StudentImportDeps
+	importMu *sync.Mutex
+}
+
+// requestScopedResolver gives each import its own reference cache. One
+// composed config serves every school, so a cache it kept would answer one
+// school's upload with another school's groups.
+type requestScopedResolver interface {
+	newRequestScoped() ports.RelationshipResolver
 }
 
 // NewStudentImportConfig creates a new student import configuration.
@@ -41,8 +50,21 @@ func NewStudentImportConfig(deps ports.StudentImportDeps) *StudentImportConfig {
 	deps.Guardians = ports.ObserveGuardianDirectory(deps.Guardians)
 	deps.Schedules = ports.ObserveStudentSchedules(deps.Schedules)
 	deps.PrivacyConsents = ports.ObservePrivacyConsents(deps.PrivacyConsents)
-	return &StudentImportConfig{RelationshipResolver: deps.Resolver, StudentImportDeps: deps}
+	return &StudentImportConfig{RelationshipResolver: deps.Resolver, StudentImportDeps: deps, importMu: &sync.Mutex{}}
 }
+
+// NewRequestScoped returns the configuration one import request preloads.
+// Imports stay serialized on the shared lock, as before.
+func (c *StudentImportConfig) NewRequestScoped() ports.ImportConfig[importModels.StudentImportRow] {
+	clone := *c
+	if scoped, ok := c.Resolver.(requestScopedResolver); ok {
+		clone.Resolver = scoped.newRequestScoped()
+		clone.RelationshipResolver = clone.Resolver
+	}
+	return &clone
+}
+
+func (c *StudentImportConfig) ImportLock() *sync.Mutex { return c.importMu }
 
 // ValidateBatch flags rows that claim the same RFID card as an earlier row
 // of the same file. The card is still free while the batch is validated, so

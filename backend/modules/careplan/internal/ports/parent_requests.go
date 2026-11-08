@@ -86,7 +86,10 @@ type ExcusedBulkCandidate struct {
 
 // ExcusedBulkPort is the absence queue's side of the bulk approval.
 type ExcusedBulkPort interface {
-	GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*ExcusedBulkCandidate, error)
+	// GetExcusedBulkCandidate reads every named request in one pass, before
+	// any lock. A request that is gone, decided or hidden from the caller is
+	// absent from the result.
+	GetExcusedBulkCandidate(ctx context.Context, requestIDs []int64) (map[int64]ExcusedBulkCandidate, error)
 	LockExcusedBulkRequest(ctx context.Context, requestID int64) error
 	ApproveExcusedBulk(ctx context.Context, requestID int64, reason string, reviewerID int64, expectedVersion string) error
 }
@@ -95,7 +98,10 @@ type ExcusedBulkPort interface {
 // also holds the one student-lock frontier every cross-kind command takes
 // after its request rows.
 type MasterDataBulkPort interface {
-	GetBulkCandidate(ctx context.Context, requestID int64) (*careplan.MasterDataReviewItem, error)
+	// GetBulkCandidate reads every named request in one pass, before any
+	// lock. A request that is gone, decided or hidden from the caller is
+	// absent from the result.
+	GetBulkCandidate(ctx context.Context, requestIDs []int64) (map[int64]*careplan.MasterDataReviewItem, error)
 	LockBulkRequest(ctx context.Context, requestID int64) error
 	LockBulkStudents(ctx context.Context, studentIDs []int64) error
 	Decide(ctx context.Context, input masterdatarequests.DecideInput) (*careplan.MasterDataReviewItem, error)

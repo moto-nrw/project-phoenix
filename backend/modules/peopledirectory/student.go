@@ -93,6 +93,11 @@ type StudentQuery interface {
 	// that need the lifecycle status of a graduate can still see it.
 	ListStudentsByID(context.Context, []int64) ([]Student, error)
 	ListStudentNamesByID(context.Context, []int64) ([]StudentName, error)
+	// ListStudentNamesByClass returns the names of every child of one class,
+	// alumni included, ordered by id, in one statement. The class matches
+	// trimmed and case-insensitive; an empty class has no children. It reads
+	// in the caller's school transaction and fails without one.
+	ListStudentNamesByClass(context.Context, string) ([]StudentName, error)
 	// ListStudentsAcrossTenantsByID resolves visiting students (holiday care
 	// at a partner school) in a separate admin transaction. Callers must
 	// already hold a reference to the student (an open visit).

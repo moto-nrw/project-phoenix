@@ -53,6 +53,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_invoice_corrections",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_invoice_cost_shares",
       "write_owner": "parent-billing"
     },
@@ -134,6 +138,10 @@
     },
     {
       "name": "parent_billing.care_runs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_amendments",
       "write_owner": "parent-billing"
     },
     {

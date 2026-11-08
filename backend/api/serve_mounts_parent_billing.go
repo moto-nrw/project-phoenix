@@ -113,7 +113,7 @@ func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBran
 }
 
 // NewCareNoticeHTTP binds the Jahresbescheide of the monthly care (#6219,
-// ADR 0177) to the right "Abrechnung" and to the same ports as the monthly
+// ADR 0180) to the right "Abrechnung" and to the same ports as the monthly
 // run, plus the letterhead of the Träger for page 1 of the Bescheid.
 func NewCareNoticeHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings,
 	marks owners.MealAttendanceMarks,
@@ -358,6 +358,24 @@ func (s parentBillingSettings) CareMonthRule(ctx context.Context, organizationID
 		return "", err
 	}
 	return texts[configModels.KeyParentBillingCareMonthChange], nil
+}
+
+// CareAmendable reads which changes of a single invoice the review of a
+// monthly run allows (#6197): the Träger's switches or their defaults.
+func (s parentBillingSettings) CareAmendable(ctx context.Context, organizationID int64) (parentbilling.CareAmendable, error) {
+	values, err := s.settings.TraegerBools(ctx, organizationID, []string{
+		configModels.KeyParentBillingCareReviewAmount, configModels.KeyParentBillingCareReviewRecipient,
+		configModels.KeyParentBillingCareReviewAddress, configModels.KeyParentBillingCareReviewPositions,
+	})
+	if err != nil {
+		return parentbilling.CareAmendable{}, err
+	}
+	return parentbilling.CareAmendable{
+		Amount:    values[configModels.KeyParentBillingCareReviewAmount],
+		Recipient: values[configModels.KeyParentBillingCareReviewRecipient],
+		Address:   values[configModels.KeyParentBillingCareReviewAddress],
+		Positions: values[configModels.KeyParentBillingCareReviewPositions],
+	}, nil
 }
 
 // parentBillingLetterheads binds the letterhead of the letters to the

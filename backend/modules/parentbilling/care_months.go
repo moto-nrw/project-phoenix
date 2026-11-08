@@ -234,7 +234,9 @@ type CarePosition struct {
 	MealExtra   bool  `json:"meal_extra,omitempty"`
 	AmountCents int64 `json:"amount_cents"`
 	// PayableCents preserves the rule chain allocation for later runs of the month.
-	PayableCents int64 `json:"-"`
+	PayableCents int64 `json:"payable_cents"`
+	// Key names the position for a change of the review (#6197).
+	Key string `json:"key,omitempty"`
 	// SiblingCents is what the position costs at the sibling prices of the
 	// price list; a sibling rule in the price-list mode charges it (#6196).
 	SiblingCents int64 `json:"-"`
@@ -298,7 +300,12 @@ type CareInvoice struct {
 	// pay after the reductions (#4687, ADR 0169); TotalCents is the rest the
 	// family pays.
 	CostShares []CareInvoiceCostShare `json:"cost_shares"`
-	TotalCents int64                  `json:"total_cents"`
+	// Amendments are the changes of the invoice in the review (#6197): on a
+	// preview its history with revoked and conflicting entries, on an issued
+	// invoice the corrections its release stored. TotalCents adds the
+	// correction lines of the applied ones.
+	Amendments []CareAmendment `json:"amendments,omitempty"`
+	TotalCents int64           `json:"total_cents"`
 }
 
 // CareUnpriced is a booked weekday of a module the price list has no price
@@ -454,6 +461,9 @@ type CareSchools interface {
 // default.
 type CareBillingSettings interface {
 	CareMonthRule(ctx context.Context, organizationID int64) (string, error)
+	// CareAmendmentSettings says which changes of an invoice the review
+	// allows (#6197).
+	CareAmendmentSettings
 }
 
 // CareBilling lets the Abrechnung of a Träger keep the monthly prices of

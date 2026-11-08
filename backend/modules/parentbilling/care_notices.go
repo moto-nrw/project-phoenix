@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The Jahresbescheid of the monthly care contribution (#6219, ADR 0177,
+// The Jahresbescheid of the monthly care contribution (#6219, ADR 0180,
 // pattern Gemeinde Hardt MK-007). A notice run assesses the months of a
 // calendar year from its first month to December for the schools it names:
 // per contract one fee notice with a line per module and rule, the monthly

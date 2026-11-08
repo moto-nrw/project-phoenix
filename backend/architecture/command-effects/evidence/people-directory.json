@@ -3161,38 +3161,6 @@
       "target_owner": ""
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs",
-      "binding_digest": "cc8defacd9ecbc079b1a173bdb9f7904",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs",
-      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "source_owner": "people-directory",
-      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
-      "target_owner": ""
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentDirectoryIDs",
-      "binding_digest": "cc8defacd9ecbc079b1a173bdb9f7904",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentDirectoryIDs",
-      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "source_owner": "people-directory",
-      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
-      "target_owner": ""
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentGuardians",
       "binding_digest": "d54d0fe4ad70d9bc4c33ff18d03f690f",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentGuardians",
@@ -3223,6 +3191,22 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByClass",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByClass",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByID",
@@ -6833,22 +6817,6 @@
       "target_owner": ""
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.ListStudentDirectoryIDs",
-      "binding_digest": "cc8defacd9ecbc079b1a173bdb9f7904",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentDirectoryIDs",
-      "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.ListStudentDirectoryIDs",
-      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentDirectoryIDs",
-      "source_owner": "people-directory",
-      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
-      "target_owner": ""
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.ListStudentGuardians",
       "binding_digest": "d54d0fe4ad70d9bc4c33ff18d03f690f",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentGuardians",
@@ -6863,6 +6831,14 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.ListStudentNamesByClass",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByClass",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.ListStudentNamesByID",
@@ -9033,38 +9009,6 @@
       "target_owner": ""
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs",
-      "binding_digest": "cc8defacd9ecbc079b1a173bdb9f7904",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentDirectoryIDs",
-      "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs",
-      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentDirectoryIDs",
-      "source_owner": "people-directory",
-      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
-      "target_owner": ""
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "binding_digest": "cc8defacd9ecbc079b1a173bdb9f7904",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentDirectoryIDs",
-      "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentDirectoryIDs",
-      "source_owner": "people-directory",
-      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
-      "target_owner": ""
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentGuardians",
       "binding_digest": "d54d0fe4ad70d9bc4c33ff18d03f690f",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentGuardians",
@@ -9095,6 +9039,22 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByClass",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentNamesByClass",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentNamesByClass",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByID",
@@ -10039,6 +9999,22 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByClass",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByClass",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByClass",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByID",

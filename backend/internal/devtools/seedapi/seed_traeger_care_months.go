@@ -37,7 +37,12 @@ type seedCareRunDetail struct {
 	// ExcludedCount and Invoices show the review of the open run (#5916).
 	ExcludedCount int `json:"excluded_count"`
 	Invoices      []struct {
-		ContractID int64 `json:"contract_id"`
+		ContractID int64  `json:"contract_id"`
+		Service    string `json:"service"`
+		// Amendments are the changes of the review (#6197).
+		Amendments []struct {
+			ID int64 `json:"id"`
+		} `json:"amendments"`
 	} `json:"invoices"`
 }
 
@@ -366,13 +371,41 @@ func seedCareReview(client *Client, auth AuthRef, month calendar.Date, run seedC
 		map[string]any{"invoice_date": invoiceDate.String()}); err != nil {
 		return fmt.Errorf("set the invoice date of the monthly run: %w", err)
 	}
-	if run.ExcludedCount > 0 || len(run.Invoices) < 2 {
+	if run.ExcludedCount == 0 && len(run.Invoices) >= 2 {
+		if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/exclusions", run.ID), map[string]any{
+			"contract_id": run.Invoices[len(run.Invoices)-1].ContractID, "reason": "Kündigung zum Monatsende wird noch geprüft",
+		}); err != nil {
+			return fmt.Errorf("exclude an invoice of the monthly run: %w", err)
+		}
+	}
+	return seedCareAmendment(client, auth, run.ID)
+}
+
+// seedCareAmendment changes the first invoice of the open run before its
+// release (#6197): an added position with its reason, as the SJR office
+// adds an outing the parents agreed to. A run whose first invoice has a
+// change already keeps it.
+func seedCareAmendment(client *Client, auth AuthRef, runID int64) error {
+	raw, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d", runID))
+	if err != nil {
+		return fmt.Errorf("read the monthly run before its change: %w", err)
+	}
+	var envelope struct {
+		Data seedCareRunDetail `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("read the monthly run before its change: %w", err)
+	}
+	run := envelope.Data
+	if len(run.Invoices) == 0 || len(run.Invoices[0].Amendments) > 0 {
 		return nil
 	}
-	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/exclusions", run.ID), map[string]any{
-		"contract_id": run.Invoices[len(run.Invoices)-1].ContractID, "reason": "Kündigung zum Monatsende wird noch geprüft",
+	invoice := run.Invoices[0]
+	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/amendments", runID), map[string]any{
+		"contract_id": invoice.ContractID, "service": invoice.Service, "fingerprint": run.Fingerprint,
+		"kind": "add_position", "label": "Ausflug Wildpark", "amount_cents": 1200, "reason": "Elternbrief vom 3. des Monats",
 	}); err != nil {
-		return fmt.Errorf("exclude an invoice of the monthly run: %w", err)
+		return fmt.Errorf("change an invoice of the monthly run: %w", err)
 	}
 	return nil
 }

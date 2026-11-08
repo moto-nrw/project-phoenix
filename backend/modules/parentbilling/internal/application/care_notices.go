@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The runs of the Jahresbescheide (#6219, ADR 0177). A run assesses the
+// The runs of the Jahresbescheide (#6219, ADR 0180). A run assesses the
 // months of a year from its first month to December: it computes every month
 // as the monthly run would (careMonthInput, buildCareMonth, narrowMonth),
 // so prices, rule chain, family counts and cost bearer shares are the same,

@@ -239,7 +239,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // the Mensa of the monthly run of modules/parentbilling/compose (+7) add
 // exactly 38 LOC.
 // ADR 0175: the school-read context guard adds exactly 5 LOC in settings/compose.
-// ADR 0177: the constructor of the Jahresbescheide of
+// ADR 0180: the constructor of the Jahresbescheide of
 // modules/parentbilling/compose adds exactly 7 LOC.
 const moduleComposeBudgetTotal = 13137
 

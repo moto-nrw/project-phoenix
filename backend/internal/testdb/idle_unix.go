@@ -382,12 +382,17 @@ func (s idleServer) command(ctx context.Context, args ...string) ([]byte, error)
 }
 
 type idleContainer struct {
-	ID         string
-	Config     struct{ Labels map[string]string }
-	State      struct{ Running bool }
+	ID     string
+	Config struct{ Labels map[string]string }
+	State  struct {
+		Running   bool
+		ExitCode  int
+		StartedAt string
+	}
 	HostConfig struct {
 		PortBindings map[string][]struct{ HostPort string }
 	}
+	Mounts []struct{ Type, Name, Destination string }
 }
 
 func (s idleServer) candidate(ctx context.Context) (*idleContainer, error) {
