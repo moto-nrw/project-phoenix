@@ -246,6 +246,7 @@ const SANDBOX_CSP =
 /** The host a BFF route is served on in production. */
 function hostFor(route: string): string {
   if (route.startsWith("/api/parent/")) return PARENTS_HOSTNAME;
+  if (route.startsWith("/api/holiday-registrations/")) return PARENTS_HOSTNAME;
   if (route.startsWith("/api/traeger/")) return TRAEGER_HOSTNAME;
   return "school-a.localhost:3000";
 }
@@ -259,6 +260,12 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     "/api/parent/me/news/8/attachments/9/download",
     "/api/students/1/documents/2/download",
     "/api/staff/3/documents/4/download",
+    "/api/students/care-schedule-change-requests/5/proof",
+    "/api/traeger/contracts/6/paper-signature",
+    "/api/traeger/holiday-periods/7/form/documents/8",
+    "/api/traeger-documents/9/file",
+    "/api/traeger/documents/1/file",
+    "/api/holiday-registrations/token/documents/2",
   ])("runs %s in the sandbox, not under the app CSP", (route) => {
     const host = hostFor(route);
     const res = proxy(makeRequest(`http://${host}${route}?inline=1`, host));
@@ -272,6 +279,8 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     "/api/files/folders/4/files",
     "/api/parent/me/news/8/attachments/9/download/extra",
     "/api/students/1/documents",
+    "/api/traeger/holiday-periods/7/form/documents",
+    "/api/traeger/contracts/6/document",
   ])("keeps the app CSP on %s", (route) => {
     const host = hostFor(route);
     const res = proxy(makeRequest(`http://${host}${route}`, host));
@@ -304,9 +313,15 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
       "announcement-attachments/[announcementId]/[attachmentId]/download",
       "enrollment/admin/requests/[id]/uploads/[uploadId]",
       "files/folders/[folderId]/files/[fileId]/download",
+      "holiday-registrations/[token]/documents/[documentId]",
       "parent/me/news/[announcementId]/attachments/[attachmentId]/download",
       "staff/[id]/documents/[documentId]/download",
       "students/[id]/documents/[documentId]/download",
+      "students/care-schedule-change-requests/[requestId]/proof",
+      "traeger-documents/[id]/file",
+      "traeger/contracts/[id]/paper-signature",
+      "traeger/documents/[id]/file",
+      "traeger/holiday-periods/[id]/form/documents/[documentId]",
       "traeger/holiday-periods/[id]/registrations/[registrationId]/proofs/[proofId]",
     ]);
   });
