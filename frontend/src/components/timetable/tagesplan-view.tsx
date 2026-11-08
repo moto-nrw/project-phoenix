@@ -386,7 +386,7 @@ function TagesplanRow({
           subtitle={detailLines}
           badge={badge}
           accent={blockEdgeColor(instance)}
-          accentTint={mine}
+          accentTint={mine && !cancelled}
           className="border-b border-gray-100 py-3.5 last:border-b-0"
         />
       </li>

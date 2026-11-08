@@ -3,7 +3,6 @@
 import { ChevronRight } from "lucide-react";
 import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
 import NavigationLink from "~/components/ui/navigation-link";
-import { StatusDot } from "~/components/ui/status-dot";
 import { cn } from "~/lib/utils";
 import { listRowLinkStateClasses } from "./list-row-styles";
 
@@ -43,18 +42,19 @@ type ListRowLinkProps = ListRowLinkTarget & {
    */
   readonly selected?: boolean;
   /**
-   * Farbige Kante links als Hex, etwa `LOCATION_COLORS.DANGER` oder die Farbe
-   * einer Planungsspur. Rein schmückend: der Text nennt, was sie bedeutet.
+   * Farbige Kante links als Hex (`#RRGGBB`), etwa `LOCATION_COLORS.DANGER`
+   * oder die Farbe einer Planungsspur. Rein schmückend: der Text nennt, was
+   * sie bedeutet.
    */
   readonly accent?: string;
   /** Tönt die Zeile zusätzlich leicht in der Farbe von `accent`. */
   readonly accentTint?: boolean;
   /**
-   * Ungelesen: Titel fett, `meta` blau, Vorschau dunkler. Trägt `badge` keine
-   * Zahl, markiert ein blauer Punkt die Zeile; `unreadLabel` liest ihn vor.
+   * Ungelesen: Titel fett, `meta` blau, Vorschau dunkler. Die Zahl dazu kommt
+   * als `NotificationBadge` in `badge`; einen Punkt gibt es nicht, `StatusDot`
+   * bleibt Legenden und Plänen vorbehalten (ADR 0149).
    */
   readonly unread?: boolean;
-  readonly unreadLabel?: string;
   /** Als einzelne Karte statt als Zeile einer `FramedList`. */
   readonly framed?: boolean;
   /** Führt die Zeile nicht auf eine andere Seite, entfällt der Pfeil. */
@@ -63,15 +63,6 @@ type ListRowLinkProps = ListRowLinkTarget & {
   readonly "aria-label"?: string;
 };
 
-const HEX_RE = /^#[0-9a-f]{6}$/i;
-
-/** Dieselbe Tönung wie ein eigener Block im Plan (`${hex}1A`). */
-function tintOf(color: string): string {
-  return HEX_RE.test(color)
-    ? `${color}1A`
-    : `color-mix(in srgb, ${color} 10%, transparent)`;
-}
-
 function accentStyle(
   accent: string | undefined,
   tint: boolean,
@@ -79,7 +70,8 @@ function accentStyle(
   if (!accent) return undefined;
   return {
     borderLeftColor: accent,
-    ...(tint ? { backgroundColor: tintOf(accent) } : {}),
+    // Dieselbe Tönung wie ein eigener Block im Plan.
+    ...(tint ? { backgroundColor: `${accent}1A` } : {}),
   };
 }
 
@@ -104,7 +96,6 @@ export function ListRowLink({
   accent,
   accentTint = false,
   unread = false,
-  unreadLabel,
   framed = false,
   chevron = true,
   className,
@@ -119,21 +110,9 @@ export function ListRowLink({
     !disabled && !framed && listRowLinkStateClasses(selected),
     !framed && className,
   );
-  const unreadDot =
-    unread && !badge ? (
-      unreadLabel ? (
-        <StatusDot size="md" className="bg-moto-blue" label={unreadLabel} />
-      ) : (
-        <StatusDot size="md" className="bg-moto-blue" decorative />
-      )
-    ) : null;
-  const marker =
-    badge || unreadDot ? (
-      <span className="flex shrink-0 items-center gap-2">
-        {badge}
-        {unreadDot}
-      </span>
-    ) : null;
+  const marker = badge ? (
+    <span className="flex shrink-0 items-center gap-2">{badge}</span>
+  ) : null;
 
   const text = stacked ? (
     <span className="min-w-0 flex-1 space-y-0.5">

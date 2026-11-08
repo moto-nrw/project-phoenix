@@ -194,22 +194,7 @@ describe("ListRowLink states (#5593)", () => {
       "text-moto-blue",
     );
     expect(screen.getByText("Bis morgen").className).toContain("text-gray-700");
-    // Die Zahl markiert die Zeile; kein zweiter Punkt daneben.
-    expect(screen.queryByText("Ungelesen")).not.toBeInTheDocument();
-  });
-
-  it("marks an unread row without a count with a labelled dot", () => {
-    render(
-      <ListRowLink
-        href="/a"
-        overline="Gruppe Sterne"
-        title="Fundsachen"
-        unread
-        unreadLabel="Ungelesen"
-      />,
-    );
-    expect(screen.getByText("Ungelesen")).toHaveClass("sr-only");
-    expect(screen.getByText("Fundsachen").className).toContain("font-bold");
+    expect(link).toHaveTextContent("2");
   });
 
   it("keeps read stacked rows calm", () => {

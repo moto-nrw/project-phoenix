@@ -77,7 +77,7 @@ export const Accent: Story = {
   ),
 };
 
-/** Dreizeilig wie eine Unterhaltung, mit Zahl oder Punkt für Ungelesenes. */
+/** Dreizeilig wie eine Unterhaltung; Ungelesenes zeigt die Zahl. */
 export const Unread: Story = {
   render: () => (
     <FramedList>
@@ -105,8 +105,14 @@ export const Unread: Story = {
           meta="07.11.2026, 14:10"
           title="Laternen basteln"
           subtitle="Bitte geben Sie Ihrem Kind alte Kleidung mit."
+          badge={
+            <NotificationBadge
+              count={1}
+              tone="parents"
+              ariaLabel="1 ungelesene Nachricht"
+            />
+          }
           unread
-          unreadLabel="Ungelesen"
         />
       </li>
       <li>
