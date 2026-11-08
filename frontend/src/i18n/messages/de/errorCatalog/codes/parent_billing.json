@@ -74,5 +74,9 @@
   "due_dates_invalid": "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten.",
   "family_children_invalid": "Bitte geben Sie eine ganze Zahl von 1 bis 20 an.",
   "family_children_not_found": "Zu diesem Vertrag gibt es keine Familie mehr. Bitte laden Sie die Seite neu.",
-  "family_without_address": "Die Rechnung dieses Vertrags hat keine E-Mail-Adresse. Tragen Sie zuerst im Vertrag eine Adresse ein."
+  "family_without_address": "Die Rechnung dieses Vertrags hat keine E-Mail-Adresse. Tragen Sie zuerst im Vertrag eine Adresse ein.",
+  "care_notice_run_not_found": "Diesen Jahreslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“ und „Jahresbescheide“.",
+  "care_notice_run_open": "Für dieses Jahr gibt es schon einen offenen Jahreslauf. Öffnen Sie ihn in der Liste und stellen Sie ihn aus.",
+  "care_notice_run_invalid": "Bitte wählen Sie einen Monat des Jahres und mindestens eine Schule.",
+  "care_notice_not_found": "Diesen Bescheid gibt es in diesem Lauf nicht. Bitte öffnen Sie den Lauf noch einmal."
 }

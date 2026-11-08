@@ -74,5 +74,9 @@
   "due_dates_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "family_children_invalid": "Ju lutemi shkruani një numër të plotë nga 1 deri në 20.",
   "family_children_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "family_without_address": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "family_without_address": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "care_notice_run_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "care_notice_run_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "care_notice_run_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "care_notice_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

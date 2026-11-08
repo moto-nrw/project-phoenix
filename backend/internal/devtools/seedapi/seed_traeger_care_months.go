@@ -84,8 +84,13 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 			return err
 		}
 	}
-	fmt.Printf("  Träger monthly contributions: %d prices, %d rules, %d evidences, %d invoices issued\n",
-		prices, rules, evidences, released)
+	// The months after the current one go into a Jahresbescheid (#6219).
+	notices, err := seedCareNotices(rt.Client, auth, current)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("  Träger monthly contributions: %d prices, %d rules, %d evidences, %d invoices and %d fee notices issued\n",
+		prices, rules, evidences, released, notices)
 	return nil
 }
 

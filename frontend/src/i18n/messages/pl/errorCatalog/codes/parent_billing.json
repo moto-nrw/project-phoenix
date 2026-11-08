@@ -74,5 +74,9 @@
   "due_dates_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "family_children_invalid": "Proszę podać liczbę całkowitą od 1 do 20.",
   "family_children_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "family_without_address": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "family_without_address": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "care_notice_run_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "care_notice_run_open": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "care_notice_run_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "care_notice_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

@@ -152,6 +152,8 @@ var seedCoverageTransient = map[string]string{
 	"parent_billing.family_billing_events":      "the trail of the deviations above (#4689); present exactly when a deviation is",
 	"parent_billing.care_run_holds":             "children a release held back for a duplicate contract (#4684, ADR 0158 E5); present only after a release that found one, which the seed's contracts never are",
 	"parent_billing.care_invoice_positions":     "positions of the monthly invoices above (#4684); present exactly when an invoice is",
+	"parent_billing.care_notices":               "Jahresbescheide bill only active contracts (#6219), like the monthly invoices above: the Worker concludes the contracts of Weg b on its tick, so a seed run may finish before the first one is active; in December no month is left to assess",
+	"parent_billing.care_notice_months":         "the months of the Jahresbescheide above (#6219); present exactly when a notice is",
 	"parent_billing.care_invoice_reductions":    "reductions of the monthly invoices above (#4685); present once an issued invoice has one, which needs the invoices above",
 	"parent_billing.care_run_letters":           "letters of a released monthly run (#4684, ADR 0165); the seed creates them for every released run, present exactly when an invoice is",
 	"parent_billing.care_letters":               "the letter of every monthly invoice above (#4684, ADR 0165); present exactly when an invoice is",

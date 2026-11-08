@@ -261,7 +261,7 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 				billing_year, kind, care_contract_id, school_id, school_name, child_first_name, child_last_name, recipient_email,
 				family_email, recipient, payment_method, period_from, period_until, lines, previous_cents, total_cents,
 				delta_cents, legal_remedy)
-			SELECT run.organization_id, run.id, 'JB-' || ?0 || '-' || year.y, year.y, ?0 * 10 + year.y - 2026,
+			SELECT run.organization_id, run.id, 'JB-' || ?0 || '-' || year.y, year.y, ?0::bigint * 10 + year.y - 2025,
 				DATE '2026-09-24', year.y, 'initial', contract.id, ?0, 'OGS', year.child, year.last, '', '',
 				CASE WHEN year.named THEN jsonb_build_object('first_name', '` + visitorFirst + `', 'last_name', '` + visitorLast + `')
 					ELSE '{}'::jsonb END,
