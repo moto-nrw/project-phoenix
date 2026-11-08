@@ -292,6 +292,7 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.care_run_letters":                       notPersonal("payment date and free text of the letters of a released monthly run (#4684, ADR 0165), no person"),
 	"parent_billing.care_run_holds":                         own("the snapshot of a child a release held back stays with its run as the record why the child was not billed (ADR 0158 E5); it goes with platform.organizations when the Träger is erased (#4657) and with a retired demo school (1.15.805)"),
 	"parent_billing.care_runs":                              notPersonal("monthly run of a Träger (#4684): month, status, issue date and sums, no person"),
+	"parent_billing.care_run_schools":                       notPersonal("schools a monthly run bills (#5916): school, month and whether the run is open, no person"),
 	"parent_billing.care_tariffs":                           notPersonal("monthly price of a care module per school and weekday (#4684), no person"),
 	"parent_billing.contribution_rules":                     notPersonal("contribution rule of a Träger (#4664): kind, parameters, validity and the note of an exemption, no person"),
 	"parent_billing.cost_bearers":                           notPersonal("body that pays the holiday contribution of a family in its place (#5627): name, address and file reference of an office, no person"),

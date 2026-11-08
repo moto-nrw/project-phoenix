@@ -51,6 +51,7 @@
   "care_tariff_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "care_tariff_month_billed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_tariff_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "care_exclusion_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_invoice_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_invoice_cancelled": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_recipient_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",

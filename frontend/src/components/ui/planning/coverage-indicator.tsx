@@ -56,11 +56,6 @@ const DOT_SIZE_PX: Record<CoverageIndicatorSize, string> = {
   sm: "6px",
 };
 
-const NUMBER_TEXT_SIZE_CLASS: Record<CoverageIndicatorSize, string> = {
-  md: "text-xs",
-  sm: "text-[11px]",
-};
-
 const NUMBER_COLOR_CLASS: Record<CoverageState, string> = {
   covered: "text-gray-600",
   gap: "font-semibold text-gray-900",
@@ -111,7 +106,7 @@ export function CoverageIndicator({
   title,
   className,
 }: CoverageIndicatorProps) {
-  const numberSizeClass = NUMBER_TEXT_SIZE_CLASS[size];
+  const numberSizeClass = "text-xs";
   const numberColorClass = NUMBER_COLOR_CLASS[state];
   const description =
     title ?? defaultDescription({ state, current, total, note });
@@ -160,7 +155,7 @@ export function CoverageIndicator({
       />
       {numberContent}
       {state === "acknowledged" && note && (
-        <span className="text-[11px] text-gray-500">{note}</span>
+        <span className="text-xs text-gray-500">{note}</span>
       )}
     </span>
   );

@@ -176,7 +176,7 @@ export function PeriodSwitcherDropdown({
           <p className="text-sm font-semibold text-gray-900">
             Planungszeitraum
           </p>
-          <p className="text-[11px] text-gray-500">
+          <p className="text-sm text-gray-500">
             Zeiträume legen fest, in welchen Wochen regelmäßige Termine gelten.
             So kannst du Schuljahr, Ferien oder besondere Phasen getrennt
             planen.
@@ -252,7 +252,7 @@ export function PeriodSwitcherDropdown({
                   return (
                     <div
                       key={a.date}
-                      className="flex items-center justify-between gap-3 text-[11px]"
+                      className="flex items-center justify-between gap-3 text-xs"
                     >
                       <span className="font-medium text-gray-500">
                         {getGermanWeekdayShort(day)}
@@ -318,7 +318,7 @@ export function PeriodSwitcherDropdown({
                             {p.name}
                           </span>
                         </div>
-                        <p className="text-[10px] text-gray-500 tabular-nums">
+                        <p className="text-xs text-gray-500 tabular-nums">
                           {formatPeriodRange(p)}
                           {(() => {
                             const label = weekCycleLabel(p.weekCycleLength);
@@ -395,14 +395,14 @@ function MonthPeriodSummary({
         {assignedPeriods.map((period) => (
           <p
             key={period.id}
-            className="truncate text-[11px] text-gray-600 tabular-nums"
+            className="truncate text-xs text-gray-600 tabular-nums"
           >
             <span className="font-medium text-gray-800">{period.name}</span>{" "}
             <span className="text-gray-400">{formatPeriodRange(period)}</span>
           </p>
         ))}
         {hasMissingDays && (
-          <p className="text-moto-amber-strong text-[11px]">
+          <p className="text-moto-amber-strong text-xs">
             Einige Tage haben keinen aktiven Zeitraum.
           </p>
         )}

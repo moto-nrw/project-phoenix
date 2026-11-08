@@ -14,9 +14,8 @@ func init() {
 		Version:     parentBillingFamilyChildrenVersion,
 		Description: "Elternabrechnung: Kinder in der Familie für die Geschwisterregel (#5918)",
 		DependsOn: []string{
-			studentMembershipFirstCareFromVersion, // the last migration before this one
-			parentBillingCareLettersVersion,       // the last migration of the parent billing before this one
-			parentBillingCareReductionsVersion,    // the sibling rule that counts the family
+			parentBillingCareReviewVersion,     // the last migration before this one
+			parentBillingCareReductionsVersion, // the sibling rule that counts the family
 		},
 	})
 	Migrations.MustRegister(parentBillingFamilyChildrenUp, parentBillingFamilyChildrenDown)

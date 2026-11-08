@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type {
+  CareInvoice,
   CareLetterMailing,
   CareLetters,
   CareRunDetail,
@@ -39,7 +41,23 @@ const RUN: CareRunDetail = {
   documentCount: 1,
   totalCents: 9600,
   monthRule: "version_on_first",
-  invoices: [],
+  invoices: [
+    {
+      id: "41",
+      number: "MB-0001",
+      issuedOn: "2027-01-04",
+      contractId: "21",
+      schoolId: "3",
+      schoolName: "OGS",
+      childFirstName: "Mia",
+      childLastName: "Beispiel",
+      recipient: { firstName: "Eva", lastName: "Beispiel", email: "" },
+      positions: [],
+      reductions: [],
+      totalCents: 9600,
+      exclusion: null,
+    },
+  ],
   unpriced: [],
   duplicates: [],
   duplicateChildren: 0,
@@ -49,6 +67,12 @@ const RUN: CareRunDetail = {
   previewCents: 9600,
   numberPattern: "MB-{NNNN}",
   numberRangeSet: true,
+  schoolIds: ["3"],
+  invoiceDate: null,
+  schools: [],
+  excludedCount: 0,
+  excludedCents: 0,
+  fingerprint: "",
 };
 const CANCELLATION: CareLetterMailing = {
   invoiceId: "41",
@@ -132,7 +156,11 @@ describe("monthly invoice reissue", () => {
         "/traeger/abrechnung/monatsbeitraege/8",
       ),
     );
-    expect(api.startCareRun).toHaveBeenCalledWith("2027-01-01");
+    expect(api.startCareRun).toHaveBeenCalledWith({
+      billingMonth: "2027-01-01",
+      schoolIds: ["3"],
+      invoiceDate: null,
+    });
   });
 
   it("does not create an empty run when another tab already issued the replacement", async () => {
@@ -154,5 +182,93 @@ describe("monthly invoice reissue", () => {
     ).toBeInTheDocument();
     expect(api.startCareRun).not.toHaveBeenCalled();
     expect(api.fetchCareRuns).not.toHaveBeenCalled();
+  });
+  it("uses an A-only preview for a cancelled A invoice of an A+B run", async () => {
+    api.fetchCareRun.mockResolvedValue({ ...RUN, schoolIds: ["3", "4"] });
+    api.fetchCareLetters.mockResolvedValue(letters([CANCELLATION]));
+    api.fetchCareRuns.mockResolvedValue({
+      runs: [{ ...RUN, id: "8", status: "calculated" }],
+    });
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neu ausstellen" }),
+    );
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith(
+        "/traeger/abrechnung/monatsbeitraege/8",
+      ),
+    );
+    expect(api.startCareRun).not.toHaveBeenCalled();
+  });
+
+  it("starts only the school with an outstanding cancellation", async () => {
+    api.fetchCareRun.mockResolvedValue({ ...RUN, schoolIds: ["3", "4"] });
+    api.fetchCareLetters.mockResolvedValue(letters([CANCELLATION]));
+    api.startCareRun.mockResolvedValue({ id: "8" });
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neu ausstellen" }),
+    );
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith(
+        "/traeger/abrechnung/monatsbeitraege/8",
+      ),
+    );
+    expect(api.startCareRun).toHaveBeenCalledWith({
+      billingMonth: RUN.billingMonth,
+      schoolIds: ["3"],
+      invoiceDate: null,
+    });
+  });
+
+  it("opens a partially overlapping run before starting the remaining schools", async () => {
+    const first = RUN.invoices[0];
+    if (!first) throw new Error("missing invoice fixture");
+    const second: CareInvoice = {
+      ...first,
+      id: "42",
+      contractId: "22",
+      schoolId: "4",
+    };
+    api.fetchCareRun.mockResolvedValue({
+      ...RUN,
+      schoolIds: ["3", "4"],
+      invoices: [first, second],
+    });
+    api.fetchCareLetters.mockResolvedValue(
+      letters([CANCELLATION, { ...CANCELLATION, invoiceId: "42" }]),
+    );
+    api.fetchCareRuns.mockResolvedValue({
+      runs: [{ ...RUN, id: "8", status: "calculated" }],
+    });
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neu ausstellen" }),
+    );
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith(
+        "/traeger/abrechnung/monatsbeitraege/8",
+      ),
+    );
+    expect(api.startCareRun).not.toHaveBeenCalled();
+  });
+  it("opens the matching run after a concurrent school reservation", async () => {
+    api.fetchCareLetters.mockResolvedValue(letters([CANCELLATION]));
+    api.fetchCareRuns
+      .mockResolvedValueOnce({ runs: [] })
+      .mockResolvedValue({ runs: [{ ...RUN, id: "9", status: "calculated" }] });
+    api.startCareRun.mockRejectedValueOnce(
+      new ApiError("conflict", 409, { code: "parent_billing.care_run_open" }),
+    );
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neu ausstellen" }),
+    );
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith(
+        "/traeger/abrechnung/monatsbeitraege/9",
+      ),
+    );
+    expect(api.fetchCareRuns).toHaveBeenCalledTimes(2);
   });
 });

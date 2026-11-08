@@ -102,7 +102,7 @@ func TestFamilyChildrenCountInTheSiblingRuleThroughTheRoutes(t *testing.T) {
 	assert.Equal(t, int64(3875), preview.Invoices[0].TotalCents, "the correction preserves the earlier billing period")
 
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"),
-		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents})
+		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents, "fingerprint": preview.Fingerprint})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodDelete, familyChildrenPath+"/"+strconv.FormatInt(mia, 10), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

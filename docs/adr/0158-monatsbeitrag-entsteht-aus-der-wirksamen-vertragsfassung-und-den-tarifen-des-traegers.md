@@ -179,3 +179,10 @@ bekommen Schreiben, Versand, Postfach, Sammeldruck, Storno und Neuausstellung
 [ADR 0165](0165-monatsrechnungen-nehmen-schreiben-versand-und-storno-der-ferienrechnungen.md).
 Punkt 5 („ein Vertrag hat je Monat höchstens eine Rechnung“) gilt seitdem für
 die erste Rechnung; eine stornierte Rechnung ersetzt höchstens eine neue.
+
+## Nachtrag 2026-11-08: Schulen je Lauf (#5916)
+
+Punkt 5 („höchstens ein Lauf in der Vorschau je Monat“) gilt seitdem je Schule:
+Ein Lauf nennt seine Schulen, und eine Schule ist je Monat in höchstens einem
+offenen Lauf. Die Freigabe stellt das Rechnungsdatum des Laufs aus. Details im
+[Nachtrag zu ADR 0119](0119-abrechnungslauf-stellt-unveraenderliche-rechnungen-aus-einem-nummernkreis-aus.md#nachtrag-2026-11-08-prüfphase-im-monatslauf-5916).

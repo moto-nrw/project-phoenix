@@ -35,10 +35,11 @@ type careMonthInput struct {
 // without a price, the children with duplicate contracts and the count of
 // contracts already billed.
 type careMonth struct {
-	invoices   []parentbilling.CareInvoice
-	unpriced   []parentbilling.CareUnpriced
-	duplicates []parentbilling.CareDuplicate
-	billed     int
+	invoices       []parentbilling.CareInvoice
+	unpriced       []parentbilling.CareUnpriced
+	duplicates     []parentbilling.CareDuplicate
+	billed         int
+	billedBySchool map[int64]int
 	// uncounted is the number of families a rule that counts the family
 	// ranked without a confirmed number for the month (#5918).
 	uncounted int
@@ -103,6 +104,10 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	}
 	chained = append(chained, issuedCareEntries(in.invoiced, childOf, byContract)...)
 	result.billed = len(in.invoiced)
+	result.billedBySchool = make(map[int64]int)
+	for _, invoice := range in.invoiced {
+		result.billedBySchool[invoice.SchoolID]++
+	}
 	uncounted := map[string]bool{}
 	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences,
 		familyChildren: familyChildrenIn(in.familyCounts, in.month), uncounted: uncounted})

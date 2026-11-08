@@ -345,7 +345,7 @@ function VertretungDayListRow({
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-col gap-0.5">
-          <span className={`text-[11px] font-medium tabular-nums ${timeClass}`}>
+          <span className={`text-xs font-medium tabular-nums ${timeClass}`}>
             {instance.startTime}–{instance.endTime}
           </span>
           <span className={`text-xs font-semibold ${titleClass}`}>
@@ -385,14 +385,14 @@ function VertretungDayListRow({
             coverageState === "acknowledged" ? "bewusst unbesetzt" : undefined
           }
         />
-        <span className="text-[11px] text-gray-500 tabular-nums">
+        <span className="text-xs text-gray-500 tabular-nums">
           Soll {triple.planned} · Ist {triple.present} · Abwesend{" "}
           {triple.absent}
         </span>
       </div>
 
       {hasAbsence && (
-        <div className="flex flex-col gap-1 text-[11px] text-gray-600">
+        <div className="flex flex-col gap-1 text-xs text-gray-600">
           <ul className="flex flex-col gap-1">
             {absentPlannedRows.map((staffRow) => {
               const name = staffLabel(staffNames, staffRow.staffId);
@@ -413,13 +413,13 @@ function VertretungDayListRow({
       )}
 
       {ackMatch?.understaffedNote && (
-        <p className="text-[11px] text-gray-500">
+        <p className="text-xs text-gray-500">
           Grund: {ackMatch.understaffedNote}
         </p>
       )}
 
       {isCancelled && (
-        <p className="text-[11px] text-gray-600">
+        <p className="text-xs text-gray-600">
           abgesagt{instance.cancelReason ? `: ${instance.cancelReason}` : ""}
         </p>
       )}
