@@ -1,6 +1,6 @@
 {
   "title": "Ndrysho kërkesën",
-  "intro": "Ndryshoni kërkesën tuaj derisa shkolla nuk ka vendosur ende.",
+  "intro": "Ndryshoni kërkesën tuaj derisa {careTerm}-ja nuk ka vendosur ende.",
   "editedAt": "Ndryshuar më {date}",
   "firstDay": "Dita e parë",
   "lastDay": "Dita e fundit",
@@ -8,8 +8,8 @@
   "pickupTime": "Ora e marrjes",
   "timeFormatHint": "Ora në formatin 15:30",
   "timeExample": "p.sh. 15:30",
-  "reasonLabel": "Arsyeja / shënim për shkollën",
-  "reasonRequired": "Ju lutemi shkruani një shënim të shkurtër për shkollën.",
+  "reasonLabel": "Arsyeja / shënim për {careTerm}-në",
+  "reasonRequired": "Ju lutemi shkruani një shënim të shkurtër për {careTerm}-në.",
   "valueRequired": "Ju lutemi shkruani një vlerë.",
   "submit": "Ruaj ndryshimin",
   "saving": "Po ruhet …",

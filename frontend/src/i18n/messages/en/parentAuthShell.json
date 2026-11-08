@@ -6,19 +6,19 @@
   "testimonialButtonLabel": "Show testimonial {number}",
   "testimonials": {
     "infoHub": {
-      "quote": "I can find the most important OGS information in one place and no longer have to search through emails or paper notes.",
+      "quote": "I can find the most important information about childcare in one place and no longer have to search through emails or paper notes.",
       "author": "Parent",
-      "role": "OGS communication",
+      "role": "Childcare information",
       "metric": "Everything in one place"
     },
     "easyReplies": {
       "quote": "Getting back to the care team is much easier because not every topic has to go through phone calls or separate emails.",
       "author": "Parent",
-      "role": "Communication with OGS",
+      "role": "Communication with childcare",
       "metric": "Easier to respond"
     },
     "lookUpLater": {
-      "quote": "When everyday life gets busy, it really helps that I can look up later what the OGS shared.",
+      "quote": "When everyday life gets busy, it really helps that I can look up later what the childcare team shared.",
       "author": "Parent",
       "role": "Family routine",
       "metric": "Reliably informed"

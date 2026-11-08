@@ -54,8 +54,7 @@ describe("parent message catalog completeness", () => {
 // "{careTerm}" alone is the school's own name for its care (#6042), the same
 // word in every language, like "OGS" before it.
 const fullCatalogInvariants = new Set([
-  "OGS",
-  "OGS: {text}",
+  "{careTerm}: {text}",
   "{careTerm}",
   "PDF",
   "Excel",

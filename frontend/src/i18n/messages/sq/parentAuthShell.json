@@ -6,19 +6,19 @@
   "testimonialButtonLabel": "Shfaq përvojën {number}",
   "testimonials": {
     "infoHub": {
-      "quote": "I gjej informacionet më të rëndësishme për OGS-në në një vend dhe nuk kam më nevojë të kërkoj në e-maile apo fletë.",
+      "quote": "I gjej informacionet më të rëndësishme për kujdesin në një vend dhe nuk kam më nevojë të kërkoj në e-maile apo fletë.",
       "author": "Prind",
-      "role": "Komunikimi me OGS-në",
+      "role": "Informacione për kujdesin",
       "metric": "Gjithçka në një vend"
     },
     "easyReplies": {
       "quote": "Përgjigjet për ekipin e kujdesit janë shumë më të lehta, sepse jo çdo temë duhet të kalojë përmes telefonatave ose e-maileve të veçanta.",
       "author": "Prind",
-      "role": "Komunikimi me OGS-në",
+      "role": "Komunikimi me ekipin e kujdesit",
       "metric": "Më lehtë të përgjigjesh"
     },
     "lookUpLater": {
-      "quote": "Kur përditshmëria është e ngarkuar, më ndihmon shumë që mund të shoh përsëri më vonë çfarë ka njoftuar OGS-ja.",
+      "quote": "Kur përditshmëria është e ngarkuar, më ndihmon shumë që mund të shoh përsëri më vonë çfarë ka njoftuar ekipi i kujdesit.",
       "author": "Prind",
       "role": "Përditshmëria familjare",
       "metric": "Informim i besueshëm"

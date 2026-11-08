@@ -14,7 +14,7 @@
   "types": {
     "care": "Godziny opieki",
     "invitation": "Zaproszenie",
-    "appointment": "Termin w OGS"
+    "appointment": "Spotkanie"
   },
   "accept": "Przyjmij",
   "decline": "Odrzuć",
@@ -22,7 +22,7 @@
   "declined": "Termin odrzucony.",
   "answeredAccepted": "Przyjęto",
   "answeredDeclined": "Odrzucono",
-  "cancelledByOgs": "Odwołany przez OGS",
+  "cancelledByOgs": "Odwołany przez {careTerm}",
   "previousMonth": "Poprzedni miesiąc",
   "nextMonth": "Następny miesiąc",
   "close": "Zamknij",

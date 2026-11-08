@@ -14,7 +14,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { type EnrollablePhase, listEnrollableSchools } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -26,6 +26,7 @@ import { calendarConcept } from "~/lib/concepts/calendar";
 import { schoolsConcept } from "~/lib/concepts/schools";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "ParentEnrollPicker" });
 
@@ -60,7 +61,7 @@ function groupBySchool(phases: readonly EnrollablePhase[]): SchoolGroup[] {
 }
 
 export function ParentEnrollPicker() {
-  const t = useTranslations("parentEnroll");
+  const t = useCareTermTranslations("parentEnroll");
   const locale = useLocale();
   const [phases, setPhases] = useState<EnrollablePhase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -198,7 +199,7 @@ function PhaseRow({
   phase,
   locale,
 }: Readonly<{ phase: EnrollablePhase; locale: string }>) {
-  const t = useTranslations("parentEnroll");
+  const t = useCareTermTranslations("parentEnroll");
 
   const kindLabel = {
     school_year: t("kindSchoolYear"),

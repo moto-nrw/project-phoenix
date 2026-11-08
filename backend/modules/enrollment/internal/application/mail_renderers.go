@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // NewMailRenderers returns Enrollment's mail renderers. Every field a
@@ -146,32 +145,8 @@ func payloadStringSlice(payload map[string]any, key string) []string {
 }
 
 // careFacilityBadge is the text of the 48 px logo stand-in in the mail
-// header (#6042): a term of up to four characters as it is, else at most
-// three initials, or the first three characters of a single word. The full
-// term stays in the header text, which wraps.
-func careFacilityBadge(term string) string {
-	term = strings.TrimSpace(term)
-	if utf8.RuneCountInString(term) <= 4 {
-		return term
-	}
-	words := strings.Fields(term)
-	if len(words) == 1 {
-		return string([]rune(term)[:3])
-	}
-	initials := make([]rune, 0, 3)
-	for _, word := range words {
-		for _, r := range word {
-			if unicode.IsLetter(r) || unicode.IsDigit(r) {
-				initials = append(initials, unicode.ToUpper(r))
-				break
-			}
-		}
-		if len(initials) == 3 {
-			break
-		}
-	}
-	return string(initials)
-}
+// header (#6042); the parent message mail shares the rule (#6082).
+func careFacilityBadge(term string) string { return textnorm.Badge(term) }
 
 // schoolSender is the sender name of a mail: the school's name, or "" for
 // the platform's default sender.

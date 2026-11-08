@@ -27,11 +27,11 @@
     },
     "messagesNews": {
       "title": "Znajdź wiadomości i listy do rodziców",
-      "description": "Czytaj wiadomości i znajdź listy od opieki."
+      "description": "Czytaj wiadomości i znajdź listy od {careTerm}."
     },
     "messages": {
       "title": "Znajdź wiadomości",
-      "description": "Tutaj możesz czytać i pisać wiadomości do opieki."
+      "description": "Tutaj możesz czytać i pisać wiadomości do {careTerm}."
     },
     "installApp": {
       "title": "Dodaj moto do telefonu",
@@ -80,10 +80,10 @@
     "messagesNews": {
       "messagesNavigation": "Otwórz Wiadomości.",
       "messagesTitle": "Wiadomości",
-      "messages": "Tutaj czytasz wiadomości od opieki i możesz odpowiadać.",
+      "messages": "Tutaj czytasz wiadomości od {careTerm} i możesz odpowiadać.",
       "newsNavigation": "Otwórz Listy do rodziców.",
       "newsTitle": "Listy do rodziców",
-      "news": "Tutaj znajdziesz listy i ważne informacje od opieki."
+      "news": "Tutaj znajdziesz listy i ważne informacje od {careTerm}."
     },
     "installApp": {
       "guideTitle": "Dodaj moto do telefonu",

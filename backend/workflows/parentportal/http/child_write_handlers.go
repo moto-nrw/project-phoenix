@@ -292,6 +292,9 @@ type ChildFeaturesResponse struct {
 	// request (operations.parent_request_reason_policy, #2267), so the portal
 	// marks the note field as required up front.
 	ReasonRequired bool `json:"reason_required"`
+	// CareFacilityTerm is the school's term for its care („OGS“, „GTS“,
+	// #6082): the portal names this child's care with it.
+	CareFacilityTerm string `json:"care_facility_term"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -337,6 +340,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		HasOpenChangeRequest:         flags.HasOpenChangeRequest,
 		NewsEnabled:                  flags.NewsEnabled,
 		ReasonRequired:               flags.ReasonRequired,
+		CareFacilityTerm:             flags.CareFacilityTerm,
 	}, "Child features retrieved")
 }
 

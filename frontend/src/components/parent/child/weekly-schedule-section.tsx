@@ -1,7 +1,7 @@
 "use client";
 
 import { DataField, DataGrid } from "~/components/ui/data-field";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { useState } from "react";
 import { CareScheduleRequestModal } from "~/components/parent/care-schedule-request-modal";
 import { RequestSharingControl } from "~/components/parent/request-sharing-control";
@@ -18,6 +18,7 @@ import {
   type ChildCareSchedule,
 } from "~/lib/parent-api";
 import { calendarConcept } from "~/lib/concepts/calendar";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 const DAY_KEYS: Record<number, "mon" | "tue" | "wed" | "thu" | "fri"> = {
@@ -38,8 +39,8 @@ interface ScheduleProps {
 }
 
 export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
-  const t = useTranslations("parentMasterData.careSchedule");
-  const tc = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
+  const tc = useCareTermTranslations("parentChild");
   const [requestOpen, setRequestOpen] = useState(false);
   const { schedule, studentId, childFirstName, careEnded } = props;
   const showAction =
@@ -140,7 +141,7 @@ function ScheduleDay({
   day?: ChildCareSchedule["weekdays"][number];
   childFirstName: string;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const scheduled = day?.status === "scheduled";
   const status = scheduled
     ? t("careSchedule.inCare", { firstName: childFirstName })
@@ -188,7 +189,7 @@ function PendingRequestPanel({
   studentId: string;
   pending: PendingRequest;
 }>) {
-  const t = useTranslations("parentMasterData.careSchedule");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
   const locale = useLocale();
   return (
     <ParentSubsection
@@ -219,7 +220,7 @@ function PendingRequestPanel({
 }
 
 function CareScheduleDiff({ entry }: Readonly<{ entry: RequestDiffEntry }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const day = entry.weekday ? DAY_KEYS[entry.weekday] : undefined;
   const kind =
     entry.care_kind === "pickup"

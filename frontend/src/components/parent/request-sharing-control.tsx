@@ -28,6 +28,7 @@ import {
 } from "~/lib/parent-api";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 interface RequestSharingControlProps {
   readonly studentId: string;
@@ -52,7 +53,7 @@ export function RequestSharingSelector({
   selected,
   onChange,
 }: RequestSharingSelectorProps) {
-  const t = useTranslations("parentRequestSharing");
+  const t = useCareTermTranslations("parentRequestSharing");
   const { state, failed, error } = useSharingOptions(studentId);
   // No choice possible means no recipients: report an empty selection so a
   // stale pick from an earlier state can never travel with the request.
@@ -115,7 +116,7 @@ function useSharingState(
   refreshCount: number,
   reload: () => void,
 ) {
-  const t = useTranslations("parentRequestSharing");
+  const t = useCareTermTranslations("parentRequestSharing");
   const [state, setState] = useState<RequestSharingState | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -294,7 +295,7 @@ function SharingFooter({
 
 function useRequestSharingControl(props: RequestSharingControlProps) {
   const { studentId, requestType, requestId, isSelf } = props;
-  const t = useTranslations("parentRequestSharing");
+  const t = useCareTermTranslations("parentRequestSharing");
   const [open, setOpen] = useState(false);
   const [refreshCount, setRefreshCount] = useState(0);
   const reload = useCallback(
@@ -412,7 +413,7 @@ function SharingDialog({
 }
 
 export function RequestSharingControl(props: RequestSharingControlProps) {
-  const t = useTranslations("parentRequestSharing");
+  const t = useCareTermTranslations("parentRequestSharing");
   const control = useRequestSharingControl(props);
   const { sharing } = control;
   if (!props.isSelf) return null;
