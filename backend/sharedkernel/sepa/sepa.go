@@ -41,7 +41,7 @@ var ibanLengths = map[string]int{
 	"FR": 27, "GB": 22, "GI": 23, "GR": 27, "HR": 21, "HU": 28,
 	"IE": 22, "IS": 26, "IT": 27, "LI": 21, "LT": 20, "LU": 20,
 	"LV": 21, "MC": 27, "MT": 31, "NL": 18, "NO": 15, "PL": 28,
-	"PT": 25, "RO": 24, "SE": 24, "SI": 19, "SK": 24,
+	"PT": 25, "RO": 24, "SE": 24, "SI": 19, "SK": 24, "SM": 27, "VA": 22,
 }
 
 // Compact removes white space and upper-cases an IBAN, a BIC or a creditor

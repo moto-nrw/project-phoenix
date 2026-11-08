@@ -101,12 +101,22 @@ COMMENT ON COLUMN parent_billing.sepa_mandates.iban_sealed IS
 	'IBAN sealed with the field cipher (AES-256-GCM), bound to the Träger and the reference.';
 
 -- A mandate keeps its family, contract, reference and signing date; a
--- revoked mandate is history and never changes. A delete stays possible,
+-- revoked mandate keeps its history; account erasure may clear actor references.
+-- A delete stays possible,
 -- so the erasure of a contract or a Träger cascades.
 CREATE FUNCTION parent_billing.refuse_sepa_mandate_rewrite() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-	IF OLD.revoked_on IS NOT NULL THEN
+	-- Account erasure may only clear actor references. Compare every other
+	-- column so even a combined actor/data update cannot rewrite history.
+	IF OLD.revoked_on IS NOT NULL AND (
+		(to_jsonb(NEW) - ARRAY['created_by_account_id', 'updated_by_account_id', 'revoked_by_account_id'])
+			IS DISTINCT FROM
+		(to_jsonb(OLD) - ARRAY['created_by_account_id', 'updated_by_account_id', 'revoked_by_account_id'])
+		OR (NEW.created_by_account_id IS NOT NULL AND NEW.created_by_account_id IS DISTINCT FROM OLD.created_by_account_id)
+		OR (NEW.updated_by_account_id IS NOT NULL AND NEW.updated_by_account_id IS DISTINCT FROM OLD.updated_by_account_id)
+		OR (NEW.revoked_by_account_id IS NOT NULL AND NEW.revoked_by_account_id IS DISTINCT FROM OLD.revoked_by_account_id)
+	) THEN
 		RAISE EXCEPTION 'a revoked SEPA mandate never changes' USING ERRCODE = '55000';
 	END IF;
 	IF NEW.organization_id <> OLD.organization_id OR NEW.family_email <> OLD.family_email

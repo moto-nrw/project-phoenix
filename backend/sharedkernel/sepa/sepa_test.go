@@ -5,15 +5,19 @@ import "testing"
 func TestValidIBANChecksLengthCountryAndCheckDigits(t *testing.T) {
 	t.Parallel()
 	for iban, want := range map[string]bool{
-		"DE89370400440532013000":  true,
-		"AT611904300234573201":    true,
-		"DE89370400440532013001":  false, // check digits
-		"DE8937040044053201300":   false, // length of the country
-		"XX89370400440532013000":  false, // unknown country
-		"DE89A70400440532013000":  false, // German BBAN has digits only
-		"de89370400440532013000":  false, // not compacted
-		"DE89 3704 0044 0532 013": false,
-		"":                        false,
+		"DE89370400440532013000":      true,
+		"AT611904300234573201":        true,
+		"SM86U0322509800000000270100": true,
+		"VA59001123000012345678":      true,
+		"SM86U0322509800000000270101": false,
+		"VA59001123000012345679":      false,
+		"DE89370400440532013001":      false, // check digits
+		"DE8937040044053201300":       false, // length of the country
+		"XX89370400440532013000":      false, // unknown country
+		"DE89A70400440532013000":      false, // German BBAN has digits only
+		"de89370400440532013000":      false, // not compacted
+		"DE89 3704 0044 0532 013":     false,
+		"":                            false,
 	} {
 		if got := ValidIBAN(iban); got != want {
 			t.Errorf("ValidIBAN(%q) = %v, want %v", iban, got, want)

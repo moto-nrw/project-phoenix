@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"strconv"
 	"strings"
@@ -263,7 +264,11 @@ func (m *SEPAMandates) normalizeMandate(input parentbilling.SEPAMandateInput) (p
 		errs["signed_on"] = errors.New("must not be in the future")
 	}
 	if mandate.Reference == "" && !input.SignedOn.IsZero() {
-		mandate.Reference = fmt.Sprintf("MOTO-%d-%s", input.ContractID, strings.ReplaceAll(input.SignedOn.String(), "-", ""))
+		// Readable for the family, unique enough that a replacement after a
+		// revocation on the same day gets its own; the unique constraint
+		// refuses the rare collision (ErrSEPAMandateReferenceTaken).
+		mandate.Reference = fmt.Sprintf("MOTO-%d-%s-%04X", input.ContractID,
+			strings.ReplaceAll(input.SignedOn.String(), "-", ""), rand.IntN(0x10000)) //nolint:gosec // a reference, no secret
 	}
 	if !sepa.ValidMandateReference(mandate.Reference) {
 		errs["reference"] = fmt.Errorf("must have 1 to %d of the SEPA characters and no double slash", sepa.MaxMandateReferenceLength)
@@ -326,6 +331,9 @@ func (m *SEPAMandates) ChangeSEPAMandate(ctx context.Context, reviewer parentbil
 	}
 	errs := validation.Errors{}
 	account, iban := normalizeAccount(errs, current.Kind, change.AccountHolder, change.IBAN, change.BIC, change.Sequence, false)
+	if iban == "" && account.BIC == "" && sepa.NeedsBIC(current.IBANMasked) {
+		errs["bic"] = errors.New("is required for an account outside the EEA")
+	}
 	if len(errs) > 0 {
 		return parentbilling.SEPAMandate{}, errs
 	}

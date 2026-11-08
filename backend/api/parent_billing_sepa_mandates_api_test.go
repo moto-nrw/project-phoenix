@@ -340,3 +340,47 @@ func TestSEPAMandatesQueryBudgetIsFlat(t *testing.T) {
 	assert.Len(t, measure().Statements, len(first.Statements), "the mandates read the same statements for any number")
 	querybudgets.AssertQueryBudget(t, "api.traeger.sepa_mandates", first)
 }
+
+func TestSEPAMandateReplacementGetsANewAutomaticReference(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Ersatzmandat")
+	contract := careContract(t, f.db, f.office.organization, f.office.schools[0], "Lia", careMonth, sjrServices()...)
+	body := mandateBody(contract, "")
+	first := createMandate(t, f, body)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, fmt.Sprintf("%s/%d/revoke", sepaMandatesPath, first.ID),
+		map[string]any{"revoked_on": "2026-10-15"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	next := createMandate(t, f, body)
+	assert.NotEqual(t, first.Reference, next.Reference)
+	assert.NotEmpty(t, next.Reference)
+	assert.LessOrEqual(t, len(next.Reference), 35)
+	// The unique constraint still reserves the revoked reference.
+	other := careContract(t, f.db, f.office.organization, f.office.schools[0], "Noah", careMonth, sjrServices()...)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, sepaMandatesPath, mandateBody(other, first.Reference))
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "parent_billing.sepa_mandate_reference_taken")
+}
+
+func TestSEPAMandateChangeKeepsTheBICRequiredByTheStoredIBAN(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger BIC")
+	contract := careContract(t, f.db, f.office.organization, f.office.schools[0], "Lia", careMonth, sjrServices()...)
+	body := mandateBody(contract, "CH-1")
+	body["iban"], body["bic"] = "CH9300762011623852957", "POFICHBEXXX"
+	mandate := createMandate(t, f, body)
+	path := fmt.Sprintf("%s/%d", sepaMandatesPath, mandate.ID)
+	change := map[string]any{"account_holder": "Eva Beispiel", "iban": "", "bic": "", "sequence": "recurring"}
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, path, change)
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	code, fields := registrationRefusalOf(t, rec)
+	assert.Equal(t, "parent_billing.sepa_mandate_invalid", code)
+	assert.Equal(t, []string{"bic"}, fields)
+	change["bic"] = "POFICHBEXXX"
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, path, change)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, mandate.IBANMasked, decodeSchoolPortalData[sepaMandateBody](t, rec.Body.Bytes()).IBANMasked)
+	// Switching to an EEA account permits clearing the old BIC.
+	change["iban"], change["bic"] = sepaIBAN, ""
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, path, change)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+}

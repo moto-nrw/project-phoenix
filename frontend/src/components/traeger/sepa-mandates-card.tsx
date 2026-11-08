@@ -260,34 +260,36 @@ function FamilyMandates({
     <div className="space-y-5">
       {inForce ? (
         <div className="flex items-start gap-3">
-          <DataGrid columns={1}>
-            <DataField label="Mandatsreferenz">
-              <span className="font-mono">{inForce.reference}</span>
-              <span className="text-gray-500">
-                {" "}
-                · {MANDATE_KIND_LABELS[inForce.kind]}
-              </span>
-            </DataField>
-            <DataField label="Konto">
-              <span
-                className="block font-mono tabular-nums"
-                data-analytics-block
-              >
-                {inForce.ibanMasked}
-              </span>
-              <span className="block text-gray-600">
-                {inForce.accountHolder}
-              </span>
-            </DataField>
-            <DataField label="Unterschrieben am">
-              <span className="tabular-nums">
-                {formatDate(inForce.signedOn)}
-              </span>
-            </DataField>
-            <DataField label="Nächste Abbuchung">
-              {nextDebitLabel(inForce)}
-            </DataField>
-          </DataGrid>
+          <div className="min-w-0 flex-1">
+            <DataGrid columns={1}>
+              <DataField label="Mandatsreferenz">
+                <span className="font-mono break-all">{inForce.reference}</span>
+                <span className="text-gray-500">
+                  {" "}
+                  · {MANDATE_KIND_LABELS[inForce.kind]}
+                </span>
+              </DataField>
+              <DataField label="Konto">
+                <span
+                  className="block font-mono tabular-nums"
+                  data-analytics-block
+                >
+                  {inForce.ibanMasked}
+                </span>
+                <span className="block text-gray-600">
+                  {inForce.accountHolder}
+                </span>
+              </DataField>
+              <DataField label="Unterschrieben am">
+                <span className="tabular-nums">
+                  {formatDate(inForce.signedOn)}
+                </span>
+              </DataField>
+              <DataField label="Nächste Abbuchung">
+                {nextDebitLabel(inForce)}
+              </DataField>
+            </DataGrid>
+          </div>
           <span className="ml-auto shrink-0">
             <MandateMenu
               mandate={inForce}
@@ -307,7 +309,7 @@ function FamilyMandates({
                 className="flex items-center justify-between gap-3 py-2 text-sm"
               >
                 <span className="min-w-0">
-                  <span className="block font-mono text-gray-900">
+                  <span className="block font-mono break-all text-gray-900">
                     {mandate.reference}
                   </span>
                   <span className="block text-gray-500">
@@ -382,7 +384,7 @@ export function SepaMandatesCard({
       stacked: forFamily ? "title" : "field",
       render: (mandate) => (
         <span className="block min-w-0">
-          <span className="block font-mono text-gray-900">
+          <span className="block font-mono break-all text-gray-900">
             {mandate.reference}
           </span>
           <span className="block text-sm text-gray-500">

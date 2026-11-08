@@ -129,6 +129,8 @@ func TestSEPAMandateHistoryNeverChanges(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	own := newMandateScope(t, db, "Träger Historie")
+	creator := testpkg.CreateTestAccount(t, db, "sepa-creator@example.org")
+	revoker := testpkg.CreateTestAccount(t, db, "sepa-revoker@example.org")
 	store := NewStore()
 	rollback := errors.New("roll the mandate back")
 
@@ -155,7 +157,10 @@ func TestSEPAMandateHistoryNeverChanges(t *testing.T) {
 		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT reference`)
 		require.NoError(t, err)
 
-		revoked, err := store.RevokeSEPAMandate(ctx, own.organization, 0, own.mandate, calendar.NewDate(2026, 10, 1))
+		_, err = tx.ExecContext(ctx, `UPDATE parent_billing.sepa_mandates
+			SET created_by_account_id = ?, updated_by_account_id = ? WHERE id = ?`, creator.ID, creator.ID, own.mandate)
+		require.NoError(t, err)
+		revoked, err := store.RevokeSEPAMandate(ctx, own.organization, revoker.ID, own.mandate, calendar.NewDate(2026, 10, 1))
 		require.NoError(t, err)
 		require.NotNil(t, revoked.RevokedOn)
 		_, err = tx.ExecContext(ctx, `SAVEPOINT revoked`)
@@ -165,6 +170,35 @@ func TestSEPAMandateHistoryNeverChanges(t *testing.T) {
 		require.ErrorContains(t, err, "revoked SEPA mandate never changes")
 		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT revoked`)
 		require.NoError(t, err)
+
+		for _, statement := range []string{
+			`UPDATE parent_billing.sepa_mandates SET created_by_account_id = ? WHERE id = ?`,
+			`UPDATE parent_billing.sepa_mandates SET created_by_account_id = NULL, updated_by_account_id = ?, account_holder = 'Neu'
+				WHERE id = ?`,
+		} {
+			_, err = tx.ExecContext(ctx, `SAVEPOINT actor_rewrite`)
+			require.NoError(t, err)
+			_, err = tx.ExecContext(ctx, statement, revoker.ID, own.mandate)
+			require.ErrorContains(t, err, "revoked SEPA mandate never changes")
+			_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT actor_rewrite`)
+			require.NoError(t, err)
+		}
+
+		// Deleting each actor clears only its FK, even on a revoked mandate.
+		var before, after string
+		const historicalData = `SELECT (to_jsonb(m) - ARRAY['created_by_account_id', 'updated_by_account_id', 'revoked_by_account_id'])::text
+			FROM parent_billing.sepa_mandates m WHERE id = ?`
+		require.NoError(t, tx.NewRaw(historicalData, own.mandate).Scan(ctx, &before))
+		for _, accountID := range []int64{creator.ID, revoker.ID} {
+			_, err = tx.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, accountID)
+			require.NoError(t, err)
+		}
+		require.NoError(t, tx.NewRaw(historicalData, own.mandate).Scan(ctx, &after))
+		assert.Equal(t, before, after, "all historical mandate data survives actor deletion")
+		var actorsCleared bool
+		require.NoError(t, tx.NewRaw(`SELECT created_by_account_id IS NULL AND updated_by_account_id IS NULL
+			AND revoked_by_account_id IS NULL FROM parent_billing.sepa_mandates WHERE id = ?`, own.mandate).Scan(ctx, &actorsCleared))
+		assert.True(t, actorsCleared)
 
 		// The trail is only ever appended: the request role may not change
 		// or delete an entry.
