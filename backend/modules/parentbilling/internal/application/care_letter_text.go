@@ -2,6 +2,7 @@ package application
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
@@ -41,7 +42,7 @@ func careInvoiceLetter(content careLetterContent) Letter {
 		// A table follows a paragraph: the letter layout pulls it up by one
 		// paragraph spacing, so a heading alone would overlap its first row.
 		{Heading: "Ihre Betreuung", Text: "Abgerechnet wird nach Ihrem Vertrag, nicht nach Anwesenheit."},
-		{Facts: append(carePositionFacts(invoice.Positions, 1),
+		{Facts: append(append(carePositionFacts(invoice.Positions, 1), careReductionFacts(invoice.Reductions, 1)...),
 			LetterFact{Label: "Summe", Value: formatEuro(invoice.TotalCents), Bold: true})},
 		{Text: carePaymentText(content), Bold: true},
 	}
@@ -72,7 +73,7 @@ func careCancellationLetter(content careLetterContent) Letter {
 	letter.Blocks = []LetterBlock{
 		{Text: fmt.Sprintf("wir stornieren die Rechnung %s für %s. Grund: %s",
 			reference, carePeriodName(content.run.BillingMonth), sentence(cancellation.Reason))},
-		{Facts: append(carePositionFacts(invoice.Positions, -1),
+		{Facts: append(append(carePositionFacts(invoice.Positions, -1), careReductionFacts(invoice.Reductions, -1)...),
 			LetterFact{Label: "Storno gesamt", Value: formatEuro(cancellation.TotalCents), Bold: true})},
 		{Text: "Diese Rechnung gilt nicht mehr. Sie müssen sie nicht bezahlen. Haben Sie schon bezahlt? Dann melden Sie sich bitte bei uns.", Bold: true},
 	}
@@ -171,4 +172,53 @@ func carePaymentText(content careLetterContent) string {
 	}
 	return fmt.Sprintf("Bitte überweisen Sie %s bis zum %s auf das Konto unten. Geben Sie als Verwendungszweck die Rechnungsnummer %s an.",
 		formatEuro(invoice.TotalCents), germanDate(content.input.PaymentDueOn), invoice.Number)
+}
+
+// careReductionFacts prints one line per reduction of the chain (#4685, ADR
+// 0164): its name and why it applies, with its minus; sign -1 prints the
+// amounts of a Storno.
+func careReductionFacts(reductions []parentbilling.CareReduction, sign int64) []LetterFact {
+	facts := make([]LetterFact, 0, len(reductions))
+	for _, reduction := range reductions {
+		label := strings.TrimSpace(reduction.Name)
+		if why := careReductionReason(reduction); why != "" {
+			label += " (" + why + ")"
+		}
+		facts = append(facts, LetterFact{Label: label, Value: formatEuro(sign * reduction.AmountCents)})
+	}
+	return facts
+}
+
+// careReductionReason says in a few words why a reduction applies, as the
+// run shows it.
+func careReductionReason(reduction parentbilling.CareReduction) string {
+	switch reduction.Kind {
+	case "sibling":
+		if reduction.ChildRank == nil || reduction.FamilyChildren == nil {
+			return careRuleEffect(reduction)
+		}
+		return fmt.Sprintf("%d. Kind von %d, %s; zuerst zählt das Kind mit dem höchsten Beitrag",
+			*reduction.ChildRank, *reduction.FamilyChildren, careRuleEffect(reduction))
+	case "cap":
+		if reduction.CapCents != nil {
+			return "Höchstbetrag " + formatEuro(*reduction.CapCents) + " je Familie und Monat erreicht"
+		}
+	case "income_level":
+		return "Einkommensstufe, " + careRuleEffect(reduction)
+	case "single_parent":
+		return "Alleinerziehend, " + careRuleEffect(reduction)
+	}
+	return ""
+}
+
+func careRuleEffect(reduction parentbilling.CareReduction) string {
+	switch {
+	case reduction.PriceCents != nil:
+		return "Preis " + formatEuro(*reduction.PriceCents)
+	case reduction.DiscountBasisPoints != nil:
+		return strings.ReplaceAll(strconv.FormatFloat(float64(*reduction.DiscountBasisPoints)/100, 'f', -1, 64), ".", ",") + " % weniger"
+	case reduction.DiscountCents != nil:
+		return formatEuro(*reduction.DiscountCents) + " weniger"
+	}
+	return ""
 }

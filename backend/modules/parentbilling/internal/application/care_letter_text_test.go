@@ -159,3 +159,24 @@ func TestCareLetterSummaryUsesProviderOutcomes(t *testing.T) {
 		assert.Zero(t, summary.Sent)
 	}
 }
+
+// The reductions of the chain (#4685) stand on the letter with their name,
+// why they apply and their minus, between the modules and the sum; the
+// Storno negates them too.
+func TestCareLettersPrintTheReductionsOfTheInvoice(t *testing.T) {
+	t.Parallel()
+	rank, children, basis := 2, 3, 5000
+	content := careLetterSJR()
+	content.invoice.Reductions = []parentbilling.CareReduction{{
+		Kind: "sibling", Name: "Geschwister", ChildRank: &rank, FamilyChildren: &children, DiscountBasisPoints: &basis, AmountCents: -2701,
+	}}
+	content.invoice.TotalCents = 2700
+	text := careLetterText(careInvoiceLetter(content))
+	assert.Contains(t, text, "Geschwister (2. Kind von 3, 50 % weniger; zuerst zählt das Kind mit dem höchsten Beitrag) = -27,01 €")
+	assert.Contains(t, text, "Summe = 27,00 €")
+	assert.Less(t, strings.Index(text, "Betreuung bis 16:30 Uhr"), strings.Index(text, "Geschwister ("), "modules first, then the reduction")
+	content.cancellation = &parentbilling.CareCancellation{Number: "MB-2027-0009", IssuedOn: calendar.NewDate(2027, 1, 10), Reason: "x", TotalCents: -2700}
+	storno := careLetterText(careCancellationLetter(content))
+	assert.Contains(t, storno, "Geschwister (2. Kind von 3, 50 % weniger; zuerst zählt das Kind mit dem höchsten Beitrag) = 27,01 €")
+	assert.Contains(t, storno, "Storno gesamt = -27,00 €")
+}

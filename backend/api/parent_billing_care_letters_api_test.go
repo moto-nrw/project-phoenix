@@ -12,10 +12,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -460,4 +463,75 @@ func TestCareInvoiceOpenedAloneGetsTheLetterOfItsStorno(t *testing.T) {
 	letters := careLetters(t, f, run.ID)
 	assert.True(t, careLetterOf(letters, mia, "cancellation").HasLetter, "the opened letter may be on paper at the family")
 	assert.False(t, careLetterOf(letters, lea, "cancellation").HasLetter, "a letter never opened, printed or sent stayed in the office")
+}
+
+// stornoUnderWay stands for a Storno whose transaction holds the run and has
+// written the Storno, but not committed yet.
+func stornoUnderWay(t *testing.T, f careBillingFixture, runID, invoiceID int64) bun.Tx {
+	t.Helper()
+	tx, err := f.db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	_, err = tx.ExecContext(context.Background(), `SELECT 1 FROM parent_billing.care_runs WHERE id = ? FOR UPDATE`, runID)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(context.Background(), `INSERT INTO parent_billing.care_invoice_cancellations (organization_id, run_id, invoice_id,
+		number, number_year, number_sequence, issued_on, reason, total_cents)
+		SELECT organization_id, run_id, id, number || '-S', number_year, number_sequence + 1000, issued_on, 'Test', -total_cents
+		FROM parent_billing.care_invoices WHERE id = ?`, invoiceID)
+	require.NoError(t, err)
+	return tx
+}
+
+// waitForCareRun waits until a request waits for the row lock of a run.
+func waitForCareRun(t *testing.T, f careBillingFixture, done <-chan struct{}) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		var waiting bool
+		require.NoError(t, f.db.NewRaw(`SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+			WHERE wait_event_type = 'Lock' AND query ILIKE '%care_run_row%FOR UPDATE%')`).Scan(context.Background(), &waiting))
+		if waiting {
+			return
+		}
+		select {
+		case <-done:
+			t.Fatal("the request finished without waiting for the Storno")
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	t.Fatal("the request never waited for the Storno")
+}
+
+// A Storno under way and a read or send of the same invoice run one after
+// the other: the read and the send wait for the run, then find the invoice
+// cancelled and hand out nothing, because it never reached the family and
+// has no Storno letter.
+func TestCareInvoiceIsNotHandedOutWhileItsStornoIsUnderWay(t *testing.T) {
+	t.Parallel()
+	for _, route := range []struct{ method, suffix string }{
+		{http.MethodGet, "/letter"}, {http.MethodPost, "/mail"},
+	} {
+		t.Run(strings.TrimPrefix(route.suffix, "/"), func(t *testing.T) {
+			f := newCareBillingFixture(t, "Träger Monatsstorno gleichzeitig "+route.suffix)
+			brandCareTraeger(t, f)
+			run, contracts := releasedCareRun(t, f, "Mia")
+			mia := invoiceOfContract(t, run, contracts["Mia"])
+			rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
+			require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+			storno := stornoUnderWay(t, f, run.ID, mia.ID)
+			done := make(chan struct{})
+			var answer *httptest.ResponseRecorder
+			go func() {
+				defer close(done)
+				answer = traegerJSON(t, f.traeger, f.office.token, route.method, careRunPath(run.ID, fmt.Sprintf("/invoices/%d%s", mia.ID, route.suffix)), nil)
+			}()
+			waitForCareRun(t, f, done)
+			require.NoError(t, storno.Commit())
+			<-done
+			assert.Equal(t, http.StatusConflict, answer.Code, answer.Body.String())
+			assert.Contains(t, answer.Body.String(), "parent_billing.care_invoice_cancelled")
+			assert.Empty(t, careLetterMails(t, f, run.ID), "no mail of the cancelled invoice")
+		})
+	}
 }

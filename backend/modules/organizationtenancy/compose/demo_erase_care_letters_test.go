@@ -12,10 +12,12 @@ import (
 
 // careLetterCopies writes the letter of the school's monthly invoice, its
 // send with the mail on Delivery's outbox (address and PDF of the family) and
-// the push that announced it in the parents inbox (#4684, ADR 0165). The
-// guard of #6017 counts tables, not the kinds of rows in Delivery's outbox,
-// so this test names the new kinds itself. It returns the outbox mail and
-// the push.
+// the push that announced it in the parents inbox (#4684, ADR 0165). Neither
+// row names the visitor: the mail carries the address and the PDF, the push
+// the letter's ID, so a guard that looks for the visitor's name finds
+// neither. The guard of #6017 counts tables, not the kinds of rows in
+// Delivery's outbox, so this test names the new kinds itself. It returns the
+// outbox mail and the push.
 func careLetterCopies(t *testing.T, db *bun.DB, schoolID int64) (mail, push int64) {
 	t.Helper()
 	require.NoError(t, db.NewRaw(`WITH invoice AS (
@@ -31,8 +33,8 @@ func careLetterCopies(t *testing.T, db *bun.DB, schoolID int64) (mail, push int6
 			JOIN parent_billing.care_invoices AS invoice ON invoice.id = letter.invoice_id WHERE invoice.school_id = ?0),
 		outbox AS (
 			INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status, related_entity_type, related_entity_id)
-			SELECT organization_id, 'parent_billing_letter', jsonb_build_object('address', 'eltern@example.org', 'name', '`+visitorFull+`'),
-				jsonb_build_object('guardian_name', '`+visitorFull+`', 'document_kind', 'care_invoice'), 'pending',
+			SELECT organization_id, 'parent_billing_letter', jsonb_build_object('address', 'eltern@example.org'),
+				jsonb_build_object('document_kind', 'care_invoice'), 'pending',
 				'parent_billing_care_run', run_id FROM letter
 			RETURNING id, organization_id),
 		mailing AS (
@@ -42,7 +44,7 @@ func careLetterCopies(t *testing.T, db *bun.DB, schoolID int64) (mail, push int6
 		SELECT id FROM outbox`, schoolID).Scan(t.Context(), &mail))
 	require.NoError(t, db.NewRaw(`INSERT INTO platform.push_outbox (organization_id, kind, related_entity_type, related_entity_id, recipient, payload)
 		SELECT organization_id, 'parent_billing_document', 'parent_billing_document', id,
-			jsonb_build_object('email', 'eltern@example.org'), jsonb_build_object('title', 'Rechnung für `+visitorFull+`')
+			jsonb_build_object('email', 'eltern@example.org'), jsonb_build_object('document_id', id)
 		FROM parent_billing.care_letters WHERE id = ?
 		RETURNING id`, push).Scan(t.Context(), &push))
 	return mail, push

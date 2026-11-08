@@ -22,8 +22,12 @@ type singleCareLetterStore struct {
 func (s *singleCareLetterStore) CareRun(_ context.Context, organizationID, runID int64, lock bool) (parentbilling.CareRun, error) {
 	assert.Equal(s.t, s.organization, organizationID)
 	assert.Equal(s.t, int64(11), runID)
-	assert.False(s.t, lock)
+	assert.True(s.t, lock, "a read holds the run like a send or a Storno")
 	return parentbilling.CareRun{ID: runID, Status: parentbilling.RunReleased}, nil
+}
+
+func (s *singleCareLetterStore) CareRunCancellations(context.Context, int64, int64) ([]parentbilling.CareCancellation, error) {
+	return nil, nil
 }
 
 func (s *singleCareLetterStore) CareRunLetters(context.Context, int64, int64) (*parentbilling.CareLetterSet, error) {

@@ -11,9 +11,9 @@ import (
 // ParentDocumentStore reads the inbox of one recipient in the Träger
 // transaction and records each read in the trail of its run.
 type ParentDocumentStore interface {
-	RecipientDocuments(ctx context.Context, organizationID int64, email string) ([]parentbilling.ParentDocument, error)
+	RecipientDocuments(ctx context.Context, organizationID int64, email string, children []parentbilling.ParentDocumentChild) ([]parentbilling.ParentDocument, error)
 	// RecipientDocumentLetter also tells whether the run is a monthly run.
-	RecipientDocumentLetter(ctx context.Context, organizationID, documentID int64, email string) (int64, bool, parentbilling.BillingLetterFile, error)
+	RecipientDocumentLetter(ctx context.Context, organizationID, documentID int64, email string, children []parentbilling.ParentDocumentChild) (int64, bool, parentbilling.BillingLetterFile, error)
 	InsertRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
 	// InsertCareRunEvent records the read of a letter of a monthly run (#4684).
 	InsertCareRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
@@ -45,7 +45,7 @@ func (p *ParentDocuments) ListParentDocuments(ctx context.Context, organizationI
 	if err != nil {
 		return nil, err
 	}
-	documents, err := p.store.RecipientDocuments(ctx, organizationID, email)
+	documents, err := p.store.RecipientDocuments(ctx, organizationID, email, reader.Children)
 	if err != nil {
 		return nil, fmt.Errorf("parent billing: read inbox: %w", err)
 	}
@@ -81,7 +81,7 @@ func (p *ParentDocuments) ParentDocumentLetter(ctx context.Context, organization
 	if documentID <= 0 {
 		return parentbilling.BillingLetterFile{}, parentbilling.ErrParentDocumentNotFound
 	}
-	runID, care, file, err := p.store.RecipientDocumentLetter(ctx, organizationID, documentID, email)
+	runID, care, file, err := p.store.RecipientDocumentLetter(ctx, organizationID, documentID, email, reader.Children)
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}

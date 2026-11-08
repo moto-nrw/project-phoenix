@@ -212,12 +212,19 @@ func (l *CareLetters) CareLetter(ctx context.Context, reviewer parentbilling.Hol
 	if runID <= 0 {
 		return parentbilling.BillingLetterFile{}, parentbilling.ErrCareRunNotFound
 	}
-	run, err := l.store.CareRun(ctx, reviewer.OrganizationID, runID, false)
+	// The run is held like a send or a Storno: a Storno under way finishes
+	// first, and the invoice it cancels is no longer handed out.
+	run, err := l.store.CareRun(ctx, reviewer.OrganizationID, runID, true)
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
 	if run.Status != parentbilling.RunReleased {
 		return parentbilling.BillingLetterFile{}, parentbilling.ErrBillingRunNotReleased
+	}
+	if kind == parentbilling.CareLetterInvoice {
+		if err := l.refuseCancelledUnsharedInvoice(ctx, reviewer.OrganizationID, run.ID, invoiceID); err != nil {
+			return parentbilling.BillingLetterFile{}, err
+		}
 	}
 	record, err := l.store.CareLetterRecord(ctx, reviewer.OrganizationID, run.ID, invoiceID, kind)
 	if err != nil {
@@ -231,6 +238,29 @@ func (l *CareLetters) CareLetter(ctx context.Context, reviewer parentbilling.Hol
 		return parentbilling.BillingLetterFile{}, err
 	}
 	return *record.File, nil
+}
+
+// refuseCancelledUnsharedInvoice refuses the letter of a cancelled invoice
+// that never reached the family, by mail or on paper: it has no Storno
+// letter, so handing it out now would put a void invoice in a family's hands.
+// A cancelled invoice that went out stays readable with its Storno letter.
+func (l *CareLetters) refuseCancelledUnsharedInvoice(ctx context.Context, organizationID, runID, invoiceID int64) error {
+	cancellations, err := l.store.CareRunCancellations(ctx, organizationID, runID)
+	if err != nil {
+		return fmt.Errorf("parent billing: read care cancellations: %w", err)
+	}
+	for _, cancellation := range cancellations {
+		if cancellation.InvoiceID != invoiceID {
+			continue
+		}
+		if _, err := l.store.CareLetterRecord(ctx, organizationID, runID, invoiceID, parentbilling.CareLetterCancellation); err != nil {
+			if errors.Is(err, parentbilling.ErrBillingLetterNotFound) {
+				return parentbilling.ErrCareInvoiceCancelled
+			}
+			return fmt.Errorf("parent billing: read care letter: %w", err)
+		}
+	}
+	return nil
 }
 
 // CancelCareInvoice issues the Storno of an issued invoice, numbered from

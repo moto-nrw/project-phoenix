@@ -24,15 +24,20 @@ import (
 const (
 	sharedLetterContract = int64(990_001)
 	sharedLetterEmail    = "eva.letters@example.org"
+	// The child the account may read the inbox of, and its sibling without
+	// that right.
+	permittedStudent = int64(990_101)
+	otherStudent     = int64(990_102)
 )
 
 // careLetterScope is a Träger with a released run, a cancelled invoice that
 // was sent, both letters, one send and the invoice that replaced it.
 type careLetterScope struct {
 	careScope
-	invoice      int64
-	letter       int64
-	stornoLetter int64
+	invoice       int64
+	letter        int64
+	stornoLetter  int64
+	siblingLetter int64
 }
 
 func seedCareLetterScope(t *testing.T, ctx context.Context, tx bun.IDB, scope careLetterScope, name string) careLetterScope {
@@ -42,10 +47,10 @@ func seedCareLetterScope(t *testing.T, ctx context.Context, tx bun.IDB, scope ca
 		'version_on_first') RETURNING id`, scope.organization).Scan(ctx, &scope.released))
 	require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.care_invoices (organization_id, run_id, number, number_year,
 		number_sequence, issued_on, billing_month, care_contract_id, school_id, school_name, child_first_name, child_last_name,
-		recipient_first_name, recipient_last_name, recipient_email, month_rule, total_cents)
+		recipient_first_name, recipient_last_name, recipient_email, month_rule, total_cents, student_id)
 		VALUES (?, ?, ?, 2029, 1, DATE '2029-09-01', DATE '2029-09-01', ?, ?, ?, 'Mia', 'Beispiel', 'Eva', 'Beispiel', ?,
-		'version_on_first', 3200) RETURNING id`, scope.organization, scope.released, scope.number, sharedLetterContract, scope.school,
-		name, sharedLetterEmail).Scan(ctx, &scope.invoice))
+		'version_on_first', 3200, ?) RETURNING id`, scope.organization, scope.released, scope.number, sharedLetterContract, scope.school,
+		name, sharedLetterEmail, permittedStudent).Scan(ctx, &scope.invoice))
 	_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.care_run_letters (organization_id, run_id, payment_due_on, notes)
 		VALUES (?, ?, DATE '2029-09-15', ?)`, scope.organization, scope.released, name)
 	require.NoError(t, err)
@@ -62,7 +67,27 @@ func seedCareLetterScope(t *testing.T, ctx context.Context, tx bun.IDB, scope ca
 	require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.care_letters (organization_id, run_id, invoice_id, kind, filename, pdf)
 		VALUES (?, ?, ?, 'cancellation', 'storno.pdf', '\x255044462d'::bytea) RETURNING id`,
 		scope.organization, scope.released, scope.invoice).Scan(ctx, &scope.stornoLetter))
+	// A sibling of the same family, billed to the same address, sent too.
+	var sibling int64
+	require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.care_invoices (organization_id, run_id, number, number_year,
+		number_sequence, issued_on, billing_month, care_contract_id, school_id, school_name, child_first_name, child_last_name,
+		recipient_first_name, recipient_last_name, recipient_email, month_rule, total_cents, student_id)
+		VALUES (?, ?, ?, 2029, 3, DATE '2029-09-01', DATE '2029-09-01', ?, ?, ?, 'Ben', 'Beispiel', 'Eva', 'Beispiel', ?,
+		'version_on_first', 3200, ?) RETURNING id`, scope.organization, scope.released, scope.number+"-B", sharedLetterContract+1, scope.school,
+		name, sharedLetterEmail, otherStudent).Scan(ctx, &sibling))
+	require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.care_letters (organization_id, run_id, invoice_id, kind, filename, pdf)
+		VALUES (?, ?, ?, 'invoice', 'ben.pdf', '\x255044462d'::bytea) RETURNING id`,
+		scope.organization, scope.released, sibling).Scan(ctx, &scope.siblingLetter))
+	_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_letter_mailings (organization_id, run_id, letter_id, delivery_id,
+		recipient_email) VALUES (?, ?, ?, ?, ?)`, scope.organization, scope.released, scope.siblingLetter, scope.siblingLetter, sharedLetterEmail)
+	require.NoError(t, err)
 	return scope
+}
+
+// readerChildren are the children the account may read the inbox of: Mia at
+// the own school only.
+func readerChildren(scope careLetterScope) []parentbilling.ParentDocumentChild {
+	return []parentbilling.ParentDocumentChild{{SchoolID: scope.school, StudentID: permittedStudent}}
 }
 
 func TestCareLettersFiltersKeepTheTraegerBelowRLS(t *testing.T) {
@@ -134,18 +159,25 @@ func TestCareLettersFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, invoiced, "a cancelled invoice bills its contract no more")
 
-		inbox, err := store.RecipientDocuments(ctx, own.organization, sharedLetterEmail)
+		inbox, err := store.RecipientDocuments(ctx, own.organization, sharedLetterEmail, readerChildren(own))
 		require.NoError(t, err)
-		require.Len(t, inbox, 1, "RecipientDocuments lists only the own sent letter")
+		require.Len(t, inbox, 1, "RecipientDocuments lists only the own sent letter of the permitted child")
 		assert.Equal(t, own.letter, inbox[0].DocumentID)
 		assert.True(t, inbox[0].CareRun)
 		assert.Equal(t, parentbilling.ParentDocumentKindCareInvoiceLetter, inbox[0].Kind)
 		assert.Equal(t, "Monatsbeitrag September 2029", inbox[0].PeriodName)
-		_, _, _, err = store.RecipientDocumentLetter(ctx, own.organization, other.letter, sharedLetterEmail)
+		_, _, _, err = store.RecipientDocumentLetter(ctx, own.organization, other.letter, sharedLetterEmail, readerChildren(own))
 		assert.ErrorIs(t, err, parentbilling.ErrParentDocumentNotFound, "RecipientDocumentLetter of another Träger's letter")
-		_, _, _, err = store.RecipientDocumentLetter(ctx, own.organization, own.stornoLetter, sharedLetterEmail)
+		_, _, _, err = store.RecipientDocumentLetter(ctx, own.organization, own.stornoLetter, sharedLetterEmail, readerChildren(own))
 		assert.ErrorIs(t, err, parentbilling.ErrParentDocumentNotFound, "a letter never sent is not in the inbox")
-		runID, care, file, err := store.RecipientDocumentLetter(ctx, own.organization, own.letter, sharedLetterEmail)
+		_, _, _, err = store.RecipientDocumentLetter(ctx, own.organization, own.siblingLetter, sharedLetterEmail, readerChildren(own))
+		assert.ErrorIs(t, err, parentbilling.ErrParentDocumentNotFound, "the sibling without the relationship right has no letter in the inbox")
+		other := readerChildren(own)
+		other[0].SchoolID = other[0].SchoolID + 1
+		none, err := store.RecipientDocuments(ctx, own.organization, sharedLetterEmail, other)
+		require.NoError(t, err)
+		assert.Empty(t, none, "the right at another school opens nothing here")
+		runID, care, file, err := store.RecipientDocumentLetter(ctx, own.organization, own.letter, sharedLetterEmail, readerChildren(own))
 		require.NoError(t, err)
 		assert.Equal(t, own.released, runID)
 		assert.True(t, care)
