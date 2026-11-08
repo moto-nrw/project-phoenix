@@ -27,6 +27,7 @@ import {
 } from "~/components/ui/planning/coverage-indicator";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { SECTION_LABEL_CLASS } from "~/components/ui/section-label";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
@@ -84,12 +85,12 @@ export function VertretungWeekList({
 }: VertretungWeekListProps) {
   // flex-col: die Filterzeile bleibt stehen, nur die Liste darunter scrollt.
   return (
-    <div
-      className={cn(
-        "moto-content-surface flex flex-col rounded-2xl border",
-        className,
-      )}
-      data-testid="vertretung-week-list"
+    <SectionCard
+      padding="none"
+      overflow="visible"
+      className={cn("flex flex-col", className)}
+      bodyClassName="flex min-h-0 flex-1 flex-col"
+      testId="vertretung-week-list"
     >
       {onModeChange && (
         <VertretungListFilter
@@ -213,6 +214,6 @@ export function VertretungWeekList({
           );
         })}
       </div>
-    </div>
+    </SectionCard>
   );
 }
