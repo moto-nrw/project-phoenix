@@ -15,6 +15,4 @@ const path = (
 export const GET = createPublicJsonProxy({
   method: "GET",
   path,
-  cache: "no-store",
-  contentTypeOnGet: false,
 });
