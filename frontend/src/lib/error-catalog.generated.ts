@@ -390,7 +390,7 @@ export const ERROR_CATALOG = {
       "enrollment.child_not_permitted":
         "Sie dürfen dieses Kind nicht erneut anmelden. Bitte wenden Sie sich an die Schule.",
       "enrollment.child_possibly_enrolled":
-        "Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Bitte öffnen Sie die Anmeldung und wählen Sie dort, ob es dasselbe Kind ist.",
+        "Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Bitte prüfen Sie, ob es dasselbe Kind ist.",
       "enrollment.child_required": "Bitte fügen Sie mindestens ein Kind hinzu.",
       "enrollment.class_not_eligible":
         "Diese Anmeldung gilt nur für bestimmte Klassen. Bitte prüfen Sie die Klasse Ihres Kindes.",

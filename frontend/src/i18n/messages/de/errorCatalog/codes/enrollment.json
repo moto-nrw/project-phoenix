@@ -37,7 +37,7 @@
   "change_request_status_changed": "Der Stand dieser Änderungsanfrage hat sich geändert. Bitte laden Sie die Seite neu.",
   "child_already_enrolled": "Dieses Kind ist an der Schule schon angemeldet. Diese Anmeldung ist nur für neue Kinder.",
   "child_already_requested": "Eine andere Person hat dieses Kind schon angemeldet. Bitte wenden Sie sich an die Schule.",
-  "child_possibly_enrolled": "Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Bitte öffnen Sie die Anmeldung und wählen Sie dort, ob es dasselbe Kind ist.",
+  "child_possibly_enrolled": "Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Bitte prüfen Sie, ob es dasselbe Kind ist.",
   "child_ambiguous": "Wir konnten das Kind nicht eindeutig zuordnen. Bitte wenden Sie sich an die Schule.",
   "child_birth_date_invalid": "Bitte geben Sie das Geburtsdatum des Kindes ein.",
   "child_deletion_not_allowed": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",

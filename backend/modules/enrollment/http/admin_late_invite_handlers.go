@@ -303,6 +303,10 @@ func (rs *Resource) mapManualEnrollmentError(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, capability.ErrGuardianAccountMismatch):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch))
+	case errors.Is(err, capability.ErrChildPossiblyEnrolled):
+		// The school already cares for a child with this name and birthday
+		// (#6053); the manual form cannot choose it yet (#6148).
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentChildPossiblyEnrolled))
 	case rs.Failures.Transient(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:
