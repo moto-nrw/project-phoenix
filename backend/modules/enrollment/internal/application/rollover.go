@@ -26,7 +26,6 @@ type (
 	}
 	RolloverChildren interface {
 		enrollment.SubmittedOfferingCommands
-		RequestChildOfferingsAtDate(context.Context, int64, enrollment.Date) ([]*enrollment.RequestChildOffering, error)
 		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollment.Date) ([]*enrollment.RequestChildOffering, error)
 		InsertChild(context.Context, *enrollment.RequestChild) error
 		ChildrenByID(context.Context, []int64) ([]*enrollment.RequestChild, error)
@@ -119,7 +118,10 @@ type rolloverRequestInput struct {
 	// source-phase reference in the target phase is exactly the mixed-phase
 	// state #2249 forbids.
 	offeringIDMap map[int64]int64
-	result        *enrollment.RolloverResult
+	// sourceOfferings reads every source child's booking effective at the
+	// end of the source phase once, at the first child copy (#5836).
+	sourceOfferings *rolloverSourceOfferings
+	result          *enrollment.RolloverResult
 }
 
 // CreatePhaseFromSource is the workhorse:
@@ -192,6 +194,7 @@ func (s *Rollovers) runCreate(ctx context.Context, tenantID int64, req enrollmen
 		maxGrade:          maxGrade,
 		collectGradeLevel: collectGradeLevel,
 		offeringIDMap:     offeringIDMap,
+		sourceOfferings:   newRolloverSourceOfferings(sourceChildren),
 		result:            result,
 	})
 }
