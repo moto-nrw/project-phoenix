@@ -20,9 +20,9 @@ const INITIAL_TODO_COUNT = 5;
  * die Ueberschrift entfaellt mit: eine Ueberschrift ueber nichts ist eine
  * Aufgabe, die keine ist.
  *
- * Typ-Icons stehen ohne eigene Kachel direkt vor der Zeile. Ein blauer Punkt
- * am Icon markiert ungelesene Inhalte. So bleiben Inhaltstyp und Lesestatus
- * getrennt erkennbar, ohne zusaetzliche Flaechen pro Eintrag.
+ * Typ-Icons stehen ohne eigene Kachel direkt vor der Zeile. Der Lesestatus
+ * folgt dem gemeinsamen Zustand der Navigationszeile; die Aufgaben liefern
+ * selbst keine zusätzliche ungelesene Anzahl.
  */
 
 export interface TodoItem {
@@ -131,20 +131,13 @@ function TodoRow({ item }: Readonly<{ item: TodoItem }>) {
   const t = useTranslations("parentStart");
   const rowProps = {
     icon: (
-      <span className="relative flex size-7 shrink-0 items-center justify-center">
+      <span className="flex size-7 shrink-0 items-center justify-center">
         <MotoConceptIcon
           concept={item.concept}
           tone="blue"
           size={22}
           aria-hidden="true"
         />
-        {item.unread && (
-          <span
-            data-testid="todo-unread-indicator"
-            className="bg-moto-blue absolute -top-0.5 -right-0.5 size-3 rounded-full border-2 border-white"
-            aria-hidden="true"
-          />
-        )}
       </span>
     ),
     title: (
