@@ -99,11 +99,29 @@ export interface RunDueDate {
   readonly dueOn: string;
 }
 
+/** Why an invoice of a family that pays by direct debit is not collected (#4695). */
+type DebitGap = "mandate_missing" | "creditor_missing" | "creditor_changed";
+
+/** The SEPA mandate an invoice by direct debit is collected with (#4695). */
+interface InvoiceMandate {
+  readonly reference: string;
+  readonly signedOn: string;
+  readonly creditorId: string;
+  readonly ibanMasked: string;
+  readonly sequenceType: "FRST" | "RCUR" | "OOFF";
+  /** The debit comes sooner than the pre-notification days of the Träger. */
+  readonly noticeShort: boolean;
+}
+
 /** How and by when an invoice is paid, with where the date came from. */
 export interface InvoicePayment {
   readonly method: PaymentMethod;
   readonly dueOn: string;
   readonly dueSource: DueSource;
+  /** The SEPA mandate a direct debit is collected with (#4695). */
+  readonly mandate?: InvoiceMandate | null;
+  /** Why a family that pays by direct debit is not collected; null if it is. */
+  readonly debitGap?: DebitGap | null;
 }
 
 interface BackendServiceTerms {
@@ -147,10 +165,35 @@ export interface BackendRunDueDate {
   due_on: string;
 }
 
+interface BackendInvoiceMandate {
+  reference: string;
+  signed_on: string;
+  creditor_id: string;
+  iban_masked: string;
+  sequence_type: "FRST" | "RCUR" | "OOFF";
+  notice_short?: boolean;
+}
+
+function invoiceMandateFromBackend(
+  mandate: BackendInvoiceMandate | null | undefined,
+): InvoiceMandate | null {
+  if (!mandate) return null;
+  return {
+    reference: mandate.reference,
+    signedOn: mandate.signed_on,
+    creditorId: mandate.creditor_id,
+    ibanMasked: mandate.iban_masked,
+    sequenceType: mandate.sequence_type,
+    noticeShort: mandate.notice_short ?? false,
+  };
+}
+
 export interface BackendInvoicePayment {
   method: PaymentMethod;
   due_on: string;
   due_source: DueSource;
+  mandate?: BackendInvoiceMandate | null;
+  debit_gap?: DebitGap | "";
 }
 
 function termsFromBackend(body: BackendBillingTerms): BillingTerms {
@@ -211,6 +254,8 @@ export function invoicePaymentFromBackend(
     method: payment.method,
     dueOn: payment.due_on,
     dueSource: payment.due_source,
+    mandate: invoiceMandateFromBackend(payment.mandate),
+    debitGap: payment.debit_gap ? payment.debit_gap : null,
   };
 }
 

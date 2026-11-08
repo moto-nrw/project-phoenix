@@ -1,0 +1,5 @@
+GET /traeger/sepa-mandates/
+GET /traeger/sepa-mandates/{id}/history
+POST /traeger/sepa-mandates/
+POST /traeger/sepa-mandates/{id}/revoke
+PUT /traeger/sepa-mandates/{id}

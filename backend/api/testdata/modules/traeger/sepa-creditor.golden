@@ -1,0 +1,2 @@
+GET /traeger/sepa-creditor/ -> basis
+PUT /traeger/sepa-creditor/ -> basis
