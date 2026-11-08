@@ -33,6 +33,12 @@ type seedCareRunDetail struct {
 	Status       string `json:"status"`
 	PreviewCount int    `json:"preview_count"`
 	PreviewCents int64  `json:"preview_cents"`
+	Fingerprint  string `json:"fingerprint"`
+	// ExcludedCount and Invoices show the review of the open run (#5916).
+	ExcludedCount int `json:"excluded_count"`
+	Invoices      []struct {
+		ContractID int64 `json:"contract_id"`
+	} `json:"invoices"`
 }
 
 func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
@@ -222,6 +228,9 @@ func seedCareRun(client *Client, auth AuthRef, month calendar.Date, release bool
 			return 0, fmt.Errorf("read the monthly run: %w", err)
 		}
 	}
+	if err := seedBillingTerms(client, auth, runID, month); err != nil {
+		return 0, err
+	}
 	raw, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d", runID))
 	if err != nil {
 		return 0, fmt.Errorf("check the monthly run: %w", err)
@@ -233,15 +242,38 @@ func seedCareRun(client *Client, auth AuthRef, month calendar.Date, release bool
 		return 0, fmt.Errorf("check the monthly run: %w", err)
 	}
 	run := envelope.Data
-	if !release || run.PreviewCount == 0 {
+	if !release {
+		return 0, seedCareReview(client, auth, month, run)
+	}
+	if run.PreviewCount == 0 {
 		return 0, nil
 	}
 	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/release", runID), map[string]any{
-		"document_count": run.PreviewCount, "total_cents": run.PreviewCents,
+		"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint,
 	}); err != nil {
 		return 0, fmt.Errorf("release the monthly run: %w", err)
 	}
 	return run.PreviewCount, nil
+}
+
+// seedCareReview gives the open run of the current month the review the
+// SJR checks before the release (#5916): the last day of the month as its
+// invoice date and one invoice left out with a reason, when it has two.
+func seedCareReview(client *Client, auth AuthRef, month calendar.Date, run seedCareRunDetail) error {
+	invoiceDate := calendar.NewDate(month.Year(), month.Month()+1, 1).AddDays(-1)
+	if _, err := client.PutWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/invoice-date", run.ID),
+		map[string]any{"invoice_date": invoiceDate.String()}); err != nil {
+		return fmt.Errorf("set the invoice date of the monthly run: %w", err)
+	}
+	if run.ExcludedCount > 0 || len(run.Invoices) < 2 {
+		return nil
+	}
+	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/exclusions", run.ID), map[string]any{
+		"contract_id": run.Invoices[len(run.Invoices)-1].ContractID, "reason": "Kündigung zum Monatsende wird noch geprüft",
+	}); err != nil {
+		return fmt.Errorf("exclude an invoice of the monthly run: %w", err)
+	}
+	return nil
 }
 
 // seedOpenCareRun finds the run of the month that is still a preview; a

@@ -45,6 +45,12 @@ const RUN: CareRunDetail = {
   previewCents: 9600,
   numberPattern: "MB-{NNNN}",
   numberRangeSet: true,
+  schoolIds: ["3"],
+  invoiceDate: null,
+  schools: [],
+  excludedCount: 0,
+  excludedCents: 0,
+  fingerprint: "",
 };
 const CANCELLATION = { kind: "cancellation" } as CareLetterMailing;
 

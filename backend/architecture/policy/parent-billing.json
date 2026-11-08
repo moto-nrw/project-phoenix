@@ -93,6 +93,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_run_schools",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_tariffs",
       "write_owner": "parent-billing"
     },
@@ -118,6 +122,14 @@
     },
     {
       "name": "parent_billing.documents",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.family_billing",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.family_billing_events",
       "write_owner": "parent-billing"
     },
     {
@@ -153,6 +165,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.run_due_dates",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.run_letters",
       "write_owner": "parent-billing"
     },
@@ -162,6 +178,10 @@
     },
     {
       "name": "parent_billing.runs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.service_terms",
       "write_owner": "parent-billing"
     }
   ],

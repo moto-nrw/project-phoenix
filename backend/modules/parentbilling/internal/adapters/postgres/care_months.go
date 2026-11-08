@@ -22,8 +22,8 @@ import (
 // a released run never changes (trigger of 1.15.789).
 
 const (
-	// openCareRunIndex keeps a month to one calculated run.
-	openCareRunIndex = "uq_care_runs_calculated_month"
+	// openCareRunSchoolIndex keeps a school to one open run per month.
+	openCareRunSchoolIndex = "uq_care_run_schools_open"
 	// careInvoiceNumberConstraint keeps the numbers of the monthly
 	// invoices unique.
 	careInvoiceNumberConstraint = "uq_care_invoices_number"
@@ -62,12 +62,19 @@ type careRunRow struct {
 	DocumentCount      *int           `bun:"document_count"`
 	TotalCents         *int64         `bun:"total_cents"`
 	MonthRule          *string        `bun:"month_rule"`
+	InvoiceDate        *calendar.Date `bun:"invoice_date,type:date"`
+	// SchoolIDs come from parent_billing.care_run_schools (#5916).
+	SchoolIDs []int64 `bun:"school_ids,array,scanonly"`
 }
 
 func (r careRunRow) run() parentbilling.CareRun {
 	run := parentbilling.CareRun{
 		ID: r.ID, BillingMonth: r.BillingMonth, Status: r.Status, CreatedAt: r.CreatedAt, ReleasedAt: r.ReleasedAt,
 		IssuedOn: r.IssuedOn, DocumentCount: r.DocumentCount, TotalCents: r.TotalCents,
+		CareRunScope: parentbilling.CareRunScope{SchoolIDs: r.SchoolIDs, InvoiceDate: r.InvoiceDate},
+	}
+	if run.SchoolIDs == nil {
+		run.SchoolIDs = []int64{}
 	}
 	if r.MonthRule != nil {
 		run.MonthRule = *r.MonthRule
@@ -109,6 +116,42 @@ type careInvoiceRow struct {
 	TotalCents         int64         `bun:"total_cents"`
 	ReplacesInvoiceID  *int64        `bun:"replaces_invoice_id"`
 	StudentID          *int64        `bun:"student_id"`
+	// The family, the recipient and the payment the release copied
+	// (#4689); NULL on invoices issued before.
+	FamilyEmail         *string        `bun:"family_email"`
+	RecipientKind       *string        `bun:"recipient_kind"`
+	RecipientSecondName *string        `bun:"recipient_second_name"`
+	RecipientStreet     *string        `bun:"recipient_address_street"`
+	RecipientPostalCode *string        `bun:"recipient_address_postal_code"`
+	RecipientCity       *string        `bun:"recipient_address_city"`
+	PaymentMethod       *string        `bun:"payment_method"`
+	DueOn               *calendar.Date `bun:"due_on,type:date"`
+	DueSource           *string        `bun:"due_source"`
+}
+
+// invoice is the issued invoice of the row with its positions and reductions
+// and the recipient and payment its release copied (#4689).
+func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reductions []parentbilling.CareReduction) parentbilling.CareInvoice {
+	issuedOn := row.IssuedOn
+	invoice := parentbilling.CareInvoice{
+		ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, ContractID: row.CareContractID, SchoolID: row.SchoolID,
+		SchoolName: row.SchoolName, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName, StudentID: row.StudentID,
+		Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail,
+			Kind: textOf(row.RecipientKind), SecondName: textOf(row.RecipientSecondName)},
+		Positions: positions, Reductions: reductions, TotalCents: row.TotalCents,
+		FamilyEmail: textOf(row.FamilyEmail), Payment: paymentOf(row.PaymentMethod, row.DueOn, row.DueSource),
+	}
+	if row.RecipientStreet != nil && row.RecipientPostalCode != nil && row.RecipientCity != nil {
+		invoice.Recipient.Address = &parentbilling.PostalAddress{Street: *row.RecipientStreet,
+			PostalCode: *row.RecipientPostalCode, City: *row.RecipientCity}
+	}
+	if invoice.Reductions == nil {
+		invoice.Reductions = []parentbilling.CareReduction{}
+	}
+	if invoice.Positions == nil {
+		invoice.Positions = []parentbilling.CarePosition{}
+	}
+	return invoice
 }
 
 type careInvoicePositionRow struct {
@@ -259,8 +302,8 @@ func (s *Store) ListCareRuns(ctx context.Context, organizationID int64) ([]paren
 		return nil, err
 	}
 	var rows []careRunRow
-	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).
-		OrderExpr("billing_month DESC, id DESC").Scan(ctx); err != nil {
+	if err := withRunSchools(db.NewSelect().Model(&rows)).Where("care_run_row.organization_id = ?", organizationID).
+		OrderExpr("care_run_row.billing_month DESC, care_run_row.id DESC").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list care runs: %w", err)
 	}
 	runs := make([]parentbilling.CareRun, len(rows))
@@ -270,20 +313,23 @@ func (s *Store) ListCareRuns(ctx context.Context, organizationID int64) ([]paren
 	return runs, nil
 }
 
-// InsertCareRun starts a calculated run of a month; a second one is
-// ErrCareRunOpen.
-func (s *Store) InsertCareRun(ctx context.Context, organizationID, accountID int64, month calendar.Date) (parentbilling.CareRun, error) {
+// InsertCareRun starts a calculated run of a month for its schools; a
+// school another open run of the month bills is ErrCareRunOpen, also when
+// both start at once (uq_care_run_schools_open, #5916).
+func (s *Store) InsertCareRun(ctx context.Context, organizationID, accountID int64, start parentbilling.CareRunStart) (parentbilling.CareRun, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return parentbilling.CareRun{}, err
 	}
-	row := &careRunRow{OrganizationID: organizationID, BillingMonth: month, Status: parentbilling.RunCalculated, CreatedByAccountID: &accountID}
+	row := &careRunRow{OrganizationID: organizationID, BillingMonth: start.BillingMonth, Status: parentbilling.RunCalculated,
+		CreatedByAccountID: &accountID, InvoiceDate: start.InvoiceDate}
 	if _, err := db.NewInsert().Model(row).Returning("id, created_at").Exec(ctx); err != nil {
-		if constraintOf(err) == openCareRunIndex {
-			return parentbilling.CareRun{}, parentbilling.ErrCareRunOpen
-		}
 		return parentbilling.CareRun{}, fmt.Errorf("insert care run: %w", err)
 	}
+	if err := insertCareRunSchools(ctx, db, organizationID, row.ID, start.BillingMonth, start.SchoolIDs); err != nil {
+		return parentbilling.CareRun{}, err
+	}
+	row.SchoolIDs = slices.Sorted(slices.Values(start.SchoolIDs))
 	return row.run(), nil
 }
 
@@ -295,7 +341,8 @@ func (s *Store) CareRun(ctx context.Context, organizationID, runID int64, lock b
 		return parentbilling.CareRun{}, err
 	}
 	row := &careRunRow{}
-	query := db.NewSelect().Model(row).Where("organization_id = ?", organizationID).Where("id = ?", runID)
+	query := withRunSchools(db.NewSelect().Model(row)).
+		Where("care_run_row.organization_id = ?", organizationID).Where("care_run_row.id = ?", runID)
 	if lock {
 		query = query.For("UPDATE")
 	}
@@ -321,13 +368,15 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		ContractID     int64
 		SchoolID       int64
 		RecipientEmail string
+		FamilyEmail    string
 		TotalCents     int64
 		CareOfferingID int64
 		AmountCents    int64
 		PayableCents   int64
 		Reductions     []parentbilling.CareReduction `bun:",type:jsonb"`
 	}
-	if err := db.NewRaw(`SELECT i.care_contract_id AS contract_id, i.school_id, i.recipient_email, i.total_cents,
+	if err := db.NewRaw(`SELECT i.care_contract_id AS contract_id, i.school_id, i.recipient_email,
+		COALESCE(i.family_email, '') AS family_email, i.total_cents,
 		p.care_offering_id, p.amount_cents, COALESCE(p.payable_cents, p.amount_cents) AS payable_cents,
 		COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.position)
 			FROM parent_billing.care_invoice_reductions r
@@ -347,6 +396,7 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		invoice := invoiced[row.ContractID]
 		invoice.ContractID, invoice.SchoolID = row.ContractID, row.SchoolID
 		invoice.Recipient.Email, invoice.TotalCents = row.RecipientEmail, row.TotalCents
+		invoice.FamilyEmail = row.FamilyEmail
 		invoice.Reductions = row.Reductions
 		invoice.Positions = append(invoice.Positions, parentbilling.CarePosition{
 			CareOfferingID: row.CareOfferingID, AmountCents: row.AmountCents, PayableCents: row.PayableCents,
@@ -435,8 +485,13 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 			ChildLastName: invoice.ChildLastName, RecipientFirstName: invoice.Recipient.FirstName,
 			RecipientLastName: invoice.Recipient.LastName, RecipientEmail: invoice.Recipient.Email,
 			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[invoice.ContractID],
-			StudentID: invoice.StudentID,
+			StudentID: invoice.StudentID, FamilyEmail: textRef(invoice.FamilyEmail), RecipientKind: textRef(invoice.Recipient.Kind),
+			RecipientSecondName: textRef(invoice.Recipient.SecondName),
 		}
+		if address := invoice.Recipient.Address; address != nil {
+			rows[i].RecipientStreet, rows[i].RecipientPostalCode, rows[i].RecipientCity = &address.Street, &address.PostalCode, &address.City
+		}
+		rows[i].PaymentMethod, rows[i].DueOn, rows[i].DueSource = paymentColumns(invoice.Payment)
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
 		switch constraintOf(err) {
@@ -493,6 +548,11 @@ func (s *Store) MarkCareRunReleased(ctx context.Context, organizationID, runID i
 		}
 		return parentbilling.CareRun{}, fmt.Errorf("release care run: %w", err)
 	}
+	schools, err := closeCareRunSchools(ctx, db, organizationID, runID)
+	if err != nil {
+		return parentbilling.CareRun{}, err
+	}
+	row.SchoolIDs = schools
 	return row.run(), nil
 }
 
@@ -539,19 +599,7 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	}
 	invoices := make([]parentbilling.CareInvoice, len(rows))
 	for i, row := range rows {
-		issuedOn := row.IssuedOn
-		invoices[i] = parentbilling.CareInvoice{
-			ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, ContractID: row.CareContractID, SchoolID: row.SchoolID,
-			SchoolName: row.SchoolName, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName, StudentID: row.StudentID,
-			Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail},
-			Positions: byInvoice[row.ID], Reductions: reductions[row.ID], TotalCents: row.TotalCents,
-		}
-		if invoices[i].Reductions == nil {
-			invoices[i].Reductions = []parentbilling.CareReduction{}
-		}
-		if invoices[i].Positions == nil {
-			invoices[i].Positions = []parentbilling.CarePosition{}
-		}
+		invoices[i] = row.invoice(byInvoice[row.ID], reductions[row.ID])
 	}
 	return invoices, nil
 }

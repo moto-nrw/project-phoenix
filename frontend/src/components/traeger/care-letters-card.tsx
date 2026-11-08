@@ -17,6 +17,7 @@ import { ProgressBar } from "~/components/ui/progress-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import type { useApiLoadError } from "~/contexts/ToastContext";
+import type { InvoicePayment } from "~/lib/traeger-billing-terms-api";
 import type { LetterSource } from "./billing-letters-modal";
 import {
   BillingSettingsLink,
@@ -97,6 +98,7 @@ function SendState({ summary }: Readonly<{ summary: CareLetterSummary }>) {
 
 export function CareLettersCard({
   runId,
+  payments,
   letters,
   loadError,
   sendingAll,
@@ -106,6 +108,7 @@ export function CareLettersCard({
   onPrint,
 }: Readonly<{
   runId: string;
+  payments: readonly (InvoicePayment | null | undefined)[];
   /** null while it loads. */
   letters: CareLetters | null;
   loadError: ReturnType<typeof useApiLoadError>["error"];
@@ -131,7 +134,7 @@ export function CareLettersCard({
     create: (input) => createCareLetters(runId, input),
     preview: (input) => previewCareLetter(runId, input),
     intro:
-      "Jede Familie bekommt ein Schreiben mit ihrer Rechnung. Was Sie hier eingeben, steht in allen Schreiben. Danach lässt sich nichts mehr ändern. Die Familien sehen die Schreiben erst, wenn Sie sie senden.",
+      "Jede Familie bekommt ein Schreiben mit ihrer Rechnung. Ihre Hinweise stehen in allen Schreiben. Danach lässt sich nichts mehr ändern. Die Familien sehen die Schreiben erst, wenn Sie sie senden.",
     notesLabel: "Hinweis für die Familien (freiwillig)",
     notesPlaceholder:
       "Zum Beispiel: Ab Februar gilt eine neue Preisliste. Fragen beantwortet die Verwaltung.",
@@ -143,6 +146,7 @@ export function CareLettersCard({
         title={TITLE}
         description="Jede Familie bekommt ein Schreiben mit ihrer Rechnung. Erstellen sendet noch nichts: Die Familien sehen es erst, wenn Sie es senden."
         runId={runId}
+        payments={payments}
         source={source}
         onCreated={onCreated}
       >
@@ -212,6 +216,7 @@ export function CareLettersCard({
         ) : null}
         <LettersFacts
           paymentDueOn={letters.letters.paymentDueOn}
+          payments={payments}
           createdAt={letters.letters.createdAt}
           notes={letters.letters.notes}
           notesLabel="Hinweis für die Familien"

@@ -167,9 +167,7 @@ export function StepTermin({
                     >
                       {option.label}
                     </span>
-                    <span className="text-[10px] text-gray-500">
-                      {option.hint}
-                    </span>
+                    <span className="text-xs text-gray-500">{option.hint}</span>
                   </ChoiceTile>
                 );
               })}

@@ -154,3 +154,23 @@ func TestOverviewNamesTheDebtorNumberOnlyWhenAnInvoiceHasOne(t *testing.T) {
 	assert.Equal(t, []string{"number", "recipient", "debtor_number", "street", "postal_code", "city", "child", "position", "amount"},
 		columnIDs(billingRunOverview(run, documents)), "the debtor number comes right after the recipient, before the address")
 }
+
+// An invoice to both parents names the second parent in the overview
+// (#4689); CSV, XLSX and PDF render the same rows.
+func TestOverviewNamesBothParents(t *testing.T) {
+	t.Parallel()
+	monday := calendar.NewDate(2027, 1, 4)
+	run := parentbilling.BillingRun{PeriodName: "Winterferien 2027", ServiceFrom: monday, ServiceUntil: monday.AddDays(4), Status: parentbilling.RunReleased}
+	position := []parentbilling.BillingPosition{{Kind: parentbilling.LineBase, AmountCents: 4500, TimeModelName: "bis 16 Uhr"}}
+	documents := []parentbilling.BillingDocument{
+		{Number: "FE-0001", RecipientFirstName: "Eva", RecipientLastName: "Muster", RecipientKind: parentbilling.RecipientBoth,
+			RecipientSecondName: "Jan Muster", TotalCents: 4500,
+			Children: []parentbilling.BillingChild{{FirstName: "Lia", LastName: "Muster", Positions: position}}},
+		{Number: "FE-0002", RecipientFirstName: "Tom", RecipientLastName: "Beispiel", TotalCents: 4500,
+			Children: []parentbilling.BillingChild{{FirstName: "Mia", LastName: "Beispiel", Positions: position}}},
+	}
+	table := billingRunOverview(run, documents)
+	assert.Equal(t, "Muster, Eva und Jan Muster", table.Rows[0]["recipient"])
+	assert.Equal(t, "Muster, Eva und Jan Muster", table.Rows[1]["recipient"], "the sum of the invoice names both too")
+	assert.Equal(t, "Beispiel, Tom", table.Rows[2]["recipient"])
+}

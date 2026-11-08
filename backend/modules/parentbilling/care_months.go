@@ -55,7 +55,8 @@ var (
 	// ErrCareRunNotFound reports a monthly run that does not exist for the
 	// Träger of the session.
 	ErrCareRunNotFound = errors.New("monthly billing run not found")
-	// ErrCareRunOpen reports a second calculated run of a month.
+	// ErrCareRunOpen reports a second calculated run of a month for the same
+	// schools.
 	ErrCareRunOpen = errors.New("the month already has a billing run that is not released")
 	// ErrCareVersionsOverlap reports two versions of one contract on one day;
 	// the run bills nothing of such a month.
@@ -148,6 +149,8 @@ type CareRun struct {
 	DocumentCount *int           `json:"document_count"`
 	TotalCents    *int64         `json:"total_cents"`
 	MonthRule     string         `json:"month_rule"`
+	// CareRunScope names the schools and the invoice date (#5916).
+	CareRunScope
 }
 
 // CareRunList is the list of the monthly runs, the latest month first,
@@ -180,11 +183,18 @@ type CarePosition struct {
 	PayableCents int64 `json:"-"`
 }
 
-// CareRecipient is the contract party an invoice goes to.
+// CareRecipient is who an invoice goes to: the contract party, which the
+// registration named, unless the family deviates (#4689). Kind is
+// RecipientApplicant, RecipientBoth or RecipientPayer; SecondName the
+// second parent; Address the payer's address. An invoice issued before
+// #4689 has no kind.
 type CareRecipient struct {
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
+	FirstName  string         `json:"first_name"`
+	LastName   string         `json:"last_name"`
+	Email      string         `json:"email"`
+	Kind       string         `json:"kind"`
+	SecondName string         `json:"second_name"`
+	Address    *PostalAddress `json:"address"`
 }
 
 // CareInvoice is the invoice of one contract and month: a draft without a
@@ -200,9 +210,18 @@ type CareInvoice struct {
 	ChildLastName  string         `json:"child_last_name"`
 	// StudentID is the child record the contract names, nil without one; the
 	// parents inbox shows the letter only for it (ADR 0165).
-	StudentID *int64         `json:"-"`
+	StudentID *int64 `json:"-"`
+	// Exclusion is set on an invoice of a preview the release leaves out
+	// (#5916).
+	Exclusion *CareExclusion `json:"exclusion,omitempty"`
 	Recipient CareRecipient  `json:"recipient"`
-	Positions []CarePosition `json:"positions"`
+	// FamilyEmail is the family of the invoice: the mail address of the
+	// contract party, whoever pays (#4689). The sibling rules count by it.
+	FamilyEmail string `json:"family_email"`
+	// Payment is how and by when the invoice is paid (#4689); an invoice
+	// issued before has none.
+	Payment   *InvoicePayment `json:"payment"`
+	Positions []CarePosition  `json:"positions"`
 	// Reductions are the rules of the chain in their order (#4685); the
 	// total is the positions less the reductions.
 	Reductions []CareReduction `json:"reductions"`
@@ -283,6 +302,10 @@ type CareRunDetail struct {
 	PreviewCents      int64  `json:"preview_cents"`
 	NumberPattern     string `json:"number_pattern"`
 	NumberRangeSet    bool   `json:"number_range_set"`
+	// DueDates are the due dates of the run per payment method (#4689).
+	DueDates []RunDueDate `json:"due_dates"`
+	// CareRunReviewState is the review of a calculated run (#5916).
+	CareRunReviewState
 }
 
 // CareContractService is a booked module of a contract version on a
@@ -348,7 +371,8 @@ type CareBilling interface {
 	SaveCarePriceList(ctx context.Context, reviewer HolidayReviewer, list CarePriceList) (CareTariffs, error)
 	DeleteCarePriceList(ctx context.Context, reviewer HolidayReviewer, schoolID int64, validFrom calendar.Date) (CareTariffs, error)
 	ListCareRuns(ctx context.Context, organizationID int64) (CareRunList, error)
-	StartCareRun(ctx context.Context, reviewer HolidayReviewer, month calendar.Date) (CareRun, error)
+	StartCareRun(ctx context.Context, reviewer HolidayReviewer, start CareRunStart) (CareRun, error)
 	CareRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (CareRunDetail, error)
-	ReleaseCareRun(ctx context.Context, reviewer HolidayReviewer, runID int64, release BillingRelease) (CareRunDetail, error)
+	ReleaseCareRun(ctx context.Context, reviewer HolidayReviewer, runID int64, release CareRelease) (CareRunDetail, error)
+	CareRunReview
 }

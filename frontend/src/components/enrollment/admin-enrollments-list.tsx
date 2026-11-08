@@ -956,7 +956,7 @@ function StepMeta({
         : "text-gray-500";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 text-[11px] font-medium whitespace-nowrap ${className}`}
+      className={`inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap ${className}`}
     >
       {label}
     </span>

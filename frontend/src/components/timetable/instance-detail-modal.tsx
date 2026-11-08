@@ -1385,7 +1385,7 @@ function StudentGroup({
               <div className="truncate text-sm font-semibold text-gray-900">
                 {studentName}
               </div>
-              <div className="text-[11px] text-gray-500">
+              <div className="text-xs text-gray-500">
                 {careDayGroup
                   ? careDayLabel(student.careDayStatus)
                   : attendanceLabel(student.status, isPlanned)}
@@ -1538,7 +1538,7 @@ function PersonLine({
       <div className="text-sm font-semibold text-gray-900">{name}</div>
       {labels.length > 0 && (
         <div
-          className={`mt-0.5 text-[11px] ${
+          className={`mt-0.5 text-xs ${
             danger ? "text-moto-red-strong" : "text-gray-500"
           }`}
         >
@@ -1666,7 +1666,7 @@ function Row({ icon, label, children }: RowProps) {
         {icon}
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="text-[11px] font-medium text-gray-500">{label}</span>
+        <span className="text-xs font-medium text-gray-500">{label}</span>
         <span className="text-sm text-gray-900">{children}</span>
       </div>
     </InsetPanel>

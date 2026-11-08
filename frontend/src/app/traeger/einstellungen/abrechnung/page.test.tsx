@@ -15,7 +15,28 @@ import type {
 } from "~/lib/traeger-contributions-api";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { billingApi, masterApi, session, api } = vi.hoisted(() => ({
+const { billingApi, termsApi, masterApi, session, api } = vi.hoisted(() => ({
+  // Zahlung und Rechnungen (#4689): the defaults of every service.
+  termsApi: {
+    fetchBillingTerms: vi.fn(() =>
+      Promise.resolve({
+        services: [
+          { service: "care", bundleWith: [] },
+          { service: "meal", bundleWith: ["care"] },
+          { service: "holiday", bundleWith: [] },
+        ],
+        terms: ["care", "meal", "holiday"].map((service) => ({
+          service,
+          paymentMethod: "transfer",
+          dueDays: 14,
+          bundleWith: service === "meal" ? "care" : "",
+          custom: false,
+          updatedAt: null,
+        })),
+      }),
+    ),
+    saveServiceTerms: vi.fn(),
+  },
   session: {
     permissions: [
       "traeger_overview:read",
@@ -48,6 +69,10 @@ const { billingApi, masterApi, session, api } = vi.hoisted(() => ({
 
 vi.mock("~/lib/traeger-contributions-api", () => api);
 vi.mock("~/lib/traeger-billing-api", () => billingApi);
+vi.mock("~/lib/traeger-billing-terms-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ...termsApi,
+}));
 vi.mock("~/lib/traeger-api", () => masterApi);
 vi.mock("next-auth/react", () => ({
   useSession: () => ({

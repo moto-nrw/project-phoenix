@@ -69,6 +69,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["traeger/care-billing-runs/[id]/invoices/[invoiceId]/letter", "GET"],
   ["traeger/care-billing-runs/[id]/letters/preview", "POST"],
   ["traeger/care-billing-runs/[id]/letters/print", "GET"],
+  ["traeger/care-billing-runs/[id]/review-export", "GET"],
   ["traeger/contracts/[id]/document", "GET"],
   ["traeger/contracts/[id]/paper-signature", "GET"],
   ["traeger/contracts/[id]/versions/[number]/document", "GET"],

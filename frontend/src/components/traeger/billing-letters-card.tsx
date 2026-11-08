@@ -13,6 +13,8 @@ import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import type { BillingLetters } from "~/lib/traeger-billing-api";
+import type { InvoicePayment } from "~/lib/traeger-billing-terms-api";
+import { invoiceDueDatesText } from "./billing-payment-format";
 import type { LetterSource } from "./billing-letters-modal";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -35,6 +37,7 @@ export function LettersCreateCard<T = BillingLetters>({
   title,
   description,
   runId,
+  payments,
   source,
   onCreated,
   children,
@@ -42,6 +45,7 @@ export function LettersCreateCard<T = BillingLetters>({
   title: string;
   description: string;
   runId: string;
+  payments: readonly (InvoicePayment | null | undefined)[];
   source?: LetterSource<T>;
   onCreated: (letters: T) => void;
   children: ReactNode;
@@ -66,6 +70,7 @@ export function LettersCreateCard<T = BillingLetters>({
       {creating ? (
         <BillingLettersModal
           runId={runId}
+          payments={payments}
           isOpen
           source={source as LetterSource<unknown> | undefined}
           onClose={() => setCreating(false)}
@@ -105,6 +110,7 @@ export function BillingSettingsLink() {
 /** What every letter of a run says: payment date, creation and the note. */
 export function LettersFacts({
   paymentDueOn,
+  payments,
   createdAt,
   notes,
   notesLabel,
@@ -112,15 +118,27 @@ export function LettersFacts({
   children,
 }: Readonly<{
   paymentDueOn: string;
+  payments: readonly (InvoicePayment | null | undefined)[];
   createdAt: string;
   notes: string;
   notesLabel: string;
   emptyNotes: string;
   children?: ReactNode;
 }>) {
+  const deadlines = invoiceDueDatesText(payments);
+  const hasLegacy = payments.some((payment) => !payment?.dueOn);
   return (
     <DataGrid columns={2}>
-      <DataField label="Zahlen bis">{formatDate(paymentDueOn)}</DataField>
+      {deadlines ? (
+        <DataField label="Fälligkeiten">{deadlines}</DataField>
+      ) : null}
+      {hasLegacy ? (
+        <DataField
+          label={deadlines ? "Zahlen bis (ältere Rechnungen)" : "Zahlen bis"}
+        >
+          {formatDate(paymentDueOn)}
+        </DataField>
+      ) : null}
       <DataField label="Erstellt am">{formatBerlinDate(createdAt)}</DataField>
       <DataField label={notesLabel}>
         {notes ? (
@@ -136,10 +154,12 @@ export function LettersFacts({
 
 export function BillingLettersCard({
   runId,
+  payments,
   letters,
   onCreated,
 }: Readonly<{
   runId: string;
+  payments: readonly (InvoicePayment | null | undefined)[];
   letters: BillingLetters | null;
   onCreated: (letters: BillingLetters) => void;
 }>) {
@@ -149,6 +169,7 @@ export function BillingLettersCard({
         title="Bestätigungsschreiben"
         description="Jede Familie bekommt ein Schreiben, das ihre Anmeldung bestätigt und zugleich ihre Rechnung ist."
         runId={runId}
+        payments={payments}
         onCreated={onCreated}
       >
         Logo, Absender und Fußzeile kommen aus <LetterheadLink />. Die
@@ -174,6 +195,7 @@ export function BillingLettersCard({
     >
       <LettersFacts
         paymentDueOn={letters.paymentDueOn}
+        payments={payments}
         createdAt={letters.createdAt}
         notes={letters.notes}
         notesLabel="Hinweise für die Eltern"

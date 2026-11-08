@@ -26,6 +26,8 @@ const (
 // CareLetterStore persists the letters of the released monthly runs of a
 // Träger in its Träger transaction.
 type CareLetterStore interface {
+	FamilyBillings(ctx context.Context, organizationID int64) ([]parentbilling.FamilyBilling, error)
+	InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, families []parentbilling.FamilyBilling) error
 	CareRun(ctx context.Context, organizationID, runID int64, lock bool) (parentbilling.CareRun, error)
 	LockCareBilling(ctx context.Context, organizationID int64) error
 	CareRunInvoices(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareInvoice, error)
