@@ -973,3 +973,13 @@ func (m *mockDecisionService) UnreadRequestIDs(context.Context, int64, []int64) 
 func (m *mockDecisionService) MarkRequestsRead(context.Context, int64, []int64) error { return nil }
 func (m *mockDecisionService) MarkAllRequestsRead(context.Context, int64) error       { return nil }
 func (m *mockDecisionService) MarkRequestUnread(context.Context, int64, int64) error  { return nil }
+
+func TestAttachExistingChildCandidates_EmptyRequiredChoice(t *testing.T) {
+	children := []AdminRequestChild{{}}
+	attachExistingChildCandidates(children, []*RequestChild{{ID: 7}}, map[int64][]capability.ExistingChildCandidate{7: {}})
+	encoded, err := json.Marshal(children[0])
+	require.NoError(t, err)
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(encoded, &fields))
+	assert.Equal(t, "true", string(fields["existing_child_choice_required"]))
+}

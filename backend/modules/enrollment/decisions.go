@@ -119,6 +119,7 @@ type DecisionSummary struct {
 	// ExistingChildCandidates are, per request child id, the enrolled
 	// children that may be the same child (#6053). Only the detail read
 	// fills it, and only for children whose approval still asks the office.
+	// A present key requires an office choice even when its candidates are empty.
 	ExistingChildCandidates map[int64][]ExistingChildCandidate
 }
 

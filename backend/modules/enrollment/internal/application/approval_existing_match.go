@@ -45,12 +45,11 @@ func childAwaitsExistingChildChoice(phase *enrollmentNative.Phase, child *Reques
 		child.MatchedStudentID == nil && child.RolloverSourceChildID == nil && child.CreatedStudentID == nil
 }
 
-// isParentPin reports whether the child carries a pin an open or
-// linked_parents submission set through the parent's relationship (#6053):
-// not the office's choice and not a rollover descendant.
-func isParentPin(phase *enrollmentNative.Phase, child *RequestChild) bool {
-	return audienceChecksEnrolledChildren(phase) && child != nil &&
-		child.MatchedStudentID != nil && !child.MatchedByOffice && child.RolloverSourceChildID == nil
+// isParentPin identifies a non-office, non-rollover pin. Its account-bound
+// authority is checked independently of the mutable phase audience.
+func isParentPin(child *RequestChild) bool {
+	return child != nil && child.MatchedStudentID != nil &&
+		!child.MatchedByOffice && child.RolloverSourceChildID == nil
 }
 
 // parentPinLapsed reports whether a parent's pin lost its authority: the
@@ -61,11 +60,11 @@ func isParentPin(phase *enrollmentNative.Phase, child *RequestChild) bool {
 // grants portal access, invites or applies form data. Without the
 // authorizer the pin counts as lapsed.
 //
-// The relationship match pins only for a signed-in account, so a pin of a
-// request without one stems from the existing_students rule (an audience
-// changed after the submission) and keeps that rule's behaviour (#6173).
-func (d *Decisions) parentPinLapsed(ctx context.Context, request *Request, phase *enrollmentNative.Phase, child *RequestChild) (bool, error) {
-	if !isParentPin(phase, child) || request == nil || request.GuardianAccountID == nil {
+// Accountless pins keep the existing_students email/manual rule (#6173).
+// Account-bound pins always require current authority, even if the audience
+// changed since submission or the account was attached later.
+func (d *Decisions) parentPinLapsed(ctx context.Context, request *Request, child *RequestChild) (bool, error) {
+	if !isParentPin(child) || request == nil || request.GuardianAccountID == nil {
 		return false, nil
 	}
 	submitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, d.deps.LateInvites, request)
@@ -132,7 +131,7 @@ func (d *Decisions) resolveExistingChildChoice(ctx context.Context, target *deci
 		return nil
 	}
 	child := target.child
-	lapsed, err := d.parentPinLapsed(ctx, target.request, phase, child)
+	lapsed, err := d.parentPinLapsed(ctx, target.request, child)
 	if err != nil {
 		return err
 	}
@@ -222,7 +221,7 @@ func (d *Decisions) childAsksTheOffice(ctx context.Context, request *Request, ph
 	if child.CreatedStudentID != nil {
 		return false, nil
 	}
-	return d.parentPinLapsed(ctx, request, phase, child)
+	return d.parentPinLapsed(ctx, request, child)
 }
 
 // dropLapsedPin clears a lapsed parent pin before the office's "create new"
@@ -252,7 +251,7 @@ func hasCandidate(candidates []enrollmentNative.ExistingChildCandidate, studentI
 // child whose approval still asks the office, including a child whose
 // parent pin lapsed.
 func (d *Decisions) attachExistingChildCandidates(ctx context.Context, request *Request, summary *enrollmentNative.DecisionSummary) error {
-	if summary == nil || request == nil || !audienceChecksEnrolledChildren(summary.Phase) {
+	if summary == nil || request == nil {
 		return nil
 	}
 	children, err := childValues(summary.Children)
@@ -272,7 +271,13 @@ func (d *Decisions) attachExistingChildCandidates(ctx context.Context, request *
 			return err
 		}
 		if len(candidates) == 0 {
-			continue
+			lapsed, err := d.parentPinLapsed(ctx, request, child)
+			if err != nil {
+				return err
+			}
+			if !lapsed {
+				continue
+			}
 		}
 		if summary.ExistingChildCandidates == nil {
 			summary.ExistingChildCandidates = map[int64][]enrollmentNative.ExistingChildCandidate{}

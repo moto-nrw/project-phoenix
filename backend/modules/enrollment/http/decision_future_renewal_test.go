@@ -16,6 +16,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/roots/owners"
@@ -637,4 +638,51 @@ func TestDecisionService_ApplyDueWeeklyPlans_ResolvesMissingAuthorFromReviewer(t
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, r.reviewerStaffID, rows[0].CreatedBy)
+}
+
+func TestDecisionService_RevokedParentDeferredWeeklyPlanIsDropped(t *testing.T) {
+	t.Parallel()
+	for _, syncEdit := range []bool{false, true} {
+		t.Run(fmt.Sprintf("confirmed_edit_%t", syncEdit), func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			r := setupFutureRenewal(t)
+			accountID := parentAccountLinkedTo(t, r.env.db, r.studentID, securityruntime.GuardianRolePrimaryGuardian)
+			_, err := r.env.db.NewUpdate().TableExpr(`enrollment.requests`).Set("guardian_account_id = ?", accountID).Where("id = ?", r.requestID).Exec(testpkg.Ctx(t))
+			require.NoError(t, err)
+			_, err = r.env.db.NewUpdate().TableExpr(`enrollment.phases`).Set("audience = ?", enrollmentNative.PhaseAudienceOpen).Where("id = ?", r.env.sourcePhase.ID).Exec(testpkg.Ctx(t))
+			require.NoError(t, err)
+			submitted, err := enrollmentAPI.ReadOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), r.childID)
+			require.NoError(t, err)
+			grade := int16(3)
+			submitted.TargetGradeLevel = &grade
+			require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), submitted))
+			r.approve(t)
+			child, err := enrollmentAPI.ReadOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), r.childID)
+			require.NoError(t, err)
+			require.NotNil(t, child.WeeklyPlanOn)
+			plannedClass, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), r.env.db, r.env.repos.Enrollment().ChildClassSwitch, r.childID)
+			require.NoError(t, err)
+			require.NotNil(t, plannedClass)
+			env := &existingChildEnv{decisionTestEnv: r.env}
+			env.revokeGuardianLinks(t, r.studentID)
+			if syncEdit {
+				child.CustomData["pickup_times"] = map[string]any{"mon": "16:00"}
+				require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), child))
+				_, err = changeRequestApplierForTest(t, r.env).SyncApprovedChildData(testpkg.Ctx(t), enrollmentAPI.SyncApprovedChildDataInput{RequestID: r.requestID, ChildID: r.childID, ActorAccountID: r.reviewerAccountID, ReplaceTargetedData: true})
+				require.NoError(t, err)
+				afterEdit, err := enrollmentAPI.ReadOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), r.childID)
+				require.NoError(t, err)
+				assert.Nil(t, afterEdit.WeeklyPlanOn, "a confirmed edit cancels the unauthorized pending plan immediately")
+			}
+			switched, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), r.env.db, decisionOwner(t, r.env.decision).ApplyDueClassSwitches, r.start)
+			require.NoError(t, err)
+			assert.Zero(t, switched, "revoked authority cannot apply a deferred class change")
+			assert.Equal(t, "2a", r.student(t).SchoolClass)
+			assert.Zero(t, r.applyDue(t, r.start), "a revoked relationship cannot apply deferred form fields")
+			r.assertRunningPlan(t, "after revocation and due tick")
+			child, err = enrollmentAPI.ReadOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), r.childID)
+			require.NoError(t, err)
+			assert.Nil(t, child.WeeklyPlanOn, "the unauthorized plan is discarded rather than retried")
+		})
+	}
 }

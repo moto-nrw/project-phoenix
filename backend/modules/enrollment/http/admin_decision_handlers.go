@@ -129,7 +129,8 @@ type AdminRequestChild struct {
 	// PossibleExistingChildren are enrolled children that may be this child
 	// (#6053). Detail endpoint only; while it is non-empty the approval needs
 	// the office's choice: existing_student_id or create_new_student.
-	PossibleExistingChildren []AdminExistingChildCandidate `json:"possible_existing_children,omitempty"`
+	PossibleExistingChildren    []AdminExistingChildCandidate `json:"possible_existing_children,omitempty"`
+	ExistingChildChoiceRequired bool                          `json:"existing_child_choice_required,omitempty"`
 	// ReviewReason says why an open enrollment was left to the school,
 	// e.g. child_quota_reached for a renewal the automatic approval held
 	// back (#3570). Cleared by the next decision.
@@ -455,6 +456,7 @@ func attachExistingChildCandidates(children []AdminRequestChild, summaryChildren
 		if i >= len(summaryChildren) {
 			continue
 		}
+		_, children[i].ExistingChildChoiceRequired = candidates[summaryChildren[i].ID]
 		for _, candidate := range candidates[summaryChildren[i].ID] {
 			out := AdminExistingChildCandidate{
 				StudentID: strconv.FormatInt(candidate.StudentID, 10),

@@ -178,7 +178,7 @@ func (d *Decisions) ApplyDueWeeklyPlans(ctx context.Context, asOf calendar.Date)
 }
 
 // applyWeeklyPlan applies one due plan and clears it. A plan whose child is
-// no longer approved or no longer cared for is dropped without applying.
+// no longer approved, cared for or authorized is dropped without applying.
 func (d *Decisions) applyWeeklyPlan(ctx context.Context, plan enrollmentNative.WeeklyPlan) (bool, error) {
 	requestChildID := plan.RequestChildID
 	child, err := decodedChildByID(ctx, d.deps.Children, requestChildID)
@@ -192,6 +192,10 @@ func (d *Decisions) applyWeeklyPlan(ctx context.Context, plan enrollmentNative.W
 	request, err := decodedRequestByID(ctx, d.deps.Requests, child.RequestID, false)
 	if err != nil {
 		return false, fmt.Errorf("weekly plan: load request: %w", err)
+	}
+	enrollmentOnly, err := d.childEnrollmentOnly(ctx, request, child)
+	if err != nil || enrollmentOnly {
+		return false, d.finishWeeklyPlan(ctx, requestChildID, err)
 	}
 	// The tick is the system actor; the stored staff ID authors weekly rows.
 	// A plan stored without an author (the reviewer had no staff membership

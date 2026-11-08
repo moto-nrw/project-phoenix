@@ -387,7 +387,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     if (
       status === "approved" &&
       existingChildChoice === undefined &&
-      (child.possible_existing_children?.length ?? 0) > 0
+      (child.existing_child_choice_required === true ||
+        (child.possible_existing_children?.length ?? 0) > 0)
     ) {
       setExistingChildChoiceChild(child);
       return;
@@ -469,7 +470,12 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             <ChoiceModal
               isOpen
               title="Ist das Kind schon angemeldet?"
-              description={`Bitte wählen Sie für ${existingChildChoiceChild.first_name} ${existingChildChoiceChild.last_name}. Beim bestehenden Kind wird nur die Anmeldung verlängert. Die Eltern aus dieser Anmeldung bekommen dadurch keinen Zugang zum Kind.`}
+              description={
+                (existingChildChoiceChild.possible_existing_children?.length ??
+                  0) > 0
+                  ? `Bitte wählen Sie für ${existingChildChoiceChild.first_name} ${existingChildChoiceChild.last_name}. Beim bestehenden Kind wird nur die Anmeldung verlängert. Die Eltern aus dieser Anmeldung bekommen dadurch keinen Zugang zum Kind.`
+                  : "Die frühere Zuordnung ist nicht mehr gültig. Es gibt kein passendes Kind zur Auswahl. Prüfen Sie die Angaben vor dem Anlegen."
+              }
               options={[
                 ...(
                   existingChildChoiceChild.possible_existing_children ?? []
@@ -491,7 +497,11 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                 {
                   value: "new",
                   label: "Als neues Kind anlegen",
-                  description: "Nur wählen, wenn es ein anderes Kind ist.",
+                  description:
+                    (existingChildChoiceChild.possible_existing_children
+                      ?.length ?? 0) > 0
+                      ? "Nur wählen, wenn es ein anderes Kind ist."
+                      : "Die Anmeldung wird für ein neues Kind bestätigt.",
                 },
               ]}
               onClose={() => setExistingChildChoiceChild(null)}
@@ -866,6 +876,15 @@ function ChildInformationCard({
             type="warning"
             announce="off"
             message="Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Beim Bestätigen wählen Sie, ob es dasselbe Kind ist."
+          />
+        ) : null}
+        {!terminal &&
+        child.existing_child_choice_required === true &&
+        (child.possible_existing_children?.length ?? 0) === 0 ? (
+          <Alert
+            type="warning"
+            announce="off"
+            message="Die frühere Zuordnung ist nicht mehr gültig. Prüfen Sie die Angaben vor dem Bestätigen."
           />
         ) : null}
         {child.status_reason ? (

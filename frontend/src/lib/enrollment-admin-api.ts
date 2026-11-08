@@ -191,6 +191,7 @@ export interface AdminRequestChild {
    * them or create a new child. Detail endpoint only.
    */
   possible_existing_children?: AdminExistingChildCandidate[];
+  existing_child_choice_required?: boolean;
   /**
    * Why an open enrollment was left to the school, e.g.
    * "child_quota_reached" for a renewal the automatic approval skipped

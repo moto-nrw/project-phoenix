@@ -246,6 +246,36 @@ describe("AdminEnrollmentDetail child that may already be enrolled", () => {
     };
   }
 
+  it("offers a new child when the required choice has no candidates", async () => {
+    const request = requestWithCandidate();
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: request.children.map((child) => ({
+        ...child,
+        existing_child_choice_required: true,
+        possible_existing_children: [],
+      })),
+    });
+    mocks.decideAdminChild.mockResolvedValue({ id: "child-1" });
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /Als neues Kind anlegen/ }),
+    );
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+        { createNewStudent: true },
+      );
+    });
+  });
+
   it("asks before approving and renews the chosen child", async () => {
     mocks.getAdminRequest.mockResolvedValue(requestWithCandidate());
     mocks.decideAdminChild.mockResolvedValue({ id: "child-1" });

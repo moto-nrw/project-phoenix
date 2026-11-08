@@ -135,3 +135,74 @@ func TestExistingChild_ValidRelationshipRenewsAndLaterRevocationSticks(t *testin
 	assert.Empty(t, env.guardianLinks(t, existing.ID), "a later edit restores no revoked guardian link")
 	assert.Zero(t, env.portalAccessRows(t, accountID), "a later edit restores no revoked portal access")
 }
+
+func TestExistingChild_RevocationSurvivesAudienceChange(t *testing.T) {
+	t.Parallel()
+	for _, audience := range []string{enrollmentNative.PhaseAudienceExistingStudents, enrollmentNative.PhaseAudienceNewStudents} {
+		t.Run(audience, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+			existing := enrolledChild(t, env.db, "Lina", "Zielgruppe", existingChildBirthday)
+			accountID := parentAccountLinkedTo(t, env.db, existing.ID, securityruntime.GuardianRolePrimaryGuardian)
+			res := env.submit(t, existingChildSubmission{accountID: &accountID, children: []enrollmentAPI.SubmitChild{submitChild("Lina", "Zielgruppe", existingChildBirthday)}})
+			child := res.Children[0]
+			require.NotNil(t, child.MatchedStudentID)
+			env.revokeGuardianLinks(t, existing.ID)
+			_, err := env.db.NewUpdate().TableExpr(`enrollment.phases`).Set("audience = ?", audience).Where("id = ?", env.sourcePhase.ID).Exec(testpkg.Ctx(t))
+			require.NoError(t, err)
+			require.ErrorIs(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: child.ID}), enrollmentNative.ErrChildPossiblyEnrolled)
+			require.Len(t, env.candidates(t, res.Request.ID, child.ID), 1)
+			env.decideOutcome(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: child.ID, ExistingStudentID: &existing.ID})
+			assert.Empty(t, env.guardianLinks(t, existing.ID))
+			assert.Zero(t, env.portalAccessRows(t, accountID))
+		})
+	}
+}
+
+func TestExistingChild_LapsedPinWithoutCandidatesStillExposesOfficeChoice(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+	existing := enrolledChild(t, env.db, "Mats", "Umbenannt", existingChildBirthday)
+	accountID := parentAccountLinkedTo(t, env.db, existing.ID, securityruntime.GuardianRolePrimaryGuardian)
+	res := env.submit(t, existingChildSubmission{accountID: &accountID, children: []enrollmentAPI.SubmitChild{submitChild("Mats", "Umbenannt", existingChildBirthday)}})
+	child := res.Children[0]
+	require.NotNil(t, child.MatchedStudentID)
+	env.revokeGuardianLinks(t, existing.ID)
+	_, err := env.db.NewUpdate().TableExpr(`users.persons`).Set("last_name = ?", "Korrigiert").Where("id = ?", existing.PersonID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	require.ErrorIs(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: child.ID}), enrollmentNative.ErrChildPossiblyEnrolled)
+	summary, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), env.db, env.decision.Get, res.Request.ID)
+	require.NoError(t, err)
+	candidates, requiresChoice := summary.ExistingChildCandidates[child.ID]
+	require.True(t, requiresChoice, "the detail exposes a required choice independently of candidate count")
+	assert.Empty(t, candidates)
+	assert.Zero(t, env.portalAccessRows(t, accountID), "the refused approval restores no portal access")
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: child.ID, CreateNewStudent: true}))
+	created := env.child(t, child.ID)
+	assert.Nil(t, created.MatchedStudentID)
+	require.NotNil(t, created.CreatedStudentID)
+	assert.NotEqual(t, existing.ID, *created.CreatedStudentID)
+	assert.Empty(t, env.guardianLinks(t, existing.ID))
+}
+
+func TestExistingChild_ApprovedRevocationSurvivesAudienceChange(t *testing.T) {
+	t.Parallel()
+	for _, audience := range []string{enrollmentNative.PhaseAudienceExistingStudents, enrollmentNative.PhaseAudienceNewStudents} {
+		t.Run(audience, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+			existing := enrolledChild(t, env.db, "Nele", "Zielgruppe", existingChildBirthday)
+			accountID := parentAccountLinkedTo(t, env.db, existing.ID, securityruntime.GuardianRolePrimaryGuardian)
+			res := env.submit(t, existingChildSubmission{accountID: &accountID, children: []enrollmentAPI.SubmitChild{submitChild("Nele", "Zielgruppe", existingChildBirthday)}})
+			child := res.Children[0]
+			_, err := env.db.NewUpdate().TableExpr(`enrollment.phases`).Set("audience = ?", audience).Where("id = ?", env.sourcePhase.ID).Exec(testpkg.Ctx(t))
+			require.NoError(t, err)
+			require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: child.ID}), "a valid relationship renews after an audience change")
+			env.revokeGuardianLinks(t, existing.ID)
+			_, err = changeRequestApplierForTest(t, env.decisionTestEnv).SyncApprovedChildData(testpkg.Ctx(t), enrollmentAPI.SyncApprovedChildDataInput{RequestID: res.Request.ID, ChildID: child.ID, ActorAccountID: env.creatorID, ReplaceTargetedData: true})
+			require.NoError(t, err)
+			assert.Empty(t, env.guardianLinks(t, existing.ID), "a later edit cannot restore access after an audience change")
+			assert.Zero(t, env.portalAccessRows(t, accountID))
+		})
+	}
+}

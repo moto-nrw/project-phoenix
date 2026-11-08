@@ -79,9 +79,15 @@ func (d *Decisions) SyncApprovedChildData(ctx context.Context, input enrollmentN
 // whose relationship the school removed since, as the pin no longer
 // authorizes the family.
 func (d *Decisions) syncApprovedChildRecords(ctx context.Context, run *approvedChildSync) error {
-	enrollmentOnly, err := d.approvedChildEnrollmentOnly(ctx, run)
-	if err != nil || enrollmentOnly {
+	enrollmentOnly, err := d.childEnrollmentOnly(ctx, run.request, run.child)
+	if err != nil {
 		return err
+	}
+	if enrollmentOnly {
+		if err := d.planClassSwitch(ctx, run.child.ID, nil); err != nil {
+			return err
+		}
+		return d.finishWeeklyPlan(ctx, run.child.ID, nil)
 	}
 	if err := d.syncApprovedChildStudent(ctx, run); err != nil {
 		return err
@@ -89,22 +95,13 @@ func (d *Decisions) syncApprovedChildRecords(ctx context.Context, run *approvedC
 	return d.syncApprovedChildGuardians(ctx, run)
 }
 
-// approvedChildEnrollmentOnly reports whether a confirmed edit leaves the
-// student's master data, guardians and form data alone: for an office match,
-// and for a parent pin of an open or linked_parents phase whose relationship
-// authority lapsed after the approval.
-func (d *Decisions) approvedChildEnrollmentOnly(ctx context.Context, run *approvedChildSync) (bool, error) {
-	if run.child.MatchedByOffice {
+// childEnrollmentOnly leaves master data, guardians and form data alone
+// for an office match or an account-bound pin whose authority has lapsed.
+func (d *Decisions) childEnrollmentOnly(ctx context.Context, request *Request, child *RequestChild) (bool, error) {
+	if child.MatchedByOffice {
 		return true, nil
 	}
-	if run.child.MatchedStudentID == nil || run.child.RolloverSourceChildID != nil {
-		return false, nil
-	}
-	phase, err := d.deps.Phases.Phase(ctx, run.request.PhaseID)
-	if err != nil {
-		return false, fmt.Errorf("decision: load phase for approved child sync: %w", err)
-	}
-	return d.parentPinLapsed(ctx, run.request, phase, run.child)
+	return d.parentPinLapsed(ctx, request, child)
 }
 
 func (d *Decisions) loadApprovedChildForSync(ctx context.Context, run *approvedChildSync) error {
