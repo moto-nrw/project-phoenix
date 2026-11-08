@@ -7,7 +7,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
     title: "Monatsbeiträge abrechnen",
     question: "Wie rechne ich die Betreuung jeden Monat ab?",
     summary:
-      "Ein Monatslauf rechnet einen Monat für die gewählten Schulen nach den gültigen Verträgen ab. Der Beitrag eines Kindes ist die Summe seiner gebuchten Wochentage, mit den Preisen aus der Preisliste. Es zählt der Vertrag, nicht die Anwesenheit. Vor der Freigabe prüfen Sie die Vorschau und schließen Rechnungen aus, die noch nicht stimmen. Nach der Freigabe erstellen Sie die Schreiben, senden sie an die Familien und stornieren eine falsche Rechnung.",
+      "Ein Monatslauf rechnet einen Monat für die gewählten Schulen nach den gültigen Verträgen ab. Der Beitrag eines Kindes kommt aus der Preisliste: als Summe der gebuchten Wochentage oder als Staffel nach Tagen je Woche. Es zählt der Vertrag, nicht die Anwesenheit. Vor der Freigabe prüfen Sie die Vorschau und schließen Rechnungen aus, die noch nicht stimmen. Nach der Freigabe erstellen Sie die Schreiben, senden sie an die Familien und stornieren eine falsche Rechnung.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "CalendarCheck",
@@ -20,12 +20,18 @@ export function traegerCareMonthsTopic(): HelpTopic {
       {
         title: "Preise festlegen",
         description:
-          "Jede Schule hat eigene Preise. Ein Preis gilt für einen gebuchten Wochentag eines Moduls, für den ganzen Monat.",
+          "Jede Schule hat eigene Preise. Jedes Modul hat eine Preisform. `Je Wochentag`: Jeder gebuchte Tag hat einen Monatspreis, der Beitrag ist die Summe. `Nach Tagen je Woche`: Der Beitrag hängt nur von der Zahl der gebuchten Tage ab, zum Beispiel 3 Tage = 60,00 €.",
         steps: [
           "Wählen Sie `Abrechnung` und dann den Reiter `Preisliste`.",
           "Wählen Sie bei der Schule `Neue Preise`.",
           "Wählen Sie bei `Gültig ab` den Monat, ab dem die Preise gelten.",
-          "Tragen Sie je Modul und Wochentag den Monatspreis ein, zum Beispiel 32,00. Ein leeres Feld setzt keinen Preis. Dann gilt der Preis davor.",
+          "Wählen Sie bei `Beitragsfreie Monate` die Monate ohne Beitrag, zum Beispiel `Aug`. Dann stellt der Monatslauf für diese Schule im August keine Rechnung aus.",
+          "Wählen Sie je Modul `Je Wochentag` oder `Nach Tagen je Woche`.",
+          "Tragen Sie in der Zeile `1. Kind` die Monatspreise ein, zum Beispiel 16,00. Ein leeres Feld setzt keinen Preis. Dann gilt der Preis davor.",
+          "Hat jedes weitere Kind einen eigenen Preis, tragen Sie ihn in der Zeile `Jedes weitere Kind` ein, zum Beispiel 12,50. Leer heißt: gleicher Preis wie beim 1. Kind.",
+          "Kostet ein Modul an jedem Tag gleich viel, tragen Sie nur Montag ein. Wählen Sie dann `Mo-Preise für alle Tage übernehmen`.",
+          "Kostet ein Modul dasselbe wie ein anderes, wählen Sie `Werte übernehmen von …` und dann das andere Modul.",
+          "Ist das Essen nicht im Preis, setzen Sie den Haken bei `Essen extra`. Das Essen rechnet die Mensa ab.",
           "Wählen Sie `Preise speichern`.",
         ],
       },
@@ -48,7 +54,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
           "Wählen Sie bei `Rechnungsdatum` das Datum, das auf jeder Rechnung steht, zum Beispiel den 30.10. für Oktober. Lassen Sie das Feld leer, gilt der Tag der Freigabe.",
           "Wählen Sie `Vorschau öffnen`.",
           "Prüfen Sie die Rechnungen. Je Schule steht eine Karte. Jede Rechnung hat je Modul eine Zeile mit den gebuchten Wochentagen.",
-          "Steht oben `Ohne Preis`, fehlt für einen gebuchten Wochentag ein Preis. Wählen Sie `Preis eintragen`. Danach kommt das Kind in den Lauf.",
+          "Steht oben `Ohne Preis`, fehlt für einen gebuchten Wochentag oder eine Zahl von Tagen je Woche ein Preis. Wählen Sie `Preis eintragen`. Danach kommt das Kind in den Lauf.",
           "Steht oben `Doppelter Vertrag – bitte prüfen`, rechnen zwei Verträge eines Kindes am selben Tag dasselbe Modul ab. Die Freigabe rechnet dieses Kind mit allen seinen Verträgen nicht ab, alle anderen Kinder schon. Nach der Freigabe steht es unter `Nicht abgerechnet – Doppelter Vertrag`. Beenden oder ändern Sie einen der Verträge. Starten Sie dann einen neuen Monatslauf für diesen Monat. Er rechnet nur dieses Kind ab.",
         ],
       },
@@ -126,6 +132,8 @@ export function traegerCareMonthsTopic(): HelpTopic {
     ],
     notes: [
       "Ferienpreise legen Sie im Ferienzeitraum fest. Die Preisliste gilt nur für die Monatsbeiträge.",
+      "Die Preise für weitere Kinder gelten erst mit einer Geschwister-Regel mit der Wirkung `Preis laut Preisliste`. Die Regel legen Sie unter `Ermäßigungen` an.",
+      "In einem beitragsfreien Monat steht im Monatslauf bei `Beitragsfreier Monat`, wie viele Verträge keine Rechnung bekommen.",
     ],
     troubleshootingDetails: [
       "Eine Schule lässt sich beim Start nicht wählen: Sie ist schon in einem offenen Lauf dieses Monats. Öffnen Sie diesen Lauf in der Liste und geben Sie ihn frei.",

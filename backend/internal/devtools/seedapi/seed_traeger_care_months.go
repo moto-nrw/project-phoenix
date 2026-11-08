@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -132,6 +132,22 @@ func seedCareModulePrice(module seedCareModule) int64 {
 	}
 }
 
+// seedCareScale prices a module by days per week: the step grows by less
+// than a weekday's price per day; the meal of a lunch module comes on top.
+func seedCareScale(module seedCareModule) []map[string]any {
+	daily := seedCareModulePrice(module) / 4
+	lunch := strings.Contains(strings.ToLower(module.ModuleName), "mittag")
+	steps := make([]map[string]any, 0, 5)
+	for days := 1; days <= 5; days++ {
+		cents := daily*int64(days) - int64(days-1)*daily/10
+		steps = append(steps, map[string]any{
+			"care_offering_id": module.CareOfferingID, "module_name": module.ModuleName,
+			"days_per_week": days, "monthly_cents": cents, "meal_extra": lunch,
+		})
+	}
+	return steps
+}
+
 // seedCarePriceLists sets the prices of every school from month on, for the
 // weekdays Monday to Friday of each care offering of the Träger. A school
 // that already has prices keeps them.
@@ -158,27 +174,42 @@ func seedCarePriceLists(client *Client, auth AuthRef, month calendar.Date) (int,
 	for _, tariff := range envelope.Data.Tariffs {
 		priced[tariff.SchoolID] = true
 	}
+	order := []int64{}
+	for _, module := range modules {
+		if !priced[module.SchoolID] && !slices.Contains(order, module.SchoolID) {
+			order = append(order, module.SchoolID)
+		}
+	}
+	slices.Sort(order)
 	bySchool := map[int64][]map[string]any{}
 	for _, module := range modules {
 		if priced[module.SchoolID] {
 			continue
 		}
+		// Every second school prices by days per week (#6196), so both price
+		// forms are on every dev machine; further children pay three quarters.
+		if index := slices.Index(order, module.SchoolID); index%2 == 1 {
+			bySchool[module.SchoolID] = append(bySchool[module.SchoolID], seedCareScale(module)...)
+			continue
+		}
 		for _, weekday := range []string{"mon", "tue", "wed", "thu", "fri"} {
+			cents := seedCareModulePrice(module)
 			bySchool[module.SchoolID] = append(bySchool[module.SchoolID], map[string]any{
 				"care_offering_id": module.CareOfferingID, "module_name": module.ModuleName,
-				"weekday": weekday, "monthly_cents": seedCareModulePrice(module),
+				"weekday": weekday, "monthly_cents": cents, "sibling_cents": cents * 3 / 4,
 			})
 		}
 	}
-	schools := make([]int64, 0, len(bySchool))
-	for schoolID := range bySchool {
-		schools = append(schools, schoolID)
-	}
-	sort.Slice(schools, func(i, j int) bool { return schools[i] < schools[j] })
+	schools := order
 	count := 0
 	for _, schoolID := range schools {
+		// The first school bills nothing in August, like Ispringen.
+		free := []int{}
+		if schoolID == schools[0] {
+			free = []int{8}
+		}
 		if _, err := client.PutWithAuth(auth, "/traeger/care-tariffs/", map[string]any{
-			"school_id": schoolID, "valid_from": month.String(), "prices": bySchool[schoolID],
+			"school_id": schoolID, "valid_from": month.String(), "free_months": free, "prices": bySchool[schoolID],
 		}); err != nil {
 			return 0, fmt.Errorf("set the prices of school %d: %w", schoolID, err)
 		}

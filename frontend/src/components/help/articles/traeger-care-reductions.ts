@@ -28,7 +28,7 @@ export function traegerCareReductionsTopic(): HelpTopic {
           "Geben Sie einen Namen ein. Er steht so auf der Rechnung.",
           "Wählen Sie die Monate und die Schulen, für die die Regel gilt.",
           "Soll die Regel nur für einzelne Module gelten, wählen Sie die Module. Sonst lassen Sie das Feld leer.",
-          "Wählen Sie die Wirkung: `Anteil weniger`, `Betrag weniger` oder `Fester Preis`. Tragen Sie die Zahl ein.",
+          "Wählen Sie die Wirkung: `Anteil weniger`, `Betrag weniger` oder `Fester Preis`. Tragen Sie die Zahl ein. Bei Geschwistern gibt es auch `Preis laut Preisliste`.",
           "Wählen Sie `Regel speichern`.",
         ],
       },
@@ -40,6 +40,8 @@ export function traegerCareReductionsTopic(): HelpTopic {
           "Wählen Sie bei `Ab dem Kind`, ab welchem Kind die Ermäßigung gilt, zum Beispiel ab dem 2. Kind.",
           "Wählen Sie bei `Geschwister zählen an` die Schulen, deren Kinder mitzählen. Lassen Sie das Feld leer, zählen nur die Schulen der Regel.",
           "`Fester Preis` heißt: Das Kind zahlt genau diesen Betrag. `Betrag weniger` zieht den Betrag vom Preis ab.",
+          "`Preis laut Preisliste` heißt: Jedes weitere Kind zahlt je Modul und Tag den Preis aus der Zeile `Jedes weitere Kind` der Preisliste. Die Zahl tragen Sie dort ein, nicht in der Regel.",
+          "Sollen Geschwister an zwei Standorten getrennt zählen, legen Sie je Standort eine eigene Regel an. Lassen Sie `Geschwister zählen an` leer.",
         ],
       },
       {
