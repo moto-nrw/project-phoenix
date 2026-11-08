@@ -4747,57 +4747,53 @@ const NAV_ROW_ARROWS = new Set([
   "ChevronRightIcon",
 ]);
 
-/** Pfeile auch in bedingten, lokalen `trailing`-Knoten einer Zeile finden. */
-function containsNavRowArrow(
-  node,
-  constants,
-  seen = new Set(),
-  nested = false,
-) {
+function isNavRowArrow(element, classText) {
+  if (!NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return false;
+  // Der gedrehte Pfeil zeigt einen aufklappbaren Abschnitt an, keine Navigation.
+  const className = jsxAttribute(element.openingElement, "className");
+  return !(
+    className?.value &&
+    classText(className.value)
+      .split(/\s+/)
+      .some((token) => /^-?rotate-/.test(token))
+  );
+}
+
+/** Pfeile auch hinter JSX-Hüllen und in lokalen Konstanten einer Zeile finden. */
+function containsNavRowArrow(node, constants, classText, seen = new Set()) {
   if (!node) return false;
   if (node.type === "JSXElement") {
-    if (NAV_ROW_ARROWS.has(jsxName(node.openingElement.name))) return true;
-    // Ein aufgeklappter Abschnitt darf seinen Richtungs-Pfeil verschachteln;
-    // nur den aus einer bedingten lokalen Nachlauf auflösen.
-    if (!nested) {
-      return node.children.some(
-        (child) => child.type === "JSXText" && child.value.trim() === "›",
-      );
-    }
+    if (isNavRowArrow(node, classText)) return true;
     return node.children.some((child) =>
-      containsNavRowArrow(child, constants, seen, true),
+      containsNavRowArrow(child, constants, classText, seen),
     );
   }
   if (node.type === "JSXText") return node.value.trim() === "›";
   if (node.type === "JSXFragment") {
-    if (!nested) return false;
     return node.children.some((child) =>
-      containsNavRowArrow(child, constants, seen, true),
+      containsNavRowArrow(child, constants, classText, seen),
     );
   }
   if (node.type === "JSXExpressionContainer") {
-    return containsNavRowArrow(node.expression, constants, seen, nested);
+    return containsNavRowArrow(node.expression, constants, classText, seen);
   }
   if (node.type === "Identifier") {
     if (seen.has(node.name)) return false;
     seen.add(node.name);
-    const initializer = constants.get(node.name);
-    if (
-      !nested &&
-      initializer?.type !== "ConditionalExpression" &&
-      initializer?.type !== "LogicalExpression"
-    ) {
-      return false;
-    }
-    return containsNavRowArrow(initializer, constants, seen, true);
+    return containsNavRowArrow(
+      constants.get(node.name),
+      constants,
+      classText,
+      seen,
+    );
   }
   if (node.type === "LogicalExpression") {
-    return containsNavRowArrow(node.right, constants, seen, true);
+    return containsNavRowArrow(node.right, constants, classText, seen);
   }
   if (node.type === "ConditionalExpression") {
     return (
-      containsNavRowArrow(node.consequent, constants, seen, true) ||
-      containsNavRowArrow(node.alternate, constants, seen, true)
+      containsNavRowArrow(node.consequent, constants, classText, seen) ||
+      containsNavRowArrow(node.alternate, constants, classText, seen)
     );
   }
   return false;
@@ -4827,7 +4823,9 @@ const noHandRolledNavRow = makeRatchetRule({
         return;
       }
       if (
-        node.children.some((child) => containsNavRowArrow(child, constants))
+        node.children.some((child) =>
+          containsNavRowArrow(child, constants, classText),
+        )
       ) {
         found(node);
       }

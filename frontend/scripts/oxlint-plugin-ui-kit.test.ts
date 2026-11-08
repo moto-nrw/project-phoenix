@@ -3785,6 +3785,14 @@ describe.concurrent("Listen-Bausteine (#5593)", () => {
       "no-hand-rolled-nav-row",
       `<button type="button" className="flex w-full">Anna{trailing}</button>`,
     ],
+    [
+      "no-hand-rolled-nav-row",
+      `<button type="button" className="flex w-full">Anna{chevron}</button>`,
+    ],
+    [
+      "no-hand-rolled-nav-row",
+      `<button type="button" className="flex w-full"><span><ChevronRight /></span></button>`,
+    ],
   ])("%s fails %s", async (rule, element) => {
     const result = await lintSource(
       `const ChevronRight = () => null;
@@ -3818,7 +3826,7 @@ describe.concurrent("Listen-Bausteine (#5593)", () => {
     ],
     [
       "no-hand-rolled-nav-row",
-      `<button type="button" className="flex w-full"><span><ChevronRight /></span></button>`,
+      `<button type="button" className="flex w-full"><span><ChevronRight className="rotate-90" /></span></button>`,
     ],
   ])("%s accepts %s", async (rule, element) => {
     const result = await lintSource(

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Button } from "~/components/ui/button";
+import { ListRowLink } from "~/components/ui/list-row-link";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
@@ -129,8 +129,8 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
 /** Eine Zeile, mindestens 64 px hoch und auf ganzer Breite anklickbar. */
 function TodoRow({ item }: Readonly<{ item: TodoItem }>) {
   const t = useTranslations("parentStart");
-  const inner = (
-    <>
+  const rowProps = {
+    icon: (
       <span className="relative flex size-7 shrink-0 items-center justify-center">
         <MotoConceptIcon
           concept={item.concept}
@@ -146,43 +146,26 @@ function TodoRow({ item }: Readonly<{ item: TodoItem }>) {
           />
         )}
       </span>
-      <span className="min-w-0 flex-1">
+    ),
+    title: (
+      <>
         {item.unread && <span className="sr-only">{t("todo.unread")}: </span>}
-        <span
-          className={`block truncate text-[15px] text-gray-900 ${item.unread ? "font-semibold" : "font-medium"}`}
-        >
-          {item.title}
-        </span>
-        <span className="mt-0.5 block truncate text-sm text-gray-500">
-          {item.context}
-        </span>
+        {item.title}
+      </>
+    ),
+    subtitle: item.context,
+    badge: item.meta ? (
+      <span className="text-end text-xs font-medium whitespace-nowrap text-gray-500 tabular-nums">
+        {item.meta.date}, {item.meta.time}
       </span>
-      {item.meta && (
-        <span className="shrink-0 text-end text-xs font-medium whitespace-nowrap text-gray-500 tabular-nums">
-          {item.meta.date}, {item.meta.time}
-        </span>
-      )}
-      <ChevronRight
-        className="hidden size-[18px] shrink-0 text-gray-400 sm:block"
-        aria-hidden="true"
-      />
-    </>
-  );
-
-  const shared =
-    "relative flex min-h-16 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 focus-visible:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:-outline-offset-2";
+    ) : undefined,
+    unread: item.unread,
+    className: "min-h-16 rounded-xl px-3 py-2.5",
+  };
 
   if (item.href) {
-    return (
-      <Link href={item.href} className={shared}>
-        {inner}
-      </Link>
-    );
+    return <ListRowLink href={item.href} {...rowProps} />;
   }
 
-  return (
-    <button type="button" onClick={item.onSelect} className={shared}>
-      {inner}
-    </button>
-  );
+  return <ListRowLink onClick={item.onSelect} {...rowProps} />;
 }
