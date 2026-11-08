@@ -1,0 +1,8 @@
+{
+  "api/traeger/sepa-debits/[kind]/[id]": [
+    "GET traeger /traeger/sepa-debits/kind%2F1/id%2F1"
+  ],
+  "api/traeger/sepa-debits/[kind]/[id]/submission": [
+    "POST traeger /traeger/sepa-debits/kind%2F1/id%2F1/submission"
+  ]
+}
