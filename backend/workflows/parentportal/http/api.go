@@ -34,7 +34,7 @@ type Resource struct {
 	Auth LoginRuntime
 	// Resets are the reset routes the composition root binds to Identity &
 	// Access with the parent scope (#3332); the zero value answers 500.
-	Resets          common.PasswordResetRoutes
+	Resets          PasswordResetRoutes
 	ParentService   PortalService
 	RequestSharing  parentService.RequestSharingService
 	CalendarService calendarService.ParentCalendar
@@ -57,11 +57,16 @@ type Resource struct {
 // ResourceConfig lists the parent-portal collaborators. The composition root
 // supplies all of them at construction; tests set only the ones their routes
 // reach.
+// PasswordResetRoutes are the shared reset routes the composition root binds
+// to Identity & Access with the parent scope, so the link reaches only
+// guardians and lands on the parents host.
+type PasswordResetRoutes = common.PasswordResetRoutes
+
 type ResourceConfig struct {
 	// Auth is the login runtime the composition root binds (#3364).
 	Auth LoginRuntime
 	// Resets are the reset routes the composition root binds (#3332).
-	Resets   common.PasswordResetRoutes
+	Resets   PasswordResetRoutes
 	Parent   PortalService
 	Calendar calendarService.ParentCalendar
 	// Conferences books the Elternsprechtag (#4801).

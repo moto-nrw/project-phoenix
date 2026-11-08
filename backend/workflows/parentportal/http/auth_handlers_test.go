@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/common"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,8 +50,8 @@ type errStubRateLimited struct{ retryAfter int }
 
 func (e *errStubRateLimited) Error() string { return "stub: too many password reset requests" }
 
-func (s *stubParentAuthService) resetRuntime() common.PasswordResetRoutes {
-	return common.PasswordResetRoutes{
+func (s *stubParentAuthService) resetRuntime() parent.PasswordResetRoutes {
+	return parent.PasswordResetRoutes{
 		Initiate: func(ctx context.Context, email string) error { return s.resetParent(ctx, email) },
 		Reset: func(ctx context.Context, token, newPassword string) error {
 			return s.confirm(ctx, token, newPassword)

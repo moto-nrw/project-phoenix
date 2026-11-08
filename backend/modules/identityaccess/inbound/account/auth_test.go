@@ -662,7 +662,8 @@ func TestPasswordReset(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("confirm bad request with invalid token", func(t *testing.T) {
+	// An unusable link answers 410 in every portal, the tenant included.
+	t.Run("confirm gone with invalid token", func(t *testing.T) {
 		body := map[string]string{
 			"token":            "invalid-token",
 			"new_password":     "NewSecurePass123!",
@@ -672,7 +673,8 @@ func TestPasswordReset(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", "/auth/password-reset/confirm", body)
 		rr := testutil.ExecuteRequest(router, req)
 
-		testutil.AssertBadRequest(t, rr)
+		require.Equal(t, http.StatusGone, rr.Code, rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"code":"identity.password_reset_link_invalid"`)
 	})
 
 	t.Run("confirm bad request with password mismatch", func(t *testing.T) {

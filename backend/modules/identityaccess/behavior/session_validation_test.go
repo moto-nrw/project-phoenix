@@ -42,6 +42,17 @@ func TestValidateSessionTokens(t *testing.T) {
 			scope := portal
 			tenantID := testpkg.Tenant(t)
 			accountID := account.ID
+			// Validation renews like the refresh, so each account holds what
+			// its portal's guard demands.
+			switch portal {
+			case "parent":
+				assignSchoolSystemRole(t, db, accountID, testpkg.Tenant(t), "guardian")
+			case "school":
+				assignSchoolSystemRole(t, db, accountID, testpkg.Tenant(t), "lehrkraft")
+			case "caterer":
+				acceptance, _ := acceptedCatererAccount(t, db, identityModule, testpkg.Tenant(t), "session-validation")
+				accountID = acceptance.AccountID
+			}
 			if portal == "tenant" {
 				scope = ""
 			}
