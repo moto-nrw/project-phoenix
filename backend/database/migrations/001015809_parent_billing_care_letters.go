@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/uptrace/bun"
 )
@@ -279,24 +278,12 @@ const careLetterErasureSQL = `					-- The letter of a monthly invoice or its Sto
 						AND push.related_entity_id = letter.id;
 `
 
-// demoVisitorErasureCareLettersSQL is platform.erase_closed_demo_visitors of
-// 1.15.808 with the outbox copies of the monthly letters deleted before the
-// invoices; the rest is unchanged. It panics at start-up when the anchor is
-// not there exactly once, so a changed base never installs a half erasure.
-func demoVisitorErasureCareLettersSQL() string {
-	if strings.Count(demoVisitorErasureContractPushUpSQL, careLetterErasureAnchor) != 1 {
-		panic("migration 1.15.809: the anchor of the monthly invoices in the erasure of 1.15.808 is not there exactly once")
-	}
-	return strings.Replace(demoVisitorErasureContractPushUpSQL, careLetterErasureAnchor,
-		careLetterErasureSQL+careLetterErasureAnchor, 1)
-}
-
 func parentBillingCareLettersUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, parentBillingCareLettersUpSQL); err != nil {
 		return fmt.Errorf("create parent billing care letters: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, demoVisitorErasureCareLettersSQL()); err != nil {
-		return fmt.Errorf("erase the monthly letters of retired demo schools: %w", err)
+	if err := installDemoVisitorErasureOf809(ctx, db); err != nil {
+		return err
 	}
 	return nil
 }

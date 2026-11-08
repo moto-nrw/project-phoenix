@@ -14,12 +14,13 @@ import (
 // A single download must not load the other invoices or their PDF bodies.
 type singleCareLetterStore struct {
 	CareLetterStore
-	t       *testing.T
-	details map[string]any
+	t            *testing.T
+	organization int64
+	details      map[string]any
 }
 
 func (s *singleCareLetterStore) CareRun(_ context.Context, organizationID, runID int64, lock bool) (parentbilling.CareRun, error) {
-	assert.Equal(s.t, int64(7), organizationID)
+	assert.Equal(s.t, s.organization, organizationID)
 	assert.Equal(s.t, int64(11), runID)
 	assert.False(s.t, lock)
 	return parentbilling.CareRun{ID: runID, Status: parentbilling.RunReleased}, nil
@@ -30,7 +31,7 @@ func (s *singleCareLetterStore) CareRunLetters(context.Context, int64, int64) (*
 }
 
 func (s *singleCareLetterStore) CareLetterRecord(_ context.Context, organizationID, runID, invoiceID int64, kind string) (parentbilling.CareLetterRecord, error) {
-	assert.Equal(s.t, int64(7), organizationID)
+	assert.Equal(s.t, s.organization, organizationID)
 	assert.Equal(s.t, int64(11), runID)
 	assert.Equal(s.t, int64(13), invoiceID)
 	assert.Equal(s.t, parentbilling.CareLetterCancellation, kind)
@@ -39,7 +40,7 @@ func (s *singleCareLetterStore) CareLetterRecord(_ context.Context, organization
 }
 
 func (s *singleCareLetterStore) InsertCareRunEvent(_ context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error {
-	assert.Equal(s.t, int64(7), organizationID)
+	assert.Equal(s.t, s.organization, organizationID)
 	assert.Equal(s.t, int64(11), runID)
 	assert.Equal(s.t, int64(19), accountID)
 	assert.Equal(s.t, runEventRead, action)
@@ -49,9 +50,10 @@ func (s *singleCareLetterStore) InsertCareRunEvent(_ context.Context, organizati
 
 func TestCareLetterLoadsOnlyTheRequestedPDFAndAuditsIt(t *testing.T) {
 	t.Parallel()
-	store := &singleCareLetterStore{t: t}
+	organization := int64(len("Träger"))
+	store := &singleCareLetterStore{t: t, organization: organization}
 	letters := &CareLetters{store: store}
-	file, err := letters.CareLetter(context.Background(), parentbilling.HolidayReviewer{OrganizationID: 7, AccountID: 19}, 11, 13, parentbilling.CareLetterCancellation)
+	file, err := letters.CareLetter(context.Background(), parentbilling.HolidayReviewer{OrganizationID: organization, AccountID: 19}, 11, 13, parentbilling.CareLetterCancellation)
 	require.NoError(t, err)
 	assert.Equal(t, "storno.pdf", file.Filename)
 	assert.Equal(t, []byte("%PDF-one"), file.Data)

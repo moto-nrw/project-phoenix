@@ -270,25 +270,36 @@ func (l *CareLetters) CancelCareInvoice(ctx context.Context, reviewer parentbill
 		return parentbilling.CareLetters{}, err
 	}
 	current.cancellations[invoice.ID] = cancellation
-	sent := current.wasSent(invoice.ID)
-	record, _ := current.record(invoice.ID, parentbilling.CareLetterInvoice)
-	printed := record.Printed
-	if (sent || printed) && current.letters != nil {
-		head, err := l.letterhead(ctx, reviewer)
-		if err != nil {
-			return parentbilling.CareLetters{}, err
-		}
-		content := careLetterContent{run: current.run, invoice: invoice, cancellation: &cancellation,
-			input: parentbilling.CareLetterInput{PaymentDueOn: current.letters.PaymentDueOn, Notes: current.letters.Notes}, letterhead: head}
-		if err := l.storeLetter(ctx, reviewer, &current, content); err != nil {
-			return parentbilling.CareLetters{}, err
-		}
+	sent, printed, err := l.cancellationLetter(ctx, reviewer, &current, invoice, cancellation)
+	if err != nil {
+		return parentbilling.CareLetters{}, err
 	}
 	if err := l.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, current.run.ID, reviewer.AccountID, careEventCancel,
 		map[string]any{"invoice_id": invoice.ID, "cancellation_id": cancellation.ID, "invoice_was_sent": sent, "invoice_was_printed": printed}); err != nil {
 		return parentbilling.CareLetters{}, fmt.Errorf("parent billing: record care cancellation: %w", err)
 	}
 	return l.overview(ctx, reviewer, current)
+}
+
+// cancellationLetter stores the letter of a Storno whose invoice reached the
+// family, by mail or on paper; a Storno of an invoice that never left the
+// office gets none. It tells whether the invoice was sent and printed.
+func (l *CareLetters) cancellationLetter(ctx context.Context, reviewer parentbilling.HolidayReviewer, current *careLetterRun,
+	invoice parentbilling.CareInvoice, cancellation parentbilling.CareCancellation,
+) (sent, printed bool, err error) {
+	sent = current.wasSent(invoice.ID)
+	record, _ := current.record(invoice.ID, parentbilling.CareLetterInvoice)
+	printed = record.Printed
+	if (!sent && !printed) || current.letters == nil {
+		return sent, printed, nil
+	}
+	head, err := l.letterhead(ctx, reviewer)
+	if err != nil {
+		return sent, printed, err
+	}
+	content := careLetterContent{run: current.run, invoice: invoice, cancellation: &cancellation,
+		input: parentbilling.CareLetterInput{PaymentDueOn: current.letters.PaymentDueOn, Notes: current.letters.Notes}, letterhead: head}
+	return sent, printed, l.storeLetter(ctx, reviewer, current, content)
 }
 
 // issueCancellation numbers the Storno from the counter of its issue year
