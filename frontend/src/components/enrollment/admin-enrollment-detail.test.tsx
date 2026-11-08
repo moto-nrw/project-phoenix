@@ -18,6 +18,7 @@ const render = (ui: ReactElement) =>
   renderComponent(ui, { wrapper: ToastProvider });
 
 import type { AdminRequestChild } from "~/lib/enrollment-admin-api";
+import type { CareOffering } from "~/lib/care-offering-api";
 import { useCareOfferingsEnabled } from "~/lib/tenant-context";
 
 const mocks = vi.hoisted(() => ({
@@ -28,6 +29,19 @@ const mocks = vi.hoisted(() => ({
   listAdminChildOfferingAdjustments: vi.fn(),
   restoreAdminRequest: vi.fn(),
   routerPush: vi.fn(),
+  listCareOfferings: vi.fn(),
+  fetchCareOfferingBookingStats: vi.fn(),
+}));
+
+vi.mock("~/lib/care-offering-api", () => ({
+  listCareOfferings: mocks.listCareOfferings,
+}));
+
+vi.mock("~/lib/care-offering-booking-stats", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("~/lib/care-offering-booking-stats")
+  >()),
+  fetchCareOfferingBookingStats: mocks.fetchCareOfferingBookingStats,
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -70,6 +84,8 @@ beforeEach(() => {
   mocks.correctAdminChildData.mockReset();
   mocks.restoreAdminRequest.mockReset();
   mocks.listAdminChildOfferingAdjustments.mockReset().mockResolvedValue([]);
+  mocks.listCareOfferings.mockReset().mockResolvedValue([]);
+  mocks.fetchCareOfferingBookingStats.mockReset().mockResolvedValue({});
   vi.mocked(useCareOfferingsEnabled).mockReturnValue(true);
 });
 
@@ -412,6 +428,89 @@ describe("AdminEnrollmentDetail late-invite email warning", () => {
 });
 
 describe("AdminEnrollmentDetail data correction", () => {
+  it("resets an open offering editor when the child's grade is corrected", async () => {
+    const child = adjustmentChild({
+      target_grade_level: 2,
+      created_student_id: "student-1",
+    });
+    const request = {
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.test",
+      submitted_at: "2026-08-05T10:00:00Z",
+      status_token: "status-token",
+      children: [child],
+    };
+    const offerings: CareOffering[] = [2, 3].map((grade) => ({
+      id: `grade-${grade}`,
+      phase_id: "phase-1",
+      name: `Angebot für Klasse ${grade}`,
+      days_of_week_mode: "fixed",
+      available_days: ["mon"],
+      includes_holiday_care: false,
+      includes_lunch: false,
+      is_active: true,
+      is_required: false,
+      sort_order: grade,
+      created_at: "2026-06-18T11:15:00Z",
+      updated_at: "2026-06-18T11:15:00Z",
+      availability_rule: {
+        match: "all",
+        conditions: [{ source: "grade_level", operator: "in", value: [grade] }],
+      },
+    }));
+    mocks.listCareOfferings.mockResolvedValue(offerings);
+    mocks.getAdminRequest
+      .mockResolvedValueOnce(request)
+      .mockReturnValueOnce(new Promise(() => undefined));
+    mocks.correctAdminChildData.mockResolvedValue({
+      request: {
+        ...request,
+        children: [{ ...child, target_grade_level: 3 }],
+      },
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
+    const previousOffering = await screen.findByRole("checkbox", {
+      name: "Angebot für Klasse 2",
+    });
+    fireEvent.click(previousOffering);
+    expect(previousOffering).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Angebot für Klasse 3 bleibt gebucht",
+      }),
+    ).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anmeldedaten korrigieren" }),
+    );
+    fireEvent.change(screen.getByLabelText("Ziel-Klassenstufe"), {
+      target: { value: "3" },
+    });
+    fireEvent.change(screen.getByLabelText("Grund der Korrektur"), {
+      target: { value: "Klassenstufe berichtigt" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Korrektur speichern" }),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
+    expect(
+      await screen.findByRole("checkbox", { name: "Angebot für Klasse 3" }),
+    ).toBeEnabled();
+    const blockedOffering = screen.getByRole("checkbox", {
+      name: "Angebot für Klasse 2 bleibt gebucht",
+    });
+    expect(blockedOffering).toBeDisabled();
+    expect(blockedOffering).not.toBeChecked();
+    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps the corrected child in local state when the follow-up reload fails", async () => {
     const child: AdminRequestChild = {
       id: "child-1",

@@ -724,6 +724,7 @@ function ChildInformationCard({
         />
         {child.status === "approved" ? (
           <ChildOfferingAdjustment
+            key={`${child.id}:${child.target_grade_level ?? ""}`}
             requestId={requestId}
             phaseId={phaseId}
             child={child}
