@@ -530,13 +530,7 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		rs.renderDecideError(w, r, err)
 		return
 	}
-	child, err := childValue(outcome.Child)
-	if err != nil {
-		rs.renderDecideError(w, r, err)
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, newAdminRequestChild(child), "Decision applied")
+	common.Respond(w, r, http.StatusOK, newAdminRequestChild(outcome.Child), "Decision applied")
 }
 
 // restoreAdminRequest undoes a parent-initiated withdraw (#2157): the

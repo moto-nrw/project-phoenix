@@ -115,11 +115,7 @@ func (m *mockDecisionService) DecideAndInvite(ctx context.Context, input DecideI
 	if out == nil || out.Child == nil {
 		return nil, err
 	}
-	child, encodeErr := childInput(out.Child)
-	if encodeErr != nil {
-		return nil, encodeErr
-	}
-	return &capability.DecideOutcome{Child: child}, err
+	return &capability.DecideOutcome{Child: out.Child}, err
 }
 
 func (m *mockDecisionService) RestoreWithdrawn(_ context.Context, requestID, restoredBy int64) (*RestoreOutcome, error) {
