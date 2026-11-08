@@ -13,7 +13,7 @@ const RUNS_PATH = "/api/traeger/care-notice-runs";
 
 export type CareNoticeRunStatus = "calculated" | "released";
 export type CareNoticeKind = "initial" | "change";
-export type CareNoticeLineKind = "module" | "reduction" | "cost_share";
+type CareNoticeLineKind = "module" | "reduction" | "cost_share";
 
 export interface CareNoticeRun {
   readonly id: string;
@@ -59,13 +59,13 @@ export interface CareNoticeInstallment {
   readonly deltaCents: number;
 }
 
-export interface CareNoticeReference {
+interface CareNoticeReference {
   readonly id: string;
   readonly number: string;
   readonly issuedOn: string | null;
 }
 
-export interface CareNoticeRecipient {
+interface CareNoticeRecipient {
   readonly firstName: string;
   readonly lastName: string;
   readonly email: string;
@@ -256,7 +256,7 @@ function referenceFromBackend(
     : null;
 }
 
-export function noticeFromBackend(notice: BackendNotice): CareNotice {
+function noticeFromBackend(notice: BackendNotice): CareNotice {
   const recipient = notice.recipient ?? {};
   return {
     id: String(notice.id),
