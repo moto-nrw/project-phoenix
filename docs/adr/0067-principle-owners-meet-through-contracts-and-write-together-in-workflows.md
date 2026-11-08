@@ -541,7 +541,8 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
      Änderung zwischen erstem Vorladen und Replay ist ausdrücklich erlaubt
      und kein Abweichen. Kein Zustand aus dem ersten Vorladen darf in den
      Replay durchsickern: keine veränderte Map, kein Rollen-Objekt, kein
-     gecachter Name.
+     gecachter Name. Einzige Ausnahme von „Config frisch beim Replay“ sind
+     die Anfrage-Memos (Tabelle unten).
 
    Beispiel: Ein Staff-Update-Chunk lädt vor, eine parallele Anfrage benennt
    Staff A danach um und committet, der Batch scheitert. Der Replay lädt neu
@@ -623,9 +624,9 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    und Zeiger-Mutationen in `importservice/`, `modules/dataimport/ports/`,
    `compose/`, `internal/adapters/runtimebinding/`, den Root-Bindungen
    (`api/import_*.go`, `roots/owners/import_*.go`) und den Resolvern. „Neu“
-   heißt: Der Replay bekommt ein neues Objekt. „Geteilt“ ist nur erlaubt,
-   wo das Objekt nie verändert wird; einzige benannte Ausnahme sind die
-   Anfrage-Memos in der letzten Zeile.
+   heißt: Der Replay bekommt ein neues Objekt. Geteilt nur unveränderlich
+   oder als request-weiter Snapshot mit Füllen beim ersten Zugriff; Letzteres
+   sind nur die Anfrage-Memos in der letzten Zeile.
 
    | Objekt | Lebensdauer heute | Schreibstellen | Beim Replay |
    |---|---|---|---|
@@ -641,7 +642,44 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    | Deps aller Configs (`StaffImportDeps`, `StudentImportDeps`, `ClassListImportDeps`, `OpeningBalanceImportDeps`), `StaffImportModePolicy`, beobachtete Ports (`ports/observed_commands.go`), Root-Bindungen (`api/import_*.go`, `roots/owners/import_*.go`), Compose-Adapter | Prozess | keine; die Root-Leser bauen ihre Maps je Aufruf neu (`roots/owners/import_callback_opening_staff_reader.go:25–29`) | geteilt, unverändert |
    | Klassenliste `ClassListImportConfig` | Prozess | keine (Vorladen leer, `class_list_import_config.go:39–41`) | geteilt, unverändert |
    | `importMu` (Staff `staff_import_config.go:88`, Service `import_service.go:47`) | Prozess | Sperre, kein Zustand | geteilt |
-   | Anfrage-Memos im Kontext: Einstellungen (#2065, `modules/settings/records/settings_request_cache.go:20–30`, angehängt `api/serve_middleware.go:70`) und Identität (#2099, `api/identity_request_cache_middleware.go:16`) | Anfrage, also der ganze Upload über alle Chunks | Lesen memoisiert; Schreiben eines Einstellungsschlüssels entfernt ihn | geteilt, als bewusste Ausnahme: Ein sequenzieller Lauf in derselben Anfrage nutzt heute dasselbe Memo, auch über Chunk-Grenzen. Auflage: Kein im zurückgerollten Batch geschriebener Wert bleibt im Memo. Der Import schreibt heute keine Einstellungen; Q1 belegt das, sonst wird das Memo beim Rollback geleert |
+   | Anfrage-Memos im Kontext: Einstellungen (#2065, `modules/settings/records/settings_request_cache.go:20–30`, angehängt `api/serve_middleware.go:70`, `api/session_route_assembly.go:39`, `:43`) und Identität (#2099, `modules/securityruntime/request_identity_cache.go:45–57`, angehängt `api/session_route_assembly.go:39`, `:43`) | Anfrage, also der ganze Upload über alle Chunks | Füllen beim ersten Zugriff je Schlüssel, danach kein Überschreiben (Belege unten) | geteilt als request-weiter Snapshot |
+
+   **Anfrage-Memos als request-weiter Snapshot.** Jedes Memo wird je
+   Schlüssel einmal beim ersten Zugriff gefüllt und danach nicht mehr
+   verändert. Der Replay sieht dieselben Werte wie ein sequenzieller Lauf im
+   selben Request: Ein Eintrag, den ein verworfener Versuch gefüllt hat,
+   entspricht dem, was der sequenzielle Lauf beim ersten Zugriff gelesen
+   hätte; ein heutiger Chunk liest ebenso Einträge, die ein früherer Chunk
+   oder die Validierung gefüllt hat. Belege am Code:
+   - **Nur Ergänzen, kein Überschreiben (Einstellungen):** `Lookup` meldet
+     die fehlenden Schlüssel (`settings_request_cache.go:56–78`, Aufruf
+     `modules/settings/internal/application/settings_reads.go:366`).
+     `requestSnapshotKeys` erweitert sie, filtert aber erneut auf die
+     fehlenden (`settings_reads.go:394–411`, Filter `:408`). Geladen und
+     gespeichert werden nur diese (`settings_reads.go:373–383`); die
+     Zuweisung in `StoreSnapshot` (`settings_request_cache.go:81–87`, `:85`)
+     trifft damit keinen vorhandenen Schlüssel. Der Import läuft in einer
+     Goroutine je Upload (`batches.go:79–81` bzw. `:74–76`), es gibt keinen
+     parallelen Füller im selben Request.
+   - **Nur Ergänzen, kein Überschreiben (Identität):** `Entry` legt einen
+     Eintrag nur an, wenn er fehlt (`request_identity_cache.go:47–57`).
+   - **Entfernen nur bei Schreiben oder Sperren, beides nicht im
+     Importpfad:** Einstellungen verlieren Einträge nur über `EvictKey` nach
+     einem Schreiben (`settings_writes.go:134`, `:168`) und `EvictTenant` in
+     den Lock-Helfern (`settings_locks.go:18`, `:118`, `:170`). Geschrieben
+     wird nur über `SetValue`/`ResetValue` (`settings_writes.go:11`, `:41`)
+     und die internen Wege `:199`, `:207`; außerhalb von `modules/settings`
+     ruft sie niemand. Die Lock-Helfer rufen nur Enrollment
+     (`modules/enrollment/internal/application/form_schemas.go:344`,
+     `phase_eligibility.go:63`, `:96`, `roots/owners/enrollment_application_composition.go:46`),
+     Parent Portal (`workflows/parentportal/internal/care/parent_pickup_change_cutoff.go:39`,
+     `roots/owners/parent_portal_settings_ports.go:42`) und die
+     Sitzungsausgabe (`modules/identityaccess/internal/application/session_mint.go:312`,
+     `roots/owners/identity_account_authentication.go:320`). Das
+     Identitäts-Memo entfernt nur bei Selbstschreibungen des Aufrufers
+     (`modules/identityaccess/internal/application/caller_memo.go:93`). Der
+     Importpfad schreibt also keine Einstellung, die er danach aus dem Memo
+     liest.
 
    **Validierungsergebnisse des Uploads.** Geteilt, im Schreibpfad nie
    verändert:
