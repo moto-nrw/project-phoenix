@@ -115,3 +115,115 @@ describe("ListRowLink", () => {
     expect(container.querySelector("svg")).toBeNull();
   });
 });
+
+describe("ListRowLink states (#5593)", () => {
+  it("marks the open selection with aria-current, green fill and a green arrow", () => {
+    const { container, rerender } = render(
+      <ListRowLink href="/database/groups/1" title="Bärengruppe" selected />,
+    );
+    const link = screen.getByRole("link", { name: "Bärengruppe" });
+    expect(link).toHaveAttribute("aria-current", "true");
+    expect(link.className).toContain("bg-moto-green-soft/60");
+    expect(screen.getByText("Bärengruppe").className).toContain(
+      "font-semibold",
+    );
+    expect(container.querySelector("svg")?.getAttribute("class")).toContain(
+      "text-moto-green",
+    );
+
+    rerender(<ListRowLink href="/database/groups/1" title="Bärengruppe" />);
+    expect(link).not.toHaveAttribute("aria-current");
+    expect(link.className).not.toContain("bg-moto-green-soft");
+  });
+
+  it("sets aria-current on a button row too", () => {
+    render(<ListRowLink onClick={() => {}} title="Raum 1" selected />);
+    expect(screen.getByRole("button", { name: "Raum 1" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  it("draws the accent edge and tints only on request", () => {
+    const { rerender } = render(
+      <ListRowLink onClick={() => {}} title="Frühbetreuung" accent="#DC2626" />,
+    );
+    const row = screen.getByRole("button", { name: "Frühbetreuung" });
+    expect(row.className).toContain("border-l-4");
+    expect(row.style.borderLeftColor.toUpperCase()).toBe("#DC2626");
+    expect(row.style.backgroundColor).toBe("");
+
+    rerender(
+      <ListRowLink
+        onClick={() => {}}
+        title="Frühbetreuung"
+        accent="#DC2626"
+        accentTint
+      />,
+    );
+    // Dieselbe Tönung wie ein eigener Block im Plan: Hex mit Alpha 1A.
+    expect(row.style.backgroundColor.toUpperCase()).toBe("#DC26261A");
+  });
+
+  it("has no edge without accent", () => {
+    render(<ListRowLink onClick={() => {}} title="Ohne Kante" />);
+    const row = screen.getByRole("button", { name: "Ohne Kante" });
+    expect(row.className).not.toContain("border-l-4");
+    expect(row.getAttribute("style")).toBeNull();
+  });
+
+  it("stacks overline, title and preview and stresses unread rows", () => {
+    render(
+      <ListRowLink
+        href="/parents/messages/1"
+        overline="Für Baran Amini"
+        meta="08.11.2026, 02:35"
+        metaLabel="8. November, 02:35"
+        title="OGS-Team"
+        subtitle="Bis morgen"
+        badge={<span>2</span>}
+        unread
+      />,
+    );
+    const link = screen.getByRole("link", {
+      name: /Für Baran Amini.*OGS-Team/,
+    });
+    expect(link).toHaveTextContent("Bis morgen");
+    expect(screen.getByText("OGS-Team").className).toContain("font-bold");
+    expect(screen.getByLabelText("8. November, 02:35").className).toContain(
+      "text-moto-blue",
+    );
+    expect(screen.getByText("Bis morgen").className).toContain("text-gray-700");
+    // Die Zahl markiert die Zeile; kein zweiter Punkt daneben.
+    expect(screen.queryByText("Ungelesen")).not.toBeInTheDocument();
+  });
+
+  it("marks an unread row without a count with a labelled dot", () => {
+    render(
+      <ListRowLink
+        href="/a"
+        overline="Gruppe Sterne"
+        title="Fundsachen"
+        unread
+        unreadLabel="Ungelesen"
+      />,
+    );
+    expect(screen.getByText("Ungelesen")).toHaveClass("sr-only");
+    expect(screen.getByText("Fundsachen").className).toContain("font-bold");
+  });
+
+  it("keeps read stacked rows calm", () => {
+    render(
+      <ListRowLink
+        href="/a"
+        overline="Für Aida Amini"
+        meta="gestern"
+        title="OGS-Team"
+        subtitle="Danke"
+      />,
+    );
+    expect(screen.getByText("OGS-Team").className).toContain("font-semibold");
+    expect(screen.getByText("gestern").className).toContain("text-gray-500");
+    expect(screen.getByText("Danke").className).toContain("text-gray-500");
+  });
+});

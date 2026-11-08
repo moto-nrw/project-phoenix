@@ -109,7 +109,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Inline alert / banner (one notice) | `Alert` (`type`, `message`, `icon`, `onDismiss`; in fields `size="compact"`; location hex: `color`); a notice that needs attention is `type="warning"` (orange), never an amber box; several notices of the same kind follow [Several notices of the same kind](#several-notices-of-the-same-kind) | `~/components/ui/alert` |
 | Row as its own surface (start page, roster, persons in a panel); own button beside a link: no `href`, link in `children` | `ListRow` — `href`, `onClick`, `tone`, `density`, `trailing`; loading: `SkeletonRows`, `ListRowSkeleton` | `~/components/ui/list-row`, `ui/skeleton` |
 | Framed list with dividers, inside a card or panel | `FramedList` — `maxHeight`, `header` | `~/components/ui/framed-list` |
-| Row leading elsewhere: icon, title, subtitle, badge, arrow | `ListRowLink`, alone `framed` | `~/components/ui/list-row-link` |
+| Row leading elsewhere: icon, title, subtitle, badge, arrow | `ListRowLink`: `selected`, `accent` edge, `overline`/`meta`/`unread`; alone `framed` | `~/components/ui/list-row-link` |
 | Rows with their own actions in a desktop column | `ResponsiveActionList` | `~/components/ui/responsive-action-list` |
 | Transient feedback | `Toast` — presentational surface only; queue, lifetime, and placement stay in `ToastProvider` | `~/components/ui/toast` |
 | Modal dialog | `Modal`, `ConfirmationModal` (header `icon`, `description`) | `~/components/ui/modal` |
@@ -322,7 +322,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-radix-outside-kit` (#5604, hard-zero): `@radix-ui/*` only under `components/ui/`.
 
-`ui-kit/no-arbitrary-shadow`, `no-hand-rolled-list-row`, `no-hand-rolled-framed-list` (#5593, hard-zero): no `shadow-[…]`, hand-built list row or framed list outside `ui/`. `ui-kit/no-hand-rolled-nav-row` (#5593, shrink-only): no full-width row with an arrow; use `ListRowLink`.
+`ui-kit/no-arbitrary-shadow`, `no-hand-rolled-list-row`, `no-hand-rolled-framed-list`, `no-hand-rolled-nav-row` (#5593, hard-zero): no `shadow-[…]`, hand-built list row, framed list or full-width row with an arrow outside `ui/`.
 
 `ui-kit/no-hand-rolled-inset` (#5592, hard-zero): radius + `bg-gray-50` + padding, and surface chains in module constants. Three #2619 parent files are exempt by path.
 

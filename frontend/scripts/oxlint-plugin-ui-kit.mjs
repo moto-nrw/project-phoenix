@@ -744,8 +744,7 @@ const SURFACE_BREAKPOINT_VALUES = new Map([
 ]);
 const SURFACE_ARBITRARY_BREAKPOINT_RE =
   /^(min|max)-\[(\d+(?:\.\d+)?)(?:px|rem|em)\]$/;
-const SURFACE_INTERACTION_VARIANT_RE =
-  /^(?:hover|focus(?:-visible|-within)?)$/;
+const SURFACE_INTERACTION_VARIANT_RE = /^(?:hover|focus(?:-visible|-within)?)$/;
 const SURFACE_CONTROL_ELEMENTS = new Set([
   "a",
   "button",
@@ -1372,11 +1371,9 @@ const noDeadSurfaceUtility = {
         if (chunks.some((chunk) => deadSurfaceTokens(chunk).length > 0)) {
           return; // already reported by the Literal/TemplateLiteral visitors
         }
-        const combos = classCombinations(
-          node.value,
-          new Set(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combos = classCombinations(node.value, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combos.find(
           (combo) => deadSurfaceTokens(combo).length > 0,
         );
@@ -1558,11 +1555,9 @@ const noWhiteOnWarmFill = {
         const chunks = [];
         collectStaticStrings(node.value, chunks);
         if (chunks.some((chunk) => whiteOnWarmFill(chunk))) return;
-        const combos = classCombinations(
-          node.value,
-          new Set(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combos = classCombinations(node.value, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combos.find((combo) => whiteOnWarmFill(combo));
         if (rendered !== undefined) check(node, rendered);
       },
@@ -1776,7 +1771,9 @@ const noHandRolledPageCard = {
           )
             continue;
           const initializer = definition.node.init;
-          if (HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")) {
+          if (
+            HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")
+          ) {
             return true;
           }
           if (initializer.type === "CallExpression") {
@@ -1785,11 +1782,14 @@ const noHandRolledPageCard = {
               new Set(),
               context.sourceCode,
             );
-            if (combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
+            if (
+              combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))
+            ) {
               return true;
             }
           }
-          if (isReportedPageCardConstant(initializer, seenVariables)) return true;
+          if (isReportedPageCardConstant(initializer, seenVariables))
+            return true;
         }
         return false;
       };
@@ -4234,11 +4234,9 @@ const noHandRolledPortalNav = {
       TemplateLiteral(node) {
         const chunks = [];
         collectStaticStrings(node, chunks);
-        const combinations = classCombinations(
-          node,
-          new Set(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combinations = classCombinations(node, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combinations?.find(hasPortalNavShellSignature);
         if (rendered !== undefined) check(node, rendered);
       },
@@ -4600,7 +4598,7 @@ const noUppercaseLabel = makeRatchetRule({
   description:
     "Group headings come from SectionLabel; no `uppercase tracking-*` class chain outside the UI kit.",
   message:
-    "Keine Versalien-Überschrift: Gruppenkopf oder Zwischenüberschrift über `SectionLabel` (`as`, `required`) aus ~/components/ui/section-label, Gruppenkopf einer Liste über `ListGroupHeader`, Mini-Tag über `StatusBadge size=\"xs\"`, Tabellenkopf über `DataTable` (#5590, .claude/rules/frontend-ui-kit.md).",
+    'Keine Versalien-Überschrift: Gruppenkopf oder Zwischenüberschrift über `SectionLabel` (`as`, `required`) aus ~/components/ui/section-label, Gruppenkopf einer Liste über `ListGroupHeader`, Mini-Tag über `StatusBadge size="xs"`, Tabellenkopf über `DataTable` (#5590, .claude/rules/frontend-ui-kit.md).',
   baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/section-label.tsx",
@@ -4775,17 +4773,9 @@ const noHandRolledNavRow = makeRatchetRule({
   ruleName: "no-hand-rolled-nav-row",
   description: "Rows that lead elsewhere with an arrow come from ListRowLink.",
   message:
-    "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
-  // Shrink-only: Auswahlzustand (DatabaseListItem), eigene Kante (Tagesplan) und
-  // Ungelesen-Zeilen des Elternportals passen noch nicht in `ListRowLink`.
-  baselines: {
-    "no-hand-rolled-nav-row": {
-      "src/components/database/database-list-item.tsx": 2,
-      "src/components/parent/messages/group-threads-section.tsx": 1,
-      "src/components/parent/messages/parent-messages-page.tsx": 1,
-      "src/components/timetable/tagesplan-view.tsx": 1,
-    },
-  },
+    "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil; `selected`, `accent`, dreizeilig mit `overline`/`meta`/`unread`), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
+  // Hard-zero: Auswahl, farbige Kante und Ungelesen-Zeilen kann `ListRowLink`.
+  baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/list-row-link.tsx",
   exemptDir: UI_KIT_DIR,
