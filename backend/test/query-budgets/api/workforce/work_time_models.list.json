@@ -3,5 +3,5 @@
   "max": 5,
   "exact": true,
   "description": "GET /api/work-time-models/: real Workforce capability and protected tenant router. Complete request capture: BEGIN, combined tenant role/config, one tenant-scoped model SELECT, one batched entry SELECT by model IDs and COMMIT. Exact for 3 and 8 models, including a model with no entries and two-week entry patterns; preserves DTO/model/entry order and weekly totals, excludes foreign tenants and issues no writes or notifications. Listener and outer process middleware are outside this scope.",
-  "route": "GET /"
+  "route": "GET /api/work-time-models/"
 }

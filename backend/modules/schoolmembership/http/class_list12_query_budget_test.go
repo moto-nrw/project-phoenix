@@ -43,7 +43,7 @@ func TestClassList12FullHTTPQueryBudget(t *testing.T) {
 		counter.Reset()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req = req.WithContext(counter.Context(req.Context()))
-		rec := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:read"})
+		rec := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api/class-list-entries", router), req, claims, []string{"users:read"})
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var payload classList12Response
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))

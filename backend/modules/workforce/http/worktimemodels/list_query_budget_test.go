@@ -59,7 +59,7 @@ func TestWorkTimeModelsListQueryBudgetIsFlat(t *testing.T) {
 		}
 		counter.Reset()
 		request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/", nil, testutil.WithJWTBearer(token))
-		response := testutil.ExecuteRequestForTest(t, router, request)
+		response := testutil.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/api/work-time-models", router), request)
 		queries := counter.Measurement(counter.Queries())
 		encoded, encodeErr := json.Marshal(queries.Statements)
 		require.NoError(t, encodeErr)
