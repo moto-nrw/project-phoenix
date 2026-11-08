@@ -193,7 +193,7 @@ func TestCareContractDraftFromTheAcceptedApplicationIsSentWithItsFrozenPDF(t *te
 	invalid := map[string]any{"term_kind": "fixed_months", "notice_months": 13, "notice_to": "month_end", "statute_required": true}
 	rec = traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), invalid)
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "care_contract.template_invalid")
+	assert.Contains(t, rec.Body.String(), "care_contract.field_invalid")
 	assert.Contains(t, rec.Body.String(), "term_months")
 	assert.Contains(t, rec.Body.String(), "statute_title")
 	rec = traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate)
@@ -484,6 +484,10 @@ func TestCareContractFailedDeliveryCanUseACorrectedAddressWithItsFrozenPDF(t *te
 	}
 	correctedBatch := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": []int64{id, id}, "recipient_email": "neu@example.org"})
 	require.Equal(t, http.StatusBadRequest, correctedBatch.Code, "a correction must identify exactly one contract")
+	assert.Contains(t, correctedBatch.Body.String(), "care_contract.selection_invalid", "the selection, not a field, is refused")
+	emptyBatch := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": []int64{}})
+	require.Equal(t, http.StatusBadRequest, emptyBatch.Code, emptyBatch.Body.String())
+	assert.Contains(t, emptyBatch.Body.String(), "care_contract.selection_invalid", "an empty batch is a selection refusal")
 	corrected := "korrigiert@example.org"
 	// A new address is not a way to bypass draft review or a pending send.
 	rec = send(&corrected)
