@@ -19,10 +19,11 @@ import (
 func TestEveryPortalSessionChainBlocksPreviewWrites(t *testing.T) {
 	t.Parallel()
 
-	for _, portal := range tokenprimitives.AllPortalClaims() {
-		if portal.Name == tokenprimitives.PortalPlatform {
-			continue
-		}
+	// Every portal with session routes; the platform portal has none.
+	for _, portal := range []tokenprimitives.PortalClaims{
+		tokenprimitives.TenantClaims, tokenprimitives.SchoolClaims, tokenprimitives.ParentClaims,
+		tokenprimitives.CatererClaims, tokenprimitives.OrgClaims,
+	} {
 		t.Run(portal.Name, func(t *testing.T) {
 			t.Parallel()
 			chain := SessionChain(portal)
