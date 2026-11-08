@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -140,7 +141,8 @@ func brandCareTraeger(t *testing.T, f careBillingFixture) {
 	require.Equal(t, http.StatusOK, code)
 	administration := f.office
 	administration.token = answer.AccessToken
-	brandTraegerOffice(t, f.db, f.traeger, administration)
+	testpkg.OwnTraegerMasterData(t, f.db, f.office.organization)
+	brandTraegerOffice(t, f.traeger, administration)
 }
 
 func careLettersInput() map[string]any {
@@ -365,17 +367,36 @@ func TestCareLettersNeedTheRightAndStayWithTheirTraeger(t *testing.T) {
 	assert.Equal(t, 1, len(careLetters(t, f, run.ID).Documents), "nothing changed through the refused routes")
 }
 
-// The letters of a run read with a flat number of statements.
+// The letters of a run read with a flat number of statements: a run of one
+// invoice and a later run of the month with two read the same.
 func TestCareLettersQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Monatsschreiben Budget")
 	brandCareTraeger(t, f)
-	run, _ := releasedCareRun(t, f, "Mia", "Lea", "Ben")
-	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
-	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters/mail"), nil)
-	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
-	counter := testpkg.CaptureQueries(t, f.db)
-	careLetters(t, f, run.ID)
-	querybudgets.AssertQueryBudget(t, "api.traeger.care_billing_run_letters", counter.Queries())
+	first, _ := releasedCareRun(t, f, "Mia")
+	school := f.office.schools[0]
+	for _, child := range []string{"Lea", "Ben"} {
+		careContract(t, f.db, f.office.organization, school, child, careMonth, sjrServices()...)
+	}
+	second := f.startRun(t, careMonth)
+	preview := f.run(t, second.ID)
+	require.Len(t, preview.Invoices, 2)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(second.ID, "/release"), careRelease(preview))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	read := func(runID int64) []string {
+		rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(runID, "/letters"), careLettersInput())
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(runID, "/letters/mail"), nil)
+		require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+		counter := testpkg.CaptureQueriesForContext(t, f.db)
+		req := httptest.NewRequest(http.MethodGet, careRunPath(runID, "/letters"), nil)
+		req.Header.Set("Authorization", "Bearer "+f.office.token)
+		recorder := httptest.NewRecorder()
+		f.traeger.ServeHTTP(recorder, req.WithContext(counter.Context(req.Context())))
+		require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+		return counter.Selects("")
+	}
+	one := read(first.ID)
+	assert.Len(t, read(second.ID), len(one), "the letters read the same statements for any number of invoices")
+	querybudgets.AssertQueryBudget(t, "api.traeger.care_billing_run_letters", one)
 }

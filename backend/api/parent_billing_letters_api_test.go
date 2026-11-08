@@ -15,7 +15,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -78,14 +77,15 @@ func releasedBillingRun(t *testing.T, f reviewFixture, billing string) billingRu
 // sender, footer, contact person and a default bank account.
 func brandTraeger(t *testing.T, f reviewFixture) {
 	t.Helper()
-	brandTraegerOffice(t, f.db, f.traeger, f.office)
+	testpkg.OwnTraegerMasterData(t, f.db, f.office.organization)
+	brandTraegerOffice(t, f.traeger, f.office)
 }
 
 // brandTraegerOffice gives the Träger of the office a letterhead, a contact
-// and a bank account, as the letters print them.
-func brandTraegerOffice(t *testing.T, db *bun.DB, portal *traegerPortalHandler, office traegerOffice) {
+// and a bank account, as the letters print them; the caller owns the master
+// data rows (testpkg.OwnTraegerMasterData).
+func brandTraegerOffice(t *testing.T, portal *traegerPortalHandler, office traegerOffice) {
 	t.Helper()
-	testpkg.OwnTraegerMasterData(t, db, office.organization)
 	token := office.token
 	require.Equal(t, http.StatusOK, uploadLogo(t, portal, token, "logo", "logo.png", pngLogo(t, 120, 40)).Code)
 	rec := traegerJSON(t, portal, token, http.MethodPut, "/traeger/master-data/contact",
