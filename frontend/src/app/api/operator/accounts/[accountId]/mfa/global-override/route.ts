@@ -1,5 +1,5 @@
 import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
-import { createOperatorJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createOperatorJsonProxy } from "~/lib/operator/route-wrapper.server";
 
 // Global MFA emergency override is operator-only, not a school-admin setting.
 const path = (
@@ -20,12 +20,8 @@ const path = (
 export const GET = createOperatorJsonProxy({
   method: "GET",
   path,
-  cache: "no-store",
-  contentTypeOnGet: false,
-  explicitGetMethod: true,
 });
 export const PUT = createOperatorJsonProxy({
   method: "PUT",
   path,
-  cache: "no-store",
 });

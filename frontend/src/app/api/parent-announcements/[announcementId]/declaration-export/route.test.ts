@@ -2,21 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { ExtendedSession } from "~/test/route-test-helpers";
 
-const { mockAuth, mockUncachedAuth, mockAnalyticsHeaders } = vi.hoisted(() => ({
+const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
   mockUncachedAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockAnalyticsHeaders: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  uncachedAuth: mockUncachedAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    uncachedAuth: mockUncachedAuth,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",
-}));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: mockAnalyticsHeaders,
 }));
 
 const { GET } = await import("./route");
@@ -32,9 +30,6 @@ describe("GET /api/parent-announcements/[announcementId]/declaration-export", ()
 
   it("forwards the active analytics session with the export request", async () => {
     mockAuth.mockResolvedValue(session("tok"));
-    mockAnalyticsHeaders.mockResolvedValue({
-      "X-POSTHOG-SESSION-ID": "4f79f286-6f14-49cb-bb84-16fd4f906eba",
-    });
     global.fetch = vi.fn(
       async () =>
         new Response("csv", {
@@ -45,6 +40,11 @@ describe("GET /api/parent-announcements/[announcementId]/declaration-export", ()
     const response = await GET(
       new NextRequest(
         "http://localhost:3000/api/parent-announcements/42/declaration-export?format=csv",
+        {
+          headers: {
+            "x-posthog-session-id": "4f79f286-6f14-49cb-bb84-16fd4f906eba",
+          },
+        },
       ),
       { params: Promise.resolve({ announcementId: "42" }) },
     );

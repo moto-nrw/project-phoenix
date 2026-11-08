@@ -9,6 +9,7 @@ import { Loading } from "~/components/ui/loading";
 import { SectionCard } from "~/components/ui/section-card";
 import { createLogger } from "~/lib/logger";
 import { clearSessionCache } from "~/lib/session-cache";
+import { PORTAL_ROUTES } from "~/lib/portal-paths";
 import {
   TRAEGER_HANDOFF_BACK,
   TRAEGER_HANDOFF_FAILED_TEXT,
@@ -39,7 +40,10 @@ export default function TraegerHandoffPage() {
     if (redemption.current === null) {
       const token = takeTraegerHandoffToken();
       redemption.current = token
-        ? signIn("credentials", { redirect: false, traegerHandoff: token })
+        ? signIn(PORTAL_ROUTES.tenant.providerId, {
+            redirect: false,
+            traegerHandoff: token,
+          })
         : Promise.resolve(undefined);
     }
     let cancelled = false;

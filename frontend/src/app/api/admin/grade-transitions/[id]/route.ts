@@ -1,4 +1,5 @@
 // app/api/admin/grade-transitions/[id]/route.ts
+import { requireNumericParam } from "~/lib/route-wrapper-utils.server";
 import type { NextRequest } from "next/server";
 import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
 import {
@@ -13,10 +14,7 @@ interface DetailResponse {
 }
 
 function requireId(params: Record<string, unknown>): string {
-  const id = params.id;
-  if (typeof id !== "string" || !/^\d+$/.test(id)) {
-    throw new Error("Invalid id parameter");
-  }
+  const id = requireNumericParam(params);
   return id;
 }
 

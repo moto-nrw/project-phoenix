@@ -81,7 +81,7 @@ func contractLetter(record ContractRecord, head carecontract.Letterhead) Letter 
 		}
 		blocks = append(blocks, LetterBlock{Heading: "Satzung", Text: text})
 	}
-	blocks = append(blocks, withdrawalBlocks(record, contractPartner(version.Terms, head))...)
+	blocks = append(blocks, withdrawalBlocks(record, letterContact(version.Terms, head))...)
 	recipientLines := []string{}
 	for _, party := range record.Parties {
 		recipientLines = append(recipientLines, fullName(party.FirstName, party.LastName))

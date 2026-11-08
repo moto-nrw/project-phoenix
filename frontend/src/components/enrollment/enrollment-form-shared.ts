@@ -2,6 +2,7 @@
 // the field renderers split out next to it. No React here: the renderers and
 // the form's own submit check read the same answer shapes through these.
 
+import { SCHOOL_WEEKDAY_CODES } from "~/lib/weekdays";
 import type { PublicFormSchema } from "~/lib/enrollment-form-schema-api";
 
 export type TranslationValues = Record<string, string | number | Date>;
@@ -78,7 +79,7 @@ export interface ContactEntryValue {
   emergency_priority?: number;
 }
 
-export const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
+export const WEEKDAYS = SCHOOL_WEEKDAY_CODES;
 
 export function asScheduleObject(v: unknown): Record<string, string> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};

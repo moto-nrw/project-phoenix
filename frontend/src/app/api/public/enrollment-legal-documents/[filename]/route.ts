@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
-import { clientIdentityHeaders } from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 
 async function GETHandler(
@@ -14,14 +14,13 @@ async function GETHandler(
     return new NextResponse(null, { status: 404 });
   }
 
-  const { getServerApiUrl } = await import("~/lib/server-api-url");
-  const backendUrl = `${getServerApiUrl()}/public/enrollment-legal-documents/${encodeURIComponent(filename)}`;
+  const backendPath = `/public/enrollment-legal-documents/${encodeURIComponent(filename)}`;
 
   let response: Response;
   try {
-    response = await fetch(backendUrl, {
-      headers: clientIdentityHeaders(_request.headers),
-      signal: AbortSignal.timeout(5000),
+    response = await sendBackend(backendPath, null, {
+      request: _request,
+      timeout: "publicAsset",
     });
   } catch {
     return new NextResponse(null, { status: 502 });

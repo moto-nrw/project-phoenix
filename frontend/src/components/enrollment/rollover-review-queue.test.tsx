@@ -6,9 +6,16 @@ import "@testing-library/jest-dom/vitest";
 // Mocks
 // ============================================================================
 
-const { mockListReview, mockDecideReview } = vi.hoisted(() => ({
-  mockListReview: vi.fn(),
-  mockDecideReview: vi.fn(),
+const { mockListReview, mockDecideReview, mockTenantMutate } = vi.hoisted(
+  () => ({
+    mockListReview: vi.fn(),
+    mockDecideReview: vi.fn(),
+    mockTenantMutate: vi.fn(() => Promise.resolve()),
+  }),
+);
+
+vi.mock("~/lib/swr", () => ({
+  useTenantMutate: () => mockTenantMutate,
 }));
 
 vi.mock("~/lib/enrollment-phase-api", async (importOriginal) => {
@@ -127,6 +134,10 @@ describe("RolloverReviewQueue", () => {
     ];
     expect(childID).toBe("999");
     expect(input).toEqual({ decision: "keep", new_grade_level: null });
+    // A decision can resolve a phase-end hint, so the hints reload too.
+    expect(mockTenantMutate).toHaveBeenCalledWith(
+      "enrollment-phase-expiry-warnings",
+    );
 
     // Empty state surfaces after the reload returns [].
     await waitFor(() => {

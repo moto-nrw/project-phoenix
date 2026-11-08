@@ -14,7 +14,10 @@ export const DELETE = createDeleteHandler<null>(
     }
 
     const invitationId = String(rawId);
-    await apiDelete(`/auth/invitations/${invitationId}`, token);
+    await apiDelete(
+      `/auth/invitations/${encodeURIComponent(invitationId)}`,
+      token,
+    );
     return null;
   },
 );

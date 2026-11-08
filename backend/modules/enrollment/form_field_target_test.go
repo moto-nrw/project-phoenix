@@ -36,7 +36,7 @@ func TestFormField_Validate_KnownTargetWithCorrectTypeOK(t *testing.T) {
 	f := &FormField{
 		Key:       "health_info",
 		Label:     "Allergien",
-		Type:      FormFieldTextarea, // matches ReservedTargets[TargetStudentHealthInfo].Type
+		Type:      FormFieldTextarea, // matches reservedTargets[TargetStudentHealthInfo].Type
 		SortOrder: 0,
 		Target:    TargetStudentHealthInfo,
 	}
@@ -49,7 +49,7 @@ func TestFormField_Validate_KnownTargetWithWrongTypeRejected(t *testing.T) {
 	f := &FormField{
 		Key:       "bus",
 		Label:     "Bus",
-		Type:      FormFieldText, // ReservedTargets requires weekday_boolean
+		Type:      FormFieldText, // reservedTargets requires weekday_boolean
 		SortOrder: 0,
 		Target:    TargetStudentBus,
 	}
@@ -299,10 +299,10 @@ func TestFormField_Validate_RejectsAllowedTimesOnInfoField(t *testing.T) {
 func TestReservedTargets_AllEntriesHaveValidType(t *testing.T) {
 	t.Parallel()
 
-	// Guard: every entry in ReservedTargets must reference a
+	// Guard: every entry in reservedTargets must reference a
 	// valid FormFieldType. Prevents silent typos that would only
 	// surface as "unknown form field type" at submit time.
-	for target, spec := range ReservedTargets {
+	for target, spec := range reservedTargets {
 		assert.True(t, validFormFieldTypes[spec.Type],
 			"target %q references unknown type %q", target, spec.Type)
 		assert.NotEmpty(t, spec.Label, "target %q must carry a non-empty label", target)

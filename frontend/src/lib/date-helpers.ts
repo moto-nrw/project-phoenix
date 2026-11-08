@@ -560,3 +560,23 @@ export function formatStatusDate(iso: string = berlinTodayISO()): string {
   const [y, m, day] = iso.split("-");
   return `${STATUS_WEEKDAYS[d.getDay()]}, ${day}.${m}.${y}`;
 }
+
+/**
+ * An instant as the value of an `<input type="datetime-local">`
+ * („YYYY-MM-DDTHH:MM“ in the browser's zone); "" when unset or invalid.
+ */
+export function toDateTimeLocalValue(instant?: string | null): string {
+  if (!instant) return "";
+  const d = new Date(instant);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** A datetime-local input value as an RFC 3339 instant; null when unset or invalid. */
+export function fromDateTimeLocalValue(local: string): string | null {
+  if (!local) return null;
+  const d = new Date(local);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}

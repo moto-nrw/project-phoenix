@@ -6,11 +6,11 @@
     "GET school /school/staff-messages/recipients"
   ],
   "api/school/staff-messages/threads/[threadID]": [
-    "GET school /school/staff-messages/threads/threadID/1",
-    "POST school /school/staff-messages/threads/threadID/1"
+    "GET school /school/staff-messages/threads/threadID%2F1",
+    "POST school /school/staff-messages/threads/threadID%2F1"
   ],
   "api/school/staff-messages/threads/[threadID]/leave": [
-    "POST school /school/staff-messages/threads/threadID/1/leave"
+    "POST school /school/staff-messages/threads/threadID%2F1/leave"
   ],
   "api/school/staff-messages/threads/open": [
     "POST school /school/staff-messages/threads/open"

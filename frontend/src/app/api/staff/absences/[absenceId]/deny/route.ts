@@ -18,7 +18,7 @@ export const POST = createPostHandler<unknown, DecisionBody>(
       throw new Error("Invalid absence id");
     }
     const response = await apiPost<{ data: unknown }>(
-      `/api/staff/absences/${absenceId}/deny`,
+      `/api/staff/absences/${encodeURIComponent(absenceId)}/deny`,
       token,
       body,
     );

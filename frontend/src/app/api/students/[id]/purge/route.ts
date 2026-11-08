@@ -1,4 +1,4 @@
-import { proxyDelete } from "~/lib/route-proxy.server";
+import { proxyDelete } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 // Hard-deletes a child a grade transition graduated. Its own route rather than

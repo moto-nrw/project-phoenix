@@ -3,12 +3,10 @@ package application
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // HolidayGuestBookings lists the confirmed holiday bookings of the school in
@@ -146,13 +144,11 @@ type holidayIdentityKey struct {
 	birthDate           calendar.Date
 }
 
-// identityKey compares names as the participant list does (#4722), on both
-// sides in Unicode NFC (textnorm.Name) and without regard to case and
-// surrounding spaces, so a decomposed "José" is the composed one.
+// identityKey compares names as the participant list does (#4722).
 func identityKey(identity enrollment.HolidayStudentIdentity) holidayIdentityKey {
 	return holidayIdentityKey{
-		firstName: strings.ToLower(textnorm.Name(identity.FirstName)),
-		lastName:  strings.ToLower(textnorm.Name(identity.LastName)),
+		firstName: childNameKey(identity.FirstName),
+		lastName:  childNameKey(identity.LastName),
 		birthDate: identity.BirthDate,
 	}
 }

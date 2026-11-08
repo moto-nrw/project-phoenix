@@ -56,9 +56,9 @@ func (s *HolidayRegistrationStore) FindHolidayRegistrationLink(ctx context.Conte
 
 const (
 	// deleteExpiredHolidayRateLimitsQuery keeps the counters of a Träger
-	// small: no window is longer than a day.
+	// small.
 	deleteExpiredHolidayRateLimitsQuery = `DELETE FROM enrollment.holiday_registration_rate_limits
-		WHERE organization_id = ? AND window_start < statement_timestamp() - INTERVAL '24 hours'`
+		WHERE organization_id = ? AND window_start < statement_timestamp() - (? * INTERVAL '1 second')`
 	countHolidayRateLimitQuery = `INSERT INTO enrollment.holiday_registration_rate_limits AS bucket
 			(organization_id, key_type, key_hash)
 		VALUES (?, ?, encode(sha256(convert_to(?, 'UTF8')), 'hex'))
@@ -74,16 +74,20 @@ const (
 // CountHolidayRegistrationAttempt removes the Träger's expired counters and
 // counts one attempt in a single atomic upsert keyed by the SHA-256 digest
 // of value; the value itself is never stored.
-func (s *HolidayRegistrationStore) CountHolidayRegistrationAttempt(ctx context.Context, organizationID int64, keyType, value string, window time.Duration) (int, error) {
+func (s *HolidayRegistrationStore) CountHolidayRegistrationAttempt(ctx context.Context, organizationID int64, keyType, value string, window, retention time.Duration) (int, error) {
 	seconds := int64(window.Seconds())
 	if seconds <= 0 {
 		return 0, fmt.Errorf("enrollment postgres: invalid rate-limit window %s", window)
+	}
+	retentionSeconds, err := positiveSeconds(retention)
+	if err != nil {
+		return 0, err
 	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return 0, err
 	}
-	if _, err := db.NewRaw(deleteExpiredHolidayRateLimitsQuery, organizationID).Exec(ctx); err != nil {
+	if _, err := db.NewRaw(deleteExpiredHolidayRateLimitsQuery, organizationID, retentionSeconds).Exec(ctx); err != nil {
 		return 0, fmt.Errorf("enrollment postgres: remove expired holiday registration counters: %w", err)
 	}
 	var attempts int
@@ -327,7 +331,7 @@ const (
 		WHERE registrations + audit_entries > 0
 		RETURNING id, organization_id, holiday_period_id, period_ended_on, registrations, children, audit_entries, deleted_at`
 	deleteAllExpiredHolidayRateLimitsQuery = `DELETE FROM enrollment.holiday_registration_rate_limits
-		WHERE window_start < statement_timestamp() - INTERVAL '24 hours'`
+		WHERE window_start < statement_timestamp() - (? * INTERVAL '1 second')`
 	deleteExpiredHolidayRegistrationDeletionsQuery = `DELETE FROM enrollment.holiday_registration_deletions
 		WHERE deleted_at < statement_timestamp() - make_interval(years => ?)`
 )
@@ -352,9 +356,13 @@ type holidayRegistrationDeletionRow struct {
 // before cutoff, logs each period in the deletion log of its Träger, and
 // deletes the expired abuse counters. Only the administrative transaction of
 // the hourly cleanup may delete across Träger.
-func (s *HolidayRegistrationStore) DeleteHolidayRegistrationsEndedBefore(ctx context.Context, cutoff calendar.Date) (int, error) {
+func (s *HolidayRegistrationStore) DeleteHolidayRegistrationsEndedBefore(ctx context.Context, cutoff calendar.Date, counterRetention time.Duration) (int, error) {
 	if !tenant.IsAdminTx(ctx) {
 		return 0, errors.New("enrollment postgres: the holiday registration retention requires the administrative transaction")
+	}
+	retentionSeconds, err := positiveSeconds(counterRetention)
+	if err != nil {
+		return 0, err
 	}
 	db, err := NewDatabase()(ctx)
 	if err != nil {
@@ -368,7 +376,7 @@ func (s *HolidayRegistrationStore) DeleteHolidayRegistrationsEndedBefore(ctx con
 	for _, period := range logged {
 		deleted += period.Registrations + period.AuditEntries
 	}
-	counters, err := affectedRows(db.NewRaw(deleteAllExpiredHolidayRateLimitsQuery).Exec(ctx))
+	counters, err := affectedRows(db.NewRaw(deleteAllExpiredHolidayRateLimitsQuery, retentionSeconds).Exec(ctx))
 	if err != nil {
 		return 0, fmt.Errorf("enrollment postgres: delete expired holiday registration counters: %w", err)
 	}

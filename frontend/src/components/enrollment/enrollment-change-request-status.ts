@@ -1,5 +1,5 @@
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
-import type { AdminEnrollmentChangeRequestStatus } from "~/lib/enrollment-admin-api";
+import type { ChangeRequestStatus } from "~/lib/enrollment-status";
 
 /**
  * Beschriftung und Farbe eines Anmeldungsänderungs-Status — an einer Stelle,
@@ -12,7 +12,7 @@ import type { AdminEnrollmentChangeRequestStatus } from "~/lib/enrollment-admin-
  * trägt er hier einen Namen statt durchzufallen.
  */
 export const ENROLLMENT_CHANGE_REQUEST_STATUS_META: Record<
-  AdminEnrollmentChangeRequestStatus,
+  ChangeRequestStatus,
   { readonly label: string; readonly tone: StatusBadgeTone }
 > = {
   pending_review: { label: "Wartet auf Prüfung", tone: "blue" },
@@ -28,8 +28,9 @@ export function enrollmentChangeRequestStatusMeta(status: string): {
   tone: StatusBadgeTone;
 } {
   return (
-    ENROLLMENT_CHANGE_REQUEST_STATUS_META[
-      status as AdminEnrollmentChangeRequestStatus
-    ] ?? { label: status, tone: "gray" }
+    ENROLLMENT_CHANGE_REQUEST_STATUS_META[status as ChangeRequestStatus] ?? {
+      label: status,
+      tone: "gray",
+    }
   );
 }

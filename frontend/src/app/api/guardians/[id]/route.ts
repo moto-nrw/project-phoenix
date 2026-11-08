@@ -1,6 +1,6 @@
 import { createDeleteHandler } from "@/lib/route-wrapper.server";
 import { apiDelete } from "@/lib/api-helpers.server";
-import { proxyGet, proxyPut } from "@/lib/route-proxy.server";
+import { proxyGet, proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // GET /api/guardians/[id] - Get guardian by ID
@@ -23,8 +23,8 @@ export const DELETE = createDeleteHandler(async (request, token, params) => {
 
   const queryString = request.nextUrl.searchParams.toString();
   const endpoint = queryString
-    ? `/api/guardians/${guardianId}?${queryString}`
-    : `/api/guardians/${guardianId}`;
+    ? `/api/guardians/${encodeURIComponent(guardianId)}?${queryString}`
+    : `/api/guardians/${encodeURIComponent(guardianId)}`;
 
   await apiDelete(endpoint, token);
   return null;

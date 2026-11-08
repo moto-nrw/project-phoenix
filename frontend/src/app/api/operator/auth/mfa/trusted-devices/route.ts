@@ -1,13 +1,6 @@
-import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { withOperatorAuth } from "~/server/auth/operator-route";
-import type { ServerAuthRequest } from "~/server/auth/route-handler";
+import { createOperatorJsonProxy } from "~/lib/operator/route-wrapper.server";
 
-async function GETHandler(request: ServerAuthRequest) {
-  return forwardJsonPost(request, "/operator/auth/mfa/trusted-devices", {
-    sessionToken: request.auth?.user?.token ?? null,
-    method: "GET",
-    hasBody: false,
-  });
-}
-
-export const GET = withOperatorAuth(GETHandler);
+export const GET = createOperatorJsonProxy({
+  method: "GET",
+  path: "/operator/auth/mfa/trusted-devices",
+});

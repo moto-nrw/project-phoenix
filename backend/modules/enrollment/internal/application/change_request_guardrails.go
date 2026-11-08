@@ -69,9 +69,16 @@ func (s *ChangeRequests) checkAccountLinkedCoGuardian(ctx context.Context, i int
 		}
 		return nil
 	}
-	if !sameTrimmedString(guardian.FirstName, profile.FirstName) ||
-		!sameTrimmedString(guardian.LastName, profile.LastName) ||
-		!s.submittedPhoneMatchesProfile(ctx, profile.ID, guardian.Phone) {
+	matches := sameTrimmedString(guardian.FirstName, profile.FirstName) &&
+		sameTrimmedString(guardian.LastName, profile.LastName)
+	if matches {
+		phoneMatches, err := s.submittedPhoneMatchesProfile(ctx, profile.ID, guardian.Phone)
+		if err != nil {
+			return fmt.Errorf("change request: load co-guardian %d phones for account guardrail: %w", i, err)
+		}
+		matches = phoneMatches
+	}
+	if !matches {
 		return enrollment.InvalidInput(enrollment.CodeChangeRequestGuardianLinked, "", fmt.Errorf("%w: account-linked co-guardian %d details must match the parent portal profile", enrollment.ErrChangeRequestInvalidData, i))
 	}
 	return nil
@@ -122,24 +129,24 @@ func matchingRequestGuardian(rows []*enrollment.RequestGuardian, profileID int64
 	return nil
 }
 
-func (s *ChangeRequests) submittedPhoneMatchesProfile(ctx context.Context, profileID int64, submitted *string) bool {
+func (s *ChangeRequests) submittedPhoneMatchesProfile(ctx context.Context, profileID int64, submitted *string) (bool, error) {
 	phone := trimmedOptionalString(submitted)
 	if phone == "" {
-		return true
+		return true, nil
 	}
 	if s.deps.People.GuardianPhones == nil {
-		return false
+		return false, nil
 	}
 	rows, err := s.deps.People.GuardianPhones.GuardianPhones(ctx, profileID)
 	if err != nil {
-		return false
+		return false, err
 	}
 	for _, row := range rows {
 		if strings.TrimSpace(row.PhoneNumber) == phone {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // guardianProfilesByEmails resolves the tenant's profiles of the given

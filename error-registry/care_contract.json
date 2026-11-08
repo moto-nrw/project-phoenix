@@ -61,6 +61,12 @@
       "legacy": "care_contract.contract_not_signable"
     },
     {
+      "code": "care_contract.field_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_contract.field_invalid"
+    },
+    {
       "code": "care_contract.letterhead_too_long",
       "class": "business_rejection",
       "parameters": [],
@@ -101,6 +107,12 @@
       "class": "permission",
       "parameters": [],
       "legacy": "care_contract.school_outside_traeger"
+    },
+    {
+      "code": "care_contract.selection_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_contract.selection_invalid"
     },
     {
       "code": "care_contract.signature_invalid",

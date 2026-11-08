@@ -1,6 +1,7 @@
+import { unwrapEnvelope } from "~/lib/backend-client.server";
 import {
   createParentPatchHandler,
-  parentApiPatch,
+  parent,
 } from "~/lib/parent/route-wrapper.server";
 
 interface UpdateBody {
@@ -16,10 +17,13 @@ export const PATCH = createParentPatchHandler<unknown, UpdateBody>(
     const studentId = String(params.studentId);
     const target = String(params.target);
     const field = String(params.field);
-    return parentApiPatch<unknown, UpdateBody>(
-      `/parent/me/children/${encodeURIComponent(studentId)}/master-data/${encodeURIComponent(target)}/${encodeURIComponent(field)}`,
-      token,
-      body,
+    return unwrapEnvelope(
+      await parent.api(
+        "PATCH",
+        `/parent/me/children/${encodeURIComponent(studentId)}/master-data/${encodeURIComponent(target)}/${encodeURIComponent(field)}`,
+        token,
+        body,
+      ),
     );
   },
 );

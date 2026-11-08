@@ -28,7 +28,7 @@ export const GET = createGetHandler(
     }
 
     const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
-      `/api/activities/${id}/students`,
+      `/api/activities/${encodeURIComponent(id)}/students`,
       token,
     );
     const students = mapStudentEnrollmentsResponse(response.data ?? []);
@@ -64,7 +64,7 @@ export const DELETE = createDeleteHandler(
     }
 
     // Call backend directly to unenroll the student
-    const endpoint = `/api/activities/${id}/students/${studentId}`;
+    const endpoint = `/api/activities/${encodeURIComponent(id)}/students/${encodeURIComponent(studentId)}`;
     await apiDelete(endpoint, token);
 
     return { success: true };

@@ -1,3 +1,4 @@
+import { SCHOOL_WEEKDAY_CODES, weekdayShortLabel } from "~/lib/weekdays";
 import type { ReactNode } from "react";
 import { asUploadValues, isUploadValueList } from "~/lib/enrollment-uploads";
 
@@ -7,13 +8,9 @@ export interface CustomValueField {
   options?: Array<{ label: string; value: string }>;
 }
 
-const WEEKDAYS = [
-  ["mon", "Mo"],
-  ["tue", "Di"],
-  ["wed", "Mi"],
-  ["thu", "Do"],
-  ["fri", "Fr"],
-] as const;
+const WEEKDAYS = SCHOOL_WEEKDAY_CODES.map(
+  (code) => [code, weekdayShortLabel(code)] as const,
+);
 
 function formatStringValue(
   v: string,

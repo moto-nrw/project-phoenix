@@ -79,12 +79,15 @@ describe("POST /api/auth/password-reset", () => {
     );
     expect(requestInit).toMatchObject({
       method: "POST",
+      cache: "no-store",
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "unknown",
       },
       body: JSON.stringify(requestBody),
     });
+    // Identity headers travel only when the request carries them (no
+    // "unknown" User-Agent placeholder any more).
+    expect(requestInit.headers).not.toHaveProperty("User-Agent");
 
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<typeof backendResponse>(response);

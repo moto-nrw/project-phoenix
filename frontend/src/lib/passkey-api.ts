@@ -1,4 +1,5 @@
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
+import { portalAuthPath, type PortalKey } from "./portal-paths";
 import {
   browserSupportsWebAuthn,
   startAuthentication,
@@ -13,7 +14,10 @@ import type {
 import { hasSessionAccess } from "./session-access";
 import { getCachedSession } from "./session-cache";
 
-export type PasskeyScope = "tenant" | "operator" | "caterer";
+export type PasskeyScope = Extract<
+  PortalKey,
+  "tenant" | "operator" | "caterer"
+>;
 
 interface PasskeyLoginResponse {
   status: "authenticated";
@@ -37,14 +41,7 @@ interface EnrollmentChallengeResponse {
 }
 
 function basePath(scope: PasskeyScope): string {
-  switch (scope) {
-    case "operator":
-      return "/api/operator/auth/passkeys";
-    case "caterer":
-      return "/api/caterer/auth/passkeys";
-    default:
-      return "/api/auth/passkeys";
-  }
+  return portalAuthPath(scope, "passkeys");
 }
 
 function extractOptions<TOptions>(

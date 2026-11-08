@@ -99,8 +99,8 @@ describe.concurrent("ui-kit/no-hand-rolled-portal-nav", () => {
 
   it("rejects the kit's sidebar row classes outside the kit", async () => {
     const { output } = await lintSource(
-      `import { portalSidebarRowClasses } from "~/components/ui/sidebar-geometry";
-      void portalSidebarRowClasses;`,
+      `import { sidebarRowClasses } from "~/components/ui/sidebar-geometry";
+      void sidebarRowClasses;`,
       "src/components/parent/shell/probe-nav.tsx",
     );
     expect(output).toContain(RULE);

@@ -1,7 +1,7 @@
 import {
   createSchoolDeleteHandler,
   proxyPost,
-  schoolApiDelete,
+  school,
 } from "~/lib/school/route-wrapper.server";
 
 interface PushSubscriptionBody {
@@ -20,7 +20,8 @@ export const POST = proxyPost<null, PushSubscriptionBody>(
 export const DELETE = createSchoolDeleteHandler<null>(
   async (request, token) => {
     const endpoint = request.nextUrl.searchParams.get("endpoint") ?? "";
-    await schoolApiDelete(
+    await school.api(
+      "DELETE",
       `/school/notifications/push/subscriptions?endpoint=${encodeURIComponent(endpoint)}`,
       token,
     );

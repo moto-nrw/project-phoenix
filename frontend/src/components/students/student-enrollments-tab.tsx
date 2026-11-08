@@ -1,5 +1,6 @@
 "use client";
 
+import type { EnrollmentExportFormat } from "~/lib/enrollment-report-api";
 import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
@@ -11,7 +12,6 @@ import {
 } from "react";
 import {
   type AdminRequestSummary,
-  type EnrollmentRequestExportFormat,
   exportStudentEnrollmentRequests,
   listStudentEnrollmentRequests,
 } from "~/lib/enrollment-admin-api";
@@ -56,10 +56,11 @@ export function StudentEnrollmentsTab({
   const showLoadError = load.show;
   const clearLoadError = load.clear;
   const handleExportRef = useRef<
-    (format: EnrollmentRequestExportFormat) => Promise<void>
+    (format: EnrollmentExportFormat) => Promise<void>
   >(async () => undefined);
-  const [exporting, setExporting] =
-    useState<EnrollmentRequestExportFormat | null>(null);
+  const [exporting, setExporting] = useState<EnrollmentExportFormat | null>(
+    null,
+  );
 
   const {
     data: requests = [],
@@ -82,7 +83,7 @@ export function StudentEnrollmentsTab({
   }, [error, mutate, showLoadError, clearLoadError]);
 
   const handleExport = useCallback(
-    async (format: EnrollmentRequestExportFormat) => {
+    async (format: EnrollmentExportFormat) => {
       setExporting(format);
       try {
         await exportStudentEnrollmentRequests(studentId, format);
