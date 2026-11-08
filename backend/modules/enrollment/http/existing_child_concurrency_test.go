@@ -12,16 +12,38 @@ import (
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // Two approvals of two requests for the same new child must not both create
 // it. Each read no enrolled candidate before the other committed; without a
 // lock on the child's identity both created a child (#6170). The second
-// approval must wait for the first and then ask the office.
+// approval must wait for the first and then ask the office. The identity lock
+// holds on its own; the tenant recurrence gate the root also binds must not
+// be what keeps the child single.
 func TestExistingChild_ConcurrentApprovalsCreateTheChildOnce(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		gated bool
+	}{{"identity lock alone", false}, {"with the approval gates", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assertConcurrentApprovalsCreateTheChildOnce(t, tc.gated)
+		})
+	}
+}
+
+func assertConcurrentApprovalsCreateTheChildOnce(t *testing.T, gated bool) {
+	t.Helper()
+	testpkg.OwnTenant(t)
 	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+	if gated {
+		lock := owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites
+		bookings := newBookingsForTest(env.rolloverTestEnv, nil, lock, nil)
+		env.decision = newDecisionServiceForTestWithBookings(t, env.rolloverTestEnv, bookings, nil, lock, nil, nil)
+	}
 	first := env.submit(t, existingChildSubmission{email: "first-parent@example.com", children: []enrollmentAPI.SubmitChild{
 		submitChild("Mila", "Zugleich", existingChildBirthday),
 	}})
