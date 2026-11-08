@@ -20,6 +20,8 @@ const OPEN: OfferingTemplate = {
   priceCents: 9500,
   active: true,
   template: null,
+  termText: "",
+  noticeText: "",
 };
 
 describe("CareContractConditions", () => {

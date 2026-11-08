@@ -44,8 +44,8 @@ func (s *unavailableStatusSignatureService) GetByStatusToken(context.Context, st
 	return &Request{}, nil, nil
 }
 
-func (s *unavailableStatusSignatureService) EditModeForStatus(context.Context, *Request, []*RequestChild) (string, error) {
-	return "", nil
+func (s *unavailableStatusSignatureService) StatusPage(context.Context, *Request, []*RequestChild) (capability.StatusPage, error) {
+	return capability.StatusPage{CareFacilityTerm: "OGS"}, nil
 }
 
 func (s *unavailableStatusSignatureService) GuardiansByStatusToken(context.Context, string) ([]*capability.RequestGuardian, error) {

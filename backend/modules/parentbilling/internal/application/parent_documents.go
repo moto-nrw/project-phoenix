@@ -18,17 +18,21 @@ type ParentDocumentStore interface {
 
 // ParentDocuments serves parentbilling.ParentDocuments (#4671, ADR 0126).
 type ParentDocuments struct {
+	parentbilling.DocumentPushValidity
 	store ParentDocumentStore
 }
 
 var _ parentbilling.ParentDocuments = (*ParentDocuments)(nil)
 
 // NewParentDocuments builds the inbox of the parents portal.
-func NewParentDocuments(store ParentDocumentStore) *ParentDocuments {
+func NewParentDocuments(store interface {
+	ParentDocumentStore
+	parentbilling.DocumentPushValidity
+}) *ParentDocuments {
 	if store == nil {
 		panic("parent billing: the store is required")
 	}
-	return &ParentDocuments{store: store}
+	return &ParentDocuments{store: store, DocumentPushValidity: store}
 }
 
 // ListParentDocuments lists the sent documents of the Träger addressed to

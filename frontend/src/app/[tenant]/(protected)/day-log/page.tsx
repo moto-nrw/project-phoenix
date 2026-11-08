@@ -6,10 +6,11 @@
 // sick notes already record; gated by gdpr.attendance_log_enabled.
 //
 // Design follows the Anmeldungen/Planung surface language: one calm content
-// section with an uppercase kicker, gray-50 stat blocks instead of colored
+// section, gray-50 stat blocks instead of colored
 // chips, white per-group cards in a two-column grid, click opens the
 // per-group detail modal with the status sections and group-scoped exports.
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { FramedList } from "~/components/ui/framed-list";
 import { ListRowLink } from "~/components/ui/list-row-link";
 import {
@@ -274,15 +275,9 @@ function GroupDetail({ group }: { readonly group: DayLogGroup }) {
     <div className="space-y-4">
       {sections.map((section) => (
         <div key={section.status}>
-          <h3
-            className={`mb-1 text-xs font-semibold tracking-wide uppercase ${
-              section.status === "absent"
-                ? "text-moto-red-strong"
-                : "text-gray-500"
-            }`}
-          >
+          <SectionLabel className="mb-1">
             {MODAL_SECTION_TITLES[section.status]} ({section.students.length})
-          </h3>
+          </SectionLabel>
           <FramedList>
             {section.students.map((student) => (
               <StudentRow key={student.student_id} student={student} />

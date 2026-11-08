@@ -8,7 +8,7 @@ import {
   useEnrollmentUploadTarget,
 } from "~/components/enrollment/enrollment-file-upload";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { Check, Lock, Plus } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
@@ -106,6 +106,10 @@ import {
 } from "~/components/ui/signature-pad";
 import { signatureRequestBody } from "~/lib/signature";
 import {
+  useCareFacilityTerm,
+  useCareTermTranslations,
+} from "~/lib/care-facility-term";
+import {
   AT_MOST_ONE_PER_DAY,
   type CareOfferingDayConflict,
   careOfferingDayConflicts,
@@ -127,8 +131,8 @@ import {
   offeringIsFull,
 } from "~/lib/care-offering-booking-stats";
 import {
-  BLOCKED_OFFERING_ROW_TONE,
   OfferingRowShell,
+  type OfferingRowState,
 } from "~/components/enrollment/offering-row-shell";
 
 const logger = createLogger({ component: "EnrollmentForm" });
@@ -359,15 +363,17 @@ export function EnrollmentForm({
   offeringBookingStats,
   withoutSignature = false,
 }: Props) {
-  const intl = useTranslations("enrollmentForm");
+  const intl = useCareTermTranslations("enrollmentForm");
+  const careTerm = useCareFacilityTerm();
   const activeLocale = useLocale();
   // School-written texts follow the same opt-in as the form chrome: staff
   // previews stay German even when a parent locale cookie exists (#3377).
   const contentLocale = localizedCopy ? activeLocale : DEFAULT_LOCALE;
   const tr = useMemo(
-    () => makeEnrollmentFormTranslator(intl, localizedCopy),
-    [intl, localizedCopy],
+    () => makeEnrollmentFormTranslator(intl, localizedCopy, careTerm),
+    [intl, localizedCopy, careTerm],
   );
+  const loadErrorObject = tr("errorObject");
   const { tenantSlug } = useTenant();
   const signatureLabels = useMemo(
     (): SignaturePadLabels => ({
@@ -820,7 +826,7 @@ export function EnrollmentForm({
           code: (err as Partial<ApiError> | undefined)?.code,
         });
         void showLoadError(err, {
-          object: tr("errorObject"),
+          object: loadErrorObject,
           retry: () => setLoadAttempt((n) => n + 1),
         });
       } finally {
@@ -840,7 +846,7 @@ export function EnrollmentForm({
     lateInviteFetchOptions,
     profileFetcher,
     skipCaptcha,
-    tr,
+    loadErrorObject,
     loadAttempt,
     clearLoadError,
     showLoadError,
@@ -2939,8 +2945,9 @@ const GERMAN_ENROLLMENT_FORM_MESSAGES = germanEnrollmentFormMessages as Record<
 >;
 
 function makeEnrollmentFormTranslator(
-  intl: ReturnType<typeof useTranslations<"enrollmentForm">>,
+  intl: ReturnType<typeof useCareTermTranslations>,
   localizedCopy: boolean,
+  careTerm: string,
 ): EnrollmentFormTranslator {
   if (localizedCopy) {
     return Object.assign(
@@ -2952,7 +2959,9 @@ function makeEnrollmentFormTranslator(
     (key: string, values?: TranslationValues) => {
       const value = readGermanMessage(key);
       if (typeof value !== "string") return key;
-      return interpolateMessage(value, values);
+      // The German staff preview names the school's care like the parents'
+      // form does (#6042).
+      return interpolateMessage(value, { careTerm, ...values });
     },
     { raw: (key: string) => readGermanMessage(key) },
   );
@@ -3175,7 +3184,7 @@ function BlockedOfferingCard({
     gradeLevelMax,
   );
   return (
-    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
+    <OfferingRowShell state="blocked">
       <div className="flex items-start gap-3">
         <span
           aria-hidden
@@ -3231,18 +3240,18 @@ function OfferingCard({
     !required &&
     toggleLocked &&
     offering.available_days.some((day) => automaticDays?.has(day) ?? false);
-  let stateClass = "border-gray-200 bg-white hover:border-gray-300";
+  let rowState: OfferingRowState = "available";
   if (dayError) {
-    stateClass = "border-moto-red bg-moto-red/5";
+    rowState = "invalid";
   } else if (autoIncluded || checked) {
-    stateClass = "border-moto-green/40 bg-moto-green/10";
+    rowState = "selected";
   } else if (required || toggleLocked) {
-    stateClass = "border-gray-200 bg-gray-50";
+    rowState = "locked";
   }
   const inputId = `children-${childIndex}-offering-${offering.id}`;
 
   return (
-    <OfferingRowShell tone={stateClass} invalid={dayError}>
+    <OfferingRowShell state={rowState}>
       <label
         htmlFor={inputId}
         className={`flex items-start gap-3 ${

@@ -23,7 +23,6 @@ const MaxOverrunWindowDays = 92
 // window.
 var ErrOverrunWindowInvalid = errors.New("the evaluation window is invalid")
 
-// OverrunFilter selects the window and optionally one school.
 type OverrunFilter struct {
 	From     calendar.Date
 	To       calendar.Date
@@ -78,7 +77,6 @@ type OverrunEvaluation struct {
 	Children         []OverrunChild   `json:"children"`
 }
 
-// SchoolOverrunRow is one child of a school's overrun list.
 type SchoolOverrunRow struct {
 	StudentID    int64
 	FirstName    string
@@ -89,7 +87,6 @@ type SchoolOverrunRow struct {
 	ExtraMinutes int
 }
 
-// SchoolOverrunList is a school's overrun list over the window.
 type SchoolOverrunList struct {
 	DataFrom         calendar.Date
 	ToleranceMinutes int

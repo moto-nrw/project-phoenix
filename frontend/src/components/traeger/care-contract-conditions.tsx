@@ -5,6 +5,7 @@
 // Schulen des Trägers, rechts die Bedingungen des gewählten Angebots. Ein
 // neuer Vertrag übernimmt sie; ein bestehender behält seine.
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { useMemo, useRef, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -27,11 +28,7 @@ import {
   saveContractTemplate,
 } from "~/lib/traeger-care-contracts-api";
 import { formatEuro } from "./contribution-format";
-import {
-  NOTICE_TO_LABELS,
-  formatNotice,
-  formatTerm,
-} from "./care-contract-format";
+import { NOTICE_TO_LABELS } from "./care-contract-format";
 
 const logger = createLogger({ component: "CareContractConditions" });
 
@@ -114,9 +111,7 @@ export function CareContractConditions({
         <div className="space-y-5">
           {schools.map((school) => (
             <div key={school} className="space-y-2">
-              <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                {school}
-              </h3>
+              <SectionLabel>{school}</SectionLabel>
               {offerings
                 .filter((offering) => offering.schoolName === school)
                 .map((offering) => {
@@ -147,8 +142,7 @@ export function CareContractConditions({
                         </span>
                         {offering.template ? (
                           <span className="mt-1 block text-sm text-gray-600">
-                            {formatTerm(offering.template)} ·{" "}
-                            {formatNotice(offering.template)}
+                            {offering.termText} · {offering.noticeText}
                           </span>
                         ) : null}
                       </span>
@@ -428,7 +422,6 @@ function ConditionsForm({
   );
 }
 
-/** Whether an offering has its conditions, as the list badge says it. */
 function conditionBadge(offering: OfferingTemplate): {
   tone: "green" | "gray" | "orange";
   label: string;

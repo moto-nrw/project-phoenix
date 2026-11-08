@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	requestChildrenMatchedByOfficeVersion     = "1.15.806"
+	requestChildrenMatchedByOfficeVersion     = "1.15.809"
 	requestChildrenMatchedByOfficeDescription = "Record that the office, not the submitting family's relationship, chose the enrolled child an approval renews, so the renewal links no guardian (issue #6053)"
 )
 

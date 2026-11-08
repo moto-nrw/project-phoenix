@@ -39,7 +39,7 @@
   "signedMail": "You will receive a confirmation with the contract by email.",
   "withdrawalUntil": "You can withdraw from the contract until {date}.",
   "earlyStartChosen": "Care starts as agreed, also during the withdrawal period.",
-  "alreadySigned": "This contract is already signed.",
+  "alreadyInForce": "This contract is already in force. You do not need to sign anything.",
   "invalidTitle": "This link is no longer valid",
   "invalidText": "The link was already used or has expired. Have you already signed? Then there is nothing to do. You can find the contract in the parent app under “Documents”, or ask the provider for a new link.",
   "back": "Back to documents",

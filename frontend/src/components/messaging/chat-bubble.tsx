@@ -90,6 +90,7 @@ export function ChatBubble({
           {senderName}
         </p>
       ) : null}
+      {/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Nachrichtensprechblase, keine Kartenfläche */}
       <div
         className={`relative max-w-[84%] rounded-xl px-3 py-2 break-words whitespace-pre-wrap sm:max-w-[72%] lg:max-w-[38rem] ${
           pending === "pending" ? "opacity-70" : ""

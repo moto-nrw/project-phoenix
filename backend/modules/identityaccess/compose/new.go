@@ -21,25 +21,15 @@ type Dependencies struct {
 	RemoveErasedAvatarFile func(string) error // Nil uses rooted local avatar storage.
 	DB                     *bun.DB
 	Observe                func(Observation)
-	// Sessions composes the account-authentication flows (#3251): tenant,
-	// parent and school login, refresh, switching, logout, session validation,
-	// cleanup and revocation. Compositions that only read identity facts
-	// leave it nil; the flows then report ErrAccountAuthenticationUnavailable.
+	// Sessions binds login, refresh, switching, logout and validation. Nil
+	// leaves authentication unavailable and supports read-only compositions.
 	Sessions *identityBindingPorts.SessionDependencies
-	// Operators composes the operator flows (#3252): operator login, the
-	// MFA-proven token issue, refresh, profile and password changes, and
-	// the operator-led school access of accounts. It requires Sessions;
-	// compositions without it report ErrOperatorAuthenticationUnavailable.
+	// Operators requires Sessions; nil leaves operator authentication unavailable.
 	Operators *OperatorDependencies
-	// Lifecycle composes the account lifecycle flows (#3225): staff PIN,
-	// staff preview, staff offboarding, school identity, parent accounts and
-	// guardian relative access, together with the role and permission
-	// administration (#3314). It requires Sessions; compositions without it
-	// report ErrAccountLifecycleUnavailable and
-	// ErrRoleAdministrationUnavailable.
+	// Lifecycle requires Sessions and binds account, guardian and role commands.
+	// Nil reports ErrAccountLifecycleUnavailable / ErrRoleAdministrationUnavailable.
 	Lifecycle *LifecycleDependencies
-	// Resets composes the password reset flows (#2722). It requires Sessions;
-	// compositions without it report ErrPasswordResetUnavailable.
+	// Resets requires Sessions; nil reports ErrPasswordResetUnavailable.
 	Resets *PasswordResetDependencies
 	// Invitations composes the school invitation flows (#2722). They require
 	// Sessions and Lifecycle; compositions without it report
@@ -209,4 +199,14 @@ func newPortalAccess(dependencies Dependencies, auth *application.AccountAuthent
 		Credentials: auth.CheckPasswordLogin, Unit: runAdmin, InAdminUnit: auth.InAdminUnit, Expiry: deps.Expiry, Logger: deps.Logger,
 	})
 	return demoAccess, traegerAccounts, err
+}
+
+// NewAccountBatchQuery exposes a read-sized capability without extending the
+// login/command Owner contract or constructing its unrelated session flows.
+func NewAccountBatchQuery(db *bun.DB) (identityaccess.AccountBatchQuery, error) {
+	if db == nil {
+		return nil, errors.New("identity access: account batch needs the database")
+	}
+	store := postgres.NewStore(db)
+	return application.NewAccountBatch(store, application.NewObserver(func(Observation) {})), nil
 }

@@ -540,7 +540,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"internal/devtools/seedapi/enrollment_bookings_profile.go:(seedEnrollmentBookingsProfileStep).Run": 71,
 	// ADR 0087.
 	// ADR 0087.
-	"internal/devtools/seedapi/enrollment_weekly_profile.go:seedWeeklyProfileContents": 87,
+	"internal/devtools/seedapi/enrollment_weekly_profile.go:seedWeeklyProfileContents": 80,
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:submitWeeklyProfileRequest": 62,
 	// ADR 0087.

@@ -39,7 +39,7 @@
   "signedMail": "Sözleşmeyle birlikte e-posta ile bir onay alacaksınız.",
   "withdrawalUntil": "{date} tarihine kadar sözleşmeden cayabilirsiniz.",
   "earlyStartChosen": "Bakım, cayma süresi içinde de kararlaştırıldığı gibi başlar.",
-  "alreadySigned": "Bu sözleşme zaten imzalandı.",
+  "alreadyInForce": "Bu sözleşme zaten geçerli. Hiçbir şey imzalamanız gerekmiyor.",
   "invalidTitle": "Bu bağlantı artık geçerli değil",
   "invalidText": "Bağlantı daha önce kullanıldı veya süresi doldu. Zaten imzaladınız mı? O zaman bir şey yapmanıza gerek yok. Sözleşmeyi veli uygulamasında „Belgeler“ altında bulabilirsiniz. Ya da kurumdan yeni bir bağlantı isteyin.",
   "back": "Belgelere dön",

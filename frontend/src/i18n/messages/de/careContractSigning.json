@@ -39,7 +39,7 @@
   "signedMail": "Sie bekommen eine Bestätigung mit dem Vertrag per Mail.",
   "withdrawalUntil": "Sie können den Vertrag bis zum {date} widerrufen.",
   "earlyStartChosen": "Die Betreuung beginnt wie vereinbart, auch in der Widerrufsfrist.",
-  "alreadySigned": "Dieser Vertrag ist schon unterschrieben.",
+  "alreadyInForce": "Dieser Vertrag gilt schon. Sie müssen nichts unterschreiben.",
   "invalidTitle": "Dieser Link gilt nicht mehr",
   "invalidText": "Der Link war schon benutzt oder ist abgelaufen. Haben Sie schon unterschrieben? Dann müssen Sie nichts tun. Den Vertrag finden Sie in der Eltern-App unter „Dokumente“. Oder fragen Sie beim Träger nach einem neuen Link.",
   "back": "Zurück zu den Dokumenten",

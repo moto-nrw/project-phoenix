@@ -102,6 +102,12 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/traeger/care-tariffs/{schoolID}/{validFrom}"}: notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/"}:                    notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/release"}:        notCaptured,
+	{http.MethodPost, "/traeger/care-rules/"}:                           notCaptured,
+	{http.MethodPut, "/traeger/care-rules/{id}"}:                        notCaptured,
+	{http.MethodDelete, "/traeger/care-rules/{id}"}:                     notCaptured,
+	{http.MethodPost, "/traeger/care-evidences/"}:                       notCaptured,
+	{http.MethodPut, "/traeger/care-evidences/{id}"}:                    notCaptured,
+	{http.MethodDelete, "/traeger/care-evidences/{id}"}:                 notCaptured,
 	// The care contracts and their templates (#4678, ADR 0153) belong to
 	// the Träger, not to a school.
 	{http.MethodPost, "/traeger/contracts/"}:       notCaptured,
@@ -115,6 +121,7 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// termination it checked; the parents' own one in the parents portal.
 	{http.MethodPost, "/traeger/contract-notices/{id}"}:                                      notCaptured,
 	{http.MethodPut, "/traeger/contract-notices/{id}/ends-on"}:                               notCaptured,
+	{http.MethodPost, "/traeger/contract-notices/{id}/reason-rejection"}:                     notCaptured,
 	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/notice"}: notCaptured,
 }
 

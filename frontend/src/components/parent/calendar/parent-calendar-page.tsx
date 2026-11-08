@@ -406,7 +406,7 @@ function CalendarEventList({
   const t = useTranslations("parentCalendar");
   const groupOrder: EventGroupKey[] = ["thisWeek", "nextWeek", "later"];
   return (
-    <section className="moto-content-surface h-full space-y-5 rounded-2xl border p-4">
+    <SectionCard className="h-full" bodyClassName="h-full space-y-5">
       {groupOrder.map((groupKey) => {
         const group = groups[groupKey];
         if (group.length === 0) return null;
@@ -430,7 +430,7 @@ function CalendarEventList({
           </section>
         );
       })}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -629,100 +629,102 @@ function CalendarMonthPanel({
     year: "numeric",
   }).format(referenceDate);
   return (
-    <section
-      data-testid="parent-calendar-month-grid"
-      className="moto-content-surface h-full overflow-hidden rounded-2xl border"
-      aria-labelledby="parent-calendar-month"
+    <SectionCard
+      testId="parent-calendar-month-grid"
+      padding="none"
+      className="h-full"
     >
-      <div className="grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-2 border-b border-gray-200 p-3 sm:p-4">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t("previousMonth")}
-          disabled={!canGoBack}
-          onClick={() => onChangeMonth(-1)}
-        >
-          <CaretLeftIcon size={16} weight="bold" aria-hidden="true" />
-        </Button>
-        <h2
-          id="parent-calendar-month"
-          className="truncate text-center text-base font-semibold text-gray-900 sm:text-lg"
-        >
-          {monthLabel}
-        </h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t("nextMonth")}
-          disabled={!canGoForward}
-          onClick={() => onChangeMonth(1)}
-        >
-          <CaretRightIcon size={16} weight="bold" aria-hidden="true" />
-        </Button>
-      </div>
-      <WeekdayHeader locale={locale} />
-      <div className="grid grid-cols-7">
-        {days.map((day) => {
-          const dateISO = toISODate(day);
-          const outsideMonth = day.getMonth() !== referenceDate.getMonth();
-          const dayEvents = eventsForDay(events, dateISO);
-          const visibleEvents = dayEvents.slice(0, MAX_VISIBLE_EVENTS);
-          const moreCount = dayEvents.length - visibleEvents.length;
-          const inLoadedRange = dateISO >= today && dateISO <= rangeEnd;
-          return (
-            <div
-              key={dateISO}
-              className={`min-h-14 border-r border-b border-gray-100 p-1 md:min-h-28 md:p-1.5 [&:nth-child(7n)]:border-r-0 ${outsideMonth ? "bg-gray-50/60" : "bg-white"}`}
-            >
-              <span
-                aria-current={dateISO === today ? "date" : undefined}
-                className={`inline-flex size-7 items-center justify-center rounded-full text-sm tabular-nums ${
-                  dateISO === today
-                    ? "bg-gray-900 text-white"
-                    : outsideMonth || !inLoadedRange
-                      ? "text-gray-400"
-                      : "text-gray-700"
-                }`}
+      <section aria-labelledby="parent-calendar-month">
+        <div className="grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-2 border-b border-gray-200 p-3 sm:p-4">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t("previousMonth")}
+            disabled={!canGoBack}
+            onClick={() => onChangeMonth(-1)}
+          >
+            <CaretLeftIcon size={16} weight="bold" aria-hidden="true" />
+          </Button>
+          <h2
+            id="parent-calendar-month"
+            className="truncate text-center text-base font-semibold text-gray-900 sm:text-lg"
+          >
+            {monthLabel}
+          </h2>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t("nextMonth")}
+            disabled={!canGoForward}
+            onClick={() => onChangeMonth(1)}
+          >
+            <CaretRightIcon size={16} weight="bold" aria-hidden="true" />
+          </Button>
+        </div>
+        <WeekdayHeader locale={locale} />
+        <div className="grid grid-cols-7">
+          {days.map((day) => {
+            const dateISO = toISODate(day);
+            const outsideMonth = day.getMonth() !== referenceDate.getMonth();
+            const dayEvents = eventsForDay(events, dateISO);
+            const visibleEvents = dayEvents.slice(0, MAX_VISIBLE_EVENTS);
+            const moreCount = dayEvents.length - visibleEvents.length;
+            const inLoadedRange = dateISO >= today && dateISO <= rangeEnd;
+            return (
+              <div
+                key={dateISO}
+                className={`min-h-14 border-r border-b border-gray-100 p-1 md:min-h-28 md:p-1.5 [&:nth-child(7n)]:border-r-0 ${outsideMonth ? "bg-gray-50/60" : "bg-white"}`}
               >
-                {day.getDate()}
-              </span>
-              <div className="mt-0.5 flex min-h-2 justify-center gap-0.5 md:hidden">
-                {dayEvents.slice(0, 3).map((event) => (
-                  <StatusDot
-                    key={event.id}
-                    color={eventColors(event).base}
-                    className={
-                      eventState(event) === "needsResponse"
-                        ? "ring-1 ring-offset-1"
-                        : ""
-                    }
-                    label={event.title}
-                  />
-                ))}
+                <span
+                  aria-current={dateISO === today ? "date" : undefined}
+                  className={`inline-flex size-7 items-center justify-center rounded-full text-sm tabular-nums ${
+                    dateISO === today
+                      ? "bg-gray-900 text-white"
+                      : outsideMonth || !inLoadedRange
+                        ? "text-gray-400"
+                        : "text-gray-700"
+                  }`}
+                >
+                  {day.getDate()}
+                </span>
+                <div className="mt-0.5 flex min-h-2 justify-center gap-0.5 md:hidden">
+                  {dayEvents.slice(0, 3).map((event) => (
+                    <StatusDot
+                      key={event.id}
+                      color={eventColors(event).base}
+                      className={
+                        eventState(event) === "needsResponse"
+                          ? "ring-1 ring-offset-1"
+                          : ""
+                      }
+                      label={event.title}
+                    />
+                  ))}
+                </div>
+                <div className="mt-1 hidden space-y-1 md:block">
+                  {visibleEvents.map((event) => (
+                    <MonthEventButton
+                      key={`${dateISO}-${event.id}`}
+                      event={event}
+                      locale={locale}
+                      responding={respondingId === event.id}
+                      onRespond={(status) => onRespond(event, status)}
+                    />
+                  ))}
+                  {moreCount > 0 ? (
+                    <span className="block px-1 text-[11px] font-medium text-gray-500">
+                      {t("moreEvents", { count: moreCount })}
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              <div className="mt-1 hidden space-y-1 md:block">
-                {visibleEvents.map((event) => (
-                  <MonthEventButton
-                    key={`${dateISO}-${event.id}`}
-                    event={event}
-                    locale={locale}
-                    responding={respondingId === event.id}
-                    onRespond={(status) => onRespond(event, status)}
-                  />
-                ))}
-                {moreCount > 0 ? (
-                  <span className="block px-1 text-[11px] font-medium text-gray-500">
-                    {t("moreEvents", { count: moreCount })}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
+            );
+          })}
+        </div>
+      </section>
+    </SectionCard>
   );
 }
 

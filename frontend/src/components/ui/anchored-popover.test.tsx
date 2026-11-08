@@ -78,6 +78,34 @@ describe("AnchoredPopover", () => {
     });
   });
 
+  it("moves with its trigger once a surrounding animation ends", () => {
+    const rect = (left: number) => ({
+      left,
+      right: left + 200,
+      top: 100,
+      bottom: 140,
+      width: 200,
+      height: 40,
+      x: left,
+      y: 100,
+      toJSON: () => undefined,
+    });
+    const spy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue(rect(150));
+
+    render(<TestPopover />);
+    fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
+    const panel = screen.getByRole("dialog", { name: "Testauswahl" });
+    expect(panel).toHaveStyle({ left: "150px" });
+
+    // A dialog that scales in moves the trigger without a resize or scroll.
+    spy.mockReturnValue(rect(220));
+    fireEvent.animationEnd(document.body);
+
+    expect(panel).toHaveStyle({ left: "220px" });
+  });
+
   it("keeps viewport positioning outside a scoped portal", () => {
     render(<TestPopover />);
     fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));

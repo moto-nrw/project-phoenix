@@ -821,7 +821,7 @@ function RequestItem({
 }: Readonly<{ message: ParentMessage; locale: string }>) {
   const t = useTranslations("parentOgsMessaging");
   return (
-    <div className="moto-content-surface rounded-2xl border p-4">
+    <InsetPanel tone="white" padding="md">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-900">
@@ -836,7 +836,7 @@ function RequestItem({
           label={t(parentRequestStatusI18nKey(message.request_status))}
         />
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 
