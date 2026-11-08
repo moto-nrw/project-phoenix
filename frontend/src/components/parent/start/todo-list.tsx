@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Button } from "~/components/ui/button";
-import { ListRowLink } from "~/components/ui/list-row-link";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
@@ -20,9 +20,9 @@ const INITIAL_TODO_COUNT = 5;
  * die Ueberschrift entfaellt mit: eine Ueberschrift ueber nichts ist eine
  * Aufgabe, die keine ist.
  *
- * Typ-Icons stehen ohne eigene Kachel direkt vor der Zeile. Der Lesestatus
- * folgt dem gemeinsamen Zustand der Navigationszeile; die Aufgaben liefern
- * selbst keine zusätzliche ungelesene Anzahl.
+ * Typ-Icons stehen ohne eigene Kachel direkt vor der Zeile. Ein blauer Punkt
+ * am Icon markiert ungelesene Inhalte. So bleiben Inhaltstyp und Lesestatus
+ * getrennt erkennbar, ohne zusaetzliche Flaechen pro Eintrag.
  */
 
 export interface TodoItem {
@@ -129,37 +129,60 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
 /** Eine Zeile, mindestens 64 px hoch und auf ganzer Breite anklickbar. */
 function TodoRow({ item }: Readonly<{ item: TodoItem }>) {
   const t = useTranslations("parentStart");
-  const rowProps = {
-    icon: (
-      <span className="flex size-7 shrink-0 items-center justify-center">
+  const inner = (
+    <>
+      <span className="relative flex size-7 shrink-0 items-center justify-center">
         <MotoConceptIcon
           concept={item.concept}
           tone="blue"
           size={22}
           aria-hidden="true"
         />
+        {item.unread && (
+          <span
+            data-testid="todo-unread-indicator"
+            className="bg-moto-blue absolute -top-0.5 -right-0.5 size-3 rounded-full border-2 border-white"
+            aria-hidden="true"
+          />
+        )}
       </span>
-    ),
-    title: (
-      <>
+      <span className="min-w-0 flex-1">
         {item.unread && <span className="sr-only">{t("todo.unread")}: </span>}
-        {item.title}
-      </>
-    ),
-    subtitle: item.context,
-    badge: item.meta ? (
-      <span className="text-end text-xs font-medium whitespace-nowrap text-gray-500 tabular-nums">
-        {item.meta.date}, {item.meta.time}
+        <span
+          className={`block truncate text-[15px] text-gray-900 ${item.unread ? "font-semibold" : "font-medium"}`}
+        >
+          {item.title}
+        </span>
+        <span className="mt-0.5 block truncate text-sm text-gray-500">
+          {item.context}
+        </span>
       </span>
-    ) : undefined,
-    unread: item.unread,
-    chevronClassName: "hidden sm:block",
-    className: "min-h-16 rounded-xl px-3 py-2.5",
-  };
+      {item.meta && (
+        <span className="shrink-0 text-end text-xs font-medium whitespace-nowrap text-gray-500 tabular-nums">
+          {item.meta.date}, {item.meta.time}
+        </span>
+      )}
+      <ChevronRight
+        className="hidden size-[18px] shrink-0 text-gray-400 sm:block"
+        aria-hidden="true"
+      />
+    </>
+  );
+
+  const shared =
+    "relative flex min-h-16 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 focus-visible:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:-outline-offset-2";
 
   if (item.href) {
-    return <ListRowLink href={item.href} {...rowProps} />;
+    return (
+      <Link href={item.href} className={shared}>
+        {inner}
+      </Link>
+    );
   }
 
-  return <ListRowLink onClick={item.onSelect} {...rowProps} />;
+  return (
+    <button type="button" onClick={item.onSelect} className={shared}>
+      {inner}
+    </button>
+  );
 }

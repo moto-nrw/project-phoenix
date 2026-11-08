@@ -4799,6 +4799,10 @@ function containsNavRowArrow(node, constants, classText, seen = new Set()) {
   return false;
 }
 
+// Startseite des Elternportals (#2619): die Aufgabenliste behält ihre Zeilen
+// mit Ungelesen-Punkt am Icon. Nie anfassen, auch nicht für das Kit.
+const NAV_ROW_PARENT_EXCEPTIONS = ["src/components/parent/start/todo-list.tsx"];
+
 const noHandRolledNavRow = makeRatchetRule({
   ruleName: "no-hand-rolled-nav-row",
   description: "Rows that lead elsewhere with an arrow come from ListRowLink.",
@@ -4809,6 +4813,7 @@ const noHandRolledNavRow = makeRatchetRule({
   allowlist: [],
   kitFile: "src/components/ui/list-row-link.tsx",
   exemptDir: UI_KIT_DIR,
+  exemptFiles: NAV_ROW_PARENT_EXCEPTIONS,
   detect: ({ classText, constants, found }) => ({
     JSXElement(node) {
       if (!NAV_ROW_ELEMENTS.has(jsxName(node.openingElement.name))) return;

@@ -322,7 +322,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-radix-outside-kit` (#5604, hard-zero): `@radix-ui/*` only under `components/ui/`.
 
-`ui-kit/no-arbitrary-shadow`, `no-hand-rolled-list-row`, `no-hand-rolled-framed-list`, `no-hand-rolled-nav-row` (#5593, hard-zero): no `shadow-[…]`, hand-built list row, framed list or full-width row with an arrow outside `ui/`.
+`ui-kit/no-arbitrary-shadow`, `no-hand-rolled-list-row`, `no-hand-rolled-framed-list`, `no-hand-rolled-nav-row` (#5593, hard-zero): no `shadow-[…]`, own list row, framed list, full-width arrow row outside `ui/`; #2619 todo list exempt.
 
 `ui-kit/no-hand-rolled-inset` (#5592, hard-zero): radius + `bg-gray-50` + padding, and surface chains in module constants. Three #2619 parent files are exempt by path.
 

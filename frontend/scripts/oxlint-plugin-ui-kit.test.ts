@@ -3846,6 +3846,16 @@ describe.concurrent("Listen-Bausteine (#5593)", () => {
     expect(result.output).not.toContain("no-arbitrary-shadow");
     expect(result.output).not.toContain("no-hand-rolled-list-row");
   });
+
+  it("leaves the #2619 parent start page todo list alone", async () => {
+    const result = await lintSource(
+      `const ChevronRight = () => null;
+      export const Probe = () => <button type="button" className="flex w-full">Anna<ChevronRight /></button>;`,
+      "src/components/parent/start/todo-list.tsx",
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-nav-row");
+  });
 });
 
 describe.concurrent("ui-kit/no-own-spinner (#5588)", () => {

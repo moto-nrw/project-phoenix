@@ -48,7 +48,7 @@ describe("TodoList", () => {
     expect(screen.queryByText("Offener Punkt 6")).not.toBeInTheDocument();
   });
 
-  it("markiert ungelesene Einträge über den Zustand der Navigationszeile", () => {
+  it("markiert ungelesene Einträge am Icon und lässt die Zeile im Ruhezustand weiß", () => {
     render(
       <NextIntlClientProvider locale="de" messages={deMessages}>
         <TodoList items={[{ ...items[0]!, unread: true }]} />
@@ -58,15 +58,10 @@ describe("TodoList", () => {
     const row = screen.getByRole("link", {
       name: /Ungelesen.*Offener Punkt 1/,
     });
-    const title = screen.getByText("Offener Punkt 1");
+    const indicator = screen.getByTestId("todo-unread-indicator");
 
     expect(row).not.toHaveClass("bg-gray-50");
     expect(row).toHaveClass("hover:bg-gray-50", "active:bg-gray-100");
-    expect(row).toHaveTextContent("Ungelesen: Offener Punkt 1");
-    expect(title).toHaveClass("font-semibold");
-    expect(row.querySelector("svg.h-4")).toHaveClass("hidden", "sm:block");
-    expect(
-      screen.queryByTestId("todo-unread-indicator"),
-    ).not.toBeInTheDocument();
+    expect(indicator).toHaveClass("bg-moto-blue", "border-2", "border-white");
   });
 });

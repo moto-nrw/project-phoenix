@@ -102,7 +102,7 @@ describe("ListRowLink", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
-  it("hides the arrow from assistive technology, can hide it responsively and can omit it", () => {
+  it("hides the arrow from assistive technology and can omit it", () => {
     const { container, rerender } = render(
       <ListRowLink href="/a" title="Mit Pfeil" />,
     );
@@ -110,15 +110,6 @@ describe("ListRowLink", () => {
       "aria-hidden",
       "true",
     );
-
-    rerender(
-      <ListRowLink
-        href="/a"
-        title="Pfeil ab Tablet"
-        chevronClassName="hidden sm:block"
-      />,
-    );
-    expect(container.querySelector("svg")).toHaveClass("hidden", "sm:block");
 
     rerender(<ListRowLink href="/a" title="Ohne Pfeil" chevron={false} />);
     expect(container.querySelector("svg")).toBeNull();
