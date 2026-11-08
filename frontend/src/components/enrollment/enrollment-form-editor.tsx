@@ -62,8 +62,7 @@ import {
 import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
-import { TILE_CARD_SURFACE, TileCard } from "~/components/ui/tile-card";
-import { cn } from "~/lib/utils";
+import { TileCard } from "~/components/ui/tile-card";
 import { Textarea } from "~/components/ui/textarea";
 import { BackAction } from "~/components/ui/back-link";
 import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
@@ -133,14 +132,6 @@ import { SpinnerIcon } from "~/components/ui/icons";
 import { Checkbox } from "~/components/ui/checkbox";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
-
-// Die Vorschau-Kachel öffnet einen neuen Tab. TileCard reicht `target` nicht
-// durch, darum trägt der Link die Kachelfläche selbst, mit dem Polster der
-// TileCard (#6137).
-const PREVIEW_TAB_TILE_CLASS = cn(
-  TILE_CARD_SURFACE,
-  "flex cursor-pointer items-start gap-3 p-5 max-sm:p-4 compact:p-4",
-);
 
 const structuredFieldTypes = new Set<FormFieldType>([
   "phone_list",
@@ -1178,7 +1169,7 @@ export function EnrollmentFormEditor({
       <FieldErrorContext.Provider value={fieldError}>
         <div ref={builderRef} className="flex flex-col space-y-5">
           <SectionCard padding="none">
-            <div className="border-b border-gray-100 px-5 py-3 max-sm:px-4">
+            <div className="compact:px-4 border-b border-gray-100 px-5 py-3 max-sm:px-4">
               <BackAction
                 onClick={requestBackToOverview}
                 disabled={saving || hasPendingLegalDocumentUpload}
@@ -1186,7 +1177,7 @@ export function EnrollmentFormEditor({
               />
             </div>
             <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-              <div className="space-y-6 p-5 max-sm:p-4">
+              <div className="compact:p-4 space-y-6 p-5 max-sm:p-4">
                 {/* Ein Neuladen nach dem Speichern kann scheitern; der Entwurf
                 bleibt dann stehen. */}
                 <LoadErrorAlert error={loadError} />
@@ -1334,7 +1325,7 @@ export function EnrollmentFormEditor({
                 </section>
               </div>
 
-              <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
+              <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
                 <FormPreview
                   fields={fields}
                   coreRequirements={coreRequirements}
@@ -1407,7 +1398,7 @@ function EnrollmentFormsOverview({
           dorthin, statt über dem Kartenrand zu enden. */}
       <SectionCard padding="none" className="flex flex-col">
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="space-y-6 p-5 max-sm:p-4">
+          <div className="compact:p-4 space-y-6 p-5 max-sm:p-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
@@ -1456,7 +1447,7 @@ function EnrollmentFormsOverview({
             </section>
           </div>
 
-          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
+          <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <OverviewGuide
               templateCount={templates.length}
               assignedTemplateCount={assignedTemplateCount}
@@ -1740,10 +1731,10 @@ function FormTemplateDetail({
       <SectionCard padding="none" className="flex flex-col">
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div>
-            <div className="border-b border-gray-100 px-5 py-3 max-sm:px-4">
+            <div className="compact:px-4 border-b border-gray-100 px-5 py-3 max-sm:px-4">
               <BackAction onClick={onBack} label="Zurück zur Übersicht" />
             </div>
-            <div className="space-y-5 p-5 max-sm:p-4">
+            <div className="compact:p-4 space-y-5 p-5 max-sm:p-4">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">
@@ -1812,7 +1803,7 @@ function FormTemplateDetail({
             </div>
           </div>
 
-          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
+          <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <div className="sticky top-6 space-y-4">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
@@ -1852,7 +1843,7 @@ function FormTemplateDetail({
                 )}
                 target="_blank"
                 rel="noreferrer"
-                className={PREVIEW_TAB_TILE_CLASS}
+                className="moto-content-surface moto-hover-elevated flex items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -3357,7 +3348,7 @@ function FormPreview({
               href={previewHref}
               target="_blank"
               rel="noreferrer"
-              className={PREVIEW_TAB_TILE_CLASS}
+              className="moto-content-surface moto-hover-elevated flex items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
