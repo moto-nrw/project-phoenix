@@ -465,7 +465,7 @@ function PhoneItem({ phone }: Readonly<{ phone: PhoneNumber }>) {
         <Phone className="h-4 w-4" />
         <span>{getPhoneLabel(phone)}</span>
         {phone.isPrimary && (
-          <span className="ml-1 rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-700">
+          <span className="ml-1 rounded bg-gray-100 px-1 py-0.5 text-xs font-medium text-gray-700">
             Primär
           </span>
         )}

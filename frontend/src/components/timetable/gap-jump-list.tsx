@@ -129,7 +129,7 @@ export function GapJumpList({
                     <span className="min-w-0 flex-1 truncate text-xs font-semibold text-gray-900">
                       {gap.title}
                     </span>
-                    <span className="shrink-0 text-[11px] text-gray-500 tabular-nums">
+                    <span className="shrink-0 text-xs text-gray-500 tabular-nums">
                       {gap.startTime}
                     </span>
                   </div>
@@ -144,7 +144,7 @@ export function GapJumpList({
                         hasCoveragePair ? gap.plannedStaffCount : undefined
                       }
                     />
-                    <span className="text-[11px] text-gray-400 tabular-nums">
+                    <span className="text-xs text-gray-400 tabular-nums">
                       {formatDate(gap.date)}
                     </span>
                   </div>

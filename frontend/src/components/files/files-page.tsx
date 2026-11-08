@@ -178,7 +178,7 @@ export function FilesPage() {
               </span>
               <span
                 className={cn(
-                  "flex items-center gap-1 text-[11px]",
+                  "flex items-center gap-1 text-xs",
                   active ? "text-gray-300" : "text-gray-500",
                 )}
               >

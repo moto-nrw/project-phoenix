@@ -223,7 +223,7 @@ export default function NfcQuickstartPage() {
                       className="text-moto-green-strong h-5 w-5"
                       aria-hidden="true"
                     />
-                    <p className="mt-3 text-xs leading-5 font-medium text-gray-700 print:mt-2 print:text-[11px] print:leading-4">
+                    <p className="mt-3 text-xs leading-5 font-medium text-gray-700 print:mt-2 print:leading-4">
                       {hint}
                     </p>
                   </InsetPanel>
@@ -272,7 +272,7 @@ export default function NfcQuickstartPage() {
               </div>
             </InsetPanel>
 
-            <footer className="mt-auto flex items-end justify-between gap-6 pt-5 text-xs text-gray-500 print:pt-3 print:text-[11px]">
+            <footer className="mt-auto flex items-end justify-between gap-6 pt-5 text-xs text-gray-500 print:pt-3">
               <p className="max-w-[620px]">
                 Für OGS-Teams im Alltag. Persönliche Daten werden nicht auf den
                 Armbändern gespeichert.

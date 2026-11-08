@@ -17,7 +17,6 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import {
   lintSource as lintProbe,
   removeProbeDirectories,
@@ -361,15 +360,24 @@ describe.concurrent("ui-kit/no-tiny-text", () => {
     expect(output).toContain("ui-kit(no-tiny-text)");
   });
 
-  it("rejects an additional legacy token on the same baseline line", async () => {
+  it("rejects tiny text in a formerly baselined kit file (hard-zero, #6183)", async () => {
     const result = await lintSource(
-      `${"\n".repeat(31)}const className = "text-[10px] text-[10px]";`,
+      `${"\n".repeat(31)}const className = "text-[10px] text-[9px]";`,
       "src/components/ui/avatar.tsx",
     );
     const output = result.output;
 
     expect(result.status).toBe(1);
-    expect(output.match(/ui-kit\(no-tiny-text\)/g)).toHaveLength(1);
+    expect(output.match(/ui-kit\(no-tiny-text\)/g)).toHaveLength(2);
+  });
+
+  it("allows the kit floor text-xs", async () => {
+    const result = await lintSource(
+      'export const className = "text-xs text-gray-500";',
+      "src/components/timetable/instance-block.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-tiny-text)");
   });
 });
 
@@ -3611,16 +3619,13 @@ describe.concurrent("ui-kit surface rules are hard-zero (#5594)", () => {
   });
 });
 
-describe.concurrent("ui-kit/no-important-override baseline (#5581)", () => {
-  it("fails a second override in a baselined file", async () => {
+describe.concurrent("ui-kit/no-important-override hard-zero (#6183)", () => {
+  it("fails a single override in a formerly baselined file", async () => {
     const result = await lintSource(
       `
       import { Input } from "~/components/ui/input";
       function Probe() {
-        return <>
-          <Input aria-label="A" className="!h-11" />
-          <Input aria-label="B" className="px-3!" />
-        </>;
+        return <Input aria-label="A" className="!h-11" />;
       }
       void Probe;
     `,
@@ -3628,29 +3633,9 @@ describe.concurrent("ui-kit/no-important-override baseline (#5581)", () => {
     );
 
     expect(result.status).toBe(1);
-    expect(result.output).toContain("ui-kit(no-important-override)");
-  });
-});
-
-describe("ui-kit/no-important-override baseline is current (#5581)", () => {
-  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken,
-  // sonst könnte die nächste Änderung den Abbau unbemerkt wieder auffüllen.
-  it("records exactly the findings each baselined file still has", async () => {
-    const previous = process.env.UI_KIT_IMPORTANT_OVERRIDE;
-    process.env.UI_KIT_IMPORTANT_OVERRIDE = "count";
-    try {
-      for (const [file, expected] of Object.entries(
-        importantOverrideBaseline,
-      )) {
-        const result = await lintSource(readFileSync(file, "utf8"), file);
-        const found =
-          result.output.match(/ui-kit\(no-important-override\)/g)?.length ?? 0;
-        expect({ file, found }).toEqual({ file, found: expected });
-      }
-    } finally {
-      if (previous === undefined) delete process.env.UI_KIT_IMPORTANT_OVERRIDE;
-      else process.env.UI_KIT_IMPORTANT_OVERRIDE = previous;
-    }
+    expect(
+      result.output.match(/ui-kit\(no-important-override\)/g),
+    ).toHaveLength(1);
   });
 });
 

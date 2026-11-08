@@ -10,7 +10,11 @@ import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
  * `repeating-linear-gradient` hatch below — see plan-design-guards.test.ts.
  */
 
-type PlanBlockSize = "default" | "compact";
+/**
+ * `flush`: the compact one-line block without vertical padding, for a block
+ * whose height comes from a short time span and holds no more than the line.
+ */
+type PlanBlockSize = "default" | "compact" | "flush";
 type PlanBlockStatus = "default" | "hatched" | "cancelled";
 
 interface PlanBlockProps {
@@ -91,6 +95,7 @@ const HATCH_BACKGROUND_IMAGE =
 const SIZE_PADDING_CLASS: Record<PlanBlockSize, string> = {
   default: "px-2.5 py-1.5",
   compact: "px-2 py-1",
+  flush: "px-2 py-0",
 };
 
 export function PlanBlock({
@@ -144,14 +149,14 @@ export function PlanBlock({
   }`;
 
   const content =
-    size === "compact" ? (
+    size !== "default" ? (
       <span className={`block min-w-0 ${compactInline ? "@container" : ""}`}>
         <span className="flex min-w-0 items-center gap-1.5">
           {/* Mit Zusatz geht die Zeile an Titel und Zusatz; in einer schmalen
               Spalte entfällt die Zeit, sie steht im Tooltip. In einer sehr
               schmalen Spalte entfällt stattdessen der Zusatz. */}
           <span
-            className={`shrink-0 text-[11px] font-medium text-gray-500 tabular-nums ${compactInline ? "@min-[5rem]:@max-[11rem]:hidden" : ""}`}
+            className={`shrink-0 text-xs font-medium text-gray-500 tabular-nums ${compactInline ? "@min-[5rem]:@max-[11rem]:hidden" : ""}`}
           >
             {timeRange}
           </span>
@@ -172,7 +177,7 @@ export function PlanBlock({
       <span className="block min-w-0">
         {/* Einzeilig: eine umbrechende Zeitspanne kostet in schmalen Spalten
             die Zeile, die Raum oder Namen tragen sollte (#3817). */}
-        <span className="block truncate text-[11px] font-medium text-gray-500 tabular-nums">
+        <span className="block truncate text-xs font-medium text-gray-500 tabular-nums">
           {timeRange}
         </span>
         <span className={labelClassName}>{label}</span>

@@ -6,7 +6,6 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -41,8 +40,8 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 // Four more rules belong to the tenant page scaffold (#2619):
 //
-//   ui-kit/no-tiny-text             — sub-12px text utilities; shrink-only
-//                                     baseline
+//   ui-kit/no-tiny-text             — sub-12px text utilities; hard-zero
+//                                     since #6183
 //   ui-kit/no-tenant-kicker         — no mini-heading above a title outside parents
 //   ui-kit/no-hand-rolled-page-card — no `moto-content-surface … rounded-2xl`
 //                                     spelled out outside the kit (all of
@@ -163,13 +162,10 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 //   ui-kit/no-important-override   — no `!` utility on a kit component; the
 //                                     missing prop goes into the kit
-//                                     (shrink-only baseline per file)
+//                                     (hard-zero since #6183)
 //   ui-kit/no-section-card-bleed   — no negative margin in a SectionCard
 //                                     bodyClassName; use flush or footer
 //
-// The tiny-text baseline below is SHRINK-ONLY: matches may be removed when
-// a file is migrated, but never added.
-
 // Test/stories files are exempt from the class-string rules. A deliberate
 // non-card match stays behind `oxlint-disable-next-line` with a reason; there
 // is no baseline to grow.
@@ -208,34 +204,6 @@ function fileKey(context) {
   const posix = raw.replaceAll("\\", "/");
   const idx = posix.lastIndexOf("/src/");
   return idx === -1 ? posix : posix.slice(idx + 1);
-}
-
-/** Parse `token@line` rows into immutable per-file occurrence snapshots. */
-function parseLocationBaseline(source) {
-  return new Map(
-    source
-      .trim()
-      .split("\n")
-      .map((row) => {
-        const [file, encoded] = row.split("|");
-        const occurrences = new Map();
-        for (const location of encoded.split(" ")) {
-          occurrences.set(location, (occurrences.get(location) ?? 0) + 1);
-        }
-        return [file, occurrences];
-      }),
-  );
-}
-
-function isBaselineMatch(baseline, key, match, line, seenOccurrences) {
-  const location = `${match}@${line}`;
-  const seen = seenOccurrences.get(location) ?? 0;
-  seenOccurrences.set(location, seen + 1);
-  return seen < (baseline.get(key)?.get(location) ?? 0);
-}
-
-function restrictMatchBaseline(baselineFiles, baseline) {
-  return new Map([...baseline].filter(([file]) => baselineFiles.has(file)));
 }
 
 function collectStaticStrings(node, chunks, seen = new WeakSet()) {
@@ -559,13 +527,11 @@ function classCombinations(
 }
 
 /**
- * Builds a rule that reports string/template-literal chunks matching `regex`.
- * Hard-zero unless a shrink-only per-file `baseline` is given; then the
- * individual legacy matches recorded there are tolerated.
+ * Builds a hard-zero rule that reports string/template-literal chunks
+ * matching `regex`.
  */
 function makeClassStringRule({
   regex,
-  baseline = new Map(),
   skipUiKit,
   onlyUiKit = false,
   skipFiles = [],
@@ -587,31 +553,10 @@ function makeClassStringRule({
       if (skipUiKit && key.startsWith(UI_KIT_DIR)) return {};
       if (onlyUiKit && !key.startsWith(UI_KIT_DIR)) return {};
       if (skipFiles.includes(key)) return {};
-      const seenBaselineOccurrences = new Map();
       const check = (node, text) => {
         regex.lastIndex = 0;
         for (const match of text.matchAll(regex)) {
-          // Nur die Tiny-Text-Regel hat eine Standort-Baseline. Die übrigen
-          // Hard-zero-Regeln brauchen keine Quellposition und bleiben damit
-          // auch mit den absichtlich schlanken AST-Knoten ihrer Unit-Tests
-          // prüfbar.
-          const baselineMatches = baseline.get(key);
-          const line =
-            baselineMatches && node.loc
-              ? node.loc.start.line +
-                (text.slice(0, match.index).match(/\n/g)?.length ?? 0)
-              : undefined;
-          if (
-            !isBaselineMatch(
-              baseline,
-              key,
-              match[0],
-              line,
-              seenBaselineOccurrences,
-            )
-          ) {
-            context.report({ node, messageId, data: { match: match[0] } });
-          }
+          context.report({ node, messageId, data: { match: match[0] } });
         }
       };
 
@@ -1505,84 +1450,17 @@ const noWhiteOnWarmFill = {
 // ui-kit/no-tiny-text — Schrift unter 12 px (text-[9px], text-[10px],
 // text-[11px]) ist unter dem Typo-Boden des Portals: text-xs (12 px) ist die
 // Untergrenze und selbst die ist Versalien-Labels vorbehalten, nie Werten,
-// Saetzen oder Bedienelementen (TENANT-PAGE-SPEC, "Typo-Boden"). Der Bestand
-// ist als Shrink-only-Baseline eingefroren; neue Winzschrift kommt nicht dazu.
+// Saetzen oder Bedienelementen (TENANT-PAGE-SPEC, "Typo-Boden"). Hard-zero
+// seit #6183: der Bestand steht auf text-xs.
 const TINY_TEXT_RE = /\btext-\[(?:9|10|11)px\]/g;
-
-const TINY_TEXT_BASELINE_FILES = new Set([
-  "src/app/help/nfc/erste-schritte/page.tsx",
-  "src/app/operator/provisioning/soft-delete-shared.tsx",
-  "src/components/dashboard/header/reminders-bell.tsx",
-  "src/components/enrollment/admin-enrollments-list.tsx",
-  "src/components/files/files-page.tsx",
-  "src/components/guardians/guardian-list.tsx",
-  "src/components/parent/calendar/parent-calendar-page.tsx",
-  "src/components/staff/absence-request-row.tsx",
-  "src/components/staff/dienstplan-resource-grid.tsx",
-  "src/components/time-tracking/vacation-request-modal.tsx",
-  "src/components/timetable/event-form/multi-select-field.tsx",
-  "src/components/timetable/event-form/step-termin.tsx",
-  "src/components/timetable/gap-jump-list.tsx",
-  "src/components/timetable/instance-block.tsx",
-  "src/components/timetable/instance-detail-modal.tsx",
-  "src/components/timetable/month-planner-grid.tsx",
-  "src/components/timetable/period-switcher-dropdown.tsx",
-  "src/components/timetable/staff-pool-slide-over.tsx",
-  "src/components/timetable/substitution-person-card.tsx",
-  "src/components/timetable/substitution-slide-over.tsx",
-  "src/components/timetable/template-card.tsx",
-  "src/components/timetable/vertretung-day-list.tsx",
-  "src/components/timetable/weekly-calendar-grid.tsx",
-  "src/components/ui/avatar.tsx",
-  "src/components/ui/planning/coverage-indicator.tsx",
-  "src/components/ui/location-badge.tsx",
-  "src/components/ui/notification-badge.tsx",
-  "src/components/ui/planning/plan-block.tsx",
-  "src/components/ui/planning/plan-legend.tsx",
-  "src/components/ui/presence-badge.tsx",
-]);
-
-const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@226 text-[11px]@275
-src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@238
-src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@959
-src/components/files/files-page.tsx|text-[11px]@181
-src/components/guardians/guardian-list.tsx|text-[10px]@468
-src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@717 text-[11px]@783
-src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@489 text-[11px]@585 text-[11px]@594 text-[11px]@601
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@372
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[11px]@312
-src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
-src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
-src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1388 text-[11px]@1541 text-[11px]@1669
-src/components/timetable/month-planner-grid.tsx|text-[11px]@142 text-[11px]@151 text-[11px]@172 text-[10px]@238
-src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[11px]@255 text-[10px]@321 text-[11px]@398 text-[11px]@405
-src/components/timetable/staff-pool-slide-over.tsx|text-[11px]@482
-src/components/timetable/substitution-person-card.tsx|text-[11px]@59 text-[11px]@338 text-[11px]@345 text-[11px]@352 text-[11px]@360
-src/components/timetable/substitution-slide-over.tsx|text-[11px]@744
-src/components/timetable/template-card.tsx|text-[10px]@209
-src/components/timetable/vertretung-day-list.tsx|text-[11px]@348 text-[11px]@388 text-[11px]@395 text-[11px]@416 text-[11px]@422
-src/components/timetable/weekly-calendar-grid.tsx|text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
-src/components/ui/avatar.tsx|text-[10px]@32
-src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
-src/components/ui/location-badge.tsx|text-[10px]@282
-src/components/ui/notification-badge.tsx|text-[10px]@18
-src/components/ui/planning/plan-block.tsx|text-[11px]@154 text-[11px]@175
-src/components/ui/planning/plan-legend.tsx|text-[11px]@106
-src/components/ui/presence-badge.tsx|text-[10px]@200
-`);
 
 const noTinyText = makeClassStringRule({
   regex: TINY_TEXT_RE,
-  baseline: restrictMatchBaseline(TINY_TEXT_BASELINE_FILES, TINY_TEXT_BASELINE),
   skipUiKit: false,
   docs: "Disallow sub-12px text utilities; the portal type floor is text-xs, and only for uppercase labels.",
   messageId: "tinyText",
   message:
-    "'{{match}}' liegt unter dem Typo-Boden (12 px). Werte, Saetze und Bedienelemente sind text-sm oder groesser; text-xs nur fuer Versalien-Labels. Die Baseline in scripts/oxlint-plugin-ui-kit.mjs ist shrink-only.",
+    "'{{match}}' liegt unter dem Typo-Boden (12 px). Werte, Saetze und Bedienelemente sind text-sm oder groesser; text-xs nur fuer Versalien-Labels. Keine Ausnahme (hard-zero seit #6183).",
 });
 // ui-kit/no-tenant-kicker — die Mini-Überschrift über einer Überschrift ist
 // außerhalb des Elternportals abgeschafft (sie trug sechs verschiedene
@@ -3892,8 +3770,9 @@ const noControlHeightOverride = {
 // wieder auf und stimmte auf dem Telefon (16 px Polster) schon nicht mehr.
 // Dafür gibt es `flush` und `footer`. Hart null.
 //
-// no-important-override startet mit einer shrink-only Baseline je Datei
-// (ui-kit-important-override-baseline.mjs).
+// no-important-override ist seit #6183 hard-zero: das Hilfe-Suchfeld nimmt
+// `Input controlSize="touch"`, der kurze Dienstplan-Block `PlanBlock
+// size="flush"`.
 
 const KIT_IMPORT_RE = /^(?:~|@)\/components\/ui\//;
 const IMPORTANT_OWNED_ELSEWHERE = new Set(["Button", "ButtonLink"]);
@@ -3958,7 +3837,6 @@ function makeKitClassRule({
   messageId,
   message,
   detect,
-  baseline = {},
 }) {
   return {
     meta: {
@@ -3978,10 +3856,6 @@ function makeKitClassRule({
           kitNames = kitComponentNames(node);
         },
         "Program:exit"() {
-          // count: jeden Fund melden, damit der Test die Baseline gegen den
-          // Ist-Stand prüfen kann (shrink-only, wie bei der Button-Ratsche).
-          const countMode = process.env.UI_KIT_IMPORTANT_OVERRIDE === "count";
-          if (!countMode && findings.length <= (baseline[key] ?? 0)) return;
           for (const node of findings) context.report({ node, messageId });
         },
         VariableDeclarator(node) {
@@ -4013,7 +3887,6 @@ const noImportantOverride = makeKitClassRule({
   message:
     'Kein `!` an einer Kit-Komponente: die fehlende Prop im Kit ergänzen (SectionCard: padding="none", flush, footer) statt sie von außen zu überstimmen (#5581, .claude/rules/frontend-ui-kit.md).',
   detect: ({ tokens }) => tokens.some(isImportantUtility),
-  baseline: importantOverrideBaseline,
 });
 
 const noSectionCardBleed = makeKitClassRule({

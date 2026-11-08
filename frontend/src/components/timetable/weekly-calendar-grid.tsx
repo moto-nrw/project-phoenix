@@ -458,7 +458,7 @@ export function WeeklyCalendarGrid({
                       </span>
                       {isToday ? (
                         <span
-                          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-xs"
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white tabular-nums sm:h-6 sm:w-6"
                           aria-label={formatDayHeader(day)}
                         >
                           {day.getDate()}
@@ -481,7 +481,7 @@ export function WeeklyCalendarGrid({
                         className="w-full justify-center text-center"
                       />
                     ) : planningDisabled ? (
-                      <span className="text-[10px] font-medium text-gray-500">
+                      <span className="text-xs font-medium text-gray-500">
                         Nicht planbar
                       </span>
                     ) : null}
@@ -516,7 +516,7 @@ export function WeeklyCalendarGrid({
                 {hours.slice(0, -1).map((hour) => (
                   <div
                     key={hour}
-                    className="flex items-start justify-end px-1 pt-1 text-[10px] font-medium text-gray-400 sm:px-2 sm:text-[11px]"
+                    className="flex items-start justify-end px-1 pt-1 text-xs font-medium text-gray-400 sm:px-2"
                     style={{ height: `${hourHeightPx}px` }}
                   >
                     {String(hour).padStart(2, "0")}:00

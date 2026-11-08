@@ -479,7 +479,7 @@ function PoolEntryRow({
           </div>
           {metaParts.length > 0 && (
             <div
-              className={`mt-0.5 flex items-center gap-1 text-[11px] ${
+              className={`mt-0.5 flex items-center gap-1 text-xs ${
                 danger ? "text-moto-red-strong" : "text-gray-500"
               }`}
             >

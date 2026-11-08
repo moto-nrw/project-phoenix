@@ -16,7 +16,7 @@ describe("PlanLegend", () => {
     );
 
     const label = screen.getByText("Arbeit am Kind");
-    expect(label).toHaveClass("text-[11px]", "text-gray-600");
+    expect(label).toHaveClass("text-xs", "text-gray-600");
     expect(screen.getByText("Vorbereitung")).toBeInTheDocument();
   });
 
