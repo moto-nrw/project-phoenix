@@ -29,8 +29,11 @@ var (
 		{"branding.letterhead_text", "Ganztag im Quartier e.V.\nAm Markt 4\n49143 Bissendorf"},
 		{"branding.footer_text", "Vorstand: Anna Brandt, Jonas Weber · Amtsgericht Osnabrück VR 200123 · Steuernummer 66/270/01234"},
 	}
-	seedTraegerContact      = map[string]any{"name": "Petra Lindner", "phone": "+49 5402 1234-0", "email": "buero@ganztag-quartier.example.test"}
-	seedTraegerBankAccounts = []map[string]any{
+	seedTraegerContact = map[string]any{"name": "Petra Lindner", "phone": "+49 5402 1234-0", "email": "buero@ganztag-quartier.example.test"}
+	// Withdrawals go to their own mailbox; the phone stays the contact
+	// person's (#6200), so the demo shows both sources.
+	seedTraegerWithdrawalContact = map[string]any{"phone": "", "email": "widerruf@ganztag-quartier.example.test"}
+	seedTraegerBankAccounts      = []map[string]any{
 		{"label": "Elternbeiträge", "account_holder": "Ganztag im Quartier e.V.", "iban": "DE89 3704 0044 0532 0130 00", "bic": "COBADEFFXXX", "bank_name": "Commerzbank", "is_default": true},
 		{"label": "Ferienbetreuung", "account_holder": "Ganztag im Quartier e.V.", "iban": "DE02 1203 0000 0000 2020 51", "bic": "BYLADEM1001", "bank_name": "Deutsche Kreditbank"},
 	}
@@ -51,6 +54,9 @@ func (seedTraegerMasterDataStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	if _, err := rt.Client.PutWithAuth(auth, "/traeger/master-data/contact", seedTraegerContact); err != nil {
 		return fmt.Errorf("set the Träger contact person: %w", err)
+	}
+	if _, err := rt.Client.PutWithAuth(auth, "/traeger/master-data/withdrawal-contact", seedTraegerWithdrawalContact); err != nil {
+		return fmt.Errorf("set the Träger withdrawal contact: %w", err)
 	}
 	logo, err := seedTraegerLogo()
 	if err != nil {

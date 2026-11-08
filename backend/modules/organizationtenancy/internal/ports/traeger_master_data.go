@@ -14,14 +14,19 @@ type TraegerMasterDataStore interface {
 	// FindMasterData reads the contact person, the logo description and the
 	// bank accounts (ordered like ListBankAccounts) in one statement; a
 	// Träger without a profile row has neither contact nor logo.
-	FindMasterData(ctx context.Context, organizationID int64) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, []organizationtenancy.TraegerBankAccount, error)
+	FindMasterData(ctx context.Context, organizationID int64) (organizationtenancy.TraegerProfile, error)
+	// FindDocumentContact reads the contact person and the withdrawal
+	// contact; a Träger without a profile row has neither.
+	FindDocumentContact(ctx context.Context, organizationID int64) (organizationtenancy.TraegerDocumentContact, error)
 	// LockProfile locks the row of the Träger until the end of the
 	// transaction; create makes it first where it is missing. Every change
 	// of the master data takes this lock first, so changes of one Träger run
 	// one after the other. A change that may be refused as not found passes
 	// create false and writes nothing before it decides.
-	LockProfile(ctx context.Context, organizationID int64, create bool) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, error)
+	// The profile it returns carries no bank accounts.
+	LockProfile(ctx context.Context, organizationID int64, create bool) (organizationtenancy.TraegerProfile, error)
 	SaveContact(ctx context.Context, organizationID, accountID int64, contact organizationtenancy.TraegerContact) error
+	SaveWithdrawalContact(ctx context.Context, organizationID, accountID int64, contact organizationtenancy.TraegerWithdrawalContact) error
 	SaveLogo(ctx context.Context, organizationID, accountID int64, logo domain.TraegerLogoWrite) (organizationtenancy.TraegerLogo, error)
 	ClearLogo(ctx context.Context, organizationID, accountID int64) error
 	// LogoImage reads the logo with its bytes; found is false without one.

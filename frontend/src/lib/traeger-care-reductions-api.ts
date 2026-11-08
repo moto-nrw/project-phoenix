@@ -37,6 +37,11 @@ export interface CareRule {
   readonly priceCents: number | null;
   readonly capCents: number | null;
   /**
+   * A sibling rule charges every further child the sibling prices of the
+   * price list (#6196) instead of a share, an amount or one price.
+   */
+  readonly tariffSiblingPrice?: boolean;
+  /**
    * A sibling rule counts the children the family stated and the
    * Abrechnung confirmed, siblings without a contract included (#5918).
    */
@@ -92,6 +97,7 @@ interface BackendRule {
   discount_cents: number | null;
   price_cents: number | null;
   cap_cents: number | null;
+  tariff_sibling_price?: boolean;
   counts_family_children?: boolean;
 }
 
@@ -102,6 +108,7 @@ interface BackendModule {
   module_name: string;
   ends_at: string;
   booked_weekdays: CareModule["bookedWeekdays"] | null;
+  booked_days_per_week?: number[] | null;
   contract_count: number;
 }
 
@@ -157,6 +164,7 @@ function ruleFromBackend(rule: BackendRule): CareRule {
     discountCents: rule.discount_cents,
     priceCents: rule.price_cents,
     capCents: rule.cap_cents,
+    tariffSiblingPrice: rule.tariff_sibling_price ?? false,
     countsFamilyChildren: rule.counts_family_children ?? false,
   };
 }
@@ -175,6 +183,7 @@ function ruleSetFromBackend(body: BackendRuleSet): CareRuleSet {
       moduleName: module.module_name,
       endsAt: module.ends_at,
       bookedWeekdays: module.booked_weekdays ?? [],
+      bookedDaysPerWeek: module.booked_days_per_week ?? [],
       contractCount: module.contract_count,
     })),
   };
@@ -221,6 +230,7 @@ function ruleBody(input: CareRuleInput) {
     discount_cents: input.discountCents,
     price_cents: input.priceCents,
     cap_cents: input.capCents,
+    tariff_sibling_price: input.tariffSiblingPrice ?? false,
     counts_family_children: input.countsFamilyChildren,
   };
 }

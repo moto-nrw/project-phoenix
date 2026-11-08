@@ -20,10 +20,12 @@ export default async function SchoolLayout({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const session = (await readPortalSessionSnapshot("school"))?.session ?? null;
+  const snapshot = await readPortalSessionSnapshot("school");
   return (
-    <SchoolProviders session={session}>
-      <SchoolAuthGuard>{children}</SchoolAuthGuard>
+    <SchoolProviders session={snapshot?.session ?? null}>
+      <SchoolAuthGuard notBooked={snapshot?.notBooked ?? false}>
+        {children}
+      </SchoolAuthGuard>
     </SchoolProviders>
   );
 }

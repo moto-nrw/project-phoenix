@@ -125,6 +125,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_price_lists",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_tariffs",
       "write_owner": "parent-billing"
     },

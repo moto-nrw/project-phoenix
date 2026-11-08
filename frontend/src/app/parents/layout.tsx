@@ -67,11 +67,13 @@ export default async function ParentLayout({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const session = (await readPortalSessionSnapshot("parent"))?.session ?? null;
+  const snapshot = await readPortalSessionSnapshot("parent");
   return (
     <NextIntlClientProvider>
-      <ParentProviders session={session}>
-        <ParentAuthGuard>{children}</ParentAuthGuard>
+      <ParentProviders session={snapshot?.session ?? null}>
+        <ParentAuthGuard notBooked={snapshot?.notBooked ?? false}>
+          {children}
+        </ParentAuthGuard>
       </ParentProviders>
     </NextIntlClientProvider>
   );

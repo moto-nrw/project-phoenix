@@ -1,6 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SessionFamilyState } from "./token-validation";
+
+const { familyState } = vi.hoisted(() => ({
+  familyState: vi.fn<() => Promise<SessionFamilyState>>(),
+}));
+vi.mock("./token-validation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./token-validation")>()),
+  sessionFamilyState: familyState,
+}));
+
 import { toBrowserSession, withBrowserSession } from "./browser-session";
 import type { ServerSession } from "./session-types";
+
+beforeEach(() => {
+  familyState.mockReset();
+  familyState.mockResolvedValue("unknown");
+});
 
 const serverSession = (): ServerSession => ({
   expires: "2099-01-01T00:00:00.000Z",
@@ -92,4 +107,25 @@ describe("withBrowserSession (#5005)", () => {
 
     expect(await response.json()).toEqual({ csrfToken: "csrf" });
   });
+
+  // #6187: the session route asks the family on every call; its answer
+  // marks an unbooked module and unmarks it once the school books it again,
+  // without waiting for the next renewal.
+  it.each([
+    ["notBooked", undefined, true],
+    ["live", true, undefined],
+    ["unknown", true, true],
+  ] as const)(
+    "a %s family, renewal marked %s: notBooked %s",
+    async (state, marked, expected) => {
+      familyState.mockResolvedValue(state);
+      const response = await answer({
+        ...serverSession(),
+        ...(marked ? { notBooked: true } : {}),
+      })(new Request("http://localhost/api/auth/session"));
+
+      const body = (await response.json()) as { notBooked?: boolean };
+      expect(body.notBooked).toBe(expected);
+    },
+  );
 });

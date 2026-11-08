@@ -232,6 +232,25 @@ type TraegerSender interface {
 	TraegerLetterhead(ctx context.Context, organizationID int64) (string, error)
 }
 
+// WithdrawalReach are the phone number and e-mail address the withdrawal
+// notice names next to the letterhead's address (#6200, Gestaltungshinweis
+// 2 zu Anlage 1 zu Art. 246a EGBGB): the Träger's own for withdrawals where
+// it set them, else its contact person's.
+type WithdrawalReach struct {
+	ContactPhone    string
+	ContactEmail    string
+	WithdrawalPhone string
+	WithdrawalEmail string
+}
+
+// TraegerSigningSender is the sender of the signature. Next to the
+// letterhead it reads the withdrawal reach in the caller's Träger
+// transaction, without an account: the public signing link has none.
+type TraegerSigningSender interface {
+	TraegerSender
+	WithdrawalReach(ctx context.Context, organizationID int64) (WithdrawalReach, error)
+}
+
 // TraegerOrganizations lists the active Träger, outside any transaction.
 type TraegerOrganizations interface {
 	ActiveTraegerIDs(ctx context.Context) ([]int64, error)

@@ -75,6 +75,7 @@ func (rs *MasterDataResource) TraegerRouter(protectedTraegerRoutes func(chi.Rout
 		manage := r.With(rs.requireManage, withTx)
 		manage.Delete("/logo", rs.removeLogo)
 		manage.Put("/contact", rs.updateContact)
+		manage.Put("/withdrawal-contact", rs.updateWithdrawalContact)
 		manage.Post("/bank-accounts", rs.createBankAccount)
 		manage.Put("/bank-accounts/{id}", rs.updateBankAccount)
 		manage.Delete("/bank-accounts/{id}", rs.deleteBankAccount)
@@ -97,6 +98,16 @@ type ContactRequest struct {
 
 // Bind accepts the body; the Owner validates it.
 func (req *ContactRequest) Bind(*http.Request) error { return nil }
+
+// WithdrawalContactRequest is the body of PUT
+// /traeger/master-data/withdrawal-contact (#6200).
+type WithdrawalContactRequest struct {
+	Phone string `json:"phone"`
+	Email string `json:"email"`
+}
+
+// Bind accepts the body; the Owner validates it.
+func (req *WithdrawalContactRequest) Bind(*http.Request) error { return nil }
 
 // BankAccountRequest is the body of POST /traeger/master-data/bank-accounts
 // and PUT /traeger/master-data/bank-accounts/{id}.
@@ -268,6 +279,24 @@ func (rs *MasterDataResource) updateContact(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	common.Respond(w, r, http.StatusOK, contact, "Träger contact saved successfully")
+}
+
+func (rs *MasterDataResource) updateWithdrawalContact(w http.ResponseWriter, r *http.Request) {
+	organizationID, accountID, ok := session(w, r)
+	if !ok {
+		return
+	}
+	req := &WithdrawalContactRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	contact, err := rs.masterData.UpdateWithdrawalContact(r.Context(), organizationID, accountID, organizationtenancy.TraegerWithdrawalContact(*req))
+	if err != nil {
+		renderMasterDataError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, contact, "Träger withdrawal contact saved successfully")
 }
 
 func (rs *MasterDataResource) createBankAccount(w http.ResponseWriter, r *http.Request) {

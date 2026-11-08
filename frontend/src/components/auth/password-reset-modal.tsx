@@ -16,6 +16,7 @@ import { Input } from "~/components/ui/input";
 import type { DatabaseFormErrorPath } from "~/components/database/database-form";
 import { wireErrorCode } from "~/lib/api-error";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
+import { looksLikeEmail } from "~/lib/email-format";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordReset" });
@@ -43,6 +44,8 @@ interface PasswordResetModalCopy {
   readonly title: string;
   readonly description: string;
   readonly emailLabel: string;
+  /** Shown at the field when the address is empty or not an address. */
+  readonly invalidEmail: string;
   readonly cancel: string;
   readonly submit: string;
   readonly submitting: string;
@@ -64,6 +67,7 @@ const DEFAULT_PASSWORD_RESET_MODAL_COPY: Required<PasswordResetModalCopy> = {
   description:
     "Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link zum Zurücksetzen Ihres Passworts.",
   emailLabel: "E-Mail-Adresse",
+  invalidEmail: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
   cancel: "Abbrechen",
   submit: "Link senden",
   submitting: "Wird gesendet...",
@@ -78,7 +82,6 @@ const DEFAULT_PASSWORD_RESET_MODAL_COPY: Required<PasswordResetModalCopy> = {
     `Einen neuen Link können Sie in ${countdown} anfordern.`,
 };
 
-// Email Icon Component
 const EmailIcon = ({ className }: { className?: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -97,7 +100,6 @@ const EmailIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// Success Check Icon Component
 const SuccessCheckIcon = ({ className }: { className?: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -183,7 +185,6 @@ export function PasswordResetModal({
   const rateLimitActive =
     rateLimitUntil !== null && rateLimitUntil > Date.now();
 
-  // Reset state when modal closes
   const handleClose = useCallback(() => {
     setEmail("");
     clearPathError();
@@ -214,9 +215,14 @@ export function PasswordResetModal({
   const submit = async () => {
     const path = errorPath;
     path.clear();
+    const address = email.trim();
+    if (!looksLikeEmail(address)) {
+      path.invalid(copy.invalidEmail, { email: copy.invalidEmail });
+      return;
+    }
     setIsLoading(true);
     try {
-      await onRequestReset(email);
+      await onRequestReset(address);
       setIsSuccess(true);
     } catch (err) {
       const apiError = err as ApiError | undefined;
@@ -260,7 +266,6 @@ export function PasswordResetModal({
       <div className="text-center">
         {isSuccess ? (
           <>
-            {/* Success State */}
             <SuccessCheckIcon className="text-moto-green-strong mx-auto mb-4 h-12 w-12" />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 sm:text-4xl">
               {copy.successTitle}
@@ -275,7 +280,6 @@ export function PasswordResetModal({
           </>
         ) : (
           <>
-            {/* Request Form State */}
             <EmailIcon className="mx-auto mb-4 h-12 w-12 text-gray-700" />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 sm:text-4xl">
               {copy.title}

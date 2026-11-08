@@ -1,16 +1,19 @@
 "use client";
 
-// Neue Monatspreise einer Schule ab einem Monat (#4684). Je Modul und
-// Wochentag ein Preis für den ganzen Monat. Ein leeres Feld setzt ab diesem
-// Monat keinen Preis; dann gilt der Preis davor, falls es einen gibt. Ein Monat, den schon eine Rechnung abrechnet, steht
-// nicht zur Wahl.
+// Neue Monatspreise einer Schule ab einem Monat (#4684, #6196). Je Modul
+// wählt das Büro die Preisform: „Je Wochentag“ (Summe der gebuchten Tage)
+// oder „Nach Tagen je Woche“ (Staffel, 1 bis 7 Tage). Neben jedem Preis für
+// das 1. Kind steht der Preis für jedes weitere Kind; leer heißt: derselbe
+// Preis. Ein leeres Feld für das 1. Kind setzt ab diesem Monat keinen Preis;
+// dann gilt der Preis davor, falls es einen gibt. Beitragsfreie Monate
+// (zum Beispiel August) gelten für die ganze Preisliste der Schule.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormFieldset } from "~/components/ui/form-fieldset";
 import { FormModal } from "~/components/ui/form-modal";
-import { Input } from "~/components/ui/input";
+import { ToggleChip } from "~/components/ui/toggle-chip";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -21,14 +24,21 @@ import {
 } from "~/lib/traeger-care-billing-api";
 import {
   addMonths,
-  WEEKDAY_LONG,
-  WEEKDAY_SHORT,
-  endsAtLabel,
   formatMonth,
+  freeMonthsAt,
+  monthName,
+  monthShort,
   monthsFromTo,
   priceRowsAt,
   shownWeekdays,
 } from "./care-billing-format";
+import {
+  CarePriceModuleEditor,
+  EMPTY_MODULE_DRAFT,
+  type ModuleDraft,
+  draftColumns,
+  priceFieldKey,
+} from "./care-price-module-editor";
 import { centsToEuroInput, euroInputToCents } from "./holiday-period-model";
 
 const logger = createLogger({ component: "CarePriceListModal" });
@@ -37,10 +47,69 @@ const logger = createLogger({ component: "CarePriceListModal" });
 const MONTHS_BACK = 12;
 const MONTHS_AHEAD = 18;
 
-type Draft = Record<string, string>;
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
-function draftKey(offeringId: string, weekday: CareWeekday): string {
-  return `${offeringId}:${weekday}`;
+type Drafts = Record<string, ModuleDraft>;
+
+function centsRecord(
+  values: Partial<Record<string | number, number>>,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, cents] of Object.entries(values)) {
+    if (cents !== undefined) result[key] = centsToEuroInput(cents);
+  }
+  return result;
+}
+
+/** The prices a draft sends, or the field errors it has. */
+function draftPrices(
+  offeringId: string,
+  moduleName: string,
+  draft: ModuleDraft,
+  weekdays: readonly CareWeekday[],
+): { prices: CarePriceInput[]; errors: Record<string, string> } {
+  const prices: CarePriceInput[] = [];
+  const errors: Record<string, string> = {};
+  for (const column of draftColumns(draft.form, weekdays)) {
+    const firstText = draft.first[column.key]?.trim() ?? "";
+    const furtherText = draft.further[column.key]?.trim() ?? "";
+    const firstKey = priceFieldKey(offeringId, column.key, false);
+    const furtherKey = priceFieldKey(offeringId, column.key, true);
+    if (!firstText) {
+      if (furtherText) {
+        errors[firstKey] = "Bitte zuerst den Preis für das 1. Kind eintragen.";
+      }
+      continue;
+    }
+    const cents = euroInputToCents(firstText);
+    if (cents === null) {
+      errors[firstKey] = "Bitte einen Betrag wie 32,50 eingeben.";
+      continue;
+    }
+    let siblingCents: number | null = null;
+    if (furtherText) {
+      siblingCents = euroInputToCents(furtherText);
+      if (siblingCents === null) {
+        errors[furtherKey] = "Bitte einen Betrag wie 25,00 eingeben.";
+        continue;
+      }
+      if (siblingCents > cents) {
+        errors[furtherKey] = "Höchstens so hoch wie beim 1. Kind.";
+        continue;
+      }
+    }
+    prices.push({
+      careOfferingId: offeringId,
+      moduleName,
+      ...(draft.form === "days_per_week"
+        ? { daysPerWeek: Number(column.key) }
+        : { weekday: column.key as CareWeekday }),
+      monthlyCents: cents,
+      siblingCents,
+      mealExtra: draft.mealExtra,
+    });
+  }
+  return { prices, errors };
 }
 
 export function CarePriceListModal({
@@ -62,7 +131,8 @@ export function CarePriceListModal({
   onSaved: (data: CareTariffs) => void;
 }>) {
   const [month, setMonth] = useState("");
-  const [draft, setDraft] = useState<Draft>({});
+  const [drafts, setDrafts] = useState<Drafts>({});
+  const [freeMonths, setFreeMonths] = useState<readonly number[]>([]);
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
@@ -94,21 +164,34 @@ export function CarePriceListModal({
     clearErrors();
   }, [school, initialMonth, firstMonth, defaultMonth, clearErrors]);
 
-  // Prefill every field with the price that holds in the chosen month.
+  // Prefill every module with the prices that hold in the chosen month.
   useEffect(() => {
     if (!school || !month) return;
     // Only the prices that hold in the chosen month; a later price stays
     // where it starts and is never copied back.
-    const holding = priceRowsAt(data, school.id, month);
-    const next: Draft = {};
-    for (const row of holding) {
-      for (const [weekday, cents] of Object.entries(row.prices)) {
-        next[draftKey(row.careOfferingId, weekday as CareWeekday)] =
-          centsToEuroInput(cents);
-      }
+    const next: Drafts = {};
+    for (const row of priceRowsAt(data, school.id, month)) {
+      next[row.careOfferingId] =
+        row.form === "days_per_week"
+          ? {
+              form: row.form,
+              mealExtra: row.mealExtra,
+              first: centsRecord(row.steps),
+              further: centsRecord(row.siblingSteps),
+            }
+          : {
+              form: row.form,
+              mealExtra: row.mealExtra,
+              first: centsRecord(row.prices),
+              further: centsRecord(row.siblingPrices),
+            };
     }
-    setDraft(next);
+    setDrafts(next);
+    setFreeMonths(freeMonthsAt(data, school.id, month));
   }, [data, school, month]);
+
+  const draftOf = (offeringId: string) =>
+    drafts[offeringId] ?? EMPTY_MODULE_DRAFT;
 
   const submit = async () => {
     if (!school) return;
@@ -116,22 +199,14 @@ export function CarePriceListModal({
     const prices: CarePriceInput[] = [];
     const fieldErrors: Record<string, string> = {};
     for (const row of rows) {
-      for (const weekday of weekdays) {
-        const value = draft[draftKey(row.careOfferingId, weekday)]?.trim();
-        if (!value) continue;
-        const cents = euroInputToCents(value);
-        if (cents === null) {
-          fieldErrors[draftKey(row.careOfferingId, weekday)] =
-            "Bitte einen Betrag wie 32,50 eingeben.";
-          continue;
-        }
-        prices.push({
-          careOfferingId: row.careOfferingId,
-          moduleName: row.moduleName,
-          weekday,
-          monthlyCents: cents,
-        });
-      }
+      const result = draftPrices(
+        row.careOfferingId,
+        row.moduleName,
+        draftOf(row.careOfferingId),
+        weekdays,
+      );
+      prices.push(...result.prices);
+      Object.assign(fieldErrors, result.errors);
     }
     if (Object.keys(fieldErrors).length > 0) {
       formErrors.invalid(
@@ -140,13 +215,13 @@ export function CarePriceListModal({
       );
       return;
     }
-    if (prices.length === 0) {
+    if (prices.length === 0 && freeMonths.length === 0) {
       formErrors.invalid("Bitte tragen Sie mindestens einen Preis ein.", {});
       return;
     }
     setSaving(true);
     try {
-      onSaved(await saveCarePriceList(school.id, month, prices));
+      onSaved(await saveCarePriceList(school.id, month, prices, freeMonths));
       success(`Die Preise gelten ab ${formatMonth(month)}.`);
     } catch (err) {
       logger.error("care_price_list_save_failed", {
@@ -158,6 +233,13 @@ export function CarePriceListModal({
     }
   };
 
+  const toggleFreeMonth = (value: number, pressed: boolean) =>
+    setFreeMonths((current) =>
+      pressed
+        ? [...current, value].sort((a, b) => a - b)
+        : current.filter((entry) => entry !== value),
+    );
+
   return (
     <FormModal
       isOpen={school !== null}
@@ -165,7 +247,7 @@ export function CarePriceListModal({
       closeDisabled={saving}
       isBackdropDismissDisabled
       title={school ? `Preise für ${school.name}` : "Preise"}
-      size="lg"
+      size="xl"
       error={formErrors.error}
       footer={
         <EditActions
@@ -199,10 +281,28 @@ export function CarePriceListModal({
             error={formErrors.fieldError("valid_from")}
           />
           <p className="text-sm text-gray-600 sm:pb-2.5">
-            Monatspreis je gebuchtem Wochentag. Ein leeres Feld setzt ab diesem
+            Monatspreise je Modul. Ein leeres Feld beim 1. Kind setzt ab diesem
             Monat keinen Preis. Dann gilt der Preis davor.
           </p>
         </div>
+        <FormFieldset
+          legend="Beitragsfreie Monate"
+          hint="In diesen Monaten stellt der Monatslauf für diese Schule keine Rechnung aus, zum Beispiel im August."
+          error={formErrors.fieldError("free_months")}
+        >
+          <div className="flex flex-wrap gap-2">
+            {MONTHS.map((value) => (
+              <ToggleChip
+                key={value}
+                pressed={freeMonths.includes(value)}
+                onPressedChange={(pressed) => toggleFreeMonth(value, pressed)}
+                ariaLabel={`${monthName(value)} beitragsfrei`}
+              >
+                {monthShort(value)}
+              </ToggleChip>
+            ))}
+          </div>
+        </FormFieldset>
         {rows.length === 0 ? (
           <p className="text-sm text-gray-600">
             Diese Schule hat noch keine Module. Module kommen aus den gültigen
@@ -210,46 +310,37 @@ export function CarePriceListModal({
           </p>
         ) : (
           rows.map((row) => (
-            <FormFieldset
+            <CarePriceModuleEditor
               key={row.careOfferingId}
-              legend={
-                <>
-                  {row.moduleName}
-                  {row.endsAt ? (
-                    <span className="ml-2 font-normal text-gray-600">
-                      {endsAtLabel(row.endsAt)}
-                    </span>
-                  ) : null}
-                </>
+              offeringId={row.careOfferingId}
+              moduleName={row.moduleName}
+              endsAt={row.endsAt}
+              bookedWeekdays={row.bookedWeekdays}
+              bookedDaysPerWeek={row.bookedDaysPerWeek}
+              weekdays={weekdays}
+              draft={draftOf(row.careOfferingId)}
+              copySources={rows
+                .filter((other) => other.careOfferingId !== row.careOfferingId)
+                .map((other) => ({
+                  value: other.careOfferingId,
+                  label: other.moduleName,
+                }))}
+              fieldError={(key) => formErrors.fieldError(key) ?? undefined}
+              onChange={(next) =>
+                setDrafts((current) => ({
+                  ...current,
+                  [row.careOfferingId]: next,
+                }))
               }
-            >
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-                {weekdays.map((weekday) => {
-                  const key = draftKey(row.careOfferingId, weekday);
-                  const booked = row.bookedWeekdays.includes(weekday);
-                  return (
-                    <Input
-                      key={key}
-                      id={`care-price-${key}`}
-                      name={key}
-                      controlSize="compact"
-                      label={`${WEEKDAY_SHORT[weekday]} in €`}
-                      aria-label={`${row.moduleName}, ${WEEKDAY_LONG[weekday]}, Monatspreis in Euro`}
-                      inputMode="decimal"
-                      placeholder={booked ? "fehlt" : "–"}
-                      value={draft[key] ?? ""}
-                      error={formErrors.fieldError(key)}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          [key]: event.target.value,
-                        }))
-                      }
-                    />
-                  );
-                })}
-              </div>
-            </FormFieldset>
+              onCopyFrom={(source) =>
+                setDrafts((current) => ({
+                  ...current,
+                  [row.careOfferingId]: {
+                    ...(current[source] ?? EMPTY_MODULE_DRAFT),
+                  },
+                }))
+              }
+            />
           ))
         )}
       </form>

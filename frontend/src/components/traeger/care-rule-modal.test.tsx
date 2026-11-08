@@ -58,13 +58,20 @@ describe("CareRuleModal", () => {
     );
   });
 
-  it("lets a sibling rule count the children the family stated (#5918)", async () => {
+  it("counts the family's children while preserving the price-list effect", async () => {
     saveCareRule.mockResolvedValue(data);
     render(
       <ToastProvider>
         <CareRuleModal
           data={data}
-          open={{ kind: "sibling", rule }}
+          open={{
+            kind: "sibling",
+            rule: {
+              ...rule,
+              discountBasisPoints: null,
+              tariffSiblingPrice: true,
+            },
+          }}
           currentMonth="2026-09-01"
           onClose={vi.fn()}
           onSaved={vi.fn()}
@@ -80,7 +87,11 @@ describe("CareRuleModal", () => {
     await waitFor(() =>
       expect(saveCareRule).toHaveBeenCalledWith(
         "7",
-        expect.objectContaining({ countsFamilyChildren: true }),
+        expect.objectContaining({
+          countsFamilyChildren: true,
+          tariffSiblingPrice: true,
+          discountBasisPoints: null,
+        }),
       ),
     );
   });

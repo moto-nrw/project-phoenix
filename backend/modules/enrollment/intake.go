@@ -377,17 +377,11 @@ type IntakeForms interface {
 	// LegalTextsForPhaseWithLateInvite resolves the legal contract of a
 	// phase behind the public phase gate.
 	LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error)
-	// PublicActiveSchema resolves the schema a public form renders; a Basis
-	// phase returns ErrNoActiveSchema.
-	PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*FormSchema, error)
 	// LoadPublicFormBootstrap assembles the anonymous public form load.
 	LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
 	// LoadEnrolleeFormBootstrap assembles the parents-portal form load for
 	// the restricted audiences the caller's access covers.
 	LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*PublicFormBootstrapData, error)
-	// LoadPublicCareOfferings is the offering-only projection of the public
-	// form load.
-	LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
 	// LoadPhasePreviewCareOfferings loads the effective form configuration and
 	// active offerings for staff, without public activity, audience or window gates.
 	LoadPhasePreviewCareOfferings(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)

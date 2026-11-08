@@ -134,10 +134,7 @@ func (rs *Resource) Router(configureSession func(chi.Router)) chi.Router {
 // mountPublicRoutes registers the parent-facing routes.
 func (rs *Resource) mountPublicRoutes(r chi.Router) {
 	r.Get("/phases/public/{tenantSlug}", rs.listPublicPhases)
-	r.Get("/care-offerings/public/{tenantSlug}/{phaseId}", rs.listPublicCareOfferings)
 	r.Get("/form-bootstrap/public/{tenantSlug}/{phaseId}", rs.publicFormBootstrap)
-	r.Get("/schema/public/{tenantSlug}/{phaseId}", rs.listPublicActiveSchema)
-	r.Get("/captcha-config/{tenantSlug}", rs.publicCaptchaConfig)
 	r.Get("/legal/{tenantSlug}/{phaseId}", rs.publicLegalTexts)
 	r.Get("/legal/{tenantSlug}", rs.publicLegalTexts)
 	r.Post("/{tenantSlug}/submit", rs.submitEnrollment)

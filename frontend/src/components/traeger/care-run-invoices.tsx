@@ -28,6 +28,7 @@ import { traegerPath } from "~/lib/traeger-url";
 import {
   WEEKDAY_SHORT,
   WEEKDAY_LONG,
+  daysLabel,
   formatMonth,
   invoiceCountLabel,
 } from "./care-billing-format";
@@ -84,13 +85,33 @@ function PositionLine({
   showAmount,
 }: Readonly<{ position: CarePosition; month: string; showAmount: boolean }>) {
   const days = positionDays(position, month);
+  const step = position.daysPerWeek ?? null;
   return (
     <InvoiceLine
-      title={position.moduleName}
+      title={
+        position.mealExtra
+          ? `${position.moduleName} · ohne Essen`
+          : position.moduleName
+      }
       amount={showAmount ? formatEuro(position.amountCents) : undefined}
       detail={
         <>
-          {position.weekdays.map((day) => (
+          {step !== null ? (
+            <span>
+              <span className="font-medium text-gray-700">
+                {daysLabel(step)} je Woche
+              </span>{" "}
+              (
+              {position.weekdays
+                .map((day) => WEEKDAY_SHORT[day.weekday])
+                .join(", ")}
+              ){" "}
+              <span className="tabular-nums">
+                {formatEuro(position.tierMonthlyCents ?? position.amountCents)}
+              </span>
+            </span>
+          ) : null}
+          {(step === null ? position.weekdays : []).map((day) => (
             <span key={day.weekday} title={WEEKDAY_LONG[day.weekday]}>
               <span className="font-medium text-gray-700">
                 {WEEKDAY_SHORT[day.weekday]}
@@ -467,9 +488,10 @@ export function CareUnpricedCard({
                 <p className="mt-0.5 text-sm text-gray-600">
                   {first.schoolName} ·{" "}
                   {entries
-                    .map(
-                      (entry) =>
-                        `${entry.moduleName} am ${WEEKDAY_LONG[entry.weekday]}`,
+                    .map((entry) =>
+                      entry.weekday === ""
+                        ? `${entry.moduleName} mit ${daysLabel(entry.daysPerWeek ?? 0)} je Woche`
+                        : `${entry.moduleName} am ${WEEKDAY_LONG[entry.weekday]}`,
                     )
                     .join(", ")}
                 </p>
