@@ -97,47 +97,61 @@ func seedMealPrices(client *Client, auth AuthRef, month calendar.Date) (int, err
 // seedMealRelease releases the latest ended month of the demo school that
 // is not released yet, with the counts the OGS-Leitung reads first.
 func seedMealRelease(client *Client) (string, error) {
-	raw, err := client.Get("/api/meal-billing-months/")
+	months, err := seedMealMonths(client)
 	if err != nil {
-		return "", fmt.Errorf("read the Mensa months: %w", err)
-	}
-	var overview struct {
-		Data json.RawMessage `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &overview); err != nil {
-		return "", fmt.Errorf("read the Mensa months: %w", err)
-	}
-	// A school without the meal registration answers no list; it has no
-	// Mensa month to release.
-	var months []seedMealMonthSummary
-	if len(overview.Data) > 0 && overview.Data[0] == '[' {
-		if err := json.Unmarshal(overview.Data, &months); err != nil {
-			return "", fmt.Errorf("read the Mensa months: %w", err)
-		}
+		return "", err
 	}
 	for _, summary := range months {
 		if summary.Status == "released" {
 			return "nothing new", nil
 		}
-		if summary.Status != "open" {
-			continue
+		if summary.Status == "open" {
+			return summary.Month, seedReleaseMealMonth(client, summary.Month)
 		}
-		raw, err := client.Get("/api/meal-billing-months/" + summary.Month)
-		if err != nil {
-			return "", fmt.Errorf("read the Mensa month %s: %w", summary.Month, err)
-		}
-		var month struct {
-			Data seedMealMonth `json:"data"`
-		}
-		if err := json.Unmarshal(raw, &month); err != nil {
-			return "", fmt.Errorf("read the Mensa month %s: %w", summary.Month, err)
-		}
-		if _, err := client.Post("/api/meal-billing-months/"+summary.Month+"/release", map[string]any{
-			"child_count": month.Data.ChildCount, "meal_count": month.Data.MealCount,
-		}); err != nil {
-			return "", fmt.Errorf("release the Mensa month %s: %w", summary.Month, err)
-		}
-		return summary.Month, nil
 	}
 	return "nothing", nil
+}
+
+// seedMealMonths reads the Mensa months of the demo school, newest first. A
+// school without the meal registration answers no list; it has no Mensa
+// month to release.
+func seedMealMonths(client *Client) ([]seedMealMonthSummary, error) {
+	raw, err := client.Get("/api/meal-billing-months/")
+	if err != nil {
+		return nil, fmt.Errorf("read the Mensa months: %w", err)
+	}
+	var overview struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &overview); err != nil {
+		return nil, fmt.Errorf("read the Mensa months: %w", err)
+	}
+	if len(overview.Data) == 0 || overview.Data[0] != '[' {
+		return nil, nil
+	}
+	var months []seedMealMonthSummary
+	if err := json.Unmarshal(overview.Data, &months); err != nil {
+		return nil, fmt.Errorf("read the Mensa months: %w", err)
+	}
+	return months, nil
+}
+
+// seedReleaseMealMonth releases month with the counts the page shows.
+func seedReleaseMealMonth(client *Client, month string) error {
+	raw, err := client.Get("/api/meal-billing-months/" + month)
+	if err != nil {
+		return fmt.Errorf("read the Mensa month %s: %w", month, err)
+	}
+	var detail struct {
+		Data seedMealMonth `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &detail); err != nil {
+		return fmt.Errorf("read the Mensa month %s: %w", month, err)
+	}
+	if _, err := client.Post("/api/meal-billing-months/"+month+"/release", map[string]any{
+		"child_count": detail.Data.ChildCount, "meal_count": detail.Data.MealCount,
+	}); err != nil {
+		return fmt.Errorf("release the Mensa month %s: %w", month, err)
+	}
+	return nil
 }
