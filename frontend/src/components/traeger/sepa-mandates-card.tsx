@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
@@ -210,6 +211,123 @@ function HistoryModal({
   );
 }
 
+/** The menu of one mandate: its trail and, while in force, the revocation. */
+function MandateMenu({
+  mandate,
+  onHistory,
+  onRevoke,
+}: Readonly<{
+  mandate: SepaMandate;
+  onHistory: (mandate: SepaMandate) => void;
+  onRevoke: (mandate: SepaMandate) => void;
+}>) {
+  return (
+    <OverflowMenu
+      ariaLabel={`Aktionen für das Mandat ${mandate.reference}`}
+      triggerSize="sm"
+      items={[
+        { label: "Verlauf ansehen", onClick: () => onHistory(mandate) },
+        ...(mandate.revokedOn
+          ? []
+          : [
+              {
+                label: "Widerrufen",
+                destructive: true,
+                onClick: () => onRevoke(mandate),
+              },
+            ]),
+      ]}
+    />
+  );
+}
+
+/**
+ * The mandates of one family in a narrow column: the one in force as fields,
+ * the earlier ones as short lines below.
+ */
+function FamilyMandates({
+  mandates,
+  onHistory,
+  onRevoke,
+}: Readonly<{
+  mandates: readonly SepaMandate[];
+  onHistory: (mandate: SepaMandate) => void;
+  onRevoke: (mandate: SepaMandate) => void;
+}>) {
+  const inForce = mandates.find((mandate) => !mandate.revokedOn);
+  const earlier = mandates.filter((mandate) => mandate.revokedOn);
+  return (
+    <div className="space-y-5">
+      {inForce ? (
+        <div className="flex items-start gap-3">
+          <DataGrid columns={1}>
+            <DataField label="Mandatsreferenz">
+              <span className="font-mono">{inForce.reference}</span>
+              <span className="text-gray-500">
+                {" "}
+                · {MANDATE_KIND_LABELS[inForce.kind]}
+              </span>
+            </DataField>
+            <DataField label="Konto">
+              <span
+                className="block font-mono tabular-nums"
+                data-analytics-block
+              >
+                {inForce.ibanMasked}
+              </span>
+              <span className="block text-gray-600">
+                {inForce.accountHolder}
+              </span>
+            </DataField>
+            <DataField label="Unterschrieben am">
+              <span className="tabular-nums">
+                {formatDate(inForce.signedOn)}
+              </span>
+            </DataField>
+            <DataField label="Nächste Abbuchung">
+              {nextDebitLabel(inForce)}
+            </DataField>
+          </DataGrid>
+          <span className="ml-auto shrink-0">
+            <MandateMenu
+              mandate={inForce}
+              onHistory={onHistory}
+              onRevoke={onRevoke}
+            />
+          </span>
+        </div>
+      ) : null}
+      {earlier.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-gray-600">Frühere Mandate</p>
+          <ul className="divide-y divide-gray-100">
+            {earlier.map((mandate) => (
+              <li
+                key={mandate.id}
+                className="flex items-center justify-between gap-3 py-2 text-sm"
+              >
+                <span className="min-w-0">
+                  <span className="block font-mono text-gray-900">
+                    {mandate.reference}
+                  </span>
+                  <span className="block text-gray-500">
+                    Widerrufen am {formatDate(mandate.revokedOn ?? "")}
+                  </span>
+                </span>
+                <MandateMenu
+                  mandate={mandate}
+                  onHistory={onHistory}
+                  onRevoke={onRevoke}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function SepaMandatesCard({
   contractId,
   holder = "",
@@ -279,7 +397,7 @@ export function SepaMandatesCard({
       stacked: "field",
       render: (mandate) => (
         <span className="block min-w-0" data-analytics-block>
-          <span className="block font-mono whitespace-nowrap text-gray-900 tabular-nums">
+          <span className="block font-mono text-gray-900 tabular-nums md:whitespace-nowrap">
             {mandate.ibanMasked}
           </span>
           <span className="block truncate text-sm text-gray-500">
@@ -330,21 +448,10 @@ export function SepaMandatesCard({
       stacked: "meta",
       stackedLabel: false,
       render: (mandate) => (
-        <OverflowMenu
-          ariaLabel={`Aktionen für das Mandat ${mandate.reference}`}
-          triggerSize="sm"
-          items={[
-            { label: "Verlauf ansehen", onClick: () => setHistory(mandate) },
-            ...(mandate.revokedOn
-              ? []
-              : [
-                  {
-                    label: "Widerrufen",
-                    destructive: true,
-                    onClick: () => setRevoking(mandate),
-                  },
-                ]),
-          ]}
+        <MandateMenu
+          mandate={mandate}
+          onHistory={setHistory}
+          onRevoke={setRevoking}
         />
       ),
     },
@@ -385,6 +492,12 @@ export function SepaMandatesCard({
     >
       {own.error && given === undefined ? (
         <LoadErrorAlert error={own.error} actionLayout="responsive" />
+      ) : forFamily && mandates && mandates.length > 0 ? (
+        <FamilyMandates
+          mandates={mandates}
+          onHistory={setHistory}
+          onRevoke={setRevoking}
+        />
       ) : mandates && mandates.length > 0 ? (
         <DataTable
           columns={columns}
