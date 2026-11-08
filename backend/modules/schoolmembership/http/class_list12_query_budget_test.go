@@ -53,9 +53,9 @@ func TestClassList12FullHTTPQueryBudget(t *testing.T) {
 			require.Equal(t, expected[entry.ID], entry.Matching, "each entry retains its own match")
 		}
 		if i == 7 {
-			querybudgets.AssertQueryBudget(t, "api.class_list_entries.list.full.n8", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "api.class_list_entries.list.full.n8", counter.Measurement(counter.Queries()))
 		} else {
-			querybudgets.AssertQueryBudget(t, "api.class_list_entries.list.full.n3", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "api.class_list_entries.list.full.n3", counter.Measurement(counter.Queries()))
 		}
 	}
 }

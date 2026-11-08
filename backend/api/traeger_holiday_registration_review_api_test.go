@@ -423,19 +423,19 @@ func TestTraegerHolidayRegistrationReviewNeedsTheRightAndStaysWithItsTraeger(t *
 func TestTraegerHolidayRegistrationListQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Budget Anmeldungen")
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, f.path(""), nil)
 		req.Header.Set("Authorization", "Bearer "+f.office.token)
 		rec := httptest.NewRecorder()
-		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	one := list()
 	rec := publicJSON(t, f.public, http.MethodPost, registrationPath(f.period.PublicToken), siblingsRegistration(f.offer, "budget@example.org"))
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	assert.Len(t, list(), len(one), "the list reads the same statements for any number of registrations")
+	assert.Len(t, list().Statements, len(one.Statements), "the list reads the same statements for any number of registrations")
 	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_registrations", one)
 }
 

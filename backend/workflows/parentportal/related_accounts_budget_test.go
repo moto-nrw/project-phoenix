@@ -58,11 +58,11 @@ func TestRelatedAccountsQueryBudget(t *testing.T) {
 		t.Logf("N=%d total=%d profiles=%d invitations=%d SQL=%q", n, len(counter.Queries()), len(counter.Selects("users.guardian_profiles")), len(counter.Selects("auth.guardian_invitations")), counter.Queries())
 		switch n {
 		case 1:
-			querybudgets.AssertQueryBudget(t, "workflows.parentportal.related_accounts.list.n1", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "workflows.parentportal.related_accounts.list.n1", counter.Measurement(counter.Queries()))
 		case 3:
-			querybudgets.AssertQueryBudget(t, "workflows.parentportal.related_accounts.list.n3", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "workflows.parentportal.related_accounts.list.n3", counter.Measurement(counter.Queries()))
 		case 12:
-			querybudgets.AssertQueryBudget(t, "workflows.parentportal.related_accounts.list.n12", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "workflows.parentportal.related_accounts.list.n12", counter.Measurement(counter.Queries()))
 		}
 		assert.Empty(t, counter.Operation("INSERT"))
 		assert.Empty(t, counter.Operation("UPDATE"))

@@ -56,10 +56,10 @@ func TestShiftTypesListQueryBudgetIsFlat(t *testing.T) {
 		counter.Reset()
 		request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/", nil, testutil.WithJWTBearer(token))
 		response := testutil.ExecuteRequestForTest(t, router, request)
-		queries := counter.Queries()
-		encoded, encodeErr := json.Marshal(queries)
+		queries := counter.Measurement(counter.Queries())
+		encoded, encodeErr := json.Marshal(queries.Statements)
 		require.NoError(t, encodeErr)
-		t.Logf("shift_types_list n=%d statements=%d queries_json=%s", size, len(queries), encoded)
+		t.Logf("shift_types_list n=%d statements=%d queries_json=%s", size, len(queries.Statements), encoded)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		var envelope struct {
 			Data json.RawMessage `json:"data"`
@@ -74,9 +74,9 @@ func TestShiftTypesListQueryBudgetIsFlat(t *testing.T) {
 		}
 		require.Len(t, counter.Selects("schedule.shift_types"), 1, "one tenant-scoped bulk read")
 		if size != 0 {
-			require.Len(t, queries, previousCount, "query count must not grow with the list")
+			require.Len(t, queries.Statements, previousCount, "query count must not grow with the list")
 		}
 		querybudgets.AssertQueryBudget(t, "api.workforce.shift_types.list", queries)
-		previousCount = len(queries)
+		previousCount = len(queries.Statements)
 	}
 }

@@ -109,14 +109,14 @@ func TestPayrollRulesAPI_QueryBudget(t *testing.T) {
 		rec = ctx.post(payrollRulesPath+"/surcharge-rules", rule, "config:manage")
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	}
-	measure := func() []string {
+	measure := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, ctx.tc.db)
 		req := httptest.NewRequest(http.MethodGet, payrollRulesPath, nil)
 		rec := ctx.do(req.WithContext(counter.Context(req.Context())), "config:manage")
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		queries := counter.Queries()
 		counter.Stop()
-		return queries
+		return counter.Measurement(queries)
 	}
 	addWageType("Lohnart A")
 	small := measure()
@@ -124,6 +124,6 @@ func TestPayrollRulesAPI_QueryBudget(t *testing.T) {
 	addWageType("Lohnart C")
 	large := measure()
 
-	assert.Equal(t, len(small), len(large), "the list must not issue a statement per wage type")
+	assert.Equal(t, len(small.Statements), len(large.Statements), "the list must not issue a statement per wage type")
 	querybudgets.AssertQueryBudget(t, "workforce.payroll_rules.list", large)
 }

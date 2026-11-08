@@ -66,7 +66,7 @@ func TestClosingDaysRouteGrowthQueryBudget(t *testing.T) {
 			require.Equal(t, small, counter.Total())
 		}
 		t.Logf("closing days growth N%d statements=%d", n, counter.Total())
-		querybudgets.AssertQueryBudget(t, "api.timetable.closing_days.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "api.timetable.closing_days.list", counter.Measurement(counter.Queries()))
 	}
 	foreign := testpkg.NewTenantScope(t, db)
 	request := httptest.NewRequest(http.MethodGet, "/timetable/closing-days/", nil)

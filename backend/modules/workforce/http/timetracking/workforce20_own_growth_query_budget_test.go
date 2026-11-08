@@ -77,7 +77,7 @@ func TestWorkforce20OwnGrowth(t *testing.T) {
 				req.Header.Set("Authorization", "Bearer "+token)
 				counter := testpkg.CaptureQueries(t, db)
 				rec := httptest.NewRecorder()
-				router.ServeHTTP(rec, req)
+				testpkg.MeasuredHTTPRequest(counter, router, rec, req)
 				counter.Stop()
 				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 				require.NotContains(t, rec.Body.String(), "Foreign")
@@ -145,25 +145,27 @@ func TestWorkforce20OwnGrowth(t *testing.T) {
 				}
 				switch route {
 				case "export":
-					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_export", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_export", counter.Measurement(counter.Queries()))
 				case "month-summary":
-					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_month_summary", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_month_summary", counter.Measurement(counter.Queries()))
 				case "schedule-targets":
-					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_schedule_targets", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_schedule_targets", counter.Measurement(counter.Queries()))
 				case "edits":
-					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_edits", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_edits", counter.Measurement(counter.Queries()))
 				case "breaks":
-					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_breaks", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_breaks", counter.Measurement(counter.Queries()))
 				case "absences":
-					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_absences", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_absences", counter.Measurement(counter.Queries()))
 				case "presence-map":
-					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_presence_map", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "workforce.workforce20.own_presence_map", counter.Measurement(counter.Queries()))
 				}
 				counts = append(counts, len(counter.Queries()))
 				denied := httptest.NewRequest(http.MethodGet, path, nil)
 				denied.Header.Set("Authorization", "Bearer "+workforcetest.OwnGrowthToken(t, account.ID, 0))
 				deniedRec := httptest.NewRecorder()
-				router.ServeHTTP(deniedRec, denied)
+				testpkg.MeasuredHTTPRequest(counter,
+
+					router, deniedRec, denied)
 				require.Equal(t, http.StatusForbidden, deniedRec.Code, deniedRec.Body.String())
 			}
 			require.Equal(t, counts[0], counts[1])

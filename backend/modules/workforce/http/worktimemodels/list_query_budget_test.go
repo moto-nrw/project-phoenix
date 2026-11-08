@@ -60,10 +60,10 @@ func TestWorkTimeModelsListQueryBudgetIsFlat(t *testing.T) {
 		counter.Reset()
 		request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/", nil, testutil.WithJWTBearer(token))
 		response := testutil.ExecuteRequestForTest(t, router, request)
-		queries := counter.Queries()
-		encoded, encodeErr := json.Marshal(queries)
+		queries := counter.Measurement(counter.Queries())
+		encoded, encodeErr := json.Marshal(queries.Statements)
 		require.NoError(t, encodeErr)
-		t.Logf("work_time_models_list n=%d statements=%d queries_json=%s", size, len(queries), encoded)
+		t.Logf("work_time_models_list n=%d statements=%d queries_json=%s", size, len(queries.Statements), encoded)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		var envelope struct {
 			Data json.RawMessage `json:"data"`
@@ -84,14 +84,14 @@ func TestWorkTimeModelsListQueryBudgetIsFlat(t *testing.T) {
 		}
 		require.Len(t, counter.Selects("config.work_time_model_entries"), entryReads, "at most one bulk entry read")
 		if size == 8 {
-			require.Len(t, queries, previousCount, "query count must not grow with the nonempty list")
+			require.Len(t, queries.Statements, previousCount, "query count must not grow with the nonempty list")
 		}
 		if size == 0 {
 			querybudgets.AssertQueryBudget(t, "api.workforce.work_time_models.list.empty", queries)
 		} else {
 			querybudgets.AssertQueryBudget(t, "api.workforce.work_time_models.list", queries)
 		}
-		previousCount = len(queries)
+		previousCount = len(queries.Statements)
 	}
 }
 

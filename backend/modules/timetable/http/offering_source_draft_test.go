@@ -337,7 +337,7 @@ func TestDraftOfferingSourceQueryBudget(t *testing.T) {
 	measured.Use(render.SetContentType(render.ContentTypeJSON))
 	measured.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(testpkg.WithTestTenantRuntime(t, r.Context())))
+			testpkg.MeasuredHTTPRequest(counter, next, w, r.WithContext(testpkg.WithTestTenantRuntime(t, r.Context())))
 		})
 	})
 	measured.Get("/offering-sources/suggestion", s.res.suggestDraftOfferingSource)
@@ -361,9 +361,9 @@ func TestDraftOfferingSourceQueryBudget(t *testing.T) {
 
 	suggestSmall, suggestLarge := run("/offering-sources/suggestion", class[:3]), run("/offering-sources/suggestion", class)
 	assert.Equal(t, suggestSmall, suggestLarge, "the suggestion must not grow with the children")
-	querybudgets.AssertQueryBudget(t, "api.timetable.offering_sources.suggestion", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.offering_sources.suggestion", counter.Measurement(counter.Queries()))
 
 	previewSmall, previewLarge := run("/offering-sources/preview", class[:3]), run("/offering-sources/preview", class)
 	assert.Equal(t, previewSmall, previewLarge, "the preview must not grow with the children")
-	querybudgets.AssertQueryBudget(t, "api.timetable.offering_sources.preview", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.offering_sources.preview", counter.Measurement(counter.Queries()))
 }

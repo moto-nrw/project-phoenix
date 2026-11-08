@@ -9,6 +9,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -23,6 +24,7 @@ import (
 type queryBudget struct {
 	max   int
 	exact bool
+	route querybudget.Routes
 }
 
 // queryBudgets is the query-budget register (#2940): scenario → statements.
@@ -54,7 +56,7 @@ func loadQueryBudgets() map[string]queryBudget {
 	}
 	budgets := make(map[string]queryBudget, len(entries))
 	for scenario, entry := range entries {
-		budgets[scenario] = queryBudget{max: entry.Max, exact: entry.Exact}
+		budgets[scenario] = queryBudget{max: entry.Max, exact: entry.Exact, route: entry.Route}
 	}
 	return budgets
 }
@@ -62,11 +64,21 @@ func loadQueryBudgets() map[string]queryBudget {
 // AssertQueryBudget checks the statements a scenario issued against the
 // register. Pass the matched statements (counter.Queries(), counter.Selects(...)
 // or a Matching(...) bucket), never a bare number, so a failure can print them.
-func AssertQueryBudget(tb testing.TB, scenario string, queries []string) {
+func AssertQueryBudget(tb testing.TB, scenario string, observed any) {
+	queries, route := measurementStatements(observed)
 	tb.Helper()
 	budget, ok := queryBudgets[scenario]
 	if !ok {
 		tb.Fatalf("query budget %q is not registered in backend/test/query-budgets/", scenario)
+	}
+	if err := measuredRouteError(budget.route, route); err != nil && (len(budget.route) != 0 || os.Getenv("PHX_QUERY_BUDGET_CAPTURE_ROUTES") == "") {
+		tb.Errorf("query budget %q: %v", scenario, err)
+	}
+
+	if path := os.Getenv("PHX_QUERY_BUDGET_CAPTURE_ROUTES"); path != "" {
+		if err := appendBudgetReport(path, budgetReport{Scenario: scenario, Route: route, Test: tb.Name(), Actual: len(queries), Max: budget.max, Exact: budget.exact}); err != nil {
+			tb.Errorf("capture budget route: %v", err)
+		}
 	}
 	emitQueryFeedback(tb, scenario, queries, budget, os.Getenv)
 	got := len(queries)
@@ -111,4 +123,25 @@ func QueryBudgetScenarios() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// Measurement is the request-aware SQL snapshot returned by QueryCounter.Measurement.
+type Measurement = querybudget.Measurement
+
+func measurementStatements(observed any) ([]string, querybudget.Routes) {
+	switch value := observed.(type) {
+	case []string:
+		return value, nil
+	case Measurement:
+		return value.Statements, value.Route
+	default:
+		panic(fmt.Sprintf("unsupported query budget measurement %T", observed))
+	}
+}
+
+func measuredRouteError(stored, measured querybudget.Routes) error {
+	if !slices.Equal(stored, measured) {
+		return fmt.Errorf("route: stored %q, measured %q", stored, measured)
+	}
+	return nil
 }

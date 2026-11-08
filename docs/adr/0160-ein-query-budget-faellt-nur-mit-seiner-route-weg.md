@@ -29,37 +29,46 @@ Freigegeben von Yannick Wenger am 07.11.2026 (Option A in #5972).
 
 ## Entscheidung
 
-1. **Jedes Budget hat seine eigene Route.** Die Route eines Budgets ist jede
-   Route `METHOD /pfad`, die seine Beschreibung nennt und die das Router-Golden
-   `backend/api/testdata/routes/` listet. Mandantenrouten stehen im Golden mit
-   dem Präfix `/api`, in Beschreibungen oft ohne; beide Schreibweisen binden.
-   Ein Budget, dessen Beschreibung keine Route des Goldens nennt, ist nicht
-   gebunden. Am 07.11.2026 sind 105 von 632 Budgets gebunden, darunter 74
-   der 360 API-Budgets unter `backend/test/query-budgets/api/`.
+1. **HTTP-Budgets nennen die gemessene Route ausdrücklich.** `route` ist
+   `METHOD /muster`, genau wie im Router-Golden `backend/api/testdata/routes/`.
+   Die Budget-Prüfung erhält das nach dem Routing vollständige chi-Muster
+   des gemessenen Requests, einschließlich verschachtelter Mount-Präfixe und
+   Parameter. Mehrere gemessene Requests erhalten eine sortierte, deduplizierte
+   Liste im selben Feld; Szenario und gesamter SQL-Messumfang bleiben gleich.
+   Jede einzelne Route muss im Golden stehen. Innenliegende `/*/`-Artefakte
+   von `chi.Walk` werden für den Vergleich normalisiert; echte abschließende
+   Wildcards und Blatt-Slashes bleiben erhalten. Beschreibung, Szenarioname
+   und konkrete URL sind keine Quelle.
+   Eine normale Prüfung vergleicht gespeicherte und gemessene Route und
+   überschreibt nichts. Die initiale Erfassung ist ein ausdrücklicher Lauf
+   nach der Anleitung in `backend/test/query-budgets/README.md` (#6057,
+   Option 1). Szenario, `max`, `exact` und SQL-Messumfang bleiben unverändert.
 2. **Ein Budget fällt nur mit seiner eigenen Route weg.** Ein Szenario des
    Base-Registers darf fehlen, wenn dieselbe Änderung in
    `backend/architecture/query-budget-retirements.json` einen Eintrag
-   `{scenario, route, issue}` hinzufügt, die Route des Eintrags eine Route
-   ist, an die die Beschreibung des Budgets **an der Basis** es bindet, und
-   keine dieser Routen mehr im Router-Golden des Kandidaten steht.
-3. **Der Checker prüft das selbst, nicht das Review.** Ein neuer Eintrag wird
-   abgelehnt, wenn
-   - sein Szenario im Base-Register fehlt (Leerlauf),
-   - sein Szenario im Kandidaten noch registriert ist (Leerlauf),
-   - seine Route nicht die eigene Route des Budgets ist (fremde oder
-     erfundene Route; ein ungebundenes Budget lässt sich so nicht stilllegen),
-   - eine eigene Route des Budgets im Router-Golden des Kandidaten noch steht.
-4. **Eine umbenannte Route verwaist ihr gebundenes Budget.** Verschwinden
-   alle eigenen Routen eines bleibenden gebundenen Budgets aus dem Golden,
-   etwa weil die Route umbenannt wurde, ist das Budget verwaist und der Check
-   rot. Er bleibt rot, bis die Beschreibung des Budgets die neue Route nennt
-   (das Budget ist dann umbenannt) oder das Budget auf diesem Weg stillgelegt
-   ist. Diese Erkennung gilt nur für gebundene Budgets.
-5. **Ungebundene Budgets sind gesperrt, nicht frei.** Ein Budget ohne eigene
-   Route lässt sich nicht stilllegen: Jeder Eintrag für es scheitert an
-   Punkt 3, und ohne Eintrag bleibt sein Fehlen `disappeared` (fail closed).
-   Eine Umbenennung seiner Route erkennt der Checker dagegen nicht; sie
-   bleibt wie vor dieser ADR unerkannt, bis die Folgearbeit umgesetzt ist.
+   `{scenario, route, issue}` hinzufügt. Dessen Route muss dem expliziten
+   `route`-Feld des Budgets am unveränderlichen Git-Base-Commit entsprechen
+   und aus dem Router-Golden des Kandidaten verschwunden sein.
+3. **Der Checker prüft das selbst, nicht das Review.** Er lehnt einen neuen
+   Stilllegungseintrag ab, wenn sein Szenario an der Basis fehlt, im Kandidaten
+   weiterlebt, eine fremde oder erfundene Route nennt oder seine eigene Route
+   noch im Kandidaten-Golden steht. Ungebundene historische Base-Budgets lassen
+   sich nicht mit einer im selben Diff erfundenen Zuordnung stilllegen.
+4. **Eine umbenannte Route verwaist ihr Budget.** Der Checker verlangt für
+   jedes API-Budget eine nicht leere Route im Kandidaten-Golden. Verschwindet
+   etwa `GET /api/students/`, bleibt das Budget rot, bis es die neue Route
+   ausdrücklich nennt und der Test diese Route misst oder es nach Punkt 2
+   stillgelegt ist. Eine noch existierende, aber für den gemessenen Request
+   falsche Route scheitert zusätzlich am Laufzeitvergleich.
+5. **Nur Nicht-HTTP-Budgets sind ausdrücklich ausgenommen.** Reine Use-Case-
+   Budgets bleiben erlaubt. Routelose API-Szenarien brauchen je Szenario eine
+   Begründung in `backend/architecture/query-budget-non-http.json`. Nach der
+   initialen Einführung darf dieses Register nur schrumpfen: Der Checker
+   vergleicht Szenario und Begründung mit dem unveränderlichen Base-Stand,
+   nicht nur die Anzahl. Ein gleich großer Austausch, eine neue Ausnahme,
+   eine umgeschriebene Begründung und das Löschen des Registers sind rot.
+   Eine HTTP-Messung mit solcher Ausnahme ist ebenfalls rot. Nicht-HTTP-
+   Budgets können nicht mit einem Routen-Stilllegungsnachweis entfallen.
 6. **Die Goldens schlagen fehl, statt still zu bestehen.** Der Checker liest
    das Router-Golden der Basis und des Kandidaten bei jedem Lauf. Rot ist:
    eine leere Golden-Datei, eine Zeile, die keine Route ist, eine Golden-Datei
@@ -82,26 +91,17 @@ Freigegeben von Yannick Wenger am 07.11.2026 (Option A in #5972).
    Szenarios bleiben verboten. Weitere Stilllegungen brauchen keine neue ADR,
    nur diesen Weg.
 
-Erste Anwendung: `api.traeger.schools_today` fällt mit
-`GET /traeger/schools/today` weg (#5972). Seine Beschreibung bindet es an
-genau diese Route.
+Erste Anwendung: `api.traeger.schools_today` fiel mit
+`GET /traeger/schools/today` weg (#5972). Damals band die Beschreibung das
+Budget; seit #6057 ersetzt das explizite Feld diese Ableitung.
 
 ## Folgen
 
 - Toter Code mit Budget lässt sich entfernen, ohne das Register zu schwächen.
-- Budgets ohne eigene Route lassen sich auf diesem Weg nicht stilllegen, und
-  bei ihnen erkennt der Checker keine verwaiste Route (Punkt 5).
-  Repository-, Workflow- und Service-Szenarien haben keine Route. Von den
-  360 API-Budgets ließen sich auch per Skript aus Beschreibung und Test nur
-  112 eindeutig einer Route zuordnen; 248 nicht. Eine Ausnahmeliste dieser
-  Größe oder eine Zuordnung von Hand wurde deshalb verworfen.
-- **Folgearbeit: Route aus dem Testlauf mitschreiben**
-  ([#6057](https://github.com/moto-nrw/project-phoenix/issues/6057)). Die
-  Budget-Prüfung soll das von chi aufgelöste Routenmuster des gezählten
-  Requests erfassen und als Feld `route` jedes API-Budgets festhalten. Dann
-  verlangt der Checker `route` für jedes API-Budget, und eine Umbenennung ist
-  für alle API-Budgets rot.
-- Die Tests in `backend/internal/architecture/query_budgets_test.go`
-  (`TestCompareQueryBudgetsRetiresABudgetOnlyWithItsRoute`) decken den
-  erlaubten Fall und jede Ablehnung ab, einschließlich fremder Route, leerer
-  oder fehlender Goldens, eines Laufs ohne Routen und einer umbenannten Route.
+- Alle API-Budgets sind entweder an ihre tatsächlich gemessene Route gebunden
+  oder ausdrücklich als Nicht-HTTP-Szenario begründet. Schwer migrierbare
+  HTTP-Tests rechtfertigen keine Ausnahme.
+- Die initiale Erfassung und spätere normale Testläufe sind getrennt. Auch das
+  Backfill-Skript verweigert das Überschreiben einer bestehenden anderen Route.
+- Die günstigen Fixtures prüfen Rename, Mount-Präfixe, Beschreibungen ohne
+  Route, Nicht-HTTP-Ausnahmen und die Schutzfälle der Stilllegungsprüfung.

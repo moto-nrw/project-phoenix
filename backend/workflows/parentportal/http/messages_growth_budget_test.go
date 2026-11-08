@@ -137,11 +137,11 @@ func TestParentPortalMessagesPositiveGrowthQueryBudget(t *testing.T) {
 			}
 			switch entry.name {
 			case "conversation":
-				querybudgets.AssertQueryBudget(t, "parent.messages.conversation.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.messages.conversation.positive_growth", counter.Measurement(counter.Queries()))
 			case "threads":
-				querybudgets.AssertQueryBudget(t, "parent.messages.threads.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.messages.threads.positive_growth", counter.Measurement(counter.Queries()))
 			case "group_thread":
-				querybudgets.AssertQueryBudget(t, "parent.messages.group_thread.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.messages.group_thread.positive_growth", counter.Measurement(counter.Queries()))
 			}
 		}
 	}

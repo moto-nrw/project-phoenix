@@ -244,23 +244,23 @@ func TestTargetOverridesAPI_ListQueryBudget(t *testing.T) {
 	create("2026-10-12", "2026-10-16")
 	create("2026-10-19", "2026-10-23")
 
-	measure := func() []string {
+	measure := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, ctx.tc.db)
 		req := httptest.NewRequest(http.MethodGet, path, nil).WithContext(counter.Context(context.Background()))
 		req.Header.Set("Authorization", "Bearer "+authToken(t, "time_tracking:manage"))
 		rec := httptest.NewRecorder()
-		ctx.tc.router.ServeHTTP(rec, req)
+		testpkg.MeasuredHTTPRequest(counter, ctx.tc.router, rec, req)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		queries := counter.Queries()
 		counter.Stop()
-		return queries
+		return counter.Measurement(queries)
 	}
 	small := measure()
 	create("2026-11-02", "2026-11-06")
 	create("2026-11-09", "2026-11-13")
 	large := measure()
 
-	assert.Equal(t, len(small), len(large), "the list must not issue a statement per range")
+	assert.Equal(t, len(small.Statements), len(large.Statements), "the list must not issue a statement per range")
 	querybudgets.AssertQueryBudget(t, "workforce.staff_target_overrides.list", large)
 }
 

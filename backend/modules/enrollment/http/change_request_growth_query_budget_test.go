@@ -39,7 +39,7 @@ func TestEnrollmentPublicChangesRouteGrowthQueryBudget(t *testing.T) {
 			ids = append(ids, fmt.Sprint(row.ID))
 		}
 	}
-	run := func(n int) []string {
+	run := func(n int) testpkg.QueryMeasurement {
 		raw, q := growthReadOnlyGET(t, f, router, counter, "", "/requests/"+submitted.Request.StatusToken+"/change-requests")
 		var rows []struct {
 			ID        string `json:"id"`
@@ -62,6 +62,6 @@ func TestEnrollmentPublicChangesRouteGrowthQueryBudget(t *testing.T) {
 	small := run(3)
 	add(5)
 	large := run(8)
-	t.Logf("public changes N3=%d N8=%d", len(small), len(large))
+	t.Logf("public changes N3=%d N8=%d", len(small.Statements), len(large.Statements))
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.public_changes", large)
 }

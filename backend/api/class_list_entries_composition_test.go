@@ -175,13 +175,13 @@ func TestClassListEntriesCompositionKeepsItsQueryBudget(t *testing.T) {
 	add(0, 3)
 
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter.Reset()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req = req.WithContext(counter.Context(req.Context()))
 		rec := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:read"})
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Operation("SELECT")
+		return counter.Measurement(counter.Operation("SELECT"))
 	}
 
 	small := list()
@@ -189,7 +189,7 @@ func TestClassListEntriesCompositionKeepsItsQueryBudget(t *testing.T) {
 
 	add(3, 6)
 	large := list()
-	assert.Equal(t, len(small), len(large),
+	assert.Equal(t, len(small.Statements), len(large.Statements),
 		"three more entries cost no further statement: every hint comes from the shared reads")
 }
 

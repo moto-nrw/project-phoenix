@@ -31,7 +31,7 @@ func TestCalendarRecipientOptionsPositiveGrowthQueryBudget(t *testing.T) {
 		}
 		counter := testpkg.CaptureQueries(t, db)
 		rec := doJSON(t, router, http.MethodGet, "/calendar/recipient-options?q=schneider&limit=50", token, nil)
-		queries := counter.Queries()
+		queries := counter.Measurement(counter.Queries())
 		counter.Stop()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var out struct {
@@ -55,7 +55,7 @@ func TestCalendarRecipientOptionsPositiveGrowthQueryBudget(t *testing.T) {
 			require.NotEmpty(t, parent.Name)
 		}
 		require.ElementsMatch(t, ids, got)
-		t.Logf("full calendar recipient-options N%d statements=%d", n, len(queries))
+		t.Logf("full calendar recipient-options N%d statements=%d", n, len(queries.Statements))
 		if n == 3 {
 			querybudgets.AssertQueryBudget(t, "api.calendar.recipient_options.parents_3", queries)
 		} else {

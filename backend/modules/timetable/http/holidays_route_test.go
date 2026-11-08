@@ -160,7 +160,7 @@ func TestHolidayRouteQueryBudget(t *testing.T) {
 	)
 	decodeHolidayList(t, response)
 	t.Logf("query budget: holiday list → %d queries", counter.Total())
-	querybudgets.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Measurement(counter.Queries()))
 
 	for _, window := range []struct {
 		to    string
@@ -180,6 +180,6 @@ func TestHolidayRouteQueryBudget(t *testing.T) {
 		}
 		require.Equal(t, window.dates, dates, "positive N3/N8 holiday payload stays ordered")
 		t.Logf("N%d holidays: %d statements", len(dates), counter.Total())
-		querybudgets.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Measurement(counter.Queries()))
 	}
 }

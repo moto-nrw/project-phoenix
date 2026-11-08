@@ -379,7 +379,7 @@ func TestCommunication18AnnouncementPositiveGrowthQueryBudget(t *testing.T) {
 					communication18CSV(t, rec, n, submissions)
 				}
 				require.Zero(t, counter.WriteRows())
-				communication18Budget(t, tc.name, n, counter.Queries())
+				communication18Budget(t, tc.name, n, counter.Measurement(counter.Queries()))
 				unauth := request(tc.path, "")
 				require.Equal(t, 401, unauth.Code, tc.name)
 				denied := request(tc.path, other)
@@ -433,7 +433,7 @@ func communication18CSV(t *testing.T, rec *httptest.ResponseRecorder, n int, sub
 	require.Equal(t, want, got)
 }
 
-func communication18Budget(t *testing.T, name string, n int, queries []string) {
+func communication18Budget(t *testing.T, name string, n int, queries querybudgets.Measurement) {
 	t.Helper()
 	switch name {
 	case "list":

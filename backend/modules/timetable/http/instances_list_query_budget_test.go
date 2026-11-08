@@ -81,7 +81,7 @@ func TestListInstancesQueryBudget(t *testing.T) {
 
 	addInstances(5)
 	largeCount := run()
-	querybudgets.AssertQueryBudget(t, "api.timetable.instances.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.instances.list", counter.Measurement(counter.Queries()))
 	filteredLargeCount := func() int {
 		counter.Reset()
 		w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s&group_id=%d", from, to, educationGroup.ID))
@@ -96,5 +96,5 @@ func TestListInstancesQueryBudget(t *testing.T) {
 		"query count must be independent of the instance count (no per-instance N+1)")
 	assert.Equal(t, filteredSmallCount, filteredLargeCount,
 		"group-filter query count must be independent of the instance count")
-	querybudgets.AssertQueryBudget(t, "api.timetable.instances.list.group_filter", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.instances.list.group_filter", counter.Measurement(counter.Queries()))
 }

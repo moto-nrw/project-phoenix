@@ -39,7 +39,7 @@ func TestRBACRolesListQueryBudget(t *testing.T) {
 	}
 	require.Subset(t, systemNames, []string{"admin", "user", "guardian", "lehrkraft", "guest", "ag-leitung", "schulverwaltung", system.Name})
 	require.Greater(t, systemCount, 1, "existing system catalogue must remain, alongside the independent system fixture")
-	var measurements [][]string
+	var measurements []testpkg.QueryMeasurement
 	var custom []*testpkg.RoleFixture
 	for _, n := range []int{0, 3, 8} {
 		for len(custom) < n {

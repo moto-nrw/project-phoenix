@@ -296,17 +296,17 @@ func TestTraegerOccupancyQueryBudgetIsFlat(t *testing.T) {
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleReadOnly)
 	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
-	read := func() []string {
+	read := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		rec := traegerOccupancyRequest(t, router, "/traeger/schools/occupancy", answer.AccessToken, counter)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	three := read()
 	for _, name := range []string{"OGS Vier", "OGS Fünf"} {
 		addSchool(name)
 	}
-	assert.Len(t, read(), len(three), "the occupancy reads the same statements for any number of schools")
+	assert.Len(t, read().Statements, len(three.Statements), "the occupancy reads the same statements for any number of schools")
 	querybudgets.AssertQueryBudget(t, "api.traeger.schools_occupancy", three)
 }
 
