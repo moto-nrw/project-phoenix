@@ -15,7 +15,7 @@ type BlockColorFields = Pick<
 >;
 
 /** Kantenfarbe eines Blocks: rot bei Absage, sonst die Planungsspur. */
-function blockEdgeColor(block: BlockColorFields): string {
+export function blockEdgeColor(block: BlockColorFields): string {
   if (block.status === "cancelled") return LOCATION_COLORS.DANGER;
   return block.planningTrackColor ?? TIMETABLE_UNTYPED_EDGE_COLOR;
 }

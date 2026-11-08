@@ -291,7 +291,9 @@ describe("small timetable components", () => {
     expect(screen.getByText("Keine Zeiten hinterlegt")).toBeInTheDocument();
     expect(screen.getByText("Kein Raum")).toBeInTheDocument();
     expect(screen.getByText(/1 Kind/)).toBeInTheDocument();
-    expect(container.querySelector("article")).toHaveClass("hover:shadow-md!");
+    expect(container.querySelector("article")).toHaveClass(
+      "moto-hover-elevated",
+    );
   });
 
   it("renders class targets without duplicating their prefix", () => {

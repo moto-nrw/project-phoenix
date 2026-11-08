@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
@@ -344,7 +345,11 @@ export function CreateAccountModal({
             </SelectWithChevron>
           </FormField>
           {showCaregiverToggle && (
-            <div className="rounded-lg border border-gray-200 px-4 py-3">
+            <ChoiceTile
+              as="div"
+              selected={caregiverEnabled}
+              className="flex-col items-stretch gap-0 px-4 py-3"
+            >
               <label
                 htmlFor="create-account-caregiver-enabled"
                 className="flex cursor-pointer items-start gap-3 text-sm font-medium text-gray-900"
@@ -360,12 +365,12 @@ export function CreateAccountModal({
               </label>
               <p
                 id="create-account-caregiver-hint"
-                className="mt-1 pl-8 text-sm text-gray-600"
+                className="mt-1 pl-8 text-sm font-normal text-gray-600"
               >
                 Vergibt zusätzlich die Rolle Betreuung und legt das nötige
                 Staff-/Teacher-Profil an.
               </p>
-            </div>
+            </ChoiceTile>
           )}
           <div>
             <Input
