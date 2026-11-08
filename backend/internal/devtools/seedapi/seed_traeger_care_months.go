@@ -73,16 +73,9 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	released := 0
-	if !first.IsZero() {
-		if released, err = seedCareRun(rt.Client, auth, first, true); err != nil {
-			return err
-		}
-	}
-	if first != current {
-		if _, err := seedCareRun(rt.Client, auth, current, false); err != nil {
-			return err
-		}
+	released, err := seedCareRuns(rt.Client, auth, first, current)
+	if err != nil {
+		return err
 	}
 	// The months after the current one go into a Jahresbescheid (#6219).
 	notices, err := seedCareNotices(rt.Client, auth, current)
@@ -92,6 +85,24 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 	fmt.Printf("  Träger monthly contributions: %d prices, %d rules, %d evidences, %d invoices and %d fee notices issued\n",
 		prices, rules, evidences, released, notices)
 	return nil
+}
+
+// seedCareRuns releases the run of the first active month and leaves the
+// run of the current month open for its review (#5916).
+func seedCareRuns(client *Client, auth AuthRef, first, current calendar.Date) (int, error) {
+	released := 0
+	var err error
+	if !first.IsZero() {
+		if released, err = seedCareRun(client, auth, first, true); err != nil {
+			return 0, err
+		}
+	}
+	if first != current {
+		if _, err := seedCareRun(client, auth, current, false); err != nil {
+			return 0, err
+		}
+	}
+	return released, nil
 }
 
 // seedFirstActiveMonth is the month of the earliest effective date of an

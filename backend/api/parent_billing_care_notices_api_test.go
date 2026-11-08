@@ -114,6 +114,7 @@ func writeLegalRemedy(t *testing.T, db *bun.DB, organizationID int64) {
 func newNoticeFixture(t *testing.T, name string) (careBillingFixture, int64) {
 	t.Helper()
 	f := newCareBillingFixture(t, name)
+	f.db = testpkg.SetupTestDB(t)
 	school := f.office.schools[0]
 	contract := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))

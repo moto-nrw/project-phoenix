@@ -301,16 +301,22 @@ func noticeReferences(ctx context.Context, db bun.IDB, organizationID int64, not
 	}
 	for i := range notices {
 		for _, row := range rows {
-			issuedOn := row.IssuedOn
-			if notices[i].Amends != nil && row.ID == notices[i].Amends.ID {
-				notices[i].Amends = &parentbilling.CareNoticeReference{ID: row.ID, Number: row.Number, IssuedOn: &issuedOn}
-			}
-			if row.AmendsNoticeID != nil && *row.AmendsNoticeID == notices[i].ID {
-				notices[i].AmendedBy = &parentbilling.CareNoticeReference{ID: row.ID, Number: row.Number, IssuedOn: &issuedOn}
-			}
+			applyNoticeReference(&notices[i], row.ID, row.Number, row.IssuedOn, row.AmendsNoticeID)
 		}
 	}
 	return nil
+}
+
+// applyNoticeReference fills the notice a notice amends and names the one
+// that amends it, from one row of the references.
+func applyNoticeReference(notice *parentbilling.CareNotice, id int64, number string, issuedOn calendar.Date, amends *int64) {
+	reference := &parentbilling.CareNoticeReference{ID: id, Number: number, IssuedOn: &issuedOn}
+	if notice.Amends != nil && id == notice.Amends.ID {
+		notice.Amends = reference
+	}
+	if amends != nil && *amends == notice.ID {
+		notice.AmendedBy = reference
+	}
 }
 
 // IssueCareNotices stores the numbered notices of a release with their
@@ -336,29 +342,10 @@ func (s *Store) IssueCareNotices(ctx context.Context, organizationID int64, run 
 	}
 	for i, notice := range notices {
 		row := noticeRow(organizationID, run.ID, numberYear, first+int64(i), notice)
-		if _, err := db.NewInsert().Model(row).Returning("id").Exec(ctx); err != nil {
-			switch constraintOf(err) {
-			case careNoticeAmendsIndex, careNoticeFirstOfYearIndex:
-				return parentbilling.ErrBillingRunChanged
-			case "uq_care_notices_number":
-				return parentbilling.ErrInvoiceNumberTaken
-			}
-			return fmt.Errorf("insert notice: %w", err)
+		if err := insertNotice(ctx, db, row); err != nil {
+			return err
 		}
-		months := make([]careNoticeMonthRow, len(notice.Installments))
-		for j, installment := range notice.Installments {
-			snapshot := careNoticeSnapshot{Invoice: parentbilling.CareInvoice{}, Payable: []int64{}}
-			if j < len(notice.Months) {
-				snapshot.Invoice = notice.Months[j]
-				for _, position := range notice.Months[j].Positions {
-					snapshot.Payable = append(snapshot.Payable, position.PayableCents)
-				}
-			}
-			snapshot.Invoice.Number, snapshot.Invoice.DocumentKind = notice.Number, parentbilling.DocumentKindFeeNotice
-			months[j] = careNoticeMonthRow{OrganizationID: organizationID, NoticeID: row.ID, CareContractID: notice.ContractID,
-				BillingMonth: installment.Month, DueOn: installment.DueOn, ImmediatelyDue: installment.ImmediatelyDue,
-				PreviousCents: installment.PreviousCents, AmountCents: installment.AmountCents, Snapshot: snapshot}
-		}
+		months := noticeMonthRows(organizationID, row.ID, notice)
 		if len(months) == 0 {
 			continue
 		}
@@ -367,6 +354,43 @@ func (s *Store) IssueCareNotices(ctx context.Context, organizationID int64, run 
 		}
 	}
 	return nil
+}
+
+// insertNotice stores a notice; a notice amended in the meantime or a second
+// first notice of a contract and year is ErrBillingRunChanged, a number
+// taken in between ErrInvoiceNumberTaken.
+func insertNotice(ctx context.Context, db bun.IDB, row *careNoticeRow) error {
+	if _, err := db.NewInsert().Model(row).Returning("id").Exec(ctx); err != nil {
+		switch constraintOf(err) {
+		case careNoticeAmendsIndex, careNoticeFirstOfYearIndex:
+			return parentbilling.ErrBillingRunChanged
+		case "uq_care_notices_number":
+			return parentbilling.ErrInvoiceNumberTaken
+		}
+		return fmt.Errorf("insert notice: %w", err)
+	}
+	return nil
+}
+
+// noticeMonthRows are the months of a notice with the snapshot of what each
+// bills; the snapshot carries the notice number, so the monthly run names
+// the notice that assesses the month.
+func noticeMonthRows(organizationID, noticeID int64, notice parentbilling.CareNotice) []careNoticeMonthRow {
+	months := make([]careNoticeMonthRow, len(notice.Installments))
+	for j, installment := range notice.Installments {
+		snapshot := careNoticeSnapshot{Invoice: parentbilling.CareInvoice{}, Payable: []int64{}}
+		if j < len(notice.Months) {
+			snapshot.Invoice = notice.Months[j]
+			for _, position := range notice.Months[j].Positions {
+				snapshot.Payable = append(snapshot.Payable, position.PayableCents)
+			}
+		}
+		snapshot.Invoice.Number, snapshot.Invoice.DocumentKind = notice.Number, parentbilling.DocumentKindFeeNotice
+		months[j] = careNoticeMonthRow{OrganizationID: organizationID, NoticeID: noticeID, CareContractID: notice.ContractID,
+			BillingMonth: installment.Month, DueOn: installment.DueOn, ImmediatelyDue: installment.ImmediatelyDue,
+			PreviousCents: installment.PreviousCents, AmountCents: installment.AmountCents, Snapshot: snapshot}
+	}
+	return months
 }
 
 func noticeRow(organizationID, runID int64, numberYear int, sequence int64, notice parentbilling.CareNotice) *careNoticeRow {

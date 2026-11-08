@@ -239,7 +239,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // the Mensa of the monthly run of modules/parentbilling/compose (+7) add
 // exactly 38 LOC.
 // ADR 0175: the school-read context guard adds exactly 5 LOC in settings/compose.
-const moduleComposeBudgetTotal = 13130
+// ADR 0177: the constructor of the Jahresbescheide of
+// modules/parentbilling/compose adds exactly 7 LOC.
+const moduleComposeBudgetTotal = 13137
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -317,7 +319,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0165: the constructor of the monthly letters (+7);
 	// ADR 0167: the constructor of the payment terms (+5);
 	// ADR 0168: the Mensa of the monthly run (+7).
-	"modules/parentbilling/compose":               74,
+	"modules/parentbilling/compose":               81,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":    973,

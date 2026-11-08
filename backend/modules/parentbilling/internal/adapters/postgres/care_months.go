@@ -412,24 +412,36 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 	if err != nil {
 		return nil, err
 	}
-	var rows []struct {
-		ContractID     int64
-		SchoolID       int64
-		RecipientEmail string
-		FamilyEmail    string
-		TotalCents     int64
-		CareOfferingID int64
-		AmountCents    int64
-		PayableCents   int64
-		Reductions     []parentbilling.CareReduction `bun:",type:jsonb"`
-		NoticeNumber   string
-	}
+	var rows []invoicedContractRow
 	// A Mensa-only invoice (#4686) has no module position; it still bills
 	// its contract, so the positions join from the left for an invoice with
 	// Mensa months. A month a Jahresbescheid nobody amended assesses bills
 	// its contract too (#6219, ADR 0177): it comes from the snapshot of the
 	// month with the cents the rule chain allocated, and names the notice.
-	if err := db.NewRaw(`SELECT contract_id, school_id, recipient_email, family_email, total_cents, care_offering_id,
+	if err := db.NewRaw(invoicedContractsSQL, organizationID, month, organizationID, month).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("read invoiced contracts: %w", err)
+	}
+	return invoicedFromRows(rows), nil
+}
+
+// invoicedContractRow is one position of an issued invoice or of a month
+// of a Jahresbescheid, as invoicedContractsSQL reads it.
+type invoicedContractRow struct {
+	ContractID     int64
+	SchoolID       int64
+	RecipientEmail string
+	FamilyEmail    string
+	TotalCents     int64
+	CareOfferingID int64
+	AmountCents    int64
+	PayableCents   int64
+	Reductions     []parentbilling.CareReduction `bun:",type:jsonb"`
+	NoticeNumber   string
+}
+
+// invoicedContractsSQL reads the positions of the issued monthly invoices
+// of a month and of the months of the Jahresbescheide nobody amended.
+const invoicedContractsSQL = `SELECT contract_id, school_id, recipient_email, family_email, total_cents, care_offering_id,
 		amount_cents, payable_cents, reductions, notice_number FROM (
 		SELECT i.care_contract_id AS contract_id, i.school_id, i.recipient_email,
 		COALESCE(i.family_email, '') AS family_email, i.total_cents,
@@ -465,9 +477,10 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_notices AS amendment
 				WHERE amendment.organization_id = n.organization_id AND amendment.amends_notice_id = n.id)
 		) AS billed
-		ORDER BY contract_id, ord`, organizationID, month, organizationID, month).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("read invoiced contracts: %w", err)
-	}
+		ORDER BY contract_id, ord`
+
+// invoicedFromRows folds the positions into one billed entry per contract.
+func invoicedFromRows(rows []invoicedContractRow) map[int64]parentbilling.CareInvoice {
 	invoiced := make(map[int64]parentbilling.CareInvoice)
 	for _, row := range rows {
 		invoice := invoiced[row.ContractID]
@@ -485,7 +498,7 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		}
 		invoiced[row.ContractID] = invoice
 	}
-	return invoiced, nil
+	return invoiced
 }
 
 // InsertCareRunEvent records an action of the run's trail.

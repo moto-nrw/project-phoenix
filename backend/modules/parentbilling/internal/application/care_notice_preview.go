@@ -59,36 +59,10 @@ func (n *CareFeeNotices) preview(ctx context.Context, organizationID int64, run 
 		issuedOn = *run.NoticeDate
 	}
 	preview := noticePreview{issuedOn: issuedOn, unpriced: []parentbilling.CareUnpriced{}, duplicates: []parentbilling.CareDuplicate{}}
-	drafts := map[calendar.Date][]parentbilling.CareInvoice{}
-	billed := map[int64]bool{}
-	for _, month := range in.months {
-		monthIn := in.month
-		monthIn.month = month
-		monthIn.versions = clipVersions(in.month.versions, month, monthEnd(month))
-		if monthIn.invoiced, err = n.billing.store.InvoicedContracts(ctx, organizationID, month); err != nil {
-			return noticePreview{}, err
-		}
-		for contractID := range in.noticed[month] {
-			delete(monthIn.invoiced, contractID)
-		}
-		computed, err := buildCareMonth(monthIn)
-		if err != nil {
-			return noticePreview{}, err
-		}
-		review := narrowMonth(computed, run.SchoolIDs, nil)
-		drafts[month] = review.invoices
-		if month.Before(run.PeriodFrom) {
-			continue
-		}
-		for contractID, invoice := range monthIn.invoiced {
-			if slices.Contains(run.SchoolIDs, invoice.SchoolID) && invoice.Number == "" {
-				billed[contractID] = true
-			}
-		}
-		preview.unpriced = appendNew(preview.unpriced, review.unpriced)
-		preview.duplicates = appendNew(preview.duplicates, review.duplicates)
+	drafts, err := n.noticeDrafts(ctx, organizationID, run, in, &preview)
+	if err != nil {
+		return noticePreview{}, err
 	}
-	preview.billed = len(billed)
 	preview.notices, preview.unchanged = assessNotices(noticeAssessment{from: run.PeriodFrom, months: in.months,
 		drafts: drafts, previous: in.previous, issuedOn: issuedOn})
 	if err := n.withPayments(ctx, organizationID, preview.notices, issuedOn); err != nil {
@@ -104,6 +78,55 @@ func (n *CareFeeNotices) preview(ctx context.Context, organizationID int64, run 
 	preview.legalRemedyMissing = missing
 	preview.fingerprint = noticeFingerprint(run, in.rule, preview, legalKey)
 	return preview, nil
+}
+
+// noticeDrafts computes every month of the run like the monthly run and
+// keeps the drafts of its schools. A contract of an effective notice of the
+// run's schools is computed again; every other issued month stays billed.
+// From the run's first month on it also collects the contracts a monthly
+// invoice bills, the bookings without a price and the duplicates.
+func (n *CareFeeNotices) noticeDrafts(ctx context.Context, organizationID int64, run parentbilling.CareNoticeRun, in noticeInput,
+	preview *noticePreview,
+) (map[calendar.Date][]parentbilling.CareInvoice, error) {
+	drafts := map[calendar.Date][]parentbilling.CareInvoice{}
+	billed := map[int64]bool{}
+	for _, month := range in.months {
+		monthIn := in.month
+		monthIn.month = month
+		monthIn.versions = clipVersions(in.month.versions, month, monthEnd(month))
+		invoiced, err := n.billing.store.InvoicedContracts(ctx, organizationID, month)
+		if err != nil {
+			return nil, err
+		}
+		for contractID := range in.noticed[month] {
+			delete(invoiced, contractID)
+		}
+		monthIn.invoiced = invoiced
+		computed, err := buildCareMonth(monthIn)
+		if err != nil {
+			return nil, err
+		}
+		review := narrowMonth(computed, run.SchoolIDs, nil)
+		drafts[month] = review.invoices
+		if month.Before(run.PeriodFrom) {
+			continue
+		}
+		addBilledByInvoice(billed, invoiced, run.SchoolIDs)
+		preview.unpriced = appendNew(preview.unpriced, review.unpriced)
+		preview.duplicates = appendNew(preview.duplicates, review.duplicates)
+	}
+	preview.billed = len(billed)
+	return drafts, nil
+}
+
+// addBilledByInvoice names the contracts of the schools a monthly invoice
+// bills; a month of a notice carries the notice number.
+func addBilledByInvoice(billed map[int64]bool, invoiced map[int64]parentbilling.CareInvoice, schoolIDs []int64) {
+	for contractID, invoice := range invoiced {
+		if invoice.Number == "" && slices.Contains(schoolIDs, invoice.SchoolID) {
+			billed[contractID] = true
+		}
+	}
 }
 
 // noticeInput reads the month rule, the effective notices of the year and
@@ -123,6 +146,18 @@ func (n *CareFeeNotices) noticeInput(ctx context.Context, organizationID int64, 
 	if err != nil {
 		return in, err
 	}
+	start := in.collectPrevious(effective, run)
+	for month := start; !month.After(run.PeriodUntil); month = monthEnd(month).AddDays(1) {
+		in.months = append(in.months, month)
+	}
+	in.month, err = n.billing.spanInput(ctx, organizationID, start, run.PeriodUntil, in.rule)
+	return in, err
+}
+
+// collectPrevious keeps the effective notices of the run's schools, names
+// per month the contracts they assess and answers the first month to
+// compute: the run's first month or an earlier month of such a notice.
+func (in *noticeInput) collectPrevious(effective []parentbilling.CareNotice, run parentbilling.CareNoticeRun) calendar.Date {
 	start := run.PeriodFrom
 	for _, notice := range effective {
 		if !slices.Contains(run.SchoolIDs, notice.SchoolID) {
@@ -139,11 +174,7 @@ func (n *CareFeeNotices) noticeInput(ctx context.Context, organizationID int64, 
 			}
 		}
 	}
-	for month := start; !month.After(run.PeriodUntil); month = monthEnd(month).AddDays(1) {
-		in.months = append(in.months, month)
-	}
-	in.month, err = n.billing.spanInput(ctx, organizationID, start, run.PeriodUntil, in.rule)
-	return in, err
+	return start
 }
 
 // spanInput reads what careMonthInput reads for one month for a span of

@@ -43,45 +43,52 @@ type noticeItem struct {
 // assessNotices writes the drafts of the notices and counts the contracts
 // whose effective notice still holds.
 func assessNotices(in noticeAssessment) ([]parentbilling.CareNotice, int) {
-	byContract := map[int64]map[calendar.Date]parentbilling.CareInvoice{}
-	order := []int64{}
-	for _, month := range in.months {
-		for _, draft := range in.drafts[month] {
-			if month.Before(in.from) && !previousCovers(in.previous[draft.ContractID], month) {
-				continue
-			}
-			if byContract[draft.ContractID] == nil {
-				byContract[draft.ContractID] = map[calendar.Date]parentbilling.CareInvoice{}
-				order = append(order, draft.ContractID)
-			}
-			byContract[draft.ContractID][month] = draft
-		}
-	}
-	for contractID := range in.previous {
-		if byContract[contractID] == nil {
-			byContract[contractID] = map[calendar.Date]parentbilling.CareInvoice{}
-			order = append(order, contractID)
-		}
-	}
-	slices.Sort(order)
+	byContract, order := draftsByContract(in)
 	notices := []parentbilling.CareNotice{}
 	unchanged := 0
 	for _, contractID := range order {
 		previous, amends := in.previous[contractID]
 		notice, changed := assessContract(in, byContract[contractID], previous, amends)
-		if !changed {
-			if amends {
-				unchanged++
-			}
-			continue
+		switch {
+		case changed:
+			notices = append(notices, notice)
+		case amends:
+			unchanged++
 		}
-		notices = append(notices, notice)
 	}
 	slices.SortFunc(notices, func(a, b parentbilling.CareNotice) int {
 		return firstNonZero(strings.Compare(a.SchoolName, b.SchoolName), strings.Compare(a.ChildLastName, b.ChildLastName),
 			strings.Compare(a.ChildFirstName, b.ChildFirstName), compareOrdered(a.ContractID, b.ContractID))
 	})
 	return notices, unchanged
+}
+
+// draftsByContract groups the drafts by contract and month; a month before
+// the run counts only where the effective notice assessed it. Every
+// contract with an effective notice has an entry, also without a draft.
+func draftsByContract(in noticeAssessment) (map[int64]map[calendar.Date]parentbilling.CareInvoice, []int64) {
+	byContract := map[int64]map[calendar.Date]parentbilling.CareInvoice{}
+	order := []int64{}
+	ensure := func(contractID int64) {
+		if byContract[contractID] == nil {
+			byContract[contractID] = map[calendar.Date]parentbilling.CareInvoice{}
+			order = append(order, contractID)
+		}
+	}
+	for _, month := range in.months {
+		for _, draft := range in.drafts[month] {
+			if month.Before(in.from) && !previousCovers(in.previous[draft.ContractID], month) {
+				continue
+			}
+			ensure(draft.ContractID)
+			byContract[draft.ContractID][month] = draft
+		}
+	}
+	for contractID := range in.previous {
+		ensure(contractID)
+	}
+	slices.Sort(order)
+	return byContract, order
 }
 
 // previousCovers reports whether the notice assessed the month.
@@ -96,17 +103,7 @@ func previousCovers(notice parentbilling.CareNotice, month calendar.Date) bool {
 func assessContract(in noticeAssessment, drafts map[calendar.Date]parentbilling.CareInvoice,
 	previous parentbilling.CareNotice, amends bool,
 ) (parentbilling.CareNotice, bool) {
-	previousMonths := map[calendar.Date]parentbilling.CareInvoice{}
-	previousAmounts := map[calendar.Date]int64{}
-	if amends {
-		// The months of a notice follow its installments one by one.
-		for i, installment := range previous.Installments {
-			previousAmounts[installment.Month] = installment.AmountCents
-			if i < len(previous.Months) {
-				previousMonths[installment.Month] = previous.Months[i]
-			}
-		}
-	}
+	previousMonths, previousAmounts := previousByMonth(previous, amends)
 	months := noticeMonths(in.months, drafts, previousAmounts)
 	if len(months) == 0 {
 		return parentbilling.CareNotice{}, false
@@ -131,20 +128,42 @@ func assessContract(in noticeAssessment, drafts map[calendar.Date]parentbilling.
 		notice.Installments = append(notice.Installments, installment)
 		notice.PreviousCents += installment.PreviousCents
 		notice.TotalCents += installment.AmountCents
-		if draft, ok := drafts[month]; ok {
-			notice.Months = append(notice.Months, draft)
-		} else {
-			// A month the change takes back bills nothing now; it stays
-			// assessed, so no monthly run bills it either.
-			notice.Months = append(notice.Months, parentbilling.CareInvoice{ContractID: notice.ContractID,
-				SchoolID: notice.SchoolID, Recipient: notice.Recipient, FamilyEmail: parentbilling.FamilyKey(notice.Recipient.Email),
-				Service: parentbilling.ServiceCare, Positions: []parentbilling.CarePosition{}})
-		}
+		notice.Months = append(notice.Months, noticeMonth(notice, drafts, month))
 	}
 	notice.DeltaCents = notice.TotalCents - notice.PreviousCents
 	notice.PeriodFrom, notice.PeriodUntil = months[0], monthEnd(months[len(months)-1])
 	notice.Year = months[0].Year()
 	return notice, true
+}
+
+// previousByMonth is what the effective notice assessed per month: the
+// month as billed and its rate. The months of a notice follow its
+// installments one by one.
+func previousByMonth(previous parentbilling.CareNotice, amends bool) (map[calendar.Date]parentbilling.CareInvoice, map[calendar.Date]int64) {
+	months := map[calendar.Date]parentbilling.CareInvoice{}
+	amounts := map[calendar.Date]int64{}
+	if !amends {
+		return months, amounts
+	}
+	for i, installment := range previous.Installments {
+		amounts[installment.Month] = installment.AmountCents
+		if i < len(previous.Months) {
+			months[installment.Month] = previous.Months[i]
+		}
+	}
+	return months, amounts
+}
+
+// noticeMonth is what the month of a notice bills: its draft, or nothing
+// for a month the change takes back, which stays assessed, so no monthly
+// run bills it either.
+func noticeMonth(notice parentbilling.CareNotice, drafts map[calendar.Date]parentbilling.CareInvoice, month calendar.Date) parentbilling.CareInvoice {
+	if draft, ok := drafts[month]; ok {
+		return draft
+	}
+	return parentbilling.CareInvoice{ContractID: notice.ContractID, SchoolID: notice.SchoolID, Recipient: notice.Recipient,
+		FamilyEmail: parentbilling.FamilyKey(notice.Recipient.Email), Service: parentbilling.ServiceCare,
+		Positions: []parentbilling.CarePosition{}}
 }
 
 // noticeMonths are the months the notice assesses: those with a draft from

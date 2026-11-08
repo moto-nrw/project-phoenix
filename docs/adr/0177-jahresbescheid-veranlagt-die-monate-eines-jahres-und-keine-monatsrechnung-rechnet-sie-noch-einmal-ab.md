@@ -159,6 +159,9 @@ Forderungsstand nach Zahlungseingängen sind nicht belegt.
 - Routen im Route-Golden; die schreibenden in der Nutzungsanalyse als
   `notCaptured` (Träger, keine Schule). Query-Budget
   `api.traeger.care_notice_runs` (2, exact).
+- Compose-Budget: `modules/parentbilling/compose` 74 → 81 Zeilen
+  (`moduleComposeBudgetTotal` 13130 → 13137) für den Konstruktor
+  `NewCareFeeNotices`.
 - Fehlercodes `parent_billing.care_notice_run_not_found`,
   `parent_billing.care_notice_run_open`, `parent_billing.care_notice_run_invalid`,
   `parent_billing.care_notice_not_found`.
