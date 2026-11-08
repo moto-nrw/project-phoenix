@@ -267,6 +267,8 @@ func renderMandateError(w http.ResponseWriter, r *http.Request, err error, inval
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingSepaMandateInForce))
 	case errors.Is(err, capability.ErrSEPAMandateReferenceTaken):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingSepaMandateReferenceTaken))
+	case errors.Is(err, capability.ErrSEPACreditorMissing):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingSepaCreditorMissing))
 	case errors.Is(err, capability.ErrSEPAMandateRevoked):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingSepaMandateRevoked))
 	default:

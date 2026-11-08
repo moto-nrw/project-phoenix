@@ -65,11 +65,13 @@ CREATE TABLE parent_billing.sepa_mandates (
 	signed_on DATE NOT NULL,
 	kind VARCHAR(16) NOT NULL,
 	sequence VARCHAR(16) NOT NULL,
-	account_holder VARCHAR(70) NOT NULL,
+	creditor_id VARCHAR(35) NOT NULL,
+	account_holder_sealed BYTEA NOT NULL,
 	iban_sealed BYTEA NOT NULL,
 	iban_masked VARCHAR(48) NOT NULL,
 	bic VARCHAR(11) NOT NULL DEFAULT '',
 	source VARCHAR(16) NOT NULL,
+	last_collected_on DATE,
 	revoked_on DATE,
 	revoked_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	revoked_at TIMESTAMPTZ,
@@ -87,7 +89,8 @@ CREATE TABLE parent_billing.sepa_mandates (
 		AND reference NOT LIKE '/%' AND position('//' IN reference) = 0),
 	CONSTRAINT chk_sepa_mandates_kind CHECK (kind IN ('recurring', 'one_off')),
 	CONSTRAINT chk_sepa_mandates_sequence CHECK (sequence IN ('first', 'recurring') AND (kind = 'recurring' OR sequence = 'first')),
-	CONSTRAINT chk_sepa_mandates_holder CHECK (BTRIM(account_holder) <> ''),
+	CONSTRAINT chk_sepa_mandates_creditor CHECK (creditor_id ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{3}[A-Z0-9]{1,28}$'),
+	CONSTRAINT chk_sepa_mandates_collected CHECK (last_collected_on IS NULL OR last_collected_on >= signed_on),
 	CONSTRAINT chk_sepa_mandates_bic CHECK (bic = '' OR bic ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
 	CONSTRAINT chk_sepa_mandates_source CHECK (source IN ('office', 'import', 'parent')),
 	CONSTRAINT chk_sepa_mandates_revoked CHECK (num_nulls(revoked_on, revoked_at) IN (0, 2)
@@ -100,6 +103,12 @@ COMMENT ON TABLE parent_billing.sepa_mandates IS
 	'SEPA mandate of the payer of a family (#4695); the IBAN is sealed, a revoked mandate stays as history and never changes.';
 COMMENT ON COLUMN parent_billing.sepa_mandates.iban_sealed IS
 	'IBAN sealed with the field cipher (AES-256-GCM), bound to the Träger and the reference.';
+COMMENT ON COLUMN parent_billing.sepa_mandates.account_holder_sealed IS
+	'Account holder sealed with the field cipher (AES-256-GCM), bound to the Träger and the reference.';
+COMMENT ON COLUMN parent_billing.sepa_mandates.creditor_id IS
+	'Creditor identifier the mandate was given to; a new creditor identifier of the Träger needs a new mandate.';
+COMMENT ON COLUMN parent_billing.sepa_mandates.last_collected_on IS
+	'Day of the last collection with the mandate (#4697): FRST becomes RCUR, and 36 months without one end it.';
 
 -- A mandate keeps its family, contract, reference and signing date; a
 -- revoked mandate keeps its history; account erasure may clear actor references.
@@ -122,8 +131,9 @@ BEGIN
 	END IF;
 	IF NEW.organization_id <> OLD.organization_id OR NEW.family_email <> OLD.family_email
 		OR NEW.care_contract_id <> OLD.care_contract_id OR NEW.reference <> OLD.reference
-		OR NEW.signed_on <> OLD.signed_on OR NEW.source <> OLD.source OR NEW.created_at <> OLD.created_at THEN
-		RAISE EXCEPTION 'a SEPA mandate keeps its family, reference and signing date' USING ERRCODE = '55000';
+		OR NEW.signed_on <> OLD.signed_on OR NEW.source <> OLD.source OR NEW.created_at <> OLD.created_at
+		OR NEW.creditor_id <> OLD.creditor_id THEN
+		RAISE EXCEPTION 'a SEPA mandate keeps its family, reference, creditor and signing date' USING ERRCODE = '55000';
 	END IF;
 	RETURN NEW;
 END;
@@ -147,7 +157,7 @@ CREATE TABLE parent_billing.sepa_mandate_events (
 		REFERENCES parent_billing.sepa_mandates (organization_id, id) ON DELETE CASCADE,
 	CONSTRAINT fk_sepa_mandate_events_contract FOREIGN KEY (organization_id, care_contract_id)
 		REFERENCES care_contract.contracts (organization_id, id) ON DELETE CASCADE,
-	CONSTRAINT chk_sepa_mandate_events_action CHECK (action IN ('create', 'update', 'revoke', 'read', 'reveal')),
+	CONSTRAINT chk_sepa_mandate_events_action CHECK (action IN ('create', 'update', 'revoke', 'read', 'reveal', 'collect')),
 	CONSTRAINT chk_sepa_mandate_events_source CHECK (source IN ('office', 'import', 'parent', 'run'))
 );
 CREATE INDEX idx_sepa_mandate_events_mandate ON parent_billing.sepa_mandate_events (organization_id, mandate_id, occurred_at);
@@ -166,7 +176,7 @@ ALTER TABLE parent_billing.care_invoices
 		num_nulls(mandate_id, mandate_reference, mandate_signed_on, creditor_id, debtor_iban_masked, sequence_type) IN (0, 6)
 		AND (mandate_reference IS NULL OR payment_method = 'direct_debit')
 		AND (sequence_type IS NULL OR sequence_type IN ('FRST', 'RCUR', 'OOFF'))
-		AND (debit_gap IS NULL OR (debit_gap IN ('mandate_missing', 'creditor_missing') AND mandate_reference IS NULL)));
+		AND (debit_gap IS NULL OR (debit_gap IN ('mandate_missing', 'creditor_missing', 'creditor_changed') AND mandate_reference IS NULL)));
 
 ALTER TABLE parent_billing.documents
 	ADD COLUMN mandate_id BIGINT,
@@ -180,7 +190,7 @@ ALTER TABLE parent_billing.documents
 		num_nulls(mandate_id, mandate_reference, mandate_signed_on, creditor_id, debtor_iban_masked, sequence_type) IN (0, 6)
 		AND (mandate_reference IS NULL OR payment_method = 'direct_debit')
 		AND (sequence_type IS NULL OR sequence_type IN ('FRST', 'RCUR', 'OOFF'))
-		AND (debit_gap IS NULL OR (debit_gap IN ('mandate_missing', 'creditor_missing') AND mandate_reference IS NULL)));
+		AND (debit_gap IS NULL OR (debit_gap IN ('mandate_missing', 'creditor_missing', 'creditor_changed') AND mandate_reference IS NULL)));
 
 ALTER TABLE parent_billing.sepa_creditors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parent_billing.sepa_creditors FORCE ROW LEVEL SECURITY;

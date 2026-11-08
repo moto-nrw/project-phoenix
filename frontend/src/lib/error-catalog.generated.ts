@@ -968,6 +968,8 @@ export const ERROR_CATALOG = {
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
       "parent_billing.sepa_creditor_invalid":
         "Die Angaben zur Lastschrift konnten nicht gespeichert werden. Bitte prüfen Sie die Eingaben.",
+      "parent_billing.sepa_creditor_missing":
+        "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein.",
       "parent_billing.sepa_mandate_in_force":
         "Die Familie hat schon ein gültiges Mandat. Bitte widerrufen Sie es zuerst.",
       "parent_billing.sepa_mandate_invalid":

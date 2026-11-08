@@ -85,5 +85,6 @@
   "sepa_mandate_in_force": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "sepa_mandate_reference_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "sepa_mandate_revoked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-  "direct_debit_without_mandate": "Не вдалося змінити: {object}. Перевірте поточний стан."
+  "direct_debit_without_mandate": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "sepa_creditor_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
 }

@@ -85,5 +85,6 @@
   "sepa_mandate_in_force": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "sepa_mandate_reference_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "sepa_mandate_revoked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "direct_debit_without_mandate": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "direct_debit_without_mandate": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "sepa_creditor_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

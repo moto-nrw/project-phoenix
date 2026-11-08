@@ -43,8 +43,8 @@ func seedMandateScope(t *testing.T, ctx context.Context, tx bun.IDB, scope manda
 	_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
 	require.NoError(t, err)
 	require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.sepa_mandates (organization_id, family_email, care_contract_id, reference,
-		signed_on, kind, sequence, account_holder, iban_sealed, iban_masked, source)
-		VALUES (?, ?, 1, ?, DATE '2026-09-01', 'recurring', 'first', 'Eva Beispiel', '\x01'::bytea, 'DE•• •••• •••• •••• ••30 00', 'office')
+		signed_on, kind, sequence, creditor_id, account_holder_sealed, iban_sealed, iban_masked, source)
+		VALUES (?, ?, 1, ?, DATE '2026-09-01', 'recurring', 'first', 'DE98ZZZ09999999999', '\x02'::bytea, '\x01'::bytea, 'DE•• •••• •••• •••• ••30 00', 'office')
 		RETURNING id`, scope.organization, scope.family, reference).Scan(ctx, &scope.mandate))
 	_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.sepa_mandate_events (organization_id, mandate_id, care_contract_id, action, source)
 		VALUES (?, ?, 1, 'create', 'office')`, scope.organization, scope.mandate)
@@ -90,7 +90,7 @@ func TestSEPAMandateFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		require.ErrorIs(t, err, parentbilling.ErrSEPAMandateNotFound, "SEPAMandate of another Träger")
 		_, err = store.UpdateSEPAMandate(ctx, own.organization, 0, parentbilling.SealedSEPAMandate{
 			Mandate: parentbilling.SEPAMandate{ID: other.mandate, AccountHolder: "Fremd", Sequence: parentbilling.SequenceFirst},
-			IBAN:    []byte{2}})
+			IBAN:    []byte{2}, Holder: []byte{3}})
 		require.ErrorIs(t, err, parentbilling.ErrSEPAMandateNotFound, "UpdateSEPAMandate of another Träger")
 		_, err = store.RevokeSEPAMandate(ctx, own.organization, 0, other.mandate, calendar.NewDate(2026, 10, 1))
 		require.ErrorIs(t, err, parentbilling.ErrSEPAMandateNotFound, "RevokeSEPAMandate of another Träger")
@@ -114,10 +114,10 @@ func TestSEPAMandateFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		require.NoError(t, store.SaveSEPACreditor(ctx, own.organization, 0, parentbilling.SEPACreditor{CreditorID: "",
 			PrenotificationDays: 5, MissingMandate: parentbilling.MissingMandateBlock}))
 		var kept string
-		require.NoError(t, tx.NewRaw(`SELECT holder.account_holder || '|' || creditor.creditor_id
+		require.NoError(t, tx.NewRaw(`SELECT encode(holder.account_holder_sealed, 'hex') || '|' || creditor.creditor_id
 			FROM parent_billing.sepa_mandates AS holder JOIN parent_billing.sepa_creditors AS creditor USING (organization_id)
 			WHERE holder.id = ?`, other.mandate).Scan(ctx, &kept))
-		assert.Equal(t, "Eva Beispiel|DE98ABC09999999999", kept, "the other Träger keeps its mandate and creditor")
+		assert.Equal(t, "02|DE98ABC09999999999", kept, "the other Träger keeps its mandate and creditor")
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)
@@ -146,8 +146,8 @@ func TestSEPAMandateHistoryNeverChanges(t *testing.T) {
 		require.NoError(t, tx.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, status, sent_at)
 			VALUES (?, ?, ?, 'versendet', NOW()) RETURNING id`, own.organization, school, testpkg.UniqueTestTenantID(t)).Scan(ctx, &contract))
 		require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.sepa_mandates (organization_id, family_email, care_contract_id, reference,
-			signed_on, kind, sequence, account_holder, iban_sealed, iban_masked, source)
-			VALUES (?, ?, ?, 'SJR-H-1', DATE '2026-09-01', 'recurring', 'first', 'Eva Beispiel', '\x01'::bytea, 'DE•• 30 00', 'office')
+			signed_on, kind, sequence, creditor_id, account_holder_sealed, iban_sealed, iban_masked, source)
+			VALUES (?, ?, ?, 'SJR-H-1', DATE '2026-09-01', 'recurring', 'first', 'DE98ZZZ09999999999', '\x02'::bytea, '\x01'::bytea, 'DE•• 30 00', 'office')
 			RETURNING id`, own.organization, own.family, contract).Scan(ctx, &own.mandate))
 
 		_, err = tx.ExecContext(ctx, `SAVEPOINT reference`)
@@ -166,14 +166,14 @@ func TestSEPAMandateHistoryNeverChanges(t *testing.T) {
 		_, err = tx.ExecContext(ctx, `SAVEPOINT revoked`)
 		require.NoError(t, err)
 		_, err = store.UpdateSEPAMandate(ctx, own.organization, 0, parentbilling.SealedSEPAMandate{
-			Mandate: parentbilling.SEPAMandate{ID: own.mandate, AccountHolder: "Neu", Sequence: parentbilling.SequenceFirst}})
+			Mandate: parentbilling.SEPAMandate{ID: own.mandate, Sequence: parentbilling.SequenceFirst}, Holder: []byte{4}})
 		require.ErrorContains(t, err, "revoked SEPA mandate never changes")
 		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT revoked`)
 		require.NoError(t, err)
 
 		for _, statement := range []string{
 			`UPDATE parent_billing.sepa_mandates SET created_by_account_id = ? WHERE id = ?`,
-			`UPDATE parent_billing.sepa_mandates SET created_by_account_id = NULL, updated_by_account_id = ?, account_holder = 'Neu'
+			`UPDATE parent_billing.sepa_mandates SET created_by_account_id = NULL, updated_by_account_id = ?, bic = 'NEUBICXX'
 				WHERE id = ?`,
 		} {
 			_, err = tx.ExecContext(ctx, `SAVEPOINT actor_rewrite`)

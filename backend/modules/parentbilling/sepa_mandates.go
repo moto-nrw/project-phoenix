@@ -73,6 +73,9 @@ const (
 const (
 	DebitGapMandate  = "mandate_missing"
 	DebitGapCreditor = "creditor_missing"
+	// DebitGapCreditorChanged is a mandate given to an earlier creditor
+	// identifier of the Träger: it needs a new mandate.
+	DebitGapCreditorChanged = "creditor_changed"
 )
 
 // Limits of the direct debit.
@@ -98,6 +101,9 @@ var (
 	// ErrSEPAMandateReferenceTaken reports a reference the Träger already
 	// gave another mandate.
 	ErrSEPAMandateReferenceTaken = errors.New("the Träger already has a SEPA mandate with this reference")
+	// ErrSEPACreditorMissing reports a mandate for a Träger without a
+	// creditor identifier: a mandate is given to one.
+	ErrSEPACreditorMissing = errors.New("the Träger has no SEPA creditor identifier")
 	// ErrSEPAMandateRevoked reports a change of a revoked mandate.
 	ErrSEPAMandateRevoked = errors.New("a revoked SEPA mandate never changes")
 	// ErrDirectDebitWithoutMandate reports a release that would issue an
@@ -124,25 +130,34 @@ func DefaultSEPACreditor() SEPACreditor {
 
 // SEPAMandate is a mandate as the Abrechnung sees it: the IBAN only as its
 // mask. PartyFirstName and PartyLastName name the contract party of the
-// family.
+// family. CreditorID is the creditor identifier the mandate was given to;
+// CreditorCurrent tells whether it is still the Träger's. LastCollectedOn is
+// the day of the last collection (#4697 sets it; FRST becomes RCUR, and 36
+// months without one end the mandate).
 type SEPAMandate struct {
-	ID             int64          `json:"id"`
-	ContractID     int64          `json:"contract_id"`
-	FamilyEmail    string         `json:"family_email"`
-	PartyFirstName string         `json:"party_first_name"`
-	PartyLastName  string         `json:"party_last_name"`
-	Reference      string         `json:"reference"`
-	SignedOn       calendar.Date  `json:"signed_on"`
-	Kind           string         `json:"kind"`
-	Sequence       string         `json:"sequence"`
-	AccountHolder  string         `json:"account_holder"`
-	IBANMasked     string         `json:"iban_masked"`
-	BIC            string         `json:"bic"`
-	Source         string         `json:"source"`
-	RevokedOn      *calendar.Date `json:"revoked_on"`
-	RevokedAt      *time.Time     `json:"revoked_at"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
+	ID              int64          `json:"id"`
+	ContractID      int64          `json:"contract_id"`
+	FamilyEmail     string         `json:"family_email"`
+	PartyFirstName  string         `json:"party_first_name"`
+	PartyLastName   string         `json:"party_last_name"`
+	Reference       string         `json:"reference"`
+	SignedOn        calendar.Date  `json:"signed_on"`
+	Kind            string         `json:"kind"`
+	Sequence        string         `json:"sequence"`
+	AccountHolder   string         `json:"account_holder"`
+	CreditorID      string         `json:"creditor_id"`
+	CreditorCurrent bool           `json:"creditor_current"`
+	LastCollectedOn *calendar.Date `json:"last_collected_on"`
+	IBANMasked      string         `json:"iban_masked"`
+	BIC             string         `json:"bic"`
+	Source          string         `json:"source"`
+	RevokedOn       *calendar.Date `json:"revoked_on"`
+	RevokedAt       *time.Time     `json:"revoked_at"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	// HolderSealed is the sealed account holder as the store reads it; the
+	// owner opens it into AccountHolder and never answers it.
+	HolderSealed []byte `json:"-"`
 }
 
 // InForce tells whether the mandate is not revoked.
@@ -162,9 +177,12 @@ func (m SEPAMandate) SequenceType() string {
 
 // SEPAMandateInput is a new mandate for the family of a contract of the
 // Träger. An empty Reference takes one moto forms; an empty Source is
-// MandateFromOffice. IBAN and BIC may carry spaces and lower case.
+// MandateFromOffice. IBAN and BIC may carry spaces and lower case. The
+// mandate is given to the Träger's creditor identifier; CreditorID, when
+// set (an imported mandate, #6198), must be that one.
 type SEPAMandateInput struct {
 	ContractID    int64
+	CreditorID    string
 	Reference     string
 	SignedOn      calendar.Date
 	Kind          string
@@ -213,6 +231,7 @@ type SEPAMandateDebit struct {
 type SealedSEPAMandate struct {
 	Mandate SEPAMandate
 	IBAN    []byte
+	Holder  []byte
 }
 
 // InvoiceMandate is the mandate an invoice by direct debit is collected
@@ -233,7 +252,8 @@ type InvoiceMandate struct {
 
 // ResolveDebit completes the payment ResolvePayment decided (ADR 0167) for
 // a direct debit (ADR 0171): with the creditor identifier and a mandate in
-// force signed by the issue date the invoice carries the mandate. Without
+// force signed by the issue date and given to that creditor identifier the
+// invoice carries the mandate. Without
 // one it carries the gap; under MissingMandateTransfer it is paid by
 // transfer, with the due date ResolvePayment gives a transfer, and under
 // MissingMandateBlock it stays a direct debit the release refuses. Any other
@@ -250,10 +270,14 @@ func ResolveDebit(payment InvoicePayment, terms ServiceTerms, run RunDueDates, f
 		gap = DebitGapCreditor
 	case mandate == nil || !mandate.InForce() || mandate.SignedOn.After(issuedOn):
 		gap = DebitGapMandate
+	case mandate.CreditorID != creditor.CreditorID:
+		// A mandate binds the creditor it was given to; after a change of
+		// the creditor identifier it is no proof for the new one.
+		gap = DebitGapCreditorChanged
 	}
 	if gap == "" {
 		payment.Mandate = &InvoiceMandate{MandateID: mandate.ID, Reference: mandate.Reference, SignedOn: mandate.SignedOn,
-			CreditorID: creditor.CreditorID, IBANMasked: mandate.IBANMasked, SequenceType: mandate.SequenceType(),
+			CreditorID: mandate.CreditorID, IBANMasked: mandate.IBANMasked, SequenceType: mandate.SequenceType(),
 			NoticeShort: payment.DueOn.Before(issuedOn.AddDays(creditor.PrenotificationDays))}
 		return payment
 	}

@@ -85,5 +85,6 @@
   "sepa_mandate_in_force": "Die Familie hat schon ein gültiges Mandat. Bitte widerrufen Sie es zuerst.",
   "sepa_mandate_reference_taken": "Diese Mandatsreferenz gibt es schon. Bitte wählen Sie eine andere.",
   "sepa_mandate_revoked": "Dieses Mandat ist widerrufen. Es lässt sich nicht mehr ändern.",
-  "direct_debit_without_mandate": "Einige Familien zahlen per Lastschrift, haben aber kein gültiges Mandat. Bitte erfassen Sie das Mandat oder ändern Sie den Zahlungsweg."
+  "direct_debit_without_mandate": "Einige Familien zahlen per Lastschrift, haben aber kein gültiges Mandat. Bitte erfassen Sie das Mandat oder ändern Sie den Zahlungsweg.",
+  "sepa_creditor_missing": "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein."
 }

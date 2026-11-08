@@ -12,7 +12,7 @@ import (
 var (
 	sjrCreditor = parentbilling.SEPACreditor{CreditorID: "DE98ZZZ09999999999", PrenotificationDays: 3,
 		MissingMandate: parentbilling.MissingMandateTransfer}
-	sjrMandate = &parentbilling.SEPAMandate{ID: 4, Reference: "SJR-1", SignedOn: calendar.NewDate(2026, 9, 1),
+	sjrMandate = &parentbilling.SEPAMandate{ID: 4, Reference: "SJR-1", SignedOn: calendar.NewDate(2026, 9, 1), CreditorID: "DE98ZZZ09999999999",
 		Kind: parentbilling.MandateRecurring, Sequence: parentbilling.SequenceRecurring, IBANMasked: "DE•• •••• •••• •••• ••30 00"}
 	sjrDebitTerms = parentbilling.ServiceTerms{Service: parentbilling.ServiceCare, PaymentMethod: parentbilling.PaymentDirectDebit, DueDays: 14}
 )
@@ -83,4 +83,17 @@ func TestMandateSequenceType(t *testing.T) {
 	} {
 		assert.Equal(t, want, mandate.SequenceType())
 	}
+}
+
+// A mandate given to an earlier creditor identifier is no proof for the
+// current one: the invoice falls back like one without mandate.
+func TestResolveDebitNeedsTheMandatesCreditor(t *testing.T) {
+	t.Parallel()
+	changed := sjrCreditor
+	changed.CreditorID = "DE98ABC09999999999"
+	got := debitOf(changed, sjrMandate, sjrIssued)
+	assert.Equal(t, parentbilling.InvoicePayment{Method: parentbilling.PaymentTransfer, DueOn: sjrTransfer, DueSource: parentbilling.DueFromRun,
+		DebitGap: parentbilling.DebitGapCreditorChanged}, got)
+	assert.Equal(t, "DE98ZZZ09999999999", debitOf(sjrCreditor, sjrMandate, sjrIssued).Mandate.CreditorID,
+		"the invoice carries the creditor the mandate was given to")
 }

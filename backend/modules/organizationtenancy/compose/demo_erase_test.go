@@ -77,12 +77,13 @@ var visitorTraceCounts = map[string]string{
 	"parent_billing.family_billing": `SELECT count(*) FROM parent_billing.family_billing AS family
 		JOIN care_contract.contracts AS contract ON contract.id = family.care_contract_id
 		WHERE contract.school_id = ?0 AND family.payer_first_name = '` + visitorFirst + `' AND family.payer_last_name = '` + visitorLast + `'`,
-	// The SEPA mandate of the family names the account holder (#4695) and
-	// goes with the contract; sepaMandateRows counts its trail, which names
-	// no one.
+	// The SEPA mandate of the family names the account holder, sealed in
+	// production (#4695); the fixture stores the visitor's name as its bytes
+	// so the count can find it. It goes with the contract; sepaMandateRows
+	// counts its trail, which names no one.
 	"parent_billing.sepa_mandates": `SELECT count(*) FROM parent_billing.sepa_mandates AS mandate
 		JOIN care_contract.contracts AS contract ON contract.id = mandate.care_contract_id
-		WHERE contract.school_id = ?0 AND mandate.account_holder = '` + visitorFull + `'`,
+		WHERE contract.school_id = ?0 AND mandate.account_holder_sealed = convert_to('` + visitorFull + `', 'UTF8')`,
 	// A child a release held back keeps its name in the run's snapshot
 	// (ADR 0158 E5); the visitor's child carries the visitor's last name.
 	"parent_billing.care_run_holds": `SELECT count(*) FROM parent_billing.care_run_holds
@@ -249,9 +250,9 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 		// the visitor as account holder; its trail names no one.
 		`WITH mandate AS (
 			INSERT INTO parent_billing.sepa_mandates (organization_id, family_email, care_contract_id, reference, signed_on,
-				kind, sequence, account_holder, iban_sealed, iban_masked, source)
+				kind, sequence, creditor_id, account_holder_sealed, iban_sealed, iban_masked, source)
 			SELECT organization_id, 'eltern-' || id || '@example.org', id, 'DEMO-' || id, DATE '2026-09-01', 'recurring', 'first',
-				'` + visitorFull + `', '\x01'::bytea, 'DE•• •••• •••• •••• ••30 00', 'office'
+				'DE98ZZZ09999999999', convert_to('` + visitorFull + `', 'UTF8'), '\x01'::bytea, 'DE•• •••• •••• •••• ••30 00', 'office'
 			FROM care_contract.contracts WHERE school_id = ?0
 			RETURNING id, organization_id, care_contract_id)
 		INSERT INTO parent_billing.sepa_mandate_events (organization_id, mandate_id, care_contract_id, action, source)
@@ -1063,9 +1064,9 @@ func TestDemoSchoolQueueErasesTheSEPAMandatesOfTheRetiredSchool(t *testing.T) {
 			RETURNING id, organization_id),
 		mandate AS (
 			INSERT INTO parent_billing.sepa_mandates (organization_id, family_email, care_contract_id, reference, signed_on, kind,
-				sequence, account_holder, iban_sealed, iban_masked, source, revoked_on, revoked_at)
+				sequence, creditor_id, account_holder_sealed, iban_sealed, iban_masked, source, revoked_on, revoked_at)
 			SELECT organization_id, 'zweite-' || ?0 || '@example.org', id, 'DEMO-ALT-' || id, DATE '2026-09-01', 'one_off', 'first',
-				'Konto der Familie', '\x02'::bytea, 'DE•• 00', 'import', DATE '2026-10-01', NOW() FROM contract
+				'DE98ZZZ09999999999', '\x03'::bytea, '\x02'::bytea, 'DE•• 00', 'import', DATE '2026-10-01', NOW() FROM contract
 			RETURNING id, organization_id, care_contract_id)
 		INSERT INTO parent_billing.sepa_mandate_events (organization_id, mandate_id, care_contract_id, action, source)
 		SELECT organization_id, id, care_contract_id, 'read', 'run' FROM mandate

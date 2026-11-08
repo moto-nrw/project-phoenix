@@ -56,7 +56,9 @@ type sepaMandateRow struct {
 	SignedOn           calendar.Date  `bun:"signed_on,type:date" json:"signed_on"`
 	Kind               string         `bun:"kind" json:"kind"`
 	Sequence           string         `bun:"sequence" json:"sequence"`
-	AccountHolder      string         `bun:"account_holder" json:"account_holder"`
+	CreditorID         string         `bun:"creditor_id" json:"creditor_id"`
+	HolderSealed       []byte         `bun:"account_holder_sealed" json:"-"`
+	LastCollectedOn    *calendar.Date `bun:"last_collected_on,type:date" json:"last_collected_on"`
 	IBANMasked         string         `bun:"iban_masked" json:"iban_masked"`
 	BIC                string         `bun:"bic" json:"bic"`
 	Source             string         `bun:"source" json:"source"`
@@ -68,20 +70,29 @@ type sepaMandateRow struct {
 	UpdatedByAccountID *int64         `bun:"updated_by_account_id" json:"-"`
 	UpdatedAt          time.Time      `bun:"updated_at,nullzero,default:current_timestamp" json:"updated_at"`
 	IBANSealed         []byte         `bun:"iban_sealed" json:"-"`
+	// CreditorCurrent tells whether the mandate is given to the Träger's
+	// creditor identifier now; read with the row.
+	CreditorCurrent bool `bun:"creditor_current,scanonly" json:"-"`
 }
 
 func (r sepaMandateRow) mandate() parentbilling.SEPAMandate {
 	return parentbilling.SEPAMandate{
 		ID: r.ID, ContractID: r.CareContractID, FamilyEmail: r.FamilyEmail, Reference: r.Reference, SignedOn: r.SignedOn,
-		Kind: r.Kind, Sequence: r.Sequence, AccountHolder: r.AccountHolder, IBANMasked: r.IBANMasked, BIC: r.BIC,
+		Kind: r.Kind, Sequence: r.Sequence, CreditorID: r.CreditorID, CreditorCurrent: r.CreditorCurrent,
+		LastCollectedOn: r.LastCollectedOn, HolderSealed: r.HolderSealed, IBANMasked: r.IBANMasked, BIC: r.BIC,
 		Source: r.Source, RevokedOn: r.RevokedOn, RevokedAt: r.RevokedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
 // mandateReturning lists the columns of a mandate without the sealed IBAN.
 const mandateReturning = "id, organization_id, family_email, care_contract_id, reference, signed_on, kind, sequence, " +
-	"account_holder, iban_masked, bic, source, revoked_on, revoked_by_account_id, revoked_at, created_by_account_id, " +
-	"created_at, updated_by_account_id, updated_at"
+	"creditor_id, account_holder_sealed, last_collected_on, iban_masked, bic, source, revoked_on, revoked_by_account_id, " +
+	"revoked_at, created_by_account_id, created_at, updated_by_account_id, updated_at"
+
+// mandateCreditorCurrent compares the creditor a mandate was given to with
+// the Träger's creditor identifier now, in the statement that reads it.
+const mandateCreditorCurrent = `mandate.creditor_id = COALESCE((SELECT creditor.creditor_id FROM parent_billing.sepa_creditors AS creditor
+	WHERE creditor.organization_id = mandate.organization_id), '') AS creditor_current`
 
 // mandateColumns are the columns of mandateReturning.
 var mandateColumns = strings.Split(mandateReturning, ", ")
@@ -144,7 +155,8 @@ func (s *Store) SEPAMandates(ctx context.Context, organizationID int64, familyEm
 		return nil, err
 	}
 	var rows []sepaMandateRow
-	query := db.NewSelect().Model(&rows).Column(mandateColumns...).Where("organization_id = ?", organizationID)
+	query := db.NewSelect().Model(&rows).Column(mandateColumns...).ColumnExpr(mandateCreditorCurrent).
+		Where("organization_id = ?", organizationID)
 	if familyEmail != "" {
 		query = query.Where("family_email = ?", familyEmail)
 	}
@@ -187,8 +199,9 @@ func (s *Store) InsertSEPAMandate(ctx context.Context, organizationID, accountID
 	m := mandate.Mandate
 	row := &sepaMandateRow{
 		OrganizationID: organizationID, FamilyEmail: m.FamilyEmail, CareContractID: m.ContractID, Reference: m.Reference,
-		SignedOn: m.SignedOn, Kind: m.Kind, Sequence: m.Sequence, AccountHolder: m.AccountHolder, IBANMasked: m.IBANMasked,
-		BIC: m.BIC, Source: m.Source, CreatedByAccountID: accountRef(accountID), UpdatedByAccountID: accountRef(accountID),
+		SignedOn: m.SignedOn, Kind: m.Kind, Sequence: m.Sequence, CreditorID: m.CreditorID, HolderSealed: mandate.Holder,
+		IBANMasked: m.IBANMasked,
+		BIC:        m.BIC, Source: m.Source, CreatedByAccountID: accountRef(accountID), UpdatedByAccountID: accountRef(accountID),
 		IBANSealed: mandate.IBAN,
 	}
 	if _, err := db.NewInsert().Model(row).Returning(mandateReturning).Exec(ctx); err != nil {
@@ -213,10 +226,13 @@ func (s *Store) UpdateSEPAMandate(ctx context.Context, organizationID, accountID
 	m := mandate.Mandate
 	row := &sepaMandateRow{}
 	query := db.NewUpdate().Model(row).Where("organization_id = ?", organizationID).Where("id = ?", m.ID).
-		Set("account_holder = ?", m.AccountHolder).Set("bic = ?", m.BIC).Set("sequence = ?", m.Sequence).
+		Set("bic = ?", m.BIC).Set("sequence = ?", m.Sequence).
 		Set("updated_by_account_id = ?", accountRef(accountID)).Set("updated_at = CURRENT_TIMESTAMP")
 	if mandate.IBAN != nil {
 		query = query.Set("iban_sealed = ?", mandate.IBAN).Set("iban_masked = ?", m.IBANMasked)
+	}
+	if mandate.Holder != nil {
+		query = query.Set("account_holder_sealed = ?", mandate.Holder)
 	}
 	if err := query.Returning(mandateReturning).Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -311,7 +327,7 @@ func (s *Store) SealedSEPAMandates(ctx context.Context, organizationID int64, id
 	}
 	sealed := make([]parentbilling.SealedSEPAMandate, len(rows))
 	for i, row := range rows {
-		sealed[i] = parentbilling.SealedSEPAMandate{Mandate: row.mandate(), IBAN: row.IBANSealed}
+		sealed[i] = parentbilling.SealedSEPAMandate{Mandate: row.mandate(), IBAN: row.IBANSealed, Holder: row.HolderSealed}
 	}
 	return sealed, nil
 }
@@ -323,7 +339,7 @@ const invoiceDebitTermsSQL = `SELECT
 	(SELECT to_jsonb(creditor) FROM (SELECT creditor_id, prenotification_days, missing_mandate, updated_at
 		FROM parent_billing.sepa_creditors WHERE organization_id = ?0) AS creditor) AS creditor,
 	(SELECT COALESCE(jsonb_agg(to_jsonb(mandate) ORDER BY mandate.id), '[]'::jsonb)
-		FROM (SELECT id, family_email, care_contract_id, reference, signed_on, kind, sequence, account_holder,
+		FROM (SELECT id, family_email, care_contract_id, reference, signed_on, kind, sequence, creditor_id, last_collected_on,
 				iban_masked, bic, source, revoked_on, revoked_at, created_at, updated_at
 			FROM parent_billing.sepa_mandates WHERE organization_id = ?0 AND revoked_on IS NULL) AS mandate) AS mandates`
 
