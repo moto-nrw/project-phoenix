@@ -38,6 +38,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
 		"operations.federal_state",
+		// Term for the care in fixed parent texts (#6042).
+		"enrollment.care_facility_term",
 		// Saturday and Sunday on Friday's plan, demo schools only (#3921).
 		"operations.weekend_follows_friday",
 		"gdpr.data_cleanup_enabled",
@@ -2528,4 +2530,33 @@ func TestAnalyticsCollectionSwitch(t *testing.T) {
 	require.NotNil(t, freigabe.DependsOn)
 	assert.Equal(t, config.KeyAnalyticsEnabled, freigabe.DependsOn.Key)
 	assert.Equal(t, true, freigabe.DependsOn.Value)
+}
+
+// The care-facility term (#6042) names the school's care in fixed parent
+// texts. Every school keeps "OGS" until it chooses another term.
+func TestCareFacilityTermSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyEnrollmentCareFacilityTerm)
+	require.NotNil(t, def, "enrollment.care_facility_term should be registered")
+	assert.Equal(t, config.FieldText, def.Type)
+	assert.Equal(t, "OGS", def.Default)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	values := make([]any, 0, len(def.Options.Static))
+	for _, option := range def.Options.Static {
+		values = append(values, option.Value)
+	}
+	assert.Equal(t, []any{"OGS", "GTS"}, values)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.MaxLength)
+	require.NotNil(t, def.Validation.CompiledPattern)
+	pattern := def.Validation.CompiledPattern
+	for _, ok := range []string{"OGS", "GTS", "Ganztag", "Offene Ganztagsschule", "Hort am Markt", "Ganztag Nord-West", "OGS (Grundschule)", "Betreuung 1/2", "Übermittagsbetreuung"} {
+		assert.True(t, pattern.MatchString(ok), ok)
+	}
+	for _, bad := range []string{"", " ", " GTS", "GTS ", "<b>GTS</b>", "{term}", "GTS\nNord", "<script>", "a\"b", "#GTS", "Schule & Hort", "https://x.de"} {
+		assert.False(t, pattern.MatchString(bad), bad)
+	}
 }

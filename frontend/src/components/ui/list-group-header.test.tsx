@@ -51,6 +51,26 @@ describe("ListGroupHeader", () => {
     );
   });
 
+  it("keeps a title addon visible and in the collapsible name", () => {
+    render(
+      <ListGroupHeader
+        title="Aktivitäten"
+        titleAddon={<span>3</span>}
+        collapsible={{ expanded: true, onToggle: vi.fn() }}
+      />,
+    );
+
+    const toggle = screen.getByRole("button", { name: "Aktivitäten 3" });
+    const addon = screen.getByText("3");
+    expect(toggle).toContainElement(addon);
+    expect(addon.closest(".truncate")).toBeNull();
+    // Die Lage misst e2e/layout/list-group-header.spec.ts im Browser: der
+    // Name füllt den Knopf nicht, damit der Zähler direkt nach ihm steht.
+    const name = screen.getByText("Aktivitäten");
+    expect(name).toHaveClass("text-left");
+    expect(name).not.toHaveClass("flex-1");
+  });
+
   it("describes a collapsible group with its addon", () => {
     render(
       <ListGroupHeader

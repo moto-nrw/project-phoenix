@@ -19,6 +19,7 @@ import {
 } from "./ui-kit-button-baseline.mjs";
 import { uppercaseLabelBaseline } from "./ui-kit-uppercase-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
+import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
 import {
   lintSource as lintProbe,
   removeProbeDirectories,
@@ -709,6 +710,37 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     expect(output.match(/ui-kit\(no-hand-rolled-surface\)/g)).toHaveLength(1);
   });
 
+  it("follows a shared constant in every conditional branch", async () => {
+    const result = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      const frame = "rounded-lg border p-3";
+      export const Probe = ({ active }: { active: boolean }) => (
+        <div className={active ? cn(frame, "bg-gray-50") : cn(frame, "bg-white")} />
+      );`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
+  it("reports a widened surface when conditional combinations overflow", async () => {
+    const result = await lintSource(
+      [
+        "declare const a: boolean;",
+        "declare const b: boolean;",
+        "declare const c: boolean;",
+        "declare const d: boolean;",
+        "declare const e: boolean;",
+        "declare const f: boolean;",
+        "declare const g: boolean;",
+        'export const Probe = () => <div className={`${a ? "rounded-lg" : "rounded-full"} ${b ? "border" : "border-0"} ${c ? "p-4" : "p-0"} ${d ? "m-1" : "m-2"} ${e ? "gap-1" : "gap-2"} ${f ? "h-8" : "h-9"} ${g ? "w-8" : "w-9"}`} />;',
+      ].join("\n"),
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
   it("accepts the kit surfaces and non-card shapes", async () => {
     const result = await lintSource(
       `
@@ -733,7 +765,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
     expect(output).not.toContain("no-hand-rolled-surface");
   });
 
-  it("ignores prefixed tokens, frameless borders and translucent fills", async () => {
+  it("ignores unsupported variants, frameless borders and transparent fills", async () => {
     const result = await lintSource(
       `
       function Probe() {
@@ -741,10 +773,8 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
           <div className="rounded-xl border-0 bg-white px-4 ring-1" />
           <div className="rounded-xl border-none bg-white p-4" />
           <div className="rounded-2xl border-b bg-white p-4" />
-          <div className="rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-lg" />
-          <div className="rounded-xl border focus:bg-white p-4" />
+          <div className="rounded-lg border bg-white/0 p-3" />
           <div className="flex gap-4 print:rounded-2xl print:border print:bg-white" />
-          <div className="rounded-lg border bg-white sm:rounded-2xl" />
         </>;
       }
       void Probe;
@@ -755,6 +785,182 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
 
     expect(result.status, output).toBe(0);
     expect(output).not.toContain("no-hand-rolled-surface");
+  });
+
+  // #5594: außerhalb des Kits zählen auch kleinere Radien, halbdurchsichtiges
+  // Weiß und ein Rahmen mit Polster ganz ohne Füllung.
+  it.each([
+    '<div className="rounded-lg border border-gray-200 bg-white p-3" />',
+    '<div className="rounded-md border bg-white px-3 py-2" />',
+    '<div className="rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-lg" />',
+    '<div className="rounded-lg border bg-white sm:rounded-2xl" />',
+    '<div className="sm:rounded-lg sm:border sm:bg-white sm:p-3" />',
+    '<div className="p-3 sm:rounded-lg md:border md:bg-white" />',
+    '<div className="sm:rounded-lg max-md:border max-md:bg-white p-3" />',
+    '<div className="min-[768px]:rounded-lg min-[900px]:border min-[1024px]:bg-white p-3" />',
+    '<div className="p-3 md:hover:rounded-lg md:hover:border md:hover:bg-white" />',
+    '<section className="space-y-3 rounded-md border border-gray-200 p-3" />',
+    '<li className="rounded-xl border px-4 py-3" />',
+    '<div className="rounded-lg border bg-transparent p-3" />',
+    '<div className="rounded-lg border p-4 hover:bg-gray-50" />',
+    '<div className="rounded-lg border p-4 focus:bg-white" />',
+  ])("reports the widened surface %s outside the kit", async (element) => {
+    const result = await lintSource(
+      `export const Probe = () => ${element};`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.status, result.output).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-hand-rolled-surface\)/g),
+    ).toHaveLength(1);
+  });
+
+  it("does not join non-overlapping min and max breakpoint variants", async () => {
+    const result = await lintSource(
+      `export const Probe = () => (
+        <div className="max-sm:rounded-lg sm:border sm:bg-white p-3" />
+      );`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
+  it("does not join non-overlapping arbitrary breakpoint variants", async () => {
+    const result = await lintSource(
+      `export const Probe = () => (
+        <div className="min-[1024px]:rounded-lg max-[900px]:border max-[900px]:bg-white p-3" />
+      );`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
+  it("follows a class chain held in a local constant", async () => {
+    const result = await lintSource(
+      `const frame = "rounded-lg border border-gray-200 p-3";
+      export const Probe = () => <div className={frame} />;`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
+  it("follows a module constant declared after its JSX use", async () => {
+    const result = await lintSource(
+      `export const Probe = () => <div className={frame} />;
+      const frame = "rounded-lg border border-gray-200 p-3";`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
+  it("reports distinct legacy and widened branches in one className expression", async () => {
+    const result = await lintSource(
+      `const legacy = "rounded-xl border bg-white p-4";
+      const frame = "rounded-lg border p-3";
+      export const Probe = ({ legacyMode }: { legacyMode: boolean }) => (
+        <div className={legacyMode ? legacy : frame} />
+      );`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(
+      result.output.match(/ui-kit\(no-hand-rolled-surface\)/g),
+      result.output,
+    ).toHaveLength(2);
+    expect(result.output).toContain("rounded-xl/2xl … border … bg-white");
+    expect(result.output).toContain(
+      "rounded-md…2xl … border … bg-white(/NN) oder Rahmen mit Polster",
+    );
+  });
+
+  it("does not join mutually exclusive class branches", async () => {
+    const result = await lintSource(
+      `export const Probe = ({ compact }: { compact: boolean }) => (
+        <div className={compact ? "rounded-lg border" : "rounded-lg p-3"} />
+      );`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.output).not.toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
+  it.each([
+    '<button type="button" className="rounded-lg border bg-white px-4 py-2" />',
+    '<a href="/x" className="rounded-lg border bg-white px-4 py-2" />',
+    '<label className="rounded-lg border p-3" />',
+    '<input className="rounded-md border bg-white px-3 py-2" />',
+    '<div className="rounded-lg border border-dashed p-4" />',
+    '<div className="moto-content-surface rounded-xl border p-4" />',
+    '<div className="rounded-lg border border-gray-200 bg-gray-50 p-3" />',
+    '<div className="rounded-lg border border-gray-200" />',
+    '<div className="rounded-full border bg-white px-2 py-0.5" />',
+    '<div className="rounded-xl border border-transparent p-3" />',
+    '<div className="rounded-lg border border-l-[3px] bg-white p-3" />',
+    '<div className="hover:rounded-lg hover:border hover:bg-white hover:p-3" />',
+  ])(
+    "leaves controls, kit surfaces and other shapes alone: %s",
+    async (element) => {
+      const result = await lintSource(
+        `export const Probe = () => ${element};`,
+        "src/components/probe-surface.tsx",
+      );
+
+      expect(result.output).not.toContain("no-hand-rolled-surface");
+    },
+  );
+
+  it.each(["Button", "ButtonLink", "ListRowLink", "ChoiceTile"])(
+    "leaves the shared control component %s alone",
+    async (component) => {
+      const result = await lintSource(
+        `export const Probe = () => <${component} className="rounded-lg border bg-white p-3" />;`,
+        "src/components/probe-surface.tsx",
+      );
+
+      expect(result.output).not.toContain("no-hand-rolled-surface");
+    },
+  );
+
+  it("reports a chain held in a constant once, not once per use", async () => {
+    const result = await lintSource(
+      `const card = "rounded-xl border bg-white p-4";
+      export const Probe = () => <><div className={card} /><div className={card} /></>;`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(
+      result.output.match(/ui-kit\(no-hand-rolled-surface\)/g),
+    ).toHaveLength(1);
+  });
+
+  it("leaves the #2619 parent exceptions out of the widened check only", async () => {
+    const [widened, classic] = await Promise.all([
+      lintSource(
+        'export const Probe = () => <div className="rounded-lg border bg-white p-4" />;',
+        "src/components/parent/child/child-day-card.tsx",
+      ),
+      lintSource(
+        'export const Probe = () => <div className="rounded-2xl border bg-white p-4" />;',
+        "src/components/parent/child/child-day-card.tsx",
+      ),
+    ]);
+
+    expect(widened.output).not.toContain("no-hand-rolled-surface");
+    expect(classic.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
+  it("keeps the narrower chain inside the kit, where controls are defined", async () => {
+    const result = await lintSource(
+      'export const Probe = () => <div className="rounded-lg border bg-white px-3 py-2" />;',
+      "src/components/ui/probe-control.tsx",
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-surface");
   });
 
   it("honours the documented oxlint-disable-next-line escape hatch", async () => {
@@ -774,6 +980,20 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
 
     expect(result.status, output).toBe(0);
     expect(output).not.toContain("no-hand-rolled-surface");
+  });
+
+  it("honours the escape hatch for a composed surface expression", async () => {
+    const result = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      export const Probe = () => (
+        // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Nachrichtensprechblase, keine Kartenfläche
+        <div className={cn("rounded-xl", "border", "bg-white")} />
+      );`,
+      "src/components/probe-surface.tsx",
+    );
+
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).not.toContain("no-hand-rolled-surface");
   });
 });
 
@@ -1085,8 +1305,20 @@ describe.concurrent("ui-kit/no-hand-rolled-page-card", () => {
     expect(output.match(/ui-kit\(no-hand-rolled-page-card\)/g)).toHaveLength(2);
   });
 
-  it("accepts control surfaces in pages and the chain in components", async () => {
-    const [pageControl, componentCard] = await Promise.all([
+  it("reports a card surface held in a composed local constant", async () => {
+    const result = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      const card = cn("moto-content-surface", "rounded-2xl", "p-6");
+      export const Probe = () => <div className={card} />;`,
+      "src/components/probe-card.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-page-card)");
+  });
+
+  it("accepts control surfaces in pages and the chain in the kit", async () => {
+    const [pageControl, kitCard] = await Promise.all([
       lintSource(
         `function Probe() {
         return <span className="moto-content-surface h-9 rounded-full border px-3" />;
@@ -1099,15 +1331,43 @@ describe.concurrent("ui-kit/no-hand-rolled-page-card", () => {
         return <div className="moto-content-surface rounded-2xl border p-6" />;
       }
       void Probe;`,
-        "src/components/rooms/room-card.tsx",
+        "src/components/ui/probe-card.tsx",
       ),
     ]);
 
-    for (const result of [pageControl, componentCard]) {
+    for (const result of [pageControl, kitCard]) {
       const output = result.output;
       expect(result.status, output).toBe(0);
       expect(output).not.toContain("no-hand-rolled-page-card");
     }
+  });
+
+  // #5594: die Regel gilt für jede .tsx unter app/ und components/ außer ui/.
+  it.each([
+    "src/components/rooms/room-card.tsx",
+    "src/app/[tenant]/(public)/anmeldung/probe-view.tsx",
+    "src/app/help/probe/page.tsx",
+  ])("reports the card chain in %s", async (path) => {
+    const result = await lintSource(
+      `export const Probe = () => <div className="moto-content-surface rounded-2xl border p-6" />;`,
+      path,
+    );
+
+    expect(result.status, path).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-page-card)");
+  });
+
+  it.each([
+    "src/components/parent/child/child-day-card.tsx",
+    "src/components/parent/child/child-switcher.tsx",
+    "src/components/parent/start/parent-start-page.tsx",
+  ])("leaves the #2619 parent exception %s alone", async (path) => {
+    const result = await lintSource(
+      `export const Probe = () => <div className="moto-content-surface rounded-2xl border p-6" />;`,
+      path,
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-page-card");
   });
 });
 
@@ -3042,6 +3302,175 @@ describe.concurrent("ui-kit/no-hand-rolled-notice (#5591)", () => {
   });
 });
 
+describe.concurrent("ui-kit surface baseline (#5594)", () => {
+  it.each([
+    [
+      "no-hand-rolled-page-card",
+      '<div className="moto-content-surface rounded-2xl border p-5">A</div>',
+    ],
+    [
+      "no-hand-rolled-surface",
+      '<div className="rounded-lg border border-gray-200 bg-white p-3">A</div>',
+    ],
+  ])("fails one %s finding more than a file's baseline", async (rule, card) => {
+    const [file, allowed] = Object.entries(surfaceBaseline[rule]!)[0]!;
+    const cards = Array.from({ length: allowed + 1 }, () => card).join("");
+    const result = await lintSource(
+      `export const Probe = () => <>${cards}</>;`,
+      file,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(`ui-kit(${rule})`);
+  });
+
+  it("keeps the classic surface chain hard-zero in a baselined file", async () => {
+    const [file, allowed] = Object.entries(
+      surfaceBaseline["no-hand-rolled-surface"]!,
+    )[0]!;
+    expect(allowed).toBeGreaterThan(0);
+    const result = await lintSource(
+      'export const Probe = () => <div className="rounded-2xl border bg-white p-4">A</div>;',
+      file,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
+  it("keeps a composed legacy surface constant hard-zero in a baselined file", async () => {
+    const [file, allowed] = Object.entries(
+      surfaceBaseline["no-hand-rolled-surface"]!,
+    )[0]!;
+    expect(allowed).toBeGreaterThan(0);
+    const result = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      const card = cn("rounded-xl", "border", "bg-white", "p-4");
+      export const Probe = () => <div className={card}>A</div>;`,
+      file,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+  });
+
+  it("does not count a finding behind its disable comment", async () => {
+    const [file, allowed] = Object.entries(
+      surfaceBaseline["no-hand-rolled-surface"]!,
+    )[0]!;
+    const cards = Array.from(
+      { length: allowed },
+      () => '<div className="rounded-lg border bg-white p-3">A</div>',
+    ).join("");
+    const result = await lintSource(
+      `export const Probe = () => (
+        <>
+          {/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Probe */}
+          <div className="rounded-lg border bg-white p-3">B</div>
+          ${cards}
+        </>
+      );`,
+      file,
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-surface");
+  });
+
+  it("tolerates exactly the recorded findings", async () => {
+    const [file, allowed] = Object.entries(
+      surfaceBaseline["no-hand-rolled-page-card"]!,
+    )[0]!;
+    const cards = Array.from(
+      { length: allowed },
+      () =>
+        '<div className="moto-content-surface rounded-2xl border p-5">A</div>',
+    ).join("");
+    const result = await lintSource(
+      `export const Probe = () => <>${cards}</>;`,
+      file,
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-page-card");
+  });
+
+  it("excludes hard-zero legacy surfaces from the generated baseline", () => {
+    const directory = mkdtempSync(join(tmpdir(), "surface-baseline-"));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, "scripts"));
+    for (const file of [
+      "ui-kit-surface-baseline-update.mjs",
+      "ui-kit-ratchet-baseline.mjs",
+    ]) {
+      copyFileSync(resolve("scripts", file), join(directory, "scripts", file));
+    }
+    symlinkSync(resolve("node_modules"), join(directory, "node_modules"));
+    writeFileSync(
+      join(directory, ".oxlintrc.json"),
+      JSON.stringify({
+        categories: { correctness: "off", suspicious: "off", perf: "off" },
+        jsPlugins: [resolve("scripts/oxlint-plugin-ui-kit.mjs")],
+        rules: {
+          "ui-kit/no-hand-rolled-surface": "error",
+          "ui-kit/no-hand-rolled-page-card": "error",
+        },
+      }),
+    );
+    mkdirSync(join(directory, "src/components"), { recursive: true });
+    writeFileSync(
+      join(directory, "src/components/probe.tsx"),
+      `export const Probe = () => <>
+        <div className="rounded-xl border bg-white p-4">Alt</div>
+        <div className="rounded-lg border bg-white p-3">Neu</div>
+      </>;`,
+    );
+    const baselinePath = join(directory, "ui-kit-surface-baseline.json");
+    writeFileSync(
+      baselinePath,
+      `${JSON.stringify(
+        {
+          "no-hand-rolled-surface": { "src/components/probe.tsx": 1 },
+          "no-hand-rolled-page-card": {},
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        join(directory, "scripts/ui-kit-surface-baseline-update.mjs"),
+        "--check",
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          UI_KIT_SURFACE_BASELINE_PATH: baselinePath,
+        },
+      },
+    );
+
+    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toContain(
+      "no-hand-rolled-surface: 1 Funde in 1 Dateien",
+    );
+  }, 120_000);
+});
+
+describe("ui-kit surface baseline is current (#5594)", () => {
+  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken.
+  it("records exactly the findings each file still has", () => {
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/ui-kit-surface-baseline-update.mjs"), "--check"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+  }, 120_000);
+});
+
 describe.concurrent("ui-kit/no-important-override baseline (#5581)", () => {
   it("fails a second override in a baselined file", async () => {
     const result = await lintSource(
@@ -3127,7 +3556,9 @@ describe.concurrent("ui-kit/no-hand-rolled-page-card in other portals", () => {
     },
   );
 
-  it("leaves the parent portal alone", async () => {
+  // Seit #5594 auch das Elternportal; nur die drei #2619-Dateien sind
+  // ausgenommen (siehe oben).
+  it("reports a hand-rolled card in the parent portal", async () => {
     const result = await lintSource(
       `export default function Probe() {
         return <div className="moto-content-surface rounded-2xl border p-5" />;
@@ -3135,7 +3566,7 @@ describe.concurrent("ui-kit/no-hand-rolled-page-card in other portals", () => {
       "src/app/parents/probe/page.tsx",
     );
 
-    expect(result.output).not.toContain("ui-kit(no-hand-rolled-page-card)");
+    expect(result.output).toContain("ui-kit(no-hand-rolled-page-card)");
   });
 });
 

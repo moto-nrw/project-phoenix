@@ -1471,6 +1471,11 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
+      "decision": "0126",
+      "id": "roots/owners/CareContractDocumentNotices.EnqueueContractDocumentNotice",
+      "reason": "ADR 0126 (#5941): Consumer-port adapter of the Betreuungsvertrag onto Delivery; it encodes the push of a sent contract as a deferred push of the Träger with its own kind, related type and a key of the contract and the hashed address."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/CareContractPost.ContractMailStates",
       "reason": "#5934: Consumer-port adapter of the contract's post; it names Delivery's outcome of each mail in the contract's words."
@@ -2661,6 +2666,11 @@
       "reason": "#4650: root binding of the Organisation \u0026 Tenancy membership command to the Identity \u0026 Access port, dropping the result the port does not name and failing closed when unbound."
     },
     {
+      "decision": "0126",
+      "id": "roots/owners/TraegerDocumentReleaseNotices.EnqueueReleaseNotice",
+      "reason": "ADR 0126 (#5941): Consumer-port adapter of Organisation \u0026 Tenancy onto Delivery; it encodes the push of a release for parents as a deferred push of the Träger with its own kind, related type and a key of the release."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/TraegerMembershipDirectory.ListAccountTraegerOrganizations",
       "reason": "ADR 0084 (#4649): root translation of the Organisation \u0026 Tenancy Träger memberships into the Identity \u0026 Access port vocabulary, failing closed when unbound. #4658 maps ID and name explicitly; the test mark stays out of the sign-in choice."
@@ -3119,11 +3129,6 @@
       "decision": "0159",
       "id": "roots/owners/careContractNoticePost.NoticeDeliveries",
       "reason": "Translates Träger-scoped Delivery statuses into positive timestamped provision evidence only; excludes enqueueing, transport acceptance without a receipt, failure and missing timestamps (ADR 0159)."
-    },
-    {
-      "decision": "0153",
-      "id": "roots/owners/careContractNoticeTemplates.NoticeTemplate",
-      "reason": "Consumer-port adapter (#4682): it picks the Träger setting of the confirmation template by the kind of the declaration and reads it at the Träger level; no environment value."
     },
     {
       "decision": "0155",
@@ -3877,6 +3882,11 @@
     },
     {
       "decision": "0090",
+      "id": "roots/owners/enrollmentNotificationSettings.CareFacilityTerm",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "roots/owners/enrollmentNotificationSettings.NotifyPerDecision",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -4531,6 +4541,11 @@
       "reason": "ADR 0155 (#4679): Consumer-port adapter of the parents' inbox; it signs a contract through the Betreuungsvertrag in the caller's Träger transaction and maps its errors to the workflow's."
     },
     {
+      "decision": "0126",
+      "id": "roots/owners/parentContractInboxNotices.ContractNoticeTarget",
+      "reason": "ADR 0126 (#5941): Consumer-port adapter of the parents portal's contract push onto the Betreuungsvertrag; it translates the contract's school and child into the portal's vocabulary."
+    },
+    {
       "decision": "0153",
       "id": "roots/owners/parentContractNotices.ContractNoticeOptions",
       "reason": "Consumer-port adapter of the parents portal (#4682): it reads the notice options through the Betreuungsvertrag in the caller's Träger transaction and maps values and refusals into the workflow's words."
@@ -4594,6 +4609,21 @@
       "decision": "0090",
       "id": "roots/owners/parentPhaseReads.ListEnrollable",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0126",
+      "id": "roots/owners/parentReleaseNotices.ActiveParentRelease",
+      "reason": "ADR 0126 (#5941): Consumer-port adapter of the parents portal's release push onto Organisation \u0026 Tenancy; it translates the active release's audience into the portal's vocabulary."
+    },
+    {
+      "decision": "0126",
+      "id": "roots/owners/parentReleaseNotices.ReleaseIsNewForParent",
+      "reason": "ADR 0126 (#5941): Consumer-port adapter of the parents portal's release push onto Organisation \u0026 Tenancy; it translates the portal's reader into the owner's parent of a Träger."
+    },
+    {
+      "decision": "0126",
+      "id": "roots/owners/parentReleaseSchools.TraegerSchoolIDs",
+      "reason": "ADR 0126 (#5941): Consumer-port adapter of the parents portal's release push onto Organisation \u0026 Tenancy; it keeps the undeleted schools of the Träger and maps them onto their IDs."
     },
     {
       "decision": "0084",

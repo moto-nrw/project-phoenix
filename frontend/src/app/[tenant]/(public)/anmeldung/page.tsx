@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { Check, Clock, RefreshCw, UserPlus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { buttonClassName } from "~/components/ui/button";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { useTenant } from "~/lib/tenant-context";
 import { formatDate } from "~/lib/date-helpers";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -30,6 +30,9 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { permissionsConcept } from "~/lib/concepts/permissions";
 import { Loading } from "~/components/ui/loading";
+import { SectionCard } from "~/components/ui/section-card";
+import { TileCard } from "~/components/ui/tile-card";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "EnrollPhasePicker" });
 
@@ -41,7 +44,8 @@ const logger = createLogger({ component: "EnrollPhasePicker" });
  * model splits the picker out so each phase carries its own form.
  */
 export default function EnrollPhasePickerPage() {
-  const t = useTranslations("enrollmentPublic");
+  const t = useCareTermTranslations("enrollmentPublic");
+  const loadErrorObject = t("errorObjectPhases");
   const locale = useLocale();
   const { tenantSlug, tenant } = useTenant();
   const tenantPath = useTenantAwarePath();
@@ -80,7 +84,7 @@ export default function EnrollPhasePickerPage() {
           setEnrollmentDisabled(true);
         } else {
           void showLoadError(err, {
-            object: t("errorObjectPhases"),
+            object: loadErrorObject,
             retry: () => setLoadAttempt((n) => n + 1),
           });
         }
@@ -92,15 +96,18 @@ export default function EnrollPhasePickerPage() {
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug, t, loadAttempt, clearLoadError, showLoadError]);
+  }, [tenantSlug, loadErrorObject, loadAttempt, clearLoadError, showLoadError]);
 
   if (loading) {
     return (
       <PublicEnrollmentPageShell withInlineSwitcher>
         <PhasePickerHeader tenant={tenant} />
-        <section className="moto-content-surface flex min-h-[24rem] items-center justify-center rounded-2xl border">
+        <SectionCard
+          padding="none"
+          className="flex min-h-[24rem] items-center justify-center"
+        >
           <Loading message={t("loading")} />
-        </section>
+        </SectionCard>
       </PublicEnrollmentPageShell>
     );
   }
@@ -109,7 +116,7 @@ export default function EnrollPhasePickerPage() {
     <PublicEnrollmentPageShell withInlineSwitcher>
       <PhasePickerHeader tenant={tenant} />
 
-      <section className="moto-content-surface overflow-hidden rounded-2xl border">
+      <SectionCard padding="none">
         <div className="grid lg:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="p-5 sm:p-8 lg:p-10">
             <div className="max-w-3xl">
@@ -136,11 +143,12 @@ export default function EnrollPhasePickerPage() {
                     <li key={phase.id}>
                       {/* A document navigation applies the form's Turnstile CSP;
                           a Next Link would keep the picker's stricter policy. */}
-                      <a
+                      <TileCard
                         href={tenantPath(
                           `/anmeldung/${encodeURIComponent(phase.id)}`,
                         )}
-                        className="group moto-content-surface moto-hover-elevated flex flex-col gap-4 rounded-xl border p-4 text-left focus-visible:outline-2 focus-visible:outline-gray-400 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+                        nativeAnchor
+                        className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -205,7 +213,7 @@ export default function EnrollPhasePickerPage() {
                         >
                           {t("start")}
                         </span>
-                      </a>
+                      </TileCard>
                     </li>
                   ))}
                 </ul>
@@ -238,7 +246,7 @@ export default function EnrollPhasePickerPage() {
             </div>
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </PublicEnrollmentPageShell>
   );
 }

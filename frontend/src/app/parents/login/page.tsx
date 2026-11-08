@@ -286,7 +286,6 @@ function ParentLoginForm() {
     <>
       <AuthShell
         eyebrow={t("eyebrow")}
-        eyebrowClassName="text-moto-green"
         title={t("title")}
         subtitle={t("subtitle")}
         variant="parents"

@@ -137,6 +137,14 @@
       "target_owner": "school-structure"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerDocumentReleaseNotices.EnqueueReleaseNotice",
+      "binding_digest": "318c961413115848741e97cb4f888466",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentNotices.EnqueueReleaseNotice",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueDeferredPush",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinSchool",
       "binding_digest": "2123039ce8fb2fd91b5719791497933b",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentRuntime.WithinSchool",

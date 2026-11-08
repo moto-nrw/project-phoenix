@@ -665,7 +665,7 @@ describe("TraegerVertragPage", () => {
 
     expect(
       await screen.findByText(
-        "Ab 01.03.2027 gilt Version 2. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.",
+        "Ab 01.03.2027 gilt Version 2. Eine Änderung der Betreuung ist freigegeben. Was sich ändert, steht unten unter „Versionen“.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Gilt jetzt")).toBeInTheDocument();
@@ -770,7 +770,7 @@ describe("TraegerVertragPage", () => {
     ]);
     expect(
       screen.getByText(
-        "Ab 01.02.2027 gilt Version 3. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.",
+        "Ab 01.02.2027 gilt Version 3. Eine Änderung der Betreuung ist freigegeben. Was sich ändert, steht unten unter „Versionen“.",
       ),
     ).toBeInTheDocument();
     expect(

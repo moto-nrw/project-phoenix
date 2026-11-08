@@ -28,6 +28,10 @@ import (
 //     the contract first and then reads its versions, the order of the
 //     conclusion (#4680) and the amendment (#4681). A concurrent termination
 //     or amendment waits and then sees the ended contract.
+//   - The end of an extraordinary termination is decided once, under the
+//     contract's row lock: the Träger-Büro sets it or does not accept the
+//     reason, never both. Either way the parents get one notice in
+//     Textform (mail and parents portal), keyed to the declaration.
 //   - The parents act only for a child whose relationship grants the
 //     enrollment submission (parent_portal.enrollment.submit), on a contract
 //     sent to their own address; every declaration and every read of the
@@ -48,13 +52,37 @@ const (
 // The kinds of a termination: to the next date the terms allow, the
 // special termination to the half year when the template provides one, or
 // the extraordinary termination for a reason the parents name (§ 312k
-// Abs. 2 BGB). How an extraordinary termination ends the contract is open
-// (#4682): it is received as declared, and the Träger sets the end after it
-// checked the reason (SetNoticeEnd). Until then the contract holds.
+// Abs. 2 BGB). An extraordinary termination is received as declared, and
+// the Träger-Büro checks the reason (#4682, decision of 07.11.2026): it
+// accepts it and sets the last day (SetNoticeEnd), or it does not accept
+// it, and the declaration holds as an ordinary termination to the next
+// notice date (RejectNoticeReason, § 140 BGB). Until then the contract
+// holds.
 const (
 	TerminationOrdinary      = "ordentlich"
 	TerminationSpecial       = "sonderkuendigung"
 	TerminationExtraordinary = "ausserordentlich"
+)
+
+// The decisions on an extraordinary termination: the Träger-Büro accepted
+// the reason and set the end, or it did not accept it and the declaration
+// holds as an ordinary termination (Umdeutung, § 140 BGB).
+const (
+	EndDecisionSet           = "festgelegt"
+	EndDecisionReinterpreted = "umgedeutet"
+)
+
+// GuardianPermissionEnrollmentSubmit is the relationship right of the
+// parents portal that lets a guardian act for a child's contract: sign,
+// terminate, and receive the notice of a decided end.
+const GuardianPermissionEnrollmentSubmit = "parent_portal.enrollment.submit"
+
+// The templates of the notices the parents get in Textform once the end of
+// an extraordinary termination is decided; NoticeTemplates reads them by
+// these kinds.
+const (
+	NoticeTemplateEndSet         = "ende_festgelegt"
+	NoticeTemplateReasonRejected = "grund_abgelehnt"
 )
 
 // ReasonMaxLength bounds the reason of an extraordinary termination.
@@ -87,8 +115,9 @@ var (
 	// ErrNoticeTemplateMissing reports that the Träger has no confirmation
 	// template; its setting has an empty value.
 	ErrNoticeTemplateMissing = errors.New("the Träger has no confirmation template")
-	// ErrNoticeEndNotOpen reports SetNoticeEnd on a contract without an
-	// extraordinary termination whose end is still open.
+	// ErrNoticeEndNotOpen reports SetNoticeEnd or RejectNoticeReason on a
+	// contract without an extraordinary termination whose end is still
+	// open: the end is decided once, by one of the two.
 	ErrNoticeEndNotOpen = errors.New("the contract has no termination with an open end")
 )
 
@@ -123,6 +152,18 @@ type Notice struct {
 	EndsOn           *calendar.Date `json:"ends_on"`
 	Recipient        string         `json:"recipient"`
 	ConfirmationText string         `json:"confirmation_text"`
+	// EndDecision is how the Träger-Büro decided the end of an
+	// extraordinary termination (EndDecisionSet, EndDecisionReinterpreted),
+	// empty while it is open and for every other declaration. EndNoticeText
+	// is the notice the parents got with it, as sent.
+	EndDecision   string     `json:"end_decision,omitempty"`
+	EndDecidedAt  *time.Time `json:"end_decided_at,omitempty"`
+	EndNoticeText string     `json:"end_notice_text,omitempty"`
+	// EndNoticeSent tells that the notice went out by mail. It stays false
+	// when no address of the contract still belongs to a guardian whose
+	// relationship to the child grants GuardianPermissionEnrollmentSubmit:
+	// the office then tells the parents another way.
+	EndNoticeSent bool `json:"end_notice_sent,omitempty"`
 }
 
 // NoticeOptions is what the parents (or the office for them) can still
@@ -144,6 +185,10 @@ type NoticeOptions struct {
 	// the contract has no right of withdrawal. Parents see nil after expiry;
 	// the office retains the deadline for timely postal dispatches.
 	WithdrawalUntil *calendar.Date `json:"withdrawal_until"`
+	// ReinterpretedEndsOn is, for the office and an extraordinary
+	// termination whose end is open, the last day if the Träger-Büro does
+	// not accept the reason: the ordinary notice date from the receipt.
+	ReinterpretedEndsOn *calendar.Date `json:"reinterpreted_ends_on,omitempty"`
 	// EarlyStart tells that the parents asked for care within the period.
 	EarlyStart bool    `json:"early_start"`
 	Notice     *Notice `json:"notice"`
@@ -152,12 +197,15 @@ type NoticeOptions struct {
 // NoticeMail is the payload of the confirmation mail: everything the worker
 // needs, so it needs no Träger transaction (ADR 0123 point 2).
 type NoticeMail struct {
-	OrganizationID   int64  `json:"organization_id"`
-	ContractID       int64  `json:"contract_id"`
-	Recipient        string `json:"recipient"`
-	GuardianName     string `json:"guardian_name"`
-	TraegerName      string `json:"traeger_name"`
-	Kind             string `json:"kind"`
+	OrganizationID int64  `json:"organization_id"`
+	ContractID     int64  `json:"contract_id"`
+	Recipient      string `json:"recipient"`
+	GuardianName   string `json:"guardian_name"`
+	TraegerName    string `json:"traeger_name"`
+	Kind           string `json:"kind"`
+	// Decision is set on the notice of a decided end (EndDecisionSet,
+	// EndDecisionReinterpreted); empty on a confirmation.
+	Decision         string `json:"decision,omitempty"`
 	ConfirmationText string `json:"confirmation_text"`
 	IdempotencyKey   string `json:"idempotency_key"`
 }
@@ -170,7 +218,10 @@ type RenderedNoticeMail struct {
 	GuardianName string
 	TraegerName  string
 	Withdrawal   bool
-	Paragraphs   []string
+	// Heading is the heading of a notice of a decided end; empty on a
+	// confirmation, whose heading follows Withdrawal.
+	Heading    string
+	Paragraphs []string
 }
 
 // NoticeMailRenderer renders the payload of a claimed confirmation mail.
@@ -179,9 +230,21 @@ type NoticeMailRenderer func(ctx context.Context, payload []byte) (RenderedNotic
 // NoticeTemplates reads the Träger's confirmation templates in the
 // caller's Träger transaction (setting care_contract.*_confirmation, ADR
 // 0086): never an environment value. kind is NoticeTermination,
-// NoticeWithdrawal or TerminationExtraordinary.
+// NoticeWithdrawal, TerminationExtraordinary, NoticeTemplateEndSet or
+// NoticeTemplateReasonRejected.
 type NoticeTemplates interface {
 	NoticeTemplate(ctx context.Context, organizationID int64, kind string) (string, error)
+}
+
+// NoticeAddressees answers, in the caller's tenant transaction of the
+// child's school, the mail addresses of those of accountIDs (the contract
+// party's and the declaring parent's account) whose guardian relationship
+// to the child grants GuardianPermissionEnrollmentSubmit: the guardian
+// profile address and the account address. The notice of a decided end
+// goes only to such an address (#4682,
+// .claude/rules/guardian-parent-permissions.md).
+type NoticeAddressees interface {
+	PermittedAddresses(ctx context.Context, studentID int64, accountIDs []int64) ([]string, error)
 }
 
 // NoticeDelivery is evidence that the provider delivered a contract mail.
@@ -211,5 +274,12 @@ type Notices interface {
 	// SetNoticeEnd sets the last day of a contract the parents terminated
 	// extraordinarily, after the Träger checked their reason; it takes the
 	// contract's row lock first, as every declaration does.
+	// It tells the parents the last day in Textform.
 	SetNoticeEnd(ctx context.Context, reviewer Reviewer, contractID int64, endsOn calendar.Date) (NoticeOptions, error)
+	// RejectNoticeReason records that the Träger-Büro does not accept the
+	// reason of an extraordinary termination: the declaration holds as an
+	// ordinary termination to the next notice date from its receipt
+	// (§ 140 BGB), and the parents get the new end in Textform.
+	// expectedEndsOn, when set, refuses an end other than the one shown.
+	RejectNoticeReason(ctx context.Context, reviewer Reviewer, contractID int64, expectedEndsOn calendar.Date) (NoticeOptions, error)
 }

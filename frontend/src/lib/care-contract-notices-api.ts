@@ -47,6 +47,23 @@ export async function setContractNoticeEnd(
   );
 }
 
+/**
+ * Records that the office does not accept the reason of an extraordinary
+ * termination: it holds as an ordinary termination to expectedEndsOn, the
+ * end the office was shown.
+ */
+export async function rejectContractNoticeReason(
+  id: string,
+  expectedEndsOn: string,
+): Promise<ContractNoticeOptions> {
+  return noticeOptionsFromBackend(
+    await traegerRequest<BackendNoticeOptions>(
+      `${officePath(id)}/reason-rejection`,
+      { method: "POST", body: { expected_ends_on: expectedEndsOn } },
+    ),
+  );
+}
+
 /** Records a declaration the office received by mail or letter on a day. */
 export async function recordContractNotice(
   id: string,
