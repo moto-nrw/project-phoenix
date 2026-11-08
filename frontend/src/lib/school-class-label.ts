@@ -1,3 +1,5 @@
+import { gradeLevelLabel } from "~/lib/grade-level";
+
 /**
  * Beschriftung einer Schulklasse — die einzige Stelle im Frontend, die
  * „Klasse“ vor einen Klassennamen setzt (#5101).
@@ -57,4 +59,20 @@ export function schoolClassesLabel(
   if (names.length === 0) return "";
   if (names.length === 1) return schoolClassLabel(names[0] ?? "");
   return `Klassen ${join(names.map(schoolClassNameForPlural))}`;
+}
+
+/**
+ * The class a child is enrolled for: the named class when the school assigned
+ * one, otherwise the grade level, otherwise "".
+ */
+export function enrolledClassLabel(child: {
+  target_school_class?: string | null;
+  target_grade_level?: number | null;
+}): string {
+  if (child.target_school_class) {
+    return schoolClassLabel(child.target_school_class);
+  }
+  return child.target_grade_level
+    ? gradeLevelLabel(child.target_grade_level)
+    : "";
 }
