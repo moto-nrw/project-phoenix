@@ -3,6 +3,8 @@ package enrollment
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // SchemaQueries reads immutable versions, lineages and their references.
@@ -87,6 +89,7 @@ type RequestCommands interface {
 	DeleteRequest(ctx context.Context, id int64) error
 	AcquireSubmissionDedupLock(ctx context.Context, phaseID int64, emailHash uint64) error
 	AcquireExistingStudentMatchLock(ctx context.Context, phaseID int64) error
+	AcquireChildIdentityLock(ctx context.Context, firstName, lastName string, birthday calendar.Date) error
 	PinDecisionNotificationMode(ctx context.Context, requestID int64, proposed string) (string, error)
 	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
 	MarkRequestParentChanged(ctx context.Context, requestID int64) error
