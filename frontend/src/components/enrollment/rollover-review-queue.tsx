@@ -1,5 +1,6 @@
 "use client";
 
+import { useRefreshPhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { MAX_SUPPORTED_GRADE_LEVEL } from "~/lib/grade-level";
 import {
   useCallback,
@@ -45,6 +46,7 @@ function gradeFieldName(childId: string): string {
 }
 
 export function RolloverReviewQueue({ phaseID }: Props) {
+  const refreshPhaseExpiryWarnings = useRefreshPhaseExpiryWarnings();
   const toast = useToast();
   const [items, setItems] = useState<ReviewQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,6 +121,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
             ? "Der Eintrag ist abgeschlossen."
             : "Der Eintrag ist zurückgestellt.",
       );
+      refreshPhaseExpiryWarnings();
       await load();
     } catch (err) {
       logger.error("review_queue_decide_failed", {
