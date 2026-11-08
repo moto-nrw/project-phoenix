@@ -400,6 +400,7 @@ function ParentLoginForm() {
           title: tReset("title"),
           description: tReset("description"),
           emailLabel: tReset("emailLabel"),
+          invalidEmail: tReset("invalidEmail"),
           cancel: tReset("cancel"),
           submit: tReset("submit"),
           submitting: tReset("submitting"),

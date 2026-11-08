@@ -43,6 +43,8 @@ interface PasswordResetModalCopy {
   readonly title: string;
   readonly description: string;
   readonly emailLabel: string;
+  /** Shown at the field when the address is empty or not an address. */
+  readonly invalidEmail: string;
   readonly cancel: string;
   readonly submit: string;
   readonly submitting: string;
@@ -64,6 +66,7 @@ const DEFAULT_PASSWORD_RESET_MODAL_COPY: Required<PasswordResetModalCopy> = {
   description:
     "Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link zum Zurücksetzen Ihres Passworts.",
   emailLabel: "E-Mail-Adresse",
+  invalidEmail: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
   cancel: "Abbrechen",
   submit: "Link senden",
   submitting: "Wird gesendet...",
@@ -78,7 +81,6 @@ const DEFAULT_PASSWORD_RESET_MODAL_COPY: Required<PasswordResetModalCopy> = {
     `Einen neuen Link können Sie in ${countdown} anfordern.`,
 };
 
-// Email Icon Component
 const EmailIcon = ({ className }: { className?: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -97,7 +99,6 @@ const EmailIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// Success Check Icon Component
 const SuccessCheckIcon = ({ className }: { className?: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -115,6 +116,9 @@ const SuccessCheckIcon = ({ className }: { className?: string }) => (
     <polyline points="22 4 12 14.01 9 11.01" />
   </svg>
 );
+
+// Loose on purpose: it catches typing slips, the backend decides.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const formatCountdown = (totalSeconds: number): string => {
   const minutes = Math.floor(totalSeconds / 60);
@@ -183,7 +187,6 @@ export function PasswordResetModal({
   const rateLimitActive =
     rateLimitUntil !== null && rateLimitUntil > Date.now();
 
-  // Reset state when modal closes
   const handleClose = useCallback(() => {
     setEmail("");
     clearPathError();
@@ -214,6 +217,10 @@ export function PasswordResetModal({
   const submit = async () => {
     const path = errorPath;
     path.clear();
+    if (!EMAIL_PATTERN.test(email.trim())) {
+      path.invalid(copy.invalidEmail, { email: copy.invalidEmail });
+      return;
+    }
     setIsLoading(true);
     try {
       await onRequestReset(email);
@@ -260,7 +267,6 @@ export function PasswordResetModal({
       <div className="text-center">
         {isSuccess ? (
           <>
-            {/* Success State */}
             <SuccessCheckIcon className="text-moto-green-strong mx-auto mb-4 h-12 w-12" />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 sm:text-4xl">
               {copy.successTitle}
@@ -275,7 +281,6 @@ export function PasswordResetModal({
           </>
         ) : (
           <>
-            {/* Request Form State */}
             <EmailIcon className="mx-auto mb-4 h-12 w-12 text-gray-700" />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 sm:text-4xl">
               {copy.title}
