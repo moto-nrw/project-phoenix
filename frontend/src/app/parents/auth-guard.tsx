@@ -56,8 +56,11 @@ const PARENT_PUBLIC_PAGES = [
 
 export function ParentAuthGuard({
   children,
+  notBooked = false,
 }: {
   readonly children: React.ReactNode;
+  /** The page load's session check found the portal's module not booked. */
+  readonly notBooked?: boolean;
 }) {
   const pathname = usePathname();
   const isPublicPage = PARENT_PUBLIC_PAGES.some(
@@ -74,7 +77,6 @@ export function ParentAuthGuard({
     { keepPreviousData: false },
   );
 
-  // Login page: render without auth guards.
   if (isPublicPage) {
     return <>{children}</>;
   }
@@ -103,7 +105,9 @@ export function ParentAuthGuard({
         <ParentShell>
           {sessionLoading ? (
             <ParentPageSkeleton rows={2} />
-          ) : notBookedModuleOf(profileError) ? (
+          ) : notBooked ||
+            session.notBooked ||
+            notBookedModuleOf(profileError) ? (
             // Keine Schule des Kontos nutzt das Elternportal mehr (#4895):
             // ein Hinweis statt einer Fehlerkarte je Bereich der Seite.
             <Alert

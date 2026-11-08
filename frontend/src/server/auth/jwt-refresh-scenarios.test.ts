@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { _resetRefreshState } from "./token-refresh";
+import { setTestClock, TEST_CLOCK_INSTANT } from "~/test/clock";
+import { _resetRefreshState, refreshAlreadyRefused } from "./token-refresh";
 import type { User } from "next-auth";
 import { createPortalAuthConfig } from "./portal-config";
 import { PORTALS } from "./portals";
@@ -260,6 +261,77 @@ describe("JWT callback — refresh scenarios", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(other?.error).toBeUndefined();
     expect(other?.token).toBe("new-access");
+  });
+
+  // #6187: a school that did not book the portal's module refuses the
+  // refresh with 403 module.not_booked and keeps the presented refresh token
+  // valid. Nothing rotated, so the session stays as it is, shows the
+  // explanation and tries the renewal again later; booking the module again
+  // continues it.
+  it("scenario 7c: refresh 403 module.not_booked keeps the session and retries later", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: async () => ({ status: 403, code: "module.not_booked" }),
+    });
+    const makeToken = (extra: Record<string, unknown> = {}) => ({
+      id: "7c",
+      token: "old-access",
+      refreshToken: "unbooked-refresh",
+      tokenExpiry: Date.now() + 3 * 60 * 1000,
+      refreshTokenExpiry: Date.now() + 60 * 60 * 1000,
+      ...extra,
+    });
+
+    const first = await callJwt(makeToken());
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(first?.error).toBeUndefined();
+    expect(first?.needsRefresh).toBeUndefined();
+    expect(first?.token).toBe("old-access");
+    expect(first?.refreshToken).toBe("unbooked-refresh");
+    expect(first?.notBooked).toBe(true);
+    expect(refreshAlreadyRefused(first as never)).toBe(false);
+
+    // The next request soon after does not ask again.
+    const second = await callJwt(makeToken({ notBooked: true }));
+    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(second?.error).toBeUndefined();
+    expect(second?.notBooked).toBe(true);
+
+    // Later, with the module booked again, the renewal continues the session.
+    setTestClock(new Date(TEST_CLOCK_INSTANT.getTime() + 2 * 60 * 1000));
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        access_token: "booked-access",
+        refresh_token: refreshJwt("booked-refresh"),
+      }),
+    });
+    const third = await callJwt(makeToken({ notBooked: true }));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(third?.error).toBeUndefined();
+    expect(third?.token).toBe("booked-access");
+    expect(third?.notBooked).toBeUndefined();
+  });
+
+  it("scenario 7d: any other 403 ends the session as before", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: async () => ({ status: 403, code: "general.forbidden" }),
+    });
+
+    const result = await callJwt({
+      id: "7d",
+      token: "old-access",
+      refreshToken: "forbidden-refresh",
+      tokenExpiry: Date.now() + 3 * 60 * 1000,
+      refreshTokenExpiry: Date.now() + 60 * 60 * 1000,
+    });
+
+    expect(result?.error).toBe("RefreshTokenError");
+    expect(refreshAlreadyRefused(result as never)).toBe(true);
   });
 
   // ── Scenario 8: Backend refresh network timeout ───────────────────
