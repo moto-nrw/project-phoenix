@@ -14,7 +14,9 @@ import (
 // addendum); the defaults keep the fixed chain from before. How a monthly
 // run bills a month in which a contract changes is open with the customer
 // (#4684); the default bills the full month by the version on the first.
-// The values are
+// Which changes of a single invoice the review of a monthly run allows is
+// open with the customer too (#6197, SJR item 2); all four are on by
+// default. The values are
 // the constants of the Elternabrechnung, which refuses any other.
 func init() {
 	registerDefinitions(parentBillingDefinitions)
@@ -110,4 +112,31 @@ var parentBillingDefinitions = []config.Definition{
 			},
 		},
 	},
+	careReviewSwitch(config.KeyParentBillingCareReviewAmount, 60, "Betrag einer Rechnung ändern",
+		"Ist das an, können Sie vor dem Ausstellen den Betrag einer einzelnen Rechnung ändern. Die Rechnung bekommt dann eine Korrektur-Zeile mit Ihrem Grund."),
+	careReviewSwitch(config.KeyParentBillingCareReviewRecipient, 70, "Empfänger einer Rechnung ändern",
+		"Ist das an, können Sie vor dem Ausstellen Name und E-Mail des Empfängers einer einzelnen Rechnung ändern. Das gilt nur für diese Rechnung, nicht für die Familie."),
+	careReviewSwitch(config.KeyParentBillingCareReviewAddress, 80, "Anschrift einer Rechnung ändern",
+		"Ist das an, können Sie vor dem Ausstellen die Anschrift einer einzelnen Rechnung ändern. Das gilt nur für diese Rechnung, nicht für die Familie."),
+	careReviewSwitch(config.KeyParentBillingCareReviewPositions, 90, "Positionen einer Rechnung ändern",
+		"Ist das an, können Sie vor dem Ausstellen Positionen einer einzelnen Rechnung hinzufügen oder entfernen, jeweils mit Grund."),
+}
+
+// careReviewSwitch is one change of a single invoice the review of a
+// monthly run allows (#6197); every switch is on until the Träger turns it
+// off.
+func careReviewSwitch(key string, order int, label, description string) config.Definition {
+	return config.Definition{
+		Key:             key,
+		Levels:          config.LevelTraeger,
+		Label:           label,
+		Description:     description,
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "monatsbeitrag",
+		Category:        "monatsbeitrag-pruefung",
+		SortOrder:       order,
+	}
 }

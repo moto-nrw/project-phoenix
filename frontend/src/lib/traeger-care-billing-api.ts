@@ -168,6 +168,80 @@ export interface CarePosition {
   /** The price excludes the meal, which the Mensa bills. */
   readonly mealExtra?: boolean;
   readonly amountCents: number;
+  /** The amount a removal deducts after reductions and cost shares. */
+  readonly payableCents?: number;
+  /** Names the position for a change of the review (#6197). */
+  readonly key: string;
+}
+
+export type CareAmendmentKind =
+  "amount" | "add_position" | "remove_position" | "recipient" | "address";
+
+/** Why a change of the review is not applied (#6197). */
+type CareAmendmentConflict =
+  "basis_changed" | "position_missing" | "negative_total";
+
+/** One side of a change: a total, a position, a recipient or an address. */
+interface CareAmendmentValue {
+  readonly totalCents: number | null;
+  readonly label: string;
+  readonly amountCents: number | null;
+  readonly recipient: {
+    readonly firstName: string;
+    readonly lastName: string;
+    readonly secondName: string;
+    readonly email: string;
+  } | null;
+  readonly address: PostalAddress | null;
+}
+
+/**
+ * A change of an invoice in the review (#6197): on a preview its history,
+ * also revoked and conflicting entries; on an issued invoice what its
+ * release applied. `amountCents` is the correction line it adds.
+ */
+export interface CareAmendment {
+  readonly id: string;
+  readonly kind: CareAmendmentKind;
+  readonly label: string;
+  readonly amountCents: number;
+  readonly positionKey: string;
+  readonly before: CareAmendmentValue;
+  readonly after: CareAmendmentValue;
+  readonly reason: string;
+  readonly amendedAt: string;
+  /** Taken over from the cancelled invoice with this number. */
+  readonly carriedFromNumber: string | null;
+  readonly revocation: {
+    readonly reason: string;
+    readonly revokedAt: string;
+  } | null;
+  readonly conflict: CareAmendmentConflict | null;
+}
+
+/** Whether a change shapes the invoice. */
+export function amendmentApplied(amendment: CareAmendment): boolean {
+  return amendment.revocation === null && amendment.conflict === null;
+}
+
+/** The correction lines of the applied changes; recipient and address add none. */
+export function careCorrectionLines(
+  invoice: CareInvoice,
+): readonly CareAmendment[] {
+  return (invoice.amendments ?? []).filter(
+    (amendment) =>
+      amendmentApplied(amendment) &&
+      amendment.kind !== "recipient" &&
+      amendment.kind !== "address",
+  );
+}
+
+/** Which changes of an invoice the Träger allows in the review (#6197). */
+interface CareAmendable {
+  readonly amount: boolean;
+  readonly recipient: boolean;
+  readonly address: boolean;
+  readonly positions: boolean;
 }
 
 export interface CareInvoice {
@@ -207,6 +281,8 @@ export interface CareInvoice {
    * `totalCents` is the rest the family pays.
    */
   readonly costShares: readonly CareInvoiceCostShare[];
+  /** The changes of the review (#6197); `totalCents` adds their lines. */
+  readonly amendments?: readonly CareAmendment[];
   readonly totalCents: number;
   /** Set on a preview invoice the release leaves out (#5916). */
   readonly exclusion?: CareExclusion | null;
@@ -263,9 +339,14 @@ export interface CareCostBearerTotal {
 
 /** The contribution before the cost bearer shares. */
 export function careContributionCents(invoice: CareInvoice): number {
+  // The correction lines of the review come after the shares (#6197).
+  const corrections = careCorrectionLines(invoice).reduce(
+    (sum, line) => sum + line.amountCents,
+    0,
+  );
   return invoice.costShares.reduce(
     (sum, share) => sum + share.amountCents,
-    invoice.totalCents,
+    invoice.totalCents - corrections,
   );
 }
 
@@ -334,6 +415,10 @@ export interface CareRunDetail extends CareRun {
   readonly excludedCents: number;
   /** The reviewed state; the release sends it back. */
   readonly fingerprint: string;
+  /** Which changes of an invoice the Träger allows (#6197). */
+  readonly amendable?: CareAmendable;
+  /** Changes in conflict on invoices the release issues; it refuses while any is open. */
+  readonly amendmentConflicts?: number;
   /** The kind of document the run issues (#4688). */
   readonly documentKind?: string;
   /** A release would refuse: the fee notice has no legal remedy (#4688). */
@@ -429,6 +514,8 @@ interface BackendInvoice {
         tier_monthly_cents?: number | null;
         meal_extra?: boolean;
         amount_cents: number;
+        payable_cents?: number;
+        key?: string;
       }[]
     | null;
   reductions:
@@ -457,8 +544,87 @@ interface BackendInvoice {
         amount_cents: number;
       }[]
     | null;
+  amendments?: BackendAmendment[] | null;
   total_cents: number;
   exclusion?: { reason: string; excluded_at: string } | null;
+}
+
+interface BackendAmendmentValue {
+  total_cents?: number;
+  label?: string;
+  amount_cents?: number;
+  recipient?: {
+    first_name: string;
+    last_name: string;
+    second_name: string;
+    email: string;
+  };
+  address?: { street: string; postal_code: string; city: string };
+}
+
+interface BackendAmendment {
+  id: number;
+  kind: CareAmendmentKind;
+  label: string;
+  amount_cents: number;
+  position_key?: string;
+  before?: BackendAmendmentValue;
+  after?: BackendAmendmentValue;
+  reason: string;
+  amended_at: string;
+  carried?: boolean;
+  carried_from_number?: string;
+  revocation?: { reason: string; revoked_at: string } | null;
+  conflict?: CareAmendmentConflict | "";
+}
+
+function amendmentValue(
+  value: BackendAmendmentValue | undefined,
+): CareAmendmentValue {
+  return {
+    totalCents: value?.total_cents ?? null,
+    label: value?.label ?? "",
+    amountCents: value?.amount_cents ?? null,
+    recipient: value?.recipient
+      ? {
+          firstName: value.recipient.first_name,
+          lastName: value.recipient.last_name,
+          secondName: value.recipient.second_name,
+          email: value.recipient.email,
+        }
+      : null,
+    address: value?.address
+      ? {
+          street: value.address.street,
+          postalCode: value.address.postal_code,
+          city: value.address.city,
+        }
+      : null,
+  };
+}
+
+function amendmentFromBackend(amendment: BackendAmendment): CareAmendment {
+  return {
+    id: String(amendment.id),
+    kind: amendment.kind,
+    label: amendment.label,
+    amountCents: amendment.amount_cents,
+    positionKey: amendment.position_key ?? "",
+    before: amendmentValue(amendment.before),
+    after: amendmentValue(amendment.after),
+    reason: amendment.reason,
+    amendedAt: amendment.amended_at,
+    carriedFromNumber: amendment.carried
+      ? (amendment.carried_from_number ?? "")
+      : null,
+    revocation: amendment.revocation
+      ? {
+          reason: amendment.revocation.reason,
+          revokedAt: amendment.revocation.revoked_at,
+        }
+      : null,
+    conflict: amendment.conflict ? amendment.conflict : null,
+  };
 }
 
 export interface BackendRunDetail extends BackendRun {
@@ -503,6 +669,13 @@ export interface BackendRunDetail extends BackendRun {
   excluded_count?: number;
   excluded_cents?: number;
   fingerprint?: string;
+  amendable?: {
+    amount: boolean;
+    recipient: boolean;
+    address: boolean;
+    positions: boolean;
+  };
+  amendment_conflicts?: number;
   document_kind?: string;
   legal_remedy_missing?: boolean;
   cost_bearers?:
@@ -618,6 +791,8 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
       tierMonthlyCents: position.tier_monthly_cents ?? null,
       mealExtra: position.meal_extra ?? false,
       amountCents: position.amount_cents,
+      payableCents: position.payable_cents,
+      key: position.key ?? "",
     })),
     reductions: (invoice.reductions ?? []).map((reduction) => ({
       kind: reduction.kind,
@@ -641,6 +816,7 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
       scope: share.scope ?? "care",
       amountCents: share.amount_cents,
     })),
+    amendments: (invoice.amendments ?? []).map(amendmentFromBackend),
     totalCents: invoice.total_cents,
     exclusion: invoice.exclusion
       ? {
@@ -696,6 +872,13 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
     excludedCount: detail.excluded_count ?? 0,
     excludedCents: detail.excluded_cents ?? 0,
     fingerprint: detail.fingerprint ?? "",
+    amendable: {
+      amount: detail.amendable?.amount ?? false,
+      recipient: detail.amendable?.recipient ?? false,
+      address: detail.amendable?.address ?? false,
+      positions: detail.amendable?.positions ?? false,
+    },
+    amendmentConflicts: detail.amendment_conflicts ?? 0,
     documentKind: detail.document_kind,
     legalRemedyMissing: detail.legal_remedy_missing ?? false,
     costBearers: (detail.cost_bearers ?? []).map((total) => ({

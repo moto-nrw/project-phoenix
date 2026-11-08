@@ -2,6 +2,7 @@ package application
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -46,8 +47,8 @@ func careInvoiceLetter(content careLetterContent) Letter {
 		// A table follows a paragraph: the letter layout pulls it up by one
 		// paragraph spacing, so a heading alone would overlap its first row.
 		{Heading: heading, Text: careBasisText(invoice)},
-		{Facts: append(append(append(append(carePositionFacts(invoice.Positions, 1), careReductionFacts(invoice.Reductions, 1)...),
-			careMealFacts(invoice.MealPositions, 1)...), careCostShareFacts(invoice, 1)...),
+		{Facts: append(slices.Concat(carePositionFacts(invoice.Positions, 1), careReductionFacts(invoice.Reductions, 1),
+			careMealFacts(invoice.MealPositions, 1), careCostShareFacts(invoice, 1), careCorrectionFacts(invoice, 1)),
 			LetterFact{Label: careTotalLabel(invoice), Value: formatEuro(invoice.TotalCents), Bold: true})},
 		{Text: carePaymentText(content), Bold: true},
 	}
@@ -92,8 +93,8 @@ func careCancellationLetter(content careLetterContent) Letter {
 	letter.Blocks = []LetterBlock{
 		{Text: fmt.Sprintf("wir stornieren die Rechnung %s für %s. Grund: %s",
 			reference, carePeriodName(content.run.BillingMonth), sentence(cancellation.Reason))},
-		{Facts: append(append(append(append(carePositionFacts(invoice.Positions, -1), careReductionFacts(invoice.Reductions, -1)...),
-			careMealFacts(invoice.MealPositions, -1)...), careCostShareFacts(invoice, -1)...),
+		{Facts: append(slices.Concat(carePositionFacts(invoice.Positions, -1), careReductionFacts(invoice.Reductions, -1),
+			careMealFacts(invoice.MealPositions, -1), careCostShareFacts(invoice, -1), careCorrectionFacts(invoice, -1)),
 			LetterFact{Label: "Storno gesamt", Value: formatEuro(cancellation.TotalCents), Bold: true})},
 		{Text: "Diese Rechnung gilt nicht mehr. Sie müssen sie nicht bezahlen. Haben Sie schon bezahlt? Dann melden Sie sich bitte bei uns.", Bold: true},
 	}

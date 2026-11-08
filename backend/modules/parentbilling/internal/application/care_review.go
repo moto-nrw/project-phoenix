@@ -47,12 +47,16 @@ type reviewedMonth struct {
 	kind        parentbilling.DocumentKindState
 	legalRemedy string
 	fingerprint string
+	// conflicts counts the changes in conflict on the invoices the release
+	// issues (#6197).
+	conflicts int
 	// free counts the run's contracts a free month bills nothing for.
 	free int
 }
 
 // reviewed computes the preview of a calculated run with the rule of the
-// Träger now, narrowed to its schools and without its excluded invoices.
+// Träger now, narrowed to its schools and without its excluded invoices,
+// with the changes of its invoices (#6197).
 func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run parentbilling.CareRun) (string, reviewedMonth, error) {
 	rule, month, err := c.preview(ctx, organizationID, run)
 	if err != nil {
@@ -63,6 +67,9 @@ func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run pa
 		return "", reviewedMonth{}, err
 	}
 	review := narrowMonth(month, run.SchoolIDs, exclusions)
+	if err := c.amendReviewed(ctx, organizationID, run, &review); err != nil {
+		return "", reviewedMonth{}, err
+	}
 	// Every draft carries the kind of document the release would freeze,
 	// so the fingerprint changes when the Abrechnung chooses another kind
 	// after the review (#4688).
@@ -419,6 +426,10 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	detail.UncountedFamilies = review.uncounted
 	detail.Invoices = append(review.invoices, review.excluded...)
 	detail.Fingerprint = review.fingerprint
+	detail.AmendmentConflicts = review.conflicts
+	if detail.Amendable, err = c.settings.CareAmendable(ctx, organizationID); err != nil {
+		return fmt.Errorf("parent billing: read the changes the Träger allows: %w", err)
+	}
 	detail.DocumentKindState = review.kind
 	for _, invoice := range review.excluded {
 		detail.ExcludedCount++
@@ -462,6 +473,9 @@ func (c *CareBilling) issueReviewed(ctx context.Context, organizationID int64, r
 	// (#6196).
 	if len(month.invoices) == 0 && len(month.excluded) == 0 && month.free == 0 {
 		return "", reviewedMonth{}, "", parentbilling.ErrBillingRunEmpty
+	}
+	if month.conflicts > 0 {
+		return "", reviewedMonth{}, "", parentbilling.ErrCareAmendmentsUnresolved
 	}
 	if len(month.invoices) != release.DocumentCount || month.total() != release.TotalCents ||
 		month.fingerprint == "" || month.fingerprint != release.Fingerprint {

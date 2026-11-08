@@ -29,6 +29,7 @@ const ExclusionMenu = dynamic(
 export function exclusionColumn(
   onExclude: (invoice: CareInvoice) => void,
   onFamilyBilling?: (invoice: CareInvoice) => void,
+  onAmend?: (invoice: CareInvoice) => void,
 ): DataTableColumn<CareInvoiceRow> {
   return {
     key: "actions",
@@ -42,6 +43,7 @@ export function exclusionColumn(
         invoice={invoice}
         onExclude={onExclude}
         onFamilyBilling={onFamilyBilling}
+        onAmend={onAmend}
       />
     ),
   };

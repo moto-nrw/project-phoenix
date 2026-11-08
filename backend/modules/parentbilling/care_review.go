@@ -79,6 +79,11 @@ type CareRunReviewState struct {
 	ExcludedCents int64 `json:"excluded_cents"`
 	// Fingerprint names the reviewed state; the release sends it back.
 	Fingerprint string `json:"fingerprint"`
+	// Amendable says which changes of an invoice the Träger allows (#6197);
+	// AmendmentConflicts counts the changes in conflict on invoices the
+	// release issues, which it refuses until they are revoked.
+	Amendable          CareAmendable `json:"amendable"`
+	AmendmentConflicts int           `json:"amendment_conflicts"`
 }
 
 // CareRunSchool is a school of the Träger a new run of a month may bill;
@@ -104,6 +109,10 @@ type CareRunReview interface {
 	SetCareRunInvoiceDate(ctx context.Context, reviewer HolidayReviewer, runID int64, invoiceDate *calendar.Date) (CareRunDetail, error)
 	ExcludeCareInvoice(ctx context.Context, reviewer HolidayReviewer, runID, contractID int64, reason string) (CareRunDetail, error)
 	IncludeCareInvoice(ctx context.Context, reviewer HolidayReviewer, runID, contractID int64) (CareRunDetail, error)
+	// AmendCareInvoice appends a change of one invoice of the preview
+	// (#6197): its amount, recipient, address or positions, or the
+	// revocation of an earlier change.
+	AmendCareInvoice(ctx context.Context, reviewer HolidayReviewer, runID int64, input CareAmendmentInput) (CareRunDetail, error)
 	ExportCareRunReview(ctx context.Context, reviewer HolidayReviewer, runID int64, format string) (ExportFile, error)
 	// ExportCareCostShares renders the list of what one cost bearer pays of
 	// the invoices of a run (#4687): the preview of a calculated run, the
