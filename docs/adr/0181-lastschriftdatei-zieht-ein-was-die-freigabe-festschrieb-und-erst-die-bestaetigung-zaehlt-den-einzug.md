@@ -118,15 +118,21 @@ Doppelung zwischen Monatsrechnung und Rate schließt #6243 selbst aus (ein Monat
 ist entweder Bescheid- oder Rechnungsmonat). Der Anschluss folgt, sobald #6243
 gemergt ist:
 
+- Die einzige Quelle der Raten ist `CareFeeNotices.EffectiveNoticeDues(ctx,
+  organizationID, month)` aus #6243: je Vertrag und Monat die wirksame Rate
+  mit Betrag, Fälligkeit (oder „sofort fällig“), Bescheid-ID und -Nummer und
+  Zahlungsweg. Die Lastschriftdatei löst Erst- und Änderungsbescheide nicht
+  selbst auf; was diese Funktion für einen Monat liefert, ist die Rate.
 - Spalte `care_notice_month_id` mit Fremdschlüssel und eindeutigem Index,
-  `run_kind = 'notice'`; der Check verlangt genau eine Quelle.
-- Die Freigabe des Jahreslaufs löst das Mandat je Bescheid wie eine Rechnung
-  auf (`ResolveDebit`) und schreibt je Rate über 0 € eine Zeile mit den
-  versiegelten Kontodaten.
-- Ein Änderungsbescheid ersetzt die offenen Raten des geänderten Bescheids
-  (die alte Zeile bleibt draußen wie eine stornierte Rechnung); eine schon
-  eingereichte Rate bekommt nur einen Zugang über 0 € als eigene Zeile.
-- Die Datei eines Jahreslaufs wird je Fälligkeitsmonat erzeugt und bestätigt,
+  `run_kind = 'notice'`; der Check verlangt genau eine Quelle. Die Zeile
+  hält Bescheid-ID und -Nummer der wirksamen Rate als `EndToEndId`.
+- Das Mandat wird je Familie wie bei einer Rechnung aufgelöst (`ResolveDebit`)
+  und mit seinen versiegelten Kontodaten festgeschrieben, wenn die Rate in die
+  Datei ihres Fälligkeitsmonats kommt. Liefert `EffectiveNoticeDues` nach
+  einem Änderungsbescheid eine andere Rate, bleibt eine offene Zeile der
+  alten Rate draußen wie eine stornierte Rechnung; eine schon eingereichte
+  bekommt nur einen Zugang über 0 € als eigene Zeile.
+- Die Datei der Bescheidraten wird je Fälligkeitsmonat erzeugt und bestätigt,
   damit die Kämmerei Monat für Monat einreicht.
 
 ## Folgen

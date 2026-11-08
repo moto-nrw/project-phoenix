@@ -240,6 +240,7 @@ export function SepaDebitCard({
                 variant="primary"
                 size="md"
                 disabled={fileBlocked}
+                className="gap-2"
                 isLoading={downloading}
                 loadingText="Wird erstellt …"
                 onClick={() => void download()}
