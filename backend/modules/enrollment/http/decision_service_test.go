@@ -2898,32 +2898,6 @@ func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBa
 func matchChildToExistingStudent(t *testing.T, env *decisionTestEnv, childID, studentID int64) {
 	t.Helper()
 	require.NoError(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), env.db, env.repos.Enrollment().UpdateMatchedStudent, childID, &studentID))
-	markExistingStudentsPhase(t, env.db, testpkg.Ctx(t), childID)
-}
-
-// markExistingStudentsPhase sets the audience of the child's phase to
-// existing_students, the phase whose match the fixtures pin directly, until
-// the (sub)test ends, so a later submission to the shared phase stays open.
-// A pin in an open or linked_parents phase additionally needs the
-// submitter's current relationship authority at approval (#6053).
-func markExistingStudentsPhase(t *testing.T, db *bun.DB, ctx context.Context, childID int64) {
-	t.Helper()
-	var phase struct {
-		ID       int64  `bun:"id"`
-		Audience string `bun:"audience"`
-	}
-	require.NoError(t, db.NewSelect().TableExpr("enrollment.phases AS p").
-		ColumnExpr("p.id, p.audience").
-		Where("p.id = (SELECT r.phase_id FROM enrollment.request_children AS c JOIN enrollment.requests AS r ON r.id = c.request_id WHERE c.id = ?)", childID).
-		Scan(ctx, &phase))
-	setPhaseAudience(t, db, ctx, phase.ID, enrollmentNative.PhaseAudienceExistingStudents)
-	t.Cleanup(func() { setPhaseAudience(t, db, ctx, phase.ID, phase.Audience) })
-}
-
-func setPhaseAudience(t *testing.T, db *bun.DB, ctx context.Context, phaseID int64, audience string) {
-	t.Helper()
-	_, err := db.NewUpdate().TableExpr("enrollment.phases").Set("audience = ?", audience).Where("id = ?", phaseID).Exec(ctx)
-	require.NoError(t, err)
 }
 
 func TestDecisionService_Decide_ExistingStudentCareRenewalObsoletesWithdrawalWithoutGap(t *testing.T) {

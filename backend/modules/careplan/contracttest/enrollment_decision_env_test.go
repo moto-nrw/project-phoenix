@@ -592,14 +592,6 @@ func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirs
 func matchChildToExistingStudent(t *testing.T, env *decisionTestEnv, childID, studentID int64) {
 	t.Helper()
 	require.NoError(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), env.db, env.reposEnrollment.Enrollment().UpdateMatchedStudent, childID, &studentID))
-	// The fixture pins directly, as an existing_students match does. A pin
-	// in an open or linked_parents phase additionally needs the submitter's
-	// current relationship authority at approval (#6053).
-	_, err := env.db.NewUpdate().TableExpr("enrollment.phases").
-		Set("audience = ?", "existing_students").
-		Where("id = (SELECT r.phase_id FROM enrollment.request_children AS c JOIN enrollment.requests AS r ON r.id = c.request_id WHERE c.id = ?)", childID).
-		Exec(testpkg.Ctx(t))
-	require.NoError(t, err)
 }
 
 // liftTakeoverStamp clears created_student_id on the request's children and

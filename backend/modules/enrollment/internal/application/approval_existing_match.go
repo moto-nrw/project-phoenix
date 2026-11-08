@@ -60,8 +60,12 @@ func isParentPin(phase *enrollmentNative.Phase, child *RequestChild) bool {
 // every approval and every later edit asks again before it links guardians,
 // grants portal access, invites or applies form data. Without the
 // authorizer the pin counts as lapsed.
+//
+// The relationship match pins only for a signed-in account, so a pin of a
+// request without one stems from the existing_students rule (an audience
+// changed after the submission) and keeps that rule's behaviour (#6173).
 func (d *Decisions) parentPinLapsed(ctx context.Context, request *Request, phase *enrollmentNative.Phase, child *RequestChild) (bool, error) {
-	if !isParentPin(phase, child) {
+	if !isParentPin(phase, child) || request == nil || request.GuardianAccountID == nil {
 		return false, nil
 	}
 	submitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, d.deps.LateInvites, request)
