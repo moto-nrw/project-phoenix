@@ -8,7 +8,9 @@ import { ALL_PORTALS } from "./portals";
  * logout, the audit call that ends a staff preview before the switch, and
  * the tab's own log lines about all of that. Accepting an invitation with an
  * existing account acts for the school the invitation names, not for the
- * session's; the bare domain's invitation page calls it.
+ * session's; the bare domain's invitation page calls it. It runs inside
+ * `tenantPortal.withAuth` (`withInvitationOwnerSession`), so without this
+ * entry the school check would refuse it from another school's tab.
  */
 export const MISMATCH_EXEMPT_PATHS: ReadonlySet<string> = new Set([
   ...["switch-tenant", "token", "logout", "staff-preview/end"].map((step) =>
@@ -27,7 +29,8 @@ export const MISMATCH_EXEMPT_PATHS: ReadonlySet<string> = new Set([
  * persists the current cookie and returns no token or account data; it must
  * remain reachable for the existing 401 recovery path. Tenant switching
  * and preview-end act on the cookie's account and must match the
- * tab; invitation acceptance does not use the response-aware auth wrapper.
+ * tab. Invitation acceptance runs inside the wrapper and is not exempt: it
+ * acts for the cookie's account, which must be the one the tab shows.
  */
 export const ACCOUNT_CHECK_EXEMPT_PATHS: ReadonlySet<string> = new Set([
   ...ALL_PORTALS.map((portal) => portalLogPath(portal.key)),

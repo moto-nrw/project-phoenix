@@ -8,10 +8,13 @@ export {
 } from "./api-response-error.server";
 
 /*
- * The tenant handlers' JSON calls: projections of backendJson, the one JSON
- * path of every portal. They run inside a tenant route handler
- * (`createGetHandler`, `tenant.post`, …), which repeats a backend 401 with
- * the renewed session unless the endpoint opts out with `retry: { off }`.
+ * The tenant's JSON calls: projections of backendJson, the one JSON path of
+ * every portal. They send once and never renew the session themselves. In a
+ * tenant route handler (`createGetHandler`, `tenant.post`, …) the handler
+ * repeats a backend 401 with the renewed session unless the endpoint opts out
+ * with `retry: { off }`. Server components and their helpers
+ * (`shell-bootstrap.server`, `user-context.server`, …) get the single call
+ * and its 401.
  */
 
 export async function apiGet<T>(

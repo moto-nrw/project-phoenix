@@ -398,7 +398,8 @@ comes from the cached `/auth/tenant/resolve` lookup of the tenant layout; a
 failed lookup refuses the request. Exempt are the routes that end the mismatch:
 `/api/auth/switch-tenant`, `/api/auth/token`, `/api/auth/logout`,
 `/api/auth/staff-preview/end`, plus the tab's `/api/logs` and
-`/api/invitations/accept`, which acts for the invitation's school. In the
+`/api/invitations/accept`, which acts for the invitation's school and runs
+inside the portal's `withAuth` (`withInvitationOwnerSession`). In the
 browser a fetch observer (`frontend/src/lib/session-tenant-mismatch-observer.ts`,
 installed by `TenantGuard`) and `apiErrorFromBody` report the refusal, also
 for clients that read only `response.ok`. The session cache drops its session
@@ -432,7 +433,8 @@ answer) and every portal's client log route pass. The browser logger posts to
 the log route of its host's portal (`/api/logs` for the tenant,
 `/api/<portal>/logs` otherwise; `portalLogPath`), which authenticates with
 that portal's session. Tenant switching and preview-end must match
-the account; invitation acceptance does not use this wrapper. The refusal takes
+the account, and so must invitation acceptance, which runs inside this
+wrapper. The refusal takes
 the path of the school refusal: the session cache wakes the provider,
 `TenantGuard` hides the page, and the provider's new account resets the SWR
 scope and leaves the page (`PersonalStorageGuard`). A request without the
