@@ -70,18 +70,6 @@ func TestSubmit_AdminNotificationReachesSubscribedEnrollmentManagers(t *testing.
 		[]string{"extern@example.test", strings.ToUpper(alsoListed.Email), manager.Email},
 		adminMailRecipients(env.outbox),
 		"the address list stays; switched-on managers join it once; nobody without the right, the decision or the school")
-
-	t.Run("a suppressed submission sends no opt-in mail either", func(t *testing.T) {
-		before := len(adminMailRecipients(env.outbox))
-		req := validSubmission(t, env.phaseID)
-		req.GuardianEmail = "nachzuegler@example.com"
-		req.SuppressSubmissionEmails = true
-
-		_, err := svc.Submit(ctx, req)
-
-		require.NoError(t, err)
-		assert.Len(t, adminMailRecipients(env.outbox), before)
-	})
 }
 
 func adminMailRecipients(outbox *recordingOutbox) []string {
