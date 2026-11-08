@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as status } from "./status/route";
 import { POST as sessions } from "./sessions/route";
+import { stubPortalHostEnv } from "~/test/route-test-helpers";
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://server:8080",
@@ -30,6 +31,7 @@ function request(body: unknown) {
 }
 
 beforeEach(() => {
+  stubPortalHostEnv();
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
 });
