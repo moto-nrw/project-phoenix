@@ -20,7 +20,7 @@ type CareStudent struct {
 	EnrolledFrom  *calendar.Date
 	EnrolledUntil *calendar.Date
 	// FirstCareFrom is School Membership's first-care bound (#6041, ADR
-	// 0163): the earliest day the child can have been cared for at this
+	// 0164): the earliest day the child can have been cared for at this
 	// school, nil when unknown. It survives the activation.
 	FirstCareFrom *calendar.Date
 	UpdatedAt     time.Time
