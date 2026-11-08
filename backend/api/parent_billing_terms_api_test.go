@@ -171,6 +171,10 @@ func TestCareByDirectDebitAndHolidayByTransferStaySeparateInvoices(t *testing.T)
 	require.NoError(t, err)
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	// A direct debit needs the creditor identifier and the family's
+	// mandate (#4695); without them the invoice goes as a transfer.
+	saveCreditor(t, care, map[string]any{"creditor_id": sepaCreditorID, "prenotification_days": 2, "missing_mandate": "transfer"})
+	createMandate(t, care, mandateBody(contract, "SJR-4689-1"))
 
 	monthly := care.startRun(t, careMonth)
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPut, runDueDatesPathOf("care", monthly.ID), dueDates("2030-01-02", "2030-01-04"))
@@ -336,6 +340,9 @@ func TestFamilyDeviationReachesTheNextReleaseOnly(t *testing.T) {
 	// The issued invoice keeps its recipient; the next month goes to the payer.
 	released := termsRun(t, f, f.office.token, first.ID)
 	assert.Equal(t, "Eva", released.Invoices[0].Recipient.FirstName, "issued invoices never change")
+	// The payer's direct debit needs a mandate (#4695).
+	saveCreditor(t, f, map[string]any{"creditor_id": sepaCreditorID, "prenotification_days": 1, "missing_mandate": "transfer"})
+	createMandate(t, f, mandateBody(contract, "SJR-4689-2"))
 	next := f.startRun(t, "2030-02-01")
 	preview := termsRun(t, f, f.office.token, next.ID)
 	var shown int

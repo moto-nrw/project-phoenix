@@ -395,13 +395,18 @@ func mealPaymentRun(t *testing.T, f careBillingFixture, terms map[string]any) (i
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	school := f.office.schools[0]
-	careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	contract := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2029-11-01", "per_meal", 480))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	if terms != nil {
 		setTerms(t, f.traeger, f.office.token, "meal", terms)
+	}
+	if terms != nil && terms["payment_method"] == "direct_debit" {
+		// A direct debit needs the creditor and the family's mandate (#4695).
+		saveCreditor(t, f, map[string]any{"creditor_id": sepaCreditorID, "prenotification_days": 1, "missing_mandate": "transfer"})
+		createMandate(t, f, mandateBody(contract, "SJR-MENSA-1"))
 	}
 	releaseMealMonth(t, db, f.office.organization, school, testpkg.UniqueTestTenantID(t), "2029-12-01", "Mia", 2)
 	run := f.startRun(t, careMonth)

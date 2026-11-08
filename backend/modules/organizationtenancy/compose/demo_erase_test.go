@@ -70,6 +70,12 @@ var visitorTraceCounts = map[string]string{
 	"parent_billing.family_billing": `SELECT count(*) FROM parent_billing.family_billing AS family
 		JOIN care_contract.contracts AS contract ON contract.id = family.care_contract_id
 		WHERE contract.school_id = ?0 AND family.payer_first_name = '` + visitorFirst + `' AND family.payer_last_name = '` + visitorLast + `'`,
+	// The SEPA mandate of the family names the account holder (#4695) and
+	// goes with the contract; sepaMandateRows counts its trail, which names
+	// no one.
+	"parent_billing.sepa_mandates": `SELECT count(*) FROM parent_billing.sepa_mandates AS mandate
+		JOIN care_contract.contracts AS contract ON contract.id = mandate.care_contract_id
+		WHERE contract.school_id = ?0 AND mandate.account_holder = '` + visitorFull + `'`,
 	// A child a release held back keeps its name in the run's snapshot
 	// (ADR 0158 E5); the visitor's child carries the visitor's last name.
 	"parent_billing.care_run_holds": `SELECT count(*) FROM parent_billing.care_run_holds
@@ -232,6 +238,17 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 			RETURNING id, organization_id, care_contract_id)
 		INSERT INTO parent_billing.family_billing_events (organization_id, family_billing_id, care_contract_id, action)
 		SELECT organization_id, id, care_contract_id, 'save' FROM family`,
+		// The visitor gave a SEPA mandate for the contract (#4695): it names
+		// the visitor as account holder; its trail names no one.
+		`WITH mandate AS (
+			INSERT INTO parent_billing.sepa_mandates (organization_id, family_email, care_contract_id, reference, signed_on,
+				kind, sequence, account_holder, iban_sealed, iban_masked, source)
+			SELECT organization_id, 'eltern-' || id || '@example.org', id, 'DEMO-' || id, DATE '2026-09-01', 'recurring', 'first',
+				'` + visitorFull + `', '\x01'::bytea, 'DE•• •••• •••• •••• ••30 00', 'office'
+			FROM care_contract.contracts WHERE school_id = ?0
+			RETURNING id, organization_id, care_contract_id)
+		INSERT INTO parent_billing.sepa_mandate_events (organization_id, mandate_id, care_contract_id, action, source)
+		SELECT organization_id, id, care_contract_id, 'create', 'office' FROM mandate`,
 		// The release held Mia back for a duplicate contract (#4684).
 		`INSERT INTO parent_billing.care_run_holds (organization_id, run_id, position, reason, school_ids,
 			child_first_name, child_last_name, contracts, slots)
@@ -995,6 +1012,64 @@ func TestDemoSchoolQueueErasesTheFamilyBillingOfTheRetiredSchool(t *testing.T) {
 	require.Equal(t, 1, erased)
 	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing", families), "no deviation stays")
 	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing_events", events), "no trail stays")
+}
+
+// sepaMandateRows are the SEPA mandates of the school's contracts and their
+// trail (#4695); the trail and a mandate of another holder name no one of
+// the visitor.
+func sepaMandateRows(t *testing.T, db *bun.DB, schoolID int64) (mandates, events []int64) {
+	t.Helper()
+	require.NoError(t, db.NewRaw(`SELECT mandate.id FROM parent_billing.sepa_mandates AS mandate
+		JOIN care_contract.contracts AS contract ON contract.id = mandate.care_contract_id
+		WHERE contract.school_id = ? ORDER BY mandate.id`, schoolID).Scan(t.Context(), &mandates))
+	require.NoError(t, db.NewRaw(`SELECT event.id FROM parent_billing.sepa_mandate_events AS event
+		JOIN care_contract.contracts AS contract ON contract.id = event.care_contract_id
+		WHERE contract.school_id = ? ORDER BY event.id`, schoolID).Scan(t.Context(), &events))
+	return mandates, events
+}
+
+// The SEPA mandates of a retired demo school's contracts and their trail
+// go with the visitor (#4695), also a revoked mandate of another holder and
+// trail entries without any name: all hang on the contract the erasure
+// deletes.
+func TestDemoSchoolQueueErasesTheSEPAMandatesOfTheRetiredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	_, err := db.NewRaw(`WITH contract AS (
+			INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, status, sent_at)
+			SELECT organization_id, id, ?1, 'versendet', NOW() FROM platform.schools WHERE id = ?0
+			RETURNING id, organization_id),
+		mandate AS (
+			INSERT INTO parent_billing.sepa_mandates (organization_id, family_email, care_contract_id, reference, signed_on, kind,
+				sequence, account_holder, iban_sealed, iban_masked, source, revoked_on, revoked_at)
+			SELECT organization_id, 'zweite-' || ?0 || '@example.org', id, 'DEMO-ALT-' || id, DATE '2026-09-01', 'one_off', 'first',
+				'Konto der Familie', '\x02'::bytea, 'DE•• 00', 'import', DATE '2026-10-01', NOW() FROM contract
+			RETURNING id, organization_id, care_contract_id)
+		INSERT INTO parent_billing.sepa_mandate_events (organization_id, mandate_id, care_contract_id, action, source)
+		SELECT organization_id, id, care_contract_id, 'read', 'run' FROM mandate
+		UNION ALL SELECT organization_id, id, care_contract_id, 'revoke', 'office' FROM mandate`,
+		schoolID, testpkg.UniqueTestTenantID(t)).Exec(t.Context())
+	require.NoError(t, err)
+	mandates, events := sepaMandateRows(t, db, schoolID)
+	require.Len(t, mandates, 2, "the fixture leaves the visitor's mandate and one of another holder")
+	require.Len(t, events, 3, "the fixture leaves the trail without names")
+
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(t.Context(), slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(t.Context(), slug, accounts.caregiver, accounts.parent))
+	_, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
+	require.NoError(t, err)
+	require.Equal(t, 1, erased)
+	assert.Zero(t, remainingRows(t, db, "parent_billing.sepa_mandates", mandates), "no mandate stays")
+	assert.Zero(t, remainingRows(t, db, "parent_billing.sepa_mandate_events", events), "no trail stays")
 }
 
 func remainingRows(t *testing.T, db *bun.DB, table string, ids []int64) int {
