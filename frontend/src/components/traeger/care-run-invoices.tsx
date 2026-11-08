@@ -10,6 +10,7 @@
 
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { ButtonLink } from "~/components/ui/button";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -32,6 +33,8 @@ import {
 import { formatEuro } from "./contribution-format";
 import { reductionExplanation } from "./care-reduction-format";
 import { MealPositionLine } from "./care-run-meals";
+import { InvoicePaymentLine } from "./invoice-payment-line";
+import { recipientKindLabel, recipientLine } from "./billing-payment-format";
 
 interface SchoolGroup {
   readonly schoolId: string;
@@ -164,6 +167,34 @@ function invoiceRows(
   });
 }
 
+/** The menu of a row on the run: Empfänger und Zahlung of its family. */
+function familyColumn(
+  onFamilyBilling: (invoice: CareInvoice) => void,
+): DataTableColumn<CareInvoiceRow> {
+  return {
+    key: "actions",
+    header: "",
+    align: "right",
+    stacked: "meta",
+    stackedLabel: false,
+    className: "align-top",
+    render: ({ invoice, storno }) =>
+      storno ? null : (
+        <OverflowMenu
+          ariaLabel={`Aktionen für die Rechnung von ${invoice.childFirstName} ${invoice.childLastName}`}
+          triggerSize="sm"
+          items={[
+            {
+              label: "Empfänger und Zahlung",
+              description: "Für alle Rechnungen dieser Familie",
+              onClick: () => onFamilyBilling(invoice),
+            },
+          ]}
+        />
+      ),
+  };
+}
+
 function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
   return [
     {
@@ -172,8 +203,7 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
       stacked: "title",
       className: "w-56 align-top",
       render: ({ invoice, letter, storno }) => {
-        const recipient =
-          `${invoice.recipient.firstName} ${invoice.recipient.lastName}`.trim();
+        const kind = recipientKindLabel(invoice.recipient.kind);
         const number = storno ? letter?.number : invoice.number;
         const issuedOn = storno ? letter?.issuedOn : invoice.issuedOn;
         return (
@@ -182,8 +212,16 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
               {invoice.childFirstName} {invoice.childLastName}
             </p>
             <p className="mt-0.5 truncate text-sm text-gray-600">
-              {recipient ? `An ${recipient}` : "Ohne Empfänger"}
+              {recipientLine(invoice.recipient)}
             </p>
+            {kind ? (
+              <p className="mt-1">
+                <StatusBadge label={kind} tone="blue" />
+              </p>
+            ) : null}
+            {!storno && invoice.payment ? (
+              <InvoicePaymentLine payment={invoice.payment} />
+            ) : null}
             {number ? (
               <p className="mt-1 flex flex-wrap items-center gap-1.5">
                 <span className="font-mono text-xs text-gray-500">
@@ -275,6 +313,7 @@ export function CareRunInvoices({
   released,
   letters,
   letterColumns,
+  onFamilyBilling,
 }: Readonly<{
   invoices: readonly CareInvoice[];
   month: string;
@@ -283,7 +322,14 @@ export function CareRunInvoices({
   letters?: readonly CareLetterMailing[];
   /** „An die Familie“ and the row menu, only on the page „Schreiben“. */
   letterColumns?: readonly DataTableColumn<CareInvoiceRow>[];
+  /** Opens Empfänger und Zahlung of an invoice's family (#4689). */
+  onFamilyBilling?: (invoice: CareInvoice) => void;
 }>) {
+  const extraColumns = [
+    ...(letterColumns ?? []),
+    ...(onFamilyBilling ? [familyColumn(onFamilyBilling)] : []),
+  ];
+  const interactive = extraColumns.length > 0;
   if (invoices.length === 0) {
     return (
       <SectionCard
@@ -298,7 +344,7 @@ export function CareRunInvoices({
         <SectionCard
           key={group.schoolId}
           title={group.schoolName}
-          overflow={letterColumns ? "visible" : undefined}
+          overflow={interactive ? "visible" : undefined}
           description={
             !released
               ? "Vorschau. Jede Rechnung bekommt ihre Nummer erst bei der Freigabe."
@@ -315,10 +361,10 @@ export function CareRunInvoices({
           collapsible={invoices.length > 8}
         >
           <DataTable
-            columns={[...invoiceColumns(month), ...(letterColumns ?? [])]}
+            columns={[...invoiceColumns(month), ...extraColumns]}
             rows={invoiceRows(group.invoices, letters)}
             getRowKey={(row) => row.key}
-            rowHasInteractiveControls={letterColumns !== undefined}
+            rowHasInteractiveControls={interactive}
             stackedOnMobile
           />
         </SectionCard>

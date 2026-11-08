@@ -61,5 +61,10 @@
   "care_evidence_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "care_meal_tariff_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "care_meal_tariff_month_billed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "care_meal_tariff_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "care_meal_tariff_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "billing_terms_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "family_billing_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "family_billing_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "family_unknown": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "due_dates_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
 }

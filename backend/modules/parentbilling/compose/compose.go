@@ -67,3 +67,8 @@ func NewCareLetters(letterheads parentbilling.BillingLetterheads, contracts pare
 		Letterheads: letterheads, Recipients: contracts, Post: post, CarePost: carePost,
 	}, rendering.NewRenderer(), rendering.NewRenderer(), calendar.TodayDate)
 }
+
+// NewBillingTerms builds the payment terms, the bundling, the family deviations and the due dates of the runs (#4689) over the contracts the root binds.
+func NewBillingTerms(contracts parentbilling.CareContracts) parentbilling.BillingTerms {
+	return application.NewBillingTerms(postgres.NewStore(), contracts)
+}

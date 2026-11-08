@@ -61,5 +61,10 @@
   "care_evidence_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_meal_tariff_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "care_meal_tariff_month_billed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-  "care_meal_tariff_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
+  "care_meal_tariff_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "billing_terms_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "family_billing_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "family_billing_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "family_unknown": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "due_dates_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані."
 }

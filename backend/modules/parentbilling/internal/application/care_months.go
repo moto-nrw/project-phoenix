@@ -50,6 +50,9 @@ type CareStore interface {
 	CareEvidences(ctx context.Context, organizationID int64, contractIDs []int64) ([]parentbilling.CareEvidence, error)
 	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
 	ReserveNumbers(ctx context.Context, organizationID int64, service string, year, count int) (int64, error)
+	// The terms, the family deviations and the due dates of the run decide
+	// the recipient and the payment of every invoice (#4689).
+	paymentTermsReader
 	// CareReviewStore keeps the review of a run (#5916).
 	CareReviewStore
 }
@@ -525,7 +528,26 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 		return rule, month, err
 	}
 	// The Mensa joins after the chain: no rule reduces it (ADR 0168).
-	return rule, month, c.addMeals(ctx, organizationID, run, &month, versions, invoiced, recipients)
+	if err := c.addMeals(ctx, organizationID, run, &month, versions, invoiced, recipients); err != nil {
+		return rule, month, err
+	}
+	// After the rule chain: the chain counts the family by the address of
+	// the registration, the payer only receives the invoice (#4689).
+	payments, err := readInvoicePayments(ctx, c.store, organizationID, run.ID, 0)
+	if err != nil {
+		return rule, month, err
+	}
+	// The payment term counts from the invoice date the release puts on the
+	// invoices (#5916), today without one.
+	issuedOn := c.today()
+	if run.InvoiceDate != nil {
+		issuedOn = *run.InvoiceDate
+	}
+	for i := range month.invoices {
+		payments.careInvoice(&month.invoices[i], issuedOn)
+	}
+	month.dueDates, month.deviations = payments.run, payments.deviationsRead()
+	return rule, month, nil
 }
 
 // detail is the run with its preview or its issued invoices and the number
@@ -548,7 +570,13 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.CareRunDetail{}, err
 		}
 		detail.Duplicates = holdView(holds)
-	} else if err := c.reviewDetail(ctx, reviewer.OrganizationID, &detail); err != nil {
+		// The dates of the release, which its invoices copied.
+		payments, err := readInvoicePayments(ctx, c.store, reviewer.OrganizationID, run.ID, 0)
+		if err != nil {
+			return parentbilling.CareRunDetail{}, err
+		}
+		detail.DueDates = payments.run.InPaymentOrder()
+	} else if err := c.reviewDetail(ctx, reviewer, &detail); err != nil {
 		return parentbilling.CareRunDetail{}, err
 	}
 	detail.DuplicateChildren = duplicateChildren(detail.Duplicates)

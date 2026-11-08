@@ -21,6 +21,7 @@ import {
   familySortName,
   paymentLabel,
 } from "~/components/traeger/billing-family-format";
+import { paymentMethodsText } from "~/components/traeger/billing-payment-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -97,7 +98,7 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
   },
   {
     key: "payment",
-    header: "Zahlungsart",
+    header: "Wer zahlt",
     render: (family) =>
       family.payments.length > 0 ? (
         <span className="flex max-w-52 min-w-0 flex-wrap gap-1.5">
@@ -113,6 +114,11 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
       ) : (
         "–"
       ),
+  },
+  {
+    key: "method",
+    header: "Zahlungsweg",
+    render: (family) => paymentMethodsText(family.paymentMethods) ?? "–",
   },
   {
     key: "issued",

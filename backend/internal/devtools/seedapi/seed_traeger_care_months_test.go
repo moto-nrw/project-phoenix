@@ -33,6 +33,10 @@ func TestSeedCareRunTakesTheRunAnotherSeedOfTheTraegerStartedAndReleased(t *test
 			w.Header().Set("Content-Type", "application/problem+json")
 			w.WriteHeader(409)
 			_, _ = fmt.Fprint(w, `{"status":409,"code":"parent_billing.care_run_open","detail":"the month already has a billing run that is not released"}`)
+		case "PUT /traeger/billing-terms/care", "PUT /traeger/billing-terms/meal", "PUT /traeger/billing-terms/holiday",
+			"PUT /traeger/billing-run-due-dates/care/5":
+			// The payment terms and due dates the run's seed sets (#4689).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{}}`)
 		case "GET /traeger/care-billing-runs/5":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":5,"status":"calculated","preview_count":2,"preview_cents":9100}}`)
 		case "POST /traeger/care-billing-runs/5/release":

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import type { InvoicePayment } from "~/lib/traeger-billing-terms-api";
 import type { CareLetters } from "~/lib/traeger-care-billing-api";
 
 vi.mock("~/lib/traeger-url", () => ({
@@ -39,11 +40,13 @@ function renderCard(
   letters: CareLetters | null,
   onSendAll = vi.fn(async () => undefined),
   onPrint = vi.fn(),
+  payments: readonly (InvoicePayment | null)[] = [null],
 ) {
   render(
     <ToastProvider>
       <CareLettersCard
         runId="7"
+        payments={payments}
         letters={letters}
         loadError={null}
         sendingAll={false}
@@ -74,6 +77,17 @@ describe("CareLettersCard (#4684)", () => {
     expect(screen.getByText("4 von 10 Schreiben gesendet")).toBeInTheDocument();
     expect(screen.getByText("Noch nicht gesendet")).toBeInTheDocument();
     expect(screen.getByText("Ohne E-Mail")).toBeInTheDocument();
+  });
+
+  it("shows the frozen deadlines instead of the unused fallback date", () => {
+    renderCard(CREATED, undefined, undefined, [
+      { method: "direct_debit", dueOn: "2026-09-15", dueSource: "family" },
+      { method: "transfer", dueOn: "2026-09-20", dueSource: "run" },
+    ]);
+    expect(
+      screen.getByText("Überweisung am 20.09.2026 · Lastschrift am 15.09.2026"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("23.09.2026")).toBeNull();
   });
 
   it("confirms the send with the count and the families to print", async () => {

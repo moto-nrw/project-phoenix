@@ -125,6 +125,14 @@ type documentRow struct {
 	// ReferenceNumber is the number of the referenced document, read with
 	// the row (#4690).
 	ReferenceNumber string `bun:"reference_number,scanonly"`
+	// The recipient and the payment the release copied (#4689); NULL on
+	// invoices issued before.
+	FamilyEmail         *string        `bun:"family_email"`
+	RecipientKind       *string        `bun:"recipient_kind"`
+	RecipientSecondName *string        `bun:"recipient_second_name"`
+	PaymentMethod       *string        `bun:"payment_method"`
+	DueOn               *calendar.Date `bun:"due_on,type:date"`
+	DueSource           *string        `bun:"due_source"`
 }
 
 type documentPositionRow struct {
@@ -585,6 +593,9 @@ func (s *Store) selectDocuments(ctx context.Context, organizationID int64, where
 		if row.DebtorNumber != nil {
 			documents[i].DebtorNumber = *row.DebtorNumber
 		}
+		documents[i].FamilyEmail = textOf(row.FamilyEmail)
+		documents[i].RecipientKind, documents[i].RecipientSecondName = textOf(row.RecipientKind), textOf(row.RecipientSecondName)
+		documents[i].Payment = paymentOf(row.PaymentMethod, row.DueOn, row.DueSource)
 	}
 	return documents, nil
 }
@@ -610,6 +621,9 @@ func issuedDocumentRow(organizationID int64, run parentbilling.BillingRun, year 
 	if document.DebtorNumber != "" {
 		row.DebtorNumber = &document.DebtorNumber
 	}
+	row.FamilyEmail, row.RecipientKind = textRef(document.FamilyEmail), textRef(document.RecipientKind)
+	row.RecipientSecondName = textRef(document.RecipientSecondName)
+	row.PaymentMethod, row.DueOn, row.DueSource = paymentColumns(document.Payment)
 	return row
 }
 

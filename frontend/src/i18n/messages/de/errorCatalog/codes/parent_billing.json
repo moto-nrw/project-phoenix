@@ -61,5 +61,10 @@
   "care_evidence_overlap": "Für diese Zeit gibt es schon einen Nachweis dieser Art. Beenden Sie zuerst den alten Nachweis.",
   "care_meal_tariff_invalid": "Bitte prüfen Sie den Mensa-Preis: Schule, erster Monat, Abrechnungsart und Betrag.",
   "care_meal_tariff_month_billed": "Mit diesem Mensa-Preis ist schon eine Rechnung ausgestellt. Er bleibt für diese Monate. Ändern Sie ihn ab einem späteren Monat.",
-  "care_meal_tariff_not_found": "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu."
+  "care_meal_tariff_not_found": "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "billing_terms_invalid": "Die Zahlungsbedingungen konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
+  "family_billing_invalid": "Empfänger und Zahlung konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
+  "family_billing_not_found": "Diese Abweichung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "family_unknown": "Für diesen Vertrag fehlt eine E-Mail-Adresse. Bitte tragen Sie sie im Vertrag ein.",
+  "due_dates_invalid": "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten."
 }

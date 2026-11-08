@@ -65,6 +65,11 @@ var visitorTraceCounts = map[string]string{
 	// in the run's trail name no one; careMonthRows counts them.
 	"parent_billing.care_invoices": `SELECT count(*) FROM parent_billing.care_invoices
 		WHERE school_id = ?0 AND recipient_first_name = '` + visitorFirst + `' AND recipient_last_name = '` + visitorLast + `'`,
+	// The deviation of the family names the payer (#4689) and goes with the
+	// contract; familyBillingRows counts its trail, which names no one.
+	"parent_billing.family_billing": `SELECT count(*) FROM parent_billing.family_billing AS family
+		JOIN care_contract.contracts AS contract ON contract.id = family.care_contract_id
+		WHERE contract.school_id = ?0 AND family.payer_first_name = '` + visitorFirst + `' AND family.payer_last_name = '` + visitorLast + `'`,
 	// A child a release held back keeps its name in the run's snapshot
 	// (ADR 0158 E5); the visitor's child carries the visitor's last name.
 	"parent_billing.care_run_holds": `SELECT count(*) FROM parent_billing.care_run_holds
@@ -215,6 +220,18 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 			contract_version_number, service_from, service_until, weekdays, amount_cents, net_cents)
 		SELECT organization_id, id, 1, 1, 'Betreuung bis 14:00 Uhr', 1, DATE '2026-09-01', DATE '2026-09-30',
 			'[{"weekday":"mon","monthly_cents":3200,"amount_cents":3200}]'::jsonb, 3200, 3200 FROM invoice`,
+		// The Träger sent the visitor's invoices to another payer (#4689):
+		// the deviation names the payer and hangs on the contract; its trail
+		// names no one.
+		`WITH family AS (
+			INSERT INTO parent_billing.family_billing (organization_id, family_email, care_contract_id, recipient_kind,
+				payer_first_name, payer_last_name, payer_email, payer_street, payer_postal_code, payer_city)
+			SELECT organization_id, 'eltern-' || id || '@example.org', id, 'payer', '` + visitorFirst + `', '` + visitorLast + `',
+				'zahler@example.org', 'Amtsweg 2', '75175', 'Pforzheim'
+			FROM care_contract.contracts WHERE school_id = ?0
+			RETURNING id, organization_id, care_contract_id)
+		INSERT INTO parent_billing.family_billing_events (organization_id, family_billing_id, care_contract_id, action)
+		SELECT organization_id, id, care_contract_id, 'save' FROM family`,
 		// The release held Mia back for a duplicate contract (#4684).
 		`INSERT INTO parent_billing.care_run_holds (organization_id, run_id, position, reason, school_ids,
 			child_first_name, child_last_name, contracts, slots)
@@ -921,6 +938,63 @@ func careMonthRows(t *testing.T, db *bun.DB, schoolID int64) (positions, reads [
 			WHERE contract.school_id = ? AND event.details->'contract_ids' @> to_jsonb(contract.id))
 		ORDER BY event.id`, schoolID).Scan(t.Context(), &reads))
 	return positions, reads
+}
+
+// familyBillingRows are the deviations of the school's contracts and their
+// trail (#4689); the trail and a deviation to the registration name no one.
+func familyBillingRows(t *testing.T, db *bun.DB, schoolID int64) (families, events []int64) {
+	t.Helper()
+	require.NoError(t, db.NewRaw(`SELECT family.id FROM parent_billing.family_billing AS family
+		JOIN care_contract.contracts AS contract ON contract.id = family.care_contract_id
+		WHERE contract.school_id = ? ORDER BY family.id`, schoolID).Scan(t.Context(), &families))
+	require.NoError(t, db.NewRaw(`SELECT event.id FROM parent_billing.family_billing_events AS event
+		JOIN care_contract.contracts AS contract ON contract.id = event.care_contract_id
+		WHERE contract.school_id = ? ORDER BY event.id`, schoolID).Scan(t.Context(), &events))
+	return families, events
+}
+
+// The deviations of a retired demo school's contracts and their trail go
+// with the visitor (#4689), also a deviation without a name and a trail
+// whose deviation was already removed: both hang on the contract the
+// erasure deletes.
+func TestDemoSchoolQueueErasesTheFamilyBillingOfTheRetiredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	// A second contract of the visitor with a deviation that names no one,
+	// and the trail of a deviation removed before.
+	_, err := db.NewRaw(`WITH contract AS (
+			INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, status, sent_at)
+			SELECT organization_id, id, ?1, 'versendet', NOW() FROM platform.schools WHERE id = ?0
+			RETURNING id, organization_id),
+		family AS (
+			INSERT INTO parent_billing.family_billing (organization_id, family_email, care_contract_id, recipient_kind, payment_method, due_day)
+			SELECT organization_id, 'zweite-' || ?0 || '@example.org', id, 'applicant', 'direct_debit', 15 FROM contract
+			RETURNING id, organization_id, care_contract_id)
+		INSERT INTO parent_billing.family_billing_events (organization_id, family_billing_id, care_contract_id, action)
+		SELECT organization_id, id, care_contract_id, 'read' FROM family
+		UNION ALL SELECT organization_id, id + 1000000, care_contract_id, 'delete' FROM family`,
+		schoolID, testpkg.UniqueTestTenantID(t)).Exec(t.Context())
+	require.NoError(t, err)
+	families, events := familyBillingRows(t, db, schoolID)
+	require.Len(t, families, 2, "the fixture leaves a deviation with and one without a name")
+	require.Len(t, events, 3, "the fixture leaves the trail, one of a removed deviation")
+
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(t.Context(), slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(t.Context(), slug, accounts.caregiver, accounts.parent))
+	_, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
+	require.NoError(t, err)
+	require.Equal(t, 1, erased)
+	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing", families), "no deviation stays")
+	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing_events", events), "no trail stays")
 }
 
 func remainingRows(t *testing.T, db *bun.DB, table string, ids []int64) int {

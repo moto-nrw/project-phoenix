@@ -61,5 +61,10 @@
   "care_evidence_overlap": "{object} could not be changed. Please check its current status.",
   "care_meal_tariff_invalid": "{object} could not be saved. Please check your entries.",
   "care_meal_tariff_month_billed": "{object} could not be changed. Please check its current status.",
-  "care_meal_tariff_not_found": "{object} could not be changed. Please check its current status."
+  "care_meal_tariff_not_found": "{object} could not be changed. Please check its current status.",
+  "billing_terms_invalid": "{object} could not be saved. Please check your entries.",
+  "family_billing_invalid": "{object} could not be saved. Please check your entries.",
+  "family_billing_not_found": "{object} could not be changed. Please check its current status.",
+  "family_unknown": "{object} could not be changed. Please check its current status.",
+  "due_dates_invalid": "{object} could not be saved. Please check your entries."
 }

@@ -116,6 +116,42 @@ type careInvoiceRow struct {
 	TotalCents         int64         `bun:"total_cents"`
 	ReplacesInvoiceID  *int64        `bun:"replaces_invoice_id"`
 	StudentID          *int64        `bun:"student_id"`
+	// The family, the recipient and the payment the release copied
+	// (#4689); NULL on invoices issued before.
+	FamilyEmail         *string        `bun:"family_email"`
+	RecipientKind       *string        `bun:"recipient_kind"`
+	RecipientSecondName *string        `bun:"recipient_second_name"`
+	RecipientStreet     *string        `bun:"recipient_address_street"`
+	RecipientPostalCode *string        `bun:"recipient_address_postal_code"`
+	RecipientCity       *string        `bun:"recipient_address_city"`
+	PaymentMethod       *string        `bun:"payment_method"`
+	DueOn               *calendar.Date `bun:"due_on,type:date"`
+	DueSource           *string        `bun:"due_source"`
+}
+
+// invoice is the issued invoice of the row with its positions and reductions
+// and the recipient and payment its release copied (#4689).
+func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reductions []parentbilling.CareReduction) parentbilling.CareInvoice {
+	issuedOn := row.IssuedOn
+	invoice := parentbilling.CareInvoice{
+		ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, ContractID: row.CareContractID, SchoolID: row.SchoolID,
+		SchoolName: row.SchoolName, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName, StudentID: row.StudentID,
+		Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail,
+			Kind: textOf(row.RecipientKind), SecondName: textOf(row.RecipientSecondName)},
+		Positions: positions, Reductions: reductions, TotalCents: row.TotalCents,
+		FamilyEmail: textOf(row.FamilyEmail), Payment: paymentOf(row.PaymentMethod, row.DueOn, row.DueSource),
+	}
+	if row.RecipientStreet != nil && row.RecipientPostalCode != nil && row.RecipientCity != nil {
+		invoice.Recipient.Address = &parentbilling.PostalAddress{Street: *row.RecipientStreet,
+			PostalCode: *row.RecipientPostalCode, City: *row.RecipientCity}
+	}
+	if invoice.Reductions == nil {
+		invoice.Reductions = []parentbilling.CareReduction{}
+	}
+	if invoice.Positions == nil {
+		invoice.Positions = []parentbilling.CarePosition{}
+	}
+	return invoice
 }
 
 type careInvoicePositionRow struct {
@@ -332,6 +368,7 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		ContractID     int64
 		SchoolID       int64
 		RecipientEmail string
+		FamilyEmail    string
 		TotalCents     int64
 		CareOfferingID int64
 		AmountCents    int64
@@ -341,7 +378,8 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 	// A Mensa-only invoice (#4686) has no module position; it still bills
 	// its contract, so the positions join from the left for an invoice with
 	// Mensa months.
-	if err := db.NewRaw(`SELECT i.care_contract_id AS contract_id, i.school_id, i.recipient_email, i.total_cents,
+	if err := db.NewRaw(`SELECT i.care_contract_id AS contract_id, i.school_id, i.recipient_email,
+		COALESCE(i.family_email, '') AS family_email, i.total_cents,
 		COALESCE(p.care_offering_id, 0) AS care_offering_id, COALESCE(p.amount_cents, 0) AS amount_cents,
 		COALESCE(p.payable_cents, p.amount_cents, 0) AS payable_cents,
 		COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.position)
@@ -364,6 +402,7 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		invoice := invoiced[row.ContractID]
 		invoice.ContractID, invoice.SchoolID = row.ContractID, row.SchoolID
 		invoice.Recipient.Email, invoice.TotalCents = row.RecipientEmail, row.TotalCents
+		invoice.FamilyEmail = row.FamilyEmail
 		invoice.Reductions = row.Reductions
 		if row.CareOfferingID != 0 {
 			invoice.Positions = append(invoice.Positions, parentbilling.CarePosition{
@@ -454,8 +493,13 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 			ChildLastName: invoice.ChildLastName, RecipientFirstName: invoice.Recipient.FirstName,
 			RecipientLastName: invoice.Recipient.LastName, RecipientEmail: invoice.Recipient.Email,
 			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[invoice.ContractID],
-			StudentID: invoice.StudentID,
+			StudentID: invoice.StudentID, FamilyEmail: textRef(invoice.FamilyEmail), RecipientKind: textRef(invoice.Recipient.Kind),
+			RecipientSecondName: textRef(invoice.Recipient.SecondName),
 		}
+		if address := invoice.Recipient.Address; address != nil {
+			rows[i].RecipientStreet, rows[i].RecipientPostalCode, rows[i].RecipientCity = &address.Street, &address.PostalCode, &address.City
+		}
+		rows[i].PaymentMethod, rows[i].DueOn, rows[i].DueSource = paymentColumns(invoice.Payment)
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
 		switch constraintOf(err) {
@@ -571,19 +615,7 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	}
 	invoices := make([]parentbilling.CareInvoice, len(rows))
 	for i, row := range rows {
-		issuedOn := row.IssuedOn
-		invoices[i] = parentbilling.CareInvoice{
-			ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, ContractID: row.CareContractID, SchoolID: row.SchoolID,
-			SchoolName: row.SchoolName, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName, StudentID: row.StudentID,
-			Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail},
-			Positions: byInvoice[row.ID], Reductions: reductions[row.ID], TotalCents: row.TotalCents,
-		}
-		if invoices[i].Reductions == nil {
-			invoices[i].Reductions = []parentbilling.CareReduction{}
-		}
-		if invoices[i].Positions == nil {
-			invoices[i].Positions = []parentbilling.CarePosition{}
-		}
+		invoices[i] = row.invoice(byInvoice[row.ID], reductions[row.ID])
 	}
 	return invoices, withCareMealPositions(rows, invoices)
 }

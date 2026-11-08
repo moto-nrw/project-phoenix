@@ -32,6 +32,10 @@ type careMonthInput struct {
 // without a price, the children with duplicate contracts and the count of
 // contracts already billed.
 type careMonth struct {
+	// dueDates are the run's due dates the payments used (#4689).
+	dueDates parentbilling.RunDueDates
+	// deviations are the family deviations the invoices took (#4689).
+	deviations     []parentbilling.FamilyBilling
 	invoices       []parentbilling.CareInvoice
 	unpriced       []parentbilling.CareUnpriced
 	duplicates     []parentbilling.CareDuplicate
@@ -92,6 +96,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 			continue
 		}
 		invoice.Recipient = in.recipients[contractID]
+		invoice.FamilyEmail = parentbilling.FamilyKey(invoice.Recipient.Email)
 		result.invoices = append(result.invoices, invoice)
 		chained = append(chained, &careChainEntry{child: childOf[contractID], birthDate: byContract[contractID][0].ChildBirthDate})
 	}

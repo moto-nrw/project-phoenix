@@ -61,5 +61,10 @@
   "care_evidence_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "care_meal_tariff_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "care_meal_tariff_month_billed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "care_meal_tariff_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "care_meal_tariff_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "billing_terms_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "family_billing_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "family_billing_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "family_unknown": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "due_dates_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
 }
