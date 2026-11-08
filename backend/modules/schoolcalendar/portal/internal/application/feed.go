@@ -196,6 +196,67 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 	if err != nil {
 		return "", "", err
 	}
+	return s.staffCalendarFeed(ctx, owner)
+}
+
+// CalendarFeedByToken renders the feed a public calendar token opens. The
+// token is tried as a parent feed first, then as a staff feed; both lookups
+// share one administrative read unit that ends before any school is read.
+func (s *service) CalendarFeedByToken(ctx context.Context, token string) (string, string, error) {
+	owner, err := s.calendarFeedOwnerByToken(ctx, token)
+	if err != nil {
+		return "", "", err
+	}
+	if owner.parentAccountID > 0 {
+		return s.parentCalendarFeed(ctx, owner.parentAccountID)
+	}
+	return s.staffCalendarFeed(ctx, owner.staff)
+}
+
+// calendarFeedOwner is the owner a public feed token resolves to: a parent
+// account, or a staff membership of one school.
+type calendarFeedOwner struct {
+	parentAccountID int64
+	staff           staffFeedOwner
+}
+
+// calendarFeedOwnerByToken runs the parent and the staff token lookup in one
+// administrative read unit (ADR 0161), in this order and with their own
+// guards. The staff lookup runs only when the parent lookup found no active
+// account; any other failure ends the unit before the next statement. It
+// writes nothing. Like the staff lookup alone, a context with a school joins
+// that school's request transaction instead.
+func (s *service) calendarFeedOwnerByToken(ctx context.Context, token string) (calendarFeedOwner, error) {
+	if s.cfg.AccountRepo == nil {
+		return calendarFeedOwner{}, fmt.Errorf("%w: calendar feed not configured", ErrInvalidRequest)
+	}
+	if strings.TrimSpace(token) == "" {
+		return calendarFeedOwner{}, s.checkStaffFeedToken(token)
+	}
+	var owner calendarFeedOwner
+	bootstrap := s.cfg.Runtime.WithinAdmin
+	if s.cfg.Runtime.TenantID(ctx) > 0 {
+		bootstrap = s.cfg.Runtime.WithinAppointmentWrite
+	}
+	err := bootstrap(ctx, func(txCtx context.Context) error {
+		accountID, err := s.parentFeedAccountID(txCtx, token)
+		if err == nil {
+			owner.parentAccountID = accountID
+			return nil
+		}
+		if !errors.Is(err, ErrNotFound) {
+			return err
+		}
+		if err := s.checkStaffFeedToken(token); err != nil {
+			return err
+		}
+		owner.staff, err = s.readStaffCalendarOwner(txCtx, token)
+		return err
+	})
+	return owner, err
+}
+
+func (s *service) staffCalendarFeed(ctx context.Context, owner staffFeedOwner) (string, string, error) {
 	events, err := s.projectStaffCalendarEvents(ctx, owner)
 	if err != nil {
 		return "", "", err
@@ -490,6 +551,10 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 	if err != nil {
 		return "", "", err
 	}
+	return s.parentCalendarFeed(ctx, accountID)
+}
+
+func (s *service) parentCalendarFeed(ctx context.Context, accountID int64) (string, string, error) {
 	children, err := s.parentChildren(ctx, accountID)
 	if err != nil {
 		return "", "", err

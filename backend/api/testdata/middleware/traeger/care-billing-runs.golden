@@ -12,6 +12,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /traeger/care-billing-runs/{id}/letters/print
 	GET /traeger/care-billing-runs/{id}/review-export
 	POST /traeger/care-billing-runs/
+	POST /traeger/care-billing-runs/{id}/amendments
 	POST /traeger/care-billing-runs/{id}/exclusions
 	POST /traeger/care-billing-runs/{id}/invoices/{invoiceID}/cancellation
 	POST /traeger/care-billing-runs/{id}/invoices/{invoiceID}/mail

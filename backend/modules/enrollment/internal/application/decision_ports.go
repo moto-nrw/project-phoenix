@@ -24,6 +24,9 @@ type (
 		SetRequestWithdrawal(context.Context, int64, *time.Time) error
 		AcquireSubmissionDedupLock(context.Context, int64, uint64) error
 		AcquireExistingStudentMatchLock(context.Context, int64) error
+		// AcquireChildIdentityLock serializes the enrolled-child check and
+		// the creation of one child of the school (#6170).
+		AcquireChildIdentityLock(context.Context, string, string, calendar.Date) error
 		ActiveDuplicateChildren(context.Context, int64, string, []enrollmentNative.DuplicateChildKey, int64) ([]enrollmentNative.DuplicateChildKey, error)
 		HasActiveRequestForMatchedStudent(context.Context, int64, int64, int64) (bool, error)
 	}

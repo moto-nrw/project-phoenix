@@ -327,3 +327,73 @@ berechnet.
   `GET /traeger/care-billing-runs/schools`, `PUT …/{id}/invoice-date`,
   `POST …/{id}/exclusions`, `DELETE …/{id}/exclusions/{contractID}`,
   `GET …/{id}/review-export`.
+
+## Nachtrag 2026-11-08: Änderungen je Rechnung in der Prüfphase (#6197)
+
+Vorgeschlagen. Ergänzt Punkt 2 und Punkt 4 für die Monatsrechnungen nach der
+SJR-Entscheidung A (Punkt 2 der Entscheidungen vom 08.11.2026, „wartet auf
+Ute“). Kein Widerruf von Punkt 7, keine Option B oder C: Es gibt keinen frei
+editierbaren Rechnungsentwurf, und eine ausgestellte Rechnung ändert sich nie.
+
+- **Angefügte Änderungen statt Entwurf.** In einem Lauf in `calculated`
+  ändert die Abrechnung eine einzelne Rechnung (Vertrag und Leistung):
+  Betrag, Empfänger (Name, zweite Person, Mail), Postanschrift und
+  Positionen. `parent_billing.care_run_amendments` hält je Änderung Art,
+  alten und neuen Wert, die Korrekturzeile, Pflichtgrund (bis 500 Zeichen),
+  Konto und Zeitpunkt. Einträge werden nur angefügt; eine Rücknahme ist ein
+  eigener Eintrag (`revoke`). Ein Trigger lehnt jede Änderung eines Eintrags
+  und jeden Eintrag eines Laufs ab, der nicht mehr `calculated` ist, für
+  jede Rolle.
+- **Berechnet bleibt berechnet.** Die Vorschau entsteht weiter bei jedem
+  Lesen (Punkt 2). Danach wendet die Prüfphase die Einträge in ihrer
+  Reihenfolge an. Ein neuer Betrag ist eine Korrekturzeile mit dem
+  Unterschied (wie Punkt 4), eine neue Position eine Zeile mit eigenem Text,
+  eine entfernte Position bleibt stehen und bekommt eine Zeile mit minus
+  dem, was sie die Familie nach der Regelkette kostet. Die Korrekturzeilen
+  stehen nach den Kostenträger-Anteilen; die Summe ist immer die Summe der
+  Zeilen und nie unter null. Empfänger und Anschrift gelten nur für diese
+  Rechnung dieses Laufs; die Abweichung je Familie bleibt bei ADR 0167.
+  Mehrere Empfänger- bzw. Anschriftänderungen lösen sich auf ihren
+  Endstand auf: Jede nicht zurückgenommene Änderung gilt in ihrer
+  Reihenfolge. Die Freigabe speichert je Änderung den Wert, den sie
+  tatsächlich ersetzt hat; Versand und Neuausstellung prüfen dieselbe Kette
+  gegen die Vertragspartei.
+- **Konflikt statt stiller Überschreibung.** Passt die Grundlage eines
+  Eintrags nicht mehr (der korrigierte Betrag hat sich geändert, die
+  Position fehlt, die Summe käme unter null), wirkt er nicht, die Rechnung
+  zeigt ihn als Konflikt, und die Freigabe lehnt ab (409
+  `parent_billing.care_amendments_unresolved`), bis die Abrechnung ihn
+  zurücknimmt.
+- **Fingerabdruck.** Die Einträge, ihre Rücknahmen und Konflikte gehören zu
+  jeder Rechnung im Fingerabdruck der Prüfphase (Nachtrag #5916), auch bei
+  ausgeschlossenen Rechnungen. Eine Änderung nennt den Fingerabdruck, auf
+  dem sie gemacht wurde; ein anderer ist 409
+  `parent_billing.billing_run_changed`. Änderung und Freigabe halten
+  dieselbe Sperre des Laufs, so geht keine von zwei gleichzeitigen
+  Änderungen unbemerkt verloren.
+- **Ausstellung.** Die Freigabe kopiert die angewendeten Änderungen auf die
+  Rechnung (`parent_billing.care_invoice_corrections`; ein Trigger lässt Zeilen nur
+  anfügen, solange der Lauf der Rechnung `calculated` ist, und lehnt danach
+  Anfügen, Ändern und Löschen für jede Rolle ab, außer dem Leeren von
+  `account_id` und dem Löschen mit der Rechnung; mit
+  Bezug auf den Eintrag) und Empfänger und Anschrift in die Kopie der
+  Rechnung. Schreiben, Storno-Schreiben und Prüfliste nennen jede
+  Korrekturzeile.
+- **Neuausstellung.** Wie der Nachtrag 2026-11-04: Die Vorschau der neuen
+  Rechnung nach einem Storno übernimmt die Änderungen der stornierten
+  Rechnung als Vorschlag mit ihrer Nummer (`carried_from_number`). Ein
+  übernommener Betrag gilt als Unterschied, nicht als Ziel. Der Lauf kann
+  einen Vorschlag zurücknehmen.
+- **Einstellung.** Welche Änderungen erlaubt sind, ist offen beim Kunden.
+  Vier Träger-Schalter (`parent_billing.care_review_amount`, `_recipient`,
+  `_address`, `_positions`) sind standardmäßig an; ein ausgeschalteter ist
+  403 `parent_billing.care_amendment_disabled`.
+- **Recht und Grenze.** `POST /traeger/care-billing-runs/{id}/amendments`
+  liegt hinter dem Recht „Abrechnung“ in der Träger-Transaktion; ein Lauf
+  eines anderen Trägers ist 404. Kein neuer Owner, keine neue Regel.
+- **Register.** Migration `1.15.821` (1.15.820 hat #6213 belegt); zwei
+  `data_objects` für `parent-billing`; Fehlercodes
+  `parent_billing.care_amendment_invalid`, `_conflict`, `_disabled`,
+  `care_amendments_unresolved`; ein Port `CareBillingSettings.CareAmendable`
+  (Abfrage auf die Träger-Einstellungen); Demo-Löschung über
+  `platform.erase_closed_demo_visitors` mit dem Vertrag.

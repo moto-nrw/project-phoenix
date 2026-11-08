@@ -156,6 +156,8 @@ var seedCoverageTransient = map[string]string{
 	"parent_billing.care_run_letters":           "letters of a released monthly run (#4684, ADR 0165); the seed creates them for every released run, present exactly when an invoice is",
 	"parent_billing.care_letters":               "the letter of every monthly invoice above (#4684, ADR 0165); present exactly when an invoice is",
 	"parent_billing.care_letter_mailings":       "the sends of the monthly letters above (#4684, ADR 0165); present exactly when an invoice is",
+	"parent_billing.care_run_amendments":        "the seed adds a position to the first invoice of the open run of the current month (#6197); present exactly when that run has an invoice, see parent_billing.care_invoices",
+	"parent_billing.care_invoice_corrections":   "changes a release copied onto an issued monthly invoice (#6197); the seed changes only the open run, so present only after a release of a changed run",
 	"parent_billing.care_invoice_cancellations": "the seed cancels a monthly invoice before its send once a run has more than two (#4684, ADR 0165); present only then",
 	"schedule.meal_billing_month_children":      "children of a released Mensa month (#4686); a month is released only after its end, and the seed's meal registrations start in the current week, so the month the seed releases has none until a seed of the next month",
 	"parent_billing.care_meal_positions":        "Mensa months on the monthly invoices (#4686); present once an issued invoice bills a released month with meals, which needs the children above",

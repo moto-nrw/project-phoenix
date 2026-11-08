@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -65,6 +66,12 @@ var visitorTraceCounts = map[string]string{
 	// in the run's trail name no one; careMonthRows counts them.
 	"parent_billing.care_invoices": `SELECT count(*) FROM parent_billing.care_invoices
 		WHERE school_id = ?0 AND recipient_first_name = '` + visitorFirst + `' AND recipient_last_name = '` + visitorLast + `'`,
+	// A recipient change in the review of an open monthly run (#6197) copies
+	// the visitor's name onto the run's entry; the run names no one and
+	// stays, so the entry goes with its contract.
+	"parent_billing.care_run_amendments": `SELECT count(*) FROM parent_billing.care_run_amendments AS amendment
+		JOIN care_contract.contracts AS contract ON contract.id = amendment.care_contract_id
+		WHERE contract.school_id = ?0 AND amendment.after_value->'recipient'->>'last_name' = '` + visitorLast + `'`,
 	// The deviation of the family names the payer (#4689) and goes with the
 	// contract; familyBillingRows counts its trail, which names no one.
 	"parent_billing.family_billing": `SELECT count(*) FROM parent_billing.family_billing AS family
@@ -232,6 +239,19 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 			RETURNING id, organization_id, care_contract_id)
 		INSERT INTO parent_billing.family_billing_events (organization_id, family_billing_id, care_contract_id, action)
 		SELECT organization_id, id, care_contract_id, 'save' FROM family`,
+		// The office sent an open run's invoice to the visitor (#6197): the
+		// recipient change names the visitor.
+		`WITH contract AS (
+			SELECT id, organization_id FROM care_contract.contracts WHERE school_id = ?0),
+		run AS (
+			INSERT INTO parent_billing.care_runs (organization_id, billing_month)
+			SELECT organization_id, DATE '2026-10-01' FROM contract RETURNING id, organization_id)
+		INSERT INTO parent_billing.care_run_amendments (organization_id, run_id, care_contract_id, service, kind,
+			after_value, reason)
+		SELECT run.organization_id, run.id, contract.id, 'care', 'recipient',
+			jsonb_build_object('recipient', jsonb_build_object('first_name', '` + visitorFirst + `', 'last_name', '` + visitorLast + `',
+				'second_name', '', 'email', 'besuch@example.org')), 'Rechnung an die Mutter'
+		FROM run JOIN contract ON contract.organization_id = run.organization_id`,
 		// The release held Mia back for a duplicate contract (#4684).
 		`INSERT INTO parent_billing.care_run_holds (organization_id, run_id, position, reason, school_ids,
 			child_first_name, child_last_name, contracts, slots)
@@ -1066,4 +1086,93 @@ func TestDemoSchoolQueueErasesTheMealMonthsOfTheRetiredSchool(t *testing.T) {
 	assert.Equal(t, len(openMonths), remainingRows(t, db, "schedule.meal_billing_months", openMonths))
 	assert.Equal(t, len(openChildren), remainingRows(t, db, "schedule.meal_billing_month_children", openChildren))
 	assert.Equal(t, len(openPositions), remainingRows(t, db, "parent_billing.care_meal_positions", openPositions))
+}
+
+// careAmendmentRows are the changes of the review that name a contract of
+// the school (#6197), with or without a name.
+func careAmendmentRows(t *testing.T, db *bun.DB, schoolID int64) []int64 {
+	t.Helper()
+	var ids []int64
+	require.NoError(t, db.NewRaw(`SELECT amendment.id FROM parent_billing.care_run_amendments AS amendment
+		JOIN care_contract.contracts AS contract ON contract.id = amendment.care_contract_id
+		WHERE contract.school_id = ? ORDER BY amendment.id`, schoolID).Scan(t.Context(), &ids))
+	return ids
+}
+
+// The changes of the review of a retired demo school's contracts go with
+// the visitor (1.15.821), also an amount change that names no one but ties
+// the contract to its reason, and the revocation of it. A school of the
+// same Träger that is still open keeps its changes.
+func TestDemoSchoolQueueErasesTheReviewChangesOfTheRetiredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	openID := schoolOfOrganization(t, db, schoolID, false)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	leaveVisitorTraces(t, db, openID)
+	_, err := db.NewRaw(`WITH amendment AS (
+			INSERT INTO parent_billing.care_run_amendments (organization_id, run_id, care_contract_id, service, kind,
+				label, amount_cents, before_value, after_value, reason)
+			SELECT amendment.organization_id, amendment.run_id, amendment.care_contract_id, 'care', 'amount',
+				'Korrektur des Betrags', -500, '{"total_cents": 7750}'::jsonb, '{"total_cents": 7250}'::jsonb, 'Kulanz'
+			FROM parent_billing.care_run_amendments AS amendment
+			JOIN care_contract.contracts AS contract ON contract.id = amendment.care_contract_id
+			WHERE contract.school_id = ?0
+			RETURNING id, organization_id, run_id, care_contract_id)
+		INSERT INTO parent_billing.care_run_amendments (organization_id, run_id, care_contract_id, service, kind,
+			revokes_amendment_id, reason)
+		SELECT organization_id, run_id, care_contract_id, 'care', 'revoke', id, 'Zurück' FROM amendment`, schoolID).Exec(t.Context())
+	require.NoError(t, err)
+	changes := careAmendmentRows(t, db, schoolID)
+	require.Len(t, changes, 3, "the fixture leaves a change with a name, one without and its revocation")
+	openChanges := careAmendmentRows(t, db, openID)
+	require.NotEmpty(t, openChanges)
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+
+	assert.Zero(t, remainingRows(t, db, "parent_billing.care_run_amendments", changes), "no change of the retired school stays")
+	assert.Equal(t, len(openChanges), remainingRows(t, db, "parent_billing.care_run_amendments", openChanges),
+		"the open school keeps its changes")
+}
+
+// issuedCorrection stores a correction on the issued monthly invoice of the
+// school as its release left it (#6197). The release stores it while the
+// run is calculated; the fixture's run is released already, so replica mode
+// skips the trigger for this one row.
+func issuedCorrection(t *testing.T, db *bun.DB, schoolID int64) int64 {
+	t.Helper()
+	var id int64
+	require.NoError(t, db.RunInTx(t.Context(), nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
+			return err
+		}
+		return tx.NewRaw(`INSERT INTO parent_billing.care_invoice_corrections (organization_id, invoice_id, position, kind,
+			label, amount_cents, reason, amended_at, amendment_id)
+			SELECT organization_id, id, 1, 'add_position', 'Ausflug', 500, 'Elternbrief', NOW(), 1
+			FROM parent_billing.care_invoices WHERE school_id = ? RETURNING id`, schoolID).Scan(ctx, &id)
+	}))
+	return id
+}
+
+// The correction of an issued monthly invoice goes with the invoice when
+// the visitor of a retired demo school is erased (#6197): its trigger
+// refuses every other delete, but lets the cascade from the invoice through.
+// The open school of the same Träger keeps its issued correction.
+func TestDemoSchoolQueueErasesTheIssuedCorrectionsOfTheRetiredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	openID := schoolOfOrganization(t, db, schoolID, false)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	leaveVisitorTraces(t, db, openID)
+	retired, open := issuedCorrection(t, db, schoolID), issuedCorrection(t, db, openID)
+	_, err := db.ExecContext(t.Context(), `DELETE FROM parent_billing.care_invoice_corrections WHERE id = ?`, retired)
+	require.ErrorContains(t, err, "never changes", "an issued correction refuses a delete of its own")
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+
+	assert.Zero(t, remainingRows(t, db, "parent_billing.care_invoice_corrections", []int64{retired}),
+		"the correction goes with the issued invoice of the retired school")
+	assert.Equal(t, 1, remainingRows(t, db, "parent_billing.care_invoice_corrections", []int64{open}),
+		"the open school keeps its issued correction")
 }

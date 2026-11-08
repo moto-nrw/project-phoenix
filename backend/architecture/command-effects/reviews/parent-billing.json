@@ -204,6 +204,16 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.CareAmendable",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.CareAmendable",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: which changes of a single invoice the review of a monthly run allows for the session's Träger (its values of parent_billing.care_review_amount, _recipient, _address and _positions or the registry defaults), read in its Träger transaction for the review and every change of an invoice (#6197).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.CareMonthRule",
       "classification": "query",
       "effect": "query",

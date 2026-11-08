@@ -180,6 +180,15 @@ func (d *Decisions) resolveExistingChildChoice(ctx context.Context, target *deci
 // enrollment-only renewal.
 func (d *Decisions) applyEnrolledChildChoice(ctx context.Context, target *decisionTarget, phase *enrollmentNative.Phase, chosen *int64, lapsed bool) error {
 	child := target.child
+	// Two approvals of the same new child each read no candidate before the
+	// other committed and both created it (#6170). The lock serializes them
+	// per school and identity; the candidates are read after it, so a waiting
+	// approval sees the child the holder created. It is a leaf lock: the
+	// gates and the request rows are held already, and the holder waits on
+	// no row another approval locked before this point.
+	if err := d.deps.Requests.AcquireChildIdentityLock(ctx, child.FirstName, child.LastName, calendar.Date(child.DateOfBirth)); err != nil {
+		return fmt.Errorf("decision: lock child identity of child %d: %w", child.ID, err)
+	}
 	candidates, err := d.existingChildCandidates(ctx, child)
 	if err != nil {
 		return err

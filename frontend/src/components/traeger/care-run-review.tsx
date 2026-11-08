@@ -46,16 +46,28 @@ export function ExclusionMenu({
   invoice,
   onExclude,
   onFamilyBilling,
+  onAmend,
 }: Readonly<{
   invoice: CareInvoice;
   onExclude: (invoice: CareInvoice) => void;
   onFamilyBilling?: (invoice: CareInvoice) => void;
+  /** Opens the page that changes this invoice of the run (#6197). */
+  onAmend?: (invoice: CareInvoice) => void;
 }>) {
   return (
     <OverflowMenu
       ariaLabel={`Aktionen für die Rechnung von ${childName(invoice)}`}
       triggerSize="sm"
       items={[
+        ...(onAmend
+          ? [
+              {
+                label: "Rechnung ändern",
+                description: "Betrag, Empfänger, Anschrift oder Positionen",
+                onClick: () => onAmend(invoice),
+              },
+            ]
+          : []),
         {
           label: "Ausschließen",
           description: "Bekommt bei der Freigabe keine Nummer",

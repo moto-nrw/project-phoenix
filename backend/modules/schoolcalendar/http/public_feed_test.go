@@ -17,12 +17,14 @@ type publicFeeds struct {
 	fail          error
 }
 
-func (f publicFeeds) ParentCalendarFeedByToken(_ context.Context, token string) (string, string, error) {
-	return feedByToken(f.parent, token, f.fail)
-}
-
-func (f publicFeeds) StaffCalendarFeedByToken(_ context.Context, token string) (string, string, error) {
-	return feedByToken(f.staff, token, nil)
+// CalendarFeedByToken mirrors the service's order: parent feed first, the
+// staff feed only when the parent lookup found nothing.
+func (f publicFeeds) CalendarFeedByToken(_ context.Context, token string) (string, string, error) {
+	filename, content, err := feedByToken(f.parent, token, f.fail)
+	if errors.Is(err, calendarSvc.ErrNotFound) {
+		return feedByToken(f.staff, token, nil)
+	}
+	return filename, content, err
 }
 
 func feedByToken(feeds map[string]string, token string, fail error) (string, string, error) {
