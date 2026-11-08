@@ -410,13 +410,15 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 		return fmt.Errorf("insert care invoices: %w", err)
 	}
 	positions, err := carePositionRows(organizationID, rows, invoices)
-	if err != nil || len(positions) == 0 {
+	if err != nil {
 		return err
 	}
-	if _, err := db.NewInsert().Model(&positions).Exec(ctx); err != nil {
-		return fmt.Errorf("insert care invoice positions: %w", err)
+	if len(positions) > 0 {
+		if _, err := db.NewInsert().Model(&positions).Exec(ctx); err != nil {
+			return fmt.Errorf("insert care invoice positions: %w", err)
+		}
 	}
-	return nil
+	return insertCareMealPositions(ctx, db, organizationID, rows, invoices)
 }
 
 func carePositionRows(organizationID int64, rows []careInvoiceRow, invoices []parentbilling.CareInvoice) ([]careInvoicePositionRow, error) {
@@ -508,7 +510,7 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 			invoices[i].Positions = []parentbilling.CarePosition{}
 		}
 	}
-	return invoices, nil
+	return invoices, attachCareMealPositions(ctx, db, organizationID, invoices)
 }
 
 type careRunHoldRow struct {

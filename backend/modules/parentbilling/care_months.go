@@ -198,7 +198,10 @@ type CareInvoice struct {
 	ChildLastName  string         `json:"child_last_name"`
 	Recipient      CareRecipient  `json:"recipient"`
 	Positions      []CarePosition `json:"positions"`
-	TotalCents     int64          `json:"total_cents"`
+	// MealPositions are the Mensa months of the child the invoice bills
+	// (#4686); TotalCents includes them.
+	MealPositions []CareMealPosition `json:"meal_positions"`
+	TotalCents    int64              `json:"total_cents"`
 }
 
 // CareUnpriced is a booked weekday of a module the price list has no price
@@ -275,6 +278,11 @@ type CareRunDetail struct {
 	PreviewCents      int64  `json:"preview_cents"`
 	NumberPattern     string `json:"number_pattern"`
 	NumberRangeSet    bool   `json:"number_range_set"`
+	// MealGaps and MealUnbilled are the Mensa of a calculated run (#4686):
+	// the ended months a school has not released and the released months
+	// of children the run does not bill.
+	MealGaps     []CareMealGap      `json:"meal_gaps"`
+	MealUnbilled []CareMealUnbilled `json:"meal_unbilled"`
 }
 
 // CareContractService is a booked module of a contract version on a

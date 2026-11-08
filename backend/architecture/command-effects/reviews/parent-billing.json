@@ -204,6 +204,16 @@
       "target_owner": "care-contract"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.ReleasedMealMonths",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.ReleasedMealMonths",
+      "reason": "Reviewed read: the released Mensa months of the schools of the session's Träger with the meals per child only, read through schedule.traeger_meal_billing_children in its Träger transaction; the monthly run copies them onto the invoices and records the read in its own trail (#4686).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/mealplan.TraegerMealMonths.ReleasedMealMonths",
+      "target_owner": "meal-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareSchools.TraegerSchools",
       "classification": "query",
       "effect": "query",

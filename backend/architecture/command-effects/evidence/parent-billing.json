@@ -161,6 +161,14 @@
       "target_owner": "care-contract"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.ReleasedMealMonths",
+      "binding_digest": "169a39251f4883c62f10d5ff45836119",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.ReleasedMealMonths",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/mealplan.TraegerMealMonths.ReleasedMealMonths",
+      "target_owner": "meal-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareSchools.TraegerSchools",
       "binding_digest": "fa291431eb1763425369a6c59f5f6e90",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareSchools.TraegerSchools",

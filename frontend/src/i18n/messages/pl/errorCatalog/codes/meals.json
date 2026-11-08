@@ -15,5 +15,10 @@
   "not_supplied": "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
   "order_not_found": "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
   "supply_active": "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
-  "participation_manage_denied": "Możesz przeglądać zapisy na posiłki, ale nie możesz ich zmieniać. Skontaktuj się z zespołem opieki pozaszkolnej."
+  "participation_manage_denied": "Możesz przeglądać zapisy na posiłki, ale nie możesz ich zmieniać. Skontaktuj się z zespołem opieki pozaszkolnej.",
+  "billing_month_running": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "billing_month_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "billing_month_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "billing_month_no_traeger": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "billing_month_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
 }

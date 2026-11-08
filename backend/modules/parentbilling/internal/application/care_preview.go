@@ -30,6 +30,9 @@ type careMonth struct {
 	unpriced   []parentbilling.CareUnpriced
 	duplicates []parentbilling.CareDuplicate
 	billed     int
+	// mealGaps and mealUnbilled are the Mensa of the run (#4686, care_meals.go).
+	mealGaps     []parentbilling.CareMealGap
+	mealUnbilled []parentbilling.CareMealUnbilled
 }
 
 func (m careMonth) total() int64 {

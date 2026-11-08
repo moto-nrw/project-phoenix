@@ -56,20 +56,23 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	families := parentBillingHTTP.NewBillingFamilyResource(parentBillingCompose.NewBillingFamilies(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
-	care := NewCareBillingHTTP(organizations, settings)
+	care, meals := NewCareBillingHTTP(organizations, settings)
 	root.Mount("/traeger/care-tariffs", care.TariffRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-billing-runs", care.RunRouter(ProtectedTraegerRoutes))
+	root.Mount("/traeger/care-meal-tariffs", meals.Router(ProtectedTraegerRoutes))
 }
 
 // NewCareBillingHTTP binds the monthly contribution of the care contract
 // (#4684) to the right "Abrechnung", to the versions in force and the
 // parties of the Betreuungsvertrag in the caller's Träger transaction, and
-// to the Träger's month rule.
-func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings) *parentBillingHTTP.CareBillingResource {
+// to the Träger's month rule, and its Mensa prices (#4686) to the released
+// Mensa months of Meal Plan.
+func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings) (*parentBillingHTTP.CareBillingResource, *parentBillingHTTP.CareMealTariffResource) {
 	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
-	return parentBillingHTTP.NewCareBillingResource(parentBillingCompose.NewCareBilling(contracts,
-		parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings}),
-		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+	billing := parentBillingCompose.NewCareBilling(contracts, parentBillingCareSchools{organizations: organizations},
+		parentBillingSettings{settings: settings}, newParentBillingCareMeals())
+	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
+	return parentBillingHTTP.NewCareBillingResource(billing, requireBilling), parentBillingHTTP.NewCareMealTariffResource(billing, requireBilling)
 }
 
 // parentBillingCareSchools lists the schools of the Träger at Organisation

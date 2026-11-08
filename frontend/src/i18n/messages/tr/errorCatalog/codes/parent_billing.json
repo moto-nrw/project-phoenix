@@ -50,5 +50,8 @@
   "care_versions_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "care_tariff_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "care_tariff_month_billed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-  "care_tariff_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "care_tariff_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "care_meal_tariff_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "care_meal_tariff_month_billed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "care_meal_tariff_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
 }

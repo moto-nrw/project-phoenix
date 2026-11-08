@@ -59,19 +59,23 @@ type CareBilling struct {
 	schools   parentbilling.CareSchools
 	settings  parentbilling.CareBillingSettings
 	today     func() calendar.Date
+	// mealStore and meals bill the Mensa (#4686, UseMeals).
+	mealStore CareMealStore
+	meals     parentbilling.CareMeals
 }
 
 var _ parentbilling.CareBilling = (*CareBilling)(nil)
 
-// NewCareBilling builds the monthly billing. today is the issue date of a
-// release and the start of the price list's look ahead.
+// NewCareBilling builds the monthly billing with its Mensa (#4686). today
+// is the issue date of a release and the start of the price list's look
+// ahead.
 func NewCareBilling(store CareStore, contracts parentbilling.CareContracts, schools parentbilling.CareSchools,
-	settings parentbilling.CareBillingSettings, today func() calendar.Date,
+	settings parentbilling.CareBillingSettings, mealStore CareMealStore, meals parentbilling.CareMeals, today func() calendar.Date,
 ) *CareBilling {
-	if store == nil || contracts == nil || schools == nil || settings == nil || today == nil {
-		panic("parent billing: the store, the care contracts, the schools, the settings and the clock are required")
+	if store == nil || contracts == nil || schools == nil || settings == nil || mealStore == nil || meals == nil || today == nil {
+		panic("parent billing: the store, the care contracts, the schools, the settings, the Mensa and the clock are required")
 	}
-	return &CareBilling{store: store, contracts: contracts, schools: schools, settings: settings, today: today}
+	return &CareBilling{store: store, contracts: contracts, schools: schools, settings: settings, mealStore: mealStore, meals: meals, today: today}
 }
 
 // CareTariffs reads the price list with the schools of the Träger and the
@@ -388,7 +392,7 @@ func (c *CareBilling) CareRun(ctx context.Context, reviewer parentbilling.Holida
 		return parentbilling.CareRunDetail{}, err
 	}
 	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRead,
-		map[string]any{"contract_ids": shownContracts(detail)}); err != nil {
+		map[string]any{"contract_ids": shownContracts(detail), "meal_student_ids": shownMealChildren(detail)}); err != nil {
 		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record care run read: %w", err)
 	}
 	return detail, nil
@@ -501,13 +505,17 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	}
 	month, err := buildCareMonth(careMonthInput{month: run.BillingMonth, rule: rule, versions: versions, tariffs: tariffs,
 		invoiced: invoiced, recipients: recipients})
-	return rule, month, err
+	if err != nil {
+		return rule, month, err
+	}
+	return rule, month, c.addMeals(ctx, organizationID, run, &month, versions, invoiced, recipients)
 }
 
 // detail is the run with its preview or its issued invoices and the number
 // range the release uses.
 func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.CareRun) (parentbilling.CareRunDetail, error) {
-	detail := parentbilling.CareRunDetail{CareRun: run, Unpriced: []parentbilling.CareUnpriced{}, Duplicates: []parentbilling.CareDuplicate{}}
+	detail := parentbilling.CareRunDetail{CareRun: run, Unpriced: []parentbilling.CareUnpriced{}, Duplicates: []parentbilling.CareDuplicate{},
+		MealGaps: []parentbilling.CareMealGap{}, MealUnbilled: []parentbilling.CareMealUnbilled{}}
 	if run.Status == parentbilling.RunReleased {
 		invoices, err := c.store.CareRunInvoices(ctx, reviewer.OrganizationID, run.ID)
 		if err != nil {
@@ -530,8 +538,12 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		}
 		detail.MonthRule, detail.Invoices, detail.Unpriced, detail.Billed = rule, month.invoices, month.unpriced, month.billed
 		detail.Duplicates = month.duplicates
+		if month.mealGaps != nil {
+			detail.MealGaps, detail.MealUnbilled = month.mealGaps, month.mealUnbilled
+		}
 	}
 	detail.DuplicateChildren = duplicateChildren(detail.Duplicates)
+	withMealPositions(detail.Invoices)
 	for _, invoice := range detail.Invoices {
 		detail.PreviewCount++
 		detail.PreviewCents += invoice.TotalCents

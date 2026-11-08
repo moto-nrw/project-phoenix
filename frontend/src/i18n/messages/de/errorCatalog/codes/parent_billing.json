@@ -50,5 +50,8 @@
   "care_versions_overlap": "Ein Vertrag hat an einem Tag zwei gültige Fassungen. Bitte melden Sie das dem Support. Der Lauf rechnet diesen Monat nicht ab.",
   "care_tariff_invalid": "Bitte prüfen Sie die Preise. Jeder Preis ist ein Betrag in Euro, nicht unter 0 €, und gilt ab dem 1. eines Monats.",
   "care_tariff_month_billed": "Mit diesem Preis ist schon eine Rechnung ausgestellt. Er bleibt für diesen Monat. Ändern Sie ihn ab einem späteren Monat.",
-  "care_tariff_not_found": "Diese Preisliste gibt es nicht mehr. Bitte laden Sie die Seite neu."
+  "care_tariff_not_found": "Diese Preisliste gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "care_meal_tariff_invalid": "Bitte prüfen Sie den Mensa-Preis: Schule, erster Monat, Abrechnungsart und Betrag.",
+  "care_meal_tariff_month_billed": "Mit diesem Mensa-Preis ist schon eine Rechnung ausgestellt. Er bleibt für diese Monate. Ändern Sie ihn ab einem späteren Monat.",
+  "care_meal_tariff_not_found": "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu."
 }

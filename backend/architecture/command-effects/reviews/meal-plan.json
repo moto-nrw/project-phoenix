@@ -1,6 +1,161 @@
 {
   "entries": [
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Platform protocol participation (scope): the Mensa-Monatsfreigabe (#4686) reaches tenant.TransactionRunner.RunInTx (tenant-runtime) and joins the caller's school transaction; transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Read-only: the school holiday periods of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Read-only: the closing days and public holidays of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Value construction: the holiday filter of the school calendar for the month of the Mensa-Monatsfreigabe (#4686); no persistent, lock or scope effect.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. The Mensa-Monatsfreigabe (#4686) reads the month without ForUpdate. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListAttendance. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonthOverview",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonthOverview",
+      "reason": "Platform protocol participation (scope): the Mensa-Monatsfreigabe (#4686) reaches tenant.TransactionRunner.RunInTx (tenant-runtime) and joins the caller's school transaction; transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Platform protocol participation (scope): the Mensa-Monatsfreigabe (#4686) reaches tenant.TransactionRunner.RunInTx (tenant-runtime) and joins the caller's school transaction; transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Read-only: the school holiday periods of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Read-only: the closing days and public holidays of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Value construction: the holiday filter of the school calendar for the month of the Mensa-Monatsfreigabe (#4686); no persistent, lock or scope effect.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. The Mensa-Monatsfreigabe (#4686) reads the month without ForUpdate. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListAttendance. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.BillingMonthStore.InsertRelease",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.BillingMonthStore.InsertRelease",
+      "reason": "Read-only newly exposed target: the Mensa-Monatsfreigabe store (#4686) reads the school of the caller's school transaction; no persistent, lock or scope effect.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.BillingMonthStore.ReleasedMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.BillingMonthStore.ReleasedMonth",
+      "reason": "Read-only newly exposed target: the Mensa-Monatsfreigabe store (#4686) reads the school of the caller's school transaction; no persistent, lock or scope effect.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.BillingMonthStore.ReleasedMonths",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.BillingMonthStore.ReleasedMonths",
+      "reason": "Read-only newly exposed target: the Mensa-Monatsfreigabe store (#4686) reads the school of the caller's school transaction; no persistent, lock or scope effect.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.BillingMonthStore.SchoolOrganization",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.BillingMonthStore.SchoolOrganization",
+      "reason": "Read-only newly exposed target: the Mensa-Monatsfreigabe store (#4686) reads the school of the caller's school transaction; no persistent, lock or scope effect.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.schoolCalendar.Days",
       "classification": "query",
       "effect": "query",
