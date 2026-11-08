@@ -4,7 +4,6 @@
 // backend checks the same again; these only point at the field early.
 
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
-import type { DebitGap } from "~/lib/traeger-billing-terms-api";
 import type {
   MandateAction,
   MandateKind,
@@ -40,11 +39,6 @@ export const MISSING_MANDATE_HINTS: Record<MissingMandate, string> = {
     "Die Familie bekommt eine Rechnung zum Überweisen. Die Prüfung zeigt sie als Hinweis.",
   block:
     "Der Lauf lässt sich erst freigeben, wenn jede Familie ein Mandat hat oder überweist.",
-};
-
-export const DEBIT_GAP_LABELS: Record<DebitGap, string> = {
-  mandate_missing: "Kein gültiges Mandat",
-  creditor_missing: "Gläubiger-ID fehlt",
 };
 
 const SOURCE_LABELS: Record<MandateSource | "run", string> = {

@@ -30,7 +30,6 @@ import {
 import { traegerPath } from "~/lib/traeger-url";
 import { invoiceCountLabel } from "./care-billing-format";
 import { formatEuro } from "./contribution-format";
-import { DEBIT_GAP_LABELS } from "./sepa-format";
 
 const logger = createLogger({ component: "CareRunReview" });
 
@@ -181,6 +180,13 @@ export function CareExcludedCard({
     </SectionCard>
   );
 }
+
+/** Why a family that pays by direct debit is not collected (#4695). Kept
+ * here so the run page does not load the mandate forms' module. */
+const DEBIT_GAP_LABELS = {
+  mandate_missing: "Kein gültiges Mandat",
+  creditor_missing: "Gläubiger-ID fehlt",
+} as const;
 
 /** At most this many hints show before „weitere anzeigen“. */
 const DEBIT_HINTS_SHOWN = 5;
