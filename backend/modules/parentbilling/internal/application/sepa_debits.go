@@ -1,13 +1,10 @@
 package application
 
 import (
-	"cmp"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -120,10 +117,18 @@ func (d *SEPADebits) plan(runKind string, runID int64, debits []parentbilling.Se
 		plan.run.Groups = append(plan.run.Groups, *group)
 	}
 	slices.SortFunc(plan.run.Groups, func(a, b parentbilling.SEPADebitGroup) int {
-		return cmp.Or(a.CollectOn.Compare(b.CollectOn), strings.Compare(a.SequenceType, b.SequenceType))
+		return batchOrder(a.CollectOn, b.CollectOn, a.SequenceType, b.SequenceType)
 	})
 	plan.run.MessageID = messageIDOf(runKind, runID, plan)
 	return plan
+}
+
+// batchOrder sorts batches by collection day, then by sequence type.
+func batchOrder(dayA, dayB calendar.Date, sequenceA, sequenceB string) int {
+	if order := dayA.Compare(dayB); order != 0 {
+		return order
+	}
+	return strings.Compare(sequenceA, sequenceB)
 }
 
 // leftReason tells why a pending debit stays out of the file: its invoice
@@ -151,7 +156,7 @@ func messageIDOf(runKind string, runID int64, plan debitPlan) string {
 	if len(plan.included) == 0 {
 		return ""
 	}
-	hash := sha256.New()
+	hash := fnv.New64a()
 	for _, entry := range plan.included {
 		_, _ = fmt.Fprintf(hash, "%d|%d|%s|%s;", entry.Debit.ID, entry.Debit.AmountCents, entry.Debit.SequenceType,
 			plan.collectOn[entry.Debit.ID])
@@ -160,7 +165,7 @@ func messageIDOf(runKind string, runID int64, plan debitPlan) string {
 	if runKind == parentbilling.DebitRunHoliday {
 		kind = "F"
 	}
-	return "MOTO-" + kind + strconv.FormatInt(runID, 10) + "-" + hex.EncodeToString(hash.Sum(nil))[:16]
+	return fmt.Sprintf("MOTO-%s%d-%016x", kind, runID, hash.Sum64())
 }
 
 // load reads the debits of a run and the creditor and plans the file.
@@ -296,7 +301,7 @@ func (d *SEPADebits) openBatches(organizationID int64, plan debitPlan) ([]debitF
 		}
 	}
 	slices.SortStableFunc(batches, func(a, b debitFileBatch) int {
-		return cmp.Or(a.CollectOn.Compare(b.CollectOn), strings.Compare(a.SequenceType, b.SequenceType))
+		return batchOrder(a.CollectOn, b.CollectOn, a.SequenceType, b.SequenceType)
 	})
 	return batches, revealed, nil
 }

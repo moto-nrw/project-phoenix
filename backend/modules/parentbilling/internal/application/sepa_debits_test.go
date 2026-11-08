@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // The PAIN.008 file of a run (#4697, ADR 0181): only valid mandates, the
@@ -134,20 +134,6 @@ func newSJRDebits(store *debitStoreFake) *SEPADebits {
 		func() time.Time { return time.Date(2026, 11, 20, 9, 30, 0, 0, time.UTC) })
 }
 
-// validateXSD checks a file against a schema with xmllint, which CI and the
-// development machines carry.
-func validateXSD(t *testing.T, file []byte, schema string) {
-	t.Helper()
-	xmllint, err := exec.LookPath("xmllint")
-	if err != nil {
-		t.Fatalf("xmllint is required to check the PAIN.008 file against its schema: %v", err)
-	}
-	path := filepath.Join(t.TempDir(), "pain008.xml")
-	require.NoError(t, os.WriteFile(path, file, 0o600))
-	out, err := exec.Command(xmllint, "--noout", "--schema", schema, path).CombinedOutput() //nolint:gosec // test paths
-	require.NoError(t, err, "the file must validate against %s:\n%s", filepath.Base(schema), out)
-}
-
 func TestSEPADebitFileValidatesAgainstTheISOSchema(t *testing.T) {
 	t.Parallel()
 	store := sjrDebits()
@@ -155,11 +141,11 @@ func TestSEPADebitFileValidatesAgainstTheISOSchema(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "application/xml", file.ContentType)
 	assert.True(t, strings.HasSuffix(file.Filename, ".xml"))
-	validateXSD(t, file.Data, filepath.Join("testdata", "sepa", "pain.008.001.08.xsd"))
+	testpkg.AssertXMLMatchesSchema(t, file.Data, filepath.Join("testdata", "sepa", "pain.008.001.08.xsd"))
 	if dk := os.Getenv("SEPA_DK_XSD"); dk != "" {
 		// The technical validation subset of the Deutsche Kreditwirtschaft
 		// (GBIC_5) may not be redistributed; a local copy checks it too.
-		validateXSD(t, file.Data, dk)
+		testpkg.AssertXMLMatchesSchema(t, file.Data, dk)
 	}
 	xml := string(file.Data)
 	for _, want := range []string{

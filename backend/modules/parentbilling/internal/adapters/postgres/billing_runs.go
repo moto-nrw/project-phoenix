@@ -456,7 +456,7 @@ func (s *Store) IssueDocuments(ctx context.Context, organizationID int64, run pa
 		return err
 	}
 	// The debits of the file hold the account of the mandate now (#4697).
-	return insertSEPADebits(ctx, db, organizationID, insertHolidayDebitsSQL, ids)
+	return insertSEPADebits(ctx, db, organizationID, true, ids)
 }
 
 // insertDocuments stores numbered documents with their positions and

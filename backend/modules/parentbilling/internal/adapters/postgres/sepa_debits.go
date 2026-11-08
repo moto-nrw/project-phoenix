@@ -46,12 +46,19 @@ WHERE document.organization_id = ?0 AND document.id = ANY(?1) AND document.kind 
 
 // insertSEPADebits writes the debits of the invoices just issued, in the
 // statement after their insert, so they hold the account of the mandate at
-// the release (ADR 0181).
-func insertSEPADebits(ctx context.Context, db bun.IDB, organizationID int64, query string, invoiceIDs []int64) error {
+// the release (ADR 0181). holiday names holiday documents, else monthly
+// invoices.
+func insertSEPADebits(ctx context.Context, db bun.IDB, organizationID int64, holiday bool, invoiceIDs []int64) error {
 	if len(invoiceIDs) == 0 {
 		return nil
 	}
-	if _, err := db.NewRaw(query, organizationID, pgdialect.Array(invoiceIDs)).Exec(ctx); err != nil {
+	var err error
+	if holiday {
+		_, err = db.NewRaw(insertHolidayDebitsSQL, organizationID, pgdialect.Array(invoiceIDs)).Exec(ctx)
+	} else {
+		_, err = db.NewRaw(insertCareDebitsSQL, organizationID, pgdialect.Array(invoiceIDs)).Exec(ctx)
+	}
+	if err != nil {
 		return fmt.Errorf("insert SEPA debits: %w", err)
 	}
 	return nil
@@ -122,14 +129,16 @@ func (r sepaDebitRow) sealed() parentbilling.SealedSEPADebit {
 	}
 }
 
-// sepaDebitsSQL reads debits with the state of their mandate and invoice in
-// one statement; %s adds the sealed account (or nothing), the filter and
-// the lock. Every part names the Träger (?0).
-const sepaDebitsSQL = `SELECT debit.id, debit.mandate_id, debit.care_contract_id, debit.run_kind, debit.run_id, debit.invoice_number,
+// The debits with the state of their mandate and invoice, read in one
+// statement; every part names the Träger (?0). The sealed account comes
+// only for the file.
+const (
+	sepaDebitColumns = `SELECT debit.id, debit.mandate_id, debit.care_contract_id, debit.run_kind, debit.run_id, debit.invoice_number,
 	debit.amount_cents, debit.due_on, debit.sequence_type, debit.creditor_id, debit.mandate_reference, debit.mandate_signed_on,
-	debit.bic, debit.status, debit.message_id, debit.submitted_at%s,
-	mandate.revoked_on IS NOT NULL AS mandate_revoked, mandate.kind AS mandate_kind, mandate.signed_on AS mandate_signed,
-	mandate.sequence AS mandate_sequence, mandate.last_collected_on AS mandate_last_collected_on,
+	debit.bic, debit.status, debit.message_id, debit.submitted_at, `
+	sepaDebitAccountColumns = `debit.account_holder_sealed, debit.iban_sealed, `
+	sepaDebitState          = `mandate.revoked_on IS NOT NULL AS mandate_revoked, mandate.kind AS mandate_kind,
+	mandate.signed_on AS mandate_signed, mandate.sequence AS mandate_sequence, mandate.last_collected_on AS mandate_last_collected_on,
 	(mandate.created_at AT TIME ZONE 'Europe/Berlin')::date AS mandate_created_on,
 	COALESCE((SELECT creditor.creditor_id FROM parent_billing.sepa_creditors AS creditor
 		WHERE creditor.organization_id = ?0), '') AS creditor_now,
@@ -148,26 +157,22 @@ FROM parent_billing.sepa_debits AS debit
 JOIN parent_billing.sepa_mandates AS mandate ON mandate.organization_id = ?0 AND mandate.id = debit.mandate_id
 LEFT JOIN parent_billing.care_invoices AS care ON care.organization_id = ?0 AND care.id = debit.care_invoice_id
 LEFT JOIN parent_billing.documents AS holiday ON holiday.organization_id = ?0 AND holiday.id = debit.document_id
-WHERE debit.organization_id = ?0 AND %s
-ORDER BY %s%s`
+WHERE debit.organization_id = ?0 AND `
+	sepaDebitsOfRun = `debit.run_kind = ?1 AND debit.run_id = ?2 ORDER BY debit.invoice_number, debit.id`
+	// sepaDebitsOfRunSQL reads the debits of a run for the overview.
+	sepaDebitsOfRunSQL = sepaDebitColumns + sepaDebitState + sepaDebitsOfRun
+	// sepaDebitFileSQL adds the sealed account for the file.
+	sepaDebitFileSQL = sepaDebitColumns + sepaDebitAccountColumns + sepaDebitState + sepaDebitsOfRun
+	// sepaDebitsLockedSQL locks the debits of a run for the confirmation.
+	sepaDebitsLockedSQL = sepaDebitColumns + sepaDebitState + sepaDebitsOfRun + ` FOR UPDATE OF debit`
+	// sepaDebitsOfMandateSQL reads the debits of a mandate, newest first.
+	sepaDebitsOfMandateSQL = sepaDebitColumns + sepaDebitState + `debit.mandate_id = ?1 ORDER BY debit.due_on DESC, debit.id DESC`
+)
 
-func (s *Store) selectSEPADebits(ctx context.Context, organizationID int64, sealed bool, filter, order string, lock bool,
-	args ...any,
-) ([]parentbilling.SealedSEPADebit, error) {
-	db, err := traegerDB(ctx, organizationID)
-	if err != nil {
-		return nil, err
-	}
-	account, locking := "", ""
-	if sealed {
-		account = ", debit.account_holder_sealed, debit.iban_sealed"
-	}
-	if lock {
-		locking = " FOR UPDATE OF debit"
-	}
+// scanSEPADebits reads the debits a statement of this file selects.
+func scanSEPADebits(ctx context.Context, query *bun.RawQuery) ([]parentbilling.SealedSEPADebit, error) {
 	var rows []sepaDebitRow
-	query := fmt.Sprintf(sepaDebitsSQL, account, filter, order, locking)
-	if err := db.NewRaw(query, append([]any{organizationID}, args...)...).Scan(ctx, &rows); err != nil {
+	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read SEPA debits: %w", err)
 	}
 	debits := make([]parentbilling.SealedSEPADebit, len(rows))
@@ -177,8 +182,11 @@ func (s *Store) selectSEPADebits(ctx context.Context, organizationID int64, seal
 	return debits, nil
 }
 
-// releasedRunSQL tells whether a run of the Träger is released.
-const releasedRunSQL = `SELECT EXISTS (SELECT 1 FROM parent_billing.%s WHERE organization_id = ? AND id = ? AND status = 'released')`
+// The released run of a debit file, in the Träger's own filter.
+const (
+	releasedCareRunSQL    = `SELECT EXISTS (SELECT 1 FROM parent_billing.care_runs WHERE organization_id = ? AND id = ? AND status = 'released')`
+	releasedHolidayRunSQL = `SELECT EXISTS (SELECT 1 FROM parent_billing.runs WHERE organization_id = ? AND id = ? AND status = 'released')`
+)
 
 // SEPADebitsOfRun reads the debits of a released run with the sealed
 // account when sealed is set, locked for the confirmation when lock is.
@@ -190,26 +198,35 @@ func (s *Store) SEPADebitsOfRun(ctx context.Context, organizationID int64, runKi
 	if err != nil {
 		return nil, err
 	}
-	table := "care_runs"
-	if runKind == parentbilling.DebitRunHoliday {
-		table = "runs"
-	}
 	var released bool
-	if err := db.NewRaw(fmt.Sprintf(releasedRunSQL, table), organizationID, runID).Scan(ctx, &released); err != nil {
+	if runKind == parentbilling.DebitRunHoliday {
+		err = db.NewRaw(releasedHolidayRunSQL, organizationID, runID).Scan(ctx, &released)
+	} else {
+		err = db.NewRaw(releasedCareRunSQL, organizationID, runID).Scan(ctx, &released)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("read the run of the SEPA debits: %w", err)
 	}
 	if !released {
 		return nil, parentbilling.ErrSEPADebitRunNotFound
 	}
-	return s.selectSEPADebits(ctx, organizationID, sealed, "debit.run_kind = ?1 AND debit.run_id = ?2",
-		"debit.invoice_number, debit.id", lock, runKind, runID)
+	switch {
+	case sealed:
+		return scanSEPADebits(ctx, db.NewRaw(sepaDebitFileSQL, organizationID, runKind, runID))
+	case lock:
+		return scanSEPADebits(ctx, db.NewRaw(sepaDebitsLockedSQL, organizationID, runKind, runID))
+	}
+	return scanSEPADebits(ctx, db.NewRaw(sepaDebitsOfRunSQL, organizationID, runKind, runID))
 }
 
 // SEPADebitsOfMandate reads the debits of a mandate of the Träger, newest
 // first, without the account.
 func (s *Store) SEPADebitsOfMandate(ctx context.Context, organizationID, mandateID int64) ([]parentbilling.SealedSEPADebit, error) {
-	return s.selectSEPADebits(ctx, organizationID, false, "debit.mandate_id = ?1",
-		"debit.due_on DESC, debit.id DESC", false, mandateID)
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	return scanSEPADebits(ctx, db.NewRaw(sepaDebitsOfMandateSQL, organizationID, mandateID))
 }
 
 // submitSEPADebitsSQL marks pending debits of the Träger submitted.

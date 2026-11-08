@@ -321,7 +321,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0165: the constructor of the monthly letters (+7);
 	// ADR 0167: the constructor of the payment terms (+5);
 	// ADR 0168: the Mensa of the monthly run (+7);
-	// ADR 0171: the constructor of the SEPA mandates (+5).
+	// ADR 0171: the constructor of the SEPA mandates (+5);
+	// ADR 0181: the constructor of the SEPA direct debit file (+5).
 	"modules/parentbilling/compose":               84,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
