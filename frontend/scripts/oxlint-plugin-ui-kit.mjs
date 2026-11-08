@@ -1634,11 +1634,11 @@ src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@226 text-[11px]@275
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@238
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@959
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/files/files-page.tsx|text-[11px]@181
-src/components/guardians/guardian-list.tsx|text-[10px]@466
-src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@716 text-[11px]@781
+src/components/guardians/guardian-list.tsx|text-[10px]@468
+src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@717 text-[11px]@783
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600
