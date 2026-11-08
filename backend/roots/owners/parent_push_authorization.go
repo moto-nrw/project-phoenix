@@ -133,29 +133,35 @@ func BindParentPushObjectAuthorization(gate parentportal.DocumentPushAuthorizati
 				result[intent.ID] = true
 				continue
 			}
-			if intent.RelatedEntityType == nil || intent.RelatedEntityID == nil {
-				continue
+			if push, ok := documentPushEnvelope(intent); ok {
+				pushes = append(pushes, push)
 			}
-			var kind string
-			switch *intent.RelatedEntityType {
-			case parentbilling.PushRelatedBillingDocument:
-				kind = parentportal.DocumentPushBilling
-			case carecontract.PushRelatedContractDocument:
-				kind = parentportal.DocumentPushContract
-			case organizationtenancy.PushRelatedTraegerDocumentRelease:
-				kind = parentportal.DocumentPushRelease
-			default:
-				continue
-			}
-			pushes = append(pushes, parentportal.DocumentPush{Key: intent.ID, TenantID: intent.TenantID, AccountID: intent.PushRecipient.AccountID, ObjectID: *intent.RelatedEntityID, Kind: kind, StudentIDs: intent.PushRecipient.StudentIDs})
 		}
 		allowed, err := gate.AuthorizeDocumentPushes(ctx, pushes)
 		if err != nil {
-			return nil, err
+			return result, err
 		}
 		for key, value := range allowed {
 			result[key] = value
 		}
 		return result, nil
 	}
+}
+
+func documentPushEnvelope(intent delivery.ClaimedIntent) (parentportal.DocumentPush, bool) {
+	if intent.RelatedEntityType == nil || intent.RelatedEntityID == nil {
+		return parentportal.DocumentPush{}, false
+	}
+	var kind string
+	switch *intent.RelatedEntityType {
+	case parentbilling.PushRelatedBillingDocument:
+		kind = parentportal.DocumentPushBilling
+	case carecontract.PushRelatedContractDocument:
+		kind = parentportal.DocumentPushContract
+	case organizationtenancy.PushRelatedTraegerDocumentRelease:
+		kind = parentportal.DocumentPushRelease
+	default:
+		return parentportal.DocumentPush{}, false
+	}
+	return parentportal.DocumentPush{Key: intent.ID, TenantID: intent.TenantID, AccountID: intent.PushRecipient.AccountID, ObjectID: *intent.RelatedEntityID, Kind: kind, StudentIDs: intent.PushRecipient.StudentIDs}, true
 }

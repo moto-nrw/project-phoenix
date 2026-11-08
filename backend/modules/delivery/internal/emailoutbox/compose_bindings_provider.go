@@ -22,7 +22,8 @@ type MailPushProvider struct {
 	Tenants        IntentTenantTransactions
 	PushAuthorized func(context.Context, deliveryContract.ClaimedIntent) (bool, error)
 	// PushObjects checks current object validity and concrete recipient rights.
-	// The owner supplies decisions keyed by intent ID; missing decisions deny.
+	// Decisions are keyed by intent ID. Explicit allows survive errors for other
+	// intents; missing decisions deny, or retry when the batch lookup failed.
 	PushObjects  func(context.Context, []deliveryContract.ClaimedIntent) (map[int64]bool, error)
 	DeferredPush func(context.Context, deliveryContract.ClaimedIntent) error
 	// Deliverable reports whether the school still books the module a

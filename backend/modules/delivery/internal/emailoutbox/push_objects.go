@@ -34,13 +34,14 @@ func (p *MailPushProvider) requirePushObject(ctx context.Context, intent deliver
 		// Targeted dispatch has no worker batch, but must enforce the same gate.
 		batch.allowed, batch.err = p.PushObjects(ctx, []delivery.ClaimedIntent{intent})
 	}
+	// Explicit allow decisions remain usable when another intent's lookup fails.
+	if batch.allowed[intent.ID] {
+		return nil
+	}
 	if batch.err != nil {
 		// Owner errors may contain recipient data. The durable error and log retain
 		// only the safe classification; a lookup failure remains retryable.
 		return errors.New("delivery provider: object authorization lookup failed")
 	}
-	if !batch.allowed[intent.ID] {
-		return fmt.Errorf("%w: object no longer valid or recipient no longer authorized", delivery.ErrCancelled)
-	}
-	return nil
+	return fmt.Errorf("%w: object no longer valid or recipient no longer authorized", delivery.ErrCancelled)
 }
