@@ -52,8 +52,9 @@ type careEvidenceSetBody struct {
 type careReductionRunBody struct {
 	ID           int64 `json:"id"`
 	Status       string
-	PreviewCount int   `json:"preview_count"`
-	PreviewCents int64 `json:"preview_cents"`
+	PreviewCount int    `json:"preview_count"`
+	PreviewCents int64  `json:"preview_cents"`
+	Fingerprint  string `json:"fingerprint"`
 	Invoices     []struct {
 		ContractID int64 `json:"contract_id"`
 		Reductions []struct {
@@ -157,7 +158,7 @@ func TestCareReductionsRunTheWholeChainThroughTheRoutes(t *testing.T) {
 	assert.Equal(t, []string{"sibling -1600", "single_parent -500", "cap -300"}, reductions[noah])
 
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"),
-		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents})
+		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents, "fingerprint": preview.Fingerprint})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	released := decodeSchoolPortalData[careReductionRunBody](t, rec.Body.Bytes())
 	require.Len(t, released.Invoices, 2)

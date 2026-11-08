@@ -22,8 +22,8 @@ import (
 // a released run never changes (trigger of 1.15.789).
 
 const (
-	// openCareRunIndex keeps a month to one calculated run.
-	openCareRunIndex = "uq_care_runs_calculated_month"
+	// openCareRunSchoolIndex keeps a school to one open run per month.
+	openCareRunSchoolIndex = "uq_care_run_schools_open"
 	// careInvoiceNumberConstraint keeps the numbers of the monthly
 	// invoices unique.
 	careInvoiceNumberConstraint = "uq_care_invoices_number"
@@ -62,12 +62,19 @@ type careRunRow struct {
 	DocumentCount      *int           `bun:"document_count"`
 	TotalCents         *int64         `bun:"total_cents"`
 	MonthRule          *string        `bun:"month_rule"`
+	InvoiceDate        *calendar.Date `bun:"invoice_date,type:date"`
+	// SchoolIDs come from parent_billing.care_run_schools (#5916).
+	SchoolIDs []int64 `bun:"school_ids,array,scanonly"`
 }
 
 func (r careRunRow) run() parentbilling.CareRun {
 	run := parentbilling.CareRun{
 		ID: r.ID, BillingMonth: r.BillingMonth, Status: r.Status, CreatedAt: r.CreatedAt, ReleasedAt: r.ReleasedAt,
 		IssuedOn: r.IssuedOn, DocumentCount: r.DocumentCount, TotalCents: r.TotalCents,
+		CareRunScope: parentbilling.CareRunScope{SchoolIDs: r.SchoolIDs, InvoiceDate: r.InvoiceDate},
+	}
+	if run.SchoolIDs == nil {
+		run.SchoolIDs = []int64{}
 	}
 	if r.MonthRule != nil {
 		run.MonthRule = *r.MonthRule
@@ -259,8 +266,8 @@ func (s *Store) ListCareRuns(ctx context.Context, organizationID int64) ([]paren
 		return nil, err
 	}
 	var rows []careRunRow
-	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).
-		OrderExpr("billing_month DESC, id DESC").Scan(ctx); err != nil {
+	if err := withRunSchools(db.NewSelect().Model(&rows)).Where("care_run_row.organization_id = ?", organizationID).
+		OrderExpr("care_run_row.billing_month DESC, care_run_row.id DESC").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list care runs: %w", err)
 	}
 	runs := make([]parentbilling.CareRun, len(rows))
@@ -270,20 +277,23 @@ func (s *Store) ListCareRuns(ctx context.Context, organizationID int64) ([]paren
 	return runs, nil
 }
 
-// InsertCareRun starts a calculated run of a month; a second one is
-// ErrCareRunOpen.
-func (s *Store) InsertCareRun(ctx context.Context, organizationID, accountID int64, month calendar.Date) (parentbilling.CareRun, error) {
+// InsertCareRun starts a calculated run of a month for its schools; a
+// school another open run of the month bills is ErrCareRunOpen, also when
+// both start at once (uq_care_run_schools_open, #5916).
+func (s *Store) InsertCareRun(ctx context.Context, organizationID, accountID int64, start parentbilling.CareRunStart) (parentbilling.CareRun, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return parentbilling.CareRun{}, err
 	}
-	row := &careRunRow{OrganizationID: organizationID, BillingMonth: month, Status: parentbilling.RunCalculated, CreatedByAccountID: &accountID}
+	row := &careRunRow{OrganizationID: organizationID, BillingMonth: start.BillingMonth, Status: parentbilling.RunCalculated,
+		CreatedByAccountID: &accountID, InvoiceDate: start.InvoiceDate}
 	if _, err := db.NewInsert().Model(row).Returning("id, created_at").Exec(ctx); err != nil {
-		if constraintOf(err) == openCareRunIndex {
-			return parentbilling.CareRun{}, parentbilling.ErrCareRunOpen
-		}
 		return parentbilling.CareRun{}, fmt.Errorf("insert care run: %w", err)
 	}
+	if err := insertCareRunSchools(ctx, db, organizationID, row.ID, start.BillingMonth, start.SchoolIDs); err != nil {
+		return parentbilling.CareRun{}, err
+	}
+	row.SchoolIDs = slices.Sorted(slices.Values(start.SchoolIDs))
 	return row.run(), nil
 }
 
@@ -295,7 +305,8 @@ func (s *Store) CareRun(ctx context.Context, organizationID, runID int64, lock b
 		return parentbilling.CareRun{}, err
 	}
 	row := &careRunRow{}
-	query := db.NewSelect().Model(row).Where("organization_id = ?", organizationID).Where("id = ?", runID)
+	query := withRunSchools(db.NewSelect().Model(row)).
+		Where("care_run_row.organization_id = ?", organizationID).Where("care_run_row.id = ?", runID)
 	if lock {
 		query = query.For("UPDATE")
 	}
@@ -493,6 +504,11 @@ func (s *Store) MarkCareRunReleased(ctx context.Context, organizationID, runID i
 		}
 		return parentbilling.CareRun{}, fmt.Errorf("release care run: %w", err)
 	}
+	schools, err := closeCareRunSchools(ctx, db, organizationID, runID)
+	if err != nil {
+		return parentbilling.CareRun{}, err
+	}
+	row.SchoolIDs = schools
 	return row.run(), nil
 }
 
