@@ -2623,6 +2623,10 @@ export const enrollmentReviewTopic =
         "Die Eltern sehen die Entscheidung bei ihrer Anmeldung. Bei `Bestätigen` wird das Kind übernommen.",
       notes: [
         "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
+        // #6041
+        "Ist der Start eines bestätigten Kindes für später geplant, steht es erst ab dem Start unter `Alle Kinder`. Vorher finden Sie es unter `Datenverwaltung` und danach `Kinderdaten`.",
+        // #6043: Wiederanmeldung vor dem Start der Betreuung.
+        "Wird ein Kind schon betreut und beginnt die Anmeldung später? Dann gelten Abholzeiten, Betreuungstage und Heimweg daraus erst ab dem Start. Bis dahin bleiben die bisherigen. Das Datum steht beim Kind. Steht der Hinweis nach dem Start noch da, gelten weiter die bisherigen. Melden Sie sich dann beim moto-Team.",
         // #5934
         "Unter `E-Mails an die Familie` sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind. Steht dort `Adresse prüfen`, sprechen Sie die Familie direkt an.",
         "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",
@@ -4548,6 +4552,8 @@ export const missingChildOrGroupTopic = function missingChildOrGroupTopic(
       "Ein Kind kann an einem anderen Tag anders eingeplant sein.",
       "Vorübergehend übernommene Gruppen gelten nur bis zum Ende des Tages.",
       "Gelöschte oder noch nicht übernommene Kinder erscheinen nicht in der normalen Kinderliste.",
+      // #6041: ein Kind mit geplantem späterem Start zählt erst ab dem Start.
+      "Ist der Start eines Kindes für später geplant, steht es erst ab dem Start unter `Alle Kinder`. Vorher finden Sie es unter `Datenverwaltung` und danach `Kinderdaten`.",
     ],
     related: [HELP_TOPICS.studentSearch, HELP_TOPICS.ownGroups],
   };
@@ -10441,7 +10447,7 @@ export const traegerCareMonthsTopic =
       title: "Monatsbeiträge abrechnen",
       question: "Wie rechne ich die Betreuung jeden Monat ab?",
       summary:
-        "Ein Monatslauf rechnet einen Monat nach den gültigen Verträgen ab. Der Beitrag eines Kindes ist die Summe seiner gebuchten Wochentage, mit den Preisen aus der Preisliste. Es zählt der Vertrag, nicht die Anwesenheit.",
+        "Ein Monatslauf rechnet einen Monat nach den gültigen Verträgen ab. Der Beitrag eines Kindes ist die Summe seiner gebuchten Wochentage, mit den Preisen aus der Preisliste. Es zählt der Vertrag, nicht die Anwesenheit. Nach der Freigabe erstellen Sie die Schreiben, senden sie an die Familien und stornieren eine falsche Rechnung.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "CalendarCheck",
@@ -10489,17 +10495,64 @@ export const traegerCareMonthsTopic =
             "Wählen Sie `Lauf freigeben`.",
             "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
             "Jede Rechnung bekommt ihre Nummer. Danach ändert sie sich nicht mehr.",
+            "Die Familien sehen davon noch nichts. Sie bekommen erst das Schreiben, das Sie senden.",
+          ],
+        },
+        {
+          title: "Schreiben erstellen",
+          description:
+            "Jede Familie bekommt ein Schreiben im Briefkopf des Trägers. Es ist ihre Rechnung. Erstellen sendet noch nichts.",
+          steps: [
+            "Wählen Sie im freigegebenen Lauf bei `Schreiben an die Familien` den Knopf `Schreiben erstellen`. Die Seite mit den Schreiben des Laufs öffnet sich.",
+            "Wählen Sie dort bei `Schreiben an die Familien` noch einmal `Schreiben erstellen`.",
+            "Wählen Sie bei `Zahlen bis` das Datum, bis zu dem die Familien zahlen.",
+            "Schreiben Sie bei `Hinweis für die Familien` etwas, wenn alle Familien es lesen sollen. Das ist freiwillig.",
+            "Wählen Sie `Vorschau ansehen`. Sie sehen das Schreiben der ersten Familie.",
+            "Wählen Sie `Schreiben erstellen`. Danach lassen sich die Schreiben nicht mehr ändern.",
+          ],
+        },
+        {
+          title: "Schreiben senden und drucken",
+          description:
+            "Jede Familie bekommt ihr Schreiben per E-Mail. Hat sie mit dieser Adresse ein Konto in der Eltern-App, liegt es auch dort unter `Dokumente`. Das geht nur, wenn das Kind einen Schülerdatensatz hat. Sonst steht bei der Rechnung `Nicht in der Eltern-App`, und die Familie bekommt das Schreiben per E-Mail oder gedruckt.",
+          steps: [
+            "Wählen Sie im freigegebenen Lauf bei `Schreiben an die Familien` den Knopf `Schreiben öffnen`. Dort steht schon, wie viele Schreiben gesendet sind.",
+            "Wählen Sie bei `Schreiben an die Familien` den Knopf `An alle senden`. Prüfen Sie die Zahl und bestätigen Sie, zum Beispiel mit `3 Schreiben senden`.",
+            "Die Karte zeigt, wie viele Schreiben gesendet sind, gerade gesendet werden, nicht angekommen sind, noch nicht gesendet sind und keine E-Mail-Adresse haben.",
+            "In jeder Rechnung steht unter `An die Familie`, ob ihr Schreiben gesendet ist. `Ausgestellt am` sagt nur, dass die Rechnung ihre Nummer hat.",
+            "Ist ein Schreiben nicht angekommen, wählen Sie bei der Rechnung das Menü mit den drei Punkten und dann `Erneut senden`. Mit `Senden` schicken Sie ein einzelnes Schreiben zum ersten Mal.",
+            "Mit `Schreiben ansehen` im Menü sehen Sie genau das Schreiben, das die Familie bekommt.",
+            "Für Familien ohne E-Mail wählen Sie `Drucken` und dann `Nur Familien ohne E-Mail`. Geben Sie ihnen das gedruckte Schreiben. `Alle Schreiben drucken` druckt alle Schreiben, die noch gelten.",
+          ],
+        },
+        {
+          title: "Rechnung stornieren und neu ausstellen",
+          description:
+            "Eine ausgestellte Rechnung ändert sich nie. Stimmt sie nicht, stornieren Sie sie. Der Storno bekommt eine eigene Nummer.",
+          steps: [
+            "Wählen Sie im freigegebenen Lauf `Schreiben öffnen`. Gibt es noch keine Schreiben, heißt der Knopf `Schreiben erstellen`.",
+            "Wählen Sie bei der Rechnung das Menü mit den drei Punkten und dann `Stornieren`.",
+            "Schreiben Sie bei `Begründung`, warum Sie stornieren. Wählen Sie `Stornieren`.",
+            "Hatte die Familie die Rechnung schon bekommen, bekommt sie ein Storno-Schreiben. Es steht als eigene Zeile unter der Rechnung. Senden Sie es über das Menü dieser Zeile mit `Senden`.",
+            "Haben Sie die Rechnung zum Drucken heruntergeladen, bekommt der Storno auch ein Schreiben. Laden Sie es über `Drucken` und `Alle Schreiben drucken` herunter. Geben Sie es der Familie auf Papier.",
+            "Wurde die Rechnung weder gesendet noch zum Drucken heruntergeladen, bekommt die Familie kein Storno. Sie sieht nichts davon.",
+            "Wählen Sie in der Meldung über den Rechnungen `Neu ausstellen`. Ein neuer Monatslauf für denselben Monat öffnet sich. Er zeigt die neue Rechnung als Vorschau. Geben Sie ihn frei und senden Sie das neue Schreiben. Danach verschwindet die Meldung zur Neuausstellung im alten Lauf.",
           ],
         },
       ],
       result:
-        "Die Rechnungen des Monats sind ausgestellt. Ein späterer Lauf desselben Monats rechnet nur Kinder ab, die noch keine Rechnung für diesen Monat haben.",
+        "Die Rechnungen des Monats sind ausgestellt, und die Familien haben ihr Schreiben per E-Mail oder auf Papier. Ein späterer Lauf desselben Monats rechnet nur Kinder ab, die noch keine gültige Rechnung für diesen Monat haben.",
       differences: [
         "Beginnt, endet oder ändert sich ein Vertrag im Monat, zählt standardmäßig der Vertrag am 1. des Monats für den ganzen Monat. Beginnt die Betreuung erst im Monat, zählt der erste Vertrag den ganzen Monat. Ein weiterer Vertrag, der später im Monat beginnt, zählt erst ab dem nächsten Monat. Anteilig nach Kalendertagen stellen Sie unter `Einstellungen`, `Allgemein`, Bereich `Monatsbeitrag` ein.",
         "Mit einem Preis, für den es schon eine Rechnung gibt, rechnet der Monat weiter ab. Ändern Sie ihn ab einem späteren Monat. Fehlende Preise ergänzen Sie auch für einen schon abgerechneten Monat. Der nächste Lauf dieses Monats rechnet die Kinder dann ab.",
       ],
       notes: [
         "Ferienpreise legen Sie im Ferienzeitraum fest. Die Preisliste gilt nur für die Monatsbeiträge.",
+      ],
+      troubleshootingDetails: [
+        "`Schreiben erstellen` geht nicht: Es fehlt eine Bankverbindung. Tragen Sie sie unter `Einstellungen`, `Abrechnungsvorgaben` ein.",
+        "Ein Schreiben geht nicht raus, weil die Person nicht mehr im Vertrag steht: Stornieren Sie die Rechnung. Wählen Sie dann `Neu ausstellen`. Die neue Rechnung geht an die Person im Vertrag.",
+        "`Erneut senden` fehlt: Die Mail ist noch unterwegs, oder die Adresse ist gesperrt. Der Hinweis bei der Rechnung sagt, was zu tun ist. Drucken Sie das Schreiben, wenn die Adresse gesperrt ist.",
       ],
       related: [
         HELP_TOPICS.traegerCareContracts,

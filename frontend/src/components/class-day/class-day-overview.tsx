@@ -36,6 +36,7 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { TileCard } from "~/components/ui/tile-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { StatCard } from "~/components/ui/stat-card";
 import { getUserDisplayName } from "~/lib/auth-utils";
@@ -178,11 +179,9 @@ function ClassLink({
       ? classSummary(report, weekend)
       : "Wird geladen …";
   return (
-    <ButtonLink
+    <TileCard
       href={schoolPath(schoolDayClassPath(klass, dateISO, openList))}
-      variant="surface"
-      size="card"
-      className="min-h-24 justify-between gap-3 text-left"
+      className="flex min-h-24 items-center justify-between gap-3"
     >
       {/* flex-1 + min-w-0: ohne beides schrumpft das Textfeld nicht und die
           Karte läuft auf schmalen Bildschirmen über den Rand hinaus. Die
@@ -207,7 +206,7 @@ function ClassLink({
         className="h-5 w-5 shrink-0 text-gray-400"
         aria-hidden="true"
       />
-    </ButtonLink>
+    </TileCard>
   );
 }
 

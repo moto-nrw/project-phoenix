@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The children of a family (#5918, 1.15.812): one row per family of the
+// The children of a family (#5918, 1.15.815): one row per family of the
 // Träger with the number the parents stated and the one the Abrechnung
 // confirmed, and the trail of every read and change per contract. Every
 // statement names the Träger in its own filter, also below row level

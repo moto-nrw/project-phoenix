@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -24,16 +23,6 @@ func (d *Decisions) lockOfferingDerivedWrites(ctx context.Context) error {
 		return nil
 	}
 	return d.deps.Bookings.LockOfferingDerivedWrites(ctx)
-}
-
-func (d *Decisions) lockTemplateRecurrence(ctx context.Context) error {
-	if d.deps.LockTemplateRecurrence == nil {
-		return nil
-	}
-	if err := d.deps.LockTemplateRecurrence(ctx); err != nil {
-		return fmt.Errorf("decision: lock template recurrence: %w", err)
-	}
-	return nil
 }
 
 // resyncOfferingSourcedTemplates re-reconciles every offering-sourced

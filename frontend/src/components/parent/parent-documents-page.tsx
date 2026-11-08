@@ -4,8 +4,9 @@
  * Dokumente (#4671): the documents the Träger of the family's OGS sent to
  * this account: the confirmation letters of holiday registrations and the
  * letters of their Storno and Gutschrift (#4690), and the care contracts
- * (#4678), and the documents the Träger released for the parents, such as a
- * house rule (#4692).
+ * (#4678), the letters of the monthly invoices and their Storno (#4684),
+ * and the documents the Träger released for the parents, such as a house
+ * rule (#4692).
  * Each one downloads as the stored file. The Träger decides what is sent or
  * released; a care contract that waits for the signature links to the page
  * where the parents sign it (#4679).
@@ -42,6 +43,8 @@ const DOCUMENT_TITLES = {
   confirmation_letter: "confirmationLetter",
   cancellation_letter: "cancellationLetter",
   credit_letter: "creditLetter",
+  care_invoice_letter: "careInvoiceLetter",
+  care_cancellation_letter: "careCancellationLetter",
   care_contract: "careContract",
 } as const satisfies Record<ParentDocument["kind"], string>;
 

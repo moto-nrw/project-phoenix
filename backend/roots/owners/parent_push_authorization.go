@@ -75,7 +75,7 @@ func parentBillingPushObjects(billing parentbilling.DocumentPushValidity) parent
 	return func(ctx context.Context, organizationID int64, checks []parentportal.DocumentPushCheck) (map[int64]bool, error) {
 		candidates := make([]parentbilling.DocumentPushCandidate, len(checks))
 		for i, c := range checks {
-			candidates[i] = parentbilling.DocumentPushCandidate{Key: c.Key, DocumentID: c.ObjectID, Email: c.Email}
+			candidates[i] = parentbilling.DocumentPushCandidate{Key: c.Key, DocumentID: c.ObjectID, Email: c.Email, SchoolID: c.TenantID, StudentIDs: c.StudentIDs}
 		}
 		return billing.ValidDocumentPushes(ctx, organizationID, candidates)
 	}

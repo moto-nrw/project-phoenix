@@ -2,10 +2,9 @@ import baseline from "./ui-kit-button-baseline.json" with { type: "json" };
 
 // Button-Ratchet (#5531, scripts/oxlint-plugin-ui-kit.mjs).
 //
-// Baseline: Funde je Datei und Regel zum Stand von #5531, erzeugt mit
-// `pnpm run ui-kit:button-baseline`. Shrink-only: eine Datei
-// mit mehr Funden schlägt im Lint fehl; eine mit weniger lässt den Test
-// „button ratchet baseline“ fehlschlagen, bis die Zahl gesenkt ist.
+// Baseline: seit #6182 für alle Regeln leer, die Regeln sind hart null. Jeder
+// Fund außerhalb der Allowlist schlägt im Lint fehl; `pnpm run
+// ui-kit:button-baseline` weigert sich, die Baseline wieder anzuheben.
 /** @type {Record<string, Record<string, number>>} */
 export const buttonRatchetBaseline = baseline;
 
@@ -47,7 +46,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [443],
+    lines: [457],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
@@ -125,13 +124,6 @@ export const buttonRatchetAllowlist = [
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
-    rule: "no-button-override",
-    file: "src/components/class-day/class-day-overview.tsx",
-    lines: [181],
-    reason:
-      "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
-  },
-  {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
     lines: [1544],
@@ -140,7 +132,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/companion-picker.tsx",
-    lines: [395],
+    lines: [403],
     reason: "Suchtreffer zum Auswählen: Auswahlzeile",
   },
   {
@@ -160,6 +152,46 @@ export const buttonRatchetAllowlist = [
     file: "src/components/timetable/period-switcher-dropdown.tsx",
     lines: [306],
     reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
+  },
+  // #5608: Seit die Regel `moto-content-surface`, Farben per `style` und
+  // `label`/`span` mit `cursor-pointer` erkennt, sieht sie diese Kacheln und
+  // Felder. Sie sind keine Knöpfe im Sinn von #5529.
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/ui/tile-card.tsx",
+    lines: [94, 149],
+    reason: "TileCard selbst: der Kit-Baustein für klickbare Kacheln",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/ui/color-swatch-input.tsx",
+    lines: [21],
+    reason: "Farbfeld: zeigt die gewählte Farbe und öffnet die Farbauswahl",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/compact-student-card.tsx",
+    lines: [88],
+    reason: "Kinderkarte im Raster, öffnet das Profil: Kachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/parent/child/child-switcher.tsx",
+    lines: [53],
+    reason:
+      "Kinderkarte im Elternportal (Ausnahme des Epics #5576, nicht anfassen): Kachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/care-schedule-manager.tsx",
+    lines: [1501],
+    reason: "Statustag-Karte, öffnet das Entfernen: Kachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/calendar/personal-calendar.tsx",
+    lines: [1015],
+    reason: "Termin-Block in der Wochenansicht: Kalenderzelle",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder
   // Navigation, nicht als Ruhezustand eines Knopfs.

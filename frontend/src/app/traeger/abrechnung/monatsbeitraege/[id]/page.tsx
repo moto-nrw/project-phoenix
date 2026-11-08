@@ -3,7 +3,9 @@
 // Ein Monatslauf (#4684): die Vorschau aller Rechnungen eines Monats nach
 // dem gültigen Vertrag und der Preisliste, und die Freigabe, die jede
 // Rechnung mit ihrer Nummer ausstellt. Danach ändern sich die Rechnungen
-// nicht mehr. Jedes Öffnen steht im Protokoll des Laufs.
+// nicht mehr. Ein freigegebener Lauf zeigt den Stand seiner Schreiben an die
+// Familien; Erstellen, Senden, Drucken und Stornieren liegen auf der Seite
+// „Schreiben“ ([id]/schreiben). Jedes Öffnen steht im Protokoll des Laufs.
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -19,6 +21,7 @@ import {
   CareDuplicatesCard,
   CareUnpricedCard,
 } from "~/components/traeger/care-run-invoices";
+import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";
@@ -36,7 +39,9 @@ import {
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
+  type CareLetters,
   type CareRunDetail,
+  fetchCareLetters,
   fetchCareRun,
   releaseCareRun,
 } from "~/lib/traeger-care-billing-api";
@@ -65,6 +70,9 @@ export default function TraegerCareRunPage() {
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const releaseErrors = useApiErrorDisplay();
   const { success } = useToast();
+  const [letters, setLetters] = useState<CareLetters | null>(null);
+  const lettersLoad = useApiLoadError();
+  const { show: showLettersError, clear: clearLettersError } = lettersLoad;
 
   const load = useCallback(async () => {
     try {
@@ -84,6 +92,26 @@ export default function TraegerCareRunPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const released = run?.status === "released";
+  const loadLetters = useCallback(async () => {
+    try {
+      setLetters(await fetchCareLetters(runId));
+      clearLettersError();
+    } catch (err) {
+      logger.error("traeger_care_letters_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await showLettersError(err, {
+        object: "die Schreiben",
+        retry: () => void loadLetters(),
+      });
+    }
+  }, [runId, clearLettersError, showLettersError]);
+
+  useEffect(() => {
+    if (released) void loadLetters();
+  }, [released, loadLetters]);
 
   const release = async () => {
     if (!run) return;
@@ -252,10 +280,20 @@ export default function TraegerCareRunPage() {
           ) : null}
           <CareDuplicatesCard duplicates={run.duplicates} released={!preview} />
           {preview ? <CareUnpricedCard unpriced={run.unpriced} /> : null}
+          {released ? (
+            <CareLettersSummaryCard
+              href={traegerPath(
+                `/traeger/abrechnung/monatsbeitraege/${run.id}/schreiben`,
+              )}
+              letters={letters}
+              loadError={lettersLoad.error}
+            />
+          ) : null}
           <CareRunInvoices
             invoices={run.invoices}
             month={run.billingMonth}
             released={!preview}
+            letters={released ? letters?.documents : undefined}
           />
         </>
       ) : null}

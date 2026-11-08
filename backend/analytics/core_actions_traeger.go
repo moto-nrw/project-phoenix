@@ -108,6 +108,12 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/care-evidences/"}:                       notCaptured,
 	{http.MethodPut, "/traeger/care-evidences/{id}"}:                    notCaptured,
 	{http.MethodDelete, "/traeger/care-evidences/{id}"}:                 notCaptured,
+	// The letters, mails and Storno of a monthly run (#4684, ADR 0165).
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters"}:                           notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters/preview"}:                   notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters/mail"}:                      notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/invoices/{invoiceID}/mail"}:         notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/invoices/{invoiceID}/cancellation"}: notCaptured,
 	// The children of a family (#5918): the Abrechnung confirms or removes.
 	{http.MethodPut, "/traeger/family-children/"}:                notCaptured,
 	{http.MethodDelete, "/traeger/family-children/{contractId}"}: notCaptured,

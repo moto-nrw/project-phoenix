@@ -329,9 +329,11 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
             />
           )}
           {confirmDisabled && confirmDisabledReason && (
-            <div className="bg-moto-red-soft text-moto-red rounded-lg px-3 py-2 text-sm">
-              {confirmDisabledReason}
-            </div>
+            <Alert
+              type="warning"
+              announce="polite"
+              message={confirmDisabledReason}
+            />
           )}
         </div>
       }
@@ -393,9 +395,12 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
         <p className="mt-2 text-xs text-gray-500">{extraMessage}</p>
       )}
       {confirmDisabled && confirmDisabledReason && (
-        <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
-          {confirmDisabledReason}
-        </div>
+        <Alert
+          type="warning"
+          announce="polite"
+          message={confirmDisabledReason}
+          className="mt-3"
+        />
       )}
       <FormErrorAlert message={errorMessage ?? null} className="mt-3" />
     </ConfirmationModal>

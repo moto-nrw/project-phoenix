@@ -52,7 +52,7 @@ func NewParentBillingDocuments() parentportal.BillingDocumentsPort {
 }
 
 func (d parentBillingDocuments) ListBillingDocuments(ctx context.Context, organizationID int64, reader parentportal.BillingDocumentReader) ([]parentportal.BillingDocument, error) {
-	found, err := d.documents.ListParentDocuments(ctx, organizationID, parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email})
+	found, err := d.documents.ListParentDocuments(ctx, organizationID, parentBillingReader(reader))
 	if errors.Is(err, parentbilling.ErrParentDocumentNotFound) {
 		return nil, nil
 	}
@@ -71,7 +71,7 @@ func (d parentBillingDocuments) ListBillingDocuments(ctx context.Context, organi
 }
 
 func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {
-	file, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email})
+	file, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentBillingReader(reader))
 	if errors.Is(err, parentbilling.ErrParentDocumentNotFound) {
 		return parentportal.BillingDocumentFile{}, fmt.Errorf("%w: %w", parentportal.ErrBillingDocumentNotFound, err)
 	}
@@ -357,4 +357,17 @@ func parentSigningView(view carecontract.SigningView, err error) (parentportal.C
 		return nil, fmt.Errorf("encode contract signing view: %w", err)
 	}
 	return encoded, nil
+}
+
+// parentBillingReader passes the account with the children whose
+// relationship grants it the inbox now, so a monthly letter shows only for
+// its own child (ADR 0126 point 2, ADR 0165).
+func parentBillingReader(reader parentportal.BillingDocumentReader) parentbilling.ParentDocumentReader {
+	children := make([]parentbilling.ParentDocumentChild, 0)
+	for schoolID, students := range reader.Children {
+		for _, studentID := range students {
+			children = append(children, parentbilling.ParentDocumentChild{SchoolID: schoolID, StudentID: studentID})
+		}
+	}
+	return parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email, Children: children}
 }

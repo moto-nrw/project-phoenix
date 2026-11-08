@@ -57,7 +57,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	families := parentBillingHTTP.NewBillingFamilyResource(parentBillingCompose.NewBillingFamilies(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
-	care, reductions, familyChildren := NewCareBillingHTTP(organizations, settings)
+	care, reductions, familyChildren := NewCareBillingHTTP(organizations, settings, delivery, outcomes)
 	root.Mount("/traeger/care-tariffs", care.TariffRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-billing-runs", care.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-rules", reductions.RuleRouter(ProtectedTraegerRoutes))
@@ -69,15 +69,19 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 // (#4684), its rule chain (#4685) and the children of the families (#5918)
 // to the right "Abrechnung", to the
 // versions in force and the parties of the Betreuungsvertrag in the caller's
-// Träger transaction, to the schools of the Träger and to its month rule.
-func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings) (*parentBillingHTTP.CareBillingResource,
-	*parentBillingHTTP.CareReductionResource, *parentBillingHTTP.FamilyChildrenResource,
-) {
+// Träger transaction, to the schools of the Träger and to its month rule; its
+// letters, their mail and Storno to the letterhead of the Träger and to
+// Delivery like the holiday letters (ADR 0165).
+func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability,
+	outcomes deliveryRuntime.EmailOutcomes,
+) (*parentBillingHTTP.CareBillingResource, *parentBillingHTTP.CareReductionResource, *parentBillingHTTP.FamilyChildrenResource) {
 	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
 	billing, reductions := parentBillingCompose.NewCareBilling(contracts,
 		parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings})
+	post := parentBillingLetterPost{settings: settings, delivery: delivery, outcomes: outcomes}
+	letters := parentBillingCompose.NewCareLetters(newParentBillingLetterheads(settings), contracts, post, post)
 	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
-	return parentBillingHTTP.NewCareBillingResource(billing, requireBilling), parentBillingHTTP.NewCareReductionResource(reductions, requireBilling),
+	return parentBillingHTTP.NewCareBillingResource(billing, letters, requireBilling), parentBillingHTTP.NewCareReductionResource(reductions, requireBilling),
 		parentBillingHTTP.NewFamilyChildrenResource(reductions, requireBilling)
 }
 
@@ -151,10 +155,8 @@ func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntim
 	registrations := parentBillingBillingRegistrations{
 		periods: enrollmentCompose.NewHolidayPeriods(nil), review: enrollmentCompose.NewHolidayRegistrationReview(healthData),
 	}
-	letterheads := parentBillingLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
-		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
 	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations, parentBillingSettings{settings: settings}),
-		parentBillingCompose.NewBillingLetters(letterheads),
+		parentBillingCompose.NewBillingLetters(newParentBillingLetterheads(settings)),
 		parentBillingCompose.NewBillingLetterMail(parentBillingLetterPost{settings: settings, delivery: delivery, outcomes: outcomes}),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
@@ -324,6 +326,13 @@ type parentBillingLetterheads struct {
 	masterData organizationtenancy.TraegerMasterData
 	templates  organizationtenancy.TraegerDocumentTemplates
 	settings   TraegerBrandingSettings
+}
+
+// newParentBillingLetterheads builds the letterhead of the holiday and the
+// monthly letters.
+func newParentBillingLetterheads(settings TraegerBrandingSettings) parentBillingLetterheads {
+	return parentBillingLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
+		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
 }
 
 func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer parentbilling.HolidayReviewer) (parentbilling.Letterhead, error) {

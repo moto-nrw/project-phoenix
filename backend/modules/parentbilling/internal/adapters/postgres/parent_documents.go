@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 // recipientDocumentsSQL lists the sent documents of one recipient, the
 // newest send first. The first send is when the document reached the
 // inbox; the children are the first names on its positions.
-const recipientDocumentsSQL = `SELECT document.id, document.run_id, document.kind, document.number, run.period_name,
+const recipientDocumentsSQL = `SELECT document.id, document.run_id, FALSE AS care, document.kind, document.number, run.period_name,
 		document.service_from, document.service_until, document.issued_on, document.total_cents, sends.first_sent_at,
 		COALESCE((SELECT json_agg(DISTINCT position.child_first_name ORDER BY position.child_first_name)
 			FROM parent_billing.document_positions AS position
@@ -29,21 +30,47 @@ const recipientDocumentsSQL = `SELECT document.id, document.run_id, document.kin
 		WHERE mailing.organization_id = ?
 		GROUP BY mailing.document_id) AS sends ON sends.document_id = document.id
 	WHERE document.organization_id = ? AND LOWER(document.recipient_email) = LOWER(?)
-	ORDER BY sends.first_sent_at DESC, document.id DESC`
+	UNION ALL
+	SELECT letter.id, letter.run_id, TRUE AS care, letter.kind, COALESCE(cancellation.number, invoice.number), '',
+		invoice.billing_month, (invoice.billing_month + INTERVAL '1 month' - INTERVAL '1 day')::date,
+		COALESCE(cancellation.issued_on, invoice.issued_on), COALESCE(cancellation.total_cents, invoice.total_cents),
+		sends.first_sent_at, json_build_array(invoice.child_first_name)
+	FROM parent_billing.care_letters AS letter
+	JOIN parent_billing.care_invoices AS invoice ON invoice.organization_id = letter.organization_id AND invoice.id = letter.invoice_id
+	LEFT JOIN parent_billing.care_invoice_cancellations AS cancellation
+		ON letter.kind = 'cancellation' AND cancellation.organization_id = letter.organization_id AND cancellation.invoice_id = letter.invoice_id
+	JOIN (SELECT mailing.letter_id, MIN(mailing.created_at) AS first_sent_at
+		FROM parent_billing.care_letter_mailings AS mailing
+		WHERE mailing.organization_id = ?
+		GROUP BY mailing.letter_id) AS sends ON sends.letter_id = letter.id
+	WHERE letter.organization_id = ? AND LOWER(invoice.recipient_email) = LOWER(?)
+		AND EXISTS (SELECT 1 FROM jsonb_to_recordset(?::jsonb) AS permitted(school_id bigint, student_id bigint)
+			WHERE permitted.school_id = invoice.school_id AND permitted.student_id = invoice.student_id)
+	ORDER BY first_sent_at DESC, id DESC`
 
 // recipientLetterSQL reads the stored letter of one sent document of one
 // recipient.
-const recipientLetterSQL = `SELECT document.run_id, letter.filename, letter.pdf
+const recipientLetterSQL = `SELECT document.run_id, FALSE AS care, letter.filename, letter.pdf
 	FROM parent_billing.documents AS document
 	JOIN parent_billing.document_letters AS letter
 		ON letter.organization_id = document.organization_id AND letter.document_id = document.id
 	WHERE document.organization_id = ? AND document.id = ? AND LOWER(document.recipient_email) = LOWER(?)
 		AND EXISTS (SELECT 1 FROM parent_billing.document_mailings AS mailing
-			WHERE mailing.organization_id = document.organization_id AND mailing.document_id = document.id)`
+			WHERE mailing.organization_id = document.organization_id AND mailing.document_id = document.id)
+	UNION ALL
+	SELECT letter.run_id, TRUE AS care, letter.filename, letter.pdf
+	FROM parent_billing.care_letters AS letter
+	JOIN parent_billing.care_invoices AS invoice ON invoice.organization_id = letter.organization_id AND invoice.id = letter.invoice_id
+	WHERE letter.organization_id = ? AND letter.id = ? AND LOWER(invoice.recipient_email) = LOWER(?)
+		AND EXISTS (SELECT 1 FROM parent_billing.care_letter_mailings AS mailing
+			WHERE mailing.organization_id = letter.organization_id AND mailing.letter_id = letter.id)
+		AND EXISTS (SELECT 1 FROM jsonb_to_recordset(?::jsonb) AS permitted(school_id bigint, student_id bigint)
+			WHERE permitted.school_id = invoice.school_id AND permitted.student_id = invoice.student_id)`
 
 type recipientDocumentRow struct {
 	ID           int64         `bun:"id"`
 	RunID        int64         `bun:"run_id"`
+	Care         bool          `bun:"care"`
 	Kind         string        `bun:"kind"`
 	Number       string        `bun:"number"`
 	PeriodName   string        `bun:"period_name"`
@@ -57,13 +84,17 @@ type recipientDocumentRow struct {
 
 // RecipientDocuments lists the sent documents of the Träger addressed to
 // email, the newest first.
-func (s *Store) RecipientDocuments(ctx context.Context, organizationID int64, email string) ([]parentbilling.ParentDocument, error) {
+func (s *Store) RecipientDocuments(ctx context.Context, organizationID int64, email string, children []parentbilling.ParentDocumentChild) ([]parentbilling.ParentDocument, error) {
+	permitted, err := permittedChildren(children)
+	if err != nil {
+		return nil, err
+	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	var rows []recipientDocumentRow
-	if err := db.NewRaw(recipientDocumentsSQL, organizationID, organizationID, email).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(recipientDocumentsSQL, organizationID, organizationID, email, organizationID, organizationID, email, permitted).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
 	documents := make([]parentbilling.ParentDocument, len(rows))
@@ -72,8 +103,11 @@ func (s *Store) RecipientDocuments(ctx context.Context, organizationID int64, em
 		if names == nil {
 			names = []string{}
 		}
+		if row.Care {
+			row.PeriodName = parentbilling.CarePeriodName(row.ServiceFrom)
+		}
 		documents[i] = parentbilling.ParentDocument{
-			DocumentID: row.ID, RunID: row.RunID, Kind: parentDocumentKind(row.Kind), Number: row.Number,
+			DocumentID: row.ID, RunID: row.RunID, CareRun: row.Care, Kind: parentDocumentKind(row.Care, row.Kind), Number: row.Number,
 			PeriodName: row.PeriodName, ServiceFrom: row.ServiceFrom, ServiceUntil: row.ServiceUntil, IssuedOn: row.IssuedOn,
 			TotalCents: row.TotalCents, ChildNames: names, SentAt: row.FirstSentAt,
 		}
@@ -82,7 +116,13 @@ func (s *Store) RecipientDocuments(ctx context.Context, organizationID int64, em
 }
 
 // parentDocumentKind names the letter of a document in the inbox.
-func parentDocumentKind(kind string) string {
+func parentDocumentKind(care bool, kind string) string {
+	switch {
+	case care && kind == parentbilling.CareLetterCancellation:
+		return parentbilling.ParentDocumentKindCareCancellationLetter
+	case care:
+		return parentbilling.ParentDocumentKindCareInvoiceLetter
+	}
 	switch kind {
 	case parentbilling.DocumentCancellation:
 		return parentbilling.ParentDocumentKindCancellationLetter
@@ -93,22 +133,39 @@ func parentDocumentKind(kind string) string {
 }
 
 // RecipientDocumentLetter reads the stored letter of one sent document of
-// the Träger addressed to email, with its run.
-func (s *Store) RecipientDocumentLetter(ctx context.Context, organizationID, documentID int64, email string) (int64, parentbilling.BillingLetterFile, error) {
+// the Träger addressed to email, with its run and whether that is a monthly
+// run. A holiday document and a monthly letter never share an ID: both take
+// it from parent_billing.documents_id_seq (1.15.809).
+func (s *Store) RecipientDocumentLetter(ctx context.Context, organizationID, documentID int64, email string, children []parentbilling.ParentDocumentChild) (int64, bool, parentbilling.BillingLetterFile, error) {
+	permitted, err := permittedChildren(children)
+	if err != nil {
+		return 0, false, parentbilling.BillingLetterFile{}, err
+	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return 0, parentbilling.BillingLetterFile{}, err
+		return 0, false, parentbilling.BillingLetterFile{}, err
 	}
 	var row struct {
 		RunID    int64  `bun:"run_id"`
+		Care     bool   `bun:"care"`
 		Filename string `bun:"filename"`
 		PDF      []byte `bun:"pdf"`
 	}
-	if err := db.NewRaw(recipientLetterSQL, organizationID, documentID, email).Scan(ctx, &row); err != nil {
+	if err := db.NewRaw(recipientLetterSQL, organizationID, documentID, email, organizationID, documentID, email, permitted).Scan(ctx, &row); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, parentbilling.BillingLetterFile{}, parentbilling.ErrParentDocumentNotFound
+			return 0, false, parentbilling.BillingLetterFile{}, parentbilling.ErrParentDocumentNotFound
 		}
-		return 0, parentbilling.BillingLetterFile{}, err
+		return 0, false, parentbilling.BillingLetterFile{}, err
 	}
-	return row.RunID, parentbilling.BillingLetterFile{Filename: row.Filename, ContentType: "application/pdf", Data: row.PDF}, nil
+	return row.RunID, row.Care, parentbilling.BillingLetterFile{Filename: row.Filename, ContentType: "application/pdf", Data: row.PDF}, nil
+}
+
+// permittedChildren encodes the children the account may read the inbox of,
+// never null, so no child matches an empty list.
+func permittedChildren(children []parentbilling.ParentDocumentChild) (string, error) {
+	if children == nil {
+		children = []parentbilling.ParentDocumentChild{}
+	}
+	encoded, err := json.Marshal(children)
+	return string(encoded), err
 }

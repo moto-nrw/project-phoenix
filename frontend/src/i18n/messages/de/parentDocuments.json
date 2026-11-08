@@ -6,6 +6,8 @@
   "confirmationLetter": "Bestätigungsschreiben {period}",
   "cancellationLetter": "Storno {period}",
   "creditLetter": "Gutschrift {period}",
+  "careInvoiceLetter": "Rechnung {period}",
+  "careCancellationLetter": "Storno {period}",
   "sender": "Von {traeger}",
   "children": "Für",
   "amount": "Betrag",

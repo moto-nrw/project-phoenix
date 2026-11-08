@@ -393,8 +393,9 @@ describe("VertretungView", () => {
     render(<VertretungView />);
 
     // Angezeigt wird Montag der Folgewoche, dessen Chip ist selektiert.
-    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
-      "bg-gray-900",
+    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
     const props = mockDayListProps.mock.calls.at(-1)?.[0];
     expect(props.instances).toEqual([]);
@@ -407,8 +408,9 @@ describe("VertretungView", () => {
 
     render(<VertretungView />);
 
-    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
-      "bg-gray-900",
+    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
     // Anker: die Wochenleiste ist gerendert und endet am Freitag.
     expect(
@@ -436,8 +438,9 @@ describe("VertretungView", () => {
 
     render(<VertretungView />);
 
-    expect(screen.getByRole("button", { name: "Sa 18.07." })).toHaveClass(
-      "bg-gray-900",
+    expect(screen.getByRole("button", { name: "Sa 18.07." })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
     expect(
       screen.getByRole("button", { name: "So 19.07." }),
@@ -485,8 +488,9 @@ describe("VertretungView", () => {
     vi.setSystemTime(new Date("2026-07-18T12:00:00Z"));
     render(<VertretungView />);
 
-    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
-      "bg-gray-900",
+    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
     // dayISO == Heute-Ziel (nächster Montag) -> Heute ist wirkungslos und
     // deshalb deaktiviert, verschwindet aber nicht (#2031).

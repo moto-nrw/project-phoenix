@@ -2260,6 +2260,95 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
     expect(result.output).not.toContain("no-hand-rolled-button");
   });
 
+  // #5608: Farbe per style, die Kartenfläche als Hintergrund und
+  // label/span mit cursor-pointer sah die Regel vorher nicht.
+  it("fails a button whose colour comes from style, also through constants", async () => {
+    const result = await lintSource(
+      `const surface = flag ? { backgroundColor: "#fff" } : { color: "#000" };
+      const buttonStyle = { ...surface };
+      function Probe() {
+        return (
+          <>
+            <button type="button" className="rounded-full px-5 py-3" style={{ boxShadow: "inset 0 0 0 1px #83CD2D" }}>A</button>
+            <button type="button" className="rounded-full h-10 px-4" style={buttonStyle}>B</button>
+            <button type="button" className="rounded-lg px-4 py-2" style={(on && { background: "#fff" }) as object}>C</button>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-hand-rolled-button\)/g),
+    ).toHaveLength(3);
+  });
+
+  it("does not count a style that only positions or colours text", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <button type="button" className="rounded-lg px-4 py-2" style={{ top: 4, color: "#000" }}>A</button>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-button");
+  });
+
+  it("reads moto-content-surface on a button as its background", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <button type="button" className="moto-content-surface rounded-lg border p-3">A</button>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-button)");
+  });
+
+  it("fails a clickable label or span that looks like a button", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return (
+          <>
+            <label className="cursor-pointer rounded-lg bg-white px-3 py-2 ring-1 ring-gray-200">Datei<input type="file" className="sr-only" /></label>
+            <span className="cursor-pointer rounded-md bg-gray-900 px-3 py-2 text-white">B</span>
+            <label className="rounded-lg bg-white px-3 py-2 ring-1 ring-gray-200">C<input type="file" className="sr-only" /></label>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-hand-rolled-button\)/g),
+    ).toHaveLength(3);
+  });
+
+  it("leaves a label or span without cursor-pointer and a kit-styled label alone", async () => {
+    const result = await lintSource(
+      `import { buttonClassName } from "~/components/ui/button";
+      function Probe() {
+        return (
+          <>
+            <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-xs">Info</span>
+            <label className={buttonClassName({ variant: "surface", size: "compact", className: "cursor-pointer" })}>Datei<input type="file" className="sr-only" /></label>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-button");
+  });
+
   it("follows a same-file class constant", async () => {
     const result = await lintSource(
       `const chip = "rounded-full bg-gray-100 px-3 py-1";
@@ -2292,24 +2381,30 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
     expect(result.output).not.toContain("no-hand-rolled-button");
   });
 
-  it("keeps the shrink-only baseline: equal and fewer pass, more fails", async () => {
-    const [file, count] = Object.entries(
-      buttonRatchetBaseline["no-hand-rolled-button"] ?? {},
-    )[0]!;
-    // Andere Klassenketten derselben Datei fallen weg: Die Sonde ersetzt sie.
-    const [equal, more, fewer] = await Promise.all([
-      lintSource(handRolled(count), file),
-      lintSource(handRolled(count + 1), file),
-      lintSource(handRolled(count - 1), file),
+  // #6182: hart null. Die Baseline ist leer; schon ein Fund in einer Datei,
+  // die früher in der Baseline stand, schlägt fehl.
+  it("is hard-zero: one finding fails, also in a former baseline file", async () => {
+    expect(buttonRatchetBaseline["no-hand-rolled-button"]).toEqual({});
+    expect(buttonRatchetBaseline["no-button-override"]).toEqual({});
+    const [filterButton, override] = await Promise.all([
+      lintSource(
+        handRolled(1),
+        "src/components/ui/page-header/FilterButton.tsx",
+      ),
+      lintSource(
+        `import { Button } from "~/components/ui/button";
+        function Probe() {
+          return <Button variant="ghost_tone" size="compact" className="underline py-1">Kopieren</Button>;
+        }
+        void Probe;`,
+        "src/components/ui/request-id-button.tsx",
+      ),
     ]);
-    expect(equal.output).not.toContain("no-hand-rolled-button");
 
-    expect(more.status).toBe(1);
-    expect(more.output).toContain("ui-kit(no-hand-rolled-button)");
-
-    // Weniger Funde sind im Lint erlaubt; die gesenkte Baseline verlangt der
-    // Test „button ratchet baseline“ unten.
-    expect(fewer.output).not.toContain("no-hand-rolled-button");
+    expect(filterButton.status).toBe(1);
+    expect(filterButton.output).toContain("ui-kit(no-hand-rolled-button)");
+    expect(override.status).toBe(1);
+    expect(override.output).toContain("ui-kit(no-button-override)");
   });
 
   it("allows only the documented allowlist location", async () => {
@@ -2532,21 +2627,14 @@ describe("button ratchet baseline", () => {
       }
       sources.set(entry.file, lines);
     }
-    // Der zusätzliche Fund liegt in einer Datei, die die echte Baseline schon
-    // zählt, und bleibt innerhalb dieser Zahl. Liest das Skript versehentlich
-    // die Standard-Baseline statt UI_KIT_BUTTON_BASELINE_PATH, sieht es keine
-    // Erhöhung, schreibt und endet mit 0; dann wird dieser Test rot.
-    const [baselinedFile] = Object.keys(
-      buttonRatchetBaseline["no-hand-rolled-button"] ?? {},
-    ).filter((file) => file.endsWith(".tsx"));
-    expect(baselinedFile).toBeDefined();
-    const baselinedLines = sources.get(baselinedFile!) ?? [
+    // Der zusätzliche Fund liegt außerhalb jeder Allowlist-Zeile. Die Baseline
+    // ist seit #6182 leer: Das Skript darf ihn nicht in die Baseline
+    // aufnehmen.
+    const extraFile = "src/components/probe.tsx";
+    sources.set(extraFile, [
       `import { Button } from "~/components/ui/button";`,
-    ];
-    baselinedLines.push(
       `export const probeExtra = ${findingAt["no-hand-rolled-button"]};`,
-    );
-    sources.set(baselinedFile!, baselinedLines);
+    ]);
     for (const [file, lines] of sources) {
       mkdirSync(dirname(join(directory, file)), { recursive: true });
       writeFileSync(join(directory, file), `${lines.join("\n")}\n`);
@@ -3354,12 +3442,40 @@ describe.concurrent("ui-kit/no-hand-rolled-notice (#5591)", () => {
   it.each([
     '<div className="border-moto-green/40 bg-moto-green/10 rounded-full border px-2 py-0.5">Pille</div>',
     '<div className="border-moto-blue/30 bg-moto-red-soft rounded-lg border p-3">Zwei Töne</div>',
-    '<div className="bg-moto-blue/10 rounded-lg p-3">Ohne Rand</div>',
     '<div className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border">Ohne Abstand</div>',
     '<span className="border-moto-amber/30 bg-moto-amber/10 rounded-lg border px-2">Inline</span>',
   ])("accepts %s", async (element) => {
     const { output } = await lintSource(
       `export const Probe = () => ${element};`,
+      "src/components/probe-notice.tsx",
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  // #5609: Kästen ohne Rand, mit vollem Rand oder mit grauem Rand liefen in
+  // Rot, Grün, Blau und Orange an der Regel vorbei.
+  it.each([
+    '<div className="bg-moto-blue/10 rounded-lg p-3">Ohne Rand</div>',
+    '<div className="bg-moto-red-soft text-moto-red rounded-lg px-3 py-2 text-sm">A</div>',
+    '<p className="bg-moto-green-soft text-moto-green-strong rounded-xl px-4 py-3">A</p>',
+    '<div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">Voller Rand</div>',
+    '<div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">Grauer Rand</div>',
+  ])("fails the tinted box %s (#5609)", async (element) => {
+    const result = await lintProbe(
+      `export const Probe = () => ${element};`,
+      "src/components/probe-notice.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
+
+  it("accepts a reasoned exception (#5609)", async () => {
+    const { output } = await lintSource(
+      `export const Probe = () => (
+  // oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- Sprechblase, kein Hinweis
+  <div className="bg-moto-blue-soft rounded-xl px-3 py-2">A</div>
+);`,
       "src/components/probe-notice.tsx",
     );
     expect(output).not.toContain(RULE);

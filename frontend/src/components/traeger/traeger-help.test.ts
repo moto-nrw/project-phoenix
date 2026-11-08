@@ -87,6 +87,17 @@ describe("getTraegerHelpTopicForPath", () => {
     }
   });
 
+  it("opens the monthly billing article on a run and its letters (#4684)", () => {
+    for (const path of [
+      "/abrechnung/monatsbeitraege/5",
+      "/traeger/abrechnung/monatsbeitraege/5/schreiben",
+    ]) {
+      expect(getTraegerHelpTopicForPath(path)).toBe(
+        HELP_TOPICS.traegerCareMonths,
+      );
+    }
+  });
+
   it("opens the articles of the members and the access log (#5685)", () => {
     expect(getTraegerHelpTopicForPath("/einstellungen/mitglieder")).toBe(
       HELP_TOPICS.traegerAccounts,

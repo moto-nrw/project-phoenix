@@ -57,7 +57,7 @@ func (d *Decisions) ApplyDueClassSwitches(ctx context.Context, asOf calendar.Dat
 	// Take the same gates an approved-child sync uses before reading the
 	// plans. Otherwise an edit can replace a plan after this worker's read,
 	// leaving this run to apply and clear the stale target.
-	if err := d.lockExistingStudentGates(ctx); err != nil {
+	if err := d.LockApprovalGates(ctx); err != nil {
 		return 0, err
 	}
 	due, err := d.deps.Children.DueClassSwitches(ctx, enrollmentNative.Date(asOf.String()))

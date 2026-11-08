@@ -2,8 +2,8 @@
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
-import { InfoIcon } from "@phosphor-icons/react/ssr";
 import { useTranslations } from "next-intl";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -166,22 +166,12 @@ export function ChildMasterDataRequestModal({
         <p className="text-sm leading-6 text-gray-600">
           {t("identityModal.intro")}
         </p>
-        <div className="bg-moto-blue-soft flex items-start gap-2.5 rounded-xl p-3">
-          <InfoIcon
-            size={20}
-            weight="bold"
-            className="text-moto-blue-strong mt-0.5 shrink-0"
-            aria-hidden="true"
-          />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900">
-              {t("identityModal.noticeTitle")}
-            </p>
-            <p className="mt-1 text-sm leading-6 text-gray-700">
-              {t("identityModal.noticeBody")}
-            </p>
-          </div>
-        </div>
+        <Alert
+          type="info"
+          announce="off"
+          title={t("identityModal.noticeTitle")}
+          message={t("identityModal.noticeBody")}
+        />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <ModalField
             label={t("fields.firstName")}

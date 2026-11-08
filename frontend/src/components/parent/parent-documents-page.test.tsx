@@ -133,6 +133,41 @@ describe("ParentDocumentsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("names the letter of a monthly invoice and of its Storno (#4684)", async () => {
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [
+        {
+          ...letter,
+          id: "10",
+          kind: "care_invoice_letter",
+          number: "MB-2027-0001",
+          period_name: "Monatsbeitrag Januar 2027",
+        },
+        {
+          ...letter,
+          id: "11",
+          kind: "care_cancellation_letter",
+          number: "MB-2027-0009",
+          period_name: "Monatsbeitrag Januar 2027",
+        },
+      ],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
+
+    render(<ParentDocumentsPage />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Rechnung Monatsbeitrag Januar 2027",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Storno Monatsbeitrag Januar 2027" }),
+    ).toBeInTheDocument();
+  });
+
   it("downloads the stored PDF of a letter", async () => {
     mocks.listMyDocuments.mockResolvedValue({
       documents: [letter],

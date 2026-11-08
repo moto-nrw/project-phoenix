@@ -6,6 +6,8 @@
   "confirmationLetter": "Confirmation letter {period}",
   "cancellationLetter": "Cancellation {period}",
   "creditLetter": "Credit note {period}",
+  "careInvoiceLetter": "Invoice {period}",
+  "careCancellationLetter": "Cancellation {period}",
   "sender": "From {traeger}",
   "children": "For",
   "amount": "Amount",

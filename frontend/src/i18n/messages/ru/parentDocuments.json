@@ -6,6 +6,8 @@
   "confirmationLetter": "Подтверждение: {period}",
   "cancellationLetter": "Аннулирование: {period}",
   "creditLetter": "Кредит-нота: {period}",
+  "careInvoiceLetter": "Счёт: {period}",
+  "careCancellationLetter": "Аннулирование: {period}",
   "sender": "От: {traeger}",
   "children": "Для",
   "amount": "Сумма",

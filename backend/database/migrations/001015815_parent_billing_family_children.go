@@ -7,14 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingFamilyChildrenVersion = "1.15.812"
+const parentBillingFamilyChildrenVersion = "1.15.815"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     parentBillingFamilyChildrenVersion,
 		Description: "Elternabrechnung: Kinder in der Familie für die Geschwisterregel (#5918)",
 		DependsOn: []string{
-			demoVisitorErasureContractPushVersion, // the last migration before this one
+			studentMembershipFirstCareFromVersion, // the last migration before this one
+			parentBillingCareLettersVersion,       // the last migration of the parent billing before this one
 			parentBillingCareReductionsVersion,    // the sibling rule that counts the family
 		},
 	})

@@ -52,6 +52,16 @@ type BillingDocumentNotice struct {
 type ParentDocumentReader struct {
 	AccountID int64
 	Email     string
+	// Children are the children whose relationship grants the account the
+	// inbox now, per school (ADR 0126 point 2). A monthly letter shows only
+	// for its own child (ADR 0165).
+	Children []ParentDocumentChild
+}
+
+// ParentDocumentChild is a child record at a school.
+type ParentDocumentChild struct {
+	SchoolID  int64 `json:"school_id"`
+	StudentID int64 `json:"student_id"`
 }
 
 // ParentDocument is one document in the inbox: what it is, for which
@@ -60,7 +70,9 @@ type ParentDocument struct {
 	DocumentID int64 `json:"id"`
 	// RunID is the run whose trail records the read; the parents never see
 	// it.
-	RunID        int64         `json:"-"`
+	RunID int64 `json:"-"`
+	// CareRun tells that RunID names a monthly run (#4684).
+	CareRun      bool          `json:"-"`
 	Kind         string        `json:"kind"`
 	Number       string        `json:"number"`
 	PeriodName   string        `json:"period_name"`
