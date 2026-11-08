@@ -18,12 +18,6 @@ vi.mock("~/server/auth", async () =>
   }),
 );
 
-vi.mock("../../../../../server/auth", () => ({
-  auth: mockAuth,
-  uncachedAuth: mockUncachedAuth,
-  withTenantAuth: (handler: unknown) => handler,
-}));
-
 vi.mock("~/lib/api-helpers.server", async () => {
   const { mockHandleApiError } =
     await import("~/test/helpers/handle-api-error");
