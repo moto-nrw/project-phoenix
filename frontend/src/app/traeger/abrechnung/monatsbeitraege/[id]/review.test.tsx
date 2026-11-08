@@ -42,6 +42,7 @@ function invoice(child: string, contractId: string): CareInvoice {
     number: "",
     issuedOn: null,
     contractId,
+    service: "care",
     schoolId: "3",
     schoolName: "Grundschule Ispringen",
     childFirstName: child,

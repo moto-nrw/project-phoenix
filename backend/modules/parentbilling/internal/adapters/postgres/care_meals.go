@@ -212,3 +212,25 @@ func withCareMealPositions(rows []careInvoiceMealRow, invoices []parentbilling.C
 	}
 	return nil
 }
+
+// MealInvoicedContracts names the contracts an issued Mensa invoice of their
+// own bills in month (#4686, ADR 0167); a cancelled one bills nothing.
+func (s *Store) MealInvoicedContracts(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]bool, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var contracts []int64
+	if err := db.NewRaw(`SELECT i.care_contract_id FROM parent_billing.care_invoices AS i
+		WHERE i.organization_id = ? AND i.billing_month = ? AND i.service = ?
+			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoice_cancellations AS cancellation
+				WHERE cancellation.organization_id = i.organization_id AND cancellation.invoice_id = i.id)`,
+		organizationID, month, parentbilling.ServiceMeal).Scan(ctx, &contracts); err != nil {
+		return nil, fmt.Errorf("read the contracts with a Mensa invoice: %w", err)
+	}
+	invoiced := make(map[int64]bool, len(contracts))
+	for _, contract := range contracts {
+		invoiced[contract] = true
+	}
+	return invoiced, nil
+}

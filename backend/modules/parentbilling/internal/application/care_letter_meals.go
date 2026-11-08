@@ -12,13 +12,18 @@ import (
 func careMealFacts(positions []parentbilling.CareMealPosition, sign int64) []LetterFact {
 	facts := make([]LetterFact, 0, len(positions))
 	for _, position := range positions {
-		label := fmt.Sprintf("Mensa-Pauschale %s", careMonthName(position.MealMonth))
-		if position.Mode == parentbilling.MealModePerMeal {
-			label = fmt.Sprintf("%d Mittagessen im %s à %s", position.Quantity, careMonthName(position.MealMonth), formatEuro(position.UnitCents))
-		}
-		facts = append(facts, LetterFact{Label: label, Value: formatEuro(sign * position.AmountCents)})
+		facts = append(facts, LetterFact{Label: mealPositionLabel(position), Value: formatEuro(sign * position.AmountCents)})
 	}
 	return facts
+}
+
+// mealPositionLabel names a Mensa month as the letter and the review list
+// print it.
+func mealPositionLabel(position parentbilling.CareMealPosition) string {
+	if position.Mode == parentbilling.MealModePerMeal {
+		return fmt.Sprintf("%d Mittagessen im %s à %s", position.Quantity, careMonthName(position.MealMonth), formatEuro(position.UnitCents))
+	}
+	return fmt.Sprintf("Mensa-Pauschale %s", careMonthName(position.MealMonth))
 }
 
 // careBasisText says what an invoice bills by: the contract, and the meals

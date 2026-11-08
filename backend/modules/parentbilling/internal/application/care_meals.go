@@ -31,6 +31,9 @@ type CareMealStore interface {
 	// MealBilledUntil names per school the last Mensa month an issued
 	// invoice bills.
 	MealBilledUntil(ctx context.Context, organizationID int64) (map[int64]calendar.Date, error)
+	// MealInvoicedContracts names the contracts an issued, not cancelled
+	// Mensa invoice of their own bills in month (ADR 0167).
+	MealInvoicedContracts(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]bool, error)
 }
 
 var _ parentbilling.CareMealBilling = (*CareBilling)(nil)
@@ -137,16 +140,20 @@ func mealTariffValidity(tariffs []parentbilling.CareMealTariff) []parentbilling.
 
 // careMealInput is everything the Mensa of a run is computed from.
 type careMealInput struct {
-	month         calendar.Date
-	today         calendar.Date
-	schools       map[int64]string
-	tariffs       []parentbilling.CareMealTariff
-	releases      []parentbilling.CareMealRelease
-	billed        map[CareMealKey]bool
-	versions      []parentbilling.CareContractVersion
-	invoiced      map[int64]parentbilling.CareInvoice
-	recipients    map[int64]parentbilling.CareRecipient
-	attendance    map[int64]calendar.Date
+	month      calendar.Date
+	today      calendar.Date
+	schools    map[int64]string
+	tariffs    []parentbilling.CareMealTariff
+	releases   []parentbilling.CareMealRelease
+	billed     map[CareMealKey]bool
+	versions   []parentbilling.CareContractVersion
+	invoiced   map[int64]parentbilling.CareInvoice
+	recipients map[int64]parentbilling.CareRecipient
+	attendance map[int64]calendar.Date
+	// ownInvoice: the Mensa travels on an invoice of its own (ADR 0167);
+	// mealInvoiced names the contracts such an invoice bills this month.
+	ownInvoice    bool
+	mealInvoiced  map[int64]bool
 	childNames    map[mealNameKey]int64
 	contracts     map[int64][]parentbilling.CareContractVersion
 	contractOrder []int64
@@ -185,6 +192,7 @@ func mealChildNames(in careMealInput) map[mealNameKey]int64 {
 // addMeals reads the Mensa of the run and adds it to the preview.
 func (c *CareBilling) addMeals(ctx context.Context, organizationID int64, run parentbilling.CareRun, month *careMonth,
 	versions []parentbilling.CareContractVersion, invoiced map[int64]parentbilling.CareInvoice, recipients map[int64]parentbilling.CareRecipient,
+	invoiceService string,
 ) error {
 	tariffs, err := c.mealStore.CareMealTariffs(ctx, organizationID)
 	if err != nil || len(tariffs) == 0 {
@@ -215,9 +223,47 @@ func (c *CareBilling) addMeals(ctx context.Context, organizationID int64, run pa
 	for _, school := range schools {
 		names[school.ID] = school.Name
 	}
-	billMeals(month, careMealInput{month: run.BillingMonth, today: c.today(), schools: names, tariffs: tariffs, releases: releases,
-		billed: billed, versions: versions, invoiced: invoiced, recipients: recipients, attendance: attendance})
+	in := careMealInput{month: run.BillingMonth, today: c.today(), schools: names, tariffs: tariffs, releases: releases,
+		billed: billed, versions: versions, invoiced: invoiced, recipients: recipients, attendance: attendance,
+		ownInvoice: invoiceService == parentbilling.ServiceMeal}
+	if in.ownInvoice {
+		if in.mealInvoiced, err = c.mealStore.MealInvoicedContracts(ctx, organizationID, run.BillingMonth); err != nil {
+			return err
+		}
+	}
+	billMeals(month, in)
+	if in.ownInvoice {
+		splitMealInvoices(month)
+	}
 	return nil
+}
+
+// splitMealInvoices puts the Mensa of each contract on an invoice of its
+// own (#4686, ADR 0167 point 1): the Mensa positions leave the care's
+// invoice with their amount, and an invoice with nothing but Mensa becomes
+// the Mensa invoice. Recipient and payment follow later, by the terms of
+// each invoice's service.
+func splitMealInvoices(month *careMonth) {
+	split := make([]parentbilling.CareInvoice, 0, len(month.invoices))
+	for _, invoice := range month.invoices {
+		if len(invoice.MealPositions) == 0 {
+			split = append(split, invoice)
+			continue
+		}
+		meal := invoice
+		meal.Service, meal.Positions, meal.Reductions = parentbilling.ServiceMeal, []parentbilling.CarePosition{}, []parentbilling.CareReduction{}
+		meal.TotalCents = 0
+		for _, position := range invoice.MealPositions {
+			meal.TotalCents += position.AmountCents
+		}
+		if len(invoice.Positions) > 0 || len(invoice.Reductions) > 0 {
+			invoice.TotalCents -= meal.TotalCents
+			invoice.MealPositions = []parentbilling.CareMealPosition{}
+			split = append(split, invoice)
+		}
+		split = append(split, meal)
+	}
+	month.invoices = split
 }
 
 // mealTariffOn is the Mensa price of a school in a month, if any.
@@ -365,7 +411,7 @@ func placeMeal(month *careMonth, in careMealInput, position parentbilling.CareMe
 		}
 	}
 	for _, contractID := range contracts {
-		if _, issued := in.invoiced[contractID]; issued {
+		if mealInvoiceIssued(in, contractID) {
 			unbilled.Reason = parentbilling.MealUnbilledContractBilled
 			month.mealUnbilled = append(month.mealUnbilled, unbilled)
 			return
@@ -373,11 +419,24 @@ func placeMeal(month *careMonth, in careMealInput, position parentbilling.CareMe
 	}
 	versions := in.contracts[contracts[0]]
 	head := versions[0]
+	recipient := in.recipients[head.ContractID]
 	month.invoices = append(month.invoices, parentbilling.CareInvoice{
-		ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
-		ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, StudentID: studentOf(versions), Recipient: in.recipients[head.ContractID],
+		ContractID: head.ContractID, Service: parentbilling.ServiceCare, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
+		ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, StudentID: studentOf(versions), Recipient: recipient,
+		FamilyEmail: parentbilling.FamilyKey(recipient.Email), Reductions: []parentbilling.CareReduction{},
 		Positions: []parentbilling.CarePosition{}, MealPositions: []parentbilling.CareMealPosition{position}, TotalCents: position.AmountCents,
 	})
+}
+
+// mealInvoiceIssued tells whether the invoice that would carry a contract's
+// Mensa this month is issued already: the care's invoice when the Mensa
+// travels with it, else the Mensa invoice of its own.
+func mealInvoiceIssued(in careMealInput, contractID int64) bool {
+	if in.ownInvoice {
+		return in.mealInvoiced[contractID]
+	}
+	_, issued := in.invoiced[contractID]
+	return issued
 }
 
 // mealChildContracts names the contracts at the school in the month of the run

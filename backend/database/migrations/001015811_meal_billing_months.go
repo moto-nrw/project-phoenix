@@ -235,9 +235,23 @@ GRANT ALL ON ALL TABLES IN SCHEMA parent_billing TO phoenix_admin;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA parent_billing TO phoenix_admin;
 GRANT ALL ON schedule.meal_billing_months, schedule.meal_billing_month_children TO phoenix_admin;
 GRANT ALL ON SEQUENCE schedule.meal_billing_months_id_seq, schedule.meal_billing_month_children_id_seq TO phoenix_admin;
+
+-- The service an invoice bills (#4686, ADR 0167): the care with every service
+-- bundled with it, or the Mensa on an invoice of its own when the Träger
+-- bills it apart. A contract has one first invoice per month and service.
+ALTER TABLE parent_billing.care_invoices ADD COLUMN service TEXT NOT NULL DEFAULT 'care'
+	CONSTRAINT chk_care_invoices_service CHECK (service IN ('care', 'meal'));
+DROP INDEX parent_billing.uq_care_invoices_contract_month;
+CREATE UNIQUE INDEX uq_care_invoices_contract_month
+	ON parent_billing.care_invoices (organization_id, care_contract_id, billing_month, service) WHERE replaces_invoice_id IS NULL;
 `
 
 const mealBillingMonthsDownSQL = `
+DROP INDEX IF EXISTS parent_billing.uq_care_invoices_contract_month;
+DELETE FROM parent_billing.care_invoices WHERE service = 'meal';
+CREATE UNIQUE INDEX uq_care_invoices_contract_month
+	ON parent_billing.care_invoices (organization_id, care_contract_id, billing_month) WHERE replaces_invoice_id IS NULL;
+ALTER TABLE parent_billing.care_invoices DROP COLUMN service;
 DROP TABLE IF EXISTS parent_billing.care_meal_positions, parent_billing.care_meal_tariffs;
 DROP FUNCTION IF EXISTS schedule.traeger_meal_billing_children(DATE);
 DROP TABLE IF EXISTS schedule.meal_billing_month_children, schedule.meal_billing_months;

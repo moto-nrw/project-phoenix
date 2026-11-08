@@ -527,14 +527,16 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	if err != nil {
 		return rule, month, err
 	}
-	// The Mensa joins after the chain: no rule reduces it (ADR 0168).
-	if err := c.addMeals(ctx, organizationID, run, &month, versions, invoiced, recipients); err != nil {
-		return rule, month, err
-	}
 	// After the rule chain: the chain counts the family by the address of
 	// the registration, the payer only receives the invoice (#4689).
 	payments, err := readInvoicePayments(ctx, c.store, organizationID, run.ID, 0)
 	if err != nil {
+		return rule, month, err
+	}
+	// The Mensa joins after the chain: no rule reduces it (ADR 0168). Its
+	// terms say on whose invoice it travels (ADR 0167).
+	if err := c.addMeals(ctx, organizationID, run, &month, versions, invoiced, recipients,
+		payments.terms.InvoiceService(parentbilling.ServiceMeal)); err != nil {
 		return rule, month, err
 	}
 	// The payment term counts from the invoice date the release puts on the

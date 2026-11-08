@@ -78,6 +78,14 @@ ein. Sie führt keinen Owner und keinen zweiten Lauf ein.
    Lauf rechnet sie ab.
 8. **Protokoll.** Jedes Lesen eines Laufs nennt in `care_run_events` die
    Verträge und die Schülerdatensätze der Mensa ohne Vertrag.
+10. **Bündelung und Zahlung (#4689, ADR 0167).** `TermsSet.InvoiceService(ServiceMeal)`
+   entscheidet, wo die Mensa steht: ohne eigene Bedingungen auf der Rechnung
+   der Betreuung, sonst auf einer eigenen Mensa-Rechnung desselben Vertrags
+   und Laufs (`care_invoices.service = 'meal'`, eine erste Rechnung je
+   Vertrag, Monat und Leistung). Zahlungsweg und Fälligkeit löst
+   `ResolvePayment` mit den Bedingungen der Mensa auf, den Empfänger
+   `ResolveRecipient`; die Freigabe kopiert beides auf die Rechnung.
+   Abgerechnet-Erkennung und Neuausstellung nach Storno gelten je Leistung.
 9. **Demo-Löschung.** `platform.erase_closed_demo_visitors` (1.15.811) löscht
    die Freigaben stillgelegter Demo-Schulen mit ihren Kindern; die
    Mensa-Positionen gehen mit den Rechnungen.

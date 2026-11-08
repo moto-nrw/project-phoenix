@@ -97,6 +97,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 		}
 		invoice.Recipient = in.recipients[contractID]
 		invoice.FamilyEmail = parentbilling.FamilyKey(invoice.Recipient.Email)
+		invoice.Service = parentbilling.ServiceCare
 		result.invoices = append(result.invoices, invoice)
 		chained = append(chained, &careChainEntry{child: childOf[contractID], birthDate: byContract[contractID][0].ChildBirthDate})
 	}

@@ -105,6 +105,7 @@ func TestCareMonthGoldenSJR(t *testing.T) {
 		],
 		"reductions": [],
 		"meal_positions": [],
+		"service": "care",
 		"total_cents": 7750
 	}]`, string(got))
 	assert.Empty(t, month.unpriced)

@@ -142,6 +142,12 @@ func reviewInvoiceRows(invoices []parentbilling.CareInvoice, invoiceDate string)
 				"position": reduction.Name, "amount": formatAmount(reduction.AmountCents),
 			}))
 		}
+		// The Mensa months (#4686), so the rows add up to the invoice.
+		for _, meal := range invoice.MealPositions {
+			rows = append(rows, withValues(base, map[string]string{
+				"position": mealPositionLabel(meal), "amount": formatAmount(meal.AmountCents),
+			}))
+		}
 	}
 	return rows, total
 }

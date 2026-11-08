@@ -47,6 +47,7 @@ const RUN: CareRunDetail = {
       number: "MB-0001",
       issuedOn: "2027-01-04",
       contractId: "21",
+      service: "care",
       schoolId: "3",
       schoolName: "OGS",
       childFirstName: "Mia",

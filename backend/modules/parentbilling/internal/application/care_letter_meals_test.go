@@ -48,3 +48,22 @@ func TestCareLetterOfAMensaOnlyInvoice(t *testing.T) {
 	assert.Contains(t, text, "Abgerechnet wird das Mittagessen, wie die OGS es für den Monat bestätigt hat.")
 	assert.Contains(t, text, "Summe = 9,60 €")
 }
+
+// The Mensa on an invoice of its own (ADR 0167) names the lunch, not the
+// monthly contribution of the contract.
+func TestCareLetterOfAMensaInvoiceOfItsOwn(t *testing.T) {
+	t.Parallel()
+	content := careLetterSJR()
+	content.invoice.Service = parentbilling.ServiceMeal
+	content.invoice.Positions, content.invoice.Reductions = nil, nil
+	content.invoice.MealPositions = []parentbilling.CareMealPosition{
+		{MealMonth: calendar.NewDate(2026, 12, 1), Mode: parentbilling.MealModePerMeal, Quantity: 2, UnitCents: 480, AmountCents: 960},
+	}
+	content.invoice.TotalCents = 960
+	text := careLetterText(careInvoiceLetter(content))
+	assert.Contains(t, text, "berechnen wir Ihnen die Mensa")
+	assert.Contains(t, text, "Ihr Mittagessen")
+	assert.NotContains(t, text, "Monatsbeitrag")
+	assert.NotContains(t, text, "Ihre Betreuung")
+	assert.Contains(t, text, "Summe = 9,60 €")
+}

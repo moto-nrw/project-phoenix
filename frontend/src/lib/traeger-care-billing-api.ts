@@ -141,6 +141,8 @@ export interface CareInvoice {
   readonly number: string;
   readonly issuedOn: string | null;
   readonly contractId: string;
+  /** What the invoice bills: the care with the Mensa bundled, or the Mensa on an invoice of its own (#4686). */
+  readonly service: "care" | "meal";
   /** Original contract-party address, independent of the payer. */
   readonly familyEmail?: string;
   readonly schoolId: string;
@@ -293,6 +295,7 @@ interface BackendInvoice {
   number: string;
   issued_on: string | null;
   contract_id: number;
+  service?: string;
   family_email?: string;
   school_id: number;
   school_name: string;
@@ -440,6 +443,7 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
     number: invoice.number,
     issuedOn: invoice.issued_on,
     contractId: id(invoice.contract_id),
+    service: invoice.service === "meal" ? "meal" : "care",
     familyEmail: invoice.family_email ?? "",
     schoolId: id(invoice.school_id),
     schoolName: invoice.school_name,

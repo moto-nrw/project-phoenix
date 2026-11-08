@@ -105,6 +105,7 @@ type careInvoiceRow struct {
 	IssuedOn           calendar.Date `bun:"issued_on,type:date"`
 	BillingMonth       calendar.Date `bun:"billing_month,type:date"`
 	CareContractID     int64         `bun:"care_contract_id"`
+	Service            string        `bun:"service"`
 	SchoolID           int64         `bun:"school_id"`
 	SchoolName         string        `bun:"school_name"`
 	ChildFirstName     string        `bun:"child_first_name"`
@@ -134,7 +135,7 @@ type careInvoiceRow struct {
 func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reductions []parentbilling.CareReduction) parentbilling.CareInvoice {
 	issuedOn := row.IssuedOn
 	invoice := parentbilling.CareInvoice{
-		ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, ContractID: row.CareContractID, SchoolID: row.SchoolID,
+		ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, ContractID: row.CareContractID, Service: row.Service, SchoolID: row.SchoolID,
 		SchoolName: row.SchoolName, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName, StudentID: row.StudentID,
 		Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail,
 			Kind: textOf(row.RecipientKind), SecondName: textOf(row.RecipientSecondName)},
@@ -388,6 +389,9 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		FROM parent_billing.care_invoices i
 		LEFT JOIN parent_billing.care_invoice_positions p ON p.invoice_id = i.id
 		WHERE i.organization_id = ? AND i.billing_month = ?
+			-- The care's invoice; a Mensa invoice of its own (#4686) does not
+			-- bill the contract's care.
+			AND i.service = 'care'
 			AND (p.id IS NOT NULL OR EXISTS (SELECT 1 FROM parent_billing.care_meal_positions AS m
 				WHERE m.organization_id = i.organization_id AND m.invoice_id = i.id))
 			-- A cancelled invoice bills nothing any more (#4684, ADR 0165):
@@ -488,11 +492,11 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 	for i, invoice := range invoices {
 		rows[i] = careInvoiceRow{
 			OrganizationID: organizationID, RunID: run.ID, Number: invoice.Number, NumberYear: year, NumberSequence: first + int64(i),
-			IssuedOn: *invoice.IssuedOn, BillingMonth: run.BillingMonth, CareContractID: invoice.ContractID,
+			IssuedOn: *invoice.IssuedOn, BillingMonth: run.BillingMonth, CareContractID: invoice.ContractID, Service: invoiceService(invoice),
 			SchoolID: invoice.SchoolID, SchoolName: invoice.SchoolName, ChildFirstName: invoice.ChildFirstName,
 			ChildLastName: invoice.ChildLastName, RecipientFirstName: invoice.Recipient.FirstName,
 			RecipientLastName: invoice.Recipient.LastName, RecipientEmail: invoice.Recipient.Email,
-			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[invoice.ContractID],
+			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[replacedKey{invoice.ContractID, invoiceService(invoice)}],
 			StudentID: invoice.StudentID, FamilyEmail: textRef(invoice.FamilyEmail), RecipientKind: textRef(invoice.Recipient.Kind),
 			RecipientSecondName: textRef(invoice.Recipient.SecondName),
 		}

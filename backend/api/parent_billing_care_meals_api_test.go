@@ -354,3 +354,134 @@ func TestCareMealExcludedChildGetsNoMensaPosition(t *testing.T) {
 	}
 	assert.Equal(t, 1, miaMeals, "the next run bills the Mensa of the excluded invoice")
 }
+
+// careMealPaymentRun is a run with the service and the payment of each
+// invoice (#4689, ADR 0167).
+type careMealPaymentRun struct {
+	Invoices []struct {
+		ContractID    int64  `json:"contract_id"`
+		Service       string `json:"service"`
+		Positions     []any  `json:"positions"`
+		MealPositions []any  `json:"meal_positions"`
+		TotalCents    int64  `json:"total_cents"`
+		Payment       *struct {
+			Method    string `json:"method"`
+			DueOn     string `json:"due_on"`
+			DueSource string `json:"due_source"`
+		} `json:"payment"`
+	} `json:"invoices"`
+	PreviewCount int    `json:"preview_count"`
+	PreviewCents int64  `json:"preview_cents"`
+	Fingerprint  string `json:"fingerprint"`
+}
+
+// mealPaymentRun starts the January run of Mia (modules 77,50 €, December
+// with 2 meals at 4,80 €) with the due dates of the run per payment method
+// and reads it.
+func mealPaymentRun(t *testing.T, f careBillingFixture, terms map[string]any) (int64, careMealPaymentRun) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	school := f.office.schools[0]
+	careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2029-11-01", "per_meal", 480))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	if terms != nil {
+		setTerms(t, f.traeger, f.office.token, "meal", terms)
+	}
+	releaseMealMonth(t, db, f.office.organization, school, testpkg.UniqueTestTenantID(t), "2029-12-01", "Mia", 2)
+	run := f.startRun(t, careMonth)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, runDueDatesPathOf("care", run.ID), dueDates("2030-02-02", "2030-02-04"))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	return run.ID, decodeSchoolPortalData[careMealPaymentRun](t, rec.Body.Bytes())
+}
+
+// releaseMealPaymentRun releases the run and reads the service, the payment
+// and the Mensa positions of each issued invoice.
+func releaseMealPaymentRun(t *testing.T, f careBillingFixture, runID int64, preview careMealPaymentRun) []struct {
+	Service string `bun:"service"`
+	Method  string `bun:"payment_method"`
+	DueOn   string `bun:"due_on"`
+	Meals   int    `bun:"meals"`
+	Total   int64  `bun:"total_cents"`
+} {
+	t.Helper()
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(runID, "/release"),
+		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents, "fingerprint": preview.Fingerprint})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var issued []struct {
+		Service string `bun:"service"`
+		Method  string `bun:"payment_method"`
+		DueOn   string `bun:"due_on"`
+		Meals   int    `bun:"meals"`
+		Total   int64  `bun:"total_cents"`
+	}
+	require.NoError(t, f.db.NewRaw(`SELECT i.service, i.payment_method, i.due_on::text AS due_on, i.total_cents,
+		(SELECT count(*) FROM parent_billing.care_meal_positions m WHERE m.invoice_id = i.id) AS meals
+		FROM parent_billing.care_invoices i WHERE i.run_id = ? ORDER BY i.number`, runID).Scan(context.Background(), &issued))
+	return issued
+}
+
+// Without terms of its own the Mensa travels on the invoice of the care
+// (ADR 0167 point 1): one invoice for Mia with modules and Mensa, paid and
+// due as the care.
+func TestCareMealsTravelOnTheCareInvoiceByDefault(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mensa gebündelt")
+	runID, preview := mealPaymentRun(t, f, nil)
+	require.Len(t, preview.Invoices, 1)
+	invoice := preview.Invoices[0]
+	assert.Equal(t, "care", invoice.Service)
+	assert.Len(t, invoice.Positions, 2)
+	assert.Len(t, invoice.MealPositions, 1)
+	assert.Equal(t, int64(7750+960), invoice.TotalCents)
+	require.NotNil(t, invoice.Payment)
+	assert.Equal(t, "transfer", invoice.Payment.Method)
+	assert.Equal(t, "2030-02-02", invoice.Payment.DueOn)
+
+	issued := releaseMealPaymentRun(t, f, runID, preview)
+	require.Len(t, issued, 1)
+	assert.Equal(t, "care", issued[0].Service)
+	assert.Equal(t, 1, issued[0].Meals)
+	assert.Equal(t, int64(7750+960), issued[0].Total)
+}
+
+// A Träger that bills the Mensa apart (bundle_with empty) gets an invoice of
+// its own for it, paid by direct debit and due on the run's date for direct
+// debits; the care's invoice keeps the modules, transfer and its date.
+func TestCareMealsGoOnAnInvoiceOfTheirOwnWithTheirTerms(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mensa eigene Rechnung")
+	runID, preview := mealPaymentRun(t, f, map[string]any{"payment_method": "direct_debit", "due_days": 30, "bundle_with": ""})
+	require.Len(t, preview.Invoices, 2, "the care and the Mensa of Mia")
+	care, meal := preview.Invoices[0], preview.Invoices[1]
+	assert.Equal(t, "care", care.Service)
+	assert.Equal(t, int64(7750), care.TotalCents)
+	assert.Empty(t, care.MealPositions)
+	require.NotNil(t, care.Payment)
+	assert.Equal(t, "transfer", care.Payment.Method)
+	assert.Equal(t, "2030-02-02", care.Payment.DueOn)
+	assert.Equal(t, "meal", meal.Service)
+	assert.Equal(t, care.ContractID, meal.ContractID)
+	assert.Empty(t, meal.Positions)
+	assert.Len(t, meal.MealPositions, 1)
+	assert.Equal(t, int64(960), meal.TotalCents)
+	require.NotNil(t, meal.Payment)
+	assert.Equal(t, "direct_debit", meal.Payment.Method)
+	assert.Equal(t, "2030-02-04", meal.Payment.DueOn)
+	assert.Equal(t, int64(7750+960), preview.PreviewCents)
+
+	issued := releaseMealPaymentRun(t, f, runID, preview)
+	require.Len(t, issued, 2)
+	assert.Equal(t, "care", issued[0].Service)
+	assert.Equal(t, "transfer", issued[0].Method)
+	assert.Zero(t, issued[0].Meals)
+	assert.Equal(t, "meal", issued[1].Service)
+	assert.Equal(t, "direct_debit", issued[1].Method)
+	assert.Equal(t, "2030-02-04", issued[1].DueOn)
+	assert.Equal(t, 1, issued[1].Meals, "the Mensa positions stay with the Mensa invoice")
+	assert.Equal(t, int64(960), issued[1].Total)
+}

@@ -200,14 +200,18 @@ type CareRecipient struct {
 // CareInvoice is the invoice of one contract and month: a draft without a
 // number in a calculated run, the issued invoice in a released one.
 type CareInvoice struct {
-	ID             int64          `json:"id"`
-	Number         string         `json:"number"`
-	IssuedOn       *calendar.Date `json:"issued_on"`
-	ContractID     int64          `json:"contract_id"`
-	SchoolID       int64          `json:"school_id"`
-	SchoolName     string         `json:"school_name"`
-	ChildFirstName string         `json:"child_first_name"`
-	ChildLastName  string         `json:"child_last_name"`
+	ID         int64          `json:"id"`
+	Number     string         `json:"number"`
+	IssuedOn   *calendar.Date `json:"issued_on"`
+	ContractID int64          `json:"contract_id"`
+	// Service is what the invoice bills (#4686, ADR 0167): ServiceCare with
+	// every service bundled with it, or ServiceMeal on an invoice of its own
+	// when the Träger bills the Mensa apart (TermsSet.InvoiceService).
+	Service        string `json:"service"`
+	SchoolID       int64  `json:"school_id"`
+	SchoolName     string `json:"school_name"`
+	ChildFirstName string `json:"child_first_name"`
+	ChildLastName  string `json:"child_last_name"`
 	// StudentID is the child record the contract names, nil without one; the
 	// parents inbox shows the letter only for it (ADR 0165).
 	StudentID *int64 `json:"-"`

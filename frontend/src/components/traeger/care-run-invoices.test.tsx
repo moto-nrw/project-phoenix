@@ -1,12 +1,15 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { CareDuplicate } from "~/lib/traeger-care-billing-api";
+import type {
+  CareDuplicate,
+  CareInvoice,
+} from "~/lib/traeger-care-billing-api";
 
 vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path,
 }));
 
-import { CareDuplicatesCard } from "./care-run-invoices";
+import { CareDuplicatesCard, CareRunInvoices } from "./care-run-invoices";
 
 const FIRST = {
   contractId: "11",
@@ -113,5 +116,54 @@ describe("CareDuplicatesCard", () => {
     );
     expect(screen.getByTestId("anchor")).toBeInTheDocument();
     expect(container.querySelector("li")).toBeNull();
+  });
+});
+
+describe("CareRunInvoices", () => {
+  const base: CareInvoice = {
+    id: "",
+    number: "",
+    issuedOn: null,
+    contractId: "11",
+    service: "care",
+    schoolId: "3",
+    schoolName: "OGS Am Lindenhof",
+    childFirstName: "Mia",
+    childLastName: "Beispiel",
+    recipient: { firstName: "Eva", lastName: "Beispiel", email: "eva@x.org" },
+    positions: [],
+    reductions: [],
+    mealPositions: [],
+    totalCents: 7750,
+  };
+
+  it("names the Mensa invoice of its own beside the care's invoice of the same child", () => {
+    render(
+      <CareRunInvoices
+        month="2030-01-01"
+        released={false}
+        invoices={[
+          base,
+          {
+            ...base,
+            service: "meal",
+            totalCents: 960,
+            mealPositions: [
+              {
+                mealMonth: "2029-12-01",
+                mode: "per_meal",
+                quantity: 2,
+                unitCents: 480,
+                amountCents: 960,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+    expect(screen.getAllByText("Mensa-Rechnung").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("2 Mittagessen im Dezember 2029").length,
+    ).toBeGreaterThan(0);
   });
 });

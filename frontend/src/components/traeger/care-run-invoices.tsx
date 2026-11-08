@@ -153,7 +153,12 @@ function invoiceRows(
     const letter = byKey.get(`invoice-${invoice.id}`) ?? null;
     const storno = byKey.get(`cancellation-${invoice.id}`) ?? null;
     const rows: CareInvoiceRow[] = [
-      { key: invoice.contractId, invoice, letter, storno: false },
+      {
+        key: `${invoice.contractId}-${invoice.service}`,
+        invoice,
+        letter,
+        storno: false,
+      },
     ];
     if (storno) {
       rows.push({
@@ -211,6 +216,11 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
             <p className="font-semibold text-gray-900">
               {invoice.childFirstName} {invoice.childLastName}
             </p>
+            {invoice.service === "meal" ? (
+              <p className="mt-0.5 text-xs font-medium text-gray-700">
+                Mensa-Rechnung
+              </p>
+            ) : null}
             <p className="mt-0.5 truncate text-sm text-gray-600">
               {recipientLine(invoice.recipient)}
             </p>
