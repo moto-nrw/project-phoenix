@@ -43,7 +43,7 @@ func TestAuthErrorRenderer_OperatorInactive(t *testing.T) {
 
 	status, errorText := renderOperatorError(t, operator.AuthErrorRenderer(identityaccess.ErrOperatorInactive))
 	assert.Equal(t, http.StatusForbidden, status)
-	assert.Equal(t, "identityaccess.Operator account is inactive", errorText)
+	assert.Equal(t, "Operator account is inactive", errorText)
 }
 
 func TestAuthErrorRenderer_OperatorNotFound(t *testing.T) {
