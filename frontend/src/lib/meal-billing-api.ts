@@ -47,7 +47,7 @@ export interface MealBillingMonth {
 }
 
 /** One release of a month: when, why (empty for the first) and its counts. */
-export interface MealBillingRelease {
+interface MealBillingRelease {
   readonly version: number;
   readonly releasedAt: string;
   readonly reason: string;
