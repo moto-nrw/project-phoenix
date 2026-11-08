@@ -144,11 +144,11 @@ export type CareAmendmentKind =
   "amount" | "add_position" | "remove_position" | "recipient" | "address";
 
 /** Why a change of the review is not applied (#6197). */
-export type CareAmendmentConflict =
+type CareAmendmentConflict =
   "basis_changed" | "position_missing" | "negative_total";
 
 /** One side of a change: a total, a position, a recipient or an address. */
-export interface CareAmendmentValue {
+interface CareAmendmentValue {
   readonly totalCents: number | null;
   readonly label: string;
   readonly amountCents: number | null;
@@ -203,7 +203,7 @@ export function careCorrectionLines(
 }
 
 /** Which changes of an invoice the Träger allows in the review (#6197). */
-export interface CareAmendable {
+interface CareAmendable {
   readonly amount: boolean;
   readonly recipient: boolean;
   readonly address: boolean;
