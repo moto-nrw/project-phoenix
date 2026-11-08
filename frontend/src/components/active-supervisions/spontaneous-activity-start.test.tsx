@@ -526,7 +526,7 @@ describe("SpontaneousActivityStart", () => {
     });
   });
 
-  it("selects an activity suggestion on pointer-down even when the input blurs with no relatedTarget (Safari/iOS)", async () => {
+  it("selects an activity suggestion on touch click, not pointer-down", async () => {
     const onStart = vi.fn();
     render(
       <SpontaneousActivityStart
@@ -543,15 +543,14 @@ describe("SpontaneousActivityStart", () => {
     fireEvent.change(activityInput, { target: { value: "Bast" } });
     const option = screen.getByRole("option", { name: "Basteln" });
 
-    // Safari/iOS does not focus a tapped entry, so the input would blur with
-    // a null relatedTarget and the list would close before the click. The
-    // press is default-prevented, so the browser moves no focus; the tap
-    // (click) then takes the entry. A press alone, as when a finger starts to
-    // scroll the list, takes nothing.
+    // Touch pointer events stay native, so a finger can start scrolling the
+    // list and the compatible click after a tap remains available. A press
+    // alone takes nothing.
     expect(
       fireEvent.pointerDown(option, { button: 0, pointerType: "touch" }),
-    ).toBe(false);
+    ).toBe(true);
     expect(activityInput).toHaveValue("Bast");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
     fireEvent.click(option);
 
     expect(activityInput).toHaveValue("Basteln");
