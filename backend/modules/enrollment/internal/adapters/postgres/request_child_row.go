@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -46,9 +48,50 @@ type requestChildRow struct {
 	WeeklyPlanAuthor   *int64           `bun:"weekly_plan_author"`
 }
 
-func (r requestChildRow) value() *enrollment.RequestChild {
-	return &enrollment.RequestChild{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName, DateOfBirth: r.DateOfBirth, TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, CustomData: r.CustomData, Status: r.Status, StatusReason: r.StatusReason, ActivationMode: r.ActivationMode, ActivateOn: r.ActivateOn, ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, SortOrder: r.SortOrder, RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason, WeeklyPlanOn: r.WeeklyPlanOn}
+// value decodes the row into the owner's request child. Its answers decode
+// exactly here (ADR 0170); a decode error passes through unwrapped.
+func (r requestChildRow) value() (*enrollment.RequestChild, error) {
+	value := &enrollment.RequestChild{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName, DateOfBirth: calendar.Date(r.DateOfBirth), TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, Status: r.Status, StatusReason: r.StatusReason, ActivationMode: r.ActivationMode, ActivateOn: calendarDay(r.ActivateOn), ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, SortOrder: r.SortOrder, RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason, WeeklyPlanOn: calendarDay(r.WeeklyPlanOn)}
+	if len(r.CustomData) > 0 {
+		if err := json.Unmarshal(r.CustomData, &value.CustomData); err != nil {
+			return nil, err
+		}
+	}
+	return value, nil
 }
-func childStorage(r *enrollment.RequestChild) *requestChildRow {
-	return &requestChildRow{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName, DateOfBirth: r.DateOfBirth, TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, CustomData: r.CustomData, Status: r.Status, StatusReason: r.StatusReason, ActivationMode: r.ActivationMode, ActivateOn: r.ActivateOn, ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, SortOrder: r.SortOrder, RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason}
+
+// childStorage encodes the owner's request child into its row. Empty
+// answers store {}, never null.
+func childStorage(r *enrollment.RequestChild) (*requestChildRow, error) {
+	customData, err := json.Marshal(r.CustomData)
+	if err != nil {
+		return nil, fmt.Errorf("encode request child custom_data: %w", err)
+	}
+	return &requestChildRow{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName, DateOfBirth: enrollment.Date(r.DateOfBirth), TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, CustomData: customData, Status: r.Status, StatusReason: r.StatusReason, ActivationMode: r.ActivationMode, ActivateOn: enrollmentDay(r.ActivateOn), ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, SortOrder: r.SortOrder, RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason}, nil
+}
+
+func childValues(rows []requestChildRow) ([]*enrollment.RequestChild, error) {
+	var result []*enrollment.RequestChild
+	for _, row := range rows {
+		value, err := row.value()
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, value)
+	}
+	return result, nil
+}
+
+func calendarDay(day *enrollment.Date) *calendar.Date {
+	if day == nil {
+		return nil
+	}
+	return new(calendar.Date(*day))
+}
+
+func enrollmentDay(day *calendar.Date) *enrollment.Date {
+	if day == nil {
+		return nil
+	}
+	return new(enrollment.Date(*day))
 }

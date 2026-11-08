@@ -15,23 +15,23 @@ func TestCareUsageScheduleReadsGuardianLevelFields(t *testing.T) {
 	t.Parallel()
 
 	schemaID := int64(89)
-	req := &Request{
+	req := &enrollmentNative.Request{
 		ID: 11,
-		CustomData: map[string]any{
+		CustomData: formValues(map[string]any{
 			"guardian_pickup":  map[string]any{"mon": "15:30"},
 			"guardian_arrival": map[string]any{"mon": "11:15"},
-		},
+		}),
 		GuardianFirstName: "Eva",
 		GuardianLastName:  "Muster",
 		SchemaID:          &schemaID,
 	}
-	child := &reportChild{
+	child := &enrollmentNative.RequestChild{
 		ID:         21,
 		RequestID:  11,
 		FirstName:  "Lina",
 		LastName:   "Muster",
 		Status:     enrollmentNative.ChildStatusApproved,
-		CustomData: map[string]any{},
+		CustomData: formValues(map[string]any{}),
 	}
 	schemas := map[int64]*enrollmentNative.FormSchema{
 		schemaID: {

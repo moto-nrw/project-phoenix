@@ -2,6 +2,8 @@
 package enrollmenttest
 
 import (
+	"maps"
+
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -40,3 +42,12 @@ const (
 	DaysOfWeekModeFixed        = "fixed"
 	DaysOfWeekModeParentChoice = "parent_choice"
 )
+
+// FormValues are a request's or child's answers, consent flags or source
+// metadata (ADR 0170).
+type FormValues = enrollment.FormValues
+
+// FormValuesOf builds FormValues from a fixture map.
+func FormValuesOf(values map[string]any) FormValues {
+	return enrollment.CollectFormValues(maps.All(values))
+}

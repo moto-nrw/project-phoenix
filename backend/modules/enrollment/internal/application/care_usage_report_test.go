@@ -42,7 +42,7 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 		// The phase starts after this day, so the report reads the selection
 		// at the phase start rather than today.
 		Now: func() time.Time { return reportDate.AddDays(-30).BerlinMidnight() },
-		Requests: &fakeCareUsageRequestRepo{requests: []*Request{{
+		Requests: &fakeCareUsageRequestRepo{requests: []*enrollmentNative.Request{{
 			ID:                11,
 			GuardianFirstName: "Eva",
 			GuardianLastName:  "Muster",
@@ -51,7 +51,7 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 		}, {
 			ID: 12, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
 		}}},
-		Children: &fakeClassRosterChildRepo{children: []*reportChild{{
+		Children: &fakeClassRosterChildRepo{children: []*enrollmentNative.RequestChild{{
 			ID:               21,
 			RequestID:        11,
 			FirstName:        "Lina",
@@ -96,11 +96,11 @@ func TestCareUsageDoesNotEnrichSchedulePickupBeforeApproval(t *testing.T) {
 
 	studentID := int64(700)
 	svc := NewReports(ReportDependencies{
-		Requests: &fakeCareUsageRequestRepo{requests: []*Request{{
+		Requests: &fakeCareUsageRequestRepo{requests: []*enrollmentNative.Request{{
 			ID:          11,
 			SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
 		}}},
-		Children: &fakeClassRosterChildRepo{children: []*reportChild{{
+		Children: &fakeClassRosterChildRepo{children: []*enrollmentNative.RequestChild{{
 			ID:               21,
 			RequestID:        11,
 			FirstName:        "Lina",
@@ -129,11 +129,11 @@ func TestCareUsageSkipsCompactEnrichment(t *testing.T) {
 
 	enrichmentErr := errors.New("enrichment unavailable")
 	svc := NewReports(ReportDependencies{
-		Requests: &fakeCareUsageRequestRepo{requests: []*Request{{
+		Requests: &fakeCareUsageRequestRepo{requests: []*enrollmentNative.Request{{
 			ID:          11,
 			SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
 		}}},
-		Children: &fakeClassRosterChildRepo{children: []*reportChild{{
+		Children: &fakeClassRosterChildRepo{children: []*enrollmentNative.RequestChild{{
 			ID: 21, RequestID: 11, FirstName: "Lina", LastName: "Muster",
 		}}},
 		Guardians:       &fakeClassRosterRequestGuardianRepo{err: enrichmentErr},

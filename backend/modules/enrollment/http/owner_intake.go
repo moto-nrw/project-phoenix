@@ -5,11 +5,10 @@ import (
 	"time"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The intake as these routes and the parents portal speak it: the owner's
-// capabilities with the submission's answers decoded.
+// capabilities with its care offerings decoded for rendering.
 
 // IntakeOwner is Enrollment's intake: submissions, status link and form
 // loads.
@@ -22,11 +21,11 @@ type IntakeOwner interface {
 }
 
 // SignatureProof is the request behind a status token with its signature,
-// decoded for the proof (#4786). SignatureRequired reports whether the
+// flattened for the proof (#4786). SignatureRequired reports whether the
 // request's form asks the parent to sign every edit.
 type SignatureProof struct {
-	Request            *Request
-	Children           []*RequestChild
+	Request            *capability.Request
+	Children           []*capability.RequestChild
 	Guardians          []*capability.RequestGuardian
 	Schema             *capability.FormSchema
 	OfferingSelections []*capability.RequestChildOfferingRecord
@@ -56,6 +55,14 @@ type (
 	BootstrapStage          = capability.BootstrapStage
 	BootstrapStageError     = capability.BootstrapStageError
 	CareOfferingBookingStat = capability.CareOfferingBookingStat
+	// The submission, its result and the parent's patch carry the family's
+	// answers as the owner's FormValues (ADR 0170).
+	SubmitRequest                  = capability.SubmitRequest
+	SubmitChild                    = capability.SubmitChild
+	SubmitResult                   = capability.SubmitResult
+	EditPatch                      = capability.EditPatch
+	ManualApprovedEnrollmentInput  = capability.ManualApprovedEnrollmentInput
+	ManualApprovedEnrollmentResult = capability.ManualApprovedEnrollmentResult
 )
 
 // Stages of a form load that fail as a server error.
@@ -63,80 +70,6 @@ const (
 	BootstrapStageCapabilities = capability.BootstrapStageCapabilities
 	BootstrapStageLegal        = capability.BootstrapStageLegal
 )
-
-// SubmitRequest is one submission with its answers decoded.
-type SubmitRequest struct {
-	// DisplayedFormSchemaID is the form version the parent's form showed
-	// (#4680). Versions never change, so the snapshot proves the shown legal
-	// texts are the stored ones only when it equals the version in force.
-	DisplayedFormSchemaID  int64
-	TenantID               int64
-	PhaseID                int64
-	RemoteIP               string
-	LateInviteToken        string
-	SubmissionSource       string
-	SourceMetadata         map[string]any
-	GuardianFirstName      string
-	GuardianLastName       string
-	GuardianEmail          string
-	GuardianPhone          *string
-	ConsentFlags           map[string]any
-	CustomData             map[string]any
-	GuardianAccountID      *int64
-	GuardianSubmitEligible bool
-	Children               []SubmitChild
-	AdditionalGuardians    []SubmitGuardian
-	Signature              *capability.SubmitSignature
-}
-
-// SubmitChild is one child of a submission with its answers decoded.
-type SubmitChild struct {
-	ID                       int64
-	FirstName                string
-	LastName                 string
-	DateOfBirth              calendar.Date
-	TargetGradeLevel         *int16
-	TargetSchoolClass        *string
-	CustomData               map[string]any
-	OfferingIDs              []int64
-	OfferingDays             []SubmitOfferingDays
-	ExcludedAutoAddTargetIDs map[int64]bool
-}
-
-// SubmitResult is what a submission or an edit stored, decoded.
-type SubmitResult struct {
-	Request   *Request
-	Children  []*RequestChild
-	StatusURL string
-	Warnings  []SubmissionWarning
-}
-
-// EditPatch carries the guardian fields a parent may patch before the first
-// decision; a non-nil map replaces the stored one.
-type EditPatch struct {
-	GuardianFirstName *string
-	GuardianLastName  *string
-	GuardianPhone     *string
-	ConsentFlags      map[string]any
-	CustomData        map[string]any
-}
-
-// ManualApprovedEnrollmentInput is a staff-created submission approved in one
-// step.
-type ManualApprovedEnrollmentInput struct {
-	Request          SubmitRequest
-	Reason           string
-	SendNotification bool
-	ActorID          int64
-}
-
-// ManualApprovedEnrollmentResult is the created request, the approved child
-// and its status link, decoded.
-type ManualApprovedEnrollmentResult struct {
-	Request   *Request
-	Child     *RequestChild
-	StatusURL string
-}
 
 // PublicFormBootstrapData is a form load with its offerings in enrollment
 // rows.
@@ -150,10 +83,11 @@ type PublicFormBootstrapData struct {
 	LateInvite            *capability.LateInvite
 }
 
-// EditDraft is the stored request that reopens the public form, decoded.
+// EditDraft is the stored request that reopens the public form, with its
+// open offerings decoded.
 type EditDraft struct {
-	Request              *Request
-	Children             []*RequestChild
+	Request              *capability.Request
+	Children             []*capability.RequestChild
 	Guardians            []*capability.RequestGuardian
 	OfferingsByChild     map[int64][]*RequestChildOffering
 	Phase                *capability.Phase
@@ -173,8 +107,8 @@ type EditDraft struct {
 type RequestService interface {
 	Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error)
 	CreateLateInvite(ctx context.Context, input CreateLateInviteInput) (*CreateLateInviteResult, error)
-	GetByStatusToken(ctx context.Context, token string) (*Request, []*RequestChild, error)
-	StatusPage(ctx context.Context, req *Request, children []*RequestChild) (capability.StatusPage, error)
+	GetByStatusToken(ctx context.Context, token string) (*capability.Request, []*capability.RequestChild, error)
+	StatusPage(ctx context.Context, req *capability.Request, children []*capability.RequestChild) (capability.StatusPage, error)
 	GetEditDraft(ctx context.Context, token string) (*EditDraft, error)
 	ReplaceEditable(ctx context.Context, token string, req SubmitRequest) (*SubmitResult, error)
 	GuardiansByStatusToken(ctx context.Context, token string) ([]*capability.RequestGuardian, error)
@@ -222,56 +156,6 @@ type intakeService struct {
 	phasePreviewForms
 }
 
-func encodeSubmitRequest(in SubmitRequest) (capability.SubmitRequest, error) {
-	out := capability.SubmitRequest{
-		TenantID: in.TenantID, PhaseID: in.PhaseID, RemoteIP: in.RemoteIP, LateInviteToken: in.LateInviteToken,
-		SubmissionSource: in.SubmissionSource, GuardianFirstName: in.GuardianFirstName,
-		GuardianLastName: in.GuardianLastName, GuardianEmail: in.GuardianEmail, GuardianPhone: in.GuardianPhone,
-		GuardianAccountID: in.GuardianAccountID, GuardianSubmitEligible: in.GuardianSubmitEligible,
-		AdditionalGuardians: in.AdditionalGuardians, Signature: in.Signature, DisplayedFormSchemaID: in.DisplayedFormSchemaID,
-	}
-	var err error
-	if out.SourceMetadata, err = encodeJSONObject(in.SourceMetadata); err != nil {
-		return out, err
-	}
-	if out.ConsentFlags, err = encodeJSONObject(in.ConsentFlags); err != nil {
-		return out, err
-	}
-	if out.CustomData, err = encodeJSONObject(in.CustomData); err != nil {
-		return out, err
-	}
-	if in.Children != nil {
-		out.Children = make([]capability.SubmitChild, 0, len(in.Children))
-	}
-	for _, child := range in.Children {
-		customData, err := encodeJSONObject(child.CustomData)
-		if err != nil {
-			return out, err
-		}
-		out.Children = append(out.Children, capability.SubmitChild{
-			ID: child.ID, FirstName: child.FirstName, LastName: child.LastName, DateOfBirth: child.DateOfBirth,
-			TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass, CustomData: customData,
-			OfferingIDs: child.OfferingIDs, OfferingDays: child.OfferingDays, ExcludedAutoAddTargetIDs: child.ExcludedAutoAddTargetIDs,
-		})
-	}
-	return out, nil
-}
-
-func submitResultValue(result *capability.SubmitResult, err error) (*SubmitResult, error) {
-	if err != nil {
-		return nil, err
-	}
-	request, err := requestValue(result.Request)
-	if err != nil {
-		return nil, err
-	}
-	children, err := childValues(result.Children)
-	if err != nil {
-		return nil, err
-	}
-	return &SubmitResult{Request: request, Children: children, StatusURL: result.StatusURL, Warnings: result.Warnings}, nil
-}
-
 func bootstrapValue(data *capability.PublicFormBootstrapData, err error) (*PublicFormBootstrapData, error) {
 	if err != nil {
 		return nil, err
@@ -287,51 +171,30 @@ func bootstrapValue(data *capability.PublicFormBootstrapData, err error) (*Publi
 }
 
 func (s intakeService) Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error) {
-	encoded, err := encodeSubmitRequest(req)
-	if err != nil {
-		return nil, err
-	}
-	return submitResultValue(s.owner.Submit(ctx, encoded))
+	return s.owner.Submit(ctx, req)
 }
 
 func (s intakeService) ReplaceEditable(ctx context.Context, token string, req SubmitRequest) (*SubmitResult, error) {
-	encoded, err := encodeSubmitRequest(req)
-	if err != nil {
-		return nil, err
-	}
-	return submitResultValue(s.owner.ReplaceEditable(ctx, token, encoded))
+	return s.owner.ReplaceEditable(ctx, token, req)
 }
 
 func (s intakeService) CreateLateInvite(ctx context.Context, input CreateLateInviteInput) (*CreateLateInviteResult, error) {
 	return s.owner.CreateLateInvite(ctx, input)
 }
 
-func (s intakeService) GetByStatusToken(ctx context.Context, token string) (*Request, []*RequestChild, error) {
+func (s intakeService) GetByStatusToken(ctx context.Context, token string) (*capability.Request, []*capability.RequestChild, error) {
 	status, err := s.owner.StatusByToken(ctx, token)
 	if err != nil {
 		return nil, nil, err
 	}
-	request, err := requestValue(status.Request)
-	if err != nil {
-		return nil, nil, err
-	}
-	children, err := childValues(status.Children)
-	if err != nil {
-		return nil, nil, err
-	}
-	return request, children, nil
+	return status.Request, status.Children, nil
 }
 
-func (s intakeService) StatusPage(ctx context.Context, req *Request, children []*RequestChild) (capability.StatusPage, error) {
-	none := capability.StatusPage{EditMode: capability.EditModeNone}
+func (s intakeService) StatusPage(ctx context.Context, req *capability.Request, children []*capability.RequestChild) (capability.StatusPage, error) {
 	if req == nil {
-		return none, nil
+		return capability.StatusPage{EditMode: capability.EditModeNone}, nil
 	}
-	status, err := requestStatusInput(req, children)
-	if err != nil {
-		return none, err
-	}
-	return s.owner.StatusPage(ctx, status)
+	return s.owner.StatusPage(ctx, &capability.RequestStatus{Request: req, Children: children})
 }
 
 func (s intakeService) GetEditDraft(ctx context.Context, token string) (*EditDraft, error) {
@@ -343,20 +206,12 @@ func (s intakeService) GetEditDraft(ctx context.Context, token string) (*EditDra
 }
 
 func editDraftValue(draft *capability.EditDraft) (*EditDraft, error) {
-	request, err := requestValue(draft.Request)
-	if err != nil {
-		return nil, err
-	}
-	children, err := childValues(draft.Children)
-	if err != nil {
-		return nil, err
-	}
 	offerings, err := careOfferingValues(draft.OpenOfferings)
 	if err != nil {
 		return nil, err
 	}
 	return &EditDraft{
-		Request: request, Children: children, Guardians: draft.Guardians, OfferingsByChild: draft.OfferingsByChild,
+		Request: draft.Request, Children: draft.Children, Guardians: draft.Guardians, OfferingsByChild: draft.OfferingsByChild,
 		Phase: draft.Phase, School: draft.School, Schema: draft.Schema, OpenOfferings: offerings,
 		LegalTexts: draft.LegalTexts, EditMode: draft.EditMode, CollectSchoolClass: draft.CollectSchoolClass,
 		CollectGradeLevel: draft.CollectGradeLevel, CareOfferingsEnabled: draft.CareOfferingsEnabled, GradeLevelMax: draft.GradeLevelMax,
@@ -369,18 +224,7 @@ func (s intakeService) GuardiansByStatusToken(ctx context.Context, token string)
 }
 
 func (s intakeService) Edit(ctx context.Context, token string, patch EditPatch) error {
-	consentFlags, err := encodeJSONObject(patch.ConsentFlags)
-	if err != nil {
-		return err
-	}
-	customData, err := encodeJSONObject(patch.CustomData)
-	if err != nil {
-		return err
-	}
-	return s.owner.Edit(ctx, token, capability.EditPatch{
-		GuardianFirstName: patch.GuardianFirstName, GuardianLastName: patch.GuardianLastName,
-		GuardianPhone: patch.GuardianPhone, ConsentFlags: consentFlags, CustomData: customData,
-	})
+	return s.owner.Edit(ctx, token, patch)
 }
 
 func (s intakeService) Withdraw(ctx context.Context, token string, childID int64) error {
@@ -416,25 +260,7 @@ func (s intakeService) LoadManualEnrollmentBootstrap(ctx context.Context, phaseI
 }
 
 func (s intakeService) CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error) {
-	request, err := encodeSubmitRequest(input.Request)
-	if err != nil {
-		return nil, err
-	}
-	result, err := s.owner.CreateManualApprovedEnrollment(ctx, capability.ManualApprovedEnrollmentInput{
-		Request: request, Reason: input.Reason, SendNotification: input.SendNotification, ActorID: input.ActorID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	decodedRequest, err := requestValue(result.Request)
-	if err != nil {
-		return nil, err
-	}
-	child, err := childValue(result.Child)
-	if err != nil {
-		return nil, err
-	}
-	return &ManualApprovedEnrollmentResult{Request: decodedRequest, Child: child, StatusURL: result.StatusURL}, nil
+	return s.owner.CreateManualApprovedEnrollment(ctx, input)
 }
 
 func (s intakeService) SignatureProof(ctx context.Context, requestID int64, token string) (*SignatureProof, error) {
@@ -459,21 +285,13 @@ func (s intakeService) FormLabels(ctx context.Context, requestID int64, token st
 	return s.owner.FormLabels(ctx, requestID)
 }
 
-// signatureProofValue decodes the owner's proof for these routes.
+// signatureProofValue flattens the owner's proof for these routes.
 func signatureProofValue(proof *capability.RequestSignatureProof, err error) (*SignatureProof, error) {
 	if err != nil {
 		return nil, err
 	}
-	request, err := requestValue(proof.Status.Request)
-	if err != nil {
-		return nil, err
-	}
-	children, err := childValues(proof.Status.Children)
-	if err != nil {
-		return nil, err
-	}
 	return &SignatureProof{
-		Request: request, Children: children, Guardians: proof.Guardians,
+		Request: proof.Status.Request, Children: proof.Status.Children, Guardians: proof.Guardians,
 		Schema: proof.Schema, OfferingSelections: proof.OfferingSelections, OfferingNames: proof.OfferingNames,
 		Signature: proof.Signature, SignatureRequired: proof.SignatureRequired,
 	}, nil

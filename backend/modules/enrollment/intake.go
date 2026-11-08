@@ -10,8 +10,8 @@ import (
 
 // The parent-facing intake of an enrollment (#3565): the submission and its
 // edits, the status link, the public form loads and the late invites. The
-// answers, consent flags and source metadata a family submits stay raw JSON
-// at this boundary; the intake decodes them itself.
+// answers, consent flags and source metadata a family submits travel as
+// FormValues (ADR 0170).
 
 // SubmitRequest is one submission as the intake receives it.
 type SubmitRequest struct {
@@ -29,14 +29,14 @@ type SubmitRequest struct {
 	// bind the submitted guardian email to the invitation address (#2164).
 	LateInviteToken  string
 	SubmissionSource string
-	SourceMetadata   json.RawMessage
+	SourceMetadata   FormValues
 
 	GuardianFirstName string
 	GuardianLastName  string
 	GuardianEmail     string
 	GuardianPhone     *string
-	ConsentFlags      json.RawMessage
-	CustomData        json.RawMessage
+	ConsentFlags      FormValues
+	CustomData        FormValues
 	// GuardianAccountID is set when an authenticated parent submits through
 	// the parents portal; nil is an anonymous public submission.
 	GuardianAccountID *int64
@@ -71,7 +71,7 @@ type SubmitChild struct {
 	DateOfBirth       calendar.Date
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
-	CustomData        json.RawMessage
+	CustomData        FormValues
 	OfferingIDs       []int64
 	OfferingDays      []SubmitOfferingDays
 	// ExcludedAutoAddTargetIDs switches off the Mitbuchungs-Regel for these
@@ -118,14 +118,14 @@ const (
 )
 
 // EditPatch carries the fields a parent may patch before the first decision.
-// Pointer fields leave a value alone unless set; a non-nil JSON document
-// replaces the stored one.
+// Pointer fields leave a value alone unless set; set values, even empty
+// ones, replace the stored ones.
 type EditPatch struct {
 	GuardianFirstName *string
 	GuardianLastName  *string
 	GuardianPhone     *string
-	ConsentFlags      json.RawMessage
-	CustomData        json.RawMessage
+	ConsentFlags      *FormValues
+	CustomData        *FormValues
 }
 
 // CreateLateInviteInput is an admin's late invite for one family.

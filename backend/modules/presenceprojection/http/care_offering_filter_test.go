@@ -68,7 +68,7 @@ func (f *offeringRosterFixture) book(t *testing.T, studentID, offeringID int64, 
 	ownerCtx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), f.tc.db)
 	child := &enrollment.RequestChild{
 		RequestID: f.request.ID, FirstName: "Roster", LastName: fmt.Sprintf("Kind%d", studentID),
-		DateOfBirth: enrollment.Date(studentsTestToday.AddDays(-2500)), Status: enrollment.ChildStatusApproved,
+		DateOfBirth: studentsTestToday.AddDays(-2500), Status: enrollment.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = testpkg.Tenant(t)

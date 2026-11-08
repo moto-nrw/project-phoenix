@@ -37,8 +37,8 @@ type AdminRequestSummary struct {
 	GuardianPhone             *string                   `json:"guardian_phone,omitempty"`
 	SubmittedAt               time.Time                 `json:"submitted_at"`
 	WithdrawnAt               *time.Time                `json:"withdrawn_at,omitempty"`
-	CustomData                map[string]any            `json:"custom_data,omitempty"`
-	ConsentFlags              map[string]any            `json:"consent_flags,omitempty"`
+	CustomData                capability.FormValues     `json:"custom_data,omitzero"`
+	ConsentFlags              capability.FormValues     `json:"consent_flags,omitzero"`
 	SchemaFields              []AdminRequestSchemaField `json:"schema_fields,omitempty"`
 	// SchemaLegalBlocks carries key→title pairs from the pinned schema's
 	// legal blocks so the detail UI can label custom consent flags (e.g.
@@ -129,8 +129,8 @@ type AdminRequestChild struct {
 	// WeeklyPlanOn is the day the approved weekly plan of a renewal applies
 	// when the child's care was still running at approval (#6043). Until
 	// then the running pickup times, care days and Heimweg stay.
-	WeeklyPlanOn string         `json:"weekly_plan_on,omitempty"`
-	CustomData   map[string]any `json:"custom_data,omitempty"`
+	WeeklyPlanOn string                `json:"weekly_plan_on,omitempty"`
+	CustomData   capability.FormValues `json:"custom_data,omitzero"`
 	// Offerings is the per-child Betreuungsangebote selection that is on
 	// file RIGHT NOW — exactly the set a correction replaces. Populated
 	// only on the detail endpoint (listing endpoints leave it empty to
@@ -431,7 +431,7 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *Re
 // the request's care-offering rows, matching admin children to summary
 // children positionally. Children beyond the summary or without rows are
 // left untouched.
-func attachChildOfferings(children []AdminRequestChild, summaryChildren []*RequestChild, childOfferings map[int64]ChildOfferingSet) {
+func attachChildOfferings(children []AdminRequestChild, summaryChildren []*capability.RequestChild, childOfferings map[int64]ChildOfferingSet) {
 	for i := range children {
 		if i >= len(summaryChildren) {
 			continue
@@ -645,7 +645,7 @@ func (rs *Resource) renderDecideError(w http.ResponseWriter, r *http.Request, er
 // newAdminRequestChild maps a decided child model onto the wire shape
 // returned by the decide endpoint (no CustomData / Offerings — those are
 // detail-endpoint concerns).
-func newAdminRequestChild(child *RequestChild) AdminRequestChild {
+func newAdminRequestChild(child *capability.RequestChild) AdminRequestChild {
 	return AdminRequestChild{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,

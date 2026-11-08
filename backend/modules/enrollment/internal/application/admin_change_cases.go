@@ -80,7 +80,7 @@ func (s *ChangeRequests) adminChangeCase(ctx context.Context, id int64, reads *a
 	return &changeRequestCase{ChangeRequest: row, Request: req, Children: children, Messages: messages, Phase: phase}, nil
 }
 
-func (s *ChangeRequests) adminCaseChildren(ctx context.Context, requestID int64, reads *adminChangeCaseReads) ([]*RequestChild, error) {
+func (s *ChangeRequests) adminCaseChildren(ctx context.Context, requestID int64, reads *adminChangeCaseReads) ([]*enrollment.RequestChild, error) {
 	if reads.children == nil {
 		children, err := s.deps.Children.ChildrenForRequests(ctx, reads.requestIDs)
 		if err != nil {
@@ -92,9 +92,9 @@ func (s *ChangeRequests) adminCaseChildren(ctx context.Context, requestID int64,
 		}
 	}
 	if reads.requests[requestID] == nil {
-		return decodedChildrenOfRequest(ctx, s.deps.Children, requestID, false)
+		return s.deps.Children.ChildrenForRequest(ctx, requestID, false)
 	}
-	return childValues(reads.children[requestID])
+	return reads.children[requestID], nil
 }
 
 func (s *ChangeRequests) adminCasePhase(ctx context.Context, phaseID int64, reads *adminChangeCaseReads) (*enrollment.Phase, error) {
@@ -128,7 +128,7 @@ func (s *ChangeRequests) adminCasePhase(ctx context.Context, phaseID int64, read
 	return s.intake.intakePhase(ctx, phaseID)
 }
 
-func (s *ChangeRequests) adminCaseRequest(ctx context.Context, requestID int64, reads *adminChangeCaseReads) (*Request, error) {
+func (s *ChangeRequests) adminCaseRequest(ctx context.Context, requestID int64, reads *adminChangeCaseReads) (*enrollment.Request, error) {
 	if reads.requests == nil {
 		requests, err := s.deps.Requests.RequestsByID(ctx, reads.requestIDs)
 		if err != nil {
@@ -140,7 +140,7 @@ func (s *ChangeRequests) adminCaseRequest(ctx context.Context, requestID int64, 
 		}
 	}
 	if raw := reads.requests[requestID]; raw != nil {
-		return requestValue(raw)
+		return raw, nil
 	}
 	return s.requestByID(ctx, requestID, false)
 }

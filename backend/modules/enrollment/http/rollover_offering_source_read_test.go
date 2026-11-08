@@ -30,7 +30,7 @@ import (
 
 // rolloverFamily is one source request with its approved children.
 type rolloverFamily struct {
-	children []*enrollmentAPI.RequestChild
+	children []*enrollmentNative.RequestChild
 }
 
 // seedApprovedFamily submits one request with the given children and
@@ -51,7 +51,7 @@ func seedApprovedFamily(t *testing.T, env *rolloverTestEnv, family string, child
 		GuardianFirstName: "Gina",
 		GuardianLastName:  family,
 		GuardianEmail:     strings.ToLower(family) + "@example.com",
-		ConsentFlags:      rolloverConsentFlags(),
+		ConsentFlags:      testFormValues(rolloverConsentFlags()),
 		Children:          children,
 	})
 	require.NoError(t, err)
@@ -100,7 +100,7 @@ func carriedBookingsOf(rows []*enrollmentNative.RequestChildOffering, names map[
 // one parent-choice booking with a note (i%3==1), or a replaced historical
 // booking plus two effective bookings (i%3==2). It returns the expected
 // carried bookings by source child ID.
-func seedRolloverSourceBookings(t *testing.T, env *rolloverTestEnv, children []*enrollmentAPI.RequestChild) map[int64][]string {
+func seedRolloverSourceBookings(t *testing.T, env *rolloverTestEnv, children []*enrollmentNative.RequestChild) map[int64][]string {
 	t.Helper()
 	choice := sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 		Name: "Wahlbetreuung", DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
@@ -149,10 +149,10 @@ func seedRolloverSourceBookings(t *testing.T, env *rolloverTestEnv, children []*
 }
 
 // seedRolloverFamilies spreads n children over families of at most three.
-func seedRolloverFamilies(t *testing.T, env *rolloverTestEnv, n int, prefix string) ([]rolloverFamily, []*enrollmentAPI.RequestChild) {
+func seedRolloverFamilies(t *testing.T, env *rolloverTestEnv, n int, prefix string) ([]rolloverFamily, []*enrollmentNative.RequestChild) {
 	t.Helper()
 	var families []rolloverFamily
-	var all []*enrollmentAPI.RequestChild
+	var all []*enrollmentNative.RequestChild
 	for start := 0; start < n; start += 3 {
 		var names []string
 		for i := start; i < n && i < start+3; i++ {
@@ -275,7 +275,7 @@ FOR EACH ROW EXECUTE FUNCTION enrollment.%s()`, function, function))
 	assert.Len(t, env.outbox.ByKind(enrollmentNative.MailKindRolloverOptOut), 2)
 }
 
-func testpkgChildIDs(children []*enrollmentAPI.RequestChild) []int64 {
+func testpkgChildIDs(children []*enrollmentNative.RequestChild) []int64 {
 	ids := make([]int64, 0, len(children))
 	for _, child := range children {
 		ids = append(ids, child.ID)

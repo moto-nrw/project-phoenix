@@ -2,43 +2,16 @@ package enrollmenthttp
 
 import (
 	"encoding/json"
+	"maps"
 	"time"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The Enrollment owner hands its requests, children and offerings over with
-// the family's answers, consent flags and availability rules as raw JSON
-// (#3565). These routes render them from the decoded values below.
-
-// Request is a decoded parent submission: the owner's request with the
-// family's consent flags, answers, source metadata and consent evidence
-// decoded. The two internal fields stay out of every response, as they do
-// in the owner's value.
-type Request struct {
-	ID                       int64                                 `json:"id"`
-	TenantID                 int64                                 `json:"tenant_id"`
-	CreatedAt                time.Time                             `json:"created_at"`
-	UpdatedAt                time.Time                             `json:"updated_at"`
-	SchemaID                 *int64                                `json:"schema_id,omitempty"`
-	PhaseID                  int64                                 `json:"phase_id"`
-	GuardianFirstName        string                                `json:"guardian_first_name"`
-	GuardianLastName         string                                `json:"guardian_last_name"`
-	GuardianEmail            string                                `json:"guardian_email"`
-	GuardianPhone            *string                               `json:"guardian_phone,omitempty"`
-	GuardianAccountID        *int64                                `json:"guardian_account_id,omitempty"`
-	ConsentFlags             map[string]any                        `json:"consent_flags"`
-	LegalBlocksSnapshot      []capability.LegalBlocksSnapshotEntry `json:"-"`
-	CustomData               map[string]any                        `json:"custom_data"`
-	SubmissionSource         string                                `json:"submission_source"`
-	SourceMetadata           map[string]any                        `json:"source_metadata"`
-	StatusToken              string                                `json:"status_token"`
-	StatusTokenExpires       *time.Time                            `json:"status_token_expires,omitempty"`
-	SubmittedAt              time.Time                             `json:"submitted_at"`
-	WithdrawnAt              *time.Time                            `json:"withdrawn_at,omitempty"`
-	DecisionNotificationMode *string                               `json:"-"`
-}
+// The Enrollment owner hands its offerings over with their availability rules
+// as raw JSON (#3565). These routes render them from the decoded values below.
+// Requests and children travel as the owner's values with decoded answers
+// (ADR 0170).
 
 // CareOffering is a decoded care offering: the owner's value with its
 // availability rule decoded for rendering.
@@ -84,35 +57,6 @@ type CareOfferingAvailabilityCondition struct {
 	Value    []int  `json:"value"`
 }
 
-// RequestChild is a decoded child of a parent submission.
-type RequestChild struct {
-	ID                    int64          `json:"id"`
-	TenantID              int64          `json:"tenant_id"`
-	CreatedAt             time.Time      `json:"created_at"`
-	UpdatedAt             time.Time      `json:"updated_at"`
-	RequestID             int64          `json:"request_id"`
-	FirstName             string         `json:"first_name"`
-	LastName              string         `json:"last_name"`
-	DateOfBirth           calendar.Date  `json:"date_of_birth"`
-	TargetGradeLevel      *int16         `json:"target_grade_level,omitempty"`
-	TargetSchoolClass     *string        `json:"target_school_class,omitempty"`
-	CustomData            map[string]any `json:"custom_data"`
-	Status                string         `json:"status"`
-	StatusReason          *string        `json:"status_reason,omitempty"`
-	ActivationMode        string         `json:"activation_mode"`
-	ActivateOn            *calendar.Date `json:"activate_on,omitempty"`
-	ReviewedAt            *time.Time     `json:"reviewed_at,omitempty"`
-	ReviewedBy            *int64         `json:"reviewed_by,omitempty"`
-	CreatedStudentID      *int64         `json:"created_student_id,omitempty"`
-	MatchedStudentID      *int64         `json:"matched_student_id,omitempty"`
-	SortOrder             int            `json:"sort_order"`
-	RolloverSourceChildID *int64         `json:"rollover_source_child_id,omitempty"`
-	ReviewReason          *string        `json:"review_reason,omitempty"`
-	// WeeklyPlanOn is the day an approved future renewal's weekly plan
-	// applies (#6043); nil when it applied at approval.
-	WeeklyPlanOn *calendar.Date `json:"weekly_plan_on,omitempty"`
-}
-
 // RequestChildOffering is one child's offering selection with its validity.
 type RequestChildOffering = capability.RequestChildOfferingRecord
 
@@ -120,7 +64,7 @@ type RequestChildOffering = capability.RequestChildOfferingRecord
 // over into care: an approval created its student. Change wishes for it run
 // through the parent app, so the status link keeps it readable but locked
 // (ADR 0003).
-func ChildTakenOver(child *RequestChild) bool {
+func ChildTakenOver(child *capability.RequestChild) bool {
 	return child != nil && child.CreatedStudentID != nil && *child.CreatedStudentID > 0
 }
 
@@ -129,89 +73,6 @@ func decodeJSONObject(raw json.RawMessage, into any) error {
 		return nil
 	}
 	return json.Unmarshal(raw, into)
-}
-
-func encodeJSONObject(value map[string]any) (json.RawMessage, error) {
-	if value == nil {
-		return nil, nil
-	}
-	return json.Marshal(value)
-}
-
-func childValue(r *capability.RequestChild) (*RequestChild, error) {
-	if r == nil {
-		return nil, nil
-	}
-	result := &RequestChild{
-		ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RequestID: r.RequestID,
-		FirstName: r.FirstName, LastName: r.LastName, TargetGradeLevel: r.TargetGradeLevel,
-		TargetSchoolClass: r.TargetSchoolClass, Status: r.Status, StatusReason: r.StatusReason,
-		ActivationMode: r.ActivationMode, ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy,
-		CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, SortOrder: r.SortOrder,
-		RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason,
-	}
-	dob, err := calendar.ParseDate(string(r.DateOfBirth))
-	if err != nil {
-		return nil, err
-	}
-	result.DateOfBirth = dob
-	if r.ActivateOn != nil {
-		date, err := calendar.ParseDate(string(*r.ActivateOn))
-		if err != nil {
-			return nil, err
-		}
-		result.ActivateOn = &date
-	}
-	if r.WeeklyPlanOn != nil {
-		date, err := calendar.ParseDate(string(*r.WeeklyPlanOn))
-		if err != nil {
-			return nil, err
-		}
-		result.WeeklyPlanOn = &date
-	}
-	if err := decodeJSONObject(r.CustomData, &result.CustomData); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func childValues(values []*capability.RequestChild) ([]*RequestChild, error) {
-	var result []*RequestChild
-	for _, value := range values {
-		converted, err := childValue(value)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, converted)
-	}
-	return result, nil
-}
-
-func requestValue(r *capability.Request) (*Request, error) {
-	if r == nil {
-		return nil, nil
-	}
-	result := &Request{
-		ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, SchemaID: r.SchemaID,
-		PhaseID: r.PhaseID, GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName,
-		GuardianEmail: r.GuardianEmail, GuardianPhone: r.GuardianPhone, GuardianAccountID: r.GuardianAccountID,
-		SubmissionSource: r.SubmissionSource, StatusToken: r.StatusToken, StatusTokenExpires: r.StatusTokenExpires,
-		SubmittedAt: r.SubmittedAt, WithdrawnAt: r.WithdrawnAt, DecisionNotificationMode: r.DecisionNotificationMode,
-	}
-	for _, field := range []struct {
-		raw  json.RawMessage
-		into any
-	}{
-		{r.ConsentFlags, &result.ConsentFlags},
-		{r.LegalBlocksSnapshot, &result.LegalBlocksSnapshot},
-		{r.CustomData, &result.CustomData},
-		{r.SourceMetadata, &result.SourceMetadata},
-	} {
-		if err := decodeJSONObject(field.raw, field.into); err != nil {
-			return nil, err
-		}
-	}
-	return result, nil
 }
 
 // careOfferingValue decodes a care offering the owner serves for these
@@ -270,58 +131,25 @@ func careOfferingInput(o *CareOffering) (*capability.CareOffering, error) {
 	return value, nil
 }
 
-// requestStatusInput encodes a request and its children back into the
-// owner's values, so the owner can judge the edit mode of a status it
-// handed out.
-func requestStatusInput(req *Request, children []*RequestChild) (*capability.RequestStatus, error) {
-	request := &capability.Request{
-		ID: req.ID, TenantID: req.TenantID, CreatedAt: req.CreatedAt, UpdatedAt: req.UpdatedAt,
-		SchemaID: req.SchemaID, PhaseID: req.PhaseID, GuardianFirstName: req.GuardianFirstName,
-		GuardianLastName: req.GuardianLastName, GuardianEmail: req.GuardianEmail, GuardianPhone: req.GuardianPhone,
-		GuardianAccountID: req.GuardianAccountID, SubmissionSource: req.SubmissionSource,
-		StatusToken: req.StatusToken, StatusTokenExpires: req.StatusTokenExpires, SubmittedAt: req.SubmittedAt,
-		WithdrawnAt: req.WithdrawnAt, DecisionNotificationMode: req.DecisionNotificationMode,
-	}
-	var err error
-	if request.ConsentFlags, err = encodeJSONObject(req.ConsentFlags); err != nil {
-		return nil, err
-	}
-	if request.CustomData, err = encodeJSONObject(req.CustomData); err != nil {
-		return nil, err
-	}
-	status := &capability.RequestStatus{Request: request}
-	for _, child := range children {
-		value, err := childInput(child)
-		if err != nil {
-			return nil, err
-		}
-		status.Children = append(status.Children, value)
-	}
-	return status, nil
+// formValues copies the answers a wire request decoded into the owner's
+// values.
+func formValues(values map[string]any) capability.FormValues {
+	return capability.CollectFormValues(maps.All(values))
 }
 
-func childInput(r *RequestChild) (*capability.RequestChild, error) {
-	if r == nil {
-		return nil, nil
+// patchFormValues is a patched document: nil leaves the stored one alone,
+// any other map, even an empty one, replaces it.
+func patchFormValues(values map[string]any) *capability.FormValues {
+	if values == nil {
+		return nil
 	}
-	result := &capability.RequestChild{
-		ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RequestID: r.RequestID,
-		FirstName: r.FirstName, LastName: r.LastName, DateOfBirth: capability.Date(r.DateOfBirth.String()),
-		TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, Status: r.Status,
-		StatusReason: r.StatusReason, ActivationMode: r.ActivationMode, ReviewedAt: r.ReviewedAt,
-		ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID,
-		SortOrder: r.SortOrder, RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason,
-	}
-	if r.ActivateOn != nil {
-		date := capability.Date(r.ActivateOn.String())
-		result.ActivateOn = &date
-	}
-	data, err := encodeJSONObject(r.CustomData)
-	if err != nil {
-		return nil, err
-	}
-	result.CustomData = data
-	return result, nil
+	return new(formValues(values))
+}
+
+// formValue is the answer stored under key, nil when absent.
+func formValue(values capability.FormValues, key string) any {
+	value, _ := values.Lookup(key)
+	return value
 }
 
 // deref returns the value p points at, or the zero value for nil.

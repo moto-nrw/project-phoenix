@@ -103,8 +103,8 @@ func (d *Decisions) restoreWithdrawn(ctx context.Context, requestID, restoredBy 
 // Decide, cleanup, and the withdraw path, so restore serializes cleanly
 // against all of them without lock inversion — and returns the withdrawn
 // children.
-func (d *Decisions) lockWithdrawnChildren(ctx context.Context, requestID int64) (*Request, []*RequestChild, error) {
-	request, err := decodedRequestByID(ctx, d.deps.Requests, requestID, true)
+func (d *Decisions) lockWithdrawnChildren(ctx context.Context, requestID int64) (*enrollmentNative.Request, []*enrollmentNative.RequestChild, error) {
+	request, err := d.deps.Requests.RequestByID(ctx, requestID, true)
 	if err != nil {
 		// Only a genuinely missing row becomes the 404 sentinel; connection
 		// and query failures keep flowing so the handler's transient-503 /
@@ -114,11 +114,11 @@ func (d *Decisions) lockWithdrawnChildren(ctx context.Context, requestID int64) 
 		}
 		return nil, nil, fmt.Errorf("restore: load request: %w", err)
 	}
-	children, err := decodedChildrenOfRequest(ctx, d.deps.Children, requestID, true)
+	children, err := d.deps.Children.ChildrenForRequest(ctx, requestID, true)
 	if err != nil {
 		return nil, nil, fmt.Errorf("restore: load children: %w", err)
 	}
-	withdrawn := make([]*RequestChild, 0, len(children))
+	withdrawn := make([]*enrollmentNative.RequestChild, 0, len(children))
 	for _, child := range children {
 		if child.Status == enrollmentNative.ChildStatusWithdrawn {
 			withdrawn = append(withdrawn, child)
@@ -135,7 +135,7 @@ func (d *Decisions) lockWithdrawnChildren(ctx context.Context, requestID int64) 
 // check, exactly like a submission does. The lock auto-releases at tx end.
 // The error stays name-free on purpose: it flows into handler logs and the
 // API response, and student names must not reach Info-level logs.
-func (d *Decisions) checkRestoreDuplicates(ctx context.Context, phase *enrollmentNative.Phase, request *Request, withdrawn []*RequestChild) error {
+func (d *Decisions) checkRestoreDuplicates(ctx context.Context, phase *enrollmentNative.Phase, request *enrollmentNative.Request, withdrawn []*enrollmentNative.RequestChild) error {
 	emailLC := guardianEmailKey(request.GuardianEmail)
 	if err := d.deps.Requests.AcquireSubmissionDedupLock(ctx, phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("restore: acquire dedup lock: %w", err)
@@ -157,7 +157,7 @@ func (d *Decisions) checkRestoreDuplicates(ctx context.Context, phase *enrollmen
 // checkRestoreMatchedStudents keeps an existing-students child pinned to a
 // live student from coming back next to a second active request targeting
 // that student (different-email submissions bypass the email-scoped check).
-func (d *Decisions) checkRestoreMatchedStudents(ctx context.Context, phase *enrollmentNative.Phase, withdrawn []*RequestChild) error {
+func (d *Decisions) checkRestoreMatchedStudents(ctx context.Context, phase *enrollmentNative.Phase, withdrawn []*enrollmentNative.RequestChild) error {
 	locked := false
 	for _, child := range withdrawn {
 		if child.MatchedStudentID == nil {
@@ -184,7 +184,7 @@ func (d *Decisions) checkRestoreMatchedStudents(ctx context.Context, phase *enro
 
 // restoreChildren flips the withdrawn children back and clears the request's
 // withdrawal.
-func (d *Decisions) restoreChildren(ctx context.Context, request *Request, withdrawn []*RequestChild, waitlistedIDs []int64) ([]int64, error) {
+func (d *Decisions) restoreChildren(ctx context.Context, request *enrollmentNative.Request, withdrawn []*enrollmentNative.RequestChild, waitlistedIDs []int64) ([]int64, error) {
 	restoredIDs, err := d.deps.Children.RestoreWithdrawnChildren(ctx, request.ID, waitlistedIDs)
 	if err != nil {
 		return nil, fmt.Errorf("restore: update children: %w", err)
@@ -212,7 +212,7 @@ func (d *Decisions) restoreChildren(ctx context.Context, request *Request, withd
 // a partially overlapping pair cannot jointly overbook a slot both fit into
 // alone. Reject-mode phases surface ErrCareOfferingFull instead; a
 // meanwhile-deactivated offering fails closed with ErrCareOfferingClosed.
-func (d *Decisions) restoreCapacityWaitlist(ctx context.Context, phase *enrollmentNative.Phase, withdrawn []*RequestChild) ([]int64, error) {
+func (d *Decisions) restoreCapacityWaitlist(ctx context.Context, phase *enrollmentNative.Phase, withdrawn []*enrollmentNative.RequestChild) ([]int64, error) {
 	if d.deps.Children == nil || d.deps.Offerings == nil {
 		return nil, nil
 	}
@@ -253,7 +253,7 @@ func (d *Decisions) restoreCapacityWaitlist(ctx context.Context, phase *enrollme
 // restoreClaims collects the capacity claims per withdrawn child. ValidUntil
 // is exclusive: an interval ending on or before the window start holds no
 // remaining slot.
-func restoreClaims(phase *enrollmentNative.Phase, rows []*enrollmentNative.RequestChildOfferingRecord, withdrawn []*RequestChild) ([][]enrollmentNative.OfferingClaim, bool) {
+func restoreClaims(phase *enrollmentNative.Phase, rows []*enrollmentNative.RequestChildOfferingRecord, withdrawn []*enrollmentNative.RequestChild) ([][]enrollmentNative.OfferingClaim, bool) {
 	capacityFrom := calendar.TodayDate()
 	if calendar.Date(phase.ServiceStartDate).After(capacityFrom) {
 		capacityFrom = calendar.Date(phase.ServiceStartDate)

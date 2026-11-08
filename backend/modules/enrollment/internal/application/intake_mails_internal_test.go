@@ -42,7 +42,7 @@ func TestSubmissionMailSubscriberLookupFailureKeepsConfirmationAndConfiguredReci
 		},
 	})
 
-	err := intake.enqueueSubmissionEmails(context.Background(), 1, &Request{GuardianEmail: "parent@example.org"}, nil, "")
+	err := intake.enqueueSubmissionEmails(context.Background(), 1, &enrollment.Request{GuardianEmail: "parent@example.org"}, nil, "")
 	require.NoError(t, err)
 	assert.True(t, savepointCalled)
 	require.Len(t, outbox.mails, 2)
@@ -64,7 +64,7 @@ func TestSubmissionMailSavepointControlFailureAborts(t *testing.T) {
 		},
 	})
 
-	err := intake.enqueueSubmissionEmails(context.Background(), 1, &Request{}, nil, "")
+	err := intake.enqueueSubmissionEmails(context.Background(), 1, &enrollment.Request{}, nil, "")
 	require.ErrorIs(t, err, controlErr)
 }
 

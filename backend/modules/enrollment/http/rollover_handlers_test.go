@@ -249,13 +249,13 @@ func TestCreateRolloverHandler_NilServiceReturns500(t *testing.T) {
 func TestListRolloverReviewHandler_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	source := &RequestChild{FirstName: "Lina", LastName: "Beispiel"}
+	source := &capability.RequestChild{FirstName: "Lina", LastName: "Beispiel"}
 	source.ID = 100
 	four := int16(4)
 	source.TargetGradeLevel = &four
 	five := int16(5)
 
-	child := &RequestChild{
+	child := &capability.RequestChild{
 		FirstName:        "Lina",
 		LastName:         "Beispiel",
 		Status:           capability.ChildStatusPendingAdminReview,
@@ -270,7 +270,7 @@ func TestListRolloverReviewHandler_HappyPath(t *testing.T) {
 		listResult: []*ReviewQueueItem{
 			{
 				Child:       child,
-				Request:     &Request{GuardianFirstName: "Anna", GuardianLastName: "Beispiel", GuardianEmail: "anna@example.com", StatusToken: "tok-abc"},
+				Request:     &capability.Request{GuardianFirstName: "Anna", GuardianLastName: "Beispiel", GuardianEmail: "anna@example.com", StatusToken: "tok-abc"},
 				SourceChild: source,
 			},
 		},

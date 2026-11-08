@@ -2,17 +2,13 @@ package contracttest_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -96,13 +92,6 @@ func readOwnerRequestForTest(ctx context.Context, owner interface {
 }
 
 // rawJSON encodes a fixture value for the owner's raw JSON fields.
-func rawJSON(t *testing.T, value any) json.RawMessage {
-	t.Helper()
-	raw, err := json.Marshal(value)
-	require.NoError(t, err)
-	return raw
-}
-
 // pickupResyncer records offering pickup projection refreshes.
 type pickupResyncer struct {
 	OfferingIDs []int64

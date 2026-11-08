@@ -19,7 +19,7 @@ import (
 // currentSnapshot is the request as stored now, with the bookings in force
 // today rather than at the service start: an approved dated change must not
 // be written back over by a stale selection.
-func (s *ChangeRequests) currentSnapshot(ctx context.Context, req *Request, children []*RequestChild) (map[string]any, error) {
+func (s *ChangeRequests) currentSnapshot(ctx context.Context, req *enrollment.Request, children []*enrollment.RequestChild) (map[string]any, error) {
 	guardians, err := s.deps.Guardians.RequestGuardians(ctx, []int64{req.ID})
 	if err != nil {
 		return nil, fmt.Errorf("change request: list guardians: %w", err)
@@ -106,11 +106,11 @@ func submitChildSnapshot(child SubmitChild) map[string]any {
 	return row
 }
 
-func persistedSnapshot(req *Request, children []*RequestChild, guardians []*enrollment.RequestGuardian, linksByChild map[int64][]*enrollment.RequestChildOfferingRecord) map[string]any {
+func persistedSnapshot(req *enrollment.Request, children []*enrollment.RequestChild, guardians []*enrollment.RequestGuardian, linksByChild map[int64][]*enrollment.RequestChildOfferingRecord) map[string]any {
 	submit := SubmitRequest{
 		TenantID: req.TenantID, PhaseID: req.PhaseID, GuardianFirstName: req.GuardianFirstName,
 		GuardianLastName: req.GuardianLastName, GuardianEmail: req.GuardianEmail, GuardianPhone: req.GuardianPhone,
-		ConsentFlags: req.ConsentFlags, CustomData: req.CustomData,
+		ConsentFlags: formMap(req.ConsentFlags), CustomData: formMap(req.CustomData),
 	}
 	for _, guardian := range guardians {
 		submit.AdditionalGuardians = append(submit.AdditionalGuardians, SubmitGuardian{
@@ -120,7 +120,7 @@ func persistedSnapshot(req *Request, children []*RequestChild, guardians []*enro
 	for _, child := range children {
 		next := SubmitChild{
 			FirstName: child.FirstName, LastName: child.LastName, DateOfBirth: child.DateOfBirth,
-			TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass, CustomData: child.CustomData,
+			TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass, CustomData: formMap(child.CustomData),
 		}
 		for _, link := range linksByChild[child.ID] {
 			next.OfferingIDs = append(next.OfferingIDs, link.CareOfferingID)
@@ -147,7 +147,7 @@ func persistedSnapshot(req *Request, children []*RequestChild, guardians []*enro
 // ensureTakenOverChildrenUnchanged refuses a proposal that would alter a
 // child already taken over into care (ADR 0003). Both snapshots are aligned
 // with children by index; id and status are bookkeeping the proposal lacks.
-func ensureTakenOverChildrenUnchanged(children []*RequestChild, base, proposed map[string]any) error {
+func ensureTakenOverChildrenUnchanged(children []*enrollment.RequestChild, base, proposed map[string]any) error {
 	baseRows := sliceFromAny(base["children"])
 	proposedRows := sliceFromAny(proposed["children"])
 	for i, child := range children {

@@ -47,7 +47,7 @@ type mockDecisionService struct {
 	listChildOffResult map[int64]ChildOfferingSet
 	listChildOffErr    error
 
-	updateChildOffResult *RequestChild
+	updateChildOffResult *capability.RequestChild
 	updateChildOffErr    error
 	updateChildOffInput  UpdateChildOfferingsInput
 
@@ -211,9 +211,9 @@ func executeAdminRouteWithPermissions(t *testing.T, rs *Resource, method, path s
 }
 
 // makeReqSummary builds an enrollment request summary with the supplied IDs.
-func makeReqSummary(id, phaseID int64, children ...*RequestChild) *RequestSummary {
+func makeReqSummary(id, phaseID int64, children ...*capability.RequestChild) *RequestSummary {
 	return &RequestSummary{
-		Request: &Request{
+		Request: &capability.Request{
 			ID:                id,
 			PhaseID:           phaseID,
 			GuardianFirstName: "Anna",
@@ -226,8 +226,8 @@ func makeReqSummary(id, phaseID int64, children ...*RequestChild) *RequestSummar
 	}
 }
 
-func makeChildSummary(id int64, firstName, lastName, status string) *RequestChild {
-	return &RequestChild{
+func makeChildSummary(id int64, firstName, lastName, status string) *capability.RequestChild {
+	return &capability.RequestChild{
 		ID:             id,
 		FirstName:      firstName,
 		LastName:       lastName,

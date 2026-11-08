@@ -185,7 +185,7 @@ func TestDecisionService_Decide_FutureRenewalAppliesWeeklyPlanAtStart(t *testing
 	require.NoError(t, err)
 	require.NotNil(t, child.WeeklyPlanOn, "the request child names the day its weekly plan applies")
 	assert.Equal(t, r.start, *child.WeeklyPlanOn)
-	child.CustomData["pickup_times"] = map[string]any{"mon": "16:00"}
+	child.CustomData.Set("pickup_times", map[string]any{"mon": "16:00"})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
 	_, err = changeRequestApplierForTest(t, r.env).SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
 		RequestID: r.requestID, ChildID: r.childID, ActorAccountID: r.reviewerAccountID, ReplaceTargetedData: true,
@@ -285,13 +285,13 @@ func TestDecisionService_ApplyDueWeeklyPlans_FailureRollsBackCompletely(t *testi
 	ctx := testpkg.Ctx(t)
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
 	require.NoError(t, err)
-	child.CustomData["pickup_times"] = map[string]any{"mon": "25:99"}
+	child.CustomData.Set("pickup_times", map[string]any{"mon": "25:99"})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
 
 	assert.Zero(t, r.applyDue(t, r.start))
 	r.assertRunningPlan(t, "after a failed apply")
 
-	child.CustomData["pickup_times"] = map[string]any{"mon": "15:10"}
+	child.CustomData.Set("pickup_times", map[string]any{"mon": "15:10"})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
 	assert.Equal(t, 1, r.applyDue(t, r.start.AddDays(1)), "the plan stays due after a failure")
 	assert.Equal(t, map[int]string{timetable.WeekdayMonday: "15:10"}, r.pickups(t))
@@ -325,9 +325,9 @@ func TestDecisionService_ApplyDueWeeklyPlans_ClearedConfirmedFields(t *testing.T
 	ctx := testpkg.Ctx(t)
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
 	require.NoError(t, err)
-	child.CustomData["pickup_times"] = nil
-	delete(child.CustomData, "arrival_times")
-	child.CustomData["allowed_modes"] = nil
+	child.CustomData.Set("pickup_times", nil)
+	child.CustomData.Unset("arrival_times")
+	child.CustomData.Set("allowed_modes", nil)
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
 	_, err = changeRequestApplierForTest(t, r.env).SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
 		RequestID: r.requestID, ChildID: r.childID, ActorAccountID: r.reviewerAccountID, ReplaceTargetedData: true,
@@ -352,7 +352,7 @@ func TestDecisionService_ApplyDueWeeklyPlans_OmittedFieldKeepsRunningTarget(t *t
 	ctx := testpkg.Ctx(t)
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
 	require.NoError(t, err)
-	delete(child.CustomData, "arrival_times")
+	child.CustomData.Unset("arrival_times")
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
 	r.approve(t)
 
@@ -382,8 +382,8 @@ func TestDecisionService_SyncApprovedChildData_AppliesDueWeeklyPlan(t *testing.T
 			if tc.replaceBefore || tc.replaceNow {
 				child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
 				require.NoError(t, err)
-				delete(child.CustomData, "arrival_times")
-				child.CustomData["allowed_modes"] = nil
+				child.CustomData.Unset("arrival_times")
+				child.CustomData.Set("allowed_modes", nil)
 				require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
 			}
 			if tc.replaceBefore {
@@ -451,12 +451,12 @@ func TestDecisionService_ApplyDueWeeklyPlans_BroadcastsAfterSuccessfulApply(t *t
 	ctx := testpkg.Ctx(t)
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, repos.Enrollment(), r.childID)
 	require.NoError(t, err)
-	child.CustomData["pickup_times"] = map[string]any{"mon": "25:99"}
+	child.CustomData.Set("pickup_times", map[string]any{"mon": "25:99"})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, repos.Enrollment(), child))
 	assert.Zero(t, r.applyDue(t, r.start))
 	assert.False(t, bc.HasEventType(realtime.EventStudentUpdated), "a rolled-back application stays silent")
 
-	child.CustomData["pickup_times"] = map[string]any{"mon": "15:10"}
+	child.CustomData.Set("pickup_times", map[string]any{"mon": "15:10"})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, repos.Enrollment(), child))
 	assert.Equal(t, 1, r.applyDue(t, r.start))
 	assert.True(t, bc.HasEventType(realtime.EventStudentUpdated), "ordinary plan activation refreshes open views")
@@ -496,7 +496,7 @@ func TestDecisionService_ApplyDueWeeklyPlans_AuditsDeferredDeparture(t *testing.
 	ctx := testpkg.Ctx(t)
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
 	require.NoError(t, err)
-	child.CustomData["allowed_modes"] = map[string]any{"mon": []any{"bus"}}
+	child.CustomData.Set("allowed_modes", map[string]any{"mon": []any{"bus"}})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
 	_, err = changeRequestApplierForTest(t, r.env).SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
 		RequestID: r.requestID, ChildID: r.childID, ActorAccountID: r.reviewerAccountID, ReplaceTargetedData: true,
@@ -573,7 +573,7 @@ func TestDecisionService_ApplyDueWeeklyPlans_ActivatesCompanionsTogether(t *test
 			if failure == "invalid plan" {
 				child, readErr := enrollmentAPI.ReadOwnerChildForTest(ctx, second.env.repos.Enrollment(), second.childID)
 				require.NoError(t, readErr)
-				child.CustomData["pickup_times"] = map[string]any{"mon": "25:99"}
+				child.CustomData.Set("pickup_times", map[string]any{"mon": "25:99"})
 				require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, second.env.repos.Enrollment(), child))
 			}
 			want := 3

@@ -39,8 +39,8 @@ func TestCareUsageReportShowsBookedOfferingPickupTimes(t *testing.T) {
 	}
 	in := &careUsageInputs{
 		phase:        &enrollmentNative.Phase{ID: 7, Name: "2. Halbjahr 2026/27"},
-		requestByID:  map[int64]*Request{10: {ID: 10, SubmittedAt: time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)}},
-		children:     []*reportChild{{ID: 20, RequestID: 10, FirstName: "Lina", LastName: "Test", Status: enrollmentNative.ChildStatusSubmitted}},
+		requestByID:  map[int64]*enrollmentNative.Request{10: {ID: 10, SubmittedAt: time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)}},
+		children:     []*enrollmentNative.RequestChild{{ID: 20, RequestID: 10, FirstName: "Lina", LastName: "Test", Status: enrollmentNative.ChildStatusSubmitted}},
 		offerings:    offerings,
 		offeringByID: map[int64]*offeringContract.CareOfferingRecord{},
 		linksByChild: map[int64][]*enrollmentNative.RequestChildOfferingRecord{20: {

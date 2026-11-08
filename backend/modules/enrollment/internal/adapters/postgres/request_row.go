@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -37,9 +38,65 @@ type requestRow struct {
 	ParentChangedAt time.Time `bun:"parent_changed_at,nullzero,notnull,default:current_timestamp"`
 }
 
-func (r requestRow) value() *enrollment.Request {
-	return &enrollment.Request{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, SchemaID: r.SchemaID, PhaseID: r.PhaseID, GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName, GuardianEmail: r.GuardianEmail, GuardianPhone: r.GuardianPhone, GuardianAccountID: r.GuardianAccountID, ConsentFlags: r.ConsentFlags, LegalBlocksSnapshot: r.LegalBlocksSnapshot, CustomData: r.CustomData, SubmissionSource: r.SubmissionSource, SourceMetadata: r.SourceMetadata, StatusToken: r.StatusToken, StatusTokenExpires: r.StatusTokenExpires, SubmittedAt: r.SubmittedAt, WithdrawnAt: r.WithdrawnAt, DecisionNotificationMode: r.DecisionNotificationMode}
+// value decodes the row into the owner's request. The JSON columns decode
+// exactly here (ADR 0170); a decode error passes through unwrapped, as the
+// flows reported it before.
+func (r requestRow) value() (*enrollment.Request, error) {
+	value := &enrollment.Request{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, SchemaID: r.SchemaID, PhaseID: r.PhaseID, GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName, GuardianEmail: r.GuardianEmail, GuardianPhone: r.GuardianPhone, GuardianAccountID: r.GuardianAccountID, SubmissionSource: r.SubmissionSource, StatusToken: r.StatusToken, StatusTokenExpires: r.StatusTokenExpires, SubmittedAt: r.SubmittedAt, WithdrawnAt: r.WithdrawnAt, DecisionNotificationMode: r.DecisionNotificationMode}
+	for _, field := range []struct {
+		raw  json.RawMessage
+		into any
+	}{
+		{r.ConsentFlags, &value.ConsentFlags},
+		{r.LegalBlocksSnapshot, &value.LegalBlocksSnapshot},
+		{r.CustomData, &value.CustomData},
+		{r.SourceMetadata, &value.SourceMetadata},
+	} {
+		if len(field.raw) == 0 {
+			continue
+		}
+		if err := json.Unmarshal(field.raw, field.into); err != nil {
+			return nil, err
+		}
+	}
+	return value, nil
 }
-func requestStorage(r *enrollment.Request) *requestRow {
-	return &requestRow{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, SchemaID: r.SchemaID, PhaseID: r.PhaseID, GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName, GuardianEmail: r.GuardianEmail, GuardianPhone: r.GuardianPhone, GuardianAccountID: r.GuardianAccountID, ConsentFlags: r.ConsentFlags, LegalBlocksSnapshot: r.LegalBlocksSnapshot, CustomData: r.CustomData, SubmissionSource: r.SubmissionSource, SourceMetadata: r.SourceMetadata, StatusToken: r.StatusToken, StatusTokenExpires: r.StatusTokenExpires, SubmittedAt: r.SubmittedAt, WithdrawnAt: r.WithdrawnAt, DecisionNotificationMode: r.DecisionNotificationMode}
+
+// requestStorage encodes the owner's request into its row. Empty values
+// store {} and an empty consent evidence list [], never null.
+func requestStorage(r *enrollment.Request) (*requestRow, error) {
+	row := &requestRow{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, SchemaID: r.SchemaID, PhaseID: r.PhaseID, GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName, GuardianEmail: r.GuardianEmail, GuardianPhone: r.GuardianPhone, GuardianAccountID: r.GuardianAccountID, SubmissionSource: r.SubmissionSource, StatusToken: r.StatusToken, StatusTokenExpires: r.StatusTokenExpires, SubmittedAt: r.SubmittedAt, WithdrawnAt: r.WithdrawnAt, DecisionNotificationMode: r.DecisionNotificationMode}
+	snapshot := r.LegalBlocksSnapshot
+	if snapshot == nil {
+		snapshot = []enrollment.LegalBlocksSnapshotEntry{}
+	}
+	for _, field := range []struct {
+		name  string
+		value any
+		into  *json.RawMessage
+	}{
+		{"consent_flags", r.ConsentFlags, &row.ConsentFlags},
+		{"legal_blocks_snapshot", snapshot, &row.LegalBlocksSnapshot},
+		{"custom_data", r.CustomData, &row.CustomData},
+		{"source_metadata", r.SourceMetadata, &row.SourceMetadata},
+	} {
+		encoded, err := json.Marshal(field.value)
+		if err != nil {
+			return nil, fmt.Errorf("encode enrollment request %s: %w", field.name, err)
+		}
+		*field.into = encoded
+	}
+	return row, nil
+}
+
+func requestValues(rows []requestRow) ([]*enrollment.Request, error) {
+	var result []*enrollment.Request
+	for _, row := range rows {
+		value, err := row.value()
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, value)
+	}
+	return result, nil
 }

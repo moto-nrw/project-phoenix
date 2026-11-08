@@ -32,8 +32,8 @@ type classRosterInputs struct {
 
 // classRosterEnrollmentReads are the enrollment rows of the students' phase.
 type classRosterEnrollmentReads struct {
-	requests         []*Request
-	children         []*reportChild
+	requests         []*enrollmentNative.Request
+	children         []*enrollmentNative.RequestChild
 	requestGuardians map[int64][]*enrollmentNative.RequestGuardian
 }
 
@@ -384,7 +384,7 @@ func (s *Reports) loadClassRosterEnrollments(ctx context.Context, filters enroll
 
 // loadClassRosterCatalog reads the phase's offerings, the request schemas
 // and whether the offering catalog constrains the care days.
-func (s *Reports) loadClassRosterCatalog(ctx context.Context, filters enrollmentNative.ClassRosterFilters, in *classRosterInputs, requests []*Request) error {
+func (s *Reports) loadClassRosterCatalog(ctx context.Context, filters enrollmentNative.ClassRosterFilters, in *classRosterInputs, requests []*enrollmentNative.Request) error {
 	offerings, err := s.deps.Offerings.ListByPhase(ctx, filters.PhaseID)
 	if err != nil {
 		return fmt.Errorf("class roster report: list offerings: %w", err)

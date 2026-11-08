@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -132,7 +133,7 @@ func TestIntakeCommandsAndRLSPreserveTenantIsolation(t *testing.T) {
 		current, err := testpkg.TenantQuery1(t, ctx, db, module.ChildByID, children[index].ID)
 		require.NoError(t, err)
 		require.Equal(t, "Fixture", current.FirstName)
-		require.Equal(t, enrollment.Date("2023-03-26"), current.DateOfBirth)
+		require.Equal(t, calendar.NewDate(2023, 3, 26), current.DateOfBirth)
 		currentRequest, err := testpkg.TenantQuery2(t, ctx, db, module.RequestByID, request.ID, false)
 		require.NoError(t, err)
 		require.Equal(t, "Fixture", currentRequest.GuardianFirstName)
