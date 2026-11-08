@@ -335,6 +335,10 @@ func TestPickupChainDeadlockReplaysOnlyItsOwnTransaction(t *testing.T) {
 	deadlock := func(t *testing.T, f *pickupChainFixture, start func() <-chan pickupResolveOutcome) (bun.Tx, pickupResolveOutcome, <-chan pickupResolveOutcome) {
 		t.Helper()
 		holder := f.holdInstance(t, f.instances[1], "")
+		// The holder never runs the deadlock check within the test, so the
+		// resolve, whose check runs after the default second, is the victim.
+		_, err := holder.ExecContext(context.Background(), `SET LOCAL deadlock_timeout = '30s'`)
+		require.NoError(t, err)
 		done := start()
 		f.waitForInstanceLockWait(t)
 		crossed := make(chan error, 1)
@@ -617,15 +621,18 @@ func TestPickupChainCreatesNoNewDeadlockPairs(t *testing.T) {
 // no row while a statement waits for a lock, so one statement that waits for
 // several blocks in turn adds their waits up within a single read (#5816
 // review). With one statement per block each read waits for one block only:
-// two blocks held 0.7 s each under a 1 s read timeout still refuse the
+// two blocks held 1.2 s each under a 2 s read timeout still refuse the
 // changed third block with the block-gone conflict, not with a driver error.
+// Each hold starts once the resolve is seen waiting for that block, so the
+// waits add up to more than the read timeout.
 func TestPickupResolveWaitsForEachBlockWithinOneRead(t *testing.T) {
 	t.Parallel()
+	const readTimeout, hold = 2 * time.Second, 1200 * time.Millisecond
 	testpkg.SetupIsolatedTestDB(t)
 	dsn, err := url.Parse(testpkg.IsolatedTestDSN(t))
 	require.NoError(t, err)
 	query := dsn.Query()
-	query.Set("read_timeout", "1s")
+	query.Set("read_timeout", readTimeout.String())
 	dsn.RawQuery = query.Encode()
 	db := testpkg.AdoptPrivatePool(t, testpkg.NewBunDB(testpkg.OpenPostgresSQL(dsn.String())))
 	f := newPickupChainFixture(t, db, pickupChainOptions{})
@@ -635,11 +642,23 @@ func TestPickupResolveWaitsForEachBlockWithinOneRead(t *testing.T) {
 
 	first := f.holdInstance(t, f.instances[0], "")
 	second := f.holdInstance(t, f.instances[1], "")
-	// The hold times are the subject of the test: each stays below the read
-	// timeout, their sum does not.
-	time.AfterFunc(700*time.Millisecond, func() { _ = first.Rollback() })
-	time.AfterFunc(1400*time.Millisecond, func() { _ = second.Rollback() })
-	_, err = f.module.ResolvePickupExtension(f.ctx, f.taskID, []int64{f.templateID})
-	require.ErrorIs(t, err, timetable.ErrPickupExtensionBlockGone, "err=%v", err)
+	done := f.resolveBlocksAsync(f.templateID)
+	f.waitForInstanceLockWait(t)
+	waitStarted := time.Now()
+	// The hold times are the subject of the test.
+	time.Sleep(hold)
+	require.NoError(t, first.Rollback())
+	deadline := time.Now().Add(15 * time.Second)
+	for !f.instanceLockedElsewhere(t, f.instances[0]) {
+		require.True(t, time.Now().Before(deadline), "the resolve never locked the first block")
+		time.Sleep(20 * time.Millisecond)
+	}
+	f.waitForInstanceLockWait(t)
+	time.Sleep(hold)
+	require.NoError(t, second.Rollback())
+
+	outcome := f.awaitOutcome(t, done)
+	assert.Greater(t, time.Since(waitStarted), readTimeout, "the waits together exceed the read timeout")
+	require.ErrorIs(t, outcome.err, timetable.ErrPickupExtensionBlockGone, "err=%v", outcome.err)
 	f.assertNothingWritten(t)
 }
