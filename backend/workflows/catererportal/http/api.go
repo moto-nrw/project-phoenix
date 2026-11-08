@@ -23,15 +23,23 @@ type ExportFile struct {
 }
 
 // Runtime is what the root binds: the caller's account, the list renderer
-// (PDF and Excel), the password reset, the sign-in and the caterer's own
-// second factor (#4497). A zero reset runtime answers its routes as
-// unavailable.
+// (PDF and Excel), the password reset, and the caterer's sign-in and
+// second factor (#4497), which Identity & Access serves (#6172). A zero
+// reset runtime answers its routes as unavailable.
 type Runtime struct {
 	CurrentAccountID func(context.Context) int64
 	RenderList       func(mealplan.ListExport, string) (ExportFile, error)
 	Resets           common.PasswordResetRoutes
-	SignIn           SignIn
-	SecondFactor     SecondFactor
+	Auth             AuthRoutes
+}
+
+// AuthRoutes are the caterer's sign-in and the management of its second
+// factor. The caterer router places them in its groups: the public sign-in
+// and the credential checks of a session behind the auth rate limit.
+type AuthRoutes interface {
+	MountSignIn(chi.Router)
+	MountSession(chi.Router)
+	MountCredentialChecks(chi.Router)
 }
 
 // Resource serves the caterer portal.
@@ -43,8 +51,8 @@ type Resource struct {
 // NewResource builds the resource; the portal, the account and the
 // renderer are required.
 func NewResource(portal catererportal.Portal, runtime Runtime) *Resource {
-	if portal == nil || runtime.CurrentAccountID == nil || runtime.RenderList == nil || runtime.SignIn == nil || runtime.SecondFactor == nil {
-		panic("caterer portal HTTP: portal, account, renderer, sign-in and second factor are required")
+	if portal == nil || runtime.CurrentAccountID == nil || runtime.RenderList == nil || runtime.Auth == nil {
+		panic("caterer portal HTTP: portal, account, renderer and auth routes are required")
 	}
 	return &Resource{portal: portal, runtime: runtime}
 }
@@ -85,13 +93,10 @@ func (rs *Resource) CatererRouter(authRateLimiter func(http.Handler) http.Handle
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Group(func(r chi.Router) {
 		limitCredentialChecks(r)
-		r.Post("/auth/login", rs.login)
-		// The second factor of the sign-in (#4497): the code, its resend and
-		// the passkey. They check credentials, so they share the limit.
-		r.Post("/auth/mfa/verify", rs.verifyMFA)
-		r.Post("/auth/mfa/resend", rs.resendMFA)
-		r.Post("/auth/passkeys/login/options", rs.passkeyLoginOptions)
-		r.Post("/auth/passkeys/login/verify", rs.passkeyLoginVerify)
+		// The sign-in with its second factor (#4497): the password, the
+		// code, its resend and the passkey. They check credentials, so they
+		// share the limit.
+		rs.runtime.Auth.MountSignIn(r)
 		r.Post("/auth/password-reset", rs.runtime.Resets.ServeInitiate)
 		r.Post("/auth/password-reset/confirm", rs.runtime.Resets.ServeConfirm)
 		r.Get("/invitations/{schoolId}/{token}", rs.previewInvitation)
@@ -105,23 +110,14 @@ func (rs *Resource) CatererRouter(authRateLimiter func(http.Handler) http.Handle
 		r.Post("/schools/{schoolId}/orders/{orderId}/confirm", rs.confirmOrder)
 		// The caterer's own second factor (#4497). The session routes stay
 		// leaves beside the public sign-in routes of the same prefix.
-		r.Get("/account/mfa", rs.mfaStatus)
-		r.Get("/auth/mfa/trusted-devices", rs.listTrustedDevices)
-		r.Delete("/auth/mfa/trusted-devices/{deviceId}", rs.revokeTrustedDevice)
-		r.Get("/auth/passkeys", rs.listPasskeys)
-		r.Delete("/auth/passkeys/{passkeyId}", rs.revokePasskey)
-		r.Post("/auth/passkeys/register/verify", rs.passkeyRegisterVerify)
+		rs.runtime.Auth.MountSession(r)
 		// The current password is a credential check: it shares the
 		// sign-in's rate limit beside the account lock. Every mailed code
 		// and every code check shares it too.
 		r.Group(func(r chi.Router) {
 			limitCredentialChecks(r)
 			r.Post("/account/password", rs.changePassword)
-			r.Post("/account/mfa/start", rs.startMFA)
-			r.Post("/account/mfa/confirm", rs.confirmMFA)
-			r.Post("/account/mfa/disable", rs.disableMFA)
-			r.Post("/auth/passkeys/enrollment/challenge", rs.passkeyEnrollmentChallenge)
-			r.Post("/auth/passkeys/register/options", rs.passkeyRegisterOptions)
+			rs.runtime.Auth.MountCredentialChecks(r)
 		})
 	})
 	return router
