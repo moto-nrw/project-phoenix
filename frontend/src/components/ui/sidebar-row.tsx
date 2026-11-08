@@ -48,7 +48,7 @@ function fadeClasses(visible: boolean): string {
  * stehen beide im Baum; der ausblendende ist `aria-hidden`, sonst läse ein
  * Vorleseprogramm die Zahl zweimal (#2923).
  */
-export function SidebarRowContent({
+function SidebarRowContent({
   icon,
   label,
   trailing,
@@ -159,6 +159,45 @@ export function SidebarRowLink({
         labelsVisible={labelsVisible}
       />
     </NavLink>
+  );
+}
+
+/**
+ * Eine Zeile ohne Ziel, die ein kommendes Angebot ankündigt. Sie ist gesperrt
+ * und zeigt `hint` erst beim Überfahren; im Streifen sagt sie nichts aus und
+ * fehlt deshalb, sobald die Bezeichnungen ausgeblendet sind.
+ */
+export function SidebarRowPlaceholder({
+  icon,
+  label,
+  hint,
+  title,
+  collapsed = false,
+  labelsMounted = true,
+  labelsVisible = true,
+}: SidebarRowCollapseState & {
+  readonly icon: ReactNode;
+  readonly label: string;
+  /** Kurzer Hinweis beim Überfahren („Bald“). */
+  readonly hint: string;
+  /** Die Erklärung als Tooltip. */
+  readonly title: string;
+}) {
+  if (collapsed && !labelsMounted) return null;
+  return (
+    <div className={sidebarRowClasses({ isDisabled: true })} title={title}>
+      <SidebarRowContent
+        icon={icon}
+        label={label}
+        labelsMounted={labelsMounted}
+        labelsVisible={labelsVisible}
+        trailing={
+          <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
+            {hint}
+          </span>
+        }
+      />
+    </div>
   );
 }
 

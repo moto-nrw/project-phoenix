@@ -77,6 +77,7 @@ import { SidebarAccordionSection } from "~/components/ui/sidebar-accordion-secti
 import { SidebarGroup } from "~/components/ui/sidebar-group";
 import {
   SidebarRowLink,
+  SidebarRowPlaceholder,
   SidebarSectionHeading,
   type SidebarRowBadge,
 } from "~/components/ui/sidebar-row";
@@ -86,8 +87,6 @@ import {
   SIDEBAR_NAV_GAP,
   SIDEBAR_NAV_PADDING,
   portalSidebarTopOffset,
-  sidebarLabelClasses,
-  sidebarRowClasses,
 } from "~/components/ui/sidebar-geometry";
 import { PortalSidebarFrame } from "~/components/ui/portal-sidebar";
 import { navigationIcons } from "~/lib/navigation-icons";
@@ -1169,22 +1168,13 @@ function SidebarContent({
     return (
       <div key={item.comingSoon ? item.label : item.href}>
         {item.comingSoon ? (
-          <div
-            className={sidebarRowClasses({ isDisabled: true })}
+          <SidebarRowPlaceholder
+            {...collapseState}
+            icon={renderNavIcon(item)}
+            label={item.label}
+            hint="Bald"
             title={tParentNav("comingSoonTooltip")}
-          >
-            {renderNavIcon(item)}
-            {labelsMounted && (
-              <>
-                <span className={sidebarLabelClasses(labelsVisible)}>
-                  {item.label}
-                </span>
-                <span className="ml-2 shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
-                  Bald
-                </span>
-              </>
-            )}
-          </div>
+          />
         ) : (
           <SidebarRowLink
             {...collapseState}
