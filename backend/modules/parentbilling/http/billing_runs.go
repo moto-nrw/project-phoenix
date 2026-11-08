@@ -382,6 +382,7 @@ func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
 		{capability.ErrLetterMailBlocked, common.CodeParentBillingLetterMailBlocked},
 		{capability.ErrLetterMailBlockUnreadable, common.CodeParentBillingLetterMailBlockUnreadable},
 		{capability.ErrRecipientEmailMissing, common.CodeParentBillingRecipientEmailMissing},
+		{capability.ErrDirectDebitWithoutMandate, common.CodeParentBillingDirectDebitWithoutMandate},
 	} {
 		if errors.Is(err, conflict.err) {
 			common.RenderError(w, r, common.ErrorConflictWithCode(err, conflict.code))

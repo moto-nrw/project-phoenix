@@ -78,5 +78,13 @@
   "due_dates_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "family_children_invalid": "Будь ласка, вкажіть ціле число від 1 до 20.",
   "family_children_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-  "family_without_address": "Не вдалося змінити: {object}. Перевірте поточний стан."
+  "family_without_address": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "sepa_creditor_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "sepa_mandate_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "sepa_mandate_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "sepa_mandate_in_force": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "sepa_mandate_reference_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "sepa_mandate_revoked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "direct_debit_without_mandate": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "sepa_creditor_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
 }

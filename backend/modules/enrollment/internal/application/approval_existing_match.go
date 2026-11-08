@@ -60,21 +60,30 @@ func isParentPin(child *enrollmentNative.RequestChild) bool {
 // grants portal access, invites or applies form data. Without the
 // authorizer the pin counts as lapsed.
 //
-// Accountless pins keep the existing_students email/manual rule (#6173).
-// Account-bound pins always require current authority, even if the audience
-// changed since submission or the account was attached later.
+// A pin requires current authority, even if the audience changed since
+// submission or the account was attached later. Submission pins only for an
+// account or a late invite, so those identities are asked: an accountless
+// pin with the address its late invite was issued to (#6173). Staff manual
+// enrollment stays the one bypass.
 func (d *Decisions) parentPinLapsed(ctx context.Context, request *enrollmentNative.Request, child *enrollmentNative.RequestChild) (bool, error) {
-	if !isParentPin(child) {
+	if !isParentPin(child) || !pinningIdentity(request) {
 		return false, nil
 	}
 	return d.parentStudentAuthorityLapsed(ctx, request, child.ID, *child.MatchedStudentID)
 }
 
-// parentStudentAuthorityLapsed checks both direct parent pins and the student
-// inherited by an approved rollover descendant. Neither a past approval nor
-// a rollover grants authority for new family data after revocation.
+// pinningIdentity reports whether the request has an identity a submission
+// pins for: a portal account or a late invite. An anonymous form never pins.
+func pinningIdentity(request *enrollmentNative.Request) bool {
+	return request != nil && (request.GuardianAccountID != nil ||
+		enrollmentNative.NormalizedSubmissionSource(request.SubmissionSource) == enrollmentNative.RequestSourceLateInvite)
+}
+
+// parentStudentAuthorityLapsed checks a parent pin before its approval and
+// the approved student of every later edit. Neither a past approval nor a
+// rollover grants authority for new family data after revocation.
 func (d *Decisions) parentStudentAuthorityLapsed(ctx context.Context, request *enrollmentNative.Request, childID, studentID int64) (bool, error) {
-	if request == nil || request.GuardianAccountID == nil {
+	if request == nil {
 		return false, nil
 	}
 	submitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, d.deps.LateInvites, request)

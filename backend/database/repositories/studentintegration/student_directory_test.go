@@ -187,6 +187,41 @@ func TestStudentNamesExcludeSoftDeletedPeople(t *testing.T) {
 	assert.Empty(t, names)
 }
 
+// The absence list reads a class and its names in one statement (#6165):
+// the class matches trimmed and case-insensitive, graduates stay in, and
+// another school sees nothing. The read needs the caller's transaction.
+func TestStudentNamesByClass(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildStudentOwnersModule(t, db)
+	const class = "3n"
+	kept := testpkg.CreateTestStudent(t, db, "Klasse", "Kind", " 3N ")
+	graduate := testpkg.CreateTestStudent(t, db, "Ehemals", "Kind", class)
+	testpkg.SetStudentLifecycle(t, db, graduate.ID, "alumnus", nil, nil)
+	_ = testpkg.CreateTestStudent(t, db, "Andere", "Klasse", class+"x")
+	otherCtx, _ := otherTenantContext(t, db)
+
+	require.Error(t, func() error { _, err := module.ListStudentNamesByClass(testpkg.Ctx(t), class); return err }(),
+		"the read joins the caller's transaction and fails without one")
+	err := tenant.WithinCurrentTenant(testpkg.Ctx(t), func(txCtx context.Context) error {
+		names, err := module.ListStudentNamesByClass(txCtx, class)
+		require.NoError(t, err)
+		assert.Equal(t, []peopledirectory.StudentName{
+			{StudentID: kept.ID, FirstName: "Klasse", LastName: "Kind"},
+			{StudentID: graduate.ID, FirstName: "Ehemals", LastName: "Kind"},
+		}, names)
+		return nil
+	})
+	require.NoError(t, err)
+	err = tenant.WithinCurrentTenant(otherCtx, func(txCtx context.Context) error {
+		names, err := module.ListStudentNamesByClass(txCtx, class)
+		require.NoError(t, err)
+		assert.Empty(t, names)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestStudentDirectoryWritesRollBackWithOuterTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

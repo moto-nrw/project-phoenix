@@ -363,7 +363,8 @@ func paymentText(content letterContent) string {
 		}
 	}
 	if isDirectDebit(content.document.Payment) {
-		return directDebitText(content.document.TotalCents, due, strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(reference, "die "), "Ihre "), "Ihr "))
+		return directDebitText(content.document.TotalCents, due, strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(reference, "die "), "Ihre "), "Ihr "),
+			paymentMandate(content.document.Payment))
 	}
 	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" {
 		return strings.NewReplacer(

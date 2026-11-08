@@ -54,6 +54,7 @@ const CodeParentBillingCostBearerNotFound = "parent_billing.cost_bearer_not_foun
 const CodeParentBillingCostTakeoverWithExemption = "parent_billing.cost_takeover_with_exemption"
 const CodeParentBillingDebtorNumberInvalid = "parent_billing.debtor_number_invalid"
 const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked"
+const CodeParentBillingDirectDebitWithoutMandate = "parent_billing.direct_debit_without_mandate"
 const CodeParentBillingDocumentKindInvalid = "parent_billing.document_kind_invalid"
 const CodeParentBillingDueDatesInvalid = "parent_billing.due_dates_invalid"
 const CodeParentBillingFamilyBillingInvalid = "parent_billing.family_billing_invalid"
@@ -78,6 +79,13 @@ const CodeParentBillingNumberRangeMissing = "parent_billing.number_range_missing
 const CodeParentBillingParentDocumentNotFound = "parent_billing.parent_document_not_found"
 const CodeParentBillingPaymentTextDebtorNumberMissing = "parent_billing.payment_text_debtor_number_missing"
 const CodeParentBillingRecipientEmailMissing = "parent_billing.recipient_email_missing"
+const CodeParentBillingSepaCreditorInvalid = "parent_billing.sepa_creditor_invalid"
+const CodeParentBillingSepaCreditorMissing = "parent_billing.sepa_creditor_missing"
+const CodeParentBillingSepaMandateInForce = "parent_billing.sepa_mandate_in_force"
+const CodeParentBillingSepaMandateInvalid = "parent_billing.sepa_mandate_invalid"
+const CodeParentBillingSepaMandateNotFound = "parent_billing.sepa_mandate_not_found"
+const CodeParentBillingSepaMandateReferenceTaken = "parent_billing.sepa_mandate_reference_taken"
+const CodeParentBillingSepaMandateRevoked = "parent_billing.sepa_mandate_revoked"
 const CodeParentBillingSiblingGroupInvalid = "parent_billing.sibling_group_invalid"
 const CodeParentBillingSiblingGroupInvoiced = "parent_billing.sibling_group_invoiced"
 const CodeParentBillingSiblingGroupNotFound = "parent_billing.sibling_group_not_found"
@@ -136,6 +144,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCostTakeoverWithExemption, "business_rejection"},
 	{CodeParentBillingDebtorNumberInvalid, "input"},
 	{CodeParentBillingDebtorNumberLocked, "business_rejection"},
+	{CodeParentBillingDirectDebitWithoutMandate, "business_rejection"},
 	{CodeParentBillingDocumentKindInvalid, "input"},
 	{CodeParentBillingDueDatesInvalid, "input"},
 	{CodeParentBillingFamilyBillingInvalid, "input"},
@@ -160,6 +169,13 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingParentDocumentNotFound, "business_rejection"},
 	{CodeParentBillingPaymentTextDebtorNumberMissing, "business_rejection"},
 	{CodeParentBillingRecipientEmailMissing, "business_rejection"},
+	{CodeParentBillingSepaCreditorInvalid, "input"},
+	{CodeParentBillingSepaCreditorMissing, "business_rejection"},
+	{CodeParentBillingSepaMandateInForce, "business_rejection"},
+	{CodeParentBillingSepaMandateInvalid, "input"},
+	{CodeParentBillingSepaMandateNotFound, "business_rejection"},
+	{CodeParentBillingSepaMandateReferenceTaken, "business_rejection"},
+	{CodeParentBillingSepaMandateRevoked, "business_rejection"},
 	{CodeParentBillingSiblingGroupInvalid, "input"},
 	{CodeParentBillingSiblingGroupInvoiced, "business_rejection"},
 	{CodeParentBillingSiblingGroupNotFound, "business_rejection"},

@@ -916,6 +916,8 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
         "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
+      "parent_billing.direct_debit_without_mandate":
+        "Einige Familien zahlen per Lastschrift, haben aber kein gültiges Mandat. Bitte erfassen Sie das Mandat oder ändern Sie den Zahlungsweg.",
       "parent_billing.document_kind_invalid":
         "Diese Dokumentart gibt es für diese Leistung nicht. Bitte wählen Sie eine aus der Liste.",
       "parent_billing.due_dates_invalid":
@@ -964,6 +966,20 @@ export const ERROR_CATALOG = {
         "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext in den Einstellungen unter „Allgemein“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
+      "parent_billing.sepa_creditor_invalid":
+        "Die Angaben zur Lastschrift konnten nicht gespeichert werden. Bitte prüfen Sie die Eingaben.",
+      "parent_billing.sepa_creditor_missing":
+        "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein.",
+      "parent_billing.sepa_mandate_in_force":
+        "Die Familie hat schon ein gültiges Mandat. Bitte widerrufen Sie es zuerst.",
+      "parent_billing.sepa_mandate_invalid":
+        "Das Mandat konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.sepa_mandate_not_found":
+        "Dieses Mandat gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.sepa_mandate_reference_taken":
+        "Diese Mandatsreferenz gibt es schon. Bitte wählen Sie eine andere.",
+      "parent_billing.sepa_mandate_revoked":
+        "Dieses Mandat ist widerrufen. Es lässt sich nicht mehr ändern.",
       "parent_billing.sibling_group_invalid":
         "Bitte wählen Sie mindestens zwei Anmeldungen aus, die nicht storniert sind.",
       "parent_billing.sibling_group_invoiced":

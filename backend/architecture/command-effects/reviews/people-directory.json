@@ -4506,52 +4506,6 @@
     },
     {
       "adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "reason": "Platform protocol participation (scope): people-directory reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through *modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0083",
-      "approval_adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs",
-      "classification": "unresolved",
-      "effect": "unresolved",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:modules/peopledirectory/internal/application.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
-      "source_owner": "people-directory",
-      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
-      "target_owner": ""
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentDirectoryIDs",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "reason": "Platform protocol participation (scope): people-directory reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/peopledirectory.Owner.ListStudentDirectoryIDs. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0083",
-      "approval_adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentDirectoryIDs",
-      "classification": "unresolved",
-      "effect": "unresolved",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:modules/peopledirectory/internal/application.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
-      "source_owner": "people-directory",
-      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
-      "target_owner": ""
-    },
-    {
-      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentGuardians",
       "classification": "platform",
       "effect": "scope",
@@ -4595,6 +4549,28 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByClass",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/compose.Directory.ListStudentNamesByClass. The read joins the caller's school unit and fails without one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target of the class names read (#6165).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByClass",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through modules/peopledirectory.Owner.ListStudentNamesByClass. The read joins the caller's school unit and fails without one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target of the class names read (#6165).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -9770,29 +9746,6 @@
     },
     {
       "adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.ListStudentDirectoryIDs",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentDirectoryIDs",
-      "reason": "Platform protocol participation (scope): people-directory reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through *modules/peopledirectory/internal/application.Service.ListStudentDirectoryIDs. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0083",
-      "approval_adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.ListStudentDirectoryIDs",
-      "classification": "unresolved",
-      "effect": "unresolved",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentDirectoryIDs",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:modules/peopledirectory/internal/application.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
-      "source_owner": "people-directory",
-      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
-      "target_owner": ""
-    },
-    {
-      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.ListStudentGuardians",
       "classification": "platform",
       "effect": "scope",
@@ -9813,6 +9766,17 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.ListStudentNamesByClass",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByClass",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.Service.ListStudentNamesByClass. The read joins the caller's school unit and fails without one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target of the class names read (#6165).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -12933,52 +12897,6 @@
     },
     {
       "adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentDirectoryIDs",
-      "reason": "Platform protocol participation (scope): people-directory reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through *modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0083",
-      "approval_adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs",
-      "classification": "unresolved",
-      "effect": "unresolved",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentDirectoryIDs",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:modules/peopledirectory/internal/application.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
-      "source_owner": "people-directory",
-      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
-      "target_owner": ""
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentDirectoryIDs",
-      "reason": "Platform protocol participation (scope): people-directory reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/peopledirectory.Capability.ListStudentDirectoryIDs. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0083",
-      "approval_adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "classification": "unresolved",
-      "effect": "unresolved",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentDirectoryIDs",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:modules/peopledirectory/internal/application.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
-      "source_owner": "people-directory",
-      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
-      "target_owner": ""
-    },
-    {
-      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentGuardians",
       "classification": "platform",
       "effect": "scope",
@@ -13022,6 +12940,28 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByClass",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentNamesByClass",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/compose.Directory.ListStudentNamesByClass. The read joins the caller's school unit and fails without one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target of the class names read (#6165).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListStudentNamesByClass",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through modules/peopledirectory.Capability.ListStudentNamesByClass. The read joins the caller's school unit and fails without one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target of the class names read (#6165).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -14372,6 +14312,28 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByClass",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByClass",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/compose.Directory.ListStudentNamesByClass. The read joins the caller's school unit and fails without one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target of the class names read (#6165).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByClass",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through modules/peopledirectory.Capability.ListStudentNamesByClass. The read joins the caller's school unit and fails without one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target of the class names read (#6165).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",

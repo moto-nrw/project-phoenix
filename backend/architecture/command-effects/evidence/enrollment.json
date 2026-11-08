@@ -2297,6 +2297,14 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Rollovers.CreatePhaseFromSource",
+      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Rollovers.CreatePhaseFromSource",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Rollovers.RunDeadlineWorker",
       "binding_digest": "ed15f1c9f5da5513010deaa53ba017bc",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Rollovers.RunDeadlineWorker",
@@ -3447,6 +3455,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
       "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.rolloverService.CreatePhaseFromSource",
+      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RolloverService.CreatePhaseFromSource",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.rolloverService.RunDeadlineWorker",

@@ -78,3 +78,22 @@ func TestAfterQueryClassifiesRawAdapterErrors(t *testing.T) {
 		}
 	})
 }
+
+// A SEPA mandate's sealed IBAN and account holder, and an IBAN that reached
+// the SQL in the clear, never appear in the query log (#4695).
+func TestQueryLogRedactsBankData(t *testing.T) {
+	t.Parallel()
+	hook, buf := newTestQueryHook(t)
+	query := `INSERT INTO sepa_mandates (reference, account_holder_sealed, iban_sealed) ` +
+		`VALUES ('SJR-1', '\x0102abcdef', '\x01ff00') -- DE89370400440532013000`
+	hook.logQuery(context.Background(), queryLogData{operation: "INSERT", query: query, started: time.Now()})
+	logged := buf.String()
+	for _, secret := range []string{"0102abcdef", "01ff00", "DE89370400440532013000"} {
+		if strings.Contains(logged, secret) {
+			t.Fatalf("the query log repeats %q: %s", secret, logged)
+		}
+	}
+	if !strings.Contains(logged, "[redacted]") || !strings.Contains(logged, "SJR-1") {
+		t.Fatalf("the query log should keep the rest of the query: %s", logged)
+	}
+}

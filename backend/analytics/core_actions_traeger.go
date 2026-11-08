@@ -122,6 +122,12 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/traeger/family-billing/{id}"}:             notCaptured,
 	{http.MethodPut, "/traeger/billing-run-due-dates/care/{id}"}:    notCaptured,
 	{http.MethodPut, "/traeger/billing-run-due-dates/holiday/{id}"}: notCaptured,
+	// The SEPA creditor and the mandates of the families (#4695) belong to
+	// the Träger, no school to count them for.
+	{http.MethodPut, "/traeger/sepa-creditor/"}:             notCaptured,
+	{http.MethodPost, "/traeger/sepa-mandates/"}:            notCaptured,
+	{http.MethodPut, "/traeger/sepa-mandates/{id}"}:         notCaptured,
+	{http.MethodPost, "/traeger/sepa-mandates/{id}/revoke"}: notCaptured,
 	// The letters, mails and Storno of a monthly run (#4684, ADR 0165).
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters"}:                           notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters/preview"}:                   notCaptured,

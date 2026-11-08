@@ -485,7 +485,7 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	for i := range month.invoices {
 		payments.careInvoice(&month.invoices[i], issuedOn)
 	}
-	month.dueDates, month.deviations = payments.run, payments.deviationsRead()
+	month.dueDates, month.deviations, month.mandates = payments.run, payments.deviationsRead(), payments.mandatesRead()
 	return rule, month, nil
 }
 

@@ -227,6 +227,18 @@
     {
       "name": "parent_billing.service_terms",
       "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.sepa_creditors",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.sepa_mandate_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.sepa_mandates",
+      "write_owner": "parent-billing"
     }
   ],
   "rules": [

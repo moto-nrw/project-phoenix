@@ -158,6 +158,15 @@ func TestAbsenceListQueryBudget(t *testing.T) {
 	}
 	addChild(1)
 	addChild(2)
+	// A child scheduled for a later start who came once before it (#6165):
+	// reading its recorded care must stay within the budget.
+	early := testpkg.CreateTestScheduledStudent(t, db, "Frueh", "Fehlzeit", className, "2099-04-19")
+	attended := calendar.Date("2099-02-27")
+	checkIn := attended.BerlinMidnight().Add(12 * time.Hour)
+	checkOut := checkIn.Add(4 * time.Hour)
+	device := testpkg.CreateTestDevice(t, db, fmt.Sprintf("absence-budget-%d", early.ID))
+	staff := testpkg.CreateTestStaff(t, db, "Ganztag", fmt.Sprintf("Budget-%d", early.ID))
+	testpkg.CreateTestAttendanceForDate(t, db, early.ID, staff.ID, device.ID, attended, checkIn, &checkOut)
 
 	counter := testpkg.CaptureQueries(t, db)
 	// Each measurement reads a period of its own; both write one access-log

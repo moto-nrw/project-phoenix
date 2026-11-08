@@ -3067,6 +3067,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0179",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Rollovers.CreatePhaseFromSource",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Rollovers.CreatePhaseFromSource",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Rollovers.CreatePhaseFromSource; the rollover takes the class-writes and recurrence gates (Decisions.LockApprovalGates) before it reads the source phase and inserts the follow-up phase, in the documented order class-writes, recurrence, row locks (#6168). The same gate its catalog clone already takes; protocol review is follow-up work (ADR 0098); approved for the rollover create lock order by ADR 0179.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0176",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Rollovers.RunDeadlineWorker",
       "classification": "debt",
@@ -4621,6 +4633,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
       "target_owner": "security-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0179",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.rolloverService.CreatePhaseFromSource",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RolloverService.CreatePhaseFromSource",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.rolloverService.CreatePhaseFromSource; the rollover takes the class-writes and recurrence gates (Decisions.LockApprovalGates) before it reads the source phase and inserts the follow-up phase, in the documented order class-writes, recurrence, row locks (#6168). The same gate its catalog clone already takes; protocol review is follow-up work (ADR 0098); approved for the rollover create lock order by ADR 0179.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0083",

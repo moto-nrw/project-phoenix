@@ -1,0 +1,12 @@
+{
+  "api/traeger/sepa-mandates": [
+    "GET traeger /traeger/sepa-mandates",
+    "POST traeger /traeger/sepa-mandates"
+  ],
+  "api/traeger/sepa-mandates/[id]/history": [
+    "GET traeger /traeger/sepa-mandates/id%2F1/history"
+  ],
+  "api/traeger/sepa-mandates/[id]/revoke": [
+    "POST traeger /traeger/sepa-mandates/id%2F1/revoke"
+  ]
+}
