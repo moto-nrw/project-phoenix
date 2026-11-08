@@ -29,12 +29,6 @@ func (s Sessions) Configured() bool {
 	return s.tokenAuth != nil
 }
 
-// TokenAuth is the session signer the operator MFA exchange mints tokens
-// with.
-func (s Sessions) TokenAuth() *sessiontoken.TokenAuth {
-	return s.tokenAuth
-}
-
 // Refresh authenticates a refresh token, without a scope check.
 func (s Sessions) Refresh() []func(http.Handler) http.Handler {
 	return []func(http.Handler) http.Handler{
