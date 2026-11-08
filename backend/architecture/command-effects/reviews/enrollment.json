@@ -2754,7 +2754,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
-      "reason": "Read-only target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through modules/enrollment/http.intakeService.CreateManualApprovedEnrollment, which ADR 0170 promotes instead of forwarding. No persistent, lock or scope effect (ADR 0098).",
+      "reason": "Read-only target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through modules/enrollment/http.intakeService.CreateManualApprovedEnrollment, which ADR 0173 promotes instead of forwarding. No persistent, lock or scope effect (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
       "target_owner": "security-runtime"
@@ -2765,7 +2765,7 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
-      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithSavepoint (tenant-runtime) through modules/enrollment/http.intakeService.CreateManualApprovedEnrollment, which ADR 0170 promotes instead of forwarding. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithSavepoint (tenant-runtime) through modules/enrollment/http.intakeService.CreateManualApprovedEnrollment, which ADR 0173 promotes instead of forwarding. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
       "target_owner": "tenant-runtime"
@@ -2951,7 +2951,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.manualApprovedEnrollments.CreateManualApprovedEnrollment",
-      "reason": "Read-only target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment, which ADR 0170 promotes instead of forwarding. No persistent, lock or scope effect (ADR 0098).",
+      "reason": "Read-only target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment, which ADR 0173 promotes instead of forwarding. No persistent, lock or scope effect (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
       "target_owner": "security-runtime"
@@ -2962,7 +2962,7 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.manualApprovedEnrollments.CreateManualApprovedEnrollment",
-      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithSavepoint (tenant-runtime) through modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment, which ADR 0170 promotes instead of forwarding. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithSavepoint (tenant-runtime) through modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment, which ADR 0173 promotes instead of forwarding. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
       "target_owner": "tenant-runtime"

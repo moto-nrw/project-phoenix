@@ -11,7 +11,7 @@ import (
 // The parent-facing intake of an enrollment (#3565): the submission and its
 // edits, the status link, the public form loads and the late invites. The
 // answers, consent flags and source metadata a family submits travel as
-// FormValues (ADR 0170).
+// FormValues (ADR 0173).
 
 // SubmitRequest is one submission as the intake receives it.
 type SubmitRequest struct {

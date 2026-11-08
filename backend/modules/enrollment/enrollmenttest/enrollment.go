@@ -44,7 +44,7 @@ const (
 )
 
 // FormValues are a request's or child's answers, consent flags or source
-// metadata (ADR 0170).
+// metadata (ADR 0173).
 type FormValues = enrollment.FormValues
 
 // FormValuesOf builds FormValues from a fixture map.

@@ -56,7 +56,7 @@ type (
 	BootstrapStageError     = capability.BootstrapStageError
 	CareOfferingBookingStat = capability.CareOfferingBookingStat
 	// The submission, its result and the parent's patch carry the family's
-	// answers as the owner's FormValues (ADR 0170).
+	// answers as the owner's FormValues (ADR 0173).
 	SubmitRequest                  = capability.SubmitRequest
 	SubmitChild                    = capability.SubmitChild
 	SubmitResult                   = capability.SubmitResult
@@ -152,7 +152,7 @@ type phasePreviewForms interface {
 }
 
 // The manual approved enrollment takes and returns the owner's values since
-// ADR 0170 removed the request codec; promote it like the preview.
+// ADR 0173 removed the request codec; promote it like the preview.
 type manualApprovedEnrollments interface {
 	CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error)
 }

@@ -14,7 +14,7 @@ import (
 
 // A corrupt or invalid stored row fails the whole read instead of yielding a
 // partial batch. The request and child answers decode in the owner's
-// postgres adapter (ADR 0170), whose tests pin that for them.
+// postgres adapter (ADR 0173), whose tests pin that for them.
 
 type carePeriodReadResult struct {
 	periods []*enrollment.StudentCarePeriod

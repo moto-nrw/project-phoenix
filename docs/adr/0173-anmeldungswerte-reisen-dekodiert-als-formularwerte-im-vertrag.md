@@ -81,9 +81,14 @@ Formularschema der Schule und haben keinen festen Go-Typ.
   Anmeldetypen.
 - Eine neu unterschriebene Anmeldung führt leere Antworten im signierten
   Dokument als `{}`. Gespeicherte Prüfsummen werden nicht neu berechnet.
-- Ein Änderungswunsch, der vor dieser Änderung gegen eine `null`-Zeile
-  entstand, sieht beim Übernehmen `{}` statt `null` und meldet einen
-  Konflikt. Das schlägt sicher fehl und betrifft nur Altzeilen mit `null`.
+- Die Einreichung schrieb leere Antworten eines Kinds bisher als `null`, so
+  dass viele Basis-Snapshots offener Änderungswünsche `null` festhalten. Die
+  Freigabe liest dort `null` für Antworten und Zustimmungen als `{}`, wie
+  schon ein fehlendes `target_school_class`; sonst meldete jeder ältere
+  Änderungswunsch einen Konflikt
+  (`modules/enrollment/http/change_request_null_base_snapshot_test.go`).
+  Antworten in Änderungswünschen erscheinen in den Antworten der Routen
+  ebenfalls als `{}`.
 - Zwei HTTP-Dienstmethoden (`CreateManualApprovedEnrollment`,
   `ListReviewQueue`) hätten nach dem Wegfall des Codecs nur noch an den Owner
   weitergereicht; die HTTP-Dienste befördern stattdessen die Fähigkeit des

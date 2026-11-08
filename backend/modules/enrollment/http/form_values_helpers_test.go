@@ -8,7 +8,7 @@ import (
 )
 
 // testFormValues builds the owner's answers, consent flags or source
-// metadata from a map literal (ADR 0170).
+// metadata from a map literal (ADR 0173).
 func testFormValues(values map[string]any) capability.FormValues {
 	return capability.CollectFormValues(maps.All(values))
 }

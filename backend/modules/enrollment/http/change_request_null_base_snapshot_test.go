@@ -9,7 +9,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// A change request created before ADR 0170 recorded empty answers and consent
+// A change request created before ADR 0173 recorded empty answers and consent
 // flags as null in its base snapshot, against rows that stored null. The
 // owner now reads those rows as {} (#6092); the approval must not read the
 // old null as a conflicting edit.

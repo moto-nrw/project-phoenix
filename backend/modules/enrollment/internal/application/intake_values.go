@@ -7,7 +7,7 @@ import (
 
 // The intake validates and sanitizes a submission on working maps of its
 // answers, consent flags and source metadata. The public contract carries
-// them as FormValues (ADR 0170); the values below copy them into maps on the
+// them as FormValues (ADR 0173); the values below copy them into maps on the
 // way in, and the stored request carries FormValues again.
 
 // SubmitRequest is a submission with working maps of its documents.
@@ -86,7 +86,7 @@ func decodeSubmitRequest(in enrollment.SubmitRequest) SubmitRequest {
 }
 
 // submittedMap is the working map of a submitted document; an empty one is
-// nil, as an absent document was before ADR 0170.
+// nil, as an absent document was before ADR 0173.
 func submittedMap(values enrollment.FormValues) map[string]any {
 	if values.IsZero() {
 		return nil

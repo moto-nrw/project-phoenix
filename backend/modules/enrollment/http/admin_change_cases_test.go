@@ -73,7 +73,7 @@ func TestEnrollmentAdminChangeCasesMatchScalarDetails(t *testing.T) {
 }
 
 // A corrupt stored request or child fails the whole list. The owner's adapter
-// decodes each batch as it reads it (ADR 0170), so the request batch, read
+// decodes each batch as it reads it (ADR 0173), so the request batch, read
 // before the children, reports its corrupt row first, naming row and column. Messages and phase
 // reads come after both.
 func TestEnrollmentAdminChangeCasesKeepDecodeErrorOrder(t *testing.T) {

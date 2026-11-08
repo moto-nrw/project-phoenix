@@ -10,7 +10,7 @@ import (
 )
 
 // The adapter decodes the stored answers, consent flags, source metadata and
-// consent evidence exactly once (ADR 0170). A corrupt or invalid stored row
+// consent evidence exactly once (ADR 0173). A corrupt or invalid stored row
 // fails the whole read instead of yielding a partial batch.
 
 func TestRequestBatchRejectsMalformedStoredJSON(t *testing.T) {

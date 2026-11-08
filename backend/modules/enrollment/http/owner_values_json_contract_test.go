@@ -12,7 +12,7 @@ import (
 )
 
 // These routes render the owner's requests and children directly; their
-// answers travel decoded as FormValues (ADR 0170). The owner's JSON must stay
+// answers travel decoded as FormValues (ADR 0173). The owner's JSON must stay
 // the service contract the goldens pin (#3565).
 
 func TestOwnerRequestJSONPreservesServiceContract(t *testing.T) {
@@ -60,7 +60,7 @@ func TestOwnerChildJSONPreservesServiceContract(t *testing.T) {
 	}
 }
 
-// Empty answers, consent flags and source metadata render as {} (ADR 0170).
+// Empty answers, consent flags and source metadata render as {} (ADR 0173).
 func TestOwnerRequestJSONRendersEmptyValuesAsObjects(t *testing.T) {
 	t.Parallel()
 	ownerJSON, err := json.Marshal(&capability.Request{})

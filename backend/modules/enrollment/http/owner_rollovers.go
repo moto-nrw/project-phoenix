@@ -41,7 +41,7 @@ func NewRolloverService(owner capability.Rollovers) RolloverService {
 	return rolloverService{owner: owner, rolloverReviewQueue: owner}
 }
 
-// The review queue serves the owner's values since ADR 0170 removed the
+// The review queue serves the owner's values since ADR 0173 removed the
 // request codec; promote it instead of forwarding.
 type rolloverReviewQueue interface {
 	ListReviewQueue(ctx context.Context, phaseID int64) ([]*ReviewQueueItem, error)

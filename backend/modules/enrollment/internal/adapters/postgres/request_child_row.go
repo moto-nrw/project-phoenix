@@ -49,7 +49,7 @@ type requestChildRow struct {
 }
 
 // value decodes the row into the owner's request child. Its answers decode
-// exactly here (ADR 0170); a decode error names the child.
+// exactly here (ADR 0173); a decode error names the child.
 func (r requestChildRow) value() (*enrollment.RequestChild, error) {
 	value := &enrollment.RequestChild{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName, DateOfBirth: r.DateOfBirth, TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, Status: r.Status, StatusReason: r.StatusReason, ActivationMode: r.ActivationMode, ActivateOn: r.ActivateOn, ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, SortOrder: r.SortOrder, RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason, WeeklyPlanOn: r.WeeklyPlanOn}
 	if len(r.CustomData) > 0 {

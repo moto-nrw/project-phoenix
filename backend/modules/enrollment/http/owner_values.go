@@ -11,7 +11,7 @@ import (
 // The Enrollment owner hands its offerings over with their availability rules
 // as raw JSON (#3565). These routes render them from the decoded values below.
 // Requests and children travel as the owner's values with decoded answers
-// (ADR 0170).
+// (ADR 0173).
 
 // CareOffering is a decoded care offering: the owner's value with its
 // availability rule decoded for rendering.

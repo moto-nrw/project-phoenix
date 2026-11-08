@@ -8,7 +8,7 @@ import (
 
 // FormValues is one JSON object a family submits: the answers to the form
 // (custom data of a request and of a child), the consent flags or the source
-// metadata of a submission (ADR 0170). The keys follow the school's form
+// metadata of a submission (ADR 0173). The keys follow the school's form
 // schema, so the values have no fixed Go type; decoded from JSON they are
 // float64, string, bool, nil, []any or map[string]any.
 //

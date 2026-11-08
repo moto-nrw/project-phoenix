@@ -335,7 +335,7 @@ func trimmedOptionalString(value *string) string {
 }
 
 // withEmptyFormValues returns a copy of a stored snapshot whose null answers
-// and consent flags read as {}. Snapshots taken before ADR 0170 recorded
+// and consent flags read as {}. Snapshots taken before ADR 0173 recorded
 // empty values as null, the current snapshot records them as {}; without
 // this every older pending change request would read as a conflict.
 func withEmptyFormValues(snapshot map[string]any) map[string]any {
