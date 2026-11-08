@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NoticeStore persists the declarations (#4682).
 type NoticeStore = ports.NoticeStore
 
 // The actions of the trail for a declaration.
@@ -59,17 +58,6 @@ func NewNotices(store ContractStore, notices NoticeStore, noticePorts NoticePort
 		addressees: noticePorts.Addressees, clock: clock, office: office}
 }
 
-// trail records one operation on the contract under the acting account.
-func (n *Notices) trail(ctx context.Context, organizationID, accountID int64, record ContractRecord, action string, details map[string]any) error {
-	contractID, schoolID := record.Summary.ID, record.Summary.SchoolID
-	if err := n.store.InsertEvents(ctx, organizationID, []Event{{
-		ContractID: &contractID, SchoolID: &schoolID, AccountID: accountID, Action: action, Details: details,
-	}}); err != nil {
-		return fmt.Errorf("care contract: record %s: %w", action, err)
-	}
-	return nil
-}
-
 func (n *Notices) requireOffice() error {
 	if n.office == nil {
 		return errors.New("care contract: the office declarations are not configured")
@@ -77,7 +65,6 @@ func (n *Notices) requireOffice() error {
 	return nil
 }
 
-// declaration is one declaration with the party it comes from.
 type declaration struct {
 	organizationID int64
 	accountID      int64
@@ -87,8 +74,7 @@ type declaration struct {
 	// recipient is the address the confirmation goes to: the declaring
 	// parent's own, or, for the office, the contract party's.
 	recipient string
-	// traeger is the Träger's name in the confirmation.
-	traeger string
+	traeger   string
 }
 
 // NoticeOptions reads the choices on receivedOn (today when omitted),
@@ -117,7 +103,7 @@ func (n *Notices) NoticeOptions(ctx context.Context, reviewer carecontract.Revie
 		if options, err = n.options(txCtx, reviewer.OrganizationID, record, day, true); err != nil {
 			return err
 		}
-		return n.trail(txCtx, reviewer.OrganizationID, reviewer.AccountID, record, ActionRead, map[string]any{"view": "notice_options"})
+		return trailContract(txCtx, n.store, reviewer.OrganizationID, reviewer.AccountID, record, ActionRead, map[string]any{"view": "notice_options"})
 	})
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
@@ -161,7 +147,7 @@ func (n *Notices) ParentNoticeOptions(ctx context.Context, organizationID, contr
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
-	return options, n.trail(ctx, organizationID, reader.AccountID, record, ActionRead, map[string]any{"inbox": "notice_options"})
+	return options, trailContract(ctx, n.store, organizationID, reader.AccountID, record, ActionRead, map[string]any{"inbox": "notice_options"})
 }
 
 // ParentDeclareNotice records the parents' withdrawal or termination with
@@ -336,25 +322,18 @@ func (n *Notices) confirm(ctx context.Context, record ContractRecord, d declarat
 		if !hasParty {
 			return carecontract.ErrRecipientMissing
 		}
-		address = party.Email
-		mailings, err := n.store.Mailings(ctx, d.organizationID, d.contractID)
-		if err != nil {
+		var err error
+		if address, err = deliveryAddress(ctx, n.store, d.organizationID, d.contractID, party.Email); err != nil {
 			return err
 		}
-		if len(mailings) > 0 {
-			address = mailings[0].Recipient
-		}
 	}
-	traeger := strings.TrimSpace(d.traeger)
-	if traeger == "" {
-		traeger = record.Version.Terms.ContractPartner
-	}
+	traeger := strings.TrimSpace(firstText(d.traeger, record.Version.Terms.ContractPartner))
 	template, err := n.templates.NoticeTemplate(ctx, d.organizationID, templateKind(*notice))
 	if err != nil {
 		return err
 	}
 	text, err := confirmationText(template, confirmationValues{
-		Child: fullName(record.Version.ChildFirstName, record.Version.ChildLastName), Modules: joinGerman(ModuleNames(record.Version.Services)),
+		Child: fullName(record.Version.ChildFirstName, record.Version.ChildLastName), Modules: carecontract.JoinNames(ModuleNames(record.Version.Services)),
 		School: record.Version.SchoolName, EndsOn: notice.EndsOn, Received: receipt(*notice), Traeger: traeger,
 		Reason: notice.Reason, NeedsReason: notice.TerminationKind == carecontract.TerminationExtraordinary,
 	})
@@ -378,7 +357,7 @@ func (n *Notices) confirm(ctx context.Context, record ContractRecord, d declarat
 		return err
 	}
 	action, details := noticeTrail(*notice, d.channel, record.Version.ID, noticeID, outboxID)
-	return n.trail(ctx, d.organizationID, d.accountID, record, action, details)
+	return trailContract(ctx, n.store, d.organizationID, d.accountID, record, action, details)
 }
 
 // noticeTrail is the trail entry of a declaration: its kind, channel and
@@ -410,7 +389,7 @@ func (n *Notices) options(ctx context.Context, organizationID int64, record Cont
 	options := carecontract.NoticeOptions{
 		ContractID: record.Summary.ID, Status: record.Summary.Status, SchoolName: record.Version.SchoolName,
 		ChildName: fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
-		Modules:   joinGerman(ModuleNames(record.Version.Services)), Terms: NoticeText(record.Version.Terms),
+		Modules:   carecontract.JoinNames(ModuleNames(record.Version.Services)), Terms: NoticeText(record.Version.Terms),
 		EarlyStart: state.EarlyStart, Notice: state.Notice,
 	}
 	if includeExpiredWithdrawal && endIsOpen(record, state.Notice) {

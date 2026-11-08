@@ -22,12 +22,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// Store persists the contracts of a Träger in its Träger transaction.
 type Store struct{}
 
 var _ ports.Store = (*Store)(nil)
 
-// NewStore builds the store.
 func NewStore() *Store { return &Store{} }
 
 // traegerDB returns the Träger transaction of organizationID. A school,
@@ -77,7 +75,6 @@ const templateColumns = `id, school_id, care_offering_id, term_kind, term_months
 	special_termination, special_termination_note, statute_required, statute_title, statute_url,
 	contract_partner, updated_at`
 
-// Templates reads every template of the Träger.
 func (Store) Templates(ctx context.Context, organizationID int64) ([]ports.TemplateRow, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -95,7 +92,6 @@ func (Store) Templates(ctx context.Context, organizationID int64) ([]ports.Templ
 	return result, nil
 }
 
-// UpsertTemplate creates or replaces the template of one offering.
 func (Store) UpsertTemplate(ctx context.Context, organizationID, accountID, schoolID, offeringID int64, input carecontract.TemplateInput) (carecontract.Template, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -124,7 +120,6 @@ func (Store) UpsertTemplate(ctx context.Context, organizationID, accountID, scho
 	return row.template(), nil
 }
 
-// ContractKeys reads the keys of the Träger's contracts at the schools.
 func (Store) ContractKeys(ctx context.Context, organizationID int64, schoolIDs []int64) (map[ports.ContractKey]bool, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -233,7 +228,6 @@ const listContractsSQL = summarySQL + ` AND (? = '' OR c.status = ?) AND (? = 0 
 		|| ' ' || COALESCE(p.email, '') || ' ' || array_to_string(` + moduleNamesSQL + `, ' ')) ILIKE ?)
 	ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`
 
-// contractSQL is one contract.
 const contractSQL = summarySQL + ` AND c.id = ?`
 
 type summaryRow struct {
@@ -261,7 +255,8 @@ func (r summaryRow) summary() carecontract.ContractSummary {
 	return carecontract.ContractSummary{
 		ID: r.ID, Status: r.Status, SchoolID: r.SchoolID, SchoolName: r.SchoolName,
 		ChildFirstName: r.ChildFirstName, ChildLastName: r.ChildLastName, ModuleNames: nonNil(r.ModuleNames),
-		PartyName: strings.TrimSpace(r.PartyName), PartyEmail: r.PartyEmail, EffectiveFrom: r.EffectiveFrom,
+		ModulesText: carecontract.JoinNames(r.ModuleNames),
+		PartyName:   strings.TrimSpace(r.PartyName), PartyEmail: r.PartyEmail, EffectiveFrom: r.EffectiveFrom,
 		CreatedAt: r.CreatedAt, SentAt: r.SentAt, Concluded: r.concluded(), EndsOn: r.EndsOn,
 	}
 }
@@ -315,7 +310,6 @@ func likeEscape(value string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(value)
 }
 
-// CountContracts counts the Träger's contracts by status.
 func (Store) CountContracts(ctx context.Context, organizationID int64) (map[string]int, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {

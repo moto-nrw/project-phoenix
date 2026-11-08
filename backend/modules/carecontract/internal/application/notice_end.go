@@ -189,7 +189,7 @@ func (n *Notices) tellEnd(ctx context.Context, reviewer carecontract.Reviewer, r
 	if decision.decision == carecontract.EndDecisionReinterpreted {
 		action = ActionRejectReason
 	}
-	return n.trail(ctx, org, reviewer.AccountID, record, action, details)
+	return trailContract(ctx, n.store, org, reviewer.AccountID, record, action, details)
 }
 
 // endAddress is the first of the confirmation's address, the contract's
@@ -237,10 +237,7 @@ func (n *Notices) officeTraeger(ctx context.Context, reviewer carecontract.Revie
 	if err != nil {
 		return "", err
 	}
-	if traeger := strings.TrimSpace(firstLine(textLines(head.SenderText))); traeger != "" {
-		return traeger, nil
-	}
-	return record.Version.Terms.ContractPartner, nil
+	return traegerName(head.SenderText, record.Version.Terms), nil
 }
 
 // endNoticeText fills the Träger's template of the notice of a decided end.
@@ -255,7 +252,7 @@ func (n *Notices) endNoticeText(ctx context.Context, organizationID int64, recor
 		return "", err
 	}
 	return endText(template, confirmationValues{
-		Child: fullName(record.Version.ChildFirstName, record.Version.ChildLastName), Modules: joinGerman(ModuleNames(record.Version.Services)),
+		Child: fullName(record.Version.ChildFirstName, record.Version.ChildLastName), Modules: carecontract.JoinNames(ModuleNames(record.Version.Services)),
 		School: record.Version.SchoolName, EndsOn: &endsOn, Traeger: traeger, Reason: notice.Reason,
 		Received: receipt(ports.NewNotice{Channel: notice.Channel, DeclaredAt: notice.DeclaredAt, ReceivedOn: notice.ReceivedOn}),
 	})

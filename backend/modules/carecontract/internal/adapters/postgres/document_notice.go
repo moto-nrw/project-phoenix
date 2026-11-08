@@ -17,7 +17,7 @@ import (
 // nothing. The Träger is named again beside the Träger policy.
 const contractNoticeTargetSQL = `SELECT c.school_id, c.student_id FROM care_contract.contracts AS c
 	WHERE c.organization_id = ? AND c.id = ? AND c.student_id IS NOT NULL
-		AND c.status IN ('` + carecontract.StatusSent + `', '` + carecontract.StatusSigned + `', '` + carecontract.StatusActive + `')
+		AND c.status IN ('` + carecontract.StatusSent + `', '` + carecontract.StatusActive + `')
 		AND EXISTS (SELECT 1 FROM care_contract.contract_mailings AS m
 			WHERE m.organization_id = c.organization_id AND m.contract_id = c.id AND lower(m.recipient_email) = lower(?))`
 

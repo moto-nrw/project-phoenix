@@ -17,7 +17,6 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import { uppercaseLabelBaseline } from "./ui-kit-uppercase-label-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
 import {
@@ -3083,38 +3082,37 @@ describe.concurrent("ui-kit/no-uppercase-label (#5590)", () => {
     expect(output).not.toContain(RULE);
   });
 
-  it("fails one finding more than a file's baseline", async () => {
-    const [file, allowed] = Object.entries(
-      uppercaseLabelBaseline["no-uppercase-label"]!,
-    )[0]!;
-    const labels = Array.from(
-      { length: allowed + 1 },
-      () => '<p className="text-xs tracking-wide uppercase">A</p>',
-    ).join("");
-    const result = await lintSource(
-      `export const Probe = () => <>${labels}</>;`,
-      file,
+  it("fails a single finding in a file outside the exceptions", async () => {
+    const result = await lintProbe(
+      'export const Probe = () => <p className="text-xs tracking-wide uppercase">A</p>;',
+      "src/components/parent/child-care.tsx",
     );
 
     expect(result.status).toBe(1);
     expect(result.output).toContain(RULE);
   });
-});
 
-describe("ui-kit/no-uppercase-label baseline is current (#5590)", () => {
-  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken.
-  it("records exactly the findings each file still has", () => {
-    const result = spawnSync(
-      process.execPath,
-      [
-        resolve("scripts/ui-kit-uppercase-label-baseline-update.mjs"),
-        "--check",
-      ],
-      { encoding: "utf8" },
+  it.each([
+    "src/components/parent/child/child-day-card.tsx",
+    "src/components/parent/child/child-switcher.tsx",
+    "src/components/parent/start/parent-start-page.tsx",
+  ])("leaves the #2619 parent exception %s alone", async (file) => {
+    const { output } = await lintProbe(
+      'export const Probe = () => <p className="text-xs tracking-wide uppercase">A</p>;',
+      file,
+    );
+    expect(output).not.toContain(RULE);
+  });
+
+  it("does not exempt a similarly named parent file", async () => {
+    const result = await lintProbe(
+      'export const Probe = () => <p className="text-xs tracking-wide uppercase">A</p>;',
+      "src/components/parent/child/child-day-card-v2.tsx",
     );
 
-    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
-  }, 120_000);
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(RULE);
+  });
 });
 
 describe.concurrent("ui-kit/no-hand-rolled-inset (#5592)", () => {
