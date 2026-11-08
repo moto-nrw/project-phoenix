@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
-import { setTestClock } from "~/test/clock";
+import { releaseFakeTimers, setTestClock } from "~/test/clock";
 
 // Errors and success messages run through the real display path (#2515).
 const render = (ui: ReactElement) =>
@@ -2310,5 +2310,131 @@ describe("AdminEnrollmentDetail future renewal (#6043)", () => {
     expect(
       screen.queryByText(/aus dieser Anmeldung gelten ab/),
     ).not.toBeInTheDocument();
+  });
+
+  it("refreshes an applied weekly plan when the tab becomes visible", async () => {
+    setTestClock("2027-02-03T09:00:00+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest
+      .mockResolvedValueOnce({
+        ...request,
+        children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+      })
+      .mockResolvedValue({ ...request, children: [approvedChild] });
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    const notice = await screen.findByText(
+      /aus dieser Anmeldung gelten ab heute/,
+    );
+
+    fireEvent(document, new Event("visibilitychange"));
+    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(1);
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    fireEvent(document, new Event("visibilitychange"));
+
+    await waitFor(() => expect(notice).not.toBeInTheDocument());
+    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it("checks the pending plan again before showing a warning after midnight", async () => {
+    vi.useFakeTimers();
+    setTestClock("2027-02-03T23:59:30+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValueOnce({
+      ...request,
+      children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+    });
+    let finishRefresh!: (value: unknown) => void;
+    mocks.getAdminRequest.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishRefresh = resolve;
+        }),
+    );
+    await act(async () => {
+      render(<AdminEnrollmentDetail requestId="request-1" />);
+    });
+    expect(
+      screen.getByText(/aus dieser Anmeldung gelten ab heute/),
+    ).toBeVisible();
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    // Anker: Die Anmeldung bleibt während des erneuten Abrufs geladen.
+    expect(screen.getAllByText("Mara Beispiel")).not.toHaveLength(0);
+    expect(
+      screen.queryByText(/moto konnte sie noch nicht übernehmen/),
+    ).not.toBeInTheDocument();
+    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      finishRefresh({ ...request, children: [approvedChild] });
+    });
+    releaseFakeTimers();
+
+    // Anker: Die Anmeldung bleibt nach der Übernahme geladen.
+    expect(screen.getAllByText("Mara Beispiel")).not.toHaveLength(0);
+    expect(
+      screen.queryByText(
+        /Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung/,
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not turn stale data into a warning when the midnight refresh fails", async () => {
+    vi.useFakeTimers();
+    setTestClock("2027-02-03T23:59:30+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest
+      .mockResolvedValueOnce({
+        ...request,
+        children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+      })
+      .mockRejectedValue(new Error("offline"));
+    await act(async () => {
+      render(<AdminEnrollmentDetail requestId="request-1" />);
+    });
+    expect(
+      screen.getByText(/aus dieser Anmeldung gelten ab heute/),
+    ).toBeVisible();
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+    releaseFakeTimers();
+
+    // Anker: Die Anmeldung bleibt trotz des fehlgeschlagenen Abrufs geladen.
+    expect(screen.getAllByText("Mara Beispiel")).not.toHaveLength(0);
+    expect(
+      screen.queryByText(/moto konnte sie noch nicht übernehmen/),
+    ).not.toBeInTheDocument();
+    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it("warns after midnight when a fresh response still has the pending plan", async () => {
+    vi.useFakeTimers();
+    setTestClock("2027-02-03T23:59:30+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+    });
+    await act(async () => {
+      render(<AdminEnrollmentDetail requestId="request-1" />);
+    });
+    expect(
+      screen.getByText(/aus dieser Anmeldung gelten ab heute/),
+    ).toBeVisible();
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+    releaseFakeTimers();
+
+    expect(
+      screen.getByText(/moto konnte sie noch nicht übernehmen/),
+    ).toBeVisible();
+    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
   });
 });
