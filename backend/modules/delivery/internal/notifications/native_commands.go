@@ -15,6 +15,25 @@ type Notifier interface {
 	SynchronousService
 	DurableReceiptService
 	devices.NotificationCommands
+	devices.NotificationSeriesCommands
+}
+
+// NotifyEvents preserves Notify for every event of the series.
+func (r *router) NotifyEvents(ctx context.Context, events []devices.NotificationEvent) (int, error) {
+	return r.NotifyEach(ctx, notificationEventsFromPublic(events))
+}
+
+// NotifyEventsDurably preserves NotifyDurably for every event of the series.
+func (r *router) NotifyEventsDurably(ctx context.Context, events []devices.NotificationEvent) ([]int, error) {
+	return r.NotifyEachDurably(ctx, notificationEventsFromPublic(events))
+}
+
+func notificationEventsFromPublic(events []devices.NotificationEvent) []Event {
+	out := make([]Event, len(events))
+	for i, event := range events {
+		out[i] = notificationEventFromPublic(event)
+	}
+	return out
 }
 
 // NotifyEvent preserves the existing router, guards, transaction and error.
