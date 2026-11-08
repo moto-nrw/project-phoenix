@@ -18,7 +18,6 @@ interface EnrollmentFormLabelOption {
 interface EnrollmentFormLabelField {
   readonly key: string;
   readonly label: string;
-  readonly type: string;
   readonly applies_to_child?: boolean;
   readonly options?: EnrollmentFormLabelOption[];
   readonly translations?: Translations;
@@ -134,6 +133,7 @@ export const DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY: EnrollmentChangeReques
 
 const CHILD_METADATA_KEYS = new Set(["id", "status"]);
 const NO_METADATA_KEYS: ReadonlySet<string> = new Set();
+const NO_KEY_LABELS: ObjectKeyLabels = new Map();
 
 /** How one stored key reads: its question and its option labels. */
 interface ObjectKeyLabel {
@@ -289,7 +289,7 @@ function snapshotDetailRows(
       copy.additionalGuardianEntryLabel,
       copy.guardianSnapshotLabels,
       GUARDIAN_METADATA_KEYS,
-      new Map(),
+      NO_KEY_LABELS,
     );
   }
   if (key === "children") {

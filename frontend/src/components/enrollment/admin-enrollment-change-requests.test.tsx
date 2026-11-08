@@ -194,7 +194,7 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
       baseChangeRequest,
     );
     mocks.getAdminEnrollmentFormLabels.mockResolvedValueOnce({
-      fields: [{ key: "note", label: "Hinweis für die OGS", type: "text" }],
+      fields: [{ key: "note", label: "Hinweis für die OGS" }],
       legal_blocks: [],
     });
 

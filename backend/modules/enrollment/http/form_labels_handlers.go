@@ -26,7 +26,6 @@ type FormLabelsResponse struct {
 type FormLabelField struct {
 	Key            string                  `json:"key"`
 	Label          string                  `json:"label"`
-	Type           string                  `json:"type"`
 	AppliesToChild bool                    `json:"applies_to_child,omitempty"`
 	Options        []FormLabelOption       `json:"options,omitempty"`
 	Translations   capability.Translations `json:"translations,omitempty"`
@@ -113,7 +112,6 @@ func toFormLabelsResponse(labels *capability.RequestFormLabels) FormLabelsRespon
 		field := FormLabelField{
 			Key:            f.Key,
 			Label:          f.Label,
-			Type:           string(f.Type),
 			AppliesToChild: f.AppliesToCh,
 			Translations:   f.Translations.Fresh(map[string]string{capability.TranslationAttrLabel: f.Label}),
 		}

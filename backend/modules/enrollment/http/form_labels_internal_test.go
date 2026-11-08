@@ -32,7 +32,7 @@ func TestFormLabelsResponseKeepsOnlyWhatNamesAnAnswer(t *testing.T) {
 	out := toFormLabelsResponse(labels)
 
 	require.Equal(t, []FormLabelField{{
-		Key: "lunch", Label: "Mittagessen", Type: string(capability.FormFieldSelect), AppliesToChild: true,
+		Key: "lunch", Label: "Mittagessen", AppliesToChild: true,
 		Translations: capability.Translations{"en": {"label": {Text: "Lunch"}}},
 		Options:      []FormLabelOption{{Label: "Vegetarisch", Value: "veg"}},
 	}}, out.Fields)

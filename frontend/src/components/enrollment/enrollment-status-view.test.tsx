@@ -248,7 +248,6 @@ describe("EnrollmentStatusView", () => {
         {
           key: "allergies",
           label: "Allergien",
-          type: "text",
           applies_to_child: true,
         },
       ],

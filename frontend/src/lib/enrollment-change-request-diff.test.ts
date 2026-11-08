@@ -463,13 +463,11 @@ describe("form labels (#6142)", () => {
       {
         key: "allergies",
         label: "Allergien",
-        type: "text",
         applies_to_child: true,
       },
       {
         key: "lunch",
         label: "Mittagessen",
-        type: "select",
         options: [
           { label: "Vegetarisch", value: "veg" },
           { label: "Mit Fleisch", value: "meat" },
@@ -478,7 +476,6 @@ describe("form labels (#6142)", () => {
       {
         key: "clubs",
         label: "AGs",
-        type: "multiselect",
         applies_to_child: true,
         options: [
           { label: "Fußball", value: "football" },
