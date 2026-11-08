@@ -3300,6 +3300,20 @@ describe.concurrent("ui-kit/no-hand-rolled-notice (#5591)", () => {
   });
 });
 
+// Erste Datei der Baseline; ist eine Regel abgebaut (no-hand-rolled-surface
+// seit #6133), prüfen die Tests an einer früher erfassten Datei mit Baseline 0.
+const FORMERLY_SURFACE_BASELINED =
+  "src/components/settings/passkey-settings-section.tsx";
+
+function surfaceProbeFile(rule: string): [string, number] {
+  return (
+    Object.entries(surfaceBaseline[rule] ?? {})[0] ?? [
+      FORMERLY_SURFACE_BASELINED,
+      0,
+    ]
+  );
+}
+
 describe.concurrent("ui-kit surface baseline (#5594)", () => {
   it.each([
     [
@@ -3311,7 +3325,7 @@ describe.concurrent("ui-kit surface baseline (#5594)", () => {
       '<div className="rounded-lg border border-gray-200 bg-white p-3">A</div>',
     ],
   ])("fails one %s finding more than a file's baseline", async (rule, card) => {
-    const [file, allowed] = Object.entries(surfaceBaseline[rule]!)[0]!;
+    const [file, allowed] = surfaceProbeFile(rule);
     const cards = Array.from({ length: allowed + 1 }, () => card).join("");
     const result = await lintSource(
       `export const Probe = () => <>${cards}</>;`,
@@ -3323,10 +3337,7 @@ describe.concurrent("ui-kit surface baseline (#5594)", () => {
   });
 
   it("keeps the classic surface chain hard-zero in a baselined file", async () => {
-    const [file, allowed] = Object.entries(
-      surfaceBaseline["no-hand-rolled-surface"]!,
-    )[0]!;
-    expect(allowed).toBeGreaterThan(0);
+    const [file] = surfaceProbeFile("no-hand-rolled-surface");
     const result = await lintSource(
       'export const Probe = () => <div className="rounded-2xl border bg-white p-4">A</div>;',
       file,
@@ -3337,10 +3348,7 @@ describe.concurrent("ui-kit surface baseline (#5594)", () => {
   });
 
   it("keeps a composed legacy surface constant hard-zero in a baselined file", async () => {
-    const [file, allowed] = Object.entries(
-      surfaceBaseline["no-hand-rolled-surface"]!,
-    )[0]!;
-    expect(allowed).toBeGreaterThan(0);
+    const [file] = surfaceProbeFile("no-hand-rolled-surface");
     const result = await lintSource(
       `declare function cn(...classes: string[]): string;
       const card = cn("rounded-xl", "border", "bg-white", "p-4");
@@ -3353,9 +3361,7 @@ describe.concurrent("ui-kit surface baseline (#5594)", () => {
   });
 
   it("does not count a finding behind its disable comment", async () => {
-    const [file, allowed] = Object.entries(
-      surfaceBaseline["no-hand-rolled-surface"]!,
-    )[0]!;
+    const [file, allowed] = surfaceProbeFile("no-hand-rolled-surface");
     const cards = Array.from(
       { length: allowed },
       () => '<div className="rounded-lg border bg-white p-3">A</div>',
