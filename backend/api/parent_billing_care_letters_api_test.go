@@ -351,6 +351,77 @@ func TestCareLetterGoesOnlyToThePartyTheContractStillBills(t *testing.T) {
 	assert.Zero(t, careInboxPushes(t, f))
 }
 
+// Both send paths use the effective recipient and still refuse changed payers.
+func TestCareLettersResolveThePayerAndRefuseAChangedPayer(t *testing.T) {
+	t.Parallel()
+	for _, bulk := range []bool{false, true} {
+		for _, changed := range []bool{false, true} {
+			t.Run(fmt.Sprintf("bulk=%t/changed=%t", bulk, changed), func(t *testing.T) {
+				f := newCareBillingFixture(t, "Träger Zahlerpost")
+				brandCareTraeger(t, f)
+				_, contracts := releasedCareRun(t, f, "Mia")
+				input := map[string]any{
+					"contract_id": contracts["Mia"], "recipient_kind": "payer",
+					"payer_first_name": "Oma", "payer_last_name": "Muster", "payer_email": "oma@example.org",
+					"payer_address": map[string]any{"street": "Amtsweg 2", "postal_code": "75175", "city": "Pforzheim"},
+				}
+				rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, familyBillingPath, input)
+				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+				run := f.startRun(t, "2030-02-01")
+				preview := f.run(t, run.ID)
+				rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(preview))
+				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+				invoice := invoiceOfContract(t, f.run(t, run.ID), contracts["Mia"])
+				rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
+				require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+				if changed {
+					input["payer_email"] = "neu@example.org"
+					rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, familyBillingPath, input)
+					require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+				}
+				readsOf := func() int {
+					var reads int
+					require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.family_billing_events
+						WHERE care_contract_id = ? AND action = 'read'`, contracts["Mia"]).Scan(context.Background(), &reads))
+					return reads
+				}
+				before := readsOf()
+				path := fmt.Sprintf("/invoices/%d/mail", invoice.ID)
+				if bulk {
+					path = "/letters/mail"
+				}
+				rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, path), nil)
+				if changed && !bulk {
+					assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+					assert.Contains(t, rec.Body.String(), "parent_billing.care_recipient_changed")
+				} else {
+					require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+				}
+				if bulk {
+					want := careSeriesBody{Queued: 1}
+					if changed {
+						want = careSeriesBody{RecipientChanged: 1}
+					}
+					assert.Equal(t, want, decodeSchoolPortalData[careSeriesBody](t, rec.Body.Bytes()))
+				}
+				if !changed || bulk {
+					assert.Equal(t, before+1, readsOf(), "the send audits its read of the family deviation")
+				}
+				mails := careLetterMails(t, f, run.ID)
+				if changed {
+					assert.Empty(t, mails)
+				} else {
+					require.Len(t, mails, 1)
+					var email string
+					require.NoError(t, f.db.NewRaw(`SELECT recipient->>'address' FROM platform.email_outbox WHERE id = ?`, mails[0].ID).
+						Scan(context.Background(), &email))
+					assert.Equal(t, "oma@example.org", email)
+				}
+			})
+		}
+	}
+}
+
 // Every letter route needs the right "Abrechnung" and stays with the Träger.
 func TestCareLettersNeedTheRightAndStayWithTheirTraeger(t *testing.T) {
 	t.Parallel()

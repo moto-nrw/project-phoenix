@@ -183,11 +183,18 @@ type CarePosition struct {
 	PayableCents int64 `json:"-"`
 }
 
-// CareRecipient is the contract party an invoice goes to.
+// CareRecipient is who an invoice goes to: the contract party, which the
+// registration named, unless the family deviates (#4689). Kind is
+// RecipientApplicant, RecipientBoth or RecipientPayer; SecondName the
+// second parent; Address the payer's address. An invoice issued before
+// #4689 has no kind.
 type CareRecipient struct {
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
+	FirstName  string         `json:"first_name"`
+	LastName   string         `json:"last_name"`
+	Email      string         `json:"email"`
+	Kind       string         `json:"kind"`
+	SecondName string         `json:"second_name"`
+	Address    *PostalAddress `json:"address"`
 }
 
 // CareInvoice is the invoice of one contract and month: a draft without a
@@ -208,7 +215,13 @@ type CareInvoice struct {
 	// (#5916).
 	Exclusion *CareExclusion `json:"exclusion,omitempty"`
 	Recipient CareRecipient  `json:"recipient"`
-	Positions []CarePosition `json:"positions"`
+	// FamilyEmail is the family of the invoice: the mail address of the
+	// contract party, whoever pays (#4689). The sibling rules count by it.
+	FamilyEmail string `json:"family_email"`
+	// Payment is how and by when the invoice is paid (#4689); an invoice
+	// issued before has none.
+	Payment   *InvoicePayment `json:"payment"`
+	Positions []CarePosition  `json:"positions"`
 	// Reductions are the rules of the chain in their order (#4685); the
 	// total is the positions less the reductions.
 	Reductions []CareReduction `json:"reductions"`
@@ -289,6 +302,8 @@ type CareRunDetail struct {
 	PreviewCents      int64  `json:"preview_cents"`
 	NumberPattern     string `json:"number_pattern"`
 	NumberRangeSet    bool   `json:"number_range_set"`
+	// DueDates are the due dates of the run per payment method (#4689).
+	DueDates []RunDueDate `json:"due_dates"`
 	// CareRunReviewState is the review of a calculated run (#5916).
 	CareRunReviewState
 }

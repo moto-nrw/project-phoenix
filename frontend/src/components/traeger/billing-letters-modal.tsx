@@ -10,12 +10,15 @@ import { Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ISODateInput } from "~/components/ui/date-picker";
+import { DataField } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { toISODate, berlinTodayISO, parseISODate } from "~/lib/date-helpers";
+import type { InvoicePayment } from "~/lib/traeger-billing-terms-api";
+import { invoiceDueDatesText } from "./billing-payment-format";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
@@ -120,12 +123,14 @@ function ContactRow({
 
 export function BillingLettersModal<T = BillingLetters>({
   runId,
+  payments,
   isOpen,
   onClose,
   onCreated,
   source,
 }: Readonly<{
   runId: string;
+  payments: readonly (InvoicePayment | null | undefined)[];
   isOpen: boolean;
   onClose: () => void;
   onCreated: (letters: T) => void;
@@ -133,6 +138,8 @@ export function BillingLettersModal<T = BillingLetters>({
   source?: LetterSource<T>;
 }>) {
   const withContacts = source === undefined;
+  const deadlines = invoiceDueDatesText(payments);
+  const hasLegacy = payments.some((payment) => !payment?.dueOn);
   const [dueDate, setDueDate] = useState("");
   // The date field keeps the last valid date while the typed one is not;
   // nothing goes out until the field holds a valid date again.
@@ -166,8 +173,9 @@ export function BillingLettersModal<T = BillingLetters>({
   const input = (): BillingLettersInput | null => {
     formErrors.clear();
     const fields: Record<string, string> = {};
-    if (!dueDate) fields.payment_due_on = "Bitte geben Sie ein Datum an.";
-    else if (!dueDateValid)
+    if (hasLegacy && !dueDate)
+      fields.payment_due_on = "Bitte geben Sie ein Datum an.";
+    else if (hasLegacy && !dueDateValid)
       fields.payment_due_on =
         "Bitte geben Sie ein gültiges Datum ab heute im Format TT.MM.JJJJ ein.";
     if (incomplete >= 0)
@@ -283,18 +291,28 @@ export function BillingLettersModal<T = BillingLetters>({
       >
         <p className="text-sm text-gray-700">
           {source?.intro ??
-            "Jede Familie bekommt ein Schreiben mit ihrer Rechnung. Was Sie hier eingeben, steht in allen Schreiben. Danach lässt sich nichts mehr ändern."}
+            "Jede Familie bekommt ein Schreiben mit ihrer Rechnung. Ihre Hinweise stehen in allen Schreiben. Danach lässt sich nichts mehr ändern."}
         </p>
-        <ISODateInput
-          id="payment_due_on"
-          label="Zahlen bis"
-          value={dueDate}
-          min={berlinTodayISO()}
-          minDateError="Das Datum darf nicht in der Vergangenheit liegen."
-          error={formErrors.fieldError("payment_due_on")}
-          onChange={setDueDate}
-          onValidityChange={setDueDateValid}
-        />
+        {deadlines ? (
+          <DataField label="Fälligkeiten">
+            {deadlines}
+            <p className="mt-1 text-sm text-gray-600">
+              Diese Daten stehen fest. Sie ändern sich hier nicht.
+            </p>
+          </DataField>
+        ) : null}
+        {hasLegacy ? (
+          <ISODateInput
+            id="payment_due_on"
+            label={deadlines ? "Zahlen bis (ältere Rechnungen)" : "Zahlen bis"}
+            value={dueDate}
+            min={berlinTodayISO()}
+            minDateError="Das Datum darf nicht in der Vergangenheit liegen."
+            error={formErrors.fieldError("payment_due_on")}
+            onChange={setDueDate}
+            onValidityChange={setDueDateValid}
+          />
+        ) : null}
         <Textarea
           id="billing-letters-notes"
           name="notes"

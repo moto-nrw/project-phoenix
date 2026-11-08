@@ -83,7 +83,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
         steps: [
           "Wählen Sie im freigegebenen Lauf bei `Schreiben an die Familien` den Knopf `Schreiben erstellen`. Die Seite mit den Schreiben des Laufs öffnet sich.",
           "Wählen Sie dort bei `Schreiben an die Familien` noch einmal `Schreiben erstellen`.",
-          "Wählen Sie bei `Zahlen bis` das Datum, bis zu dem die Familien zahlen.",
+          "Prüfen Sie die `Fälligkeiten`. Sie stehen auf den Rechnungen fest. Nur ältere Rechnungen haben noch das Feld `Zahlen bis`.",
           "Schreiben Sie bei `Hinweis für die Familien` etwas, wenn alle Familien es lesen sollen. Das ist freiwillig.",
           "Wählen Sie `Vorschau ansehen`. Sie sehen das Schreiben der ersten Familie.",
           "Wählen Sie `Schreiben erstellen`. Danach lassen sich die Schreiben nicht mehr ändern.",
@@ -133,6 +133,10 @@ export function traegerCareMonthsTopic(): HelpTopic {
       "Ein Schreiben geht nicht raus, weil die Person nicht mehr im Vertrag steht: Stornieren Sie die Rechnung. Wählen Sie dann `Neu ausstellen`. Die neue Rechnung geht an die Person im Vertrag.",
       "`Erneut senden` fehlt: Die Mail ist noch unterwegs, oder die Adresse ist gesperrt. Der Hinweis bei der Rechnung sagt, was zu tun ist. Drucken Sie das Schreiben, wenn die Adresse gesperrt ist.",
     ],
-    related: [HELP_TOPICS.traegerCareContracts, HELP_TOPICS.traegerBillingRun],
+    related: [
+      HELP_TOPICS.traegerCareContracts,
+      HELP_TOPICS.traegerBillingRun,
+      HELP_TOPICS.traegerBillingTerms,
+    ],
   };
 }

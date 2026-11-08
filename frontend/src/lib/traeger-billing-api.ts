@@ -13,6 +13,15 @@ import type {
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
 import { traegerRequest } from "./traeger-api";
+import {
+  type BackendInvoicePayment,
+  type BackendRunDueDate,
+  type InvoicePayment,
+  type RecipientKind,
+  type RunDueDate,
+  invoicePaymentFromBackend,
+  runDueDatesFromBackend,
+} from "./traeger-billing-terms-api";
 
 export type BillingRunStatus = "calculated" | "released";
 
@@ -132,6 +141,12 @@ export interface BillingDocument {
   readonly recipientEmail: string;
   /** The family's debtor number the invoice copies; empty without (#5621). */
   readonly debtorNumber: string;
+  /** Who gets it (#4689); "" on an invoice issued before. */
+  readonly recipientKind?: RecipientKind | "";
+  /** The second parent when both parents get it. */
+  readonly recipientSecondName?: string;
+  /** How and by when it is paid (#4689); null on an invoice issued before. */
+  readonly payment?: InvoicePayment | null;
   readonly serviceFrom: string;
   readonly serviceUntil: string;
   readonly children: readonly BillingChild[];
@@ -159,6 +174,8 @@ export interface BillingRunDetail extends BillingRun {
   readonly numberRangeSet: boolean;
   /** Set once the confirmation letters of the released run exist (#4669). */
   readonly letters: BillingLetters | null;
+  /** The due dates of the run per payment method (#4689). */
+  readonly dueDates?: readonly RunDueDate[];
 }
 
 /** An emergency number of a hosting OGS on the letters of a run. */
@@ -247,6 +264,9 @@ interface BackendDocument {
   recipient_last_name: string;
   recipient_email: string;
   debtor_number?: string;
+  recipient_kind?: RecipientKind | "";
+  recipient_second_name?: string;
+  payment?: BackendInvoicePayment | null;
   service_from: string;
   service_until: string;
   children?:
@@ -291,6 +311,7 @@ interface BackendRunDetail extends BackendRun {
   number_pattern: string;
   number_range_set: boolean;
   letters?: BackendLetters | null;
+  due_dates?: BackendRunDueDate[] | null;
 }
 
 interface BackendLetters {
@@ -379,6 +400,9 @@ function documentFromBackend(document: BackendDocument): BillingDocument {
     recipientLastName: document.recipient_last_name,
     recipientEmail: document.recipient_email,
     debtorNumber: document.debtor_number ?? "",
+    recipientKind: document.recipient_kind ?? "",
+    recipientSecondName: document.recipient_second_name ?? "",
+    payment: invoicePaymentFromBackend(document.payment),
     serviceFrom: document.service_from,
     serviceUntil: document.service_until,
     totalCents: document.total_cents,
@@ -421,6 +445,7 @@ function detailFromBackend(run: BackendRunDetail): BillingRunDetail {
     numberPattern: run.number_pattern,
     numberRangeSet: run.number_range_set,
     letters: run.letters ? lettersFromBackend(run.letters) : null,
+    dueDates: runDueDatesFromBackend(run.due_dates),
   };
 }
 

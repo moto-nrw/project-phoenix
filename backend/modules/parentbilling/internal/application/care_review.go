@@ -67,7 +67,8 @@ func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run pa
 func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parentbilling.CareExclusion) reviewedMonth {
 	inRun := func(schoolID int64) bool { return slices.Contains(schoolIDs, schoolID) }
 	review := reviewedMonth{careMonth: careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{},
-		duplicates: []parentbilling.CareDuplicate{}}, excluded: []parentbilling.CareInvoice{}}
+		duplicates: []parentbilling.CareDuplicate{}, dueDates: month.dueDates, deviations: month.deviations},
+		excluded: []parentbilling.CareInvoice{}}
 	for schoolID, count := range month.billedBySchool {
 		if inRun(schoolID) {
 			review.billed += count
@@ -125,7 +126,9 @@ func fingerprintInvoices(invoices []parentbilling.CareInvoice) []fingerprintInvo
 // every invoice the release issues and every excluded one, each with its
 // recipient, positions and reductions (so a new evidence or rule changes
 // it); the bookings without a price; the children held back for a
-// duplicate contract; and the count of contracts already billed. A change
+// duplicate contract; the count of contracts already billed; and the due
+// dates of the run per payment method, which every invoice's payment also
+// carries (#4689). A change
 // of any of them since the review makes the release refuse (#5916).
 // Whatever else a later change adds to the review (the Mensa of #4686)
 // belongs here too.
@@ -140,8 +143,10 @@ func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedM
 		Unpriced    []parentbilling.CareUnpriced  `json:"unpriced"`
 		Duplicates  []parentbilling.CareDuplicate `json:"duplicates"`
 		Billed      int                           `json:"billed"`
+		DueDates    []parentbilling.RunDueDate    `json:"due_dates"`
 	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
-		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed})
+		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed,
+		review.dueDates.InPaymentOrder()})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
 		// release could match.
@@ -331,11 +336,18 @@ func (c *CareBilling) IncludeCareInvoice(ctx context.Context, reviewer parentbil
 
 // reviewDetail fills the review of a calculated run into its detail: the
 // invoices the release issues, then the excluded ones, and the schools.
-func (c *CareBilling) reviewDetail(ctx context.Context, organizationID int64, detail *parentbilling.CareRunDetail) error {
+func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.HolidayReviewer, detail *parentbilling.CareRunDetail) error {
+	organizationID := reviewer.OrganizationID
 	rule, review, err := c.reviewed(ctx, organizationID, detail.CareRun)
 	if err != nil {
 		return err
 	}
+	// The payer details the review shows are read from the family
+	// deviations; their trail names the read (#4689).
+	if err := recordDeviationReads(ctx, c.store, reviewer, review.deviations); err != nil {
+		return err
+	}
+	detail.DueDates = review.dueDates.InPaymentOrder()
 	detail.MonthRule, detail.Unpriced, detail.Billed = rule, review.unpriced, review.billed
 	detail.Duplicates = review.duplicates
 	detail.Invoices = append(review.invoices, review.excluded...)

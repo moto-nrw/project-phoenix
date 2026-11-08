@@ -24,6 +24,8 @@ var careReviewColumns = []ExportColumn{
 	{ID: "child", Label: "Kind"},
 	{ID: "recipient", Label: "Empfänger"},
 	{ID: "email", Label: "E-Mail"},
+	{ID: "payment_method", Label: "Zahlungsweg"},
+	{ID: "due_on", Label: "Fällig am"},
 	{ID: "position", Label: "Position"},
 	{ID: "weekdays", Label: "Wochentage"},
 	{ID: "period", Label: "Zeitraum"},
@@ -59,7 +61,7 @@ func (c *CareBilling) ExportCareRunReview(ctx context.Context, reviewer parentbi
 		return parentbilling.ExportFile{}, parentbilling.ErrBillingRunReleased
 	}
 	detail := parentbilling.CareRunDetail{CareRun: run}
-	if err := c.reviewDetail(ctx, reviewer.OrganizationID, &detail); err != nil {
+	if err := c.reviewDetail(ctx, reviewer, &detail); err != nil {
 		return parentbilling.ExportFile{}, err
 	}
 	file, err := c.renderer.RenderTable(careReviewTable(detail), format, "pruefliste-monatsbeitrag-"+run.BillingMonth.Format("2006-01"))
@@ -115,11 +117,18 @@ func reviewInvoiceRows(invoices []parentbilling.CareInvoice, invoiceDate string)
 		} else {
 			total += invoice.TotalCents
 		}
+		recipient := strings.TrimSpace(invoice.Recipient.FirstName + " " + invoice.Recipient.LastName)
+		if second := strings.TrimSpace(invoice.Recipient.SecondName); second != "" {
+			recipient += " und " + second
+		}
 		base := map[string]string{
 			"invoice_date": invoiceDate, "school": invoice.SchoolName,
 			"child":     strings.TrimSpace(invoice.ChildFirstName + " " + invoice.ChildLastName),
-			"recipient": strings.TrimSpace(invoice.Recipient.FirstName + " " + invoice.Recipient.LastName),
-			"email":     invoice.Recipient.Email, "status": status,
+			"recipient": recipient, "email": invoice.Recipient.Email, "status": status,
+		}
+		// The payment the release copies, from the one rule (#4689).
+		if payment := invoice.Payment; payment != nil {
+			base["payment_method"], base["due_on"] = paymentMethodLabel(payment.Method), payment.DueOn.Format("02.01.2006")
 		}
 		for _, position := range invoice.Positions {
 			rows = append(rows, withValues(base, map[string]string{
