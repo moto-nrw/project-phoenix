@@ -13,6 +13,8 @@ var transactionFrameBundleSites = map[string]string{
 	// Kommando, Schritt 1 (#5881): verlagert aus
 	// feed.go:*service.ParentCalendarFeedByToken:s.cfg.Runtime.WithinTenant#1
 	"modules/schoolcalendar/portal/internal/application/feed.go:*service.parentCalendarFeed:s.cfg.Runtime.WithinTenant#1": "Atomic owner command: ParentCalendarFeedByToken coordinates appointment visibility and school calendar projections through application ports. Its prerequisite reads/locks, mutations and commit hooks form one command and must roll back together. It joins a supplied workflow/root unit; SQL adapters below it require that unit and cannot open one.",
+	// Admin, Schritt 2 (#5795)
+	"modules/identityaccess/internal/application/operator.go:*Service.VerifyOperatorSession:s.tx.RunAdmin#1": "ADR 0161: the active-operator check reads the operator and the latest session of its family in one administrative read unit with unchanged order and guards; it writes nothing and the route keeps its own administrative unit.",
 }
 
 // withoutReviewedTransactionFrameBundles removes exactly the reviewed
