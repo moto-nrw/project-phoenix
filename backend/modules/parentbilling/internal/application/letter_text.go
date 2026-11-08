@@ -204,16 +204,10 @@ func letterValues(content letterContent) map[string]templates.Value {
 	return values
 }
 
-// missingLetterValues names the placeholders of the confirmation letter the
-// letter writes no value for. Every placeholder its kind offers the Träger
-// must have one, even an empty one, or a paragraph of the Träger's template
-// would vanish without a reason.
-func missingLetterValues(values map[string]templates.Value) []string {
-	return missingLetterValuesOf(templates.KindConfirmation, values)
-}
-
 // missingLetterValuesOf names the placeholders of a kind of template the
-// letter writes no value for (#4688).
+// letter writes no value for (#4688). Every placeholder its kind offers the
+// Träger must have one, even an empty one, or a paragraph of the Träger's
+// template would vanish without a reason.
 func missingLetterValuesOf(kind templates.Kind, values map[string]templates.Value) []string {
 	var missing []string
 	for _, placeholder := range templates.Placeholders(kind) {
