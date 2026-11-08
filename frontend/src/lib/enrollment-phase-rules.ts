@@ -12,3 +12,11 @@ export function phaseHasPublicForm(phase: Pick<Phase, "audience">): boolean {
     phase.audience !== "existing_students"
   );
 }
+
+/** The enrollment window closes after it opens (`phase.go` checks the same). */
+export function enrollmentWindowIsOrdered(
+  openAt: string | null | undefined,
+  closeAt: string | null | undefined,
+): boolean {
+  return !openAt || !closeAt || new Date(closeAt) > new Date(openAt);
+}
