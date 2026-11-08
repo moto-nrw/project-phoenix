@@ -31,7 +31,76 @@ func (s *Service) GuardianAnnouncementTenant(ctx context.Context, accountID, ann
 	if accountID <= 0 || announcementID <= 0 {
 		return 0, nil
 	}
+	announcementTenantID, systemKind, err := s.guardianAnnouncementAudience(ctx, accountID, announcementID)
+	if err != nil || announcementTenantID == 0 {
+		return 0, err
+	}
+	// Fails closed, like every other visibility check on this path: a school
+	// that switched the feature off hides the attachment with the message.
+	if !s.announcementVisibleForTenant(ctx, announcementTenantID, announcementID, systemKind) {
+		return 0, nil
+	}
+	return announcementTenantID, nil
+}
 
+// errAnnouncementHidden ends the school unit of WithinGuardianAnnouncementTenant
+// when the school's switch hides the announcement; it never leaves this file.
+var errAnnouncementHidden = errors.New("parent: announcement hidden by the school's switch")
+
+// WithinGuardianAnnouncementTenant is the first pass of the same gate for the
+// attachment entry (ADR 0161 step 3, #5894): it decides the audience in the
+// administrative transaction, then reads the school's switch and runs read in
+// ONE tenant transaction of the announcement's school, switch first. The
+// order of the checks and the statements are those of
+// GuardianAnnouncementTenant followed by read in a unit of its own; only the
+// COMMIT and BEGIN between switch and read are gone.
+//
+// A refusal is tenant id 0 with no error, and read is not called. A switch
+// that is off or unreadable ends the school unit before read's first
+// statement, so a failed switch read never runs into an aborted transaction.
+// A school unit that cannot start hides the announcement like an unreadable
+// switch did; a system announcement, which needs no switch, returns that
+// error as its file read did.
+func (s *Service) WithinGuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64, read func(ctx context.Context, tenantID int64) error) (int64, error) {
+	if accountID <= 0 || announcementID <= 0 {
+		return 0, nil
+	}
+	if read == nil {
+		return 0, errors.New("parent: attachment read is required")
+	}
+	tenantID, systemKind, err := s.guardianAnnouncementAudience(ctx, accountID, announcementID)
+	if err != nil || tenantID == 0 {
+		return 0, err
+	}
+	needsSwitch := systemKind == nil || *systemKind == ""
+	if needsSwitch && s.Settings == nil {
+		return 0, nil
+	}
+	started := false
+	err = s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		started = true
+		if !s.announcementVisibleForTenant(txCtx, tenantID, announcementID, systemKind) {
+			return errAnnouncementHidden
+		}
+		return read(txCtx, tenantID)
+	})
+	switch {
+	case err == nil:
+		return tenantID, nil
+	case errors.Is(err, errAnnouncementHidden):
+		return 0, nil
+	case !started && needsSwitch:
+		s.logHiddenAnnouncement(tenantID, announcementID, err)
+		return 0, nil
+	default:
+		return 0, err
+	}
+}
+
+// guardianAnnouncementAudience is the administrative half of the gate: the
+// school and system kind of a live announcement whose audience includes the
+// account, or school 0 when it does not.
+func (s *Service) guardianAnnouncementAudience(ctx context.Context, accountID, announcementID int64) (int64, *string, error) {
 	var announcementTenantID int64
 	var systemKind *string
 	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
@@ -54,17 +123,9 @@ func (s *Service) GuardianAnnouncementTenant(ctx context.Context, accountID, ann
 		return nil
 	})
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
-	if announcementTenantID == 0 {
-		return 0, nil
-	}
-	// Fails closed, like every other visibility check on this path: a school
-	// that switched the feature off hides the attachment with the message.
-	if !s.announcementVisibleForTenant(ctx, announcementTenantID, announcementID, systemKind) {
-		return 0, nil
-	}
-	return announcementTenantID, nil
+	return announcementTenantID, systemKind, nil
 }
 
 // GuardianDeclarationProofAttachmentTenant answers whether one frozen

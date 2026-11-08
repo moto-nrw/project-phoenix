@@ -465,3 +465,18 @@ nach `…/feed.go:*service.parentCalendarFeed:s.cfg.Runtime.WithinTenant#1`, dam
 derselbe Rahmen mit bytegleichem Rumpf und wörtlich gleichem Grund; die Zahl der
 Tenant-Startstellen bleibt gleich, und der neue Schlüssel steht in
 `transactionFrameBundleSites`.
+
+## Nachtrag 08.11.2026: Schlüssel der Schritte 3 und 4 (#5894, #5862)
+
+Schritt 3 verlagert die Admin-Startstelle
+`workflows/parentportal/internal/messaging/parent_announcement_attachments.go:*Service.GuardianAnnouncementTenant:s.Runtime.WithinAdmin#1`
+nach `…/parent_announcement_attachments.go:*Service.guardianAnnouncementAudience:s.Runtime.WithinAdmin#1`,
+weil der erste Durchgang und die erneute Prüfung dieselbe Zielgruppenprüfung
+aufrufen; der Rumpf des Admin-Callbacks ist bytegleich, der Grund wörtlich
+gleich, die Zahl der Admin-Stellen bleibt gleich. Schritt 4 braucht zusätzlich
+die reine Port-Bindung
+`roots/owners/parent_portal_runtime.go:ParentPortalRuntime.WithinAdminThenTenant:tenant.WithinAdminThenTenant#1`,
+die den Aufruf wie `ParentPortalRuntime.WithinAdmin` nur weiterreicht und
+keinen eigenen Rahmen öffnet. Schritt 4 bringt damit +4 Admin statt +3, das
+Register wächst insgesamt um sechs Admin-Stellen und eine Kommando-Stelle.
+Die neuen Schlüssel beider Schritte stehen in `transactionFrameBundleSites`.
