@@ -6,14 +6,11 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Server-side visibility evaluation + required-custom-field enforcement.
@@ -401,7 +398,7 @@ func TestRelevantCareDaysForChild(t *testing.T) {
 	openByID := map[int64]*offeringContract.CareOfferingRecord{7: fixed}
 
 	// No offerings configured -> all weekdays (the form shows them all).
-	assert.Equal(t, enrollmentNative.ValidWeekdays,
+	assert.Equal(t, map[string]bool{"mon": true, "tue": true, "wed": true, "thu": true, "fri": true},
 		relevantCareDaysForChild(SubmitChild{}, nil),
 		"no offerings means every weekday is schedulable")
 
@@ -428,7 +425,7 @@ func TestPruneChildScheduleAnswers(t *testing.T) {
 
 	// No offerings (all weekdays schedulable): mon-fri kept, weekend dropped.
 	answers2 := map[string]any{"dismissal": map[string]any{"mon": "15:00", "sat": "09:00"}}
-	pruneChildScheduleAnswers(schema, answers2, enrollmentNative.ValidWeekdays)
+	pruneChildScheduleAnswers(schema, answers2, schoolDaySet())
 	assert.Equal(t, map[string]any{"mon": "15:00"}, answers2["dismissal"])
 }
 
@@ -999,7 +996,7 @@ func pickupSchedField() enrollmentNative.FormField {
 func TestValidateConstrainedSchedules_NilSchema(t *testing.T) {
 	t.Parallel()
 
-	assert.NoError(t, validateConstrainedSchedules(nil, SubmitRequest{}, nil))
+	assert.NoError(t, validateConstrainedSchedules(nil, SubmitRequest{}, nil, nil))
 }
 
 func TestValidateConstrainedSchedules_AcceptsListedTimes(t *testing.T) {
@@ -1009,7 +1006,7 @@ func TestValidateConstrainedSchedules_AcceptsListedTimes(t *testing.T) {
 	req := SubmitRequest{Children: []SubmitChild{
 		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "14:45", "fri": "16:00"}}},
 	}}
-	assert.NoError(t, validateConstrainedSchedules(schema, req, nil))
+	assert.NoError(t, validateConstrainedSchedules(schema, req, nil, nil))
 }
 
 func TestValidateConstrainedSchedules_RejectsOffListTime(t *testing.T) {
@@ -1019,7 +1016,7 @@ func TestValidateConstrainedSchedules_RejectsOffListTime(t *testing.T) {
 	req := SubmitRequest{Children: []SubmitChild{
 		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "15:00"}}},
 	}}
-	err := validateConstrainedSchedules(schema, req, nil)
+	err := validateConstrainedSchedules(schema, req, nil, nil)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrInvalidSubmission))
 	assert.Contains(t, err.Error(), "child 0")
@@ -1036,7 +1033,7 @@ func TestValidateConstrainedSchedules_OffListWrapsPickupSentinel(t *testing.T) {
 	req := SubmitRequest{Children: []SubmitChild{
 		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "15:00"}}},
 	}}
-	err := validateConstrainedSchedules(schema, req, nil)
+	err := validateConstrainedSchedules(schema, req, nil, nil)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrPickupTimeNotAllowed))
 	assert.True(t, errors.Is(err, enrollmentNative.ErrInvalidSubmission))
@@ -1052,7 +1049,7 @@ func TestValidateConstrainedSchedules_NoRestrictionSkips(t *testing.T) {
 	req := SubmitRequest{Children: []SubmitChild{
 		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "15:00"}}},
 	}}
-	assert.NoError(t, validateConstrainedSchedules(schema, req, nil))
+	assert.NoError(t, validateConstrainedSchedules(schema, req, nil, nil))
 }
 
 func TestValidateConstrainedSchedules_HiddenFieldExempt(t *testing.T) {
@@ -1072,7 +1069,7 @@ func TestValidateConstrainedSchedules_HiddenFieldExempt(t *testing.T) {
 	req := SubmitRequest{Children: []SubmitChild{
 		{CustomData: map[string]any{"needs_pickup": false, "pickup_times": map[string]any{"mon": "15:00"}}},
 	}}
-	assert.NoError(t, validateConstrainedSchedules(schema, req, nil))
+	assert.NoError(t, validateConstrainedSchedules(schema, req, nil, nil))
 }
 
 func TestValidateConstrainedSchedules_OffListTimeOnNonCareDayIgnored(t *testing.T) {
@@ -1097,14 +1094,14 @@ func TestValidateConstrainedSchedules_OffListTimeOnNonCareDayIgnored(t *testing.
 		OfferingIDs: []int64{7},
 		CustomData:  map[string]any{"pickup_times": map[string]any{"tue": "14:45", "mon": "15:00"}},
 	}}}
-	assert.NoError(t, validateConstrainedSchedules(schema, ok, openByID))
+	assert.NoError(t, validateConstrainedSchedules(schema, ok, openByID, nil))
 
 	// An off-list time on a CARE day is still rejected.
 	bad := SubmitRequest{Children: []SubmitChild{{
 		OfferingIDs: []int64{7},
 		CustomData:  map[string]any{"pickup_times": map[string]any{"tue": "15:00"}},
 	}}}
-	err := validateConstrainedSchedules(schema, bad, openByID)
+	err := validateConstrainedSchedules(schema, bad, openByID, nil)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrPickupTimeNotAllowed))
 }
@@ -1167,7 +1164,7 @@ func TestValidateConstrainedSchedules_SingleModeRejectsMultiSelection(t *testing
 		TargetGradeLevel: &grade,
 		CustomData:       map[string]any{"heimwege": map[string]any{"mon": []any{"bus", "pickup"}}},
 	}}}
-	err := validateConstrainedSchedules(schema, req, nil)
+	err := validateConstrainedSchedules(schema, req, nil, nil)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrDepartureModeLimitExceeded))
 	assert.True(t, errors.Is(err, enrollmentNative.ErrInvalidSubmission))
@@ -1185,7 +1182,7 @@ func TestValidateConstrainedSchedules_SingleModeAcceptsOnePerDay(t *testing.T) {
 		TargetGradeLevel: &grade,
 		CustomData:       map[string]any{"heimwege": map[string]any{"mon": []any{"bus"}, "tue": []any{"pickup"}}},
 	}}}
-	assert.NoError(t, validateConstrainedSchedules(schema, req, nil))
+	assert.NoError(t, validateConstrainedSchedules(schema, req, nil, nil))
 }
 
 func TestValidateConstrainedSchedules_SingleModeIgnoresUnrestrictedGrade(t *testing.T) {
@@ -1197,7 +1194,7 @@ func TestValidateConstrainedSchedules_SingleModeIgnoresUnrestrictedGrade(t *test
 		TargetGradeLevel: &grade,
 		CustomData:       map[string]any{"heimwege": map[string]any{"mon": []any{"bus", "pickup"}}},
 	}}}
-	assert.NoError(t, validateConstrainedSchedules(schema, req, nil))
+	assert.NoError(t, validateConstrainedSchedules(schema, req, nil, nil))
 }
 
 func TestValidateConstrainedSchedules_SingleModeIgnoresNilGrade(t *testing.T) {
@@ -1209,7 +1206,7 @@ func TestValidateConstrainedSchedules_SingleModeIgnoresNilGrade(t *testing.T) {
 	req := SubmitRequest{Children: []SubmitChild{{
 		CustomData: map[string]any{"heimwege": map[string]any{"mon": []any{"bus", "pickup"}}},
 	}}}
-	assert.NoError(t, validateConstrainedSchedules(schema, req, nil))
+	assert.NoError(t, validateConstrainedSchedules(schema, req, nil, nil))
 }
 
 func TestValidateConstrainedSchedules_SingleModeHiddenFieldExempt(t *testing.T) {
@@ -1229,7 +1226,7 @@ func TestValidateConstrainedSchedules_SingleModeHiddenFieldExempt(t *testing.T) 
 		TargetGradeLevel: &grade,
 		CustomData:       map[string]any{"needs_modes": false, "heimwege": map[string]any{"mon": []any{"bus", "pickup"}}},
 	}}}
-	assert.NoError(t, validateConstrainedSchedules(schema, req, nil))
+	assert.NoError(t, validateConstrainedSchedules(schema, req, nil, nil))
 }
 
 func TestValidateConstrainedSchedules_SingleModePreservesUnchangedLegacyAnswer(t *testing.T) {

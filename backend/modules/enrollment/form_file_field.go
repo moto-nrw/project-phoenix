@@ -15,7 +15,7 @@ const FormFieldFile FormFieldType = "file"
 const CodeFormFieldFileOptionsInvalid = "enrollment.form_field_file_options_invalid"
 
 // File types a school may allow on a file field. The wire names are the ones
-// the editor shows; FileTypeContentTypes maps them to the content types the
+// the editor shows; fileTypeContentTypes maps them to the content types the
 // upload check detects from the bytes.
 const (
 	FileTypePDF = "pdf"
@@ -23,8 +23,8 @@ const (
 	FileTypePNG = "png"
 )
 
-// FileTypeContentTypes maps an allowed file type to its detected content type.
-var FileTypeContentTypes = map[string]string{
+// fileTypeContentTypes maps an allowed file type to its detected content type.
+var fileTypeContentTypes = map[string]string{
 	FileTypePDF: "application/pdf",
 	FileTypeJPG: "image/jpeg",
 	FileTypePNG: "image/png",
@@ -66,7 +66,7 @@ func (o *FormFileOptions) AllowsContentType(contentType string) bool {
 		return false
 	}
 	for _, t := range o.AllowedTypes {
-		if FileTypeContentTypes[t] == contentType {
+		if fileTypeContentTypes[t] == contentType {
 			return true
 		}
 	}
@@ -110,7 +110,7 @@ func (f *FormField) validateFileOptions() error {
 	normalized := make([]string, 0, len(o.AllowedTypes))
 	for _, t := range o.AllowedTypes {
 		t = strings.ToLower(strings.TrimSpace(t))
-		if _, ok := FileTypeContentTypes[t]; !ok {
+		if _, ok := fileTypeContentTypes[t]; !ok {
 			return invalidInputf(CodeFormFieldFileOptionsInvalid, "file_options.allowed_types", "file field %q: unknown file type %q", f.Key, t)
 		}
 		if !seen[t] {

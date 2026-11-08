@@ -33,9 +33,9 @@ func TestSchoolSwitchRequiresLiveSameAccountMFAProof(t *testing.T) {
 				refresh = login.RefreshToken
 			case "other-account":
 				_, otherID := createLehrkraftAccount(t, db, service, "other-school-switch", source)
-				_, refresh, err = service.IssueSchoolTokensForAuthenticatedAccount(ctx, otherID, source, "", "")
+				_, refresh, err = issueSchoolTokens(service, ctx, otherID, source, "", "")
 			default:
-				_, refresh, err = service.IssueSchoolTokensForAuthenticatedAccount(ctx, accountID, source, "", "")
+				_, refresh, err = issueSchoolTokens(service, ctx, accountID, source, "", "")
 			}
 			require.NoError(t, err)
 			// Rotate before switching: proof belongs to the latest stored generation.

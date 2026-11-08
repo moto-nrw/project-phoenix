@@ -577,3 +577,36 @@ func TestCareModulesKeepActualBookingSizes(t *testing.T) {
 	modules = careModules([]parentbilling.CareContractVersion{first, second}, nil)
 	assert.Equal(t, []int{2, 3}, modules[0].BookedDaysPerWeek)
 }
+
+func TestFreeMonthKeepsTheSiblingAtItsContractSchool(t *testing.T) {
+	t.Parallel()
+	for _, stated := range []int{2, 3} {
+		t.Run(fmt.Sprintf("family with %d children", stated), func(t *testing.T) {
+			t.Parallel()
+			first := price(t, schoolIspringen, moduleUntil1400, "Modul", "mon", january2027, 4000)
+			first.SiblingCents = ptr(int64(3000))
+			rule := careRule(t, ruleSiblingIspringen, parentbilling.RuleSibling, []int64{schoolIspringen}, func(rule *parentbilling.ContributionRule) {
+				rule.SiblingFromChild, rule.TariffSiblingPrice, rule.CountsFamilyChildren = ptr(2), true, true
+			})
+			month, err := buildCareMonth(careMonthInput{
+				month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
+				versions: []parentbilling.CareContractVersion{
+					sjrVersion(t, contractMia, schoolIspringen, 1, january2027, januaryLastDay2027, mon1400),
+					sjrVersion(t, contractNoah, schoolBirkenfeld, 1, january2027, januaryLastDay2027, mon1400),
+				},
+				tariffs: []parentbilling.CareTariff{first}, rules: []parentbilling.ContributionRule{rule},
+				recipients:   map[int64]parentbilling.CareRecipient{contractMia: {Email: familyEva}, contractNoah: {Email: familyEva}},
+				familyCounts: confirmedFamily(familyEva, stated, january2027, nil)(t),
+				lists:        []parentbilling.CarePriceListHead{{SchoolID: schoolBirkenfeld, ValidFrom: day(t, january2027), FreeMonths: []int{1}}},
+			})
+			require.NoError(t, err)
+			require.Len(t, month.invoices, 1)
+			assert.Equal(t, 1, month.freeBySchool[schoolBirkenfeld])
+			want := int64(4000)
+			if stated == 3 {
+				want = 3000 // Only the third child is a sibling without a contract.
+			}
+			assert.Equal(t, want, month.invoices[0].TotalCents)
+		})
+	}
+}

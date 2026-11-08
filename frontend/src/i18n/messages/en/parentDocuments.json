@@ -36,9 +36,11 @@
   "signNow": "Read and sign",
   "status": "Status",
   "cancelContract": "Cancel contracts here",
+  "withdrawContract": "Withdraw from contract",
   "cancelNotPermitted": "Only parents who may enrol the child can cancel. Please ask the school.",
   "terminatedOn": "Cancelled as of {date}",
   "withdrawn": "Withdrawn",
   "showConfirmation": "View confirmation",
-  "terminationInReview": "Cancelled, end date under review"
+  "terminationInReview": "Cancelled, end date under review",
+  "familyChildren": "Enter children in your family"
 }

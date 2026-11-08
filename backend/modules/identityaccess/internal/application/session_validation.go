@@ -23,11 +23,7 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 	if err != nil || claims.AccountID <= 0 || claims.ExpiresAt <= now || !domain.SessionScopeMatches(claims.Scope, portal) {
 		return identityaccess.SessionClaims{}, identityaccess.ErrInvalidToken
 	}
-	if (portal == "tenant" || portal == "school") && claims.TenantID <= 0 {
-		return identityaccess.SessionClaims{}, identityaccess.ErrInvalidToken
-	}
-	// A Träger session names its Träger and no school (ADR 0084).
-	if portal == domain.ScopeOrg && (claims.OrgID <= 0 || claims.TenantID != 0) {
+	if named, _ := domain.PortalNamed(portal); !named.Holds(claims.TenantID, claims.OrgID) {
 		return identityaccess.SessionClaims{}, identityaccess.ErrInvalidToken
 	}
 	refreshClaims, err := s.parseSessionRefresh(refresh, claims, now)
@@ -55,7 +51,7 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 // logout neither sets a cookie nor reads as signed in. ErrInvalidToken means
 // revoked, expired or foreign; any other error means the check could not run.
 func (s *AccountAuthentication) verifyAccessFamily(ctx context.Context, claims domain.SessionClaims, portal string) error {
-	if portal != "platform" {
+	if portal != domain.PortalPlatform.Name {
 		return s.VerifyAccessSession(ctx, identityaccess.AccessSession{
 			AccountID: claims.AccountID, ActingAdminID: claims.ActingAdminID, Scope: claims.Scope, FamilyID: claims.FamilyID,
 		})
@@ -107,7 +103,7 @@ func (s *AccountAuthentication) parseSessionRefresh(refresh string, claims domai
 	var refreshClaims *domain.RefreshClaims
 	if refresh != "" {
 		parsed, err := s.codec.ParseRefreshToken(refresh)
-		if err != nil || parsed.ExpiresAt <= now || parsed.AccountID != claims.AccountID || parsed.Scope != claims.Scope || parsed.TenantID != claims.TenantID || (claims.Scope == domain.ScopeOrg && parsed.OrgID != claims.OrgID) || claims.ReadOnly || claims.FamilyID == "" {
+		if err != nil || parsed.ExpiresAt <= now || parsed.AccountID != claims.AccountID || parsed.Scope != claims.Scope || parsed.TenantID != claims.TenantID || (claims.Scope == domain.PortalOrg.Claim && parsed.OrgID != claims.OrgID) || claims.ReadOnly || claims.FamilyID == "" {
 			return nil, identityaccess.ErrInvalidToken
 		}
 		refreshClaims = &parsed
@@ -116,7 +112,7 @@ func (s *AccountAuthentication) parseSessionRefresh(refresh string, claims domai
 }
 
 func (s *AccountAuthentication) validateSessionInTx(txCtx context.Context, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims, portal string) error {
-	if portal == "platform" {
+	if portal == domain.PortalPlatform.Name {
 		return s.validateOperatorSession(txCtx, claims, refreshClaims)
 	}
 	account, found, _, err := findLoginAccount(txCtx, s.runtime, s.store, claims.AccountID, false)
@@ -129,7 +125,7 @@ func (s *AccountAuthentication) validateSessionInTx(txCtx context.Context, claim
 	if err := s.sessionReachesSchool(txCtx, account.ID, claims, portal); err != nil {
 		return err
 	}
-	if portal == domain.ScopeOrg {
+	if portal == domain.PortalOrg.Name {
 		if err := s.activeTraegerMember(txCtx, account.ID, claims.OrgID); err != nil {
 			return err
 		}
@@ -170,7 +166,7 @@ func (s *AccountAuthentication) activeTraegerMember(ctx context.Context, account
 // grant the school (ADR 0084 section 5). A token without a school passes.
 func (s *AccountAuthentication) sessionReachesSchool(ctx context.Context, accountID int64, claims domain.SessionClaims, portal string) error {
 	if claims.ViaTraeger {
-		if portal != "tenant" || claims.TenantID <= 0 || claims.OrgID <= 0 {
+		if portal != domain.PortalTenant.Name || claims.TenantID <= 0 || claims.OrgID <= 0 {
 			return identityaccess.ErrInvalidToken
 		}
 		return s.traegerGrantsSchool(ctx, accountID, claims.OrgID, claims.TenantID)
@@ -217,7 +213,7 @@ func (s *AccountAuthentication) traegerGrantsSchool(ctx context.Context, account
 // came through (#4654); every other session names none.
 func sessionOfTraeger(session domain.AccountSession, claims domain.SessionClaims) bool {
 	switch {
-	case claims.Scope == domain.ScopeOrg:
+	case claims.Scope == domain.PortalOrg.Claim:
 		return session.OrganizationID == claims.OrgID
 	case claims.ViaTraeger:
 		return domain.IsTraegerSchoolSession(session) && session.OrganizationID == claims.OrgID

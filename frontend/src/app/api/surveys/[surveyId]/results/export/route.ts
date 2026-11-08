@@ -1,5 +1,5 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { tenantPortal } from "~/server/auth";
 import { createFileDownloadRoute } from "~/lib/export-proxy.server";
 
 /**
@@ -8,11 +8,10 @@ import { createFileDownloadRoute } from "~/lib/export-proxy.server";
  * never a single answer of a person.
  */
 export const GET = withPrivateDownloadNoStore(
-  withTenantAuth(
+  tenantPortal.withAuth(
     createFileDownloadRoute<{ surveyId: string }>({
       backendPath: ({ surveyId }) =>
         `/api/surveys/${encodeURIComponent(surveyId)}/results/export`,
-      component: "SurveyResultsExportRoute",
     }),
   ),
 );

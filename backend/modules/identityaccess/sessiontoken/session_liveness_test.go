@@ -126,7 +126,7 @@ func TestRequireLiveSession(t *testing.T) {
 			calls.Add(1)
 			return false, nil
 		})
-		refresh, err := tokentest.CreateRefreshJWT(auth, sessiontoken.RefreshClaims{ID: 42, Token: "raw-refresh"})
+		refresh, err := tokentest.CreateRefreshJWT(auth, tokentest.RefreshClaims{ID: 42, Token: "raw-refresh"})
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, serveWithToken(router, http.MethodPost, "/refresh", refresh).Code)
 

@@ -94,6 +94,9 @@ type CareRuleInput struct {
 	// TariffSiblingPrice is the price-list mode of a sibling rule (#6196):
 	// each further child pays the sibling price of the price list.
 	TariffSiblingPrice bool `json:"tariff_sibling_price"`
+	// CountsFamilyChildren lets a sibling rule count the family's number
+	// (#5918); other kinds never do.
+	CountsFamilyChildren bool `json:"counts_family_children"`
 }
 
 // CareRuleSet is what the rule page shows: the care rules by kind and
@@ -188,4 +191,6 @@ type CareReductions interface {
 	// changes that one otherwise.
 	SaveCareEvidence(ctx context.Context, reviewer HolidayReviewer, evidenceID int64, input CareEvidenceInput) (CareEvidenceSet, error)
 	DeleteCareEvidence(ctx context.Context, reviewer HolidayReviewer, evidenceID int64) (CareEvidenceSet, error)
+	// The Abrechnung checks the children of the families (#5918).
+	FamilyChildrenOffice
 }

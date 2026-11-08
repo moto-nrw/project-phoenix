@@ -60,6 +60,7 @@ func validateCareRuleKind(input *parentbilling.CareRuleInput, errs validation.Er
 	if input.Kind != parentbilling.RuleSibling {
 		input.SiblingFromChild = nil
 		input.TariffSiblingPrice = false
+		input.CountsFamilyChildren = false
 		if len(input.CountSchoolIDs) > 0 {
 			errs["count_school_ids"] = errors.New("only a sibling rule counts other schools")
 		}

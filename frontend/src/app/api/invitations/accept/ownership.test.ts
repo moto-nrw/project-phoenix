@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { stubPortalHostEnv } from "~/test/route-test-helpers";
 
 const sessions = vi.hoisted(() => ({
   tenant: vi.fn(),
@@ -9,35 +10,38 @@ const sessions = vi.hoisted(() => ({
 vi.mock("~/env", () => ({
   env: {
     API_URL: "http://server:8080",
-    NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000",
-    NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000",
-    NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000",
   },
 }));
-vi.mock("~/server/auth", () => ({
-  withTenantAuth:
-    (handler: (req: unknown) => Promise<Response>) =>
-    async (request: NextRequest) => {
-      request.clone(); // NextAuth reconstructs the request; its body must remain unread.
-      return handler({ auth: sessions.tenant() });
-    },
-}));
-vi.mock("~/server/auth/parent", () => ({
-  withParentAuth:
-    (handler: (req: unknown) => Promise<Response>) =>
-    async (request: NextRequest) => {
-      request.clone();
-      return handler({ auth: sessions.parent() });
-    },
-}));
-vi.mock("~/server/auth/school", () => ({
-  withSchoolAuth:
-    (handler: (req: unknown) => Promise<Response>) =>
-    async (request: NextRequest) => {
-      request.clone();
-      return handler({ auth: sessions.school() });
-    },
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    withAuth:
+      (handler: (req: unknown) => Promise<Response>) =>
+      async (request: NextRequest) => {
+        request.clone(); // NextAuth reconstructs the request; its body must remain unread.
+        return handler({ auth: sessions.tenant() });
+      },
+  }),
+);
+vi.mock("~/server/auth/parent", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("parent", {
+    withAuth:
+      (handler: (req: unknown) => Promise<Response>) =>
+      async (request: NextRequest) => {
+        request.clone();
+        return handler({ auth: sessions.parent() });
+      },
+  }),
+);
+vi.mock("~/server/auth/school", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("school", {
+    withAuth:
+      (handler: (req: unknown) => Promise<Response>) =>
+      async (request: NextRequest) => {
+        request.clone();
+        return handler({ auth: sessions.school() });
+      },
+  }),
+);
 
 const { POST } = await import("./route");
 
@@ -57,6 +61,7 @@ function request(host: string, origin = `http://${host}`) {
 describe("invitation owner session boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stubPortalHostEnv();
     sessions.tenant.mockReturnValue({ user: { token: "tenant-signed-token" } });
     sessions.parent.mockReturnValue({ user: { token: "parent-signed-token" } });
     sessions.school.mockReturnValue({ user: { token: "school-signed-token" } });
@@ -81,10 +86,10 @@ describe("invitation owner session boundary", () => {
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("/auth/invitations/invitation/accept"),
       expect.objectContaining({
-        headers: {
+        headers: expect.objectContaining({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-        },
+        }),
       }),
     );
     const calls = vi.mocked(fetch).mock.calls;

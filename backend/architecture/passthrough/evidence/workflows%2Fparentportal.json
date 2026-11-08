@@ -723,6 +723,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *Service) FamilyChildren(ctx context.Context, accountID, organizationID, contractID int64) (FamilyChildren, error) {\n\treturn s.familyChildren(ctx, accountID, organizationID, contractID, GuardianPermissionEnrollmentsView, func(txCtx context.Context, reader FamilyChildrenReader) (FamilyChildren, error) {\n\t\treturn s.BillingDocuments.FamilyChildren(txCtx, organizationID, reader)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/parentportal/internal/care/Service.FamilyChildren",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *Service) RequireCareRunningForUpdate(ctx context.Context, studentID int64) error {\n\tstudent, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif student.CareEndedOn(s.todayDate()) {\n\t\treturn ErrChildCareEnded\n\t}\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "workflows/parentportal/internal/care/Service.RequireCareRunningForUpdate",
@@ -733,6 +740,13 @@
       "evidence": "func (s *Service) SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date, participating bool) error {\n\treturn s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {\n\t\treturn s.MealPlan.SetParticipationForDay(txCtx, MealParticipationChange{StudentID: studentID, GuardianAccountID: accountID, Date: date, Participating: participating})\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "workflows/parentportal/internal/care/Service.SetMealParticipationDay",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) StateFamilyChildren(ctx context.Context, accountID, organizationID, contractID int64, children int) (FamilyChildren, error) {\n\treturn s.familyChildren(ctx, accountID, organizationID, contractID, GuardianPermissionEnrollmentSubmit, func(txCtx context.Context, reader FamilyChildrenReader) (FamilyChildren, error) {\n\t\treturn s.BillingDocuments.StateFamilyChildren(txCtx, organizationID, reader, children)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/parentportal/internal/care/Service.StateFamilyChildren",
       "owner": "workflows/parentportal"
     },
     {

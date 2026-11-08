@@ -1,5 +1,5 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { tenantPortal } from "~/server/auth";
 import { createFileDownloadRoute } from "~/lib/export-proxy.server";
 
 /**
@@ -9,11 +9,10 @@ import { createFileDownloadRoute } from "~/lib/export-proxy.server";
  * Backend lehnt jedes andere Format ab.
  */
 export const GET = withPrivateDownloadNoStore(
-  withTenantAuth(
+  tenantPortal.withAuth(
     createFileDownloadRoute<{ weekId: string; format: string }>({
       backendPath: ({ weekId, format }) =>
         `/api/holiday-weeks/${encodeURIComponent(weekId)}/participants/export?format=${encodeURIComponent(format)}`,
-      component: "HolidayParticipantsExportRoute",
     }),
   ),
 );

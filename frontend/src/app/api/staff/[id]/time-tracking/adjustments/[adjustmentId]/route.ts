@@ -1,4 +1,4 @@
-import { proxyDelete } from "~/lib/route-proxy.server";
+import { proxyDelete } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 /**
@@ -11,5 +11,5 @@ export const DELETE = proxyDelete((p) => {
   if (!/^\d+$/.test(adjustmentId)) {
     throw new Error("Invalid adjustment id");
   }
-  return `/api/staff/${requirePathSegmentParam(p)}/time-tracking/adjustments/${adjustmentId}`;
+  return `/api/staff/${requirePathSegmentParam(p)}/time-tracking/adjustments/${encodeURIComponent(adjustmentId)}`;
 });

@@ -76,7 +76,7 @@ func setupActiveRoute(t *testing.T, settingReaders ...presenceAPI.Settings) *tes
 
 // mountActiveRouter mounts the resource's production Router() under /active so
 // tests exercise the real middleware chain (Verifier -> Authenticator ->
-// TenantMiddleware -> RequiresPermission/resource-auth -> TenantTxMiddleware)
+// TenantScopeMiddleware -> RequiresPermission/resource-auth -> TenantTxMiddleware)
 // exactly as the running server does, instead of a hand-wired stand-in.
 //
 // The request-scoped identity memo (#2099) is part of that chain: api/base.go

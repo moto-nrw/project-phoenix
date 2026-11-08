@@ -1,4 +1,4 @@
-import { proxyGet } from "@/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 // GET /api/guardians/search - guardian picker search (#1513).
 //

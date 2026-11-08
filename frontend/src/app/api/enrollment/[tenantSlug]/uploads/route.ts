@@ -1,11 +1,11 @@
 // Anonymous proxy for a proof file (Nachweis) a parent attaches to an
-// enrollment (#4783). Like the submit proxy it carries no session and
-// forwards only the canonical client IP, which the backend's public limiter
-// buckets on. The body is bounded here before it is buffered; the backend
+// enrollment (#4783). Like the submit proxy it carries no session; the
+// client IP the backend's public limiter buckets on travels with the
+// client identity of every backend call. The body is bounded here before it is buffered; the backend
 // checks size, kind by content and the field's own rules again.
 
 import type { NextRequest } from "next/server";
-import { canonicalForwardedFor } from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import {
@@ -16,7 +16,6 @@ import {
 import { MAX_UPLOAD_MB } from "~/lib/enrollment-uploads";
 import { createLogger } from "~/lib/logger";
 import { captureBffException } from "~/lib/sentry-bff.server";
-import { getServerApiUrl } from "~/lib/server-api-url";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "EnrollmentUploadProxy" });
@@ -57,14 +56,14 @@ async function POSTHandler(
   }
   if (file instanceof File) outgoing.append("file", file, file.name);
 
-  const forwardedFor = canonicalForwardedFor(request.headers);
   try {
-    const response = await fetch(
-      `${getServerApiUrl()}/api/enrollment/${encodeURIComponent(tenantSlug)}/uploads`,
+    const response = await sendBackend(
+      `/api/enrollment/${encodeURIComponent(tenantSlug)}/uploads`,
+      null,
       {
         method: "POST",
-        headers: forwardedFor ? { "X-Forwarded-For": forwardedFor } : {},
         body: outgoing,
+        request,
       },
     );
     return forwardBackendResponse(response, request);

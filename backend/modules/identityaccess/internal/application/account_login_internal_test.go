@@ -88,7 +88,7 @@ func TestResolveAccountTenantBySlug_TraegerScopeNeedsASchoolMapping(t *testing.T
 	f := newAuthFixture(t)
 	f.store.addAccount(1, "user1@example.com", "hash:secret", true)
 	f.schools.add(10, 100, "school-10", true, false)
-	ctx := withScope(context.Background(), domain.ScopeOrg, 100)
+	ctx := withScope(context.Background(), domain.PortalOrg.Claim, 100)
 
 	_, _, err := f.auth.resolveAccountTenantBySlug(ctx, 1, "school-10")
 	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied)
@@ -304,25 +304,4 @@ func TestIsTokenFamilyConflict(t *testing.T) {
 	assert.False(t, isTokenFamilyConflict(nil))
 	assert.False(t, isTokenFamilyConflict(errDB))
 	assert.True(t, isTokenFamilyConflict(errors.New(`duplicate key value violates unique constraint "uk_tokens_family_generation"`)))
-}
-
-func TestPersistedPortalScope(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, domain.PortalScopeTenant, domain.PersistedPortalScope(domain.ScopeTenant))
-	assert.Equal(t, domain.PortalScopeTenant, domain.PersistedPortalScope(domain.PortalScopeTenant))
-	assert.Equal(t, domain.PortalScopeOrg, domain.PersistedPortalScope(domain.PortalScopeOrg))
-	assert.Equal(t, domain.PortalScopeParent, domain.PersistedPortalScope(domain.PortalScopeParent))
-	assert.Equal(t, domain.PortalScopeSchool, domain.PersistedPortalScope(domain.PortalScopeSchool))
-	assert.Equal(t, domain.PortalScopeTenant, domain.PersistedPortalScope(""), "the empty JWT scope is the tenant portal")
-	assert.Equal(t, domain.PortalScopeUnknown, domain.PersistedPortalScope("unexpected-new-scope"))
-}
-
-func TestPushPortalsForScope(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, []string{pushPortalParent}, pushPortalsForScope(domain.PortalScopeParent))
-	assert.Equal(t, []string{pushPortalSchool}, pushPortalsForScope(domain.PortalScopeSchool))
-	assert.Equal(t, []string{pushPortalStaff}, pushPortalsForScope(domain.PortalScopeTenant))
-	assert.Equal(t, []string{pushPortalStaff}, pushPortalsForScope(domain.PortalScopeOrg))
-	assert.ElementsMatch(t, []string{pushPortalStaff, pushPortalParent, pushPortalSchool}, pushPortalsForScope(domain.PortalScopeUnknown))
-	assert.ElementsMatch(t, []string{pushPortalStaff, pushPortalParent, pushPortalSchool}, pushPortalsForScope(""))
 }

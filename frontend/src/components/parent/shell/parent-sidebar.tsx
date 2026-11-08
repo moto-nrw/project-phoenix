@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { LogoutModal } from "~/components/auth/logout-modal";
-import { NotificationBadge } from "~/components/ui/notification-badge";
 import { parentPath } from "~/lib/parent-url";
 import { isParentNavActive, isParentSettingsPath } from "./parent-nav-active";
 import { ParentSettingsSidebarEntries } from "./parent-settings-nav";
@@ -84,19 +83,13 @@ export function ParentSidebar({
         active={active}
         newTab={item.external}
         data-parent-nav-item={item.key}
-        badge={
-          count > 0 ? (
-            <NotificationBadge
-              count={count}
-              tone="parents"
-              ariaLabel={t(
-                item.badge === "news" ? "openCount" : "unreadCount",
-                { count },
-              )}
-              className="ml-auto"
-            />
-          ) : null
-        }
+        badge={{
+          count,
+          tone: "parents",
+          ariaLabel: t(item.badge === "news" ? "openCount" : "unreadCount", {
+            count,
+          }),
+        }}
       />
     );
   };
@@ -112,7 +105,6 @@ export function ParentSidebar({
         className="min-h-screen"
         navLabel={inSettings ? t("settings") : t("mainNav")}
         secondaryLabel={t("accountNav")}
-        secondaryListClassName="space-y-1"
         secondary={
           inSettings ? null : (
             <>

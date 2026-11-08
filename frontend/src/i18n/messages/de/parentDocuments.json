@@ -36,9 +36,11 @@
   "signNow": "Lesen und unterschreiben",
   "status": "Stand",
   "cancelContract": "Verträge hier kündigen",
+  "withdrawContract": "Vertrag widerrufen",
   "cancelNotPermitted": "Kündigen dürfen nur Eltern mit dem Recht, das Kind anzumelden. Fragen Sie die Schule.",
   "terminatedOn": "Gekündigt zum {date}",
   "withdrawn": "Widerrufen",
   "showConfirmation": "Bestätigung ansehen",
-  "terminationInReview": "Gekündigt, Ende wird geprüft"
+  "terminationInReview": "Gekündigt, Ende wird geprüft",
+  "familyChildren": "Kinder in der Familie angeben"
 }

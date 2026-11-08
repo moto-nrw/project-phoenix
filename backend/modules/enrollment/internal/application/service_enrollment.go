@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
@@ -11,7 +10,7 @@ import (
 // DeleteExpiredSubmissionRateLimits removes the school's buckets older than
 // the longest submission window.
 func (m *Service) DeleteExpiredSubmissionRateLimits(ctx context.Context) (int, int, error) {
-	deleted, err := m.store.CleanupExpired(ctx)
+	deleted, err := m.store.CleanupExpired(ctx, rateLimitRetention)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -56,7 +55,7 @@ func (m *Service) BackfillGuardianAccountID(ctx context.Context, accountID int64
 	if accountID <= 0 {
 		return 0, fmt.Errorf("parent: account_id must be positive")
 	}
-	email = strings.ToLower(strings.TrimSpace(email))
+	email = guardianEmailKey(email)
 	if email == "" {
 		return 0, nil
 	}

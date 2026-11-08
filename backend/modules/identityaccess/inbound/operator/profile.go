@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
@@ -36,11 +37,11 @@ func (rs *Resource) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	req := &UpdateProfileRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, rs.responses.InvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 	if req.DisplayName == "" {
-		common.RenderError(w, r, rs.responses.InvalidRequest(errors.New("display_name is required")))
+		common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("display_name is required")))
 		return
 	}
 
@@ -59,11 +60,11 @@ func (rs *Resource) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	req := &ChangePasswordRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, rs.responses.InvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 	if req.CurrentPassword == "" || req.NewPassword == "" {
-		common.RenderError(w, r, rs.responses.InvalidRequest(errors.New("current_password and new_password are required")))
+		common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("current_password and new_password are required")))
 		return
 	}
 

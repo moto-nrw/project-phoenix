@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  enrollmentWindowIsOrdered,
+  phaseHasPublicForm,
+} from "~/lib/enrollment-phase-rules";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -34,7 +39,6 @@ import {
   type PhaseInput,
   type PhaseKind,
   type PhaseCareOverflowMode,
-  type PhaseCareOfferingSelectionMode,
   type RolloverResult,
   createPhase,
   deletePhase,
@@ -60,7 +64,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
 import { useTenant } from "~/lib/tenant-context";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { supportedGradeLevelMax } from "~/lib/grade-level";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -88,10 +92,12 @@ import {
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import {
+  berlinTodayISO,
   formatChatDateTime,
   formatDate,
+  fromDateTimeLocalValue,
   parseISODate,
-  berlinTodayISO,
+  toDateTimeLocalValue,
 } from "~/lib/date-helpers";
 import {
   DataTable,
@@ -103,8 +109,10 @@ import {
   LateInviteModal,
   ManualApprovedEnrollmentModal,
 } from "~/components/enrollment/phase-enrollment-actions";
-import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
-import { useTenantMutate } from "~/lib/swr";
+import {
+  PhaseExpiryWarnings,
+  useRefreshPhaseExpiryWarnings,
+} from "~/components/enrollment/phase-expiry-warnings";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
@@ -127,7 +135,7 @@ const OVERFLOW_LABELS: Record<PhaseCareOverflowMode, string> = {
   allow: "Ohne Hinweis akzeptieren",
 };
 
-const CARE_SELECTION_LABELS: Record<PhaseCareOfferingSelectionMode, string> = {
+const CARE_SELECTION_LABELS: Record<CareOfferingSelectionMode, string> = {
   optional: "Optional",
   at_least_one: "Mindestens ein Angebot",
   exactly_one: "Genau ein Angebot",
@@ -238,24 +246,6 @@ function mergeOfferedClasses(
   return merged;
 }
 
-// RFC3339 to datetime-local "YYYY-MM-DDTHH:MM" helpers. The HTML
-// datetime-local input always works in the browser's local zone,
-// which matches what an admin expects when they type "1. März 09:00".
-function toLocalInputValue(rfc?: string | null): string {
-  if (!rfc) return "";
-  const d = new Date(rfc);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function fromLocalInputValue(local: string): string | null {
-  if (!local) return null;
-  const d = new Date(local);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
-}
-
 export function PhasesEditor() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -305,24 +295,10 @@ export function PhasesEditor() {
   const [highlightActions, setHighlightActions] = useState(false);
   const { tenantSlug, tenant } = useTenant();
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
-  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
-    ? resolvedGradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(resolvedGradeLevelMax);
   const tenantPath = useTenantAwarePath();
   const toast = useToast();
-  const tenantMutate = useTenantMutate();
-  const refreshPhaseExpiryWarnings = useCallback(() => {
-    // Bewusst still: die eigentliche Änderung ist gespeichert und bestätigt.
-    // Die Hinweise zu ablaufenden Phasen laden beim nächsten Öffnen neu; bis
-    // dahin bleibt nur dieser Hinweiskasten veraltet.
-    void tenantMutate("enrollment-phase-expiry-warnings").catch(
-      (err: unknown) => {
-        logger.error("phase_expiry_warning_refresh_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      },
-    );
-  }, [tenantMutate]);
+  const refreshPhaseExpiryWarnings = useRefreshPhaseExpiryWarnings();
   const assignFormId = searchParams.get("assignForm");
   const rolloverPhaseID = searchParams.get("rollover");
   const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
@@ -476,10 +452,10 @@ export function PhasesEditor() {
       return;
     }
     if (
-      payload.enrollment_open_at &&
-      payload.enrollment_close_at &&
-      new Date(payload.enrollment_close_at) <=
-        new Date(payload.enrollment_open_at)
+      !enrollmentWindowIsOrdered(
+        payload.enrollment_open_at,
+        payload.enrollment_close_at,
+      )
     ) {
       formErrors.invalid(
         "Die Schließung des Anmeldefensters muss nach der Öffnung liegen.",
@@ -1235,17 +1211,7 @@ function PhaseActions({
     }
   };
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
-  // Audience-restricted phases are never publicly reachable: the anonymous form
-  // gate refuses BOTH linked_parents and existing_students, so the plain
-  // /anmeldung/{id} URL 404s for either unless it carries a valid late-invite
-  // token. The untokenized public actions ("Formular ansehen", the copy-link
-  // button) would hand out a dead link, so hide them for both audiences while
-  // keeping the tokenized "Nachzügler-Link erstellen" action, which appends the
-  // accepted token (#1663). Those parents reach the form through the parents
-  // portal picker instead.
-  const hasNoPublicForm =
-    phase.audience === "linked_parents" ||
-    phase.audience === "existing_students";
+  const hasNoPublicForm = !phaseHasPublicForm(phase);
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
   const enrollmentsHref = tenantPath(
     `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
@@ -1583,19 +1549,20 @@ function PhaseForm(props: PhaseFormProps) {
               id="enrollment_open_at"
               dateAriaLabel="Öffnung"
               timeAriaLabel="Öffnung Uhrzeit"
-              value={toLocalInputValue(draft.enrollment_open_at)}
+              value={toDateTimeLocalValue(draft.enrollment_open_at)}
               invalid={Boolean(fieldError("enrollment_open_at"))}
               onChange={(nextLocal) => {
-                const nextOpen = fromLocalInputValue(nextLocal);
+                const nextOpen = fromDateTimeLocalValue(nextLocal);
                 setDraft((prev) => {
                   if (!prev) return prev;
                   const patch: Partial<PhaseInput> = {
                     enrollment_open_at: nextOpen,
                   };
                   if (
-                    nextOpen &&
-                    prev.enrollment_close_at &&
-                    new Date(prev.enrollment_close_at) <= new Date(nextOpen)
+                    !enrollmentWindowIsOrdered(
+                      nextOpen,
+                      prev.enrollment_close_at,
+                    )
                   ) {
                     patch.enrollment_close_at = null;
                   }
@@ -1610,15 +1577,15 @@ function PhaseForm(props: PhaseFormProps) {
               id="enrollment_close_at"
               dateAriaLabel="Schließung"
               timeAriaLabel="Schließung Uhrzeit"
-              min={toLocalInputValue(draft.enrollment_open_at) || undefined}
-              value={toLocalInputValue(draft.enrollment_close_at)}
+              min={toDateTimeLocalValue(draft.enrollment_open_at) || undefined}
+              value={toDateTimeLocalValue(draft.enrollment_close_at)}
               invalid={Boolean(fieldError("enrollment_close_at"))}
               // A closing date picked without a time should end the day, not
               // start it — otherwise the window shuts at midnight.
               defaultTime="23:59"
               onChange={(nextLocal) =>
                 update({
-                  enrollment_close_at: fromLocalInputValue(nextLocal),
+                  enrollment_close_at: fromDateTimeLocalValue(nextLocal),
                 })
               }
             />
@@ -1714,8 +1681,7 @@ function PhaseForm(props: PhaseFormProps) {
           value={draft.care_offering_selection_mode}
           onChange={(value) =>
             update({
-              care_offering_selection_mode:
-                value as PhaseCareOfferingSelectionMode,
+              care_offering_selection_mode: value as CareOfferingSelectionMode,
             })
           }
           className="py-2"

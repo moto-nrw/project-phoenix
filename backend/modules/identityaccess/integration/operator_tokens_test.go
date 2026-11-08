@@ -9,20 +9,22 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func newOperatorTokens(t *testing.T, db *bun.DB) identityaccess.Owner {
+func newOperatorTokens(t *testing.T, db *bun.DB) ports.Records {
 	t.Helper()
 	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
-	return module
+	return module.(ports.Records)
 }
 
 func inviteeEmail() string {
@@ -526,10 +528,11 @@ func TestOperatorTokenObservationsUseStableOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	operator := testpkg.CreateTestOperator(t, db)
 	var observations []identityCompose.Observation
-	tokens, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
+	owner, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
 		observations = append(observations, observation)
 	}})
 	require.NoError(t, err)
+	tokens := owner.(ports.Records)
 	ctx := testpkg.Ctx(t)
 
 	invitation, err := tokens.CreateOperatorInvitation(ctx, newInvitation(operator.ID, inviteeEmail()))

@@ -6,44 +6,44 @@ const { mockFetch, mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({ auth: mockAuth, uncachedAuth: mockAuth }));
-vi.mock("~/server/auth/parent", () => ({
-  parentAuth: mockAuth,
-  uncachedParentAuth: mockAuth,
-}));
-vi.mock("~/server/auth/traeger", () => ({
-  traegerAuth: mockAuth,
-  uncachedTraegerAuth: mockAuth,
-}));
-vi.mock("~/server/auth/school", () => ({
-  schoolAuth: mockAuth,
-  uncachedSchoolAuth: mockAuth,
-  withSchoolAuth: <T>(handler: T) => handler,
-}));
-vi.mock("~/server/auth/caterer", () => ({
-  catererAuth: mockAuth,
-  uncachedCatererAuth: mockAuth,
-}));
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockAuth,
-  withOperatorAuth: <T>(handler: T) => handler,
-}));
-vi.mock("~/server/auth/school-route", () => ({
-  withSchoolAuth: <T>(handler: T) => handler,
-}));
-vi.mock("~/server/auth/caterer-route", () => ({
-  withCatererAuth: <T>(handler: T) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
+vi.mock("~/server/auth/parent", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("parent", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
+vi.mock("~/server/auth/traeger", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("traeger", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
+vi.mock("~/server/auth/school", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("school", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
+vi.mock("~/server/auth/caterer", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("caterer", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",
-}));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: async () => ({}),
-}));
-vi.mock("~/lib/client-headers.server", () => ({
-  incomingClientForwardHeaders: async () => ({}),
-  clientIdentityHeaders: () => ({}),
 }));
 
 type Route = (
@@ -199,6 +199,15 @@ describe("private file responses (#5119)", () => {
     "%s: protects backend errors",
     async (_name, method, load) => {
       for (const status of [401, 403, 503]) {
+        // A 401 renews the session first; a refused renewal keeps it a 401.
+        if (status === 401) {
+          mockAuth
+            .mockResolvedValueOnce({ user: { token: "access-token" } })
+            .mockResolvedValueOnce({
+              user: { token: "" },
+              error: "RefreshTokenError",
+            });
+        }
         mockFetch.mockImplementation(() =>
           Promise.resolve(
             new Response("denied", {

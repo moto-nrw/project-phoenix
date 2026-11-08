@@ -1,10 +1,12 @@
 import type { NextRequest } from "next/server";
 import {
   createOperatorPostHandler,
-  isStringParam,
   operatorApiPost,
 } from "~/lib/operator/route-wrapper.server";
-import { encodePathSegment } from "~/lib/route-wrapper-utils.server";
+import {
+  encodePathSegment,
+  requireStringParam,
+} from "~/lib/route-wrapper-utils.server";
 
 export const POST = createOperatorPostHandler(
   async (
@@ -13,10 +15,8 @@ export const POST = createOperatorPostHandler(
     token: string,
     params: Record<string, unknown>,
   ) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid id parameter");
-    }
-    const scanId = encodePathSegment(params.id);
+    const id = requireStringParam(params, "id");
+    const scanId = encodePathSegment(id);
     return await operatorApiPost(
       `/operator/unregistered-tag-scans/${scanId}/resolve`,
       token,

@@ -299,7 +299,11 @@ const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + module
 		WHERE l.organization_id = c.organization_id AND l.contract_id = c.id)) AS can_sign,
 	(c.status = '` + carecontract.StatusActive + `' AND ` + inboxChildScopeSQL + `) AS can_end,
 	(SELECT MAX(s.signed_at) FROM care_contract.contract_signatures AS s
-		WHERE s.organization_id = c.organization_id AND s.contract_id = c.id) AS signed_at
+		WHERE s.organization_id = c.organization_id AND s.contract_id = c.id) AS signed_at,
+	c.concluded_at, c.conclusion_method,
+	LEAST(c.withdrawal_informed_at, (SELECT CASE WHEN s.method <> '` + carecontract.SignaturePaper + `' THEN s.withdrawal_notice_at END
+		FROM care_contract.contract_signatures AS s WHERE s.organization_id = c.organization_id AND s.contract_id = c.id
+		ORDER BY s.signed_at DESC, s.id DESC LIMIT 1)) AS informed_at
 	FROM care_contract.contracts AS c
 	JOIN (SELECT contract_id, MIN(sent_at) AS first_sent FROM care_contract.contract_mailings
 		WHERE organization_id = ? AND lower(recipient_email) = lower(?) GROUP BY contract_id) AS m ON m.contract_id = c.id
@@ -312,7 +316,7 @@ const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + module
 	ORDER BY m.first_sent DESC, c.id DESC`
 
 // InboxContracts lists the contracts sent to the address, newest first.
-func (Store) InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]carecontract.InboxContract, error) {
+func (Store) InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]ports.InboxRow, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
@@ -331,6 +335,9 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 		SignedAt       *time.Time     `bun:"signed_at"`
 		CanSign        bool           `bun:"can_sign"`
 		CanEnd         bool           `bun:"can_end"`
+		ConcludedAt    *time.Time     `bun:"concluded_at"`
+		Method         *string        `bun:"conclusion_method"`
+		InformedAt     *time.Time     `bun:"informed_at"`
 	}
 	schools, students := inboxChildScope(reader.Children)
 	signingSchools, signingStudents := inboxChildScope(reader.SigningChildren)
@@ -340,9 +347,13 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 		Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read inbox: %w", err)
 	}
-	result := make([]carecontract.InboxContract, len(rows))
+	result := make([]ports.InboxRow, len(rows))
 	for i, row := range rows {
-		result[i] = carecontract.InboxContract{
+		result[i].InformedAt = row.InformedAt
+		if row.ConcludedAt != nil && row.Method != nil {
+			result[i].Concluded = &carecontract.Concluded{Method: *row.Method, At: *row.ConcludedAt}
+		}
+		result[i].Contract = carecontract.InboxContract{
 			ID: row.ID, ChildNames: []string{row.ChildFirstName}, ModuleNames: nonNil(row.ModuleNames),
 			ModulesText: carecontract.JoinNames(row.ModuleNames),
 			SchoolName:  row.SchoolName, SentAt: row.SentAt, EffectiveOn: row.EffectiveFrom, Replaced: row.Replaced,

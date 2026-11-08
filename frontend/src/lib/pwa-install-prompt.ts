@@ -11,6 +11,8 @@
  * path stays a manual "Zum Home-Bildschirm" instruction.
  */
 
+import { requiredPortalHostname } from "~/lib/portal-paths";
+
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { isValidTenantSlug } from "~/lib/tenant-slug";
 
@@ -151,10 +153,7 @@ function isCurrentProtectedTenantPath(): boolean {
 }
 
 function isCurrentParentInstallHost(): boolean {
-  const configuredHost = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
-  if (!configuredHost) {
-    throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
-  }
+  const configuredHost = requiredPortalHostname("parent");
   const hostname = new URL(`http://${configuredHost}`).hostname;
   return window.location.hostname.toLowerCase() === hostname.toLowerCase();
 }
@@ -168,10 +167,7 @@ function isCurrentProtectedParentPath(): boolean {
 }
 
 function isCurrentSchoolInstallHost(): boolean {
-  const configuredHost = process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME;
-  if (!configuredHost) {
-    throw new Error("NEXT_PUBLIC_SCHOOL_HOSTNAME is not set.");
-  }
+  const configuredHost = requiredPortalHostname("school");
   const hostname = new URL(`http://${configuredHost}`).hostname;
   return window.location.hostname.toLowerCase() === hostname.toLowerCase();
 }

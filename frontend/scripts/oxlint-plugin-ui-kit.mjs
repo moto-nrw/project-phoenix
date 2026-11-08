@@ -4207,9 +4207,12 @@ const PORTAL_NAV_SHELL_SIGNATURES = [
   ["top-[121px]", "h-[calc(100vh-121px)]"],
   ["top-[153px]", "h-[calc(100vh-153px)]"],
 ];
+// Die Zeilen jeder Seitenleiste liegen seit #5975 im Kit (`ui/sidebar-*`).
 const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
-  "PORTAL_ICON_CLASSES",
-  "portalSidebarRowClasses",
+  "sidebarRowClasses",
+  "sidebarLabelClasses",
+  "SIDEBAR_GROUP_HEADING_CLASSES",
+  "SIDEBAR_SUB_ITEM_CLASSES",
 ]);
 
 function hasPortalNavShellSignature(text) {
@@ -4229,7 +4232,7 @@ const noHandRolledPortalNav = {
     messages: {
       shell:
         "Keine eigene Portal-Navigation: PortalSidebar, PortalSidebarFrame oder PortalBottomNav aus dem Kit nehmen (#5603, .claude/rules/frontend-ui-kit.md).",
-      row: "`{{name}}` gehört in die Kit-Zeilen: PortalSidebarLink oder PortalSidebarButton nehmen (#5603, .claude/rules/frontend-ui-kit.md).",
+      row: "`{{name}}` gehört in die Kit-Zeilen: PortalSidebarLink, SidebarRowLink oder eine andere Zeile aus `ui/sidebar-*` nehmen (#5603, #5975, .claude/rules/frontend-ui-kit.md).",
     },
   },
   create(context) {

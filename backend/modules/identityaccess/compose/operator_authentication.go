@@ -9,7 +9,6 @@ import (
 	rotationBindings "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The operator flows (#3252) need facts other owners hold and the retained
@@ -17,24 +16,18 @@ import (
 // values so the root can implement them without the module's internal
 // vocabulary; this package adapts them to the consumer-owned ports.
 
-// PasswordHasher hashes a new password and applies the strength policy.
-type PasswordHasher interface {
-	HashPassword(password string) (string, error)
-	ValidatePasswordStrength(password string) error
-}
-
 // OperatorDependencies are the seams the operator flows need beyond the
 // account-session dependencies they share (the password verifier, the JWT
 // codec, the auth ledger, the schools and the tenant runtime).
 type OperatorDependencies struct {
 	Audit         identityPorts.OperatorAudit
-	Passwords     PasswordHasher
+	Passwords     identityPorts.PasswordPolicy
 	Organizations identityPorts.OrganizationDirectory
 	Identities    identityPorts.SchoolIdentityProvisioner
 	Logger        *slog.Logger
 }
 
-func newOperatorFlows(service *application.Service, store *postgres.Store, tokens *application.OperatorTokens, auth *application.AccountAuthentication, sessions *identityPorts.SessionDependencies, deps *OperatorDependencies, lifecycle *application.AccountLifecycle, mfa ports.OperatorMFAGate) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
+func newOperatorFlows(service *application.Service, store *postgres.Store, tokens *application.OperatorTokens, auth *application.AccountAuthentication, sessions *identityPorts.SessionDependencies, deps *OperatorDependencies, lifecycle *application.AccountLifecycle, mfa ports.OperatorMFAGate, runtime tenantRuntime) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
 	if deps == nil {
 		return nil, nil, nil
 	}
@@ -46,7 +39,6 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 		deps.Organizations == nil, deps.Identities == nil:
 		return nil, nil, errors.New("identity access compose: every operator dependency is required")
 	}
-	runtime := tenantRuntime{attach: sessions.TenantRuntime, runner: tenant.NewTransactionRunner()}
 	operatorAuth, err := application.NewOperatorAuthentication(service, application.OperatorAuthenticationDependencies{
 		Passwords: sessions.Passwords, PasswordPolicy: sessions.PasswordLoginPolicy,
 		Hasher:      deps.Passwords,

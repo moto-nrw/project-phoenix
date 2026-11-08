@@ -779,10 +779,21 @@ _Vermeiden_: Rechnungsempfänger, Payer.
 ## Familie
 
 Eine **Familie** ist beim Träger die bestätigte Gruppe aus Kindern mit
-Betreuungsvertrag und ihren Zahlern. Geschwister im Sinn der Beitragsregeln
-sind Kinder derselben Familie, auch an verschiedenen Schulen des Trägers. moto
-schlägt eine Familie vor, die Abrechnung bestätigt sie.
+Betreuungsvertrag und ihren Zahlern. moto schlägt eine Familie vor, die
+Abrechnung bestätigt sie. Die Familie hält außerdem die **Kinderzahl**: wie
+viele Kinder sie hat, auch ohne Vertrag. Eltern geben sie an, die Abrechnung
+bestätigt sie mit Gültigkeit (ADR 0088 §4, Nachtrag 2026-11-08).
 _Vermeiden_: Haushalt.
+
+## Geschwister
+
+**Geschwister** im Sinn der Beitragsregeln sind die Kinder einer Familie.
+Kinder mit Betreuungsvertrag sind Personen in moto, auch an verschiedenen
+Schulen des Trägers. Geschwister ohne Vertrag kennt moto nur als Teil der
+bestätigten Kinderzahl, nie als Person oder Vertragspartner. Eine
+Geschwisterregel zählt die Kinder mit Vertrag; nutzt sie die Kinderzahl,
+zählt sie diese, mindestens aber die Kinder mit Vertrag.
+_Vermeiden_: Kinder ohne Vertrag als Personen anlegen.
 
 ## Mensa-Monatsfreigabe
 

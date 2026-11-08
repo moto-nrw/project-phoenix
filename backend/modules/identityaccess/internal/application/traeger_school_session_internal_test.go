@@ -11,17 +11,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// runTraegerSchoolHandoffGuard runs the Absprung guard of the fixture with
-// an admitting school guard, as the mint transaction would under the
-// account lock.
+// runTraegerSchoolHandoffGuard mints the Absprung session of the fixture
+// with an admitting school eligibility.
 func runTraegerSchoolHandoffGuard(t *testing.T, f *authFixture, familyID string, proof bool) error {
 	t.Helper()
 	f.store.addAccount(1, "buero@traeger.example", "hash:secret", true)
-	request := identityaccess.TraegerSchoolSessionRequest{AccountID: 1, OrganizationID: 7, TraegerFamilyID: familyID, SchoolID: 10}
-	admit := func(context.Context, domain.LoginAccount) error { return nil }
-	return f.runtime.WithAdminTx(context.Background(), func(txCtx context.Context) error {
-		return f.auth.traegerSchoolHandoffGuard(request, proof, admit)(txCtx, f.store.accounts[1])
+	admit := func(context.Context, domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
+		return &domain.AccountClaimsPayload{TenantID: 10, OrgID: 7, ViaTraeger: true}, nil
+	}
+	_, err := f.auth.mintAccountSession(context.Background(), mintRequest{
+		portal: domain.PortalTenant, account: f.store.accounts[1], tenantID: 10, orgID: 7,
+		proof:    mintProof{kind: proofTraegerSession, traegerFamilyID: familyID, traegerVerified: proof},
+		eligible: admit, sourceFamilyID: familyID, lifetime: domain.TraegerSchoolHandoffTTL,
 	})
+	return err
 }
 
 // TestTraegerSchoolHandoffGuard_RefusesARevokedTraegerFamilyWithoutMFA pins
@@ -46,7 +49,7 @@ func TestTraegerSchoolHandoffGuard_AdmitsALiveTraegerFamily(t *testing.T) {
 	f.store.mu.Lock()
 	f.store.sessions[50] = domain.AccountSession{
 		ID: 50, AccountID: 1, OrganizationID: 7, Token: "traeger-token", FamilyID: "live-traeger-family",
-		PortalScope: domain.PortalScopeOrg, Expiry: time.Now().Add(time.Hour),
+		PortalScope: domain.PortalOrg.Name, Expiry: time.Now().Add(time.Hour),
 	}
 	f.store.mu.Unlock()
 

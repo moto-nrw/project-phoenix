@@ -41,6 +41,11 @@ export interface CareRule {
    * price list (#6196) instead of a share, an amount or one price.
    */
   readonly tariffSiblingPrice?: boolean;
+  /**
+   * A sibling rule counts the children the family stated and the
+   * Abrechnung confirmed, siblings without a contract included (#5918).
+   */
+  readonly countsFamilyChildren: boolean;
 }
 
 export type CareRuleInput = Omit<CareRule, "id">;
@@ -93,6 +98,7 @@ interface BackendRule {
   price_cents: number | null;
   cap_cents: number | null;
   tariff_sibling_price?: boolean;
+  counts_family_children?: boolean;
 }
 
 interface BackendModule {
@@ -159,6 +165,7 @@ function ruleFromBackend(rule: BackendRule): CareRule {
     priceCents: rule.price_cents,
     capCents: rule.cap_cents,
     tariffSiblingPrice: rule.tariff_sibling_price ?? false,
+    countsFamilyChildren: rule.counts_family_children ?? false,
   };
 }
 
@@ -224,6 +231,7 @@ function ruleBody(input: CareRuleInput) {
     price_cents: input.priceCents,
     cap_cents: input.capCents,
     tariff_sibling_price: input.tariffSiblingPrice ?? false,
+    counts_family_children: input.countsFamilyChildren,
   };
 }
 

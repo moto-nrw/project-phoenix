@@ -282,7 +282,7 @@ func (a *AccountAdministration) changeAccountPassword(ctx context.Context, accou
 // reaches account administration (ADR 0084).
 func (a *AccountAdministration) visibility(ctx context.Context) (domain.AccountVisibility, error) {
 	denied := domain.AccountVisibility{Kind: domain.AccountVisibilityDenied}
-	if a.runtime.IsAdminTx(ctx) || a.runtime.Scope(ctx) == domain.ScopePlatform {
+	if a.runtime.IsAdminTx(ctx) || a.runtime.Scope(ctx) == domain.PortalPlatform.Claim {
 		return domain.AccountVisibility{Kind: domain.AccountVisibilityGlobal}, nil
 	}
 	tenantID := a.runtime.TenantID(ctx)

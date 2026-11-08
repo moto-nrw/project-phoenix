@@ -1,9 +1,10 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { type NextRequest, NextResponse } from "next/server";
-import { getClientForwardHeaders } from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { createLogger } from "~/lib/logger";
-import { DEMO_TOKEN_COOKIE, demoBackendUrl } from "../forward";
+import { DEMO_TOKEN_COOKIE, demoBackendPath } from "../forward";
 import { withPrivateNoStore } from "~/lib/private-no-store";
+import { requiredPortalHostname } from "~/lib/portal-paths";
 
 const logger = createLogger({ component: "DemoHandoffRoute" });
 
@@ -24,10 +25,7 @@ async function GETHandler(request: NextRequest) {
   }
   const fragment = new URLSearchParams({ token, role, switched: "1" });
   if (role === "parent") {
-    const parentsHost = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
-    if (!parentsHost) {
-      throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
-    }
+    const parentsHost = requiredPortalHostname("parent");
     return redirect(
       `${requestProtocol(request)}://${parentsHost}/demo#${fragment.toString()}`,
     );
@@ -44,11 +42,8 @@ async function readySchoolUrl(
   token: string,
 ): Promise<string | null> {
   try {
-    const response = await fetch(demoBackendUrl("status"), {
-      headers: {
-        ...getClientForwardHeaders(request),
-        Authorization: `Bearer ${token}`,
-      },
+    const response = await sendBackend(demoBackendPath("status"), token, {
+      request,
     });
     if (!response.ok) return null;
     const body = (await response.json()) as {

@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The login, code and reset forms show a text per code (#2517). These tests
-// pin the code next to the unchanged status of each refusal.
+// The invitation, reset and registration forms show a text per code
+// (#2517). These tests pin the code next to the status of each refusal.
 
 type wireError struct {
 	Code   string `json:"code"`
@@ -28,78 +28,6 @@ func decodeWireError(t *testing.T, rr *httptest.ResponseRecorder) wireError {
 	var body wireError
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body), rr.Body.String())
 	return body
-}
-
-func TestLoginRefusalsCarryCodes(t *testing.T) {
-	t.Parallel()
-
-	wrap := func(err error) error { return &identityaccess.AuthenticationError{Op: "login", Err: err} }
-	cases := []struct {
-		name   string
-		err    error
-		status int
-		code   string
-	}{
-		{"wrong password", wrap(identityaccess.ErrInvalidCredentials), http.StatusUnauthorized, "identity.invalid_credentials"},
-		{"unknown address", wrap(identityaccess.ErrAccountNotFound), http.StatusUnauthorized, "identity.invalid_credentials"},
-		{"no access to this school", wrap(identityaccess.ErrTenantAccessDenied), http.StatusUnauthorized, "identity.invalid_credentials"},
-		{"account switched off", wrap(identityaccess.ErrAccountInactive), http.StatusUnauthorized, "identity.session_account_inactive"},
-		{"too many code requests", wrap(identityaccess.ErrMFARateLimited), http.StatusTooManyRequests, "identity.mfa_blocked"},
-		{"locked after wrong codes", wrap(identityaccess.ErrMFALocked), http.StatusTooManyRequests, "identity.mfa_blocked"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			rr := httptest.NewRecorder()
-			(&Resource{
-				ConstraintViolation: transactionFailures.IsConstraintViolation}).handleLoginError(rr, httptest.NewRequest(http.MethodPost, "/auth/login", nil), tc.err)
-			assert.Equal(t, tc.status, rr.Code)
-			assert.Equal(t, tc.code, decodeWireError(t, rr).Code)
-		})
-	}
-}
-
-func TestMFARefusalsCarryCodes(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		err  error
-		code string
-	}{
-		{identityaccess.ErrMFAChallengeTokenInvalid, "identity.mfa_code_invalid"},
-		{identityaccess.ErrMFACodeInvalid, "identity.mfa_code_invalid"},
-		{identityaccess.ErrMFAUnsupportedScope, "identity.mfa_code_invalid"},
-		{identityaccess.ErrMFALocked, "identity.mfa_blocked"},
-		{identityaccess.ErrMFARateLimited, "identity.mfa_blocked"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.err.Error(), func(t *testing.T) {
-			t.Parallel()
-			rr := httptest.NewRecorder()
-			mapMFAError(rr, httptest.NewRequest(http.MethodPost, "/", nil), tc.err)
-			assert.Equal(t, tc.code, decodeWireError(t, rr).Code)
-		})
-	}
-}
-
-func TestPasskeyLoginRefusalsShareOneCode(t *testing.T) {
-	t.Parallel()
-
-	for _, err := range []error{
-		identityaccess.ErrInvalidCredentials,
-		identityaccess.ErrPasskeySessionInvalid,
-		identityaccess.ErrAccountNotFound,
-		identityaccess.ErrTenantAccessDenied,
-		identityaccess.ErrPasskeyOriginInvalid,
-	} {
-		t.Run(err.Error(), func(t *testing.T) {
-			t.Parallel()
-			rr := httptest.NewRecorder()
-			mapPasskeyLoginError(rr, httptest.NewRequest(http.MethodPost, "/", nil), err)
-			assert.Equal(t, http.StatusUnauthorized, rr.Code)
-			assert.Equal(t, "identity.passkey_login_failed", decodeWireError(t, rr).Code)
-		})
-	}
 }
 
 func TestInvitationRefusalsCarryCodes(t *testing.T) {

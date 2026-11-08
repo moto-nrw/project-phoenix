@@ -60,6 +60,8 @@ type PortalService interface {
 	// ContractNoticeOptions and DeclareContractNotice withdraw and
 	// terminate a contract sent to the account (#4682).
 	ContractNoticeOptions(ctx context.Context, accountID, organizationID, contractID int64) (parentService.ContractNoticeOptions, error)
+	FamilyChildren(ctx context.Context, accountID, organizationID, contractID int64) (parentService.FamilyChildren, error)
+	StateFamilyChildren(ctx context.Context, accountID, organizationID, contractID int64, children int) (parentService.FamilyChildren, error)
 	DeclareContractNotice(ctx context.Context, accountID, organizationID, contractID int64, input parentService.ContractNoticeInput) (parentService.ContractNoticeOptions, error)
 	// ContractSigningView and SignContract read and sign a care contract
 	// of the inbox (#4679).

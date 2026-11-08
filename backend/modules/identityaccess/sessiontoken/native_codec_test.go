@@ -91,10 +91,10 @@ func TestNativeSessionCodecPreservesTokenWire(t *testing.T) {
 			decodedOld, err := native.ParseAccessToken(oldToken)
 			require.NoError(t, err)
 			decodedOld.ExpiresAt = decoded.ExpiresAt
-			// Old callers do not know the display-only role origin claim.
+			// The request projection carries no display-only role origin.
 			decoded.RoleIsSystem = nil
 			require.Equal(t, decoded, decodedOld)
-			oldRefresh, err := tokentest.CreateRefreshJWT(legacy, sessiontoken.RefreshClaims{ID: int(refresh.AccountID), Token: refresh.Token, TenantID: refresh.TenantID, Scope: scope, CommonClaims: sessiontoken.CommonClaims{ExpiresAt: refresh.ExpiresAt}})
+			oldRefresh, err := tokentest.CreateRefreshJWT(legacy, tokentest.RefreshClaims{ID: int(refresh.AccountID), Token: refresh.Token, TenantID: refresh.TenantID, Scope: scope, CommonClaims: sessiontoken.CommonClaims{ExpiresAt: refresh.ExpiresAt}})
 			require.NoError(t, err)
 			decodedRefresh, err = native.ParseRefreshToken(oldRefresh)
 			require.NoError(t, err)
@@ -173,6 +173,21 @@ func TestNativeSessionCodecTokenBoundaries(t *testing.T) {
 		require.Error(t, err)
 		_, err = native.ParseChallengeToken(token)
 		require.Error(t, err)
+	}
+}
+
+// An enrollment token exists only for a portal with an enrollment surface: a
+// caterer, parent or unnamed portal is refused, never minted as tenant.
+func TestNativeSessionCodecRefusesEnrollmentOfPortalsWithoutEnrollment(t *testing.T) {
+	t.Parallel()
+	legacy, err := sessiontoken.NewTokenAuthWithDurations("enrollment-scope-test-key-not-for-deployment", time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	native, err := identityCompose.NewSessionTokenCodec(legacy.JwtAuth, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	for _, scope := range []string{"caterer", "parent", "", "unknown"} {
+		token, err := native.IssueMFAEnrollmentToken(42, 73, scope, time.Hour)
+		require.Error(t, err, scope)
+		require.Empty(t, token, scope)
 	}
 }
 

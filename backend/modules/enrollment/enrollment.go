@@ -3,7 +3,6 @@ package enrollment
 
 import (
 	"context"
-	"time"
 )
 
 // SubmissionRateLimitKeyType discriminates between IP-based and
@@ -17,7 +16,6 @@ const (
 // to decide whether to admit a submission.
 type SubmissionRateLimitState struct {
 	Attempts int
-	RetryAt  time.Time
 }
 
 // SubmissionRateLimitRetention deletes the rate-limit buckets of the school

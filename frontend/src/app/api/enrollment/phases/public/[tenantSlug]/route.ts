@@ -10,6 +10,4 @@ export const GET = createPublicJsonProxy({
     }
     return `/api/enrollment/phases/public/${encodeURIComponent(tenantSlug)}`;
   },
-  cache: "no-store",
-  contentTypeOnGet: false,
 });

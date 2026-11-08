@@ -681,21 +681,21 @@
     },
     {
       "build": "production",
-      "evidence": "func (m *Service) AccountRequests(ctx context.Context, accountID int64, accountEmail string) ([]enrollment.AccountRequest, error) {\n\tif accountID \u003c= 0 {\n\t\treturn nil, fmt.Errorf(\"parent: account_id must be positive\")\n\t}\n\treturn m.store.AccountRequests(ctx, accountID, strings.ToLower(strings.TrimSpace(accountEmail)))\n}",
+      "evidence": "func (m *Service) AccountRequests(ctx context.Context, accountID int64, accountEmail string) ([]enrollment.AccountRequest, error) {\n\tif accountID \u003c= 0 {\n\t\treturn nil, fmt.Errorf(\"parent: account_id must be positive\")\n\t}\n\treturn m.store.AccountRequests(ctx, accountID, guardianEmailKey(accountEmail))\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/internal/application/Service.AccountRequests",
       "owner": "modules/enrollment"
     },
     {
       "build": "production",
-      "evidence": "func (m *Service) BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error) {\n\tif accountID \u003c= 0 {\n\t\treturn 0, fmt.Errorf(\"parent: account_id must be positive\")\n\t}\n\temail = strings.ToLower(strings.TrimSpace(email))\n\tif email == \"\" {\n\t\treturn 0, nil\n\t}\n\treturn m.store.BackfillGuardianAccountID(ctx, accountID, email)\n}",
+      "evidence": "func (m *Service) BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error) {\n\tif accountID \u003c= 0 {\n\t\treturn 0, fmt.Errorf(\"parent: account_id must be positive\")\n\t}\n\temail = guardianEmailKey(email)\n\tif email == \"\" {\n\t\treturn 0, nil\n\t}\n\treturn m.store.BackfillGuardianAccountID(ctx, accountID, email)\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/internal/application/Service.BackfillGuardianAccountID",
       "owner": "modules/enrollment"
     },
     {
       "build": "production",
-      "evidence": "func (m *Service) DeleteExpiredSubmissionRateLimits(ctx context.Context) (int, int, error) {\n\tdeleted, err := m.store.CleanupExpired(ctx)\n\tif err != nil {\n\t\treturn 0, 0, err\n\t}\n\treturn deleted, submissionRateLimitRetentionDays, nil\n}",
+      "evidence": "func (m *Service) DeleteExpiredSubmissionRateLimits(ctx context.Context) (int, int, error) {\n\tdeleted, err := m.store.CleanupExpired(ctx, rateLimitRetention)\n\tif err != nil {\n\t\treturn 0, 0, err\n\t}\n\treturn deleted, submissionRateLimitRetentionDays, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/internal/application/Service.DeleteExpiredSubmissionRateLimits",
       "owner": "modules/enrollment"

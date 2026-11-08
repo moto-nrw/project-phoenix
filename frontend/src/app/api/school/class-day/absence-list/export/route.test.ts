@@ -7,19 +7,18 @@ const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockUncachedAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
-vi.mock("~/server/auth/school", () => ({
-  schoolAuth: mockAuth,
-  uncachedSchoolAuth: mockUncachedAuth,
-  withSchoolAuth: <T>(handler: T) => handler,
-}));
+vi.mock("~/server/auth/school", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("school", {
+    auth: mockAuth,
+    uncachedAuth: mockUncachedAuth,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",
 }));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: vi.fn(async () => ({})),
-}));
-
 const { GET } = await import("./route");
+
+const context = { params: Promise.resolve({}) };
 
 function session(token: string): ExtendedSession {
   return { user: { token } } as ExtendedSession;
@@ -47,6 +46,7 @@ describe("GET /api/school/class-day/absence-list/export", () => {
       new NextRequest(
         "http://localhost:3000/api/school/class-day/absence-list/export?class=3a&from=2026-08-01&to=2027-01-31&format=xlsx&extra=1",
       ),
+      context,
     );
 
     expect(response.status).toBe(200);
@@ -69,6 +69,7 @@ describe("GET /api/school/class-day/absence-list/export", () => {
       new NextRequest(
         "http://localhost:3000/api/school/class-day/absence-list/export?class=3a&format=docx",
       ),
+      context,
     );
 
     expect(response.status).toBe(400);
@@ -92,6 +93,7 @@ describe("GET /api/school/class-day/absence-list/export", () => {
       new NextRequest(
         "http://localhost:3000/api/school/class-day/absence-list/export?class=9z&format=pdf",
       ),
+      context,
     );
 
     expect(response.status).toBe(403);

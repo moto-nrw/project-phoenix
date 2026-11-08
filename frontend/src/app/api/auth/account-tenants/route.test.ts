@@ -13,9 +13,11 @@ const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/env", () => ({
   env: {
@@ -71,13 +73,13 @@ describe("GET /api/auth/account-tenants", () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       "http://server:8080/auth/account/tenants",
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer test-token",
-        },
-      },
+      expect.objectContaining({ method: "GET", cache: "no-store" }),
     );
+    const init = vi.mocked(global.fetch).mock.calls[0]?.[1];
+    const headers = init?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer test-token");
+    // Contract change: no Content-Type on a GET without body.
+    expect(headers).not.toHaveProperty("Content-Type");
 
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<typeof backendData>(response);

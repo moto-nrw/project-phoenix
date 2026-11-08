@@ -140,7 +140,7 @@ export const GET = createGetHandler(
         // The roster and paginated candidate list are independent reads.
         const [enrolledResponse, allStudents] = await Promise.all([
           apiGet<{ data: BackendStudentEnrollment[] }>(
-            `/api/activities/${id}/students`,
+            `/api/activities/${encodeURIComponent(id)}/students`,
             token,
           ),
           fetchAllStudents(allStudentsParams, token),
@@ -169,7 +169,7 @@ export const GET = createGetHandler(
 
     // Otherwise return enrolled students - call backend directly
     try {
-      const endpoint = `/api/activities/${id}/students`;
+      const endpoint = `/api/activities/${encodeURIComponent(id)}/students`;
       const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
         endpoint,
         token,
@@ -201,13 +201,17 @@ export const POST = createPostHandler(
 
     // Check if this is a batch update operation
     if (body.student_ids && Array.isArray(body.student_ids)) {
-      await apiPut(`/api/activities/${id}/students`, token, {
-        student_ids: body.student_ids.map((studentId) =>
-          Number.parseInt(studentId, 10),
-        ),
-      });
+      await apiPut(
+        `/api/activities/${encodeURIComponent(id)}/students`,
+        token,
+        {
+          student_ids: body.student_ids.map((studentId) =>
+            Number.parseInt(studentId, 10),
+          ),
+        },
+      );
       const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
-        `/api/activities/${id}/students`,
+        `/api/activities/${encodeURIComponent(id)}/students`,
         token,
       );
       return mapStudentEnrollmentsResponse(response.data ?? []);
@@ -215,9 +219,13 @@ export const POST = createPostHandler(
     // Regular single student enrollment
     else if (body.student_id) {
       const studentId = String(body.student_id);
-      await apiPost(`/api/activities/${id}/enroll/${studentId}`, token, {});
+      await apiPost(
+        `/api/activities/${encodeURIComponent(id)}/enroll/${encodeURIComponent(studentId)}`,
+        token,
+        {},
+      );
       const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
-        `/api/activities/${id}/students`,
+        `/api/activities/${encodeURIComponent(id)}/students`,
         token,
       );
       return mapStudentEnrollmentsResponse(response.data ?? []);
@@ -250,7 +258,7 @@ export const PUT = createPutHandler(
     const studentIds = body.student_ids.map((id) => Number.parseInt(id, 10));
 
     // Call backend to update enrollments
-    const endpoint = `/api/activities/${id}/students`;
+    const endpoint = `/api/activities/${encodeURIComponent(id)}/students`;
     await apiPut(endpoint, token, { student_ids: studentIds });
 
     // Return updated enrolled students - call backend directly with token

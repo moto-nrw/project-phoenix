@@ -7,19 +7,21 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func newOperatorPasskeyRecords(t *testing.T, db *bun.DB) identityaccess.Owner {
+func newOperatorPasskeyRecords(t *testing.T, db *bun.DB) ports.Records {
 	t.Helper()
 	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
-	return module
+	return module.(ports.Records)
 }
 
 func newOperatorPasskey(operatorID int64, userHandle []byte) identityaccess.OperatorPasskeyCredential {
@@ -278,10 +280,11 @@ func TestOperatorPasskeyObservationsUseStableOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	operator := testpkg.CreateTestOperator(t, db)
 	var observations []identityCompose.Observation
-	records, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
+	owner, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
 		observations = append(observations, observation)
 	}})
 	require.NoError(t, err)
+	records := owner.(ports.Records)
 	ctx := testpkg.Ctx(t)
 	handle := []byte("handle-" + uuid.Must(uuid.NewV4()).String())
 

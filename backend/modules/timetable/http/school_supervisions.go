@@ -25,7 +25,7 @@ import (
 // drives — a Lehrkraft runs her Lernzeit exactly the way a Betreuungskraft
 // runs hers. What differs is the mantle, and it differs in four ways:
 //
-//  1. sessiontoken.SchoolMiddleware (via ProtectedSchoolRoutes) admits only school-scope
+//  1. SchoolScopeMiddleware (via ProtectedSchoolRoutes) admits only school-scope
 //     tokens, so a tenant token cannot reach these routes and a school token
 //     still reaches nothing under /api (TestSchoolScopeRejectedOnAllAPIRoutes).
 //  2. permissions.SupervisionOwn instead of SchedulesRead: the permission says

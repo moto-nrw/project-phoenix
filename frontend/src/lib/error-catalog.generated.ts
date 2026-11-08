@@ -48,6 +48,8 @@ export const ERROR_CATALOG = {
         "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
       "care_contract.contract_not_signable":
         "Dieser Vertrag ist schon unterschrieben oder wartet nicht auf eine Unterschrift. Bitte laden Sie die Seite neu.",
+      "care_contract.field_invalid":
+        "Einige Angaben stimmen nicht. Bitte prüfen Sie Ihre Eingaben.",
       "care_contract.letterhead_too_long":
         "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
       "care_contract.notice_end_not_open":
@@ -62,6 +64,8 @@ export const ERROR_CATALOG = {
         "Für diesen Vertrag fehlt eine E-Mail-Adresse. Ohne Adresse kann keine Bestätigung verschickt werden.",
       "care_contract.school_outside_traeger":
         "Diese Schule gehört nicht zu Ihrem Träger.",
+      "care_contract.selection_invalid":
+        "Diese Auswahl ist so nicht möglich. Bitte ändern Sie die Auswahl.",
       "care_contract.signature_invalid":
         "Die Unterschrift fehlt oder ist leer. Bitte unterschreiben Sie noch einmal.",
       "care_contract.signing_link_invalid":
@@ -878,10 +882,16 @@ export const ERROR_CATALOG = {
         "Empfänger und Zahlung konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
       "parent_billing.family_billing_not_found":
         "Diese Abweichung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.family_children_invalid":
+        "Bitte geben Sie eine ganze Zahl von 1 bis 20 an.",
+      "parent_billing.family_children_not_found":
+        "Zu diesem Vertrag gibt es keine Familie mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.family_not_found":
         "Zu dieser Familie gibt es keine Rechnung. Bitte öffnen Sie sie über die Liste „Familien“.",
       "parent_billing.family_unknown":
         "Für diesen Vertrag fehlt eine E-Mail-Adresse. Bitte tragen Sie sie im Vertrag ein.",
+      "parent_billing.family_without_address":
+        "Die Rechnung dieses Vertrags hat keine E-Mail-Adresse. Tragen Sie zuerst im Vertrag eine Adresse ein.",
       "parent_billing.holiday_quote_invalid":
         "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
       "parent_billing.invoice_cancelled":
@@ -1745,6 +1755,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "This contract is already signed or is not waiting for a signature. Please reload the page.",
+      "care_contract.field_invalid":
+        "Some details are not valid. Please check your entries.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -1759,6 +1771,8 @@ export const ERROR_CATALOG = {
         "This contract has no e-mail address. Without an address no confirmation can be sent.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "This selection is not possible. Please change your selection.",
       "care_contract.signature_invalid":
         "The signature is missing or empty. Please sign again.",
       "care_contract.signing_link_invalid":
@@ -2183,6 +2197,8 @@ export const ERROR_CATALOG = {
         "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
       "module.not_booked":
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
+      "parent_billing.family_children_invalid":
+        "Please enter a whole number from 1 to 20.",
       "parent_billing.holiday_quote_invalid":
         "The fee cannot be calculated for these weeks. Please reload the page.",
       "parent_billing.letter_mail_block_unreadable":
@@ -2333,6 +2349,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Этот договор уже подписан или не ожидает подписи. Пожалуйста, обновите страницу.",
+      "care_contract.field_invalid":
+        "Некоторые данные указаны неверно. Проверьте введённые данные.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -2347,6 +2365,8 @@ export const ERROR_CATALOG = {
         "У этого договора нет адреса электронной почты. Без адреса подтверждение отправить нельзя.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Такой выбор невозможен. Измените выбор.",
       "care_contract.signature_invalid":
         "Подпись отсутствует или пуста. Пожалуйста, подпишите ещё раз.",
       "care_contract.signing_link_invalid":
@@ -2722,6 +2742,8 @@ export const ERROR_CATALOG = {
         "{object} сейчас невозможно. Школу ещё снабжает поставщик питания. Сначала завершите эти поставки.",
       "module.not_booked":
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
+      "parent_billing.family_children_invalid":
+        "Пожалуйста, укажите целое число от 1 до 20.",
       "parent_billing.holiday_quote_invalid":
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
       "parent_billing.letter_mail_block_unreadable":
@@ -2814,6 +2836,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Kjo kontratë është nënshkruar tashmë ose nuk pret nënshkrim. Ju lutemi rifreskoni faqen.",
+      "care_contract.field_invalid":
+        "Disa të dhëna nuk janë të sakta. Kontrolloni të dhënat.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -2828,6 +2852,8 @@ export const ERROR_CATALOG = {
         "Kjo kontratë nuk ka adresë e-maili. Pa adresë nuk mund të dërgohet konfirmim.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Kjo zgjedhje nuk është e mundur. Ndryshoni zgjedhjen.",
       "care_contract.signature_invalid":
         "Nënshkrimi mungon ose është bosh. Ju lutemi nënshkruani përsëri.",
       "care_contract.signing_link_invalid":
@@ -3217,6 +3243,8 @@ export const ERROR_CATALOG = {
         "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
       "module.not_booked":
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
+      "parent_billing.family_children_invalid":
+        "Ju lutemi shkruani një numër të plotë nga 1 deri në 20.",
       "parent_billing.holiday_quote_invalid":
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
       "parent_billing.letter_mail_block_unreadable":
@@ -3310,6 +3338,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Ta umowa jest już podpisana lub nie czeka na podpis. Odśwież stronę.",
+      "care_contract.field_invalid":
+        "Niektóre dane są nieprawidłowe. Sprawdź wpisane dane.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -3324,6 +3354,8 @@ export const ERROR_CATALOG = {
         "Ta umowa nie ma adresu e-mail. Bez adresu nie można wysłać potwierdzenia.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Taki wybór nie jest możliwy. Zmień wybór.",
       "care_contract.signature_invalid":
         "Brak podpisu lub podpis jest pusty. Podpisz jeszcze raz.",
       "care_contract.signing_link_invalid":
@@ -3701,6 +3733,8 @@ export const ERROR_CATALOG = {
         "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
       "module.not_booked":
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
+      "parent_billing.family_children_invalid":
+        "Proszę podać liczbę całkowitą od 1 do 20.",
       "parent_billing.holiday_quote_invalid":
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
       "parent_billing.letter_mail_block_unreadable":
@@ -3793,6 +3827,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Bu sözleşme zaten imzalandı veya imza beklemiyor. Lütfen sayfayı yenileyin.",
+      "care_contract.field_invalid":
+        "Bazı bilgiler doğru değil. Girdiğiniz bilgileri kontrol edin.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -3807,6 +3843,8 @@ export const ERROR_CATALOG = {
         "Bu sözleşmenin e-posta adresi yok. Adres olmadan onay gönderilemez.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Bu seçim mümkün değil. Lütfen seçiminizi değiştirin.",
       "care_contract.signature_invalid":
         "İmza eksik veya boş. Lütfen tekrar imzalayın.",
       "care_contract.signing_link_invalid":
@@ -4189,6 +4227,8 @@ export const ERROR_CATALOG = {
         "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın.",
       "module.not_booked":
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
+      "parent_billing.family_children_invalid":
+        "Lütfen 1 ile 20 arasında bir tam sayı girin.",
       "parent_billing.holiday_quote_invalid":
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
       "parent_billing.letter_mail_block_unreadable":
@@ -4282,6 +4322,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Цей договір уже підписано або він не очікує підпису. Будь ласка, оновіть сторінку.",
+      "care_contract.field_invalid":
+        "Деякі дані вказано неправильно. Перевірте введені дані.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -4296,6 +4338,8 @@ export const ERROR_CATALOG = {
         "У цього договору немає адреси електронної пошти. Без адреси підтвердження надіслати не можна.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Такий вибір неможливий. Змініть вибір.",
       "care_contract.signature_invalid":
         "Підпис відсутній або порожній. Будь ласка, підпишіть ще раз.",
       "care_contract.signing_link_invalid":
@@ -4670,6 +4714,8 @@ export const ERROR_CATALOG = {
         "{object} зараз неможливо. Школу ще постачає постачальник харчування. Спочатку завершіть ці постачання.",
       "module.not_booked":
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
+      "parent_billing.family_children_invalid":
+        "Будь ласка, вкажіть ціле число від 1 до 20.",
       "parent_billing.holiday_quote_invalid":
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
       "parent_billing.letter_mail_block_unreadable":

@@ -373,7 +373,7 @@ func testOperatorRouter(identity operatorIdentity, provisioning organizationtena
 
 // operatorTestSessions binds the operator session chains to the seeded test
 // signer and the given active-operator lookup.
-func operatorTestSessions(t *testing.T, operators identityoperator.OperatorLookup) identityoperator.Sessions {
+func operatorTestSessions(t *testing.T, operators identityaccess.OperatorSessionLiveness) identityoperator.Sessions {
 	t.Helper()
 	return identityoperator.NewSessions(routetest.TestTokenAuth(t), operators)
 }

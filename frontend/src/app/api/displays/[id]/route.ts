@@ -29,7 +29,7 @@ export const PATCH = createPatchHandler<
 >(async (_request, body, token, params) => {
   const id = requireDisplayID(params);
   return apiPatch<DisplayUpdateResponse, DisplayUpdateRequest>(
-    `/api/display/${id}`,
+    `/api/display/${encodeURIComponent(id)}`,
     token,
     body,
   );
@@ -37,6 +37,6 @@ export const PATCH = createPatchHandler<
 
 export const DELETE = createDeleteHandler(async (_request, token, params) => {
   const id = requireDisplayID(params);
-  await apiDelete(`/api/display/${id}`, token);
+  await apiDelete(`/api/display/${encodeURIComponent(id)}`, token);
   return { deleted: true };
 });

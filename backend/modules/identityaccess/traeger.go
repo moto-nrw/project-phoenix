@@ -142,21 +142,16 @@ type TraegerOrganization struct {
 	Name string
 }
 
-// TraegerLoginStatus discriminates the Träger login answers.
-type TraegerLoginStatus string
+// TraegerLoginStatus is the LoginStatus of a Träger sign-in.
+type TraegerLoginStatus = LoginStatus
 
+// The Träger sign-in answers; every Träger session needs a second factor
+// (#4651).
 const (
-	// TraegerLoginAuthenticated carries a Träger session.
-	TraegerLoginAuthenticated TraegerLoginStatus = "authenticated"
-	// TraegerLoginSelectionRequired lists the Träger of a member of several;
-	// the login is repeated with one of them.
-	TraegerLoginSelectionRequired TraegerLoginStatus = "organization_selection_required"
-	// TraegerLoginMFARequired carries the challenge of the e-mailed code
-	// (#4651); every Träger session needs a second factor.
-	TraegerLoginMFARequired TraegerLoginStatus = "mfa_required"
-	// TraegerLoginMFAEnrollmentRequired carries an enrollment token: the
-	// account sets up its second factor before the Träger session exists.
-	TraegerLoginMFAEnrollmentRequired TraegerLoginStatus = "mfa_enrollment_required"
+	TraegerLoginAuthenticated         = LoginStatusAuthenticated
+	TraegerLoginSelectionRequired     = LoginStatusOrganizationSelectionRequired
+	TraegerLoginMFARequired           = LoginStatusMFARequired
+	TraegerLoginMFAEnrollmentRequired = LoginStatusMFAEnrollmentRequired
 )
 
 // TraegerLoginResult is the Träger login answer: a token pair, the Träger to

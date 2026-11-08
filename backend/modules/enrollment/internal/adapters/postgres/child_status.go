@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/uptrace/bun"
 )
 
 func (r *Store) UpdateChildStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error {
@@ -25,7 +28,8 @@ func (r *Store) UpdateChildStatus(ctx context.Context, id int64, newStatus strin
 		// Leaving the open statuses resolves whatever left the row to the
 		// school, such as a renewal held for the Kinderkontingent (#3570).
 		// While it stays open (a parent edit, "In Prüfung") the reason stays.
-		Set("review_reason = CASE WHEN ? IN ('submitted', 'under_review') THEN review_reason ELSE NULL END", newStatus).
+		Set("review_reason = CASE WHEN ? IN (?) THEN review_reason ELSE NULL END",
+			newStatus, bun.List([]string{enrollment.ChildStatusSubmitted, enrollment.ChildStatusUnderReview})).
 		Where(`"request_child".id = ?`, id)
 	if reviewedBy > 0 {
 		q = q.Set("reviewed_by = ?", reviewedBy)
@@ -65,11 +69,11 @@ func (r *Store) HoldAutoRenewedChild(ctx context.Context, id int64, reviewReason
 	res, err := db.NewUpdate().
 		TableExpr(`enrollment.request_children AS "request_child"`).
 		Where(`"request_child".tenant_id = ?`, tenantID).
-		Set("status = ?", "submitted").
+		Set("status = ?", enrollment.ChildStatusSubmitted).
 		Set("review_reason = ?", reviewReason).
 		Set("updated_at = NOW()").
 		Where(`"request_child".id = ?`, id).
-		Where(`"request_child".status = ?`, "auto_renewed").
+		Where(`"request_child".status = ?`, enrollment.ChildStatusAutoRenewed).
 		Exec(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to hold auto-renewed request child: %w", err)

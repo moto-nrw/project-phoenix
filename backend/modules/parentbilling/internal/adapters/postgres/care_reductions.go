@@ -36,7 +36,8 @@ func newCareRuleRow(organizationID int64, input parentbilling.CareRuleInput) *ru
 		CareOfferingIDs: idsOrEmpty(input.CareOfferingIDs), CountSchoolIDs: idsOrEmpty(input.CountSchoolIDs),
 		SiblingFromChild: input.SiblingFromChild, DiscountBasisPoints: input.DiscountBasisPoints,
 		DiscountCents: input.DiscountCents, PriceCents: input.PriceCents, CapCents: input.CapCents,
-		TariffSiblingPrice: input.TariffSiblingPrice,
+		TariffSiblingPrice:   input.TariffSiblingPrice,
+		CountsFamilyChildren: input.CountsFamilyChildren,
 	}
 }
 
@@ -57,6 +58,7 @@ var careRuleColumns = []string{
 	"kind", "name", "valid_from", "valid_until", "school_ids", "care_offering_ids", "count_school_ids",
 	"sibling_from_child", "discount_basis_points", "discount_cents", "price_cents", "cap_cents",
 	"tariff_sibling_price",
+	"counts_family_children",
 }
 
 // UpdateCareRule replaces a care rule of the Träger. A holiday rule is no

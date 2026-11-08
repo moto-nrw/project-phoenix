@@ -7,12 +7,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/stretchr/testify/assert"
 )
 
-type auditUnavailableMFA struct{ AccountMFA }
+type auditUnavailableMFA struct{ identityaccess.AccountMFA }
 
 func (auditUnavailableMFA) AccountBelongsToSchool(context.Context, int64, int64) (bool, error) {
 	return true, nil

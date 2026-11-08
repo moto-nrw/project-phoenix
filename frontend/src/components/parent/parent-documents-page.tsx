@@ -306,28 +306,57 @@ function ParentDocumentCard({
 
 /**
  * The way to end a care contract (#4682, § 312k BGB): the button „Verträge
- * hier kündigen“ on an active contract, or the end and the confirmation of
+ * hier kündigen“ on an active contract and, while the withdrawal period may
+ * run, the withdrawal function „Vertrag widerrufen“ of § 356a BGB (#6105),
+ * the label the withdrawal notice names; or the end and the confirmation of
  * one the parents or the Träger ended.
  */
 function ContractNoticeRow({
   document,
 }: Readonly<{ document: ParentDocument }>) {
   const t = useTranslations("parentDocuments");
+  const familyText = useTranslations("parentFamilyChildren");
   const locale = useLocale();
   const href = `/documents/vertraege/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}`;
   const status = document.contract_status;
-  if (status === "aktiv") {
+  if (status === "aktiv" || status === "versendet") {
     // Only where the declaration would pass: without the relationship right
     // the button would open a page that refuses (#4682).
     return (
       <div className="mt-4 border-t border-gray-100 pt-4">
-        {document.can_end_contract ? (
-          <ButtonLink href={href} variant="outline" size="md">
-            {t("cancelContract")}
+        <div className="flex flex-wrap items-center gap-3">
+          <ButtonLink
+            href={parentPath(
+              `/documents/vertrag/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}?family=1`,
+            )}
+            variant="outline"
+            size="md"
+          >
+            {/* „angeben“ only where the relationship may state the number:
+                an active contract it may end or a sent one it may sign. */}
+            {document.can_end_contract || document.can_sign
+              ? t("familyChildren")
+              : familyText("title")}
           </ButtonLink>
-        ) : (
-          <p className="text-sm text-gray-500">{t("cancelNotPermitted")}</p>
-        )}
+          {document.can_end_contract ? (
+            <>
+              <ButtonLink href={href} variant="outline" size="md">
+                {t("cancelContract")}
+              </ButtonLink>
+              {document.can_withdraw_contract ? (
+                <ButtonLink
+                  href={`${href}?widerruf=1`}
+                  variant="outline"
+                  size="md"
+                >
+                  {t("withdrawContract")}
+                </ButtonLink>
+              ) : null}
+            </>
+          ) : status === "aktiv" ? (
+            <p className="text-sm text-gray-500">{t("cancelNotPermitted")}</p>
+          ) : null}
+        </div>
       </div>
     );
   }

@@ -8,7 +8,7 @@ import {
   WEBP_SIGNATURE,
   validateImageMagicBytes,
 } from "~/lib/image-magic-bytes";
-import { proxyDelete } from "~/lib/route-proxy.server";
+import { proxyDelete } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 const photoPath = (p: Record<string, unknown>) =>

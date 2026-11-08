@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import type { ServerSession } from "~/server/auth/shared";
+import type { ServerSession } from "~/server/auth/session-types";
 import type { ServerAuthRequest } from "~/server/auth/route-handler";
 
-// withTenantAuth is a pass-through in tests (setup-common); the request's
-// `auth` stands for the session the wrapper reads from the cookie.
+// The request's `auth` stands for the session the wrapper reads from the
+// cookie.
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {}),
+);
 const { POST } = await import("./route");
 
 const mockFetch = vi.fn();

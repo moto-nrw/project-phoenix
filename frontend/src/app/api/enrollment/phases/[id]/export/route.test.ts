@@ -7,10 +7,12 @@ const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockUncachedAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  uncachedAuth: mockUncachedAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    uncachedAuth: mockUncachedAuth,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",
@@ -23,16 +25,13 @@ function session(token: string): ExtendedSession {
 }
 
 function backendFile(): Response {
-  const headers = new Headers({
-    "content-type": "application/pdf",
-    "content-disposition": 'attachment; filename="Anmeldungen.pdf"',
-  });
-  return {
-    ok: true,
+  return new Response("PDF", {
     status: 200,
-    headers,
-    arrayBuffer: async () => new TextEncoder().encode("PDF").buffer,
-  } as unknown as Response;
+    headers: {
+      "content-type": "application/pdf",
+      "content-disposition": 'attachment; filename="Anmeldungen.pdf"',
+    },
+  });
 }
 
 function req(): NextRequest {
@@ -75,6 +74,7 @@ describe("POST /api/enrollment/phases/[id]/export", () => {
     expect(calledUrl).toBe(
       "http://backend:8080/api/enrollment/phases/5/export",
     );
+    expect(await res.text()).toBe("PDF");
   });
 
   it("forwards a backend error with its status and body", async () => {
@@ -93,12 +93,7 @@ describe("POST /api/enrollment/phases/[id]/export", () => {
     mockUncachedAuth.mockResolvedValue(session("fresh"));
     const fetchFn = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        headers: new Headers(),
-        text: async () => "expired",
-      } as unknown as Response)
+      .mockResolvedValueOnce(new Response("expired", { status: 401 }))
       .mockResolvedValueOnce(backendFile());
     global.fetch = fetchFn as unknown as typeof fetch;
 
@@ -130,17 +125,12 @@ describe("POST /api/enrollment/phases/[id]/export", () => {
     mockAuth.mockResolvedValue(session("stale"));
     mockUncachedAuth.mockResolvedValue(session("stale"));
     global.fetch = vi.fn(
-      async () =>
-        ({
-          ok: false,
-          status: 401,
-          headers: new Headers(),
-          text: async () => "expired",
-        }) as unknown as Response,
+      async () => new Response("expired", { status: 401 }),
     ) as unknown as typeof fetch;
 
     const res = await POST(req(), ctx);
-    expect(res.status).toBe(401);
+    // A renewal that kept the old token is undecided: 503, session left as is.
+    expect(res.status).toBe(503);
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,9 +1,8 @@
 package behavior_test
 
-// IssueTokensForAuthenticatedAccount is the post-MFA-verify token mint path —
-// completes login without re-validating the password (MFA proved identity).
-// It's 0% covered today because none of the existing tests exercise the
-// "skip credential check" branch.
+// IssueTokensForPasskey mints the tenant session of a passkey sign-in:
+// it completes the login without re-validating the password, because the
+// assertion proved the identity.
 
 import (
 	"context"
@@ -17,7 +16,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func TestIssueTokensForAuthenticatedAccount_HappyPath(t *testing.T) {
+func TestIssueTokensForPasskey_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -34,14 +33,14 @@ func TestIssueTokensForAuthenticatedAccount_HappyPath(t *testing.T) {
 
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
-	access, refresh, err := service.IssueTokensForAuthenticatedAccount(
+	access, refresh, err := service.IssueTokensForPasskey(
 		context.Background(), account.ID, tenantID, "127.0.0.1", "test-agent")
 	require.NoError(t, err)
 	assert.NotEmpty(t, access, "access token must be issued")
 	assert.NotEmpty(t, refresh, "refresh token must be issued")
 }
 
-func TestIssueTokensForAuthenticatedAccount_UnknownAccount_ReturnsAccountNotFound(t *testing.T) {
+func TestIssueTokensForPasskey_UnknownAccount_ReturnsAccountNotFound(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -49,14 +48,14 @@ func TestIssueTokensForAuthenticatedAccount_UnknownAccount_ReturnsAccountNotFoun
 	service := setupAuthService(t, db)
 
 	// An account ID far above the high-water mark — FindByID returns sql.ErrNoRows.
-	_, _, err := service.IssueTokensForAuthenticatedAccount(
+	_, _, err := service.IssueTokensForPasskey(
 		context.Background(), 9876543210, 0, "127.0.0.1", "test-agent")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrAccountNotFound,
 		"unknown account must surface as ErrAccountNotFound, not a generic 500")
 }
 
-func TestIssueTokensForAuthenticatedAccount_InactiveAccount_Rejected(t *testing.T) {
+func TestIssueTokensForPasskey_InactiveAccount_Rejected(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -76,7 +75,7 @@ func TestIssueTokensForAuthenticatedAccount_InactiveAccount_Rejected(t *testing.
 		`UPDATE auth.accounts SET active = false WHERE id = ?`, account.ID)
 	require.NoError(t, err)
 
-	_, _, err = service.IssueTokensForAuthenticatedAccount(
+	_, _, err = service.IssueTokensForPasskey(
 		context.Background(), account.ID, tenantID, "127.0.0.1", "test-agent")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrAccountInactive,

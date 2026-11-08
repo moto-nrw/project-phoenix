@@ -46,7 +46,7 @@ export const PUT = createPutHandler<unknown, UpdateSessionRequest>(
     }
 
     const response = await apiPut<{ data: unknown }>(
-      `/api/time-tracking/${params.id}`,
+      `/api/time-tracking/${encodeURIComponent(params.id)}`,
       token,
       backendBody,
     );

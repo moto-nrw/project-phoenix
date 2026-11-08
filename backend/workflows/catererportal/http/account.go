@@ -35,7 +35,7 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidOnField(errPasswordMismatch, common.CodeIdentityPasswordMismatch, "confirm_password"))
 		return
 	}
-	err := rs.portal.ChangeCatererPassword(r.Context(), rs.currentAccountID(r.Context()), request.CurrentPassword, request.NewPassword, common.GetClientIPString(r), r.Header.Get("User-Agent"))
+	err := rs.portal.ChangeCatererPassword(r.Context(), rs.currentAccountID(r.Context()), request.CurrentPassword, request.NewPassword, common.GetClientIPString(r), r.UserAgent())
 	switch {
 	case err == nil:
 		common.RespondNoContent(w, r)

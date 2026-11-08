@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 )
 
 // The account school-access routes are Identity & Access routes (#3252)
@@ -74,7 +75,7 @@ func decodeBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {
 }
 
 func newAccountAccessResource(access *mockAccountAccess) *identityoperator.Resource {
-	return identityoperator.NewResource(access, operatorIdentityResponses())
+	return identityoperator.NewResource(access, provisioningOperatorAPI.ProvisioningErrorRenderer)
 }
 
 func accountTenantRequest(t *testing.T, method, body string, params map[string]string) *http.Request {
