@@ -12,7 +12,10 @@ import {
 } from "~/server/auth/portals";
 import { serverSessionFromJwt } from "~/server/auth/session-callbacks";
 import { ACCESS_TOKEN_REFRESH_BUFFER_MS } from "~/server/auth/session-lifetime";
-import { sessionFamilyState } from "~/server/auth/token-validation";
+import {
+  familyBacksSession,
+  sessionFamilyState,
+} from "~/server/auth/token-validation";
 
 export type { PortalKey };
 
@@ -24,6 +27,8 @@ export type { PortalKey };
 export interface PortalSessionSnapshot {
   session: Session;
   accessToken: string;
+  /** The school has not booked the portal's module; the session stays. */
+  notBooked: boolean;
 }
 
 /** Auth.js' own name when the portal configures none (tenant on localhost). */
@@ -44,11 +49,14 @@ function sessionCookieName(key: PortalKey): string {
  * portal's cookie on the same request (the domain-wide tenant cookie, for
  * example) neither decrypts nor counts. The token must carry one of the
  * portal's scopes and its snapshot claims, be outside the refresh window and
- * belong to a family Identity & Access confirms live (#5399); otherwise the
+ * belong to a family Identity & Access confirms live (#5399), also when it
+ * refuses the portal's module as not booked; otherwise the
  * layout renders without a snapshot and SessionProvider fetches the session
  * through the portal's response-aware route.
  */
-async function readFreshPortalToken(key: PortalKey): Promise<JWT | null> {
+async function readFreshPortalToken(
+  key: PortalKey,
+): Promise<{ token: JWT; notBooked: boolean } | null> {
   const cookie = (await headers()).get("cookie");
   if (!cookie) return null;
   const cookieName = sessionCookieName(key);
@@ -80,10 +88,9 @@ async function readFreshPortalToken(key: PortalKey): Promise<JWT | null> {
   }
   // The read gate: a cookie a late answer wrote back after its logout must
   // not hydrate a signed-in page (#5399).
-  if ((await sessionFamilyState(token.token, portal.validation)) !== "live") {
-    return null;
-  }
-  return token;
+  const state = await sessionFamilyState(token.token, portal.validation);
+  if (!familyBacksSession(state)) return null;
+  return { token, notBooked: state === "notBooked" };
 }
 
 /**
@@ -94,8 +101,10 @@ async function readFreshPortalToken(key: PortalKey): Promise<JWT | null> {
 export async function readPortalSessionSnapshot(
   key: PortalKey,
 ): Promise<PortalSessionSnapshot | null> {
-  const token = await readFreshPortalToken(key);
-  if (!token?.token) return null;
+  const fresh = await readFreshPortalToken(key);
+  if (!fresh?.token.token) return null;
+  const { token, notBooked } = fresh;
+  const accessToken = fresh.token.token;
   const session = serverSessionFromJwt(token, {
     expires: new Date((token.exp ?? 0) * 1000).toISOString(),
     user: {
@@ -105,5 +114,9 @@ export async function readPortalSessionSnapshot(
       image: token.picture,
     },
   });
-  return { session: toBrowserSession(session), accessToken: token.token };
+  return {
+    session: toBrowserSession(session),
+    accessToken,
+    notBooked,
+  };
 }

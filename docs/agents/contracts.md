@@ -678,7 +678,11 @@ old session back; the browser only saves requests.
 2. **Read gate.** The session route asks the family on every call and reads
    a revoked family as ended (`RefreshTokenError`); the layout snapshots of
    every portal (`readPortalSessionSnapshot`) hydrate
-   only a live family. A family that cannot be read (503) and an expired
+   only a live family. A 403 `module.not_booked` counts as live for both
+   gates (`familyBacksSession`): the snapshot hydrates and carries
+   `notBooked`, and the parents and school guards show
+   `portalNotBookedExplanation` instead of the page. A family that cannot be
+   read (503) and an expired
    access token, which the backend refuses before it reads the family, leave
    the shown session as it is; its own refresh decides.
 3. **Family check.** `POST /auth/session/validate` without a refresh token
@@ -687,7 +691,8 @@ old session back; the browser only saves requests.
    `backend/modules/identityaccess/internal/application/session_validation.go`):
    `VerifyAccessSession` for account portals, the latest operator session of
    the family for the operator. 401 means revoked, foreign or an expired
-   token, 503 means the family could not be read. The BFF calls it through
+   token, 403 `module.not_booked` a live family whose school has not booked
+   the portal's module, 503 means the family could not be read. The BFF calls it through
    `sessionFamilyState` (`frontend/src/server/auth/token-validation.ts`).
 
 Invariants: no response sets a session cookie of a family Identity & Access

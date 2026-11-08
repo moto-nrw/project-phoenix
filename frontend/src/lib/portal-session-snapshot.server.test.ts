@@ -2,6 +2,7 @@ import type { Session } from "next-auth";
 import { encode } from "next-auth/jwt";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "~/env";
+import type { SessionFamilyState } from "~/server/auth/token-validation";
 
 const { requestHeaders } = vi.hoisted(() => ({
   requestHeaders: { current: new Headers() },
@@ -11,11 +12,12 @@ vi.mock("next/headers", () => ({
   headers: vi.fn(async () => requestHeaders.current),
 }));
 const { familyState } = vi.hoisted(() => ({
-  familyState: vi.fn<() => Promise<"live" | "ended" | "unknown">>(),
+  familyState: vi.fn<() => Promise<SessionFamilyState>>(),
 }));
 
 // #5399: a snapshot needs a family Identity & Access confirms live.
-vi.mock("~/server/auth/token-validation", () => ({
+vi.mock("~/server/auth/token-validation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/server/auth/token-validation")>()),
   sessionFamilyState: familyState,
 }));
 
@@ -169,6 +171,25 @@ describe.each(PORTALS)("$name session snapshot", (portal) => {
         ACCESS_TOKEN_PARTS.join("."),
         portal.validation ?? portal.scope,
       );
+    },
+  );
+
+  // #6187: an unbooked module closes the portal's pages, not its session.
+  it.each([
+    ["notBooked", true],
+    ["live", false],
+  ] as const)(
+    "hydrates a session of a %s family, not booked: %s",
+    async (state, notBooked) => {
+      await sendPortalCookie(portal);
+      familyState.mockResolvedValue(state);
+
+      const snapshot = await readPortalSessionSnapshot(
+        portal.name as PortalKey,
+      );
+
+      expect(snapshot?.session.user.id).toBe("41");
+      expect(snapshot?.notBooked).toBe(notBooked);
     },
   );
 
