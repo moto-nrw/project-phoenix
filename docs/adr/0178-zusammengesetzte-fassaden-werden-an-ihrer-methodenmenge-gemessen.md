@@ -22,9 +22,9 @@ Methodenmenge umfasst 262 Methoden. Wächst ein solches Interface um eine
 weitere Einbettung, schlägt kein Ratchet an. Das ist auch tatsächlich passiert: Zwischen
 development `e59b3f93cd` und `b474b11a27` hat
 [#6161](https://github.com/moto-nrw/project-phoenix/pull/6161)
-`enrollment.Owner` von 139 auf 140 Methoden vergrößert, unbemerkt. Kurz darauf hat
-[#6216](https://github.com/moto-nrw/project-phoenix/pull/6216) ebenso `parentbilling.CareBilling`
-von 13 auf 14 Methoden vergrößert. Das Register des bestehenden
+`enrollment.Owner` von 139 auf 140 Methoden vergrößert, unbemerkt. Während dieser PR offen war, wuchsen ebenso
+`parentbilling.CareBilling` (13 → 14, #6216), `enrollment.Owner` (140 → 141, #6249) sowie
+`schoolcalendar/portal.FullService` (40 → 41) und `Service` (21 → 22, beide #6241). Das Register des bestehenden
 Tests ist leer, weil jede Fassade heute höchstens 12 Methoden selbst
 deklariert.
 
@@ -45,10 +45,10 @@ deklariert.
    abhängt. Type-Set-Constraints (`~int`, Unions) sind keine Fassaden und
    bleiben draußen.
 3. **Startwert ist der heutige Stand.** Gemessen am 08.11.2026 auf development
-   `e20e8013b3`: 108 Composites über 12 Methoden, zusammen 4.491 Methoden. Die
+   `0af6428414`: 108 Composites über 12 Methoden, zusammen 4.494 Methoden. Die
    größten sind `identityaccess.Owner` (262), `careplan.Owner` (159),
    `careplan.Capability` (158), `peopledirectory.Owner` (146),
-   `peopledirectory.Capability` (143) und `enrollment.Owner` (140). Diese Zahlen
+   `peopledirectory.Capability` (143) und `enrollment.Owner` (141). Diese Zahlen
    sind Schulden, kein Ziel.
 4. **Es gilt die Ratchet-Semantik des bestehenden Registers.** Ein Eintrag darf
    fallen und muss dann gesenkt oder gelöscht werden. Steigen darf er nicht.

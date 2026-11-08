@@ -42,8 +42,8 @@ import (
 
 // moduleFacadeMethodSetAllowlist freezes the composite facades whose method
 // set was above moduleFacadeThreshold when ADR 0178 introduced the
-// measurement. Seeded 2026-11-08 on development e20e8013b3: 108 composites,
-// 4491 methods in their method sets together. Shrink-only.
+// measurement. Seeded 2026-11-08 on development 0af6428414: 108 composites,
+// 4494 methods in their method sets together. Shrink-only.
 var moduleFacadeMethodSetAllowlist = map[string]int{
 	"modules/appointments/appointments.go:Capability":                                                 36,
 	"modules/appointments/appointments.go:Command":                                                    16,
@@ -83,7 +83,7 @@ var moduleFacadeMethodSetAllowlist = map[string]int{
 	"modules/devicefleet/devicefleet.go:DeviceQuery":                                                  14,
 	"modules/devicefleet/devicefleet.go:Query":                                                        18,
 	"modules/enrollment/decisions.go:Decisions":                                                       18,
-	"modules/enrollment/enrollment.go:Owner":                                                          140,
+	"modules/enrollment/enrollment.go:Owner":                                                          141,
 	"modules/enrollment/enrollmenttest/careplan_contract.go:PublicDecisions":                          18,
 	"modules/enrollment/holiday_registration_review.go:HolidayRegistrationReview":                     14,
 	"modules/filestorage/filestorage.go:Capability":                                                   17,
@@ -106,8 +106,8 @@ var moduleFacadeMethodSetAllowlist = map[string]int{
 	"modules/peopledirectory/peopledirectory.go:Query":                                                64,
 	"modules/peopledirectory/student_directory.go:StudentDirectoryQuery":                              16,
 	"modules/schoolcalendar/period_administration.go:Calendar":                                        32,
-	"modules/schoolcalendar/portal/contract.go:FullService":                                           40,
-	"modules/schoolcalendar/portal/contract.go:Service":                                               21,
+	"modules/schoolcalendar/portal/contract.go:FullService":                                           41,
+	"modules/schoolcalendar/portal/contract.go:Service":                                               22,
 	"modules/schoolcalendar/schoolcalendar.go:Capability":                                             21,
 	"modules/schoolcalendar/schoolcalendar.go:Days":                                                   27,
 	"modules/schoolmembership/schoolmembership.go:Capability":                                         59,
