@@ -71,9 +71,14 @@ func (r *Store) IncrementAttempts(ctx context.Context, tenantID int64, keyType, 
 }
 
 // CleanupExpired removes the school's rows whose window_start is older than
-// 24h, the longest submission window, so no running window loses its count.
+// olderThan, the longest submission window, so no running window loses its
+// count.
 // The nightly retention of the school in context calls it (#4046).
-func (r *Store) CleanupExpired(ctx context.Context) (int, error) {
+func (r *Store) CleanupExpired(ctx context.Context, olderThan time.Duration) (int, error) {
+	seconds, err := positiveSeconds(olderThan)
+	if err != nil {
+		return 0, err
+	}
 	db, err := r.resolve(ctx)
 	if err != nil {
 		return 0, err
@@ -85,7 +90,7 @@ func (r *Store) CleanupExpired(ctx context.Context) (int, error) {
 	res, err := db.NewDelete().
 		Table("enrollment.submission_rate_limits").
 		Where("tenant_id = ?", tenantID).
-		Where("window_start < NOW() - INTERVAL '24 hours'").
+		Where("window_start < NOW() - (? * INTERVAL '1 second')", seconds).
 		Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("cleanup enrollment submission rate limits: %w", err)
@@ -95,4 +100,14 @@ func (r *Store) CleanupExpired(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("cleanup enrollment submission rate limits: rows affected: %w", err)
 	}
 	return int(affected), nil
+}
+
+// positiveSeconds converts a rate-limit retention to the whole seconds the
+// queries bind.
+func positiveSeconds(d time.Duration) (int64, error) {
+	seconds := int64(d.Seconds())
+	if seconds <= 0 {
+		return 0, fmt.Errorf("enrollment postgres: invalid rate-limit retention %s", d)
+	}
+	return seconds, nil
 }

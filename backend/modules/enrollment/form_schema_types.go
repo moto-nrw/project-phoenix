@@ -30,7 +30,7 @@ const (
 
 	// Structured types — admins cannot define their internal shape;
 	// the renderer + decision service know how to interpret them.
-	// Each pairs with a specific FormField.Target (see ReservedTargets).
+	// Each pairs with a specific FormField.Target (see reservedTargets).
 	FormFieldPhoneList        FormFieldType = "phone_list"         // 0..N labelled phone numbers
 	FormFieldWeekdaySchedule  FormFieldType = "weekday_schedule"   // mon..fri → HH:MM, optional per day
 	FormFieldWeekdayBoolean   FormFieldType = "weekday_boolean"    // mon..fri → bool, optional per day
@@ -100,11 +100,11 @@ type VisibilityCondition struct {
 //
 // Target is the optional link to a Stammdaten column / association table.
 // When empty, the field's value stays in request[_children].custom_data and
-// is never auto-migrated. When set to one of the ReservedTargets entries,
+// is never auto-migrated. When set to one of the reservedTargets entries,
 // the decision service copies the value onto the appropriate downstream
 // record on approval (Student column, guardian_phone_numbers row, schedule
 // row, additional student-guardian relationship, etc.). Type is constrained by
-// Target — see ReservedTargets for the allowed (target, type) pairs.
+// Target — see reservedTargets for the allowed (target, type) pairs.
 type FormField struct {
 	Attachments []FormAttachment  `json:"attachments,omitempty"`
 	Key         string            `json:"key"`
@@ -131,7 +131,7 @@ type FormField struct {
 	FileOptions      *FormFileOptions     `json:"file_options,omitempty"` // only on FormFieldFile (#4783)
 	SortOrder        int                  `json:"sort_order"`
 	AppliesToCh      bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
-	Target           string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets
+	Target           string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of reservedTargets
 	VisibleWhen      *VisibilityCondition `json:"visible_when,omitempty"`     // nil = always visible; otherwise show only when the condition matches
 	Translations     Translations         `json:"translations,omitempty"`     // of Label, HelpText, Content (#3377); see form_schema_translations.go
 }
@@ -143,7 +143,7 @@ const CoreRequirementGuardianPhone = "guardian_phone"
 // than from FormSchema.Fields. A missing or false value means optional.
 type CoreRequirements map[string]bool
 
-// ReservedTargets maps each known target to the FormFieldType it requires
+// reservedTargets maps each known target to the FormFieldType it requires
 // and a hint whether the field is naturally per-child (applies_to_child).
 // Admins pick from this list in the editor; the editor locks the type to
 // match. The decision service uses the same table to dispatch values onto
@@ -176,7 +176,7 @@ const (
 	// coupled companion to TargetStudentAllowedDepartureModes, NOT an
 	// independently admin-pickable field: it rides on a reserved child
 	// custom-data key under this string and is applied (accompanied-gated) by
-	// the decision service. It is intentionally absent from ReservedTargets so
+	// the decision service. It is intentionally absent from reservedTargets so
 	// a schema cannot declare it as a standalone field whose answer would be
 	// silently dropped on approval (#1694).
 	TargetStudentDepartureCompanionNote = "student.departure_companion_note"

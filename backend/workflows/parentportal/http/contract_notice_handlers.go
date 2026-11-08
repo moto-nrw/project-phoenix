@@ -96,7 +96,7 @@ func renderContractNoticeError(w http.ResponseWriter, r *http.Request, err error
 		}
 	}
 	if errors.Is(err, parentService.ErrContractNoticeInvalid) {
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareContractContractInputInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareContractFieldInvalid))
 		return
 	}
 	renderBillingDocumentError(w, r, err)
