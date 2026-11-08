@@ -12,6 +12,7 @@ import {
 } from "~/server/auth/portals";
 import { serverSessionFromJwt } from "~/server/auth/session-callbacks";
 import { ACCESS_TOKEN_REFRESH_BUFFER_MS } from "~/server/auth/session-lifetime";
+import { refreshAlreadyRefused } from "~/server/auth/token-refresh";
 import {
   familyBacksSession,
   sessionFamilyState,
@@ -82,7 +83,12 @@ async function readFreshPortalToken(
     token.tokenExpiry <= now + ACCESS_TOKEN_REFRESH_BUFFER_MS ||
     (typeof token.refreshTokenExpiry === "number" &&
       token.refreshTokenExpiry <= now) ||
-    token.error
+    token.error ||
+    // The session route and every BFF route end a session whose refresh the
+    // backend refused, also while its access token is still valid. A
+    // snapshot that showed it signed in sent the login page back to the
+    // portal and the portal's first request back to the login, in a loop.
+    refreshAlreadyRefused(token)
   ) {
     return null;
   }
