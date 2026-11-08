@@ -17,13 +17,6 @@ export const COST_SHARE_KIND_LABELS: Record<CareCostShareKind, string> = {
   other_subsidy: "Sonstiger Zuschuss",
 };
 
-/** Kurzform für enge Spalten. */
-export const COST_SHARE_KIND_SHORT: Record<CareCostShareKind, string> = {
-  education_participation: "BuT",
-  youth_office: "Jugendamt",
-  other_subsidy: "Zuschuss",
-};
-
 /** "100 %" oder "45,00 € im Monat". */
 export function costShareAmountText(
   share: Readonly<{

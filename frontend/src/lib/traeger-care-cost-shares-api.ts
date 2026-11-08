@@ -12,8 +12,7 @@ import { type BillingFile, billingFile } from "./traeger-billing-api";
 import type { CareCostShareKind } from "./traeger-care-billing-api";
 
 /** Where a share stands today; `expiring` ends within `warningDays`. */
-export type CareCostShareStatus =
-  "upcoming" | "active" | "expiring" | "expired";
+type CareCostShareStatus = "upcoming" | "active" | "expiring" | "expired";
 
 export interface CareCostShare {
   readonly id: string;
@@ -44,7 +43,7 @@ export interface CareCostShareContract {
   readonly shares: readonly CareCostShare[];
 }
 
-export interface CareCostShareBearer {
+interface CareCostShareBearer {
   readonly id: string;
   readonly name: string;
   readonly active: boolean;
@@ -110,7 +109,7 @@ function shareFromBackend(share: BackendShare): CareCostShare {
   };
 }
 
-export function costShareSetFromBackend(body: BackendSet): CareCostShareSet {
+function costShareSetFromBackend(body: BackendSet): CareCostShareSet {
   return {
     contracts: (body.contracts ?? []).map((contract) => ({
       contractId: String(contract.contract_id),

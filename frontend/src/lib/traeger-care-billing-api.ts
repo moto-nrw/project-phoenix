@@ -188,7 +188,7 @@ export type CareCostShareKind =
   "education_participation" | "youth_office" | "other_subsidy";
 
 /** The part one cost bearer pays of an invoice, a positive amount (#4687). */
-export interface CareInvoiceCostShare {
+interface CareInvoiceCostShare {
   readonly kind: CareCostShareKind;
   readonly costBearerId: string;
   readonly costBearerName: string;
