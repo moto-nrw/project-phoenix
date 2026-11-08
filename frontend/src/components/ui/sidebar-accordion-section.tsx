@@ -2,9 +2,9 @@
 
 import { useId, type ReactNode } from "react";
 import {
-  UnreadBadge,
-  type UnreadBadgeTone,
-} from "~/components/messaging/unread-badge";
+  NotificationBadge,
+  type NotificationBadgeTone,
+} from "~/components/ui/notification-badge";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
@@ -32,7 +32,7 @@ interface SidebarAccordionSectionProps {
   // Aggregate section badge for unread messages and pending requests. The
   // count stays visible while the section is collapsed.
   readonly badgeCount?: number;
-  readonly badgeTone?: UnreadBadgeTone;
+  readonly badgeTone?: NotificationBadgeTone;
   // Was gezählt wird, für Vorleseprogramme (Standard: Nachrichten).
   readonly badgeNoun?: string;
   // Eingeklappte Leiste (#2825/#2923): dieselbe Zeile, nur ohne Text. Der
@@ -62,8 +62,8 @@ export function SidebarAccordionSection({
   children,
   hasChildren,
   badgeCount = 0,
-  badgeTone,
-  badgeNoun,
+  badgeTone = "parents",
+  badgeNoun = "ungelesene Nachrichten",
   collapsed = false,
   labelsMounted = true,
   labelsVisible = true,
@@ -146,10 +146,10 @@ export function SidebarAccordionSection({
                 aria-hidden={!labelsVisible}
                 className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
               >
-                <UnreadBadge
+                <NotificationBadge
                   count={badgeCount}
                   tone={badgeTone}
-                  noun={badgeNoun}
+                  ariaLabel={`${badgeCount} ${badgeNoun}`}
                 />
               </span>
             )}
@@ -177,7 +177,11 @@ export function SidebarAccordionSection({
             aria-hidden={labelsVisible}
             className={`absolute top-1 right-1 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-0" : "opacity-100"}`}
           >
-            <UnreadBadge count={badgeCount} tone={badgeTone} noun={badgeNoun} />
+            <NotificationBadge
+              count={badgeCount}
+              tone={badgeTone}
+              ariaLabel={`${badgeCount} ${badgeNoun}`}
+            />
           </span>
         )}
       </Button>

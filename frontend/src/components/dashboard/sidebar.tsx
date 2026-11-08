@@ -1,9 +1,7 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
-import { SectionLabel } from "~/components/ui/section-label";
 import { Fragment, Suspense, useCallback, useEffect, useMemo } from "react";
-import { NavLink } from "~/components/ui/nav-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
@@ -75,9 +73,14 @@ import type { ModuleVisibility } from "~/lib/module-register";
 import { ModuleLockMark } from "~/components/ui/module-lock-mark";
 import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
-import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
-import { SidebarGroup } from "~/components/dashboard/sidebar-group";
-import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
+import { SidebarAccordionSection } from "~/components/ui/sidebar-accordion-section";
+import { SidebarGroup } from "~/components/ui/sidebar-group";
+import {
+  SidebarRowLink,
+  SidebarSectionHeading,
+  type SidebarRowBadge,
+} from "~/components/ui/sidebar-row";
+import { SidebarSubItem } from "~/components/ui/sidebar-sub-item";
 import {
   SIDEBAR_ICON_CLASSES,
   SIDEBAR_NAV_GAP,
@@ -91,7 +94,6 @@ import { navigationIcons } from "~/lib/navigation-icons";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavSceneFallback } from "~/components/ui/nav-scene-icon/nav-scene-icon";
-import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   getActivePlanningSubPageHref,
@@ -1081,12 +1083,6 @@ function SidebarContent({
     return !hasSubItemSelected;
   };
 
-  const getLinkClasses = (href: string, comingSoon?: boolean) =>
-    sidebarRowClasses({
-      isActive: isActiveLink(href),
-      isDisabled: comingSoon,
-    });
-
   const getIconClasses = (item: NavItem) => {
     if (!item.comingSoon && item.activeColor && isActiveLink(item.href)) {
       return `${SIDEBAR_ICON_CLASSES} ${item.activeColor}`;
@@ -1127,13 +1123,8 @@ function SidebarContent({
     );
   };
 
-  // Zähler an der Zeile. Ausgeklappt steht er rechts neben der Bezeichnung
-  // und blendet mit ihr aus; eingeklappt sitzt er als Punkt auf der Ecke des
-  // Icons und blendet gegengleich ein. Zwei Blenden über dieselbe Dauer statt
-  // eines Sprungs von rechts auf die Ecke (#2923). Für die Dauer der Blende
-  // stehen beide im Baum; der ausblendende ist `aria-hidden`, sonst läse ein
-  // Vorleseprogramm die Zahl zweimal.
-  const renderRowBadge = (href: string) => {
+  // Zähler an der Zeile; wie er beim Klappen wandert, regelt die Kit-Zeile.
+  const rowBadge = (href: string): SidebarRowBadge | null => {
     const count = rowBadgeCounts[href] ?? 0;
     const badge = ROW_BADGE_LABELS[href];
     if (count <= 0 || !badge) return null;
@@ -1141,36 +1132,10 @@ function SidebarContent({
       href === "/anfragen" && count === 1
         ? "1 offene Anfrage"
         : `${count} ${badge.noun}`;
-    return (
-      <>
-        {labelsMounted && (
-          <span
-            aria-hidden={!labelsVisible}
-            className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
-          >
-            <NotificationBadge
-              count={count}
-              tone={badge.tone}
-              ariaLabel={ariaLabel}
-            />
-          </span>
-        )}
-        {collapsed && (
-          <span
-            aria-hidden={labelsVisible}
-            className={`absolute top-1 right-1 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-0" : "opacity-100"}`}
-          >
-            <NotificationBadge
-              count={count}
-              tone={badge.tone}
-              size="sm"
-              ariaLabel={ariaLabel}
-            />
-          </span>
-        )}
-      </>
-    );
+    return { count, tone: badge.tone, ariaLabel };
   };
+
+  const collapseState = { collapsed, labelsMounted, labelsVisible };
 
   // Gemeinsame Klapp-Eigenschaften jedes Akkordeon-Bereichs. Der Klick aus
   // dem eingeklappten Streifen heraus klappt die Leiste auf und öffnet den
@@ -1205,7 +1170,7 @@ function SidebarContent({
       <div key={item.comingSoon ? item.label : item.href}>
         {item.comingSoon ? (
           <div
-            className={getLinkClasses(item.href, true)}
+            className={sidebarRowClasses({ isDisabled: true })}
             title={tParentNav("comingSoonTooltip")}
           >
             {renderNavIcon(item)}
@@ -1221,7 +1186,8 @@ function SidebarContent({
             )}
           </div>
         ) : (
-          <NavLink
+          <SidebarRowLink
+            {...collapseState}
             href={
               item.href === "/help"
                 ? helpHref
@@ -1229,35 +1195,18 @@ function SidebarContent({
                   ? tenantPath(item.href)
                   : item.href
             }
-            className={getLinkClasses(item.href)}
+            active={isActiveLink(item.href)}
+            icon={renderNavIcon(item)}
+            label={item.label}
             // Ziel der geführten Touren (#2832, #3748).
             data-setup-tour={`nav-${item.href}`}
-            {...(collapsed
-              ? {
-                  title: item.label,
-                  "aria-label": item.locked
-                    ? `${item.label}, nicht gebucht`
-                    : item.label,
-                }
-              : {})}
-            {...(item.newTab
-              ? { target: "_blank", rel: "noopener noreferrer" }
-              : {})}
-          >
-            {renderNavIcon(item)}
-            {labelsMounted && (
-              <span className={sidebarLabelClasses(labelsVisible)}>
-                {item.label}
-              </span>
-            )}
-            {item.locked
-              ? labelsMounted && (
-                  <ModuleLockMark
-                    className={`ml-2 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
-                  />
-                )
-              : renderRowBadge(item.href)}
-          </NavLink>
+            collapsedLabel={
+              item.locked ? `${item.label}, nicht gebucht` : undefined
+            }
+            newTab={item.newTab}
+            trailing={item.locked ? <ModuleLockMark /> : undefined}
+            badge={item.locked ? null : rowBadge(item.href)}
+          />
         )}
       </div>
     );
@@ -1524,19 +1473,14 @@ function SidebarContent({
   // Operator mode: sectioned navigation (static labels, no accordions)
   if (mode === "operator") {
     const renderOperatorItem = (item: NavItem) => (
-      <NavLink
+      <SidebarRowLink
+        {...collapseState}
         key={item.href}
         href={item.href}
-        className={getLinkClasses(item.href)}
-        {...(collapsed ? { title: item.label, "aria-label": item.label } : {})}
-      >
-        {renderNavIcon(item)}
-        {labelsMounted && (
-          <span className={sidebarLabelClasses(labelsVisible)}>
-            {item.label}
-          </span>
-        )}
-      </NavLink>
+        active={isActiveLink(item.href)}
+        icon={renderNavIcon(item)}
+        label={item.label}
+      />
     );
 
     return (
@@ -1553,17 +1497,12 @@ function SidebarContent({
         >
           {resolvedOperatorSections.map((section, index) => (
             <div key={section.label} className={index > 0 ? "mt-5" : undefined}>
-              {/* Die Bereichsüberschrift behält im Streifen ihre Höhe und
-                    blendet nur aus: so bleibt die Gruppierung als Abstand
-                    erhalten und die Icons darunter springen beim Klappen
-                    nicht nach oben. */}
-              <SectionLabel
-                as="p"
-                className={`mb-1.5 truncate px-3 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
-                aria-hidden={collapsed}
+              <SidebarSectionHeading
+                collapsed={collapsed}
+                labelsVisible={labelsVisible}
               >
                 {section.label}
-              </SectionLabel>
+              </SidebarSectionHeading>
               <div className={SIDEBAR_NAV_GAP}>
                 {section.items.map(renderOperatorItem)}
               </div>
@@ -1843,28 +1782,20 @@ function SidebarContent({
           aria-label="Rückweg"
           className={`border-b border-gray-200 ${SIDEBAR_NAV_PADDING}`}
         >
-          <NavLink
+          <SidebarRowLink
+            {...collapseState}
             href={traegerReturnHref}
-            className={sidebarRowClasses({ isActive: false })}
-            {...(collapsed
-              ? {
-                  title: TRAEGER_RETURN_LABEL,
-                  "aria-label": TRAEGER_RETURN_LABEL,
-                }
-              : {})}
-          >
-            <MotoNavIcon
-              scene
-              concept={organizationsConcept}
-              active={false}
-              className={SIDEBAR_ICON_CLASSES}
-            />
-            {labelsMounted && (
-              <span className={sidebarLabelClasses(labelsVisible)}>
-                {TRAEGER_RETURN_LABEL}
-              </span>
-            )}
-          </NavLink>
+            active={false}
+            label={TRAEGER_RETURN_LABEL}
+            icon={
+              <MotoNavIcon
+                scene
+                concept={organizationsConcept}
+                active={false}
+                className={SIDEBAR_ICON_CLASSES}
+              />
+            }
+          />
         </nav>
       ) : null}
 
