@@ -1661,7 +1661,7 @@ describe("proxy", () => {
     });
 
     it("returns null slug for reserved subdomains", () => {
-      // "www" is in RESERVED_SLUGS , extractTenantSlug returns null,
+      // "www" is in RESERVED_SLUGS , tenantSlugFromHost returns null,
       // so it passes through as a bare domain (no rewrite).
       const res = proxy(
         makeRequest(
@@ -1920,6 +1920,159 @@ describe("proxy", () => {
 
       expect(res.headers.get("x-middleware-rewrite")).toContain(
         "/school-a/helpdesk",
+      );
+    });
+
+    it("sends /help on the caterer host to the overview: the help has no caterer role", () => {
+      const res = proxy(
+        makeRequest(`http://${CATERER_HOSTNAME}/help`, CATERER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBe(`http://${CATERER_HOSTNAME}/`);
+    });
+  });
+
+  // A new page folder under app/<portal>/ must be reachable on the portal's
+  // host without a hand-kept list (the proxy cannot read the folder tree).
+  describe("portal pages from the app tree", () => {
+    const appDir = path.join(
+      path.dirname(new URL(import.meta.url).pathname),
+      "app",
+    );
+    const portals = [
+      ["operator", OPERATOR_HOSTNAME],
+      ["parents", PARENTS_HOSTNAME],
+      ["school", SCHOOL_HOSTNAME],
+      ["traeger", TRAEGER_HOSTNAME],
+      ["caterer", CATERER_HOSTNAME],
+    ] as const;
+
+    it.each(portals)(
+      "rewrites every page folder of app/%s on its host",
+      (portal, host) => {
+        const folders = readdirSync(path.join(appDir, portal), {
+          withFileTypes: true,
+        })
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => entry.name);
+        expect(folders.length).toBeGreaterThan(3);
+        for (const folder of folders) {
+          const res = proxy(makeRequest(`http://${host}/${folder}`, host));
+          expect(res.headers.get("location"), folder).toBeNull();
+          expect(
+            new URL(res.headers.get("x-middleware-rewrite") ?? "http://x/")
+              .pathname,
+          ).toBe(`/${portal}/${folder}`);
+        }
+      },
+    );
+
+    it("sends a path without a page to the portal's start", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/email-confirm`,
+          PARENTS_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBe(`http://${PARENTS_HOSTNAME}/`);
+    });
+  });
+
+  // The tenant session cookie is domain-scoped and reaches every portal host;
+  // a tenant BFF route must not run there with it (contracts.md, portal
+  // session isolation).
+  describe("API allow-list of every portal host", () => {
+    const status = (host: string, apiPath: string) =>
+      proxy(makeRequest(`http://${host}${apiPath}`, host)).status;
+    const tenantRoutes = [
+      "/api/students",
+      "/api/settings/schema",
+      "/api/platform/announcements/unread",
+      "/api/messages/unread-count",
+      "/api/enrollment/me/profile",
+      "/api/enrollment/admin/requests/1/uploads/2",
+      "/api/files/folders/1/files/2/download",
+      "/api/auth/session",
+    ];
+
+    it("serves the operator API and the client log on the operator host", () => {
+      for (const apiPath of [
+        "/api/operator/auth/session",
+        "/api/operator/provisioning/schools",
+        "/api/logs",
+      ]) {
+        expect(status(OPERATOR_HOSTNAME, apiPath), apiPath).toBe(200);
+      }
+    });
+
+    it("refuses tenant and other portals' routes on the operator host", () => {
+      for (const apiPath of [
+        ...tenantRoutes,
+        "/api/parent/me/children",
+        "/api/school/auth/session",
+        "/api/traeger/schools",
+      ]) {
+        expect(status(OPERATOR_HOSTNAME, apiPath), apiPath).toBe(404);
+      }
+    });
+
+    it("serves the parent API and the public routes its links open", () => {
+      for (const apiPath of [
+        "/api/parent/auth/session",
+        "/api/parent/me/children",
+        "/api/parent/logs",
+        "/api/tenant/resolve",
+        "/api/public/care-contract-signing/abc",
+        "/api/public/login-image/a.webp",
+        "/api/invitations/validate",
+        "/api/invitations/accept",
+        "/api/guardian-invitations/tok/accept",
+        "/api/holiday-registrations/tok/uploads",
+        "/api/enrollment/requests/tok/edit-bootstrap",
+        "/api/enrollment/school-a/uploads",
+        "/api/demo/access/handoff",
+      ]) {
+        expect(status(PARENTS_HOSTNAME, apiPath), apiPath).toBe(200);
+      }
+    });
+
+    it("refuses tenant and other portals' routes on the parents host", () => {
+      for (const apiPath of [
+        ...tenantRoutes,
+        "/api/logs",
+        "/api/parent-announcements",
+        "/api/invitations",
+        "/api/enrollment/school-a/submit",
+        "/api/operator/auth/session",
+        "/api/school/auth/session",
+      ]) {
+        expect(status(PARENTS_HOSTNAME, apiPath), apiPath).toBe(404);
+      }
+    });
+  });
+
+  describe("tenant slug from the host", () => {
+    it.each([
+      ["School-A.localhost:3000", "upper case"],
+      ["school-a.localhost.", "trailing dot"],
+    ])("reads %s (%s) like the BFF host check does", (host) => {
+      const res = proxy(
+        makeRequest(`http://school-a.localhost/dashboard`, host),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school-a/dashboard",
+      );
+    });
+
+    it("keeps a tenant path that only starts with a portal name", () => {
+      const host = "school-a.localhost:3000";
+      const res = proxy(makeRequest(`http://${host}/operatorinfo`, host));
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school-a/operatorinfo",
       );
     });
   });

@@ -859,8 +859,14 @@ refresh, tenant switching, and wrong-portal rejection for affected flows.
 ### Routing and invitations
 
 `frontend/src/proxy.ts` rewrites tenant hosts to `/[tenant]/*`, operator to
-`/operator/*`, parents to `/parents/*`, school to `/school/*`, and Träger to
-`/traeger/*`.
+`/operator/*`, parents to `/parents/*`, school to `/school/*`, Träger to
+`/traeger/*`, and caterer to `/caterer/*`. One `PortalHost` entry per portal
+names its host, page namespace, API allow-list, localization, `/help` and
+moved pages. The page list comes from the `app/<portal>/` folders:
+`pnpm generate:portal-pages` writes `src/proxy-pages.generated.ts`, and
+`pnpm run check` fails when it is stale. A portal host answers 404 for every
+`/api/*` path outside its allow-list, because the domain-scoped tenant cookie
+reaches it too; a new BFF route that a portal page calls belongs in that list.
 `[tenant]/layout.tsx` resolves slugs through `/auth/tenant/resolve?slug=...`
 (cached five minutes). `POST /auth/switch-tenant` returns a tenant-session JWT
 for the target school, not a `scope=school` portal token.

@@ -1,10 +1,7 @@
 /**
- * Server-side helper to extract the tenant slug from a request `Host` header.
- *
- * Mirrors the logic in `src/proxy.ts` `extractTenantSlug` but lives here so
- * route handlers can call it without dragging proxy/env wiring in. Returns
- * `null` when the host is the bare TENANT_DOMAIN, a reserved subdomain, or
- * unrelated to the tenant domain at all (e.g. path-mode dev).
+ * The tenant slug of a request `Host` header, for the proxy and the BFF
+ * alike. Returns `null` when the host is the bare TENANT_DOMAIN, a reserved
+ * subdomain, or unrelated to the tenant domain at all (e.g. path-mode dev).
  *
  * Throws when `TENANT_DOMAIN` is unset — `env.js` already requires it, and
  * silently returning null on a missing var would let a settings write
