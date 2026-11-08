@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -323,38 +324,45 @@ export function CompanionPicker({
       ))}
 
       {pending ? (
-        <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-2.5">
-          <p className="text-xs text-gray-900">
-            {pending.result.name} darf {formatDayList(pending.missingDays)} noch
-            nicht mit anderen Kindern nach Hause gehen. Soll{" "}
-            <span className="font-semibold">Anderes Kind</span> im Heimweg
-            dieses Kindes ergänzt werden?
-          </p>
-          <div className="mt-2 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="md"
-              onClick={() => setPending(null)}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => {
-                onExtensionConfirmed?.({
-                  companion_student_id: pending.result.id,
-                  weekdays: pending.missingDays,
-                });
-                commitCompanion(pending.result);
-              }}
-            >
-              Ergänzen und verknüpfen
-            </Button>
-          </div>
-        </div>
+        <Alert
+          type="warning"
+          size="compact"
+          actionLayout="stacked"
+          message={
+            <>
+              {pending.result.name} darf {formatDayList(pending.missingDays)}{" "}
+              noch nicht mit anderen Kindern nach Hause gehen. Soll{" "}
+              <span className="font-semibold">Anderes Kind</span> im Heimweg
+              dieses Kindes ergänzt werden?
+            </>
+          }
+          action={
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                onClick={() => setPending(null)}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="compact"
+                onClick={() => {
+                  onExtensionConfirmed?.({
+                    companion_student_id: pending.result.id,
+                    weekdays: pending.missingDays,
+                  });
+                  commitCompanion(pending.result);
+                }}
+              >
+                Ergänzen und verknüpfen
+              </Button>
+            </div>
+          }
+        />
       ) : null}
 
       {!disabled && pickerOpen && !pending ? (

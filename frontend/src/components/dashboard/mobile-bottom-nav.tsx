@@ -2,6 +2,7 @@
 // Ultra-minimalist mobile navigation following Instagram/Twitter/Uber patterns
 "use client";
 
+import { Alert } from "~/components/ui/alert";
 import { SectionLabel } from "~/components/ui/section-label";
 import React, { useRef, useCallback, useState, useMemo } from "react";
 import {
@@ -1300,10 +1301,10 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                 canStartStaffPreview) && (
                 <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
                   {isSessionExpired ? (
-                    <p className="bg-moto-red-soft text-moto-red-strong rounded-xl px-4 py-3 text-sm font-medium">
-                      Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut
-                      an.
-                    </p>
+                    <Alert
+                      type="warning"
+                      message="Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
+                    />
                   ) : null}
                   {mode !== "parent" ? <RefreshButton drawer /> : null}
                   {mode === "teacher" ? (

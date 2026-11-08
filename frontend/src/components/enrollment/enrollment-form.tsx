@@ -2392,6 +2392,7 @@ export function EnrollmentForm({
                               : tr("care.optionalHint")}{" "}
                           {tr("care.reviewHint")}
                         </p>
+                        {/* oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- roter Fehlerrahmen um die Angebotsauswahl, solange sie ungültig ist; kein Hinweis */}
                         <div
                           aria-invalid={
                             childOfferingErrors[i] ? true : undefined

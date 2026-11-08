@@ -78,7 +78,6 @@ Don't design from imagination; open the real screens with the Read tool:
   - `kinderdetailansicht.webp` = child detail · `kindersuche.webp` = student search/list
   - `meine-gruppen.webp` = groups · `aktivitaeten.webp` = activities
   - `datenverwaltung.webp` = data admin · NFC kiosk = `nfc-*.webp`
-- **Component gallery** → https://moto-nrw.github.io/design-system/. Renders the **package** components, not ours: anatomy only.
 
 Match their density, neutral grays, sparing brand green, no hero cards.
 
@@ -98,7 +97,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 |---|---|---|
 | Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
 | Text input | `Input`, multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
-| Field label, hint | `label`/`hint` prop of `Input`, `Textarea`, `CustomSelect` (`ISODatePicker`: `label`); else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
+| Field label, hint | `label`/`hint` of `Input`, `Textarea`, `CustomSelect`, `ISODatePicker`; `DatePicker`: `hint`; else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group `FormFieldset required`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
 | Checkbox | `Checkbox` (gray-900), in your own `<label>`; framed row: `ChoiceTile` or `CheckboxCard` (`label`, `hint`); box inside a toggle button: `CheckboxIndicator` | `~/components/ui/checkbox` |
 | On/off setting | `Switch` (`ariaLabel`); with label, description `SwitchRow` (`framed`) | `~/components/ui/switch` |
@@ -198,7 +197,7 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 
 **Deliberate exceptions (do not align):** the stamp buttons and the break stepper −/+ of time tracking; `global-error` (inline styles, loads no CSS; only colour, radius and weight follow kit `primary`); event rows and month chips in the parents calendar. **Not buttons in this sense:** list and selection rows, tiles (`TileCard`), tabs, `SegmentedControl`, checkboxes, switches, menu entries, navigation rows, steppers inside fields.
 
-**Ratchet.** `ui-kit/no-hand-rolled-button` fails a native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` with background or ring/border colour plus radius plus padding or height; `ui-kit/no-button-override` fails such classes on `Button`/`ButtonLink` or in `buttonClassName({ className })`. Findings in `frontend/scripts/ui-kit-button-baseline.json`; extras fail, removals require lowering it (`pnpm run ui-kit:button-baseline`). Exceptions with reasons: `ui-kit-button-baseline.mjs`. `ui-kit/no-grey-button-fill` (zero) fails resting `bg-gray-100`/`-200`/`-300`; exempt: switches, tabs, menus, `aria-pressed` choices, nav rows.
+**Ratchet.** `ui-kit/no-hand-rolled-button` fails a native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` (or `label`/`span` + `cursor-pointer`) with fill or frame colour (also `moto-content-surface`, `style`; #5608) + radius + padding/height; `ui-kit/no-button-override` fails such classes on `Button`/`ButtonLink`/`buttonClassName({ className })`. Shrink-only baseline `ui-kit-button-baseline.json` (`pnpm run ui-kit:button-baseline`); reasoned exceptions: `ui-kit-button-baseline.mjs`. `ui-kit/no-grey-button-fill` (zero) fails resting `bg-gray-100`–`-300`; exempt: switches, tabs, menus, `aria-pressed`, nav rows.
 
 ## Several notices of the same kind
 
@@ -311,7 +310,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 ## Detection
 
-**CI-enforced ratchet** (since #1629): `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check`; hard-zero: `no-generic-brand-colors` (all chromatic Tailwind hues), `no-hand-rolled-overlay` (`fixed inset-0` outside `ui/`), `no-hand-rolled-surface` (unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element, across branches; #2933; outside `ui/` also `rounded-md/lg`, `bg-white/NN`, unfilled frames, #5594), `no-rounded-3xl` (off-scale radius, `rounded-t-3xl` too), `require-checkbox-label` (unlabeled shared checkboxes; label-shaped `ChoiceTile` counts). Non-card match (white pill): disable comment, reason in the PR. Test/stories files are exempt from class-string rules.
+**CI-enforced ratchet** (since #1629): `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check`. Since #5609 every rule is hard-zero except the shrink-only baselines `no-tiny-text`, buttons and `no-important-override`; open items: #5609. Hard-zero: `no-generic-brand-colors` (all chromatic Tailwind hues), `no-hand-rolled-overlay` (`fixed inset-0` outside `ui/`), `no-hand-rolled-surface` (unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element, across branches; #2933; outside `ui/` also `rounded-md/lg`, `bg-white/NN`, unfilled frames, #5594), `no-rounded-3xl` (off-scale radius, `rounded-t-3xl` too), `require-checkbox-label` (unlabeled shared checkboxes; label-shaped `ChoiceTile` counts). Non-card match (white pill): disable comment, reason in the PR. Test/stories files are exempt from class-string rules.
 `bauart/*` covers parents (not start page/child card skeletons); `ParentPage`: `loading`/`empty`/`error`. #5606: `no-tabs-override`, `no-section-card-title-size`, `no-empty-state-surface`, `no-hand-rolled-avatar`. Tenant scaffold (#2619): `no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` outside `ui/`; hard-zero, #5594; 4 #2619 parent files exempt), `no-tabs-as-value-switcher` (`ui/Tabs` as value choice), `no-tiny-text` (sub-12px text; shrink-only baseline). #5141 (hard-zero): `green-fill-white-text` (on opaque green: white text, dark fill steps). #5577: `no-dynamic-color-class`, `no-white-on-warm-fill` (white on orange only `-strong`). #5531: [Buttons](#buttons). #5579: `no-shadcn-tokens`, `no-raw-z-index` (`z-[n]`). #5580: `no-select-override` (no look classes on selects/`DateRangePicker`). #5581: `no-important-override` (`!` on kit components, baseline), `no-section-card-bleed`. #5605: `no-control-height-override` (`h-8`/`h-9`/`!size-*`). #5582: `no-hand-rolled-icon-tile` (also in `ui/`). #5583: `no-shadow-kit-name` (local name = kit export). #5584 (hard-zero): `no-hand-rolled-pill`, `no-pill-dot`, `no-hex-alpha-tint`. #5596 (hard-zero): `no-hand-rolled-weekday-toggle` (weekday `.map` to a checkbox label or pressed button), `no-hand-rolled-removable-chip` (chip with its own X), `no-hand-rolled-number-stepper` (minus/plus by a field). #5599: `no-hand-rolled-dropzone` (`onDrop`), `no-hand-rolled-copy-field` (framed `<code>`, `navigator.clipboard`). #5597: `no-hand-rolled-empty-state` (`border-dashed` + `text-center`). #5602: `no-hand-rolled-sticky-bar`, `no-arbitrary-slide-over-width`, `no-slide-over-row-override`. #5595 (hard-zero): `no-hand-rolled-toggle-control` (`role="switch|checkbox"`, painted box), `no-hand-rolled-fieldset` (framed `<fieldset>`), `no-hand-rolled-choice-tile` (framed `<label>` around Checkbox/Radio). #5217 (hard-zero): `no-raw-input` (hand-built `<input>`/`<textarea>` outside `RAW_INPUT_KIT_PRIMITIVES`; `type="hidden"`/`"file"` stay native; no kit counterpart (OTP grid): `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`). Jump to the first failed field only via `FormErrorAlert`.
 
 `ui-kit/no-hand-rolled-field-label` (#5589, hard-zero since #5590).
@@ -320,7 +319,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-uppercase-label` (#5590, hard-zero): `uppercase` + `tracking-*` outside `ui/`; exempt by path: `/start`, NFC print guide, three #2619 parent files.
 
-`ui-kit/no-hand-rolled-notice` (#5591, hard-zero): tinted border and fill of one hue + radius + padding; an amber fill counts without border (warnings are orange `Alert type="warning"`).
+`ui-kit/no-hand-rolled-notice` (#5591, #5609, hard-zero): tinted fill + radius + padding, with or without border (unless another hue): a notice is `Alert` (warning orange), a surface `InsetPanel`.
 
 `ui-kit/no-radix-outside-kit` (#5604, hard-zero): `@radix-ui/*` only under `components/ui/`.
 

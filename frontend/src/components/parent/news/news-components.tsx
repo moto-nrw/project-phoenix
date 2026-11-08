@@ -34,7 +34,6 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Radio } from "~/components/ui/radio";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SectionCard } from "~/components/ui/section-card";
-import { SectionLabel } from "~/components/ui/section-label";
 import { LONG_POLL_OPTIONS } from "~/lib/announcement-poll-options";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -956,17 +955,26 @@ function NewsReminderNote({
 }: Readonly<{ sentAt: string; text?: string }>): React.ReactNode {
   const t = useTranslations("parentDashboard");
   const locale = useLocale();
+  const from = t("newsReminderFrom", {
+    date: formatBerlinDate(sentAt, locale),
+  });
+  // Ohne eigenen Wortlaut ist die Zeile „Erinnerung vom …“ selbst die Meldung.
   return (
-    <div className="bg-moto-blue-soft mt-4 rounded-xl px-4 py-3">
-      <SectionLabel as="p">
-        {t("newsReminderFrom", { date: formatBerlinDate(sentAt, locale) })}
-      </SectionLabel>
-      {text && (
-        <p className="mt-1 text-base leading-7 whitespace-pre-line text-gray-900">
-          <LinkifiedText text={text} />
-        </p>
-      )}
-    </div>
+    <Alert
+      type="info"
+      announce="off"
+      className="mt-4"
+      title={text ? from : undefined}
+      message={
+        text ? (
+          <p className="whitespace-pre-line">
+            <LinkifiedText text={text} />
+          </p>
+        ) : (
+          from
+        )
+      }
+    />
   );
 }
 
