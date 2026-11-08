@@ -39,7 +39,6 @@ import { traegerPath } from "~/lib/traeger-url";
 const logger = createLogger({ component: "TraegerLoginPage" });
 
 const SHELL_COPY = {
-  eyebrow: "Träger-Portal",
   title: "Willkommen im Träger-Portal",
   subtitle: "Melden Sie sich mit Ihrem moto-Konto an.",
 } as const;

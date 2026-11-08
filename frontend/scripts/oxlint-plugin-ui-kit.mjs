@@ -44,7 +44,7 @@ import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
 //
 //   ui-kit/no-tiny-text             — sub-12px text utilities; shrink-only
 //                                     baseline
-//   ui-kit/no-tenant-kicker         — no blue mini-heading in the tenant portal
+//   ui-kit/no-tenant-kicker         — no mini-heading above a title outside parents
 //   ui-kit/no-hand-rolled-page-card — no `moto-content-surface … rounded-2xl`
 //                                     spelled out outside the kit (all of
 //                                     app/ and components/ since #5594,
@@ -1679,34 +1679,187 @@ const noTinyText = makeClassStringRule({
   message:
     "'{{match}}' liegt unter dem Typo-Boden (12 px). Werte, Saetze und Bedienelemente sind text-sm oder groesser; text-xs nur fuer Versalien-Labels. Die Baseline in scripts/oxlint-plugin-ui-kit.mjs ist shrink-only.",
 });
-// ui-kit/no-tenant-kicker — die blaue Mini-Überschrift über einer Überschrift
-// ist im Tenant-Portal abgeschafft (sie trug sechs verschiedene Bedeutungen im
-// selben Slot). Kein Baseline-Eintrag: der Bestand ist auf null gebracht. Das
-// Schul- und das Operator-Portal gehören seit #5604 dazu; nur das Elternportal
-// behält seinen Kicker (ADR 0149).
+// ui-kit/no-tenant-kicker — die Mini-Überschrift über einer Überschrift ist
+// außerhalb des Elternportals abgeschafft (sie trug sechs verschiedene
+// Bedeutungen im selben Slot). Hard-zero, kein Baseline-Eintrag. Das Schul-
+// und das Operator-Portal gehören seit #5604 dazu, Hilfe, öffentliche
+// Anmeldung, Login-Seiten und alle übrigen Portale seit #5607; nur das
+// Elternportal behält seinen Kicker (ADR 0149), dazu `/start` und die
+// NFC-Druckanleitung (Epic #5576).
+// Funde:
+// - die Prop `kicker` oder `eyebrow` (AuthShell), auch als Schlüssel eines
+//   Objekts, das als Props verteilt wird,
+// - ein handgeschriebener Kicker: das Element direkt vor einem `h1`/`h2`
+//   (auch vor einem Fragment oder Ternär, das mit der Überschrift beginnt) ist
+//   ein `SectionLabel`, eine Status-Pille oder ein kleiner Text mit Gewicht
+//   und Farbe (`text-xs`/`text-sm` + `font-medium|semibold|bold` + Textfarbe,
+//   auch `text-[var(--…)]`), oder trägt `uppercase`. Status gehört als Pille
+//   neben den Titel, der Ort in Brotkrumen und Seitenleiste.
 const OTHER_PORTALS_RE = /(^|\/)(components\/parent|app\/parents)\//;
+const KICKER_EXEMPT_DIRS = ["src/app/start/", "src/app/help/nfc/"];
+// Tragen nur die übersetzte Kopfzeile des Elternportals: AuthShell zeigt
+// `eyebrow` nur, wenn eine Seite unter app/parents sie setzt; die Reset-Seite
+// reicht die Übersetzung aus app/parents/reset-password weiter.
+const KICKER_PARENT_CARRIERS = [
+  "src/components/auth/auth-shell.tsx",
+  "src/components/auth/reset-password-page-content.tsx",
+];
+const KICKER_PROPS = new Set(["kicker", "eyebrow"]);
+const KICKER_COMPONENTS = new Set([
+  "SectionLabel",
+  "StatusBadge",
+  "StatusColorBadge",
+]);
+const KICKER_TEXT_TAGS = new Set(["p", "span", "div", "small", "strong"]);
+const TITLE_TAGS = new Set(["h1", "h2"]);
+const KICKER_TEXT_COLOR_RE =
+  /^text-(?:\[(?:var\(--|#)[^\]]*\]|moto-[\w-]+|(?:gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+|black|white)(?:\/\d+)?$/;
+
+function elementName(element) {
+  return jsxName(element?.openingElement?.name);
+}
+
+function isKickerClassText(text) {
+  const utilities = classUtilities(text);
+  if (utilities.includes("uppercase")) return true;
+  return (
+    utilities.some((token) => token === "text-xs" || token === "text-sm") &&
+    utilities.some((token) => /^font-(?:medium|semibold|bold)$/.test(token)) &&
+    utilities.some((token) => KICKER_TEXT_COLOR_RE.test(token))
+  );
+}
+
+function isKickerElement(element, constants) {
+  const name = elementName(element);
+  if (!name) return false;
+  if (KICKER_COMPONENTS.has(name)) return true;
+  if (!KICKER_TEXT_TAGS.has(name)) return false;
+  const classAttribute = element.openingElement.attributes.find(
+    (attribute) =>
+      attribute.type === "JSXAttribute" && attribute.name?.name === "className",
+  );
+  if (!classAttribute?.value) return false;
+  return classTextAlternatives(classAttribute.value, constants).some(
+    isKickerClassText,
+  );
+}
+
+function isMeaningfulJsxChild(child) {
+  if (child.type === "JSXText") return child.value.trim() !== "";
+  if (child.type === "JSXExpressionContainer") {
+    return child.expression?.type !== "JSXEmptyExpression";
+  }
+  return true;
+}
+
+// Ein Kicker steht vor dem Titel, auch wenn der Titel erst in einem
+// Fragment oder einem Ternär-Zweig beginnt.
+function startsWithTitle(node, depth = 0) {
+  if (!node || depth > 4) return false;
+  switch (node.type) {
+    case "JSXElement":
+      return TITLE_TAGS.has(elementName(node));
+    case "JSXFragment": {
+      const first = node.children.find(isMeaningfulJsxChild);
+      return startsWithTitle(first, depth + 1);
+    }
+    case "JSXExpressionContainer":
+    case "ParenthesizedExpression":
+      return startsWithTitle(node.expression, depth + 1);
+    case "ConditionalExpression":
+      return (
+        startsWithTitle(node.consequent, depth + 1) ||
+        startsWithTitle(node.alternate, depth + 1)
+      );
+    case "LogicalExpression":
+      return startsWithTitle(node.right, depth + 1);
+    default:
+      return false;
+  }
+}
+
+// Das Element, das ein Kind-Knoten rendert: direkt, als `cond && <X/>` oder
+// als Ternär-Zweig.
+function renderedElements(node, depth = 0) {
+  if (!node || depth > 4) return [];
+  switch (node.type) {
+    case "JSXElement":
+      return [node];
+    case "JSXExpressionContainer":
+    case "ParenthesizedExpression":
+      return renderedElements(node.expression, depth + 1);
+    case "ConditionalExpression":
+      return [
+        ...renderedElements(node.consequent, depth + 1),
+        ...renderedElements(node.alternate, depth + 1),
+      ];
+    case "LogicalExpression":
+      return renderedElements(node.right, depth + 1);
+    default:
+      return [];
+  }
+}
+
+function checkKickerChildren(children, constants, report) {
+  const meaningful = children.filter(isMeaningfulJsxChild);
+  for (let index = 0; index + 1 < meaningful.length; index += 1) {
+    if (!startsWithTitle(meaningful[index + 1])) continue;
+    for (const element of renderedElements(meaningful[index])) {
+      if (isKickerElement(element, constants)) report(element.openingElement);
+    }
+  }
+}
 
 const noTenantKicker = {
   meta: {
     docs: {
       description:
-        "Disallow the blue mini-heading (kicker) outside the parents portal.",
+        "Disallow the mini-heading (kicker) above a title outside the parents portal.",
     },
     messages: {
       kicker:
-        "Keine Mini-Überschrift über dem Titel. Wo man ist, sagen Brotkrumen und Seitenleiste (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
+        "Keine Mini-Überschrift über dem Titel. Wo man ist, sagen Brotkrumen und Seitenleiste; ein Status steht als StatusBadge neben dem Titel (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
     },
   },
   create(context) {
     const filename = context.filename ?? context.getFilename?.() ?? "";
     if (OTHER_PORTALS_RE.test(filename.replace(/\\/g, "/"))) return {};
     if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (KICKER_EXEMPT_DIRS.some((dir) => key.startsWith(dir))) return {};
+    if (KICKER_PARENT_CARRIERS.includes(key)) return {};
+    const constants = new Map();
 
     return {
+      VariableDeclarator(node) {
+        if (node.id?.type === "Identifier" && node.init) {
+          constants.set(node.id.name, node.init);
+        }
+      },
       JSXAttribute(node) {
-        if (node.name?.name === "kicker") {
+        if (KICKER_PROPS.has(node.name?.name)) {
           context.report({ node, messageId: "kicker" });
         }
+      },
+      // `<AuthShell {...SHELL_COPY}>`: die Kopfzeile kommt aus einem Objekt.
+      Property(node) {
+        if (node.parent?.type !== "ObjectExpression") return;
+        const name =
+          node.key?.type === "Identifier" ? node.key.name : node.key?.value;
+        if (KICKER_PROPS.has(name)) {
+          context.report({ node, messageId: "kicker" });
+        }
+      },
+      JSXElement(node) {
+        checkKickerChildren(node.children, constants, (target) =>
+          context.report({ node: target, messageId: "kicker" }),
+        );
+      },
+      JSXFragment(node) {
+        checkKickerChildren(node.children, constants, (target) =>
+          context.report({ node: target, messageId: "kicker" }),
+        );
       },
     };
   },

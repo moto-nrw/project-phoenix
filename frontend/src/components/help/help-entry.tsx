@@ -1,6 +1,5 @@
 "use client";
 
-import { SectionLabel } from "~/components/ui/section-label";
 import { CheckCircleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import {
@@ -225,15 +224,12 @@ export function HelpEntry({
           absolut positioniert ueber statischem Inhalt und malt das Punktmuster
           sonst quer ueber die Kacheln, die dadurch durchsichtig wirken. */}
       <main className="relative mx-auto w-full max-w-3xl px-4 py-10 sm:py-16">
-        <SectionLabel as="p">
-          {showSchoolStep ? "Schritt 2 von 2" : "Schritt 1 von 2"}
-        </SectionLabel>
-
         {showSchoolStep ? (
           <>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-balance text-gray-950 sm:text-4xl">
+            <h1 className="text-3xl font-semibold tracking-tight text-balance text-gray-950 sm:text-4xl">
               Wie arbeitet Ihre OGS?
             </h1>
+            <p className="mt-3 text-sm text-gray-600">Schritt 2 von 2</p>
             <p className="mt-3 text-base text-gray-600">
               So zeigen wir Ihnen nur die Schritte, die bei Ihnen vorkommen.
               Wissen Sie etwas nicht? Wählen Sie „Weiß ich nicht“.
@@ -303,9 +299,10 @@ export function HelpEntry({
           </>
         ) : (
           <>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-balance text-gray-950 sm:text-4xl">
+            <h1 className="text-3xl font-semibold tracking-tight text-balance text-gray-950 sm:text-4xl">
               Für wen ist die Anleitung?
             </h1>
+            <p className="mt-3 text-sm text-gray-600">Schritt 1 von 2</p>
             <p className="mt-3 text-base text-gray-600">
               Wählen Sie aus, was auf Sie zutrifft. Sie sehen danach nur Ihre
               Themen.

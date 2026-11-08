@@ -44,7 +44,6 @@ import { Button } from "~/components/ui/button";
 const logger = createLogger({ component: "TraegerInvitePage" });
 
 const SHELL_COPY = {
-  eyebrow: "Träger-Portal",
   title: "Einladung ins Träger-Büro",
   subtitle: "Nehmen Sie die Einladung an. Danach melden Sie sich an.",
 } as const;
