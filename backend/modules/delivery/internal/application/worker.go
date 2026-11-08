@@ -87,6 +87,11 @@ func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, l
 		return fmt.Errorf("delivery worker: claim %s: %w", transport, err)
 	}
 	stats.Claimed += len(rows)
+	if batch, ok := w.provider.(interface {
+		PrepareBatch(context.Context, []domain.Intent) context.Context
+	}); ok && transport == domain.TransportPush {
+		ctx = batch.PrepareBatch(ctx, rows)
+	}
 	for index := range rows {
 		if ctx.Err() != nil {
 			return ctx.Err()
