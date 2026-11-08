@@ -167,17 +167,7 @@ func (s *effectScanner) resolveCallableLiteral(port, binding string, pkg *packag
 	}
 	trail = append(trail, pkg.PkgPath+":"+normalized)
 	if owner == s.sourceOwner {
-		summary := s.ownNodeSummary(pkg, literal.Body)
-		callables := map[types.Object]bool{}
-		for _, callable := range summary.callables {
-			callables[callable] = true
-		}
-		for _, callee := range summary.callees {
-			for _, callable := range s.ownReachable(callee) {
-				callables[callable] = true
-			}
-		}
-		s.resolveOwnCallables(port, binding, sortedEffectObjects(callables), seen, trail)
+		s.resolveOwnReach(port, binding, s.ownReachFrom(s.ownNodeSummary(pkg, literal.Body), map[*types.Func]bool{}), seen, trail)
 	} else {
 		s.walkBody(port, binding, pkg, literal.Body, seen, trail)
 	}
@@ -211,7 +201,7 @@ func (s *effectScanner) resolveCallableObjectValue(port, binding string, object 
 		}
 		if s.functionOwner(value) == s.sourceOwner {
 			// The owner's own function forwards the callables it invokes.
-			s.resolveOwnCallables(port, binding, s.ownReachable(value.Origin()), seen, trail)
+			s.resolveOwnReach(port, binding, s.ownReachable(value.Origin()), seen, trail)
 			return true
 		}
 		s.resolveFunction(port, binding, value.Origin(), seen, trail)

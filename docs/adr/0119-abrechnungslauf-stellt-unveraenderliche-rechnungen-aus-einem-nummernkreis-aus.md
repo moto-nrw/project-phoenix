@@ -353,6 +353,11 @@ editierbaren Rechnungsentwurf, und eine ausgestellte Rechnung ändert sich nie.
   stehen nach den Kostenträger-Anteilen; die Summe ist immer die Summe der
   Zeilen und nie unter null. Empfänger und Anschrift gelten nur für diese
   Rechnung dieses Laufs; die Abweichung je Familie bleibt bei ADR 0167.
+  Mehrere Empfänger- bzw. Anschriftänderungen lösen sich auf ihren
+  Endstand auf: Jede nicht zurückgenommene Änderung gilt in ihrer
+  Reihenfolge. Die Freigabe speichert je Änderung den Wert, den sie
+  tatsächlich ersetzt hat; Versand und Neuausstellung prüfen dieselbe Kette
+  gegen die Vertragspartei.
 - **Konflikt statt stiller Überschreibung.** Passt die Grundlage eines
   Eintrags nicht mehr (der korrigierte Betrag hat sich geändert, die
   Position fehlt, die Summe käme unter null), wirkt er nicht, die Rechnung
@@ -367,7 +372,10 @@ editierbaren Rechnungsentwurf, und eine ausgestellte Rechnung ändert sich nie.
   dieselbe Sperre des Laufs, so geht keine von zwei gleichzeitigen
   Änderungen unbemerkt verloren.
 - **Ausstellung.** Die Freigabe kopiert die angewendeten Änderungen auf die
-  Rechnung (`parent_billing.care_invoice_corrections`, unveränderlich, mit
+  Rechnung (`parent_billing.care_invoice_corrections`; ein Trigger lässt Zeilen nur
+  anfügen, solange der Lauf der Rechnung `calculated` ist, und lehnt danach
+  Anfügen, Ändern und Löschen für jede Rolle ab, außer dem Leeren von
+  `account_id` und dem Löschen mit der Rechnung; mit
   Bezug auf den Eintrag) und Empfänger und Anschrift in die Kopie der
   Rechnung. Schreiben, Storno-Schreiben und Prüfliste nennen jede
   Korrekturzeile.

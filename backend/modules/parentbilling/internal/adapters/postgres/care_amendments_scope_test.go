@@ -31,9 +31,16 @@ func seedCareAmendmentScope(t *testing.T, ctx context.Context, tx bun.IDB, scope
 	var invoice int64
 	require.NoError(t, tx.NewRaw(`SELECT id FROM parent_billing.care_invoices WHERE organization_id = ? AND number = ?`,
 		scope.organization, scope.number).Scan(ctx, &invoice))
+	// The release stores a correction while its run is calculated; the
+	// fixture's run is released already, so replica mode skips the trigger
+	// for this one row, as the release would have left it.
+	_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+	require.NoError(t, err)
 	_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_invoice_corrections (organization_id, invoice_id, position, kind,
 		label, amount_cents, reason, amended_at, amendment_id) VALUES (?, ?, 1, 'add_position', ?, 500, 'Ausflug', NOW(), 1)`,
 		scope.organization, invoice, label)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
 	require.NoError(t, err)
 	_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_invoice_cancellations (organization_id, run_id, invoice_id, number,
 		number_year, number_sequence, issued_on, reason, total_cents) VALUES (?, ?, ?, ?, 2029, 2, DATE '2029-09-02', 'Falsch', -3700)`,

@@ -170,6 +170,11 @@ type CareAmendment struct {
 	Revocation *CareRevocation `json:"revocation,omitempty"`
 	// Conflict names why a change of a preview is not applied.
 	Conflict string `json:"conflict,omitempty"`
+	// Replaced is the recipient or address a recipient or address change
+	// actually replaced when the chain of changes was resolved (#6197); the
+	// release stores it as the correction's old value, so the send checks
+	// the same chain the issue applied. Not part of the wire.
+	Replaced CareAmendmentValue `json:"-"`
 }
 
 // Applied reports whether the change shapes the invoice.

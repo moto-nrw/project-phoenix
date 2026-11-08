@@ -188,32 +188,34 @@ func applyAmendment(invoice *parentbilling.CareInvoice, amendment *parentbilling
 	}
 }
 
-// applyRecipient sets the name and mail address of a change. A change of
-// the run names the recipient it replaced; when that is no longer the
-// recipient (an earlier change was revoked, the family's recipient
-// changed), the change is a conflict instead of a silent overwrite. A
-// carried change proposes its recipient like a carried amount.
+// applyRecipient sets the name and mail address of a change. The changes
+// of an invoice resolve to their end state: every change in force applies
+// in its order, whatever recipient it was made on, so revoking an earlier
+// change leaves the later one in force (#6197). The recipient it actually
+// replaced is kept for the release, which stores it, so the send checks
+// the very chain the issue applied.
 func applyRecipient(invoice *parentbilling.CareInvoice, amendment *parentbilling.CareAmendment) {
-	before, after := amendment.Before.Recipient, amendment.After.Recipient
-	current := parentbilling.CareRecipientName{FirstName: invoice.Recipient.FirstName, LastName: invoice.Recipient.LastName,
-		SecondName: invoice.Recipient.SecondName, Email: invoice.Recipient.Email}
-	if after == nil || (!amendment.Carried && (before == nil || *before != current)) {
+	after := amendment.After.Recipient
+	if after == nil {
 		amendment.Conflict = parentbilling.AmendConflictBasis
 		return
 	}
+	replaced := parentbilling.CareRecipientName{FirstName: invoice.Recipient.FirstName, LastName: invoice.Recipient.LastName,
+		SecondName: invoice.Recipient.SecondName, Email: invoice.Recipient.Email}
+	amendment.Replaced = parentbilling.CareAmendmentValue{Recipient: &replaced}
 	invoice.Recipient.FirstName, invoice.Recipient.LastName = after.FirstName, after.LastName
 	invoice.Recipient.SecondName, invoice.Recipient.Email = after.SecondName, after.Email
 }
 
-// applyAddress sets the postal address of a change, checked against the
-// address it replaced like applyRecipient.
+// applyAddress sets the postal address of a change, resolved to the end
+// state like applyRecipient.
 func applyAddress(invoice *parentbilling.CareInvoice, amendment *parentbilling.CareAmendment) {
-	before, after, current := amendment.Before.Address, amendment.After.Address, invoice.Recipient.Address
-	same := (before == nil && current == nil) || (before != nil && current != nil && *before == *current)
-	if after == nil || (!amendment.Carried && !same) {
+	after := amendment.After.Address
+	if after == nil {
 		amendment.Conflict = parentbilling.AmendConflictBasis
 		return
 	}
+	amendment.Replaced = parentbilling.CareAmendmentValue{Address: invoice.Recipient.Address}
 	copied := *after
 	invoice.Recipient.Address = &copied
 }

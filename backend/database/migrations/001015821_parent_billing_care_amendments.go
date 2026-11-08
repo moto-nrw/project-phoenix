@@ -17,6 +17,7 @@ func init() {
 			parentBillingCareReviewVersion,     // the review whose invoices change
 			parentBillingCarePriceFormsVersion, // the last parent billing migration before this one
 			mealBillingMonthsVersion,           // the erasure of 1.15.811 this one extends
+			traegerWithdrawalContactVersion,    // the newest migration on development before this one
 		},
 	})
 	Migrations.MustRegister(parentBillingCareAmendmentsUp, parentBillingCareAmendmentsDown)
@@ -135,12 +136,28 @@ CREATE TABLE parent_billing.care_invoice_corrections (
 );
 COMMENT ON TABLE parent_billing.care_invoice_corrections IS
 	'Changes the review applied to an issued monthly invoice (#6197): correction lines, recipient and address; never changes.';
+-- A correction is written only by the release, while the run of its invoice
+-- is still calculated (the release closes the run after it stored the
+-- invoices). Afterwards no role inserts, changes or deletes one (ADR 0119
+-- point 7): the only update is clearing account_id when the account is
+-- deleted, the only delete the cascade from its invoice, which is gone then.
 CREATE FUNCTION parent_billing.refuse_care_invoice_correction_change() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-	IF OLD.account_id IS NOT NULL AND NEW.account_id IS NULL
-		AND to_jsonb(NEW) - 'account_id' = to_jsonb(OLD) - 'account_id' THEN
-		RETURN NEW;
+	IF TG_OP = 'INSERT' THEN
+		IF EXISTS (SELECT 1 FROM parent_billing.care_invoices AS invoice
+			JOIN parent_billing.care_runs AS run ON run.organization_id = invoice.organization_id AND run.id = invoice.run_id
+			WHERE invoice.organization_id = NEW.organization_id AND invoice.id = NEW.invoice_id AND run.status = 'calculated') THEN
+			RETURN NEW;
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF OLD.account_id IS NOT NULL AND NEW.account_id IS NULL
+			AND to_jsonb(NEW) - 'account_id' = to_jsonb(OLD) - 'account_id' THEN
+			RETURN NEW;
+		END IF;
+	ELSIF NOT EXISTS (SELECT 1 FROM parent_billing.care_invoices AS invoice
+		WHERE invoice.organization_id = OLD.organization_id AND invoice.id = OLD.invoice_id) THEN
+		RETURN OLD;
 	END IF;
 	RAISE EXCEPTION 'an issued correction never changes (%)', TG_TABLE_NAME
 		USING ERRCODE = '55000';
@@ -148,7 +165,7 @@ END;
 $$;
 REVOKE ALL ON FUNCTION parent_billing.refuse_care_invoice_correction_change() FROM PUBLIC;
 CREATE TRIGGER refuse_parent_billing_care_invoice_correction_change
-	BEFORE UPDATE ON parent_billing.care_invoice_corrections
+	BEFORE INSERT OR UPDATE OR DELETE ON parent_billing.care_invoice_corrections
 	FOR EACH ROW EXECUTE FUNCTION parent_billing.refuse_care_invoice_correction_change();
 
 ALTER TABLE parent_billing.care_run_amendments

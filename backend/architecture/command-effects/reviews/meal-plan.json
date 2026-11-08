@@ -5,7 +5,47 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
-      "reason": "Read-only: the school holiday periods of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect.",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.BillingMonths.BillingMonth. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.BillingMonths.BillingMonth. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.BillingMonths.BillingMonth. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.BillingMonths.BillingMonth. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Read-only: the school holiday periods of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
       "target_owner": "school-calendar"
@@ -15,7 +55,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
-      "reason": "Read-only: the closing days and public holidays of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect.",
+      "reason": "Read-only: the closing days and public holidays of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
       "target_owner": "school-calendar"
@@ -25,7 +65,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
-      "reason": "Value construction: the holiday filter of the school calendar for the month of the Mensa-Monatsfreigabe (#4686); no persistent, lock or scope effect.",
+      "reason": "Value construction: the holiday filter of the school calendar for the month of the Mensa-Monatsfreigabe (#4686); no persistent, lock or scope effect. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
       "target_owner": "school-calendar"
@@ -60,6 +100,16 @@
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.BillingMonths.BillingMonth. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonthOverview",
@@ -82,11 +132,61 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonthOverview",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonthOverview",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.BillingMonths.BillingMonthOverview. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
-      "reason": "Read-only: the school holiday periods of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect.",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Read-only: the school holiday periods of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
       "target_owner": "school-calendar"
@@ -96,7 +196,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
-      "reason": "Read-only: the closing days and public holidays of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect.",
+      "reason": "Read-only: the closing days and public holidays of the month the Mensa-Monatsfreigabe (#4686) leaves out, read in the caller's school transaction; no persistent, lock or scope effect. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
       "target_owner": "school-calendar"
@@ -106,7 +206,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
-      "reason": "Value construction: the holiday filter of the school calendar for the month of the Mensa-Monatsfreigabe (#4686); no persistent, lock or scope effect.",
+      "reason": "Value construction: the holiday filter of the school calendar for the month of the Mensa-Monatsfreigabe (#4686); no persistent, lock or scope effect. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
       "target_owner": "school-calendar"
@@ -141,6 +241,1716 @@
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.CatererOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.CatererOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.CatererOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.CatererOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.CatererOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.Service.CatererOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.CatererOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.CatererOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.CatererOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.CatererOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.CatererOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.CatererOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.CatererOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.CatererOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.CatererOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.CatererOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ClearDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.Service.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.Service.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ConfirmOrder",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ConfirmOrder",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ConfirmOrder. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.DailyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.DailyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.DailyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.DailyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.DailyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.DailyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.DailyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.DailyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.DailyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.DailyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Orders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Orders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.Orders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Orders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Orders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.Orders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Orders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Orders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.Service.Orders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Orders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Orders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.Orders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Orders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Orders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.Orders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Orders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Orders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.Orders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Orders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Orders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.Orders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Orders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Orders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.Orders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Participation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.Participation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Participation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.Participation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Participation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.Participation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Participation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.Participation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.ParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.ParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.ParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ReplaceDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.Service.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.Service.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.Service.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through *modules/mealplan/internal/application.Service.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.Service.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.Service.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SettleOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SettleOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through *modules/mealplan/internal/application.Service.SettleOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SettleOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SettleOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.SettleOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SettleOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SettleOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.SettleOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SettleOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SettleOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.SettleOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SettleOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SettleOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.SettleOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SettleOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SettleOrders",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.SettleOrders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Week",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Week",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.Week. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.WeeklyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through *modules/mealplan/internal/application.Service.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.WeeklyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through *modules/mealplan/internal/application.Service.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.WeeklyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through *modules/mealplan/internal/application.Service.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.WeeklyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through *modules/mealplan/internal/application.Service.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.WeeklyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through modules/mealplan.Capability.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through modules/mealplan.Capability.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan.Capability.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan.Capability.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan.Capability.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.ClearParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through modules/mealplan.Capability.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through modules/mealplan.Capability.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan.Capability.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan.Capability.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan.Capability.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.ClearParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.DailyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through modules/mealplan.Capability.DailyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.DailyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan.Capability.DailyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.DailyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan.Capability.DailyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.DailyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan.Capability.DailyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.DailyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.DailyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.Participation",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan.Capability.Participation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.Participation",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan.Capability.Participation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.Participation",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan.Capability.Participation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.Participation",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.Participation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan.Capability.ParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan.Capability.ParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan.Capability.ParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.ParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through modules/mealplan.Capability.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through modules/mealplan.Capability.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan.Capability.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan.Capability.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan.Capability.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceParticipationSchedule",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.ReplaceParticipationSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through modules/mealplan.Capability.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through modules/mealplan.Capability.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan.Capability.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan.Capability.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan.Capability.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceScheduleBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through modules/mealplan.Capability.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through modules/mealplan.Capability.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan.Capability.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan.Capability.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan.Capability.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationBySchool",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.SetParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through modules/mealplan.Capability.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through modules/mealplan.Capability.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through modules/mealplan.Capability.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan.Capability.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan.Capability.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan.Capability.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForDay",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.SetParticipationForDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory.StudentRostersOnDates (people-directory) through modules/mealplan.Capability.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through modules/mealplan.Capability.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan.Capability.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan.Capability.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan.Capability.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForWeek",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.WeeklyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through modules/mealplan.Capability.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.WeeklyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan.Capability.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.WeeklyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan.Capability.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.WeeklyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan.Capability.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.WeeklyList",
+      "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.BillingMonthStore.InsertRelease",
@@ -257,7 +2067,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.Bool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.Bool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Bool",
       "target_owner": "settings-platform"
@@ -267,7 +2077,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.Int (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.Int (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Int",
       "target_owner": "settings-platform"
@@ -277,7 +2087,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.String (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.String (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
       "target_owner": "settings-platform"
@@ -287,7 +2097,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveMany (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveMany (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveMany",
       "target_owner": "settings-platform"
@@ -297,7 +2107,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealPlanEnabled",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealPlanEnabled. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealPlanEnabled. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform"
@@ -307,7 +2117,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealRegistrationEnabled",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealRegistrationEnabled. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealRegistrationEnabled. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform"

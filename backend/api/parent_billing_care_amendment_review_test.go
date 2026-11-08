@@ -6,6 +6,8 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -14,12 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// A→B, then B→C, then A→B revoked: C was made on B, which is no longer the
-// recipient, so the change is a conflict and the release refuses until it
-// is revoked too. Nothing sends to C on a basis the office never saw.
-func TestCareRecipientChangeOnARevokedBasisIsAConflict(t *testing.T) {
+// A→B, then B→C, then A→B revoked: the chain resolves to its end state,
+// so the invoice goes to C. The release, the Storno, the reissue in the
+// next run of the month and the send all use that resolution: the send of
+// the reissued invoice is accepted and reaches C (#6197).
+func TestCareRecipientChainResolvesToItsEndStateThroughReissueAndSend(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Empfänger Kette")
+	brandCareTraeger(t, f)
 	run, contracts := amendableRun(t, f, "Mia")
 	mia := contracts["Mia"]
 	recipient := func(first, email string) map[string]any {
@@ -33,15 +37,38 @@ func TestCareRecipientChangeOnARevokedBasisIsAConflict(t *testing.T) {
 	require.Equal(t, http.StatusOK, code)
 	code, review = f.amend(t, run.ID, mia, map[string]any{"kind": "revoke", "revokes_id": first.ID, "reason": "Doch nicht"})
 	require.Equal(t, http.StatusOK, code)
-
 	invoice := amendedInvoice(t, review, mia)
-	assert.Equal(t, "Eva", invoice.Recipient.FirstName, "the change made on Jan does not apply")
-	require.Len(t, invoice.Amendments, 2)
-	assert.Equal(t, "basis_changed", invoice.Amendments[1].Conflict)
-	assert.Equal(t, 1, review.AmendmentConflicts)
+	assert.Equal(t, "Ole", invoice.Recipient.FirstName, "the change in force applies, whatever it was made on")
+	assert.Zero(t, review.AmendmentConflicts)
+
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(review.careRunBody))
-	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "parent_billing.care_amendments_unresolved")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	issued := amendedInvoice(t, decodeSchoolPortalData[careAmendedRunBody](t, rec.Body.Bytes()), mia)
+	assert.Equal(t, "ole@example.org", issued.Recipient.Email)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, fmt.Sprintf("/invoices/%d/mail", issued.ID)), nil)
+	require.Equal(t, http.StatusAccepted, rec.Code, "the issued invoice goes out to C: %s", rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, fmt.Sprintf("/invoices/%d/cancellation", issued.ID)),
+		map[string]any{"reason": "Falsches Modul"})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	next := f.startRun(t, careMonth)
+	preview := f.amended(t, next.ID)
+	assert.Equal(t, "Ole", amendedInvoice(t, preview, mia).Recipient.FirstName, "the reissue takes the resolved recipient over")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(next.ID, "/release"), careRelease(preview.careRunBody))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	reissued := amendedInvoice(t, decodeSchoolPortalData[careAmendedRunBody](t, rec.Body.Bytes()), mia)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(next.ID, "/letters"), careLettersInput())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(next.ID, fmt.Sprintf("/invoices/%d/mail", reissued.ID)), nil)
+	require.Equal(t, http.StatusAccepted, rec.Code, "the reissued invoice goes out to C: %s", rec.Body.String())
+	mails := careLetterMails(t, f, next.ID)
+	require.Len(t, mails, 1)
+	var email string
+	require.NoError(t, f.db.NewRaw(`SELECT recipient->>'address' FROM platform.email_outbox WHERE id = ?`, mails[0].ID).
+		Scan(context.Background(), &email))
+	assert.Equal(t, "ole@example.org", email)
 }
 
 // A module name may have 200 characters; its removal line adds the prefix

@@ -365,6 +365,7 @@ func (s *Intake) createReplacementChildren(ctx context.Context, editReq *SubmitR
 		if matched := plan.matchedExisting[i]; matched != nil {
 			row.ActivationMode, row.ActivateOn = matched.ActivationMode, matched.ActivateOn
 			row.RolloverSourceChildID, row.ReviewReason = matched.RolloverSourceChildID, matched.ReviewReason
+			row.MatchedByOffice = matched.MatchedByOffice
 		}
 		// A rollover child resolves its student through the rollover source
 		// chain at approval, so a pin would be dead data.
@@ -411,6 +412,10 @@ func (s *Intake) replacementStudentPin(ctx context.Context, plan *replacePlan, i
 		return nil, err
 	}
 	submitter := reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail)
+	pin, err := s.enrolledChildPinUnlessPinned(ctx, req.TenantID, plan.phase, child, submitter, pin)
+	if err != nil {
+		return nil, err
+	}
 	if pin != nil {
 		resolvedSubmitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, s.deps.LateInvites, req)
 		if err != nil {

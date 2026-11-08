@@ -134,6 +134,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/identityaccess/inbound/catererauth",
+      "owner": "identity-access",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/traegerportal",
       "owner": "identity-access",
       "role": "http",

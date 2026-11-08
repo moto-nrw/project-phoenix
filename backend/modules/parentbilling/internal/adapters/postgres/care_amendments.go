@@ -169,6 +169,21 @@ const careInvoiceCorrectionsColumn = `COALESCE((SELECT jsonb_agg(jsonb_build_obj
 	FROM parent_billing.care_invoice_corrections AS correction
 	WHERE correction.organization_id = care_invoice_row.organization_id AND correction.invoice_id = care_invoice_row.id), '[]'::jsonb) AS corrections`
 
+// issuedBefore is the old value an issued correction keeps: for a recipient
+// or address change the value its resolved chain actually replaced (#6197),
+// which the send checks; otherwise the value the change was made on.
+func issuedBefore(amendment parentbilling.CareAmendment) parentbilling.CareAmendmentValue {
+	switch amendment.Kind {
+	case parentbilling.AmendRecipient:
+		if amendment.Replaced.Recipient != nil {
+			return parentbilling.CareAmendmentValue{Recipient: amendment.Replaced.Recipient}
+		}
+	case parentbilling.AmendAddress:
+		return parentbilling.CareAmendmentValue{Address: amendment.Replaced.Address}
+	}
+	return amendment.Before
+}
+
 // insertCareCorrections copies the changes a release applied onto its
 // invoices; rows run parallel to invoices.
 func insertCareCorrections(ctx context.Context, db bun.IDB, organizationID int64, rows []careInvoiceRow, invoices []parentbilling.CareInvoice) error {
@@ -183,7 +198,7 @@ func insertCareCorrections(ctx context.Context, db bun.IDB, organizationID int64
 			row := careInvoiceCorrectionRow{
 				OrganizationID: organizationID, InvoiceID: rows[i].ID, Position: position, Kind: amendment.Kind,
 				Label: amendment.Label, AmountCents: amendment.AmountCents, PositionKey: amendment.PositionKey,
-				BeforeValue: amendment.Before, AfterValue: amendment.After, Reason: amendment.Reason,
+				BeforeValue: issuedBefore(amendment), AfterValue: amendment.After, Reason: amendment.Reason,
 				AccountID: amendment.AccountID, AmendedAt: amendment.AmendedAt, CarriedFromNumber: amendment.CarriedFromNumber,
 			}
 			if !amendment.Carried {

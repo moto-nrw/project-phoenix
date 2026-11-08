@@ -9,6 +9,7 @@ import {
   cleanup,
   fireEvent,
   act,
+  within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -1118,9 +1119,16 @@ describe("OGSGroupPage additional scenarios", () => {
     });
     fireEvent.click(screen.getByTestId("filter-location-foreign_room"));
 
+    // Only the desktop table is in the document (#6220), so the empty
+    // message appears once.
     await waitFor(() => {
-      expect(screen.getAllByText("Keine Einträge vorhanden.").length).toBe(2);
+      expect(screen.getAllByText("Keine Einträge vorhanden.")).toHaveLength(1);
     });
+    expect(
+      within(screen.getByTestId("data-table-table")).getByText(
+        "Keine Einträge vorhanden.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("empty-results")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Kacheln" }));
   });
