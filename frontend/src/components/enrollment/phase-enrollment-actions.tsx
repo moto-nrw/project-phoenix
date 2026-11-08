@@ -228,6 +228,8 @@ export function ManualApprovedEnrollmentModal({
     candidates: AdminExistingChildCandidate[];
     answer: (choice: ExistingChildChoice | null) => void;
   } | null>(null);
+  // True from sending until the answer is in, the question included.
+  const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const loadError = useApiLoadError();
@@ -317,6 +319,7 @@ export function ManualApprovedEnrollmentModal({
     checks.clear();
     setRenewedChildName(null);
     const child = payload.children[0];
+    setSending(true);
     const result = await sendWithExistingChildChoice(
       (choice) =>
         createManualApprovedEnrollment(phase.id, {
@@ -341,7 +344,7 @@ export function ManualApprovedEnrollmentModal({
             answer: resolve,
           });
         }),
-    );
+    ).finally(() => setSending(false));
     if (!result) return null;
     const renewed =
       result.choice !== undefined && "existingStudentId" in result.choice;
@@ -365,6 +368,10 @@ export function ManualApprovedEnrollmentModal({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
+      // The question dialog sits outside the panel: neither a click on it
+      // nor the focus it hands back may close the form whose submission
+      // waits for the answer.
+      isDismissDisabled={sending}
     >
       <SlideOverContent size="xl">
         <SlideOverHeader>
