@@ -243,7 +243,7 @@ func (s *Store) SubmitSEPADebits(ctx context.Context, organizationID, accountID 
 	if err != nil {
 		return err
 	}
-	result, err := db.NewRaw(submitSEPADebitsSQL, organizationID, messageID, accountID, pgdialect.Array(debitIDs)).Exec(ctx)
+	result, err := db.NewRaw(submitSEPADebitsSQL, organizationID, messageID, accountRef(accountID), pgdialect.Array(debitIDs)).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("submit SEPA debits: %w", err)
 	}
@@ -256,7 +256,7 @@ func (s *Store) SubmitSEPADebits(ctx context.Context, organizationID, accountID 
 		mandates = append(mandates, id)
 		days = append(days, day.String())
 	}
-	if _, err := db.NewRaw(collectSEPAMandatesSQL, organizationID, accountID, pgdialect.Array(mandates),
+	if _, err := db.NewRaw(collectSEPAMandatesSQL, organizationID, accountRef(accountID), pgdialect.Array(mandates),
 		pgdialect.Array(days)).Exec(ctx); err != nil {
 		return fmt.Errorf("collect SEPA mandates: %w", err)
 	}

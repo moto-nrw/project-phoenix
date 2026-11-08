@@ -81,6 +81,14 @@ const CareCostBearerCard = dynamic(
     ),
   { ssr: false },
 );
+// The direct debit file of a released run (#4697) loads with the run.
+const SepaDebitCard = dynamic(
+  () =>
+    import("~/components/traeger/sepa-debit-card").then(
+      (module) => module.SepaDebitCard,
+    ),
+  { ssr: false },
+);
 const CareInvoiceDateModal = dynamic(
   () =>
     import("~/components/traeger/care-run-review-modals").then(
@@ -562,6 +570,9 @@ export default function TraegerCareRunPage() {
               letters={letters}
               loadError={lettersLoad.error}
             />
+          ) : null}
+          {released && run.previewCount > 0 ? (
+            <SepaDebitCard kind="care-runs" runId={run.id} />
           ) : null}
           {run.costBearers.length > 0 ? (
             <CareCostBearerCard

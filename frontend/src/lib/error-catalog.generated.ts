@@ -966,10 +966,18 @@ export const ERROR_CATALOG = {
         "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext in den Einstellungen unter „Allgemein“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
+      "parent_billing.sepa_creditor_account_missing":
+        "Es fehlt das Konto, auf das die Lastschriften gehen. Legen Sie unter Einstellungen → Abrechnung eine Bankverbindung als Standard fest. Das darf, wer das Recht „Einstellungen“ hat.",
       "parent_billing.sepa_creditor_invalid":
         "Die Angaben zur Lastschrift konnten nicht gespeichert werden. Bitte prüfen Sie die Eingaben.",
       "parent_billing.sepa_creditor_missing":
         "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein.",
+      "parent_billing.sepa_debit_run_not_found":
+        "Diesen Lauf gibt es nicht, oder er ist noch nicht freigegeben. Eine Lastschriftdatei gibt es erst nach der Freigabe.",
+      "parent_billing.sepa_debits_changed":
+        "Die Lastschriftdatei hat sich geändert. Laden Sie die Datei neu herunter und reichen Sie die neue Datei bei Ihrer Bank ein.",
+      "parent_billing.sepa_debits_empty":
+        "In diesem Lauf gibt es keine offene Lastschrift. Es gibt keine Datei zum Herunterladen oder Bestätigen.",
       "parent_billing.sepa_mandate_in_force":
         "Die Familie hat schon ein gültiges Mandat. Bitte widerrufen Sie es zuerst.",
       "parent_billing.sepa_mandate_invalid":
@@ -2269,6 +2277,14 @@ export const ERROR_CATALOG = {
         "We cannot check right now whether this address is blocked. Please try again later.",
       "parent_billing.parent_document_not_found":
         "This document is no longer available. Please reload the page.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
       "school.parent_conference_change_closed":
         "You can book, change or cancel up to 24 hours before the meeting. After that, please contact the teacher directly.",
       "school.parent_conference_slot_taken":
@@ -2818,6 +2834,14 @@ export const ERROR_CATALOG = {
         "Сейчас нельзя проверить, заблокирован ли этот адрес. Попробуйте позже.",
       "parent_billing.parent_document_not_found":
         "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
       "school.parent_conference_change_closed":
         "Записаться, перенести или отменить встречу можно не позднее чем за 24 часа. После этого обратитесь, пожалуйста, напрямую к учителю.",
       "school.parent_conference_slot_taken":
@@ -3323,6 +3347,14 @@ export const ERROR_CATALOG = {
         "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë.",
       "parent_billing.parent_document_not_found":
         "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
       "school.parent_conference_change_closed":
         "Mund të rezervoni, ndryshoni ose anuloni deri 24 orë para takimit. Pas kësaj, ju lutemi kontaktoni drejtpërdrejt mësuesin.",
       "school.parent_conference_slot_taken":
@@ -3817,6 +3849,14 @@ export const ERROR_CATALOG = {
         "Nie można teraz sprawdzić, czy ten adres jest zablokowany. Spróbuj ponownie później.",
       "parent_billing.parent_document_not_found":
         "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
       "school.parent_conference_change_closed":
         "Rezerwację można dokonać, zmienić lub odwołać najpóźniej 24 godziny przed spotkaniem. Później prosimy o bezpośredni kontakt z nauczycielem.",
       "school.parent_conference_slot_taken":
@@ -4315,6 +4355,14 @@ export const ERROR_CATALOG = {
         "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin.",
       "parent_billing.parent_document_not_found":
         "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
       "school.parent_conference_change_closed":
         "Görüşmeden 24 saat öncesine kadar randevu alabilir, değiştirebilir veya iptal edebilirsiniz. Sonrasında lütfen doğrudan öğretmenle iletişime geçin.",
       "school.parent_conference_slot_taken":
@@ -4806,6 +4854,14 @@ export const ERROR_CATALOG = {
         "Зараз неможливо перевірити, чи заблоковано цю адресу. Спробуйте пізніше.",
       "parent_billing.parent_document_not_found":
         "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
       "school.parent_conference_change_closed":
         "Забронювати, перенести або скасувати зустріч можна не пізніше ніж за 24 години. Після цього зверніться, будь ласка, безпосередньо до вчителя.",
       "school.parent_conference_slot_taken":

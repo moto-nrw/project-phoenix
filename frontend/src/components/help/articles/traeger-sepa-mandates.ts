@@ -71,6 +71,10 @@ export function traegerSepaMandatesTopic(): HelpTopic {
       "Die IBAN wird nicht angenommen? Prüfen Sie jedes Zeichen. moto prüft die Prüfziffer.",
       "Die Prüfung meldet `früher als Ihre Vorabankündigung erlaubt`? Die Abbuchung kommt zu früh nach dem Rechnungsdatum. Ändern Sie die Fälligkeit des Laufs oder das Rechnungsdatum.",
     ],
-    related: [HELP_TOPICS.traegerBillingTerms, HELP_TOPICS.traegerCareMonths],
+    related: [
+      HELP_TOPICS.traegerSepaDebitFile,
+      HELP_TOPICS.traegerBillingTerms,
+      HELP_TOPICS.traegerCareMonths,
+    ],
   };
 }
