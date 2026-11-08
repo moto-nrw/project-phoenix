@@ -2,6 +2,7 @@ import type { Session } from "next-auth";
 import { encode } from "next-auth/jwt";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "~/env";
+import type { SessionFamilyState } from "~/server/auth/token-validation";
 
 const { requestHeaders } = vi.hoisted(() => ({
   requestHeaders: { current: new Headers() },
@@ -11,14 +12,32 @@ vi.mock("next/headers", () => ({
   headers: vi.fn(async () => requestHeaders.current),
 }));
 const { familyState } = vi.hoisted(() => ({
-  familyState: vi.fn<() => Promise<"live" | "ended" | "unknown">>(),
+  familyState: vi.fn<() => Promise<SessionFamilyState>>(),
 }));
 
 // #5399: a snapshot needs a family Identity & Access confirms live.
-vi.mock("~/server/auth/token-validation", () => ({
+vi.mock("~/server/auth/token-validation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/server/auth/token-validation")>()),
   sessionFamilyState: familyState,
 }));
 
+const { backendStatus } = vi.hoisted(() => ({
+  backendStatus: { current: 401 },
+}));
+vi.mock("~/lib/backend-client.server", () => ({
+  sendBackend: vi.fn(
+    async () =>
+      new Response(JSON.stringify({ code: "auth.invalid_token" }), {
+        status: backendStatus.current,
+      }),
+  ),
+}));
+
+import { PORTALS as PORTAL_TABLE } from "~/server/auth/portals";
+import {
+  _resetRefreshState,
+  rotateRefreshToken,
+} from "~/server/auth/token-refresh";
 import {
   readPortalSessionSnapshot,
   type PortalKey,
@@ -153,6 +172,8 @@ async function sendPortalCookie(
 
 beforeEach(() => {
   requestHeaders.current = new Headers();
+  _resetRefreshState();
+  backendStatus.current = 401;
   familyState.mockReset();
   familyState.mockResolvedValue("live");
 });
@@ -169,6 +190,25 @@ describe.each(PORTALS)("$name session snapshot", (portal) => {
         ACCESS_TOKEN_PARTS.join("."),
         portal.validation ?? portal.scope,
       );
+    },
+  );
+
+  // #6187: an unbooked module closes the portal's pages, not its session.
+  it.each([
+    ["notBooked", true],
+    ["live", false],
+  ] as const)(
+    "hydrates a session of a %s family, not booked: %s",
+    async (state, notBooked) => {
+      await sendPortalCookie(portal);
+      familyState.mockResolvedValue(state);
+
+      const snapshot = await readPortalSessionSnapshot(
+        portal.name as PortalKey,
+      );
+
+      expect(snapshot?.session.user.id).toBe("41");
+      expect(snapshot?.notBooked).toBe(notBooked);
     },
   );
 
@@ -219,6 +259,22 @@ describe.each(PORTALS)("$name session snapshot", (portal) => {
 
   it("returns nothing once the refresh session has expired", async () => {
     await sendPortalCookie(portal, { refreshTokenExpiry: Date.now() - 1 });
+
+    await expect(portal.read()).resolves.toBeNull();
+  });
+
+  // The redirect loop of the #6187/#6188 integration run: the backend
+  // refused the cookie's refresh token, the session route and every BFF
+  // route read the session as ended, but a snapshot of the still valid
+  // access token showed it as signed in. The login page then sent the
+  // browser back to the portal, whose first request ended at the login.
+  it("leaves a session whose refresh the backend refused to the session route", async () => {
+    await sendPortalCookie(portal);
+    const refused = await rotateRefreshToken(
+      claimsFor(portal) as never,
+      PORTAL_TABLE[portal.name as PortalKey].backend.refresh,
+    );
+    expect(refused).toEqual({ status: "terminal", remembered: false });
 
     await expect(portal.read()).resolves.toBeNull();
   });

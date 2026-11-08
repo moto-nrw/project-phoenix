@@ -678,7 +678,19 @@ old session back; the browser only saves requests.
 2. **Read gate.** The session route asks the family on every call and reads
    a revoked family as ended (`RefreshTokenError`); the layout snapshots of
    every portal (`readPortalSessionSnapshot`) hydrate
-   only a live family. A family that cannot be read (503) and an expired
+   only a live family. A 403 `module.not_booked` counts as live for both
+   gates (`familyBacksSession`): the snapshot hydrates and carries
+   `notBooked`, and the parents and school guards show
+   `portalNotBookedExplanation` instead of the page. The refresh answers the
+   same 403 and keeps the presented refresh token valid: the JWT callback
+   keeps the session unchanged, marks it `notBooked` (the session route
+   carries the mark, the guards read it), asks again after a minute and
+   clears the mark with the next rotation or a live family answer
+   (`token-refresh.ts`). Every other 401/403 of the refresh ends the session
+   and is remembered per process (#2952); a snapshot of a session whose
+   refresh is remembered as refused does not hydrate, so the login page
+   cannot send the browser back to a portal whose requests end it. A family that cannot be
+   read (503) and an expired
    access token, which the backend refuses before it reads the family, leave
    the shown session as it is; its own refresh decides.
 3. **Family check.** `POST /auth/session/validate` without a refresh token
@@ -705,8 +717,9 @@ old session back; the browser only saves requests.
    state). Access loss therefore ends the session at the next page view, not
    only at the next refresh. The BFF calls it through `sessionFamilyState`
    (`frontend/src/server/auth/token-validation.ts`), which reads 401 as
-   ended and every other refusal, 403 included, as unknown: the shown session
-   stays and its own refresh decides.
+   ended, 403 `module.not_booked` as `notBooked` (the family is live, so the
+   session stays and the guard shows the explanation) and every other
+   refusal as unknown: the shown session stays and its own refresh decides.
 
 Invariants: no response sets a session cookie of a family Identity & Access
 answers as revoked while the response is built, whichever tab, subdomain or frozen

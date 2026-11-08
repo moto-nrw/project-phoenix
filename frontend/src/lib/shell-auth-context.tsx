@@ -1,13 +1,17 @@
 "use client";
 
 import React, { createContext, useContext, useMemo } from "react";
-import { portalAuthPath } from "./portal-paths";
+import {
+  portalAuthPath,
+  portalLoginPath,
+  type HostedPortalKey,
+} from "./portal-paths";
 import { signOut, useSession } from "next-auth/react";
 import { useProfile } from "~/lib/profile-context";
 import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
-import { parentAbsoluteUrl, parentPath } from "~/lib/parent-url";
-import { schoolAbsoluteUrl, schoolPath } from "~/lib/school-url";
-import { catererAbsoluteUrl, catererPath } from "~/lib/caterer-url";
+import { parentPath } from "~/lib/parent-url";
+import { schoolPath } from "~/lib/school-url";
+import { catererPath } from "~/lib/caterer-url";
 import { traegerPath } from "~/lib/traeger-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { clearPersonalStorage } from "~/lib/personal-storage";
@@ -82,6 +86,16 @@ function behindSessionBarrier(
  * a late response writes back; a failed revocation therefore throws and the
  * caller keeps the session. 401 means nothing is left to revoke.
  */
+/**
+ * Clears the portal's cookie and opens its login on the portal's own host.
+ * Auth.js resolves a callbackUrl against NEXTAUTH_URL, the tenant origin, so
+ * a redirecting signOut would land on the tenant's host root instead.
+ */
+async function signOutToLogin(portal: HostedPortalKey): Promise<void> {
+  await signOut({ redirect: false });
+  window.location.assign(portalLoginPath(portal));
+}
+
 async function revokeSessionFamily(
   path: string,
   signal?: AbortSignal,
@@ -423,7 +437,7 @@ export function SchoolShellProvider({
           // Gerät (#5000).
           clearPersonalStorage();
           clearSessionCache();
-          await signOut({ callbackUrl: schoolAbsoluteUrl("/school/login") });
+          await signOutToLogin("school");
         }),
         showLogoutError,
       ),
@@ -487,7 +501,7 @@ export function CatererShellProvider({
           // Gerät (#5000).
           clearPersonalStorage();
           clearSessionCache();
-          await signOut({ callbackUrl: catererAbsoluteUrl("/caterer/login") });
+          await signOutToLogin("caterer");
         }),
         showLogoutError,
       ),
@@ -559,11 +573,7 @@ export function TraegerShellProvider({
           // Gerät (#5000).
           clearPersonalStorage();
           clearSessionCache();
-          // NextAuth resolves a callbackUrl against NEXTAUTH_URL, the tenant
-          // origin, and would send the person to the school chooser there. End
-          // the session without its redirect and stay on the Träger host.
-          await signOut({ redirect: false });
-          window.location.assign(traegerPath("/traeger/login"));
+          await signOutToLogin("traeger");
         }),
         showLogoutError,
       ),
@@ -664,7 +674,7 @@ export function ParentShellProvider({
           // Gerät (#5000).
           clearPersonalStorage();
           clearSessionCache();
-          await signOut({ callbackUrl: parentAbsoluteUrl("/parents/login") });
+          await signOutToLogin("parent");
         }),
         showLogoutError,
       ),

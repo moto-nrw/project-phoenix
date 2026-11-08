@@ -157,6 +157,17 @@ export function portalSignInPage(portal: PortalKey): string {
 }
 
 /**
+ * A hosted portal's login page as the browser reaches it: `/login` on the
+ * portal's own host, the prefixed page elsewhere (the proxy redirects it).
+ */
+export function portalLoginPath(portal: HostedPortalKey): string {
+  const onOwnHost =
+    typeof window === "undefined" ||
+    window.location.host === PORTAL_ROUTES[portal].hostname();
+  return onOwnHost ? "/login" : portalSignInPage(portal);
+}
+
+/**
  * The portal of a browser host: a portal host or, for every other host, the
  * tenant. Does not fail on a missing host name, so callers that must not
  * throw (the logger) can use it.

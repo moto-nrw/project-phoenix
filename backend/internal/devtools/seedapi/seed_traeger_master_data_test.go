@@ -65,6 +65,7 @@ func TestSeedTraegerMasterDataStepKeepsTheBrandingThroughTheTraegerPortal(t *tes
 		"PUT /traeger/settings/values/branding.letterhead_text",
 		"PUT /traeger/settings/values/branding.footer_text",
 		"PUT /traeger/master-data/contact",
+		"PUT /traeger/master-data/withdrawal-contact",
 		"PUT /traeger/master-data/logo",
 		"GET /traeger/master-data/",
 		"POST /traeger/master-data/bank-accounts",

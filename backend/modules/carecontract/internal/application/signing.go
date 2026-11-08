@@ -35,7 +35,7 @@ type ContractStore interface {
 type SignaturePorts struct {
 	Ledger  carecontract.SignatureLedger
 	Links   carecontract.SigningLinks
-	Sender  carecontract.TraegerSender
+	Sender  carecontract.TraegerSigningSender
 	Post    carecontract.Post
 	Runtime carecontract.Runtime
 }
@@ -403,6 +403,10 @@ func (s *Signatures) view(ctx context.Context, organizationID int64, record Cont
 	if err != nil {
 		return carecontract.SigningView{}, fmt.Errorf("care contract: letterhead: %w", err)
 	}
+	reach, err := s.ports.Sender.WithdrawalReach(ctx, organizationID)
+	if err != nil {
+		return carecontract.SigningView{}, fmt.Errorf("care contract: withdrawal reach: %w", err)
+	}
 	// A contract is sent only with a named party, so one of both is set.
 	traeger := traegerName(letterhead, record.Version.Terms)
 	partner := firstText(record.Version.Terms.ContractPartner, traeger)
@@ -410,7 +414,7 @@ func (s *Signatures) view(ctx context.Context, organizationID int64, record Cont
 	return carecontract.SigningView{
 		ContractID: record.Summary.ID, OrganizationID: organizationID, Status: record.Summary.Status,
 		TraegerName: traeger, PartyName: fullName(party.FirstName, party.LastName), Version: signingContract(record.Version),
-		DocumentSHA256: document.SHA256, WithdrawalNotice: withdrawalNoticeParagraphs(signingContact(partner, letterhead)),
+		DocumentSHA256: document.SHA256, WithdrawalNotice: withdrawalNoticeParagraphs(withdrawalAddressee(partner, letterhead, reach)),
 	}, nil
 }
 

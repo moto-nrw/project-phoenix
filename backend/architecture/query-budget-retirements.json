@@ -3,5 +3,15 @@
     "scenario": "api.traeger.schools_today",
     "route": "GET /traeger/schools/today",
     "issue": 5972
+  },
+  {
+    "scenario": "api.enrollment.growth.public_offerings",
+    "route": "GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId}",
+    "issue": 6116
+  },
+  {
+    "scenario": "api.enrollment.growth.public_schema",
+    "route": "GET /api/enrollment/schema/public/{tenantSlug}/{phaseId}",
+    "issue": 6116
   }
 ]

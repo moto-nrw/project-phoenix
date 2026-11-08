@@ -1,5 +1,6 @@
 import "server-only";
 import { sendBackend } from "~/lib/backend-client.server";
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { decodeJwtPayload, type JwtPayload } from "./jwt-payload";
 import { acceptsScope, type ValidationPortal } from "./portals";
 
@@ -41,8 +42,19 @@ export async function validateSessionToken(
   }
 }
 
-/** live: the family backs the token; ended: revoked; unknown: no answer, or an expired token. */
-export type SessionFamilyState = "live" | "ended" | "unknown";
+/**
+ * live: the family backs the token; notBooked: it does, but the school has
+ * not booked the portal's module; ended: revoked; unknown: no answer, or an
+ * expired token.
+ */
+export type SessionFamilyState = "live" | "notBooked" | "ended" | "unknown";
+
+const moduleNotBookedCode: ErrorCode = "module.not_booked";
+
+/** A module the school did not book closes pages, not the session. */
+export function familyBacksSession(state: SessionFamilyState): boolean {
+  return state === "live" || state === "notBooked";
+}
 
 /**
  * Asks Identity & Access whether the refresh-token family an access token
@@ -70,7 +82,14 @@ export async function sessionFamilyState(
       timeout: "session",
     });
     if (response.ok) return "live";
-    return response.status === 401 ? "ended" : "unknown";
+    if (response.status === 401) return "ended";
+    if (response.status === 403) {
+      const body = (await response.json().catch(() => null)) as {
+        code?: unknown;
+      } | null;
+      if (body?.code === moduleNotBookedCode) return "notBooked";
+    }
+    return "unknown";
   } catch {
     return "unknown";
   }
