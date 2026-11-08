@@ -337,17 +337,7 @@
     },
     {
       "decision": "0090",
-      "id": "modules/enrollment/http/intakeService.LoadPublicCareOfferings",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/enrollment/http/intakeService.LoadPublicFormBootstrap",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/enrollment/http/intakeService.PublicActiveSchema",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

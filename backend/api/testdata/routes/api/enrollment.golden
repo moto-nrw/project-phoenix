@@ -20,10 +20,8 @@ GET /api/enrollment/admin/requests/{id}/form-labels
 GET /api/enrollment/admin/requests/{id}/mails
 GET /api/enrollment/admin/requests/{id}/uploads/{uploadId}
 GET /api/enrollment/admin/students/{studentId}/requests/
-GET /api/enrollment/captcha-config/{tenantSlug}
 GET /api/enrollment/care-offerings/
 GET /api/enrollment/care-offerings/booking-stats
-GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/care-offerings/{id}/
 GET /api/enrollment/form-bootstrap/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/legal/{tenantSlug}
@@ -44,7 +42,6 @@ GET /api/enrollment/requests/{statusToken}/edit-bootstrap
 GET /api/enrollment/requests/{statusToken}/form-labels
 GET /api/enrollment/schema/
 GET /api/enrollment/schema/preview
-GET /api/enrollment/schema/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/schema/versions
 GET /api/enrollment/schema/{id}
 PATCH /api/enrollment/requests/{statusToken}

@@ -1,0 +1,3 @@
+GET /api/meal-billing-months/
+GET /api/meal-billing-months/{month}
+POST /api/meal-billing-months/{month}/release

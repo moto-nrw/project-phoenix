@@ -137,7 +137,7 @@ export function CareExcludedCard({
       <ResponsiveActionList>
         {invoices.map((invoice) => (
           <li
-            key={invoice.contractId}
+            key={`${invoice.contractId}-${invoice.service}`}
             className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
           >
             <div className="min-w-0">

@@ -33,17 +33,20 @@ func carePeriodName(month calendar.Date) string { return parentbilling.CarePerio
 // careInvoiceLetter writes the letter of one issued monthly invoice.
 func careInvoiceLetter(content careLetterContent) Letter {
 	invoice, head := content.invoice, content.letterhead
-	letter := careLetterFrame(content, "Rechnung "+invoice.Number,
-		"Rechnung "+invoice.Number+": "+carePeriodName(content.run.BillingMonth))
+	period := carePeriodName(content.run.BillingMonth)
+	if invoice.Service == parentbilling.ServiceMeal {
+		period = "Mensa " + careMonthName(content.run.BillingMonth)
+	}
+	letter := careLetterFrame(content, "Rechnung "+invoice.Number, "Rechnung "+invoice.Number+": "+period)
 	letter.Facts = careLetterFacts(content, []LetterFact{{Label: "Rechnungsnummer", Value: invoice.Number}})
+	intro, heading := careInvoiceIntro(content)
 	blocks := []LetterBlock{
-		{Text: fmt.Sprintf("für die Betreuung von %s an der %s berechnen wir Ihnen den Monatsbeitrag für %s. Der Betrag richtet sich nach Ihrem Betreuungsvertrag.",
-			fullName(invoice.ChildFirstName, invoice.ChildLastName), strings.TrimSpace(invoice.SchoolName), careMonthName(content.run.BillingMonth))},
+		{Text: intro},
 		// A table follows a paragraph: the letter layout pulls it up by one
 		// paragraph spacing, so a heading alone would overlap its first row.
-		{Heading: "Ihre Betreuung", Text: "Abgerechnet wird nach Ihrem Vertrag, nicht nach Anwesenheit."},
-		{Facts: append(append(append(carePositionFacts(invoice.Positions, 1), careReductionFacts(invoice.Reductions, 1)...),
-			careCostShareFacts(invoice, 1)...),
+		{Heading: heading, Text: careBasisText(invoice)},
+		{Facts: append(append(append(append(carePositionFacts(invoice.Positions, 1), careReductionFacts(invoice.Reductions, 1)...),
+			careMealFacts(invoice.MealPositions, 1)...), careCostShareFacts(invoice, 1)...),
 			LetterFact{Label: careTotalLabel(invoice), Value: formatEuro(invoice.TotalCents), Bold: true})},
 		{Text: carePaymentText(content), Bold: true},
 	}
@@ -55,6 +58,20 @@ func careInvoiceLetter(content careLetterContent) Letter {
 	}
 	letter.Blocks = blocks
 	return letter
+}
+
+// careInvoiceIntro is the first sentence and the heading of an invoice
+// letter: the monthly contribution of the care, or the Mensa on an invoice
+// of its own (#4686, ADR 0167).
+func careInvoiceIntro(content careLetterContent) (string, string) {
+	invoice := content.invoice
+	child, school := fullName(invoice.ChildFirstName, invoice.ChildLastName), strings.TrimSpace(invoice.SchoolName)
+	if invoice.Service == parentbilling.ServiceMeal {
+		return fmt.Sprintf("für das Mittagessen von %s an der %s berechnen wir Ihnen die Mensa. Die Rechnung gehört zu %s.",
+			child, school, careMonthName(content.run.BillingMonth)), "Ihr Mittagessen"
+	}
+	return fmt.Sprintf("für die Betreuung von %s an der %s berechnen wir Ihnen den Monatsbeitrag für %s. Der Betrag richtet sich nach Ihrem Betreuungsvertrag.",
+		child, school, careMonthName(content.run.BillingMonth)), "Ihre Betreuung"
 }
 
 // careCancellationLetter writes the letter of the Storno of a sent monthly
@@ -74,8 +91,8 @@ func careCancellationLetter(content careLetterContent) Letter {
 	letter.Blocks = []LetterBlock{
 		{Text: fmt.Sprintf("wir stornieren die Rechnung %s für %s. Grund: %s",
 			reference, carePeriodName(content.run.BillingMonth), sentence(cancellation.Reason))},
-		{Facts: append(append(append(carePositionFacts(invoice.Positions, -1), careReductionFacts(invoice.Reductions, -1)...),
-			careCostShareFacts(invoice, -1)...),
+		{Facts: append(append(append(append(carePositionFacts(invoice.Positions, -1), careReductionFacts(invoice.Reductions, -1)...),
+			careMealFacts(invoice.MealPositions, -1)...), careCostShareFacts(invoice, -1)...),
 			LetterFact{Label: "Storno gesamt", Value: formatEuro(cancellation.TotalCents), Bold: true})},
 		{Text: "Diese Rechnung gilt nicht mehr. Sie müssen sie nicht bezahlen. Haben Sie schon bezahlt? Dann melden Sie sich bitte bei uns.", Bold: true},
 	}
@@ -239,7 +256,12 @@ func careCostShareFacts(invoice parentbilling.CareInvoice, sign int64) []LetterF
 	if len(invoice.CostShares) == 0 {
 		return nil
 	}
-	facts := []LetterFact{{Label: "Monatsbeitrag", Value: formatEuro(sign * invoice.ContributionCents())}}
+	label := "Monatsbeitrag"
+	if len(invoice.MealPositions) > 0 {
+		// With the Mensa (#4686) the sum is more than the contribution.
+		label = "Zwischensumme"
+	}
+	facts := []LetterFact{{Label: label, Value: formatEuro(sign * invoice.ContributionCents())}}
 	for _, share := range invoice.CostShares {
 		facts = append(facts, LetterFact{
 			Label: fmt.Sprintf("Übernimmt %s (%s, %s)", strings.TrimSpace(share.CostBearerName),

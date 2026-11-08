@@ -342,27 +342,6 @@ func (s *Intake) resolveSubmissionSchema(ctx context.Context, phase *enrollmentN
 	return nil, err
 }
 
-// PublicActiveSchema resolves the schema a public parent form renders. A
-// Basis phase and a pinned-but-deleted schema return ErrNoActiveSchema, so
-// a custom form never leaks into a Basis phase.
-func (s *Intake) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentNative.FormSchema, error) {
-	phase, err := s.loadPublicPhaseWithLateInvite(ctx, phaseID, now, lateInviteToken)
-	if err != nil {
-		return nil, err
-	}
-	if phase.FormSchemaID == nil {
-		return nil, enrollmentNative.ErrNoActiveSchema
-	}
-	schema, err := s.intakeSchema(ctx, *phase.FormSchemaID)
-	if err != nil {
-		if s.deps.Runtime.NotFound(err) {
-			return nil, enrollmentNative.ErrNoActiveSchema
-		}
-		return nil, err
-	}
-	return schema, nil
-}
-
 // loadPublicPhaseWithLateInvite is the anonymous public form-load gate: it
 // rejects every audience-restricted phase.
 func (s *Intake) loadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentNative.Phase, error) {

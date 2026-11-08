@@ -28,7 +28,23 @@ func TestAccessLevelsMapOntoSecurityRuntimeLevels(t *testing.T) {
 		mealplanAPI.AccessParticipants:      securityruntime.MealPlanAccessParticipants,
 		mealplanAPI.AccessRegister:          securityruntime.MealPlanAccessRegister,
 		mealplanAPI.AccessDailyParticipants: securityruntime.MealPlanAccessDailyParticipants,
+		mealplanAPI.AccessBillingRelease:    securityruntime.MealPlanAccessBillingRelease,
 	}, mealPlanAccess)
+}
+
+// #4686: the Mensa-Monatsfreigabe shows the children's names and closes a
+// month, so it needs both the names and the maintenance of the Mensa.
+func TestMealBillingReleaseNeedsTheNamesAndTheMensa(t *testing.T) {
+	t.Parallel()
+	caller := func(granted ...string) context.Context {
+		principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: 98, TenantID: 22, Scope: string(permissions.ScopeTenant), Permissions: granted})
+		require.NoError(t, err)
+		return permissions.WithPrincipal(context.Background(), principal)
+	}
+	assert.False(t, mealPlanAllowed(caller(permissions.MealsOrders), mealplanAPI.AccessBillingRelease), "names alone release nothing")
+	assert.False(t, mealPlanAllowed(caller(permissions.MealsManage), mealplanAPI.AccessBillingRelease), "the Mensa alone shows no names")
+	assert.True(t, mealPlanAllowed(caller(permissions.MealsManage, permissions.MealsOrders), mealplanAPI.AccessBillingRelease))
+	assert.True(t, mealPlanAllowed(caller("admin:*"), mealplanAPI.AccessBillingRelease))
 }
 
 // #3873: seeing the lists with names opens no change of a registration.

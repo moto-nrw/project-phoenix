@@ -115,7 +115,7 @@ func careCostShareTable(detail parentbilling.CareRunDetail, bearer parentbilling
 			rows = append(rows, map[string]string{
 				"number": invoice.Number, "school": invoice.SchoolName,
 				"child": strings.TrimSpace(invoice.ChildFirstName + " " + invoice.ChildLastName),
-				"kind":  costShareKindLabels[share.Kind], "contribution": formatAmount(invoice.ContributionCents()),
+				"kind":  costShareKindLabels[share.Kind], "contribution": formatAmount(costShareBaseCents(invoice, share.Scope)),
 				"share": costShareText(share), "amount": formatAmount(share.AmountCents), "status": status,
 			})
 		}
@@ -139,11 +139,39 @@ func careCostShareTable(detail parentbilling.CareRunDetail, bearer parentbilling
 
 // costShareText writes a share: "100 %" or "45,00 € im Monat".
 func costShareText(share parentbilling.CareInvoiceCostShare) string {
-	if share.ShareBasisPoints != nil {
-		return strings.ReplaceAll(strconv.FormatFloat(float64(*share.ShareBasisPoints)/100, 'f', -1, 64), ".", ",") + " %"
+	text := ""
+	switch {
+	case share.ShareBasisPoints != nil:
+		text = strings.ReplaceAll(strconv.FormatFloat(float64(*share.ShareBasisPoints)/100, 'f', -1, 64), ".", ",") + " %"
+	case share.ShareCents != nil:
+		text = formatEuro(*share.ShareCents) + " im Monat"
+	default:
+		return ""
 	}
-	if share.ShareCents != nil {
-		return formatEuro(*share.ShareCents) + " im Monat"
+	return text + costShareScopeTexts[share.Scope]
+}
+
+// costShareScopeTexts name what a share covers (#4686); a share of the care
+// says nothing, as before the Mensa.
+var costShareScopeTexts = map[string]string{
+	parentbilling.CostShareScopeMeal: " für die Mensa",
+	parentbilling.CostShareScopeBoth: " für Betreuung und Mensa",
+}
+
+// costShareBaseCents is what a share of the scope took its part of on the
+// invoice (#4686): the Mensa, the contribution of the modules, or both. The
+// list of a cost bearer that covers the Mensa so shows the Mensa, not the
+// care it does not pay for.
+func costShareBaseCents(invoice parentbilling.CareInvoice, scope string) int64 {
+	var meals int64
+	for _, position := range invoice.MealPositions {
+		meals += position.AmountCents
 	}
-	return ""
+	switch scope {
+	case parentbilling.CostShareScopeMeal:
+		return meals
+	case parentbilling.CostShareScopeBoth:
+		return invoice.ContributionCents()
+	}
+	return invoice.ContributionCents() - meals
 }

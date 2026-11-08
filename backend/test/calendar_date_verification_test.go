@@ -39,6 +39,10 @@ var legacyTimeTimeDateColumns = map[string]string{}
 // field (raw-SQL-only access or superseded tables). Every newly discovered
 // unmapped column must be classified here with a reason.
 var unmappedDateColumns = map[string]string{
+	// #4686: the attendance retention binds its cutoff and scans the mark
+	// through raw SQL in Student Presence as calendar.Date (ports.Date); no
+	// time.Time ever reaches the column.
+	"active.attendance_retention_marks.deleted_before": "#4686: Student Presence binds and scans calendar.Date, never time.Time",
 	// The trail of the children of a family (#5918) is written in one
 	// INSERT ... SELECT FROM unnest with *calendar.Date parameters and never
 	// read back into a model; no time.Time reaches the columns.

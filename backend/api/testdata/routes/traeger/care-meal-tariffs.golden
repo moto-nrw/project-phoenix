@@ -1,0 +1,3 @@
+DELETE /traeger/care-meal-tariffs/{schoolID}/{validFrom}
+GET /traeger/care-meal-tariffs/
+PUT /traeger/care-meal-tariffs/

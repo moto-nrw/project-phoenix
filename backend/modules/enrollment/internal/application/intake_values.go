@@ -18,11 +18,13 @@ type SubmitRequest struct {
 	// DisplayedFormSchemaID is the form version the parent's form showed
 	// (#4680). Versions never change, so the snapshot proves the shown legal
 	// texts are the stored ones only when it equals the version in force.
-	DisplayedFormSchemaID    int64
-	TenantID                 int64
-	PhaseID                  int64
-	RemoteIP                 string
-	LateInviteToken          string
+	DisplayedFormSchemaID int64
+	TenantID              int64
+	PhaseID               int64
+	RemoteIP              string
+	LateInviteToken       string
+	// The trust of a submission. Only the intake sets these: the staff
+	// manual enrollment all four, a late invite AllowClosedPhase (#6113).
 	SkipRateLimit            bool
 	AllowClosedPhase         bool
 	SuppressSubmissionEmails bool
@@ -77,8 +79,6 @@ func decodeJSONMap(raw json.RawMessage, what string) (map[string]any, error) {
 func decodeSubmitRequest(in enrollment.SubmitRequest) (SubmitRequest, error) {
 	out := SubmitRequest{
 		TenantID: in.TenantID, PhaseID: in.PhaseID, RemoteIP: in.RemoteIP, LateInviteToken: in.LateInviteToken,
-		SkipRateLimit: in.SkipRateLimit, AllowClosedPhase: in.AllowClosedPhase,
-		SuppressSubmissionEmails: in.SuppressSubmissionEmails, ExternalConsentConfirmed: in.ExternalConsentConfirmed,
 		SubmissionSource: in.SubmissionSource, GuardianFirstName: in.GuardianFirstName,
 		GuardianLastName: in.GuardianLastName, GuardianEmail: in.GuardianEmail, GuardianPhone: in.GuardianPhone,
 		GuardianAccountID: in.GuardianAccountID, GuardianSubmitEligible: in.GuardianSubmitEligible,

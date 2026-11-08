@@ -210,7 +210,8 @@ func (c *CareReductions) DeleteCareCostShare(ctx context.Context, reviewer paren
 }
 
 // normalizeCareCostShare checks a share: a contract, a kind, a cost bearer,
-// exactly one of a share or an amount, a validity with an end, the reference
+// exactly one of a share or an amount, what it covers (the care when not
+// given, #4686), a validity with an end, the reference
 // to the proof and the day it was checked, not in the future.
 func normalizeCareCostShare(input parentbilling.CareCostShareInput, today calendar.Date) (parentbilling.CareCostShareInput, error) {
 	input.Kind = strings.TrimSpace(input.Kind)
@@ -226,6 +227,12 @@ func normalizeCareCostShare(input parentbilling.CareCostShareInput, today calend
 		errs["cost_bearer_id"] = errors.New("is required")
 	}
 	checkCostShareAmount(input, errs)
+	if input.Scope = strings.TrimSpace(input.Scope); input.Scope == "" {
+		input.Scope = parentbilling.CostShareScopeCare
+	}
+	if !slices.Contains(parentbilling.CostShareScopes, input.Scope) {
+		errs["scope"] = errors.New("unknown cost share scope")
+	}
 	if input.ValidFrom == "" {
 		errs["valid_from"] = errors.New("is required")
 	}

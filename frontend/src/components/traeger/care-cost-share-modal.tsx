@@ -1,8 +1,8 @@
 "use client";
 
 // Einen Kostenträger-Anteil eines Vertrags eintragen oder ändern (#4687):
-// Art, Kostenträger, Anteil in Prozent oder als fester Betrag im Monat,
-// Gültigkeit mit Ende, geprüft am und ein Verweis auf den Bescheid. moto
+// Art, Kostenträger, wofür er zahlt (Betreuung, Mensa oder beides, #4686),
+// Anteil in Prozent oder als fester Betrag im Monat, Gültigkeit mit Ende, geprüft am und ein Verweis auf den Bescheid. moto
 // speichert kein Dokument und nichts aus dem Bescheid.
 
 import { useEffect, useRef, useState } from "react";
@@ -17,7 +17,10 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import type { CareCostShareKind } from "~/lib/traeger-care-billing-api";
+import type {
+  CareCostShareKind,
+  CareCostShareScope,
+} from "~/lib/traeger-care-billing-api";
 import {
   type CareCostShare,
   type CareCostShareContract,
@@ -27,6 +30,7 @@ import {
 import {
   COST_SHARE_KIND_LABELS,
   COST_SHARE_KINDS,
+  COST_SHARE_SCOPE_LABELS,
 } from "./care-cost-share-format";
 import { centsToEuroInput, euroInputToCents } from "./holiday-period-model";
 
@@ -37,6 +41,9 @@ type ShareMode = "percent" | "amount";
 interface Draft {
   kind: CareCostShareKind | null;
   costBearerId: string;
+  scope: CareCostShareScope;
+  /** Set once the person picks the scope; until then the kind suggests it. */
+  scopeChosen: boolean;
   mode: ShareMode;
   value: string;
   reference: string;
@@ -50,10 +57,35 @@ export interface CostShareTarget {
   readonly share: CareCostShare | null;
 }
 
+const COST_SHARE_SCOPES: readonly CareCostShareScope[] = [
+  "care",
+  "meal",
+  "both",
+];
+
+/** Bildung und Teilhabe übernimmt meist das Mittagessen, die anderen die Betreuung. */
+const SUGGESTED_SCOPE: Record<CareCostShareKind, CareCostShareScope> = {
+  education_participation: "meal",
+  youth_office: "care",
+  other_subsidy: "care",
+};
+
 const REFERENCE_PLACEHOLDER: Record<CareCostShareKind, string> = {
   education_participation: "z. B. BuT-Bescheid Az. 51-2026-117",
   youth_office: "z. B. Bescheid Jugendamt Az. 4-12-881",
   other_subsidy: "z. B. Zusage der Stiftung vom 01.09.2026",
+};
+
+const SCOPE_PERCENT_HINT: Record<CareCostShareScope, string> = {
+  care: "100 % heißt: Die Familie zahlt nichts für die Betreuung. Der Anteil gilt nach allen Ermäßigungen.",
+  meal: "100 % heißt: Die Familie zahlt nichts für die Mensa.",
+  both: "100 % heißt: Die Familie zahlt nichts. Bei der Betreuung gilt der Anteil nach allen Ermäßigungen.",
+};
+
+const SCOPE_AMOUNT_HINT: Record<CareCostShareScope, string> = {
+  care: "Höchstens so viel, wie die Betreuung nach den Ermäßigungen kostet.",
+  meal: "Höchstens so viel, wie die Mensa im Monat kostet.",
+  both: "Erst für die Betreuung, der Rest für die Mensa.",
 };
 
 /** "12,5" → 1250 basis points, or null. */
@@ -88,6 +120,8 @@ function draftOf(target: CostShareTarget, today: string): Draft {
     return {
       kind: null,
       costBearerId: "",
+      scope: "care",
+      scopeChosen: false,
       mode: "percent",
       value: "100",
       reference: "",
@@ -99,6 +133,8 @@ function draftOf(target: CostShareTarget, today: string): Draft {
   return {
     kind: share.kind,
     costBearerId: share.costBearerId,
+    scope: share.scope,
+    scopeChosen: true,
     mode: share.shareBasisPoints === null ? "amount" : "percent",
     value:
       share.shareBasisPoints === null
@@ -193,6 +229,7 @@ export function CareCostShareModal({
           costBearerId: draft.costBearerId,
           shareBasisPoints: basisPoints,
           shareCents: cents,
+          scope: draft.scope,
           validFrom: draft.validFrom,
           validUntil: draft.validUntil,
           reference: draft.reference.trim(),
@@ -267,7 +304,13 @@ export function CareCostShareModal({
                 label: COST_SHARE_KIND_LABELS[kind],
               }))}
               value={draft.kind}
-              onChange={(kind) => set({ kind })}
+              onChange={(kind) =>
+                set(
+                  draft.scopeChosen
+                    ? { kind }
+                    : { kind, scope: SUGGESTED_SCOPE[kind] },
+                )
+              }
             />
             <FieldErrorHint
               id="care-cost-share-kind-error"
@@ -287,6 +330,34 @@ export function CareCostShareModal({
             error={formErrors.fieldError("cost_bearer_id")}
             onChange={(value) => set({ costBearerId: value })}
           />
+          <div
+            className="space-y-2"
+            role="group"
+            aria-labelledby="care-cost-share-scope-label"
+            aria-describedby={
+              formErrors.fieldError("scope")
+                ? "care-cost-share-scope-error"
+                : undefined
+            }
+          >
+            <FieldLabel id="care-cost-share-scope-label" required>
+              Wofür zahlt er?
+            </FieldLabel>
+            <SegmentedControl
+              ariaLabel="Wofür der Kostenträger zahlt"
+              fullWidth
+              items={COST_SHARE_SCOPES.map((scope) => ({
+                value: scope,
+                label: COST_SHARE_SCOPE_LABELS[scope],
+              }))}
+              value={draft.scope}
+              onChange={(scope) => set({ scope, scopeChosen: true })}
+            />
+            <FieldErrorHint
+              id="care-cost-share-scope-error"
+              message={formErrors.fieldError("scope")}
+            />
+          </div>
           <div className="space-y-2">
             <FieldLabel required>Anteil</FieldLabel>
             <SegmentedControl
@@ -313,8 +384,8 @@ export function CareCostShareModal({
               value={draft.value}
               hint={
                 draft.mode === "percent"
-                  ? "100 % heißt: Die Familie zahlt nichts. Der Anteil gilt nach allen Ermäßigungen."
-                  : "Höchstens so viel, wie der Beitrag nach den Ermäßigungen beträgt."
+                  ? SCOPE_PERCENT_HINT[draft.scope]
+                  : SCOPE_AMOUNT_HINT[draft.scope]
               }
               error={formErrors.fieldError(valueField)}
               onChange={(event) => set({ value: event.target.value })}

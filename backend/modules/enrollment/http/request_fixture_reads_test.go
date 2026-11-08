@@ -53,13 +53,6 @@ func (r requestFixtureRoot) LoadEnrolleeFormBootstrap(ctx context.Context, phase
 	})
 	return value0, err
 }
-func (r requestFixtureRoot) LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (value0 *enrollmentAPI.PublicFormBootstrapData, err error) {
-	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = r.RequestService.LoadPublicCareOfferings(txCtx, phaseID, now, lateInviteToken)
-		return err
-	})
-	return value0, err
-}
 func (r requestFixtureRoot) LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (value0 *enrollmentAPI.PublicFormBootstrapData, err error) {
 	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
 		value0, err = r.RequestService.LoadManualEnrollmentBootstrap(txCtx, phaseID)
@@ -70,13 +63,6 @@ func (r requestFixtureRoot) LoadManualEnrollmentBootstrap(ctx context.Context, p
 func (r requestFixtureRoot) CreateManualApprovedEnrollment(ctx context.Context, input enrollmentAPI.ManualApprovedEnrollmentInput) (value0 *enrollmentAPI.ManualApprovedEnrollmentResult, err error) {
 	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
 		value0, err = r.RequestService.CreateManualApprovedEnrollment(txCtx, input)
-		return err
-	})
-	return value0, err
-}
-func (r requestFixtureRoot) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (value0 *capability.FormSchema, err error) {
-	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = r.RequestService.PublicActiveSchema(txCtx, phaseID, now, lateInviteToken)
 		return err
 	})
 	return value0, err

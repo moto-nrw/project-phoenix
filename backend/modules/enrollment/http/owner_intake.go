@@ -69,28 +69,24 @@ type SubmitRequest struct {
 	// DisplayedFormSchemaID is the form version the parent's form showed
 	// (#4680). Versions never change, so the snapshot proves the shown legal
 	// texts are the stored ones only when it equals the version in force.
-	DisplayedFormSchemaID    int64
-	TenantID                 int64
-	PhaseID                  int64
-	RemoteIP                 string
-	LateInviteToken          string
-	SkipRateLimit            bool
-	AllowClosedPhase         bool
-	SuppressSubmissionEmails bool
-	ExternalConsentConfirmed bool
-	SubmissionSource         string
-	SourceMetadata           map[string]any
-	GuardianFirstName        string
-	GuardianLastName         string
-	GuardianEmail            string
-	GuardianPhone            *string
-	ConsentFlags             map[string]any
-	CustomData               map[string]any
-	GuardianAccountID        *int64
-	GuardianSubmitEligible   bool
-	Children                 []SubmitChild
-	AdditionalGuardians      []SubmitGuardian
-	Signature                *capability.SubmitSignature
+	DisplayedFormSchemaID  int64
+	TenantID               int64
+	PhaseID                int64
+	RemoteIP               string
+	LateInviteToken        string
+	SubmissionSource       string
+	SourceMetadata         map[string]any
+	GuardianFirstName      string
+	GuardianLastName       string
+	GuardianEmail          string
+	GuardianPhone          *string
+	ConsentFlags           map[string]any
+	CustomData             map[string]any
+	GuardianAccountID      *int64
+	GuardianSubmitEligible bool
+	Children               []SubmitChild
+	AdditionalGuardians    []SubmitGuardian
+	Signature              *capability.SubmitSignature
 }
 
 // SubmitChild is one child of a submission with its answers decoded.
@@ -191,11 +187,9 @@ type RequestService interface {
 	LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error)
 	LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
 	LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*PublicFormBootstrapData, error)
-	LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
 	phasePreviewForms
 	LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)
 	CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error)
-	PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*capability.FormSchema, error)
 	// SignatureProof loads a request with its signature (#4786): behind its
 	// status token when token is set, otherwise the request of the school
 	// in the caller's tenant transaction.
@@ -232,8 +226,6 @@ type intakeService struct {
 func encodeSubmitRequest(in SubmitRequest) (capability.SubmitRequest, error) {
 	out := capability.SubmitRequest{
 		TenantID: in.TenantID, PhaseID: in.PhaseID, RemoteIP: in.RemoteIP, LateInviteToken: in.LateInviteToken,
-		SkipRateLimit: in.SkipRateLimit, AllowClosedPhase: in.AllowClosedPhase,
-		SuppressSubmissionEmails: in.SuppressSubmissionEmails, ExternalConsentConfirmed: in.ExternalConsentConfirmed,
 		SubmissionSource: in.SubmissionSource, GuardianFirstName: in.GuardianFirstName,
 		GuardianLastName: in.GuardianLastName, GuardianEmail: in.GuardianEmail, GuardianPhone: in.GuardianPhone,
 		GuardianAccountID: in.GuardianAccountID, GuardianSubmitEligible: in.GuardianSubmitEligible,
@@ -420,10 +412,6 @@ func (s intakeService) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID in
 	return bootstrapValue(s.owner.LoadEnrolleeFormBootstrap(ctx, phaseID, now, lateInviteToken, access))
 }
 
-func (s intakeService) LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error) {
-	return bootstrapValue(s.owner.LoadPublicCareOfferings(ctx, phaseID, now, lateInviteToken))
-}
-
 func (s intakeService) LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error) {
 	return bootstrapValue(s.owner.LoadManualEnrollmentBootstrap(ctx, phaseID))
 }
@@ -448,10 +436,6 @@ func (s intakeService) CreateManualApprovedEnrollment(ctx context.Context, input
 		return nil, err
 	}
 	return &ManualApprovedEnrollmentResult{Request: decodedRequest, Child: child, StatusURL: result.StatusURL, PendingInvite: result.PendingInvite}, nil
-}
-
-func (s intakeService) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*capability.FormSchema, error) {
-	return s.owner.PublicActiveSchema(ctx, phaseID, now, lateInviteToken)
 }
 
 func (s intakeService) SignatureProof(ctx context.Context, requestID int64, token string) (*SignatureProof, error) {

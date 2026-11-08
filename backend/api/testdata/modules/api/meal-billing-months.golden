@@ -1,0 +1,3 @@
+GET /api/meal-billing-months/ -> mittagessen
+GET /api/meal-billing-months/{month} -> mittagessen
+POST /api/meal-billing-months/{month}/release -> mittagessen

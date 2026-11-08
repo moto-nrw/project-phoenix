@@ -152,8 +152,9 @@ func TestCareLettersFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		replaced, err := cancelledInvoicesToReplace(ctx, tx, own.organization, september,
 			[]parentbilling.CareInvoice{{ContractID: sharedLetterContract}})
 		require.NoError(t, err)
-		require.Contains(t, replaced, sharedLetterContract)
-		assert.Equal(t, own.invoice, *replaced[sharedLetterContract], "cancelledInvoicesToReplace names the own invoice")
+		ownKey := replacedKey{sharedLetterContract, parentbilling.ServiceCare}
+		require.Contains(t, replaced, ownKey)
+		assert.Equal(t, own.invoice, *replaced[ownKey], "cancelledInvoicesToReplace names the own invoice")
 
 		invoiced, err := store.InvoicedContracts(ctx, own.organization, september)
 		require.NoError(t, err)
